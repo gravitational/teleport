@@ -119,15 +119,15 @@ func newSFTPHandler(logger *log.Entry, req *srv.FileTransferRequest, homeDir str
 			write: !req.Download,
 		}
 		// make filepaths consistent by ensuring all separators use backslashes
-		if req.Download {
-			allowed.path = path.Clean(req.Location)
-		} else {
-			allowed.path = path.Clean(req.Filename)
-		}
+		allowed.path = path.Clean(req.Location)
 
-		// expand home dir if necessary
 		if strings.HasPrefix(allowed.path, "~/") {
+			// expand home dir to make an absolute path
 			allowed.path = path.Join(homeDir, allowed.path[2:])
+		} else if !strings.Contains(allowed.path, "/") {
+			// if no directories are specified the file is assumed to
+			// be in the user's home dir
+			allowed.path = path.Join(homeDir, allowed.path)
 		}
 	}
 
@@ -138,6 +138,10 @@ func newSFTPHandler(logger *log.Entry, req *srv.FileTransferRequest, homeDir str
 	}, nil
 }
 
+func newDisallowedErr(req *sftp.Request) error {
+	return fmt.Errorf("method %q is not allowed on %q", strings.ToLower(req.Method), req.Filepath)
+}
+
 // checkReq returns an error if the SFTP request isn't allowed based on
 // the approved file transfer request for this session.
 func (s *sftpHandler) checkReq(req *sftp.Request) error {
@@ -146,7 +150,7 @@ func (s *sftpHandler) checkReq(req *sftp.Request) error {
 	}
 
 	if s.allowed.path != path.Clean(req.Filepath) {
-		return fmt.Errorf("method %q is not allowed on %q", strings.ToLower(req.Method), req.Filepath)
+		return newDisallowedErr(req)
 	}
 
 	switch req.Method {
@@ -155,12 +159,12 @@ func (s *sftpHandler) checkReq(req *sftp.Request) error {
 	case methodGet:
 		// only allow reads for downloads
 		if s.allowed.write {
-			return fmt.Errorf("%q is not allowed to be read from", req.Filepath)
+			return newDisallowedErr(req)
 		}
 	case methodPut:
 		// only allow writes for uploads
 		if !s.allowed.write {
-			return fmt.Errorf("%q is not allowed to be written to", req.Filepath)
+			return newDisallowedErr(req)
 		}
 	case methodOpen:
 		pflags := req.Pflags()
@@ -169,8 +173,13 @@ func (s *sftpHandler) checkReq(req *sftp.Request) error {
 		} else if s.allowed.write && pflags.Read {
 			return fmt.Errorf("%q is not allowed to be written to", req.Filepath)
 		}
+	case methodSetStat:
+		// only allow chmods for uploads
+		if !s.allowed.write {
+			return newDisallowedErr(req)
+		}
 	default:
-		return fmt.Errorf("method %q is not allowed on %q", strings.ToLower(req.Method), req.Filepath)
+		return newDisallowedErr(req)
 	}
 
 	return nil

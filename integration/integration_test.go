@@ -8285,12 +8285,18 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	// Since this is a download no files should be allowed to be written to
 	_, err = sftpClient.OpenFile(filepath.Join(tempDir, reqFile), os.O_WRONLY)
 	require.ErrorContains(t, err, `method \"put\" is not allowed`)
-	// Only stats, reads and writes should be allowed
+	// Only stats and reads should be allowed
 	err = sftpClient.Mkdir(filepath.Join(tempDir, "new-dir"))
 	require.ErrorContains(t, err, `method \"mkdir\" is not allowed`)
+	// Since this is a download no files should be allowed to have
+	// their permissions changed
+	err = sftpClient.Chmod(reqFile, 0o777)
+	require.ErrorContains(t, err, `method \"setstat\" is not allowed`)
 
-	// Opening the requested file for reading should work
+	// Only necessary operations should be allowed
 	_, err = sftpClient.Stat(reqFile)
+	require.NoError(t, err)
+	_, err = sftpClient.Lstat(reqFile)
 	require.NoError(t, err)
 	rf, err := sftpClient.Open(reqFile)
 	require.NoError(t, err)
@@ -8301,7 +8307,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	// Create and approve a file upload request
 	err = cmdSess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
 		Download: false,
-		Filename: reqFile,
+		Location: reqFile,
 	})
 	require.NoError(t, err)
 
@@ -8343,12 +8349,16 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	// Since this is an upload no files should be allowed to be read from
 	_, err = sftpClient.OpenFile(filepath.Join(tempDir, reqFile), os.O_RDONLY)
 	require.ErrorContains(t, err, `method \"get\" is not allowed`)
-	// Only stats, reads and writes should be allowed
+	// Only stats, writes, and chmods should be allowed
 	err = sftpClient.Mkdir(filepath.Join(tempDir, "new-dir"))
 	require.ErrorContains(t, err, `method \"mkdir\" is not allowed`)
 
-	// Opening the requested file for reading should work
+	// Only necessary operations should be allowed
 	_, err = sftpClient.Stat(reqFile)
+	require.NoError(t, err)
+	_, err = sftpClient.Lstat(reqFile)
+	require.NoError(t, err)
+	err = sftpClient.Chmod(reqFile, 0o777)
 	require.NoError(t, err)
 	wf, err := sftpClient.OpenFile(reqFile, os.O_WRONLY)
 	require.NoError(t, err)
