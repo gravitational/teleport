@@ -5760,9 +5760,11 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	integrationpb.RegisterIntegrationServiceServer(server, integrationServiceServer)
 
 	integrationAWSOIDCServiceServer, err := integrationService.NewAWSOIDCService(&integrationService.AWSOIDCServiceConfig{
-		Authorizer:         cfg.Authorizer,
-		IntegrationService: integrationServiceServer,
-		Cache:              cfg.AuthServer,
+		Authorizer:            cfg.Authorizer,
+		IntegrationService:    integrationServiceServer,
+		Cache:                 cfg.AuthServer,
+		ProxyPublicAddrGetter: cfg.AuthServer.getProxyPublicAddr,
+		Clock:                 cfg.AuthServer.clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
