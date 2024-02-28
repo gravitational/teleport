@@ -2369,8 +2369,8 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	require.Empty(t, resp.Resources)
 }
 
-// TestGetAndList_AppServersAndSAMLIdPServiceProviders verifies RBAC and filtering is applied when fetching App Servers and SAML IdP Service Providers.
-func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
+// TestGetAndList_SAMLIdPServiceProviders verifies RBAC and filtering is applied when fetching SAML IdP service providers.
+func TestGetAndList_SAMLIdPServiceProviders(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -2379,68 +2379,37 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise,
 	})
 
-	// Create test app servers and SAML IdP Service Providers.
-	for i := 0; i < 6; i++ {
-		// Alternate between creating AppServers and SAMLIdPServiceProviders
-		if i%2 == 0 {
-			name := fmt.Sprintf("app-server-%v", i)
-			app, err := types.NewAppV3(types.Metadata{
-				Name:   name,
-				Labels: map[string]string{"name": name},
-			},
-				types.AppSpecV3{URI: "localhost"})
-			require.NoError(t, err)
-			server, err := types.NewAppServerV3FromApp(app, "host", "hostid")
-			server.Spec.Version = types.V3
-			require.NoError(t, err)
+	// Create SAML IdP service providers.
+	for i := 0; i < 3; i++ {
+		name := fmt.Sprintf("saml-app-%v", i)
+		sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+			Name:      name,
+			Namespace: apidefaults.Namespace,
+		}, types.SAMLIdPServiceProviderSpecV1{
+			ACSURL:   fmt.Sprintf("entity-id-%v", i),
+			EntityID: fmt.Sprintf("entity-id-%v", i),
+		})
+		require.NoError(t, err)
+		err = srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp)
+		require.NoError(t, err)
 
-			_, err = srv.Auth().UpsertApplicationServer(ctx, server)
-			require.NoError(t, err)
-		} else {
-			name := fmt.Sprintf("saml-app-%v", i)
-			sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
-				Name:      name,
-				Namespace: apidefaults.Namespace,
-			}, types.SAMLIdPServiceProviderSpecV1{
-				EntityDescriptor: fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
-				<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="entity-id-%v" validUntil="2025-12-09T09:13:31.006Z">
-					 <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
-							<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
-							<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
-							<md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
-					 </md:SPSSODescriptor>
-				</md:EntityDescriptor>
-				`, i),
-				EntityID: fmt.Sprintf("entity-id-%v", i),
-			})
-			require.NoError(t, err)
-			err = srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp)
-			require.NoError(t, err)
-		}
 	}
-
-	testAppServers, err := srv.Auth().GetApplicationServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
 
 	testServiceProviders, _, err := srv.Auth().ListSAMLIdPServiceProviders(ctx, 0, "")
 	require.NoError(t, err)
 
-	numResources := len(testAppServers) + len(testServiceProviders)
+	numResources := len(testServiceProviders)
 
 	testResources := make([]types.ResourceWithLabels, numResources)
-	// for i, server := range testAppServers {
-	// 	testResources[i] = createAppServerOrSPFromAppServer(server)
-	// }
+	for i, sp := range testServiceProviders {
+		testResources[i] = sp
+	}
 
-	// for i, sp := range testServiceProviders {
-	// 	testResources[i+len(testAppServers)] = createAppServerOrSPFromSP(sp)
-	// }
-
-	listRequest := proto.ListResourcesRequest{
+	listSAMLIdPSPRequest := proto.ListResourcesRequest{
 		Namespace: apidefaults.Namespace,
 		// Guarantee that the list will have all the app servers and IdP service providers.
 		Limit:        int32(numResources + 1),
-		ResourceType: types.KindAppOrSAMLIdPServiceProvider,
+		ResourceType: types.KindSAMLIdPServiceProvider,
 	}
 
 	// create user, role, and client
@@ -2451,29 +2420,14 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
-	// permit user to get the first app
-	listRequestAppsOnly := listRequest
-	listRequestAppsOnly.SearchKeywords = []string{"app-server"}
-	role.SetAppLabels(types.Allow, types.Labels{"name": {testAppServers[0].GetName()}})
-	_, err = srv.Auth().UpsertRole(ctx, role)
-	require.NoError(t, err)
-	servers, err := clt.GetApplicationServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, servers, 1)
-	require.Empty(t, cmp.Diff(testAppServers[0:1], servers))
-	resp, err := clt.ListResources(ctx, listRequestAppsOnly)
-	require.NoError(t, err)
-	require.Len(t, resp.Resources, 1)
-	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
-
 	// Permit user to get all apps and saml idp service providers.
-	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	// role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	// Test getting all apps and SAML IdP service providers.
-	resp, err = clt.ListResources(ctx, listRequest)
+	resp, err := clt.ListResources(ctx, listSAMLIdPSPRequest)
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, len(testResources))
 	require.Empty(t, cmp.Diff(testResources, resp.Resources))
@@ -2482,55 +2436,17 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	baseRequest := proto.ListResourcesRequest{
 		Namespace:    apidefaults.Namespace,
 		Limit:        int32(numResources + 1),
-		ResourceType: types.KindAppOrSAMLIdPServiceProvider,
+		ResourceType: types.KindSAMLIdPServiceProvider,
 	}
 
-	// list only application with label
-	withLabels := baseRequest
-	withLabels.Labels = map[string]string{"name": testAppServers[0].GetName()}
-	resp, err = clt.ListResources(ctx, withLabels)
-	require.NoError(t, err)
-	require.Len(t, resp.Resources, 1)
-	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
-
-	// Test search keywords match for app servers.
-	withSearchKeywords := baseRequest
-	withSearchKeywords.SearchKeywords = []string{"app-server", testAppServers[0].GetName()}
-	resp, err = clt.ListResources(ctx, withSearchKeywords)
-	require.NoError(t, err)
-	require.Len(t, resp.Resources, 1)
-	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
-
 	// Test search keywords match for saml idp service providers servers.
+	withSearchKeywords := baseRequest
 	withSearchKeywords.SearchKeywords = []string{"saml-app", testServiceProviders[0].GetName()}
 	resp, err = clt.ListResources(ctx, withSearchKeywords)
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, 1)
-	require.Empty(t, cmp.Diff(testResources[len(testAppServers):len(testAppServers)+1], resp.Resources))
 
-	// Test expression match for app servers.
-	withExpression := baseRequest
-	withExpression.PredicateExpression = fmt.Sprintf(`search("%s")`, testResources[0].GetName())
-	resp, err = clt.ListResources(ctx, withExpression)
-	require.NoError(t, err)
-	require.Len(t, resp.Resources, 1)
-	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
-
-	// deny user to get the first app
-	role.SetAppLabels(types.Deny, types.Labels{"name": {testAppServers[0].GetName()}})
-	_, err = srv.Auth().UpsertRole(ctx, role)
-	require.NoError(t, err)
-	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.EqualValues(t, len(testAppServers[1:]), len(servers))
-	require.Empty(t, cmp.Diff(testAppServers[1:], servers))
-	resp, err = clt.ListResources(ctx, listRequest)
-	require.NoError(t, err)
-	require.Len(t, resp.Resources, len(testResources[1:]))
-	require.Empty(t, cmp.Diff(testResources[1:], resp.Resources))
-
-	// deny user to get all apps and service providers
-	role.SetAppLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
+	// deny user to get all service providers
 	role.SetRules(types.Deny, []types.Rule{
 		{
 			Resources: []string{types.KindSAMLIdPServiceProvider},
@@ -2539,10 +2455,7 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
-	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, servers)
-	resp, err = clt.ListResources(ctx, listRequest)
+	resp, err = clt.ListResources(ctx, listSAMLIdPSPRequest)
 	require.NoError(t, err)
 	require.Empty(t, resp.Resources)
 }
@@ -4480,8 +4393,8 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 			},
 		},
 		Spec: types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: newEntityDescriptor("tifaSAML"),
-			EntityID:         "tifaSAML",
+			ACSURL:   "tifaSAML",
+			EntityID: "tifaSAML",
 		},
 	}
 	require.NoError(t, srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp))
@@ -4507,10 +4420,10 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 	require.Empty(t, resp.NextKey)
 
 	// Check that our returned resource has the correct name
-	// for _, resource := range resp.Resources {
-	// 	r := resource.GetAppServerOrSAMLIdPServiceProvider()
-	// 	require.True(t, strings.Contains(r.GetName(), "tifa"))
-	// }
+	for _, resource := range resp.Resources {
+		r := resource.GetSAMLIdPServiceProvider()
+		require.True(t, strings.Contains(r.GetName(), "tifa"))
+	}
 }
 
 // TestListUnifiedResources_MixedAccess will generate multiple resources
@@ -6763,28 +6676,6 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 		}
 	})
 }
-
-// // createAppServerOrSPFromAppServer returns a AppServerOrSAMLIdPServiceProvider given an AppServer.
-// func createAppServerOrSPFromAppServer(appServer types.AppServer) types.AppServerOrSAMLIdPServiceProvider {
-// 	appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
-// 		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
-// 			AppServer: appServer.(*types.AppServerV3),
-// 		},
-// 	}
-
-// 	return appServerOrSP
-// }
-
-// // createAppServerOrSPFromApp returns a AppServerOrSAMLIdPServiceProvider given a SAMLIdPServiceProvider.
-// func createAppServerOrSPFromSP(sp types.SAMLIdPServiceProvider) types.AppServerOrSAMLIdPServiceProvider {
-// 	appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
-// 		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
-// 			SAMLIdPServiceProvider: sp.(*types.SAMLIdPServiceProviderV1),
-// 		},
-// 	}
-
-// 	return appServerOrSP
-// }
 
 func TestKubeKeepAliveServer(t *testing.T) {
 	t.Parallel()

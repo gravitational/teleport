@@ -200,21 +200,21 @@ type listResourcesService struct {
 }
 
 func (s *listResourcesService) ListResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
-	resources, err := testResources[types.ResourceWithLabels](req.ResourceType, req.Namespace)
+	expectedResources, err := testResources[types.ResourceWithLabels](req.ResourceType, req.Namespace)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
 	resp := &proto.ListResourcesResponse{
-		Resources:  make([]*proto.PaginatedResource, 0, len(resources)),
-		TotalCount: int32(len(resources)),
+		Resources:  make([]*proto.PaginatedResource, 0, len(expectedResources)),
+		TotalCount: int32(len(expectedResources)),
 	}
 
 	var (
 		takeResources    = req.StartKey == ""
 		lastResourceName string
 	)
-	for _, resource := range resources {
+	for _, resource := range expectedResources {
 		if resource.GetName() == req.StartKey {
 			takeResources = true
 			continue
@@ -276,7 +276,7 @@ func (s *listResourcesService) ListResources(ctx context.Context, req *proto.Lis
 		}
 	}
 
-	if len(resp.Resources) != len(resources) {
+	if len(resp.Resources) != len(expectedResources) {
 		resp.NextKey = lastResourceName
 	}
 
@@ -414,52 +414,26 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 
 			resources = append(resources, any(resource).(T))
 		}
-	// case types.KindAppOrSAMLIdPServiceProvider:
-	// 	for i := 0; i < size; i++ {
-	// 		// Alternate between adding Apps and SAMLIdPServiceProviders. If `i` is even, add an app.
-	// 		if i%2 == 0 {
-	// 			app, err := types.NewAppV3(types.Metadata{
-	// 				Name: fmt.Sprintf("app-%d", i),
-	// 			}, types.AppSpecV3{
-	// 				URI: "localhost",
-	// 			})
-	// 			if err != nil {
-	// 				return nil, trace.Wrap(err)
-	// 			}
+	case types.KindSAMLIdPServiceProvider:
+		for i := 0; i < size; i++ {
+			name := fmt.Sprintf("saml-app-%d", i)
+			spResource, err := types.NewSAMLIdPServiceProvider(
+				types.Metadata{
+					Name: name, Labels: map[string]string{
+						"label": string(make([]byte, labelSize)),
+					},
+				},
+				types.SAMLIdPServiceProviderSpecV1{
+					EntityID: name,
+					ACSURL:   name,
+				},
+			)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 
-	// 			appServer, err := types.NewAppServerV3(types.Metadata{
-	// 				Name: fmt.Sprintf("app-%d", i),
-	// 				Labels: map[string]string{
-	// 					"label": string(make([]byte, labelSize)),
-	// 				},
-	// 			}, types.AppServerSpecV3{
-	// 				HostID: fmt.Sprintf("host-%d", i),
-	// 				App:    app,
-	// 			})
-	// 			if err != nil {
-	// 				return nil, trace.Wrap(err)
-	// 			}
-
-	// 			resource := &types.AppServerOrSAMLIdPServiceProviderV1{
-	// 				Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
-	// 					AppServer: appServer,
-	// 				},
-	// 			}
-
-	// 			resources = append(resources, any(resource).(T))
-	// 		} else {
-	// 			sp := &types.SAMLIdPServiceProviderV1{ResourceHeader: types.ResourceHeader{Metadata: types.Metadata{Name: fmt.Sprintf("saml-app-%d", i), Labels: map[string]string{
-	// 				"label": string(make([]byte, labelSize)),
-	// 			}}}}
-
-	// 			resource := &types.AppServerOrSAMLIdPServiceProviderV1{
-	// 				Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
-	// 					SAMLIdPServiceProvider: sp,
-	// 				},
-	// 			}
-	// 			resources = append(resources, any(resource).(T))
-	// 		}
-	// 	}
+			resources = append(resources, any(spResource).(T))
+		}
 	default:
 		return nil, trace.Errorf("unsupported resource type %s", resourceType)
 	}
@@ -495,6 +469,10 @@ func TestListResources(t *testing.T) {
 		"WindowsDesktop": {
 			resourceType:   types.KindWindowsDesktop,
 			resourceStruct: &types.WindowsDesktopV3{},
+		},
+		"SAMLIdPServiceProvider": {
+			resourceType:   types.KindSAMLIdPServiceProvider,
+			resourceStruct: &types.SAMLIdPServiceProviderV1{},
 		},
 	}
 
@@ -603,10 +581,10 @@ func TestGetResources(t *testing.T) {
 		testGetResources[types.WindowsDesktop](t, clt, types.KindWindowsDesktop)
 	})
 
-	// t.Run("AppServerAndSAMLIdPServiceProvider", func(t *testing.T) {
-	// 	t.Parallel()
-	// 	testGetResources[types.AppServerOrSAMLIdPServiceProvider](t, clt, types.KindAppOrSAMLIdPServiceProvider)
-	// })
+	t.Run("SAMLIdPServiceProvider", func(t *testing.T) {
+		t.Parallel()
+		testGetResources[types.SAMLIdPServiceProvider](t, clt, types.KindSAMLIdPServiceProvider)
+	})
 }
 
 func TestGetResourcesWithFilters(t *testing.T) {
@@ -636,9 +614,9 @@ func TestGetResourcesWithFilters(t *testing.T) {
 		"WindowsDesktop": {
 			resourceType: types.KindWindowsDesktop,
 		},
-		// "AppAndIdPServiceProvider": {
-		// 	resourceType: types.KindAppOrSAMLIdPServiceProvider,
-		// },
+		"SAMLIdPServiceProvider": {
+			resourceType: types.KindSAMLIdPServiceProvider,
+		},
 	}
 
 	for name, test := range testCases {

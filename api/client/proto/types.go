@@ -84,8 +84,8 @@ func (req *ListUnifiedResourcesRequest) CheckAndSetDefaults() error {
 func (req *ListResourcesRequest) RequiresFakePagination() bool {
 	return req.SortBy.Field != "" ||
 		req.NeedTotalCount ||
-		req.ResourceType == types.KindKubernetesCluster
-	// req.ResourceType == types.KindAppOrSAMLIdPServiceProvider
+		req.ResourceType == types.KindKubernetesCluster ||
+		req.ResourceType == types.KindSAMLIdPServiceProvider
 }
 
 // UpstreamInventoryMessage is a sealed interface representing the possible

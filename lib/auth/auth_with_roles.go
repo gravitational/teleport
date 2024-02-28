@@ -1651,7 +1651,14 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		//   https://github.com/gravitational/teleport/pull/1224
 		actionVerbs = []string{types.VerbList}
 
-	case types.KindDatabaseServer, types.KindDatabaseService, types.KindAppServer, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindUserGroup:
+	case types.KindDatabaseServer,
+		types.KindDatabaseService,
+		types.KindAppServer,
+		types.KindKubeServer,
+		types.KindWindowsDesktop,
+		types.KindWindowsDesktopService,
+		types.KindUserGroup,
+		types.KindSAMLIdPServiceProvider:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1767,7 +1774,16 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
-	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode, types.KindKubeServer, types.KindUserGroup, types.KindUnifiedResource:
+	case types.KindAppServer,
+		types.KindDatabaseServer,
+		types.KindDatabaseService,
+		types.KindWindowsDesktop,
+		types.KindWindowsDesktopService,
+		types.KindNode,
+		types.KindKubeServer,
+		types.KindUserGroup,
+		types.KindUnifiedResource,
+		types.KindSAMLIdPServiceProvider:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
@@ -1796,7 +1812,6 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		resources = servers.AsResources()
 
 	case types.KindAppServer:
-		fmt.Println("=========KindAppServer")
 		appservers, err := a.GetApplicationServers(ctx, req.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1809,7 +1824,6 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		resources = servers.AsResources()
 
 	case types.KindSAMLIdPServiceProvider:
-		fmt.Println("=========KindSAMLIdPServiceProvider")
 		var serviceProviders []types.SAMLIdPServiceProvider
 		// Only add SAMLIdPServiceProviders to the list if the caller has an enterprise license since this is an enteprise-only feature.
 		if modules.GetModules().BuildType() == modules.BuildEnterprise {
