@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -716,6 +717,15 @@ var (
 // successfully authenticated. An example would be creating objects based on the user.
 type LoginHook func(context.Context, types.User) error
 
+// CreateDeviceWebTokenFunc creates a new DeviceWebToken for the logged in user.
+//
+// Used during a successful Web login, after the user was verified and the
+// WebSession created.
+//
+// May return `nil, nil` if device trust isn't supported (OSS), disabled, or if
+// the user has no suitable trusted device.
+type CreateDeviceWebTokenFunc func(context.Context, *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error)
+
 // Server keeps the cluster together. It acts as a certificate authority (CA) for
 // a cluster and:
 //   - generates the keypair for the node it's running on
@@ -868,6 +878,10 @@ type Server struct {
 
 	// ulsGenerator is the user login state generator.
 	ulsGenerator *userloginstate.Generator
+
+	// createDeviceWebTokenFunc is the CreateDeviceWebToken implementation.
+	// Is nil on OSS clusters.
+	createDeviceWebTokenFunc CreateDeviceWebTokenFunc
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -989,6 +1003,23 @@ func (a *Server) SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher 
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.headlessAuthenticationWatcher = headlessAuthenticationWatcher
+}
+
+func (a *Server) SetCreateDeviceWebTokenFunc(f CreateDeviceWebTokenFunc) {
+	a.lock.Lock()
+	a.createDeviceWebTokenFunc = f
+	a.lock.Unlock()
+}
+
+// createDeviceWebToken safely calls the underlying [CreateDeviceWebTokenFunc].
+func (a *Server) createDeviceWebToken(ctx context.Context, webToken *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+	if a.createDeviceWebTokenFunc == nil {
+		return nil, nil
+	}
+	token, err := a.createDeviceWebTokenFunc(ctx, webToken)
+	return token, trace.Wrap(err)
 }
 
 // syncUpgradeWindowStartHour attempts to load the cloud UpgradeWindowStartHour value and set
