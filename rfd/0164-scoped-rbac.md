@@ -1092,7 +1092,7 @@ Here are possible combinations of versions that The Proxy can encounter:
 Let's review the cases in the reverse order:
 
 * In the cases 3 and 4, the Proxy sees that the resource group has been updated after the grant, because `T2 > T1 > Tg` and can proceed.
-* In the case 2, The proxy sees that `R` may be stale, because it's `Tr` less than `T1 and has to make a call to the backend making sure it fetched update of `R` least as fresh as `T1` with membership of `luna`.
+* In the case 2, The proxy sees that `R` may be stale, because it's `Tr` less than `T1` and has to make a call to the backend making sure it fetched update of `R` least as fresh as `T1` with membership of `luna`.
 * In case 1, if `Tr > Tg`, the proxy can proceed, otherwise if `Tr < Tg`, the proxy has to make sure it has fetched the latest update of `Tr` at least as fresh as `Tg` with membership of `luna`.
 
 How would Teleport "make sure that it has fetched a version of a resource at least as fresh as a timestamp?". 
