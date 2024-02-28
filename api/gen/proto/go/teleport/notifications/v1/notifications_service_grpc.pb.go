@@ -48,6 +48,9 @@ const (
 	NotificationService_GetUserLastSeenNotification_FullMethodName    = "/teleport.notifications.v1.NotificationService/GetUserLastSeenNotification"
 	NotificationService_UpsertUserLastSeenNotification_FullMethodName = "/teleport.notifications.v1.NotificationService/UpsertUserLastSeenNotification"
 	NotificationService_DeleteUserLastSeenNotification_FullMethodName = "/teleport.notifications.v1.NotificationService/DeleteUserLastSeenNotification"
+	NotificationService_CreatePluginNotification_FullMethodName       = "/teleport.notifications.v1.NotificationService/CreatePluginNotification"
+	NotificationService_DeletePluginNotification_FullMethodName       = "/teleport.notifications.v1.NotificationService/DeletePluginNotification"
+	NotificationService_ListPluginNotifications_FullMethodName        = "/teleport.notifications.v1.NotificationService/ListPluginNotifications"
 )
 
 // NotificationServiceClient is the client API for NotificationService service.
@@ -76,6 +79,12 @@ type NotificationServiceClient interface {
 	UpsertUserLastSeenNotification(ctx context.Context, in *UpsertUserLastSeenNotificationRequest, opts ...grpc.CallOption) (*UserLastSeenNotification, error)
 	// DeleteUserLastSeenNotification deletes a user's last seen notification item.
 	DeleteUserLastSeenNotification(ctx context.Context, in *DeleteUserLastSeenNotificationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// CreatePluginNotification creates a global notification.
+	CreatePluginNotification(ctx context.Context, in *CreatePluginNotificationRequest, opts ...grpc.CallOption) (*PluginNotification, error)
+	// DeletePluginNotification deletes a global notification.
+	DeletePluginNotification(ctx context.Context, in *DeletePluginNotificationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// ListPluginNotifications returns a page of global notifications.
+	ListPluginNotifications(ctx context.Context, in *ListPluginNotificationsRequest, opts ...grpc.CallOption) (*ListPluginNotificationsResponse, error)
 }
 
 type notificationServiceClient struct {
@@ -185,6 +194,33 @@ func (c *notificationServiceClient) DeleteUserLastSeenNotification(ctx context.C
 	return out, nil
 }
 
+func (c *notificationServiceClient) CreatePluginNotification(ctx context.Context, in *CreatePluginNotificationRequest, opts ...grpc.CallOption) (*PluginNotification, error) {
+	out := new(PluginNotification)
+	err := c.cc.Invoke(ctx, NotificationService_CreatePluginNotification_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notificationServiceClient) DeletePluginNotification(ctx context.Context, in *DeletePluginNotificationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, NotificationService_DeletePluginNotification_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notificationServiceClient) ListPluginNotifications(ctx context.Context, in *ListPluginNotificationsRequest, opts ...grpc.CallOption) (*ListPluginNotificationsResponse, error) {
+	out := new(ListPluginNotificationsResponse)
+	err := c.cc.Invoke(ctx, NotificationService_ListPluginNotifications_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NotificationServiceServer is the server API for NotificationService service.
 // All implementations must embed UnimplementedNotificationServiceServer
 // for forward compatibility
@@ -211,6 +247,12 @@ type NotificationServiceServer interface {
 	UpsertUserLastSeenNotification(context.Context, *UpsertUserLastSeenNotificationRequest) (*UserLastSeenNotification, error)
 	// DeleteUserLastSeenNotification deletes a user's last seen notification item.
 	DeleteUserLastSeenNotification(context.Context, *DeleteUserLastSeenNotificationRequest) (*emptypb.Empty, error)
+	// CreatePluginNotification creates a global notification.
+	CreatePluginNotification(context.Context, *CreatePluginNotificationRequest) (*PluginNotification, error)
+	// DeletePluginNotification deletes a global notification.
+	DeletePluginNotification(context.Context, *DeletePluginNotificationRequest) (*emptypb.Empty, error)
+	// ListPluginNotifications returns a page of global notifications.
+	ListPluginNotifications(context.Context, *ListPluginNotificationsRequest) (*ListPluginNotificationsResponse, error)
 	mustEmbedUnimplementedNotificationServiceServer()
 }
 
@@ -250,6 +292,15 @@ func (UnimplementedNotificationServiceServer) UpsertUserLastSeenNotification(con
 }
 func (UnimplementedNotificationServiceServer) DeleteUserLastSeenNotification(context.Context, *DeleteUserLastSeenNotificationRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserLastSeenNotification not implemented")
+}
+func (UnimplementedNotificationServiceServer) CreatePluginNotification(context.Context, *CreatePluginNotificationRequest) (*PluginNotification, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreatePluginNotification not implemented")
+}
+func (UnimplementedNotificationServiceServer) DeletePluginNotification(context.Context, *DeletePluginNotificationRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeletePluginNotification not implemented")
+}
+func (UnimplementedNotificationServiceServer) ListPluginNotifications(context.Context, *ListPluginNotificationsRequest) (*ListPluginNotificationsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListPluginNotifications not implemented")
 }
 func (UnimplementedNotificationServiceServer) mustEmbedUnimplementedNotificationServiceServer() {}
 
@@ -462,6 +513,60 @@ func _NotificationService_DeleteUserLastSeenNotification_Handler(srv interface{}
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NotificationService_CreatePluginNotification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreatePluginNotificationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).CreatePluginNotification(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_CreatePluginNotification_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).CreatePluginNotification(ctx, req.(*CreatePluginNotificationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotificationService_DeletePluginNotification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeletePluginNotificationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).DeletePluginNotification(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_DeletePluginNotification_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).DeletePluginNotification(ctx, req.(*DeletePluginNotificationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotificationService_ListPluginNotifications_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPluginNotificationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).ListPluginNotifications(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_ListPluginNotifications_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).ListPluginNotifications(ctx, req.(*ListPluginNotificationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // NotificationService_ServiceDesc is the grpc.ServiceDesc for NotificationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -512,6 +617,18 @@ var NotificationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteUserLastSeenNotification",
 			Handler:    _NotificationService_DeleteUserLastSeenNotification_Handler,
+		},
+		{
+			MethodName: "CreatePluginNotification",
+			Handler:    _NotificationService_CreatePluginNotification_Handler,
+		},
+		{
+			MethodName: "DeletePluginNotification",
+			Handler:    _NotificationService_DeletePluginNotification_Handler,
+		},
+		{
+			MethodName: "ListPluginNotifications",
+			Handler:    _NotificationService_ListPluginNotifications_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

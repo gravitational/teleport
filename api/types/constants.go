@@ -511,6 +511,8 @@ const (
 	KindUserLastSeenNotification = "user_last_seen_notification"
 	// KindUserNotificationState is a resource which tracks whether a user has clicked on or dismissed a notification.
 	KindUserNotificationState = "user_notification_state"
+	// KindPluginNotification is a plugin notification resource
+	KindPluginNotification = "plugin_notification"
 
 	// V7 is the seventh version of resources.
 	V7 = "v7"
