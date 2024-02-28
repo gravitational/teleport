@@ -83,7 +83,8 @@ func Run(args []string, stdout io.Writer) error {
 	versionCmd := app.Command("version", "Print the version of your tbot binary.")
 
 	startCmd := app.Command("start", "Starts the renewal bot, writing certificates to the data dir at a set interval.")
-	startCmd.Flag("auth-server", "Address of the Teleport Auth Server or Proxy Server.").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
+	startCmd.Flag("auth-server", "Address of the Teleport Auth Server. Prefer using --proxy where possible.").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
+	startCmd.Flag("proxy", "Address of the Teleport Proxy Server.").StringVar(&cf.Proxy)
 	startCmd.Flag("token", "A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&cf.Token)
 	startCmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&cf.CAPins)
 	startCmd.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&cf.DataDir)
@@ -110,7 +111,8 @@ func Run(args []string, stdout io.Writer) error {
 		EnumVar(&cf.LogFormat, utils.LogFormatJSON, utils.LogFormatText)
 
 	configureCmd := app.Command("configure", "Creates a config file based on flags provided, and writes it to stdout or a file (-c <path>).")
-	configureCmd.Flag("auth-server", "Address of the Teleport Auth Server (On-Prem installs) or Proxy Server (Cloud installs).").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
+	configureCmd.Flag("auth-server", "Address of the Teleport Auth Server. Prefer using --proxy where possible.").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
+	configureCmd.Flag("proxy", "Address of the Teleport Proxy Server.").StringVar(&cf.Proxy)
 	configureCmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&cf.CAPins)
 	configureCmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").Default("60m").DurationVar(&cf.CertificateTTL)
 	configureCmd.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&cf.DataDir)
