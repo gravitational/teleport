@@ -224,27 +224,27 @@ func newApp(t *testing.T, name, publicAddr, description string, labels map[strin
 }
 
 // createAppServerOrSPFromApp returns a AppServerOrSAMLIdPServiceProvider given an App.
-// func createAppServerOrSPFromApp(app types.Application) types.AppServerOrSAMLIdPServiceProvider {
-// 	appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
-// 		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
-// 			AppServer: &types.AppServerV3{
-// 				Spec: types.AppServerSpecV3{
-// 					App: app.(*types.AppV3),
-// 				},
-// 			},
-// 		},
-// 	}
+func createAppServerOrSPFromApp(app types.Application) types.AppServerOrSAMLIdPServiceProvider {
+	appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
+		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+			AppServer: &types.AppServerV3{
+				Spec: types.AppServerSpecV3{
+					App: app.(*types.AppV3),
+				},
+			},
+		},
+	}
 
-// 	return appServerOrSP
-// }
+	return appServerOrSP
+}
 
 // createAppServerOrSPFromApp returns a AppServerOrSAMLIdPServiceProvider given a SAMLIdPServiceProvider.
-// func createAppServerOrSPFromSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) types.AppServerOrSAMLIdPServiceProvider {
-// 	appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
-// 		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
-// 			SAMLIdPServiceProvider: sp.(*types.SAMLIdPServiceProviderV1),
-// 		},
-// 	}
+func createAppServerOrSPFromSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) types.AppServerOrSAMLIdPServiceProvider {
+	appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
+		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+			SAMLIdPServiceProvider: sp.(*types.SAMLIdPServiceProviderV1),
+		},
+	}
 
-// 	return appServerOrSP
-// }
+	return appServerOrSP
+}

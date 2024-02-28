@@ -44,7 +44,9 @@ import (
 )
 
 // clusterAppsGet returns a list of applications in a form the UI can present.
-// This includes Application Servers as well as SAML IdP Service providers.
+// Not in use since v15+.
+// Pre v15 (v14 and below), clusterAppsGet returned both App and SAML service providers.
+// DELETE IN 16.0 (sshah)
 func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	identity, err := sctx.GetIdentity()
 	if err != nil {

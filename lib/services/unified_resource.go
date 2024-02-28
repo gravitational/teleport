@@ -39,7 +39,14 @@ import (
 )
 
 // UnifiedResourceKinds is a list of all kinds that are stored in the unified resource cache.
-var UnifiedResourceKinds []string = []string{types.KindNode, types.KindKubeServer, types.KindDatabaseServer, types.KindAppServer, types.KindWindowsDesktop, types.KindSAMLIdPServiceProvider}
+var UnifiedResourceKinds []string = []string{
+	types.KindNode,
+	types.KindKubeServer,
+	types.KindDatabaseServer,
+	types.KindAppServer,
+	types.KindWindowsDesktop,
+	types.KindSAMLIdPServiceProvider,
+}
 
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
 type UnifiedResourceCacheConfig struct {
@@ -815,7 +822,7 @@ func MakePaginatedResources(requestType string, resources []types.ResourceWithLa
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{SAMLIdPServiceProvider: serviceProvider}}
 		default:
-			return nil, trace.NotImplemented("MakePaginatedResources resource type %s doesn't support pagination", resource.GetKind())
+			return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
 		}
 
 		paginatedResources = append(paginatedResources, protoResource)

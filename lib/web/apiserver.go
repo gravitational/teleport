@@ -2739,7 +2739,9 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.SAMLIdPServiceProvider:
-			app := ui.MakeSAMLApp(r, ui.MakeAppsConfig{
+			// SAMLIdPServiceProvider resource are shown as
+			// "apps" in the UI.
+			app := ui.MakeAppTypeFromSAMLApp(r, ui.MakeAppsConfig{
 				LocalClusterName:  h.auth.clusterName,
 				LocalProxyDNSName: h.proxyDNSName(),
 				AppClusterName:    site.GetName(),

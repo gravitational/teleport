@@ -20,7 +20,6 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"slices"
@@ -1825,22 +1824,21 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 
 	case types.KindSAMLIdPServiceProvider:
 		var serviceProviders []types.SAMLIdPServiceProvider
-		// Only add SAMLIdPServiceProviders to the list if the caller has an enterprise license since this is an enteprise-only feature.
+		// Only add SAMLIdPServiceProviders to the list if the caller has an enterprise license.
 		if modules.GetModules().BuildType() == modules.BuildEnterprise {
-
 			// Only attempt to list SAMLIdPServiceProviders if the caller has the permission to.
 			if err := a.action(req.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList); err == nil {
-				sps, _, err := a.authServer.ListSAMLIdPServiceProviders(ctx, 0, "")
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				spj, err := json.MarshalIndent(sps, "", " ")
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				fmt.Println(string(spj))
-				for _, sp := range sps {
-					serviceProviders = append(serviceProviders, sp)
+				var startKey string
+				for {
+					sps, nextKey, err := a.authServer.ListSAMLIdPServiceProviders(ctx, int(req.Limit), startKey)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					serviceProviders = append(serviceProviders, sps...)
+					if nextKey == "" {
+						break
+					}
+					startKey = nextKey
 				}
 			}
 		}
