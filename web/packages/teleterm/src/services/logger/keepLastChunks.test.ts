@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,5 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export * from './loggerService';
-export { KeepLastChunks } from './keepLastChunks';
+import { KeepLastChunks } from './keepLastChunks';
+
+describe('keepLastChunks', () => {
+  it('keeps last n chunks', () => {
+    const stream = new KeepLastChunks(3);
+
+    ['foo', 'bar', 'lorem', 'ipsum', 'dolor'].forEach(string => {
+      stream.write(string);
+    });
+    stream.end();
+
+    expect(stream.getChunks()).toEqual(['lorem', 'ipsum', 'dolor']);
+  });
+});
