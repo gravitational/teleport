@@ -342,18 +342,18 @@ message EnrollEKSClustersRequest {
   string region = 2;
   // ClusterNames is names of EKS clusters to enroll.
   // Required.
-  repeated string cluster_names = 3;
+  repeated string eks_cluster_names = 3;
   // EnableAppDiscovery specifies if we should enable Kubernetes App Discovery inside the enrolled EKS cluster.
-  bool enable_app_discovery = 4;
+  bool enable_app_discovery = 5;
   // AgentVersion is version of agent Helm chart to install on the EKS cluster.
   // Required.
-  string agent_version = 5;
+  string agent_version = 4;
 }
 
 // EnrollEKSClusterResult contains result for a single cluster enrollment.
 message EnrollEKSClusterResult {
   // ClusterName identifies what EKS cluster this result is for.
-  string cluster_name = 1;
+  string eks_cluster_name = 1;
   // ResourceID shows what internal resource ID label was used by the Helm chart.
   string resource_id = 2;
   // Error show what error happened during enrollment. Empty if no error happened.

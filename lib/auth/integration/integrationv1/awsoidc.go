@@ -527,7 +527,7 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 
 	enrollmentResponse, err := awsoidc.EnrollEKSClusters(ctx, s.logger, s.clock, publicProxyAddr, credsProvider, enrollEKSClient, awsoidc.EnrollEKSClustersRequest{
 		Region:             req.Region,
-		ClusterNames:       req.GetClusterNames(),
+		ClusterNames:       req.GetEksClusterNames(),
 		EnableAppDiscovery: req.EnableAppDiscovery,
 		EnableAutoUpgrades: features.AutomaticUpgrades,
 		IsCloud:            features.Cloud,
@@ -540,9 +540,9 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 	var results []*integrationpb.EnrollEKSClusterResult
 	for _, r := range enrollmentResponse.Results {
 		results = append(results, &integrationpb.EnrollEKSClusterResult{
-			ClusterName: r.ClusterName,
-			ResourceId:  r.ResourceId,
-			Error:       trace.UserMessage(r.Error),
+			EksClusterName: r.ClusterName,
+			ResourceId:     r.ResourceId,
+			Error:          trace.UserMessage(r.Error),
 		})
 	}
 

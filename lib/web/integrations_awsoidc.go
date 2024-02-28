@@ -427,7 +427,7 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 	response, err := clt.IntegrationAWSOIDCClient().EnrollEKSClusters(ctx, &integrationv1.EnrollEKSClustersRequest{
 		Integration:        integrationName,
 		Region:             req.Region,
-		ClusterNames:       req.ClusterNames,
+		EksClusterNames:    req.ClusterNames,
 		EnableAppDiscovery: req.EnableAppDiscovery,
 		AgentVersion:       agentVersion,
 	})
@@ -438,7 +438,7 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 	var data []ui.EKSClusterEnrollmentResult
 	for _, result := range response.Results {
 		data = append(data, ui.EKSClusterEnrollmentResult{
-			ClusterName: result.ClusterName,
+			ClusterName: result.EksClusterName,
 			Error:       result.Error,
 			ResourceId:  result.ResourceId,
 		},
