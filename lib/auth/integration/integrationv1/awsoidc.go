@@ -484,6 +484,7 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 	}, nil
 }
 
+// EnrollEKSClusters enrolls EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.
 func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integrationpb.EnrollEKSClustersRequest) (*integrationpb.EnrollEKSClustersResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {

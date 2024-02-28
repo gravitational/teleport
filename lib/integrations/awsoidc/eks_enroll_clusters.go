@@ -235,6 +235,7 @@ type EnrollEKSClustersRequest struct {
 	AgentVersion string
 }
 
+// CheckAndSetDefaults checks if the required fields are present.
 func (e *EnrollEKSClustersRequest) CheckAndSetDefaults() error {
 	if e.Region == "" {
 		return trace.BadParameter("region is required")
