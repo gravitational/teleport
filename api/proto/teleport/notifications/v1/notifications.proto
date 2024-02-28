@@ -158,3 +158,30 @@ message UserLastSeenNotificationTime {
   // last_seen_time is the timestamp of the last notification that the user has seen.
   google.protobuf.Timestamp last_seen_time = 1;
 }
+
+// PluginNotification represents a global notification.
+message PluginNotification {
+  // kind is the resource kind ("global_notification").
+  string kind = 1;
+  // sub_kind is the optional resource subkind. This is unused.
+  string sub_kind = 2;
+  // version is the resource version.
+  string version = 3;
+  // metadata is the user last seen notification object's metadata.
+  teleport.header.v1.Metadata metadata = 4;
+  // spec is the global notification's specification.
+  PluginNotificationSpec spec = 5;
+}
+
+// GlobalNotificationSpec is the global notification's specification.
+message PluginNotificationSpec {
+  // plugin is the plugin who should send the notification
+  string plugin = 1;
+  // recipients is the list of recipients.
+  // Recipients depend on the plugin, they can be user IDs, emails, channel
+  // names, channel IDs, services to page, ...
+  repeated string recipients = 2;
+
+  // notification is the notification itself.
+  Notification notification = 3;
+}

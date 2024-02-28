@@ -53,6 +53,13 @@ service NotificationService {
   rpc UpsertUserLastSeenNotification(UpsertUserLastSeenNotificationRequest) returns (UserLastSeenNotification);
   // DeleteUserLastSeenNotification deletes a user's last seen notification item.
   rpc DeleteUserLastSeenNotification(DeleteUserLastSeenNotificationRequest) returns (google.protobuf.Empty);
+
+  // CreatePluginNotification creates a global notification.
+  rpc CreatePluginNotification(CreatePluginNotificationRequest) returns (PluginNotification);
+  // DeletePluginNotification deletes a global notification.
+  rpc DeletePluginNotification(DeletePluginNotificationRequest) returns (google.protobuf.Empty);
+  // ListPluginNotifications returns a page of global notifications.
+  rpc ListPluginNotifications(ListPluginNotificationsRequest) returns (ListPluginNotificationsResponse);
 }
 
 // CreateUserNotificationRequest is the request for creating a user-specific notification.
@@ -157,4 +164,32 @@ message UpsertUserLastSeenNotificationRequest {
 message DeleteUserLastSeenNotificationRequest {
   // username is the username of the user.
   string username = 1;
+}
+
+// CreatePluginNotificationRequest is the request for creating a plugin notification.
+message CreatePluginNotificationRequest {
+  // plugin_notification is the plugin notification to create.
+  PluginNotification plugin_notification = 1;
+}
+
+// DeletePluginNotificationRequest is the request for deleting a plugin notification.
+message DeletePluginNotificationRequest {
+  // notification_id is the ID of the notification to delete.
+  string notification_id = 1;
+}
+
+// ListPluginNotificationsRequest is the request for listing plugin notifications.
+message ListPluginNotificationsRequest {
+  // page_size is the size of the page to return.
+  int32 page_size = 1;
+  // page_token is the next_page_token value returned from a previous ListPluginNotifications request, if any.
+  string page_token = 2;
+}
+
+// ListPluginNotificationsResponse is the response from listing plugin notifications.
+message ListPluginNotificationsResponse {
+  // plugin_notifications is the plugin notification items returned.
+  repeated PluginNotification plugin_notifications = 1;
+  // next_page_token is the token to retrieve the next page of results, this will be empty if there are no more results.
+  string next_page_token = 2;
 }
