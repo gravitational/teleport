@@ -105,11 +105,12 @@ func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context) (*integr
 
 // AWSOIDCServiceConfig holds configuration options for the AWSOIDC Integration gRPC service.
 type AWSOIDCServiceConfig struct {
-	IntegrationService *Service
-	Authorizer         authz.Authorizer
-	Cache              CacheAWSOIDC
-	Clock              clockwork.Clock
-	Logger             *logrus.Entry
+	IntegrationService    *Service
+	Authorizer            authz.Authorizer
+	Cache                 CacheAWSOIDC
+	Clock                 clockwork.Clock
+	ProxyPublicAddrGetter func() string
+	Logger                *logrus.Entry
 }
 
 // CheckAndSetDefaults checks the AWSOIDCServiceConfig fields and returns an error if a required param is not provided.
@@ -131,6 +132,10 @@ func (s *AWSOIDCServiceConfig) CheckAndSetDefaults() error {
 		s.Clock = clockwork.NewRealClock()
 	}
 
+	if s.ProxyPublicAddrGetter == nil {
+		return trace.BadParameter("proxyPublicAddrGetter is required")
+	}
+
 	if s.Logger == nil {
 		s.Logger = logrus.WithField(trace.Component, "integrations.awsoidc.service")
 	}
@@ -142,11 +147,12 @@ func (s *AWSOIDCServiceConfig) CheckAndSetDefaults() error {
 type AWSOIDCService struct {
 	integrationpb.UnimplementedAWSOIDCServiceServer
 
-	integrationService *Service
-	authorizer         authz.Authorizer
-	logger             *logrus.Entry
-	clock              clockwork.Clock
-	cache              CacheAWSOIDC
+	integrationService    *Service
+	authorizer            authz.Authorizer
+	logger                *logrus.Entry
+	clock                 clockwork.Clock
+	proxyPublicAddrGetter func() string
+	cache                 CacheAWSOIDC
 }
 
 // CacheAWSOIDC is the subset of the cached resources that the Service queries.
@@ -168,11 +174,12 @@ func NewAWSOIDCService(cfg *AWSOIDCServiceConfig) (*AWSOIDCService, error) {
 	}
 
 	return &AWSOIDCService{
-		integrationService: cfg.IntegrationService,
-		logger:             cfg.Logger,
-		authorizer:         cfg.Authorizer,
-		clock:              cfg.Clock,
-		cache:              cfg.Cache,
+		integrationService:    cfg.IntegrationService,
+		logger:                cfg.Logger,
+		authorizer:            cfg.Authorizer,
+		proxyPublicAddrGetter: cfg.ProxyPublicAddrGetter,
+		clock:                 cfg.Clock,
+		cache:                 cfg.Cache,
 	}, nil
 }
 
@@ -495,6 +502,11 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 		return nil, trace.Wrap(err)
 	}
 
+	publicProxyAddr := s.proxyPublicAddrGetter()
+	if publicProxyAddr == "" {
+		return nil, trace.BadParameter("could not get public proxy address.")
+	}
+
 	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -510,7 +522,7 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 		return nil, trace.Wrap(err)
 	}
 
-	enrollmentResponse, err := awsoidc.EnrollEKSClusters(ctx, s.logger, s.clock, req.PublicProxyAddr, credsProvider, enrollEKSClient, awsoidc.EnrollEKSClustersRequest{
+	enrollmentResponse, err := awsoidc.EnrollEKSClusters(ctx, s.logger, s.clock, publicProxyAddr, credsProvider, enrollEKSClient, awsoidc.EnrollEKSClustersRequest{
 		Region:             req.Region,
 		ClusterNames:       req.GetClusterNames(),
 		EnableAppDiscovery: req.EnableAppDiscovery,

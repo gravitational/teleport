@@ -427,7 +427,6 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 	response, err := clt.IntegrationAWSOIDCClient().EnrollEKSClusters(ctx, &integrationv1.EnrollEKSClustersRequest{
 		Integration:        integrationName,
 		Region:             req.Region,
-		PublicProxyAddr:    h.cfg.PublicProxyAddr,
 		ClusterNames:       req.ClusterNames,
 		EnableAppDiscovery: req.EnableAppDiscovery,
 		EnableAutoUpgrades: h.ClusterFeatures.GetAutomaticUpgrades(),
