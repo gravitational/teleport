@@ -214,9 +214,7 @@ kubernetes matchers are present.`)
 	}
 
 	if c.ClusterFeatures == nil {
-		c.ClusterFeatures = func() proto.Features {
-			return proto.Features{}
-		}
+		return trace.BadParameter("cluster features are required")
 	}
 
 	c.Log = c.Log.WithField(trace.Component, teleport.ComponentDiscovery)

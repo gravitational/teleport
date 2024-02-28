@@ -364,6 +364,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				authz.ContextWithUser(ctx, identity.I),
 				&Config{
 					CloudClients:     testCloudClients,
+					ClusterFeatures:  func() proto.Features { return proto.Features{} },
 					KubernetesClient: fake.NewSimpleClientset(),
 					//AccessPoint:      getDiscoveryAccessPoint(authClient),
 					AccessPoint: tc.accessPoint(t, tlsServer.Auth(), authClient),

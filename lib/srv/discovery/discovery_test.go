@@ -496,6 +496,7 @@ func TestDiscoveryServer(t *testing.T) {
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				CloudClients:     testCloudClients,
+				ClusterFeatures:  func() proto.Features { return proto.Features{} },
 				KubernetesClient: fake.NewSimpleClientset(),
 				AccessPoint:      getDiscoveryAccessPoint(authClient),
 				Matchers:         tc.staticMatchers,
@@ -693,6 +694,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 				ctx,
 				&Config{
 					CloudClients:     &cloud.TestCloudClients{},
+					ClusterFeatures:  func() proto.Features { return proto.Features{} },
 					KubernetesClient: fake.NewSimpleClientset(objects...),
 					AccessPoint:      getDiscoveryAccessPoint(authClient),
 					Matchers: Matchers{
@@ -1012,6 +1014,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				authz.ContextWithUser(ctx, identity.I),
 				&Config{
 					CloudClients:     testCloudClients,
+					ClusterFeatures:  func() proto.Features { return proto.Features{} },
 					KubernetesClient: fake.NewSimpleClientset(),
 					AccessPoint:      getDiscoveryAccessPoint(authClient),
 					Matchers: Matchers{
@@ -1166,6 +1169,7 @@ func TestDiscoveryServer_New(t *testing.T) {
 				ctx,
 				&Config{
 					CloudClients:    nil,
+					ClusterFeatures: func() proto.Features { return proto.Features{} },
 					AccessPoint:     newFakeAccessPoint(),
 					Matchers:        tt.matchers,
 					Emitter:         &mockEmitter{},
@@ -1753,6 +1757,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				&Config{
 					IntegrationOnlyCredentials: integrationOnlyCredential,
 					CloudClients:               testCloudClients,
+					ClusterFeatures:            func() proto.Features { return proto.Features{} },
 					KubernetesClient:           fake.NewSimpleClientset(),
 					AccessPoint:                getDiscoveryAccessPoint(authClient),
 					Matchers: Matchers{
@@ -1859,6 +1864,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		authz.ContextWithUser(ctx, identity.I),
 		&Config{
 			CloudClients:     testCloudClients,
+			ClusterFeatures:  func() proto.Features { return proto.Features{} },
 			KubernetesClient: fake.NewSimpleClientset(),
 			AccessPoint:      getDiscoveryAccessPoint(authClient),
 			Matchers:         Matchers{},
@@ -2288,6 +2294,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				CloudClients:     testCloudClients,
+				ClusterFeatures:  func() proto.Features { return proto.Features{} },
 				KubernetesClient: fake.NewSimpleClientset(),
 				AccessPoint:      getDiscoveryAccessPoint(authClient),
 				Matchers:         tc.staticMatchers,
@@ -2548,6 +2555,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				CloudClients:     testCloudClients,
+				ClusterFeatures:  func() proto.Features { return proto.Features{} },
 				KubernetesClient: fake.NewSimpleClientset(),
 				AccessPoint:      getDiscoveryAccessPoint(authClient),
 				Matchers:         tc.staticMatchers,
@@ -2663,8 +2671,9 @@ func TestEmitUsageEvents(t *testing.T) {
 	tlsServer.Auth().SetUsageReporter(reporter)
 
 	server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
-		CloudClients: &testClients,
-		AccessPoint:  getDiscoveryAccessPoint(authClient),
+		CloudClients:    &testClients,
+		ClusterFeatures: func() proto.Features { return proto.Features{} },
+		AccessPoint:     getDiscoveryAccessPoint(authClient),
 		Matchers: Matchers{
 			Azure: []types.AzureMatcher{{
 				Types:          []string{"vm"},
