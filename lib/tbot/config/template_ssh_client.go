@@ -103,14 +103,14 @@ func (c *templateSSHClient) render(
 	)
 	defer span.End()
 
-	ping, err := bot.AuthPing(ctx)
+	ping, err := bot.ProxyPing(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	proxyHost, proxyPort, err := utils.SplitHostPort(ping.ProxyPublicAddr)
+	proxyHost, proxyPort, err := utils.SplitHostPort(ping.Proxy.SSH.PublicAddr)
 	if err != nil {
-		return trace.BadParameter("proxy %+v has no usable public address: %v", ping.ProxyPublicAddr, err)
+		return trace.BadParameter("proxy %+v has no usable public address: %v", ping.Proxy.SSH.PublicAddr, err)
 	}
 
 	clusterNames, err := getClusterNames(bot, ping.ClusterName)

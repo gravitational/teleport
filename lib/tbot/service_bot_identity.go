@@ -368,10 +368,6 @@ func botIdentityFromToken(ctx context.Context, log logrus.FieldLogger, cfg *conf
 	defer span.End()
 
 	log.Info("Fetching bot identity using token.")
-	addr, err := utils.ParseAddr(cfg.AuthServer)
-	if err != nil {
-		return nil, trace.Wrap(err, "invalid auth server address %+v", cfg.AuthServer)
-	}
 
 	tlsPrivateKey, sshPublicKey, tlsPublicKey, err := generateKeys()
 	if err != nil {
@@ -389,7 +385,6 @@ func botIdentityFromToken(ctx context.Context, log logrus.FieldLogger, cfg *conf
 		ID: auth.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthServers:        []utils.NetAddr{*addr},
 		PublicTLSKey:       tlsPublicKey,
 		PublicSSHKey:       sshPublicKey,
 		CAPins:             cfg.Onboarding.CAPins,
@@ -400,6 +395,24 @@ func botIdentityFromToken(ctx context.Context, log logrus.FieldLogger, cfg *conf
 		FIPS:               cfg.FIPS,
 		CipherSuites:       cfg.CipherSuites(),
 		Insecure:           cfg.Insecure,
+	}
+
+	addr, addrKind := cfg.Address()
+	switch addrKind {
+	case config.AddressKindAuth:
+		parsed, err := utils.ParseAddr(addr)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse addr")
+		}
+		params.AuthServers = []utils.NetAddr{*parsed}
+	case config.AddressKindProxy:
+		parsed, err := utils.ParseAddr(addr)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse addr")
+		}
+		params.ProxyServer = *parsed
+	default:
+		return nil, trace.BadParameter("unsupported address kind: %v", addrKind)
 	}
 
 	if params.JoinMethod == types.JoinMethodAzure {
