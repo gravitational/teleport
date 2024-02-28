@@ -83,45 +83,6 @@ func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p
 	}, nil
 }
 
-// awsOIDClientRequest receives a request to execute an action for the AWS OIDC integrations.
-func (h *Handler) awsOIDCClientRequest(ctx context.Context, region string, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (*awsoidc.AWSClientRequest, error) {
-	integrationName := p.ByName("name")
-	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
-	}
-
-	clt, err := sctx.GetUserClient(ctx, site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	integration, err := clt.GetIntegration(ctx, integrationName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if integration.GetSubKind() != types.IntegrationSubKindAWSOIDC {
-		return nil, trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
-	}
-
-	token, err := clt.GenerateAWSOIDCToken(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	awsoidcSpec := integration.GetAWSOIDCIntegrationSpec()
-	if awsoidcSpec == nil {
-		return nil, trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
-	}
-
-	return &awsoidc.AWSClientRequest{
-		IntegrationName: integrationName,
-		Token:           token,
-		RoleARN:         awsoidcSpec.RoleARN,
-		Region:          region,
-	}, nil
-}
-
 // awsOIDCDeployService deploys a Discovery Service and a Database Service in Amazon ECS.
 func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
