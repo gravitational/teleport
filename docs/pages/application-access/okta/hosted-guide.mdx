@@ -115,7 +115,9 @@ below.
 
 <Admonition type="note">
 Only Okta User Groups with assignments will be imported as an Access List. If an Okta User
-Group has no assignments, it will not be imported until it has assignments.
+Group has no assignments, it will not be imported until it has assignments. If the last
+user is removed from the Access List, the Access List will be removed from Teleport on the
+next sync.
 </Admonition>
 
 ### Importing Okta Application Assignments as Access Lists
@@ -126,7 +128,9 @@ as user groups.
 
 <Admonition type="note">
 Only Okta Applications with assignments will be imported as an Access List. If an Okta
-Application has no assignments, it will not be imported until it has assignments.
+Application has no assignments, it will not be imported until it has assignments. If the
+last user is removed from the Access List, the Access List will be removed from Teleport
+on the next sync.
 </Admonition>
 
 ### Import Filters
