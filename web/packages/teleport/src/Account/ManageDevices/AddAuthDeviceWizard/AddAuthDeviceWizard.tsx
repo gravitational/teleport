@@ -24,7 +24,6 @@ import Flex from 'design/Flex';
 import * as Icon from 'design/Icon';
 import Image from 'design/Image';
 import Indicator from 'design/Indicator';
-import Link from 'design/Link';
 import { RadioGroup } from 'design/RadioGroup';
 import { StepComponentProps, StepSlider } from 'design/StepSlider';
 import Text from 'design/Text';
@@ -208,10 +207,10 @@ export function ReauthenticateStep({
               />
             )}
             <Flex gap={2}>
-              <ButtonPrimary block={true} type="submit">
+              <ButtonPrimary type="submit" block={true}>
                 Verify my identity
               </ButtonPrimary>
-              <ButtonSecondary block={true} onClick={onClose}>
+              <ButtonSecondary type="button" block={true} onClick={onClose}>
                 Cancel
               </ButtonSecondary>
             </Flex>
@@ -385,12 +384,6 @@ function QrCodeBox({ privilegeToken }: { privilegeToken: string }) {
       </Flex>
       <Text typography="body1" textAlign="center" mt={2}>
         Scan the QR Code with any authenticator app.
-        <br />
-        We recommend{' '}
-        <Link href="https://authy.com/download/" target="_blank">
-          Authy
-        </Link>
-        .
       </Text>
     </Flex>
   );
@@ -499,12 +492,12 @@ export function SaveDeviceStep({
               />
             )}
             <Flex gap={2}>
-              <ButtonPrimary block={true} type="submit">
+              <ButtonPrimary type="submit" block={true}>
                 {usage === 'passwordless'
                   ? 'Save the Passkey'
                   : 'Save the MFA method'}
               </ButtonPrimary>
-              <ButtonSecondary block={true} onClick={prev}>
+              <ButtonSecondary type="button" block={true} onClick={prev}>
                 Back
               </ButtonSecondary>
             </Flex>

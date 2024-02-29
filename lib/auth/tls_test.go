@@ -40,6 +40,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -47,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	eventtypes "github.com/gravitational/teleport/api/types/events"
@@ -2759,9 +2761,15 @@ func TestClusterConfigContext(t *testing.T) {
 	// we are recording at the nodes not at the proxy, the proxy may
 	// need to generate host certs if a client wants to connect to an
 	// agentless node
-	_, err = proxy.GenerateHostCert(ctx, pub,
-		"a", "b", nil,
-		"localhost", types.RoleProxy, 0)
+	_, err = proxy.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
+		Key:         pub,
+		HostId:      "a",
+		NodeName:    "b",
+		Principals:  nil,
+		ClusterName: "localhost",
+		Role:        string(types.RoleProxy),
+		Ttl:         durationpb.New(0),
+	})
 	require.NoError(t, err)
 
 	// update cluster config to record at the proxy
@@ -2773,9 +2781,15 @@ func TestClusterConfigContext(t *testing.T) {
 	require.NoError(t, err)
 
 	// try and generate a host cert
-	_, err = proxy.GenerateHostCert(ctx, pub,
-		"a", "b", nil,
-		"localhost", types.RoleProxy, 0)
+	_, err = proxy.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
+		Key:         pub,
+		HostId:      "a",
+		NodeName:    "b",
+		Principals:  nil,
+		ClusterName: "localhost",
+		Role:        string(types.RoleProxy),
+		Ttl:         durationpb.New(0),
+	})
 	require.NoError(t, err)
 }
 

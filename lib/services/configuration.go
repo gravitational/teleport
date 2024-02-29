@@ -67,7 +67,7 @@ type ClusterConfiguration interface {
 	DeleteAuthPreference(ctx context.Context) error
 
 	// GetSessionRecordingConfig gets SessionRecordingConfig from the backend.
-	GetSessionRecordingConfig(context.Context, ...MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(context.Context) (types.SessionRecordingConfig, error)
 	// CreateSessionRecordingConfig creates a session recording config if once does not already exist.
 	CreateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error)
 	// UpdateSessionRecordingConfig updates an existing session recording config.
@@ -81,7 +81,7 @@ type ClusterConfiguration interface {
 	DeleteSessionRecordingConfig(ctx context.Context) error
 
 	// GetClusterAuditConfig gets ClusterAuditConfig from the backend.
-	GetClusterAuditConfig(context.Context, ...MarshalOption) (types.ClusterAuditConfig, error)
+	GetClusterAuditConfig(context.Context) (types.ClusterAuditConfig, error)
 	// CreateClusterAuditConfig creates a cluster audit config if once does not already exist.
 	CreateClusterAuditConfig(ctx context.Context, cfg types.ClusterAuditConfig) (types.ClusterAuditConfig, error)
 	// UpdateClusterAuditConfig updates an existing cluster audit config.
@@ -95,7 +95,7 @@ type ClusterConfiguration interface {
 	DeleteClusterAuditConfig(ctx context.Context) error
 
 	// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
-	GetClusterNetworkingConfig(context.Context, ...MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(context.Context) (types.ClusterNetworkingConfig, error)
 	// CreateClusterNetworkingConfig creates a cluster networking config if once does not already exist.
 	CreateClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error)
 	// UpdateClusterNetworkingConfig updates an existing cluster networking config.

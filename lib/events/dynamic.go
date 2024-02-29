@@ -327,6 +327,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.OktaAssignmentResult{}
 	case OktaAssignmentCleanupEvent:
 		e = &events.OktaAssignmentResult{}
+	case OktaUserSyncEvent:
+		e = &events.OktaUserSync{}
 	case OktaAccessListSyncEvent:
 		e = &events.OktaAccessListSync{}
 	case AccessListCreateEvent:
