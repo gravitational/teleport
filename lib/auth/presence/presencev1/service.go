@@ -38,13 +38,16 @@ type Cache interface{}
 
 // Backend is the subset of the backend resources that the Service modifies.
 type Backend interface {
-	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
-	CreateRemoteCluster(rc types.RemoteCluster) error
-	UpdateRemoteCluster(rc types.RemoteCluster) error
+	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
+	ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error)
+	CreateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error)
+	UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error)
 }
 
 type AuthServer interface {
-	// Special!
+	// DeleteRemoteCluster deletes the remote cluster and associated resources
+	// like certificate authorities.
+	// We need to invoke this directly on auth.Server.
 	DeleteRemoteCluster(ctx context.Context, clusterName string) error
 }
 
@@ -111,6 +114,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}, nil
 }
 
+// GetRemoteCluster returns a remote cluster by name.
 func (s *Service) GetRemoteCluster(
 	ctx context.Context, req *presencepb.GetRemoteClusterRequest,
 ) (*types.RemoteClusterV3, error) {
@@ -126,7 +130,7 @@ func (s *Service) GetRemoteCluster(
 		return nil, trace.Wrap(err)
 	}
 
-	rc, err := s.backend.GetRemoteCluster(req.Name)
+	rc, err := s.backend.GetRemoteCluster(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -137,13 +141,14 @@ func (s *Service) GetRemoteCluster(
 
 	v3, ok := rc.(*types.RemoteClusterV3)
 	if !ok {
-		s.logger.Warnf("expected type RemoteClusterV3, got %T for user %q", rc, rc.GetName())
+		s.logger.Warnf("expected type RemoteClusterV3, got %T for %q", rc, rc.GetName())
 		return nil, trace.BadParameter("encountered unexpected remote cluster type")
 	}
 
 	return v3, nil
 }
 
+// ListRemoteClusters returns a list of remote clusters.
 func (s *Service) ListRemoteClusters(
 	ctx context.Context, req *presencepb.ListRemoteClustersRequest,
 ) (*presencepb.ListRemoteClustersResponse, error) {
@@ -155,16 +160,43 @@ func (s *Service) ListRemoteClusters(
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO: implement ListRemoteClusters in the backend
-	rcs := make([]types.RemoteCluster, 0)
+	page, nextToken, err := s.backend.ListRemoteClusters(
+		ctx, int(req.PageSize), req.PageToken,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	// TODO: Filter on their access
+	// Convert the remote clusters to the V3 type
+	concretePage := make([]*types.RemoteClusterV3, 0, len(page))
+	for _, rc := range page {
+		v3, ok := rc.(*types.RemoteClusterV3)
+		if !ok {
+			s.logger.Warnf("expected type RemoteClusterV3, got %T for %q", rc, rc.GetName())
+			continue
+		}
+		concretePage = append(concretePage, v3)
+	}
+
+	// Filter out remote clusters that the user doesn't have access to.
+	filteredPage := make([]*types.RemoteClusterV3, 0, len(concretePage))
+	for _, rc := range concretePage {
+		if err := authCtx.Checker.CheckAccessToRemoteCluster(rc); err != nil {
+			if trace.IsAccessDenied(err) {
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+		filteredPage = append(filteredPage, rc)
+	}
 
 	return &presencepb.ListRemoteClustersResponse{
 		RemoteClusters: nil,
+		NextPageToken:  nextToken,
 	}, nil
 }
 
+// CreateRemoteCluster creates a new remote cluster.
 func (s *Service) CreateRemoteCluster(
 	ctx context.Context, req *presencepb.CreateRemoteClusterRequest,
 ) (*types.RemoteClusterV3, error) {
@@ -180,14 +212,21 @@ func (s *Service) CreateRemoteCluster(
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO: return the created remote cluster
-	if err := s.backend.CreateRemoteCluster(req.RemoteCluster); err != nil {
+	rc, err := s.backend.CreateRemoteCluster(ctx, req.RemoteCluster)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return nil, nil
+	v3, ok := rc.(*types.RemoteClusterV3)
+	if !ok {
+		s.logger.Warnf("expected type RemoteClusterV3, got %T for %q", rc, rc.GetName())
+		return nil, trace.BadParameter("encountered unexpected remote cluster type")
+	}
+
+	return v3, nil
 }
 
+// UpdateRemoteCluster updates a remote cluster.
 func (s *Service) UpdateRemoteCluster(
 	ctx context.Context, req *presencepb.UpdateRemoteClusterRequest,
 ) (*types.RemoteClusterV3, error) {
@@ -203,35 +242,21 @@ func (s *Service) UpdateRemoteCluster(
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO: return the updated remote cluster
-	if err := s.backend.UpdateRemoteCluster(req.RemoteCluster); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return nil, nil
-}
-
-func (s *Service) UpsertRemoteCluster(
-	ctx context.Context, req *presencepb.UpsertRemoteClusterRequest,
-) (*types.RemoteClusterV3, error) {
-	if req.RemoteCluster == nil {
-		return nil, trace.BadParameter("remote_cluster: must not be nil")
-	}
-
-	authCtx, err := s.authorizer.Authorize(ctx)
+	rc, err := s.backend.UpdateRemoteCluster(ctx, req.RemoteCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(
-		types.KindRemoteCluster, types.VerbCreate, types.VerbUpdate,
-	); err != nil {
-		return nil, trace.Wrap(err)
+
+	v3, ok := rc.(*types.RemoteClusterV3)
+	if !ok {
+		s.logger.Warnf("expected type RemoteClusterV3, got %T for user %q", rc, rc.GetName())
+		return nil, trace.BadParameter("encountered unexpected remote cluster type")
 	}
 
-	// TODO: Implement Upsert
-	return nil, nil
+	return v3, nil
 }
 
+// DeleteRemoteCluster deletes a remote cluster.
 func (s *Service) DeleteRemoteCluster(
 	ctx context.Context, req *presencepb.DeleteRemoteClusterRequest,
 ) (*types.RemoteClusterV3, error) {

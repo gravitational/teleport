@@ -31,8 +31,6 @@ service PresenceService {
   rpc CreateRemoteCluster(CreateRemoteClusterRequest) returns (types.RemoteClusterV3);
   // UpdateRemoteCluster updates an existing RemoteCluster.
   rpc UpdateRemoteCluster(UpdateRemoteClusterRequest) returns (types.RemoteClusterV3);
-  // UpsertRemoteCluster creates a new RemoteCluster or forcefully updates an existing RemoteCluster.
-  rpc UpsertRemoteCluster(UpsertRemoteClusterRequest) returns (types.RemoteClusterV3);
   // DeleteRemoteCluster removes an existing RemoteCluster by name.
   rpc DeleteRemoteCluster(DeleteRemoteClusterRequest) returns (google.protobuf.Empty);
 }
@@ -72,12 +70,6 @@ message CreateRemoteClusterRequest {
 // Request for UpdateRemoteCluster
 message UpdateRemoteClusterRequest {
   // RemoteCluster is the RemoteCluster to update.
-  types.RemoteClusterV3 remote_cluster = 1;
-}
-
-// Request for UpsertRemoteCluster
-message UpsertRemoteClusterRequest {
-  // RemoteCluster is the RemoteCluster to upsert.
   types.RemoteClusterV3 remote_cluster = 1;
 }
 
