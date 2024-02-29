@@ -721,19 +721,17 @@ func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc types.Remo
 		existing.SetConnectionStatus(rc.GetConnectionStatus())
 		existing.SetMetadata(rc.GetMetadata())
 
-		rev := existing.GetRevision()
 		updateValue, err := services.MarshalRemoteCluster(existing)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		updateItem := backend.Item{
+
+		lease, err := s.ConditionalUpdate(ctx, backend.Item{
 			Key:      backend.Key(remoteClustersPrefix, existing.GetName()),
 			Value:    updateValue,
 			Expires:  existing.Expiry(),
-			Revision: rev,
-		}
-
-		lease, err := s.ConditionalUpdate(ctx, updateItem)
+			Revision: existing.GetRevision(),
+		})
 		if err != nil {
 			if trace.IsCompareFailed(err) {
 				// Retry!
@@ -744,7 +742,51 @@ func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc types.Remo
 		existing.SetRevision(lease.Revision)
 		return existing, nil
 	}
-	return nil, trace.LimitExceeded("failed to update remote cluster within %v iterations", iterationLimit)
+	return nil, trace.CompareFailed("failed to update remote cluster within %v iterations", iterationLimit)
+}
+
+// GetAndUpdateRemoteCluster fetches a remote cluster and then calls updateFn
+// to apply any changes, before persisting the updated remote cluster.
+func (s *PresenceService) GetAndUpdateRemoteCluster(
+	ctx context.Context,
+	name string,
+	updateFn func(types.RemoteCluster) (types.RemoteCluster, error),
+) (types.RemoteCluster, error) {
+	// Retry to update the remote cluster in case of a conflict.
+	const iterationLimit = 3
+	for i := 0; i < 3; i++ {
+		existing, err := s.GetRemoteCluster(ctx, name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		updated, err := updateFn(existing.Clone())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		updatedValue, err := services.MarshalRemoteCluster(updated)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		lease, err := s.ConditionalUpdate(ctx, backend.Item{
+			Key:      backend.Key(remoteClustersPrefix, updated.GetName()),
+			Value:    updatedValue,
+			Expires:  updated.Expiry(),
+			Revision: updated.GetRevision(),
+		})
+		if err != nil {
+			if trace.IsCompareFailed(err) {
+				// Retry!
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+		existing.SetRevision(lease.Revision)
+		return existing, nil
+	}
+	return nil, trace.CompareFailed("failed to update remote cluster within %v iterations", iterationLimit)
 }
 
 // GetRemoteClusters returns a list of remote clusters
