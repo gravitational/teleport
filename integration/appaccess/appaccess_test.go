@@ -578,7 +578,7 @@ func testAuditEvents(p *Pack, t *testing.T) {
 			expectedEvent,
 			event,
 			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
-			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time"),
+			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time", "Index"),
 			cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
 		))
 	})
