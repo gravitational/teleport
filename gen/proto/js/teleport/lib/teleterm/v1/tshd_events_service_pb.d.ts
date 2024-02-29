@@ -10,12 +10,10 @@ export class ReloginRequest extends jspb.Message {
     getRootClusterUri(): string;
     setRootClusterUri(value: string): ReloginRequest;
 
-
     hasGatewayCertExpired(): boolean;
     clearGatewayCertExpired(): void;
     getGatewayCertExpired(): GatewayCertExpired | undefined;
     setGatewayCertExpired(value?: GatewayCertExpired): ReloginRequest;
-
 
     getReasonCase(): ReloginRequest.ReasonCase;
 
@@ -37,9 +35,7 @@ export namespace ReloginRequest {
 
     export enum ReasonCase {
         REASON_NOT_SET = 0,
-    
-    GATEWAY_CERT_EXPIRED = 2,
-
+        GATEWAY_CERT_EXPIRED = 2,
     }
 
 }
@@ -47,10 +43,8 @@ export namespace ReloginRequest {
 export class GatewayCertExpired extends jspb.Message { 
     getGatewayUri(): string;
     setGatewayUri(value: string): GatewayCertExpired;
-
     getTargetUri(): string;
     setTargetUri(value: string): GatewayCertExpired;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GatewayCertExpired.AsObject;
@@ -93,7 +87,6 @@ export class SendNotificationRequest extends jspb.Message {
     getCannotProxyGatewayConnection(): CannotProxyGatewayConnection | undefined;
     setCannotProxyGatewayConnection(value?: CannotProxyGatewayConnection): SendNotificationRequest;
 
-
     getSubjectCase(): SendNotificationRequest.SubjectCase;
 
     serializeBinary(): Uint8Array;
@@ -113,9 +106,7 @@ export namespace SendNotificationRequest {
 
     export enum SubjectCase {
         SUBJECT_NOT_SET = 0,
-    
-    CANNOT_PROXY_GATEWAY_CONNECTION = 1,
-
+        CANNOT_PROXY_GATEWAY_CONNECTION = 1,
     }
 
 }
@@ -123,13 +114,10 @@ export namespace SendNotificationRequest {
 export class CannotProxyGatewayConnection extends jspb.Message { 
     getGatewayUri(): string;
     setGatewayUri(value: string): CannotProxyGatewayConnection;
-
     getTargetUri(): string;
     setTargetUri(value: string): CannotProxyGatewayConnection;
-
     getError(): string;
     setError(value: string): CannotProxyGatewayConnection;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): CannotProxyGatewayConnection.AsObject;
@@ -169,13 +157,10 @@ export namespace SendNotificationResponse {
 export class SendPendingHeadlessAuthenticationRequest extends jspb.Message { 
     getRootClusterUri(): string;
     setRootClusterUri(value: string): SendPendingHeadlessAuthenticationRequest;
-
     getHeadlessAuthenticationId(): string;
     setHeadlessAuthenticationId(value: string): SendPendingHeadlessAuthenticationRequest;
-
     getHeadlessAuthenticationClientIp(): string;
     setHeadlessAuthenticationClientIp(value: string): SendPendingHeadlessAuthenticationRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SendPendingHeadlessAuthenticationRequest.AsObject;
