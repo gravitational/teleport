@@ -17,10 +17,10 @@ limitations under the License.
 package common
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"

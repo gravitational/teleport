@@ -21,13 +21,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net/http"
+	"slices"
 	"time"
 
 	"connectrpc.com/connect"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"

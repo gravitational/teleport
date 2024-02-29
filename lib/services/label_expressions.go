@@ -15,10 +15,10 @@
 package services
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"

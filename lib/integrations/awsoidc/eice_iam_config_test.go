@@ -19,12 +19,12 @@ package awsoidc
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 )
 
 func TestEICEIAMConfigReqDefaults(t *testing.T) {

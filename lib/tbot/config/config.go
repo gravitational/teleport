@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/url"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -28,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"

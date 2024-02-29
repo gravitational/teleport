@@ -19,13 +19,13 @@ package common
 import (
 	"fmt"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/accessrequest"

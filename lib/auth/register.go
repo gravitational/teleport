@@ -21,11 +21,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"golang.org/x/exp/slices"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

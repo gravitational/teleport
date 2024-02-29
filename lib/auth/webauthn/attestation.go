@@ -17,11 +17,11 @@ package webauthn
 import (
 	"crypto/x509"
 	"encoding/pem"
+	"slices"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 )

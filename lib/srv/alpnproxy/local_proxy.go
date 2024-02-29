@@ -25,6 +25,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"slices"
 	"strings"
 	"sync"
 
@@ -32,7 +33,6 @@ import (
 	"github.com/jackc/pgproto3/v2"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/utils/pingconn"

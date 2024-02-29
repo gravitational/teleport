@@ -19,6 +19,7 @@ package kubernetestoken
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -27,7 +28,6 @@ import (
 	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
-	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/version"

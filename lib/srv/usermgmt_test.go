@@ -20,12 +20,12 @@ import (
 	"errors"
 	"fmt"
 	"os/user"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"

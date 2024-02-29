@@ -27,6 +27,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -35,7 +36,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"

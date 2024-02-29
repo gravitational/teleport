@@ -18,6 +18,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -25,7 +26,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"

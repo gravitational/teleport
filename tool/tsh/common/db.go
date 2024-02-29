@@ -24,6 +24,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -33,7 +34,6 @@ import (
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
