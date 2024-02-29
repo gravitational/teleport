@@ -2227,7 +2227,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 			log.SetLevel(log.DebugLevel)
 			cfg.Log.SetLevel(log.DebugLevel)
 		} else {
-			if fileConf.Logger.Severity != "trace" {
+			if strings.ToLower(fileConf.Logger.Severity) != "trace" {
 				fileConf.Logger.Severity = teleport.DebugLevel
 			}
 		}

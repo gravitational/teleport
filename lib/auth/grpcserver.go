@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	dbobjectimportrulev12 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	discoveryconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -67,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
+	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule"
@@ -5678,6 +5680,28 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	machineidv1pb.RegisterBotServiceServer(server, botService)
 
+	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating database objectImportRule service")
+	}
+	dbobjectimportrulev12.RegisterDatabaseObjectImportRuleServiceServer(server, dbObjectImportRuleService)
+
+	workloadIdentityService, err := machineidv1.NewWorkloadIdentityService(machineidv1.WorkloadIdentityServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Cache:      cfg.AuthServer.Cache,
+		Reporter:   cfg.AuthServer.Services.UsageReporter,
+		Emitter:    cfg.Emitter,
+		Clock:      cfg.AuthServer.GetClock(),
+		KeyStore:   cfg.AuthServer.keyStore,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating workload identity service")
+	}
+	machineidv1pb.RegisterWorkloadIdentityServiceServer(server, workloadIdentityService)
+
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
 		Entry: logrus.WithFields(logrus.Fields{
@@ -5747,9 +5771,11 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	integrationpb.RegisterIntegrationServiceServer(server, integrationServiceServer)
 
 	integrationAWSOIDCServiceServer, err := integrationService.NewAWSOIDCService(&integrationService.AWSOIDCServiceConfig{
-		Authorizer:         cfg.Authorizer,
-		IntegrationService: integrationServiceServer,
-		Cache:              cfg.AuthServer,
+		Authorizer:            cfg.Authorizer,
+		IntegrationService:    integrationServiceServer,
+		Cache:                 cfg.AuthServer,
+		ProxyPublicAddrGetter: cfg.AuthServer.getProxyPublicAddr,
+		Clock:                 cfg.AuthServer.clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

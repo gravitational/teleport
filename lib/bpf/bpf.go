@@ -137,6 +137,7 @@ func New(config *servicecfg.BPFConfig) (BPF, error) {
 	// Create a cgroup controller to add/remote cgroups.
 	cgroup, err := controlgroup.New(&controlgroup.Config{
 		MountPath: config.CgroupPath,
+		RootPath:  config.RootPath,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -42,6 +42,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -147,6 +148,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindSecurityReport:           rc.createSecurityReport,
 		types.KindServerInfo:               rc.createServerInfo,
 		types.KindBot:                      rc.createBot,
+		types.KindDatabaseObjectImportRule: rc.createDatabaseObjectImportRule,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:            rc.updateUser,
@@ -380,7 +382,7 @@ func (rc *ResourceCommand) createCertAuthority(ctx context.Context, client auth.
 	if err := client.UpsertCertAuthority(ctx, certAuthority); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("certificate authority '%s' has been updated\n", certAuthority.GetName())
+	fmt.Printf("certificate authority %q has been updated\n", certAuthority.GetName())
 	return nil
 }
 
@@ -454,12 +456,12 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client auth.ClientI, 
 	}
 	roleExists := (err == nil)
 	if roleExists && !rc.IsForced() {
-		return trace.AlreadyExists("role '%s' already exists", roleName)
+		return trace.AlreadyExists("role %q already exists", roleName)
 	}
 	if _, err := client.UpsertRole(ctx, role); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("role '%s' has been %s\n", roleName, UpsertVerb(roleExists, rc.IsForced()))
+	fmt.Printf("role %q has been %s\n", roleName, UpsertVerb(roleExists, rc.IsForced()))
 	return nil
 }
 
@@ -480,7 +482,7 @@ func (rc *ResourceCommand) updateRole(ctx context.Context, client auth.ClientI, 
 	if _, err := client.UpdateRole(ctx, role); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("role '%s' has been updated\n", role.GetName())
+	fmt.Printf("role %q has been updated\n", role.GetName())
 	return nil
 }
 
@@ -583,6 +585,31 @@ func (rc *ResourceCommand) createBot(ctx context.Context, client auth.ClientI, r
 		return trace.Wrap(err)
 	}
 	fmt.Printf("bot %q has been created\n", bot.Metadata.Name)
+	return nil
+}
+
+func (rc *ResourceCommand) createDatabaseObjectImportRule(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	rule, err := services.UnmarshalDatabaseObjectImportRule(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if rc.IsForced() {
+		_, err = client.DatabaseObjectImportRuleClient().UpsertDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.UpsertDatabaseObjectImportRuleRequest{
+			Rule: rule,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("rule %q has been created\n", rule.GetMetadata().GetName())
+		return nil
+	}
+	_, err = client.DatabaseObjectImportRuleClient().CreateDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.CreateDatabaseObjectImportRuleRequest{
+		Rule: rule,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("bot %q has been created\n", rule.GetMetadata().GetName())
 	return nil
 }
 
@@ -913,20 +940,20 @@ func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client auth.
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("authentication connector '%s' has been updated\n", upserted.GetName())
+		fmt.Printf("authentication connector %q has been updated\n", upserted.GetName())
 		return nil
 	}
 
 	created, err := client.CreateOIDCConnector(ctx, conn)
 	if err != nil {
 		if trace.IsAlreadyExists(err) {
-			return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", conn.GetName())
+			return trace.AlreadyExists("connector %q already exists, use -f flag to override", conn.GetName())
 		}
 
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("authentication connector '%s' has been created\n", created.GetName())
+	fmt.Printf("authentication connector %q has been created\n", created.GetName())
 	return nil
 }
 
@@ -958,7 +985,7 @@ func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client auth.
 	}
 	exists := (err == nil)
 	if !rc.IsForced() && exists {
-		return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", connectorName)
+		return trace.AlreadyExists("connector %q already exists, use -f flag to override", connectorName)
 	}
 
 	// If the connector being pushed to the backend does not have a signing key
@@ -972,7 +999,7 @@ func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client auth.
 	if _, err = client.UpsertSAMLConnector(ctx, conn); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, UpsertVerb(exists, rc.IsForced()))
+	fmt.Printf("authentication connector %q has been %s\n", connectorName, UpsertVerb(exists, rc.IsForced()))
 	return nil
 }
 
@@ -986,7 +1013,7 @@ func (rc *ResourceCommand) updateSAMLConnector(ctx context.Context, client auth.
 	if _, err = client.UpdateSAMLConnector(ctx, conn); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("authentication connector '%s' has been updated\n", conn.GetName())
+	fmt.Printf("authentication connector %q has been updated\n", conn.GetName())
 	return nil
 }
 
@@ -1050,7 +1077,7 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 			return trace.Wrap(err)
 		}
 	}
-	fmt.Printf("SAML IdP service provider '%s' has been %s\n", serviceProviderName, UpsertVerb(exists, rc.IsForced()))
+	fmt.Printf("SAML IdP service provider %q has been %s\n", serviceProviderName, UpsertVerb(exists, rc.IsForced()))
 	return nil
 }
 
@@ -1111,7 +1138,7 @@ func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client auth
 			return trace.Wrap(err)
 		}
 	}
-	fmt.Printf("Okta import rule '%s' has been %s\n", importRule.GetName(), UpsertVerb(exists, rc.IsForced()))
+	fmt.Printf("Okta import rule %q has been %s\n", importRule.GetName(), UpsertVerb(exists, rc.IsForced()))
 	return nil
 }
 
@@ -1604,6 +1631,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Bot %q has been deleted\n", rc.ref.Name)
+	case types.KindDatabaseObjectImportRule:
+		if _, err := client.DatabaseObjectImportRuleClient().DeleteDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.DeleteDatabaseObjectImportRuleRequest{Name: rc.ref.Name}); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Rule %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -2278,6 +2310,32 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			req.PageToken = resp.NextPageToken
 		}
 		return &botCollection{bots: bots}, nil
+	case types.KindDatabaseObjectImportRule:
+		remote := client.DatabaseObjectImportRuleClient()
+		if rc.ref.Name != "" {
+			rule, err := remote.GetDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.GetDatabaseObjectImportRuleRequest{Name: rc.ref.Name})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &databaseObjectImportRuleCollection{rules: []*dbobjectimportrulev1.DatabaseObjectImportRule{rule}}, nil
+		}
+
+		req := &dbobjectimportrulev1.ListDatabaseObjectImportRulesRequest{}
+		var rules []*dbobjectimportrulev1.DatabaseObjectImportRule
+		for {
+			resp, err := remote.ListDatabaseObjectImportRules(ctx, req)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			rules = append(rules, resp.Rules...)
+
+			if resp.NextPageToken == "" {
+				break
+			}
+			req.PageToken = resp.NextPageToken
+		}
+		return &databaseObjectImportRuleCollection{rules: rules}, nil
 	case types.KindOktaImportRule:
 		if rc.ref.Name != "" {
 			importRule, err := client.OktaClient().GetOktaImportRule(ctx, rc.ref.Name)
