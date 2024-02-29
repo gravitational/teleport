@@ -17,6 +17,7 @@ syntax = "proto3";
 package proto;
 
 import "teleport/accesslist/v1/accesslist.proto";
+import "teleport/accessmonitoringrules/v1/access_monitoring_rules.proto";
 import "teleport/discoveryconfig/v1/discoveryconfig.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/secreports/v1/secreports.proto";
@@ -147,5 +148,7 @@ message Event {
     teleport.secreports.v1.ReportState ReportState = 52;
     // AccessListReview is an access list review resource.
     teleport.accesslist.v1.Review AccessListReview = 53;
+    // AccessMonitoringRule is an access monitoring rule resource.
+    teleport.accessmonitoringrules.v1.AccessMonitoringRuleV1 AccessMonitoringRule = 54;
   }
 }
