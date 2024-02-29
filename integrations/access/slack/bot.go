@@ -304,13 +304,54 @@ func (b Bot) SendNotification(ctx context.Context, recipient common.Recipient, n
 
 // slackAccessRequestMsgSection builds an access request Slack message section (obeys markdown).
 func (b Bot) slackNotificationMsgSections(notification *notificationsv1.Notification) []BlockItem {
+	text := fmt.Sprintf("*Title:* %s\n*Description:*\n%s\n*Time:* %s\n", notification.GetMetadata().GetName(), notification.GetMetadata().GetDescription(), notification.GetSpec().GetCreated())
+
+	imageURL := "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Logo_informations.svg/480px-Logo_informations.svg.png"
+	labels := notification.GetMetadata().GetLabels()
+	if severity, ok := labels["severity"]; ok {
+		switch severity {
+		case "info":
+		case "warning":
+			imageURL = "https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/Warning.svg/260px-Warning.svg.png"
+		case "critical":
+			imageURL = "https://upload.wikimedia.org/wikipedia/en/thumb/4/4c/Emblem-important.svg/240px-Emblem-important.svg.png"
+		default:
+		}
+	}
+
+	accessory := NewBlockItem(ImageBlock{
+		ImageURL: imageURL,
+		AltText:  "severity logo",
+	})
+
 	sections := []BlockItem{
 		NewBlockItem(SectionBlock{
-			Text: NewTextObjectItem(MarkdownObject{Text: fmt.Sprintf("Notification: %s", notification.GetMetadata().GetName())}),
+			Text: NewTextObjectItem(MarkdownObject{Text: "New Teleport Notification"}),
 		}),
 		NewBlockItem(SectionBlock{
-			Text: NewTextObjectItem(MarkdownObject{Text: notification.GetMetadata().Description}),
+			Text: NewTextObjectItem(MarkdownObject{
+				Text: text,
+			}),
+			Accessory: &accessory,
 		}),
+	}
+
+	if diff, ok := labels["tag.teleport.dev/diff"]; ok {
+		link := b.webProxyURL.JoinPath("/web/accessgraph/diff", diff)
+		sections = append(sections, NewBlockItem(ActionsBlock{
+			Elements: []json.RawMessage{
+				[]byte(fmt.Sprintf(`{
+					"type": "button",
+					"text": {
+						"type": "plain_text",
+						"text": ":rocket: See in Tag",
+						"emoji": true
+					},
+					"url": %q,
+					"action_id": "button-action"
+				}`, link)),
+			},
+		}))
 	}
 
 	return sections
