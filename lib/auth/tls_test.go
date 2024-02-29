@@ -3900,7 +3900,7 @@ func TestEvents(t *testing.T) {
 		ConfigS:       clt,
 		LocalConfigS:  testSrv.Auth(),
 		EventsS:       clt,
-		PresenceS:     clt,
+		PresenceS:     testSrv.Auth(),
 		CAS:           clt,
 		ProvisioningS: clt,
 		Access:        clt,
