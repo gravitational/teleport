@@ -26,6 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -48,482 +50,482 @@ func TestAddRoleDefaults(t *testing.T) {
 		expectedErr require.ErrorAssertionFunc
 		expected    types.Role
 	}{
-		//		{
-		//			name: "nothing added",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//			},
-		//			expectedErr: noChange,
-		//			expected:    nil,
-		//		},
-		//		{
-		//			name: "editor (default rules match preset rules)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetEditorRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//			},
-		//			expectedErr: require.NoError,
-		//			expected: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetEditorRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//				Spec: types.RoleSpecV6{
-		//					Allow: types.RoleConditions{
-		//						Rules: NewPresetEditorRole().GetRules(types.Allow),
-		//					},
-		//				},
-		//			},
-		//		},
-		//		{
-		//			name: "editor (only missing label)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetEditorRoleName,
-		//				},
-		//				Spec: types.RoleSpecV6{
-		//					Allow: types.RoleConditions{
-		//						Rules: defaultAllowRules()[teleport.PresetEditorRoleName],
-		//					},
-		//				},
-		//			},
-		//			expectedErr: require.NoError,
-		//			expected: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetEditorRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//				Spec: types.RoleSpecV6{
-		//					Allow: types.RoleConditions{
-		//						Rules: defaultAllowRules()[teleport.PresetEditorRoleName],
-		//					},
-		//				},
-		//			},
-		//		},
-		//		{
-		//			name: "access (default rules match preset rules)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetAccessRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//			},
-		//			expectedErr: require.NoError,
-		//			expected: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetAccessRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//				Spec: types.RoleSpecV6{
-		//					Allow: types.RoleConditions{
-		//						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
-		//						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
-		//						Rules:                 NewPresetAccessRole().GetRules(types.Allow),
-		//					},
-		//				},
-		//			},
-		//		},
-		//		{
-		//			name: "access (access review, db labels, identical rules)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetAccessRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//				Spec: types.RoleSpecV6{
-		//					Allow: types.RoleConditions{
-		//						Rules: defaultAllowRules()[teleport.PresetAccessRoleName],
-		//					},
-		//				},
-		//			},
-		//			expectedErr: require.NoError,
-		//			expected: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetAccessRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//				Spec: types.RoleSpecV6{
-		//					Allow: types.RoleConditions{
-		//						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
-		//						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
-		//						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
-		//					},
-		//				},
-		//			},
-		//		},
-		//		{
-		//			name: "access (only missing label)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetAccessRoleName,
-		//				},
-		//				Spec: types.RoleSpecV6{
-		//					Allow: types.RoleConditions{
-		//						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
-		//						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
-		//						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
-		//					},
-		//				},
-		//			},
-		//			expectedErr: require.NoError,
-		//			expected: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetAccessRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//				Spec: types.RoleSpecV6{
-		//					Allow: types.RoleConditions{
-		//						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
-		//						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
-		//						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
-		//					},
-		//				},
-		//			},
-		//		},
-		//		{
-		//			name: "auditor (default rules match preset rules)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetAuditorRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//				Spec: types.RoleSpecV6{
-		//					Options: types.RoleOptions{
-		//						CertificateFormat: constants.CertificateFormatStandard,
-		//						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
-		//						RecordSession: &types.RecordSession{
-		//							Desktop: types.NewBoolOption(false),
-		//						},
-		//					},
-		//				},
-		//			},
-		//			expectedErr: require.NoError,
-		//			expected: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetAuditorRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//				Spec: types.RoleSpecV6{
-		//					Options: types.RoleOptions{
-		//						CertificateFormat: constants.CertificateFormatStandard,
-		//						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
-		//						RecordSession: &types.RecordSession{
-		//							Desktop: types.NewBoolOption(false),
-		//						},
-		//					},
-		//					Allow: types.RoleConditions{
-		//						Rules: NewPresetAuditorRole().GetRules(types.Allow),
-		//					},
-		//				},
-		//			},
-		//		},
-		//		{
-		//			name: "auditor (only missing label)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetAuditorRoleName,
-		//				},
-		//				Spec: types.RoleSpecV6{
-		//					Options: types.RoleOptions{
-		//						CertificateFormat: constants.CertificateFormatStandard,
-		//						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
-		//						RecordSession: &types.RecordSession{
-		//							Desktop: types.NewBoolOption(false),
-		//						},
-		//					},
-		//					Allow: types.RoleConditions{
-		//						Rules: defaultAllowRules()[teleport.PresetAuditorRoleName],
-		//					},
-		//				},
-		//			},
-		//			expectedErr: require.NoError,
-		//			expected: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetAuditorRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//				Spec: types.RoleSpecV6{
-		//					Options: types.RoleOptions{
-		//						CertificateFormat: constants.CertificateFormatStandard,
-		//						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
-		//						RecordSession: &types.RecordSession{
-		//							Desktop: types.NewBoolOption(false),
-		//						},
-		//					},
-		//					Allow: types.RoleConditions{
-		//						Rules: defaultAllowRules()[teleport.PresetAuditorRoleName],
-		//					},
-		//				},
-		//			},
-		//		},
-		//		{
-		//			name: "reviewer (not enterprise)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetReviewerRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//			},
-		//			expectedErr: noChange,
-		//			expected:    nil,
-		//		},
-		//		{
-		//			name: "reviewer (enterprise)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetReviewerRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//			},
-		//			enterprise:     true,
-		//			expectedErr:    require.NoError,
-		//			reviewNotEmpty: true,
-		//			expected: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetReviewerRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//				Spec: types.RoleSpecV6{
-		//					Allow: types.RoleConditions{
-		//						ReviewRequests: defaultAllowAccessReviewConditions(true)[teleport.PresetReviewerRoleName],
-		//					},
-		//				},
-		//			},
-		//		},
-		//		{
-		//			name: "reviewer (enterprise, created by user)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetReviewerRoleName,
-		//				},
-		//			},
-		//			enterprise:  true,
-		//			expectedErr: notModifying,
-		//			expected:    nil,
-		//		},
-		//		{
-		//			name: "reviewer (enterprise, existing review requests)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetReviewerRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//				Spec: types.RoleSpecV6{
-		//					Allow: types.RoleConditions{
-		//						ReviewRequests: &types.AccessReviewConditions{
-		//							Roles: []string{"some-role"},
-		//						},
-		//					},
-		//				},
-		//			},
-		//			enterprise:  true,
-		//			expectedErr: noChange,
-		//		},
-		//		{
-		//			name: "requester (not enterprise)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetRequesterRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//			},
-		//			expectedErr: noChange,
-		//			expected:    nil,
-		//		},
-		//		{
-		//			name: "requester (enterprise)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetRequesterRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//			},
-		//			enterprise:             true,
-		//			expectedErr:            require.NoError,
-		//			accessRequestsNotEmpty: true,
-		//			expected: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetRequesterRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//				Spec: types.RoleSpecV6{
-		//					Allow: types.RoleConditions{
-		//						Request: defaultAllowAccessRequestConditions(true)[teleport.PresetRequesterRoleName],
-		//					},
-		//				},
-		//			},
-		//		},
-		//		{
-		//			name: "requester (enterprise, created by user)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetRequesterRoleName,
-		//				},
-		//			},
-		//			enterprise:  true,
-		//			expectedErr: notModifying,
-		//			expected:    nil,
-		//		},
-		//		{
-		//			name: "requester (enterprise, existing requests)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.PresetRequesterRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.PresetResource,
-		//					},
-		//				},
-		//				Spec: types.RoleSpecV6{
-		//					Allow: types.RoleConditions{
-		//						Request: &types.AccessRequestConditions{
-		//							Roles: []string{"some-role"},
-		//						},
-		//					},
-		//				},
-		//			},
-		//			enterprise:  true,
-		//			expectedErr: noChange,
-		//		},
-		//		{
-		//			name: "okta resources (not enterprise)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.SystemOktaAccessRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.SystemResource,
-		//					},
-		//				},
-		//			},
-		//			expectedErr: noChange,
-		//			expected:    nil,
-		//		},
-		//		{
-		//			name: "okta resources (enterprise)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.SystemOktaAccessRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.SystemResource,
-		//					},
-		//				},
-		//			},
-		//			enterprise:  true,
-		//			expectedErr: require.NoError,
-		//			expected: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.SystemOktaAccessRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.SystemResource,
-		//					},
-		//				},
-		//				Spec: types.RoleSpecV6{
-		//					Allow: types.RoleConditions{
-		//						AppLabels: types.Labels{
-		//							types.OriginLabel: []string{types.OriginOkta},
-		//						},
-		//						GroupLabels: types.Labels{
-		//							types.OriginLabel: []string{types.OriginOkta},
-		//						},
-		//					},
-		//				},
-		//			},
-		//		},
-		//		{
-		//			name: "okta resources (enterprise, created by user)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.SystemOktaAccessRoleName,
-		//				},
-		//			},
-		//			enterprise:  true,
-		//			expectedErr: notModifying,
-		//			expected:    nil,
-		//		},
-		//		{
-		//			name: "okta requester (not enterprise)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.SystemOktaRequesterRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.SystemResource,
-		//						types.OriginLabel:                  types.OriginOkta,
-		//					},
-		//				},
-		//			},
-		//			expectedErr: noChange,
-		//			expected:    nil,
-		//		},
-		//		{
-		//			name: "okta requester (enterprise)",
-		//			role: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.SystemOktaRequesterRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.SystemResource,
-		//						types.OriginLabel:                  types.OriginOkta,
-		//					},
-		//				},
-		//			},
-		//			enterprise:             true,
-		//			expectedErr:            require.NoError,
-		//			accessRequestsNotEmpty: true,
-		//			expected: &types.RoleV6{
-		//				Metadata: types.Metadata{
-		//					Name: teleport.SystemOktaRequesterRoleName,
-		//					Labels: map[string]string{
-		//						types.TeleportInternalResourceType: types.SystemResource,
-		//						types.OriginLabel:                  types.OriginOkta,
-		//					},
-		//				},
-		//				Spec: types.RoleSpecV6{
-		//					Allow: types.RoleConditions{
-		//						Request: defaultAllowAccessRequestConditions(true)[teleport.SystemOktaRequesterRoleName],
-		//					},
-		//				},
-		//			},
-		//		},
+		{
+			name: "nothing added",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+			},
+			expectedErr: noChange,
+			expected:    nil,
+		},
+		{
+			name: "editor (default rules match preset rules)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetEditorRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+			},
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetEditorRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: NewPresetEditorRole().GetRules(types.Allow),
+					},
+				},
+			},
+		},
+		{
+			name: "editor (only missing label)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetEditorRoleName,
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: defaultAllowRules()[teleport.PresetEditorRoleName],
+					},
+				},
+			},
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetEditorRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: defaultAllowRules()[teleport.PresetEditorRoleName],
+					},
+				},
+			},
+		},
+		{
+			name: "access (default rules match preset rules)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+			},
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
+						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
+						Rules:                 NewPresetAccessRole().GetRules(types.Allow),
+					},
+				},
+			},
+		},
+		{
+			name: "access (access review, db labels, identical rules)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: defaultAllowRules()[teleport.PresetAccessRoleName],
+					},
+				},
+			},
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
+						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
+						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+					},
+				},
+			},
+		},
+		{
+			name: "access (only missing label)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAccessRoleName,
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
+						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
+						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+					},
+				},
+			},
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
+						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
+						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+					},
+				},
+			},
+		},
+		{
+			name: "auditor (default rules match preset rules)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAuditorRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+						RecordSession: &types.RecordSession{
+							Desktop: types.NewBoolOption(false),
+						},
+					},
+				},
+			},
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAuditorRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+						RecordSession: &types.RecordSession{
+							Desktop: types.NewBoolOption(false),
+						},
+					},
+					Allow: types.RoleConditions{
+						Rules: NewPresetAuditorRole().GetRules(types.Allow),
+					},
+				},
+			},
+		},
+		{
+			name: "auditor (only missing label)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAuditorRoleName,
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+						RecordSession: &types.RecordSession{
+							Desktop: types.NewBoolOption(false),
+						},
+					},
+					Allow: types.RoleConditions{
+						Rules: defaultAllowRules()[teleport.PresetAuditorRoleName],
+					},
+				},
+			},
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAuditorRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+						RecordSession: &types.RecordSession{
+							Desktop: types.NewBoolOption(false),
+						},
+					},
+					Allow: types.RoleConditions{
+						Rules: defaultAllowRules()[teleport.PresetAuditorRoleName],
+					},
+				},
+			},
+		},
+		{
+			name: "reviewer (not enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetReviewerRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+			},
+			expectedErr: noChange,
+			expected:    nil,
+		},
+		{
+			name: "reviewer (enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetReviewerRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+			},
+			enterprise:     true,
+			expectedErr:    require.NoError,
+			reviewNotEmpty: true,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetReviewerRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						ReviewRequests: defaultAllowAccessReviewConditions(true)[teleport.PresetReviewerRoleName],
+					},
+				},
+			},
+		},
+		{
+			name: "reviewer (enterprise, created by user)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetReviewerRoleName,
+				},
+			},
+			enterprise:  true,
+			expectedErr: notModifying,
+			expected:    nil,
+		},
+		{
+			name: "reviewer (enterprise, existing review requests)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetReviewerRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						ReviewRequests: &types.AccessReviewConditions{
+							Roles: []string{"some-role"},
+						},
+					},
+				},
+			},
+			enterprise:  true,
+			expectedErr: noChange,
+		},
+		{
+			name: "requester (not enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetRequesterRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+			},
+			expectedErr: noChange,
+			expected:    nil,
+		},
+		{
+			name: "requester (enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetRequesterRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+			},
+			enterprise:             true,
+			expectedErr:            require.NoError,
+			accessRequestsNotEmpty: true,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetRequesterRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: defaultAllowAccessRequestConditions(true)[teleport.PresetRequesterRoleName],
+					},
+				},
+			},
+		},
+		{
+			name: "requester (enterprise, created by user)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetRequesterRoleName,
+				},
+			},
+			enterprise:  true,
+			expectedErr: notModifying,
+			expected:    nil,
+		},
+		{
+			name: "requester (enterprise, existing requests)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetRequesterRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							Roles: []string{"some-role"},
+						},
+					},
+				},
+			},
+			enterprise:  true,
+			expectedErr: noChange,
+		},
+		{
+			name: "okta resources (not enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.SystemOktaAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.SystemResource,
+					},
+				},
+			},
+			expectedErr: noChange,
+			expected:    nil,
+		},
+		{
+			name: "okta resources (enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.SystemOktaAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.SystemResource,
+					},
+				},
+			},
+			enterprise:  true,
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.SystemOktaAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.SystemResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						AppLabels: types.Labels{
+							types.OriginLabel: []string{types.OriginOkta},
+						},
+						GroupLabels: types.Labels{
+							types.OriginLabel: []string{types.OriginOkta},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "okta resources (enterprise, created by user)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.SystemOktaAccessRoleName,
+				},
+			},
+			enterprise:  true,
+			expectedErr: notModifying,
+			expected:    nil,
+		},
+		{
+			name: "okta requester (not enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.SystemOktaRequesterRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.SystemResource,
+						types.OriginLabel:                  types.OriginOkta,
+					},
+				},
+			},
+			expectedErr: noChange,
+			expected:    nil,
+		},
+		{
+			name: "okta requester (enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.SystemOktaRequesterRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.SystemResource,
+						types.OriginLabel:                  types.OriginOkta,
+					},
+				},
+			},
+			enterprise:             true,
+			expectedErr:            require.NoError,
+			accessRequestsNotEmpty: true,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.SystemOktaRequesterRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.SystemResource,
+						types.OriginLabel:                  types.OriginOkta,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: defaultAllowAccessRequestConditions(true)[teleport.SystemOktaRequesterRoleName],
+					},
+				},
+			},
+		},
 		{
 			name: "okta requester (enterprise, created by user)",
 			role: &types.RoleV6{
