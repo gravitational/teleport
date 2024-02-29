@@ -145,21 +145,6 @@ type AWSOIDCDeployServiceRequest struct {
 	// If empty, the default security group for the VPC is going to be used.
 	SecurityGroups []string `json:"securityGroups"`
 
-	// ClusterName is the ECS Cluster to be used.
-	// Optional.
-	// Defaults to <teleport-cluster-name>-teleport, eg. acme-teleport
-	ClusterName *string `json:"clusterName"`
-
-	// ServiceName is the ECS Service that should be used.
-	// Optional.
-	// Defaults to <teleport-cluster-name>-teleport-service, eg acme-teleport-service
-	ServiceName *string `json:"serviceName"`
-
-	// TaskName is the ECS Task Definition family name.
-	// Optional.
-	// Defaults to <teleport-cluster-name>-teleport-<deployment-mode>, eg acme-teleport-database-service
-	TaskName *string `json:"taskName"`
-
 	// TaskRoleARN is the AWS Role's ARN used within the Task execution.
 	// Ensure the AWS Client's Role has `iam:PassRole` for this Role's ARN.
 	// This can be either the ARN or the short name of the AWS Role.

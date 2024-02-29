@@ -1,7 +1,5 @@
 # Those variables are extracted from build.assets/Makefile so they can be imported
 # by other Makefiles
-# These values may need to be updated in `dronegen/container_image_products.go` if
-# they change here
 BUILDBOX_VERSION ?= teleport14
 BUILDBOX_BASE_NAME ?= public.ecr.aws/gravitational/teleport-buildbox
 
