@@ -262,7 +262,7 @@ var (
 	authenticateHeadlessError = trace.AccessDenied("headless authentication failed")
 	// authenticateWebauthnError is the generic error returned for failed WebAuthn
 	// authentication attempts.
-	authenticateWebauthnError = trace.AccessDenied("invalid Webauthn response")
+	authenticateWebauthnError = trace.AccessDenied("invalid credentials")
 	// invalidUserPassError is the error for when either the provided username or
 	// password is incorrect.
 	invalidUserPassError = trace.AccessDenied("invalid username or password")

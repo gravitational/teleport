@@ -84,5 +84,5 @@ export type ChangePasswordReq = {
   oldPassword: string;
   newPassword: string;
   secondFactorToken: string;
-  credential: Credential;
+  credential?: Credential;
 };
