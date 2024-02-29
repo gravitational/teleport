@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
-	config "github.com/gravitational/teleport/lib/devicetrust/config"
+	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -657,7 +657,7 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 	defer func() {
 		if err != nil {
 			if errors.Is(err, storage.ErrEnrolledDeviceLimit) {
-				s.emitDeviceLimitEvent(context.Background(), prehogv1alpha.LicenseLimit_LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE)
+				s.emitDeviceLimitEvent(prehogv1alpha.LicenseLimit_LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE)
 			}
 			s.logger.
 				WithFields(log.Fields{
@@ -765,7 +765,7 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 	}
 
 	// Is device authn allowed by the cluster mode?
-	authnAllowed := config.GetEffectiveMode(authPref.GetDeviceTrust()) != constants.DeviceTrustModeOff
+	authnAllowed := dtconfig.GetEffectiveMode(authPref.GetDeviceTrust()) != constants.DeviceTrustModeOff
 
 	// If not, is device authn required by the user's roles?
 	if !authnAllowed {
@@ -816,7 +816,8 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 					Code: events.DeviceAuthenticateCode,
 				},
 				Status: apievents.Status{
-					Success: success,
+					Success:     success,
+					UserMessage: getUserMessage(err),
 				},
 				Device:       devMetadata,
 				UserMetadata: userMetadata,
@@ -846,7 +847,7 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 	// MDMs are disallowed for Teleport Team.
 	if f := modules.GetModules().Features(); f.IsTeam() {
 		// TODO(sshah): update event type once Intune integration is supported.
-		s.emitDeviceLimitEvent(ctx, prehogv1alpha.LicenseLimit_LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF)
+		s.emitDeviceLimitEvent(prehogv1alpha.LicenseLimit_LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF)
 		return trace.AccessDenied(
 			"this Teleport cluster is not licensed for MDM integrations, please contact the cluster administrator")
 	}
@@ -924,7 +925,7 @@ func (s *Service) GetResourceDevicesUsage(ctx context.Context, f *modules.Featur
 	}, nil
 }
 
-func (s *Service) GetDevicesUsage(ctx context.Context, req *devicepb.GetDevicesUsageRequest) (*devicepb.DevicesUsage, error) {
+func (s *Service) GetDevicesUsage(_ context.Context, _ *devicepb.GetDevicesUsageRequest) (*devicepb.DevicesUsage, error) {
 	return nil, trace.BadParameter("deprecated, use ResourceUsageService.GetUsage instead")
 }
 
@@ -1148,7 +1149,7 @@ func (s *Service) emitAuditEvent(ctx context.Context, e apievents.AuditEvent) {
 	}
 }
 
-func (s *Service) emitDeviceLimitEvent(ctx context.Context, l prehogv1alpha.LicenseLimit) {
+func (s *Service) emitDeviceLimitEvent(l prehogv1alpha.LicenseLimit) {
 	s.authServer.AnonymizeAndSubmit(&usagereporter.LicenseLimitEvent{
 		LicenseLimit: l,
 	})

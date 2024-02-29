@@ -20,6 +20,11 @@ import (
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 )
 
+const (
+	deviceAuthnFailedMessage = "device authentication failed"
+	invalidInitMessage       = "invalid initial payload"
+)
+
 type authnCeremony struct {
 	logger           *log.Entry
 	storage          *storage.S
@@ -94,20 +99,29 @@ func (c *authnCeremony) authenticateDevice(stream devicepb.DeviceTrustService_Au
 	initReq := resp.GetInit()
 	switch {
 	case initReq == nil:
-		return nil, nil, trace.BadParameter("bad payload, expected AuthenticateDeviceInit")
+		err = trace.BadParameter("bad payload, expected AuthenticateDeviceInit")
 	case initReq.DeviceData == nil:
-		return nil, nil, trace.BadParameter("device data required")
+		err = trace.BadParameter("device data required")
 	case initReq.DeviceData.OsType == devicepb.OSType_OS_TYPE_UNSPECIFIED:
-		return nil, nil, trace.BadParameter("device OS type required")
+		err = trace.BadParameter("device OS type required")
 	case initReq.DeviceData.SerialNumber == "":
-		return nil, nil, trace.BadParameter("device serial number required")
+		err = trace.BadParameter("device serial number required")
+	}
+	if err != nil {
+		return nil, nil, auditStatusError{
+			Err:         err,
+			UserMessage: invalidInitMessage,
+		}
 	}
 
 	// ...fetch the device...
 	ctx := stream.Context()
 	dev, err := findDeviceBySerial(ctx, c.storage, initReq.DeviceData.OsType, initReq.DeviceData.SerialNumber)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, auditStatusError{
+			Err:         trace.Wrap(err),
+			UserMessage: "device not found",
+		}
 	}
 
 	// ...and always return it, so callers can write audit logs against it.
@@ -121,16 +135,29 @@ func (c *authnCeremony) authenticate(stream devicepb.DeviceTrustService_Authenti
 	// Additionally, we don't require UserCertificates.SshAuthorizedKey to be
 	// present.
 	if err := protectReadOnlyDeviceDataFields(initReq.DeviceData); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, auditStatusError{
+			Err:         trace.Wrap(err),
+			UserMessage: invalidInitMessage,
+		}
 	}
 	if err := storage.ValidateCollectedData(initReq.DeviceData); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, auditStatusError{
+			Err:         trace.Wrap(err),
+			UserMessage: "invalid device collected data",
+		}
 	}
 	switch {
 	case initReq.CredentialId == "":
-		return nil, trace.BadParameter("credential ID required")
+		return nil, auditStatusError{
+			Err:         trace.BadParameter("credential ID required"),
+			UserMessage: invalidInitMessage,
+		}
 	case dev.EnrollStatus != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED:
-		return nil, trace.BadParameter("device not enrolled")
+		const deviceNotEnrolled = "device not enrolled"
+		return nil, auditStatusError{
+			Err:         trace.BadParameter(deviceNotEnrolled),
+			UserMessage: deviceNotEnrolled,
+		}
 	// Sanity check, this shouldn't happen for an enrolled device.
 	case dev.Credential == nil:
 		c.logger.
@@ -141,7 +168,11 @@ func (c *authnCeremony) authenticate(stream devicepb.DeviceTrustService_Authenti
 			Error("Internal: Enrolled device has nil credential")
 		return nil, trace.Wrap(errors.New("device has no registered credential"))
 	case dev.Credential.Id != initReq.CredentialId:
-		return nil, trace.BadParameter("unknown device credential")
+		const unknownCredential = "unknown device credential"
+		return nil, auditStatusError{
+			Err:         trace.BadParameter(unknownCredential),
+			UserMessage: unknownCredential,
+		}
 	}
 
 	// Hand off to the platform dependent implementations
@@ -237,7 +268,10 @@ func (c *authnCeremony) authenticateDeviceMacOS(
 	}
 	if err := challenge.Verify(chal, chalResp.Signature, pubKey, crypto.SHA256); err != nil {
 		c.logger.WithError(err).Debug("AuthenticateDevice: signature verification failed")
-		return trace.BadParameter("signature verification failed")
+		return auditStatusError{
+			Err:         trace.BadParameter("signature verification failed"),
+			UserMessage: deviceAuthnFailedMessage,
+		}
 	}
 
 	return nil
@@ -278,8 +312,7 @@ func (c *authnCeremony) authenticateDeviceTPM(
 		return nil, trace.Wrap(err)
 	}
 	chalResp := resp.GetTpmChallengeResponse()
-	switch {
-	case chalResp == nil:
+	if chalResp == nil {
 		return nil, trace.BadParameter("bad payload, expected TPMAuthenticateDeviceChallengeResponse")
 	}
 	platformAttestation, err := finishPlatformAttestation(
@@ -287,7 +320,10 @@ func (c *authnCeremony) authenticateDeviceTPM(
 	)
 	if err != nil {
 		c.logger.WithError(err).Debug("TPM platform attestation failed verification")
-		return nil, trace.BadParameter("platform attestation verification failed")
+		return nil, auditStatusError{
+			Err:         trace.BadParameter("platform attestation verification failed"),
+			UserMessage: getUserMessage(err), // Use the message from finishPlatformAttestation.
+		}
 	}
 
 	return platformAttestation, nil

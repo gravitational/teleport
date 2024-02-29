@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -18,6 +19,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/auth"
@@ -194,6 +196,9 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 	devices := env.DevicesClient
 	ctx := context.Background()
 
+	const invalidPayloadMessage = "initial payload"
+	const deviceAuthnFailedMessage = "device authentication failed"
+
 	tests := []struct {
 		name       string
 		shouldSkip string
@@ -202,8 +207,9 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 		deviceTemplate *devicepb.Device
 		simulator      simulator
 
-		assertErr func(error) bool
-		wantErr   string
+		assertErr            func(error) bool
+		wantErr              string
+		wantAuditUserMessage string
 	}{
 		// Init step errors.
 		{
@@ -217,8 +223,9 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "credential-id-empty",
 			},
-			assertErr: trace.IsBadParameter,
-			wantErr:   "credential ID",
+			assertErr:            trace.IsBadParameter,
+			wantErr:              "credential ID",
+			wantAuditUserMessage: invalidPayloadMessage,
 		},
 		{
 			name: "init: CredentialId mismatch",
@@ -231,8 +238,9 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "credential-id-unknown",
 			},
-			assertErr: trace.IsBadParameter,
-			wantErr:   "unknown device credential",
+			assertErr:            trace.IsBadParameter,
+			wantErr:              "unknown device credential",
+			wantAuditUserMessage: "unknown device credential",
 		},
 		{
 			name: "init: DeviceData nil",
@@ -245,8 +253,9 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "device-data-nil",
 			},
-			assertErr: trace.IsBadParameter,
-			wantErr:   "device data required",
+			assertErr:            trace.IsBadParameter,
+			wantErr:              "device data required",
+			wantAuditUserMessage: invalidPayloadMessage,
 		},
 		{
 			name: "init: DeviceData mismatch",
@@ -259,8 +268,9 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "device-data-mismatch",
 			},
-			assertErr: trace.IsNotFound,
-			wantErr:   "not registered",
+			assertErr:            trace.IsNotFound,
+			wantErr:              "not registered",
+			wantAuditUserMessage: "device not found",
 		},
 		{
 			name: "init: device sends platform attestation in dcd",
@@ -275,8 +285,9 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "device-data-sends-platform-attestation",
 			},
-			assertErr: trace.IsBadParameter,
-			wantErr:   "tpm_platform_attestation is a read only field and cannot be submitted in device collected data",
+			assertErr:            trace.IsBadParameter,
+			wantErr:              "tpm_platform_attestation is a read only field and cannot be submitted in device collected data",
+			wantAuditUserMessage: invalidPayloadMessage,
 		},
 
 		{
@@ -287,8 +298,9 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "unenrolled",
 			},
-			assertErr: trace.IsBadParameter,
-			wantErr:   "device not enrolled",
+			assertErr:            trace.IsBadParameter,
+			wantErr:              "device not enrolled",
+			wantAuditUserMessage: "device not enrolled",
 		},
 
 		// macOS specific errors.
@@ -313,11 +325,12 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "macos-invalid-signature",
 			},
-			assertErr: trace.IsBadParameter,
-			wantErr:   "verification failed",
+			assertErr:            trace.IsBadParameter,
+			wantErr:              "verification failed",
+			wantAuditUserMessage: deviceAuthnFailedMessage,
 		},
 		{
-			name: "macOS: wrong key signs the challenge",
+			name: "macos: wrong key signs the challenge",
 			simulator: newMacOSSimulator(macOSBehavior{
 				incorrectSigningKey: true,
 			}),
@@ -325,8 +338,9 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "macos-wrong-signing-key",
 			},
-			assertErr: trace.IsBadParameter,
-			wantErr:   "verification failed",
+			assertErr:            trace.IsBadParameter,
+			wantErr:              "verification failed",
+			wantAuditUserMessage: deviceAuthnFailedMessage,
 		},
 		// tpm specific errors.
 		{
@@ -339,8 +353,9 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			simulator: newTPMSimulator(tpmBehavior{
 				incorrectAttestAK: true,
 			}),
-			assertErr: trace.IsBadParameter,
-			wantErr:   "platform attestation verification failed",
+			assertErr:            trace.IsBadParameter,
+			wantErr:              "platform attestation verification failed",
+			wantAuditUserMessage: deviceAuthnFailedMessage,
 		},
 		{
 			name:       "tpm: incorrect platform attestation nonce",
@@ -352,8 +367,9 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			simulator: newTPMSimulator(tpmBehavior{
 				incorrectAttestNonce: true,
 			}),
-			assertErr: trace.IsBadParameter,
-			wantErr:   "platform attestation verification failed",
+			assertErr:            trace.IsBadParameter,
+			wantErr:              "platform attestation verification failed",
+			wantAuditUserMessage: deviceAuthnFailedMessage,
 		},
 		{
 			name:       "tpm: incorrect platform attestation pcr",
@@ -365,8 +381,9 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			simulator: newTPMSimulator(tpmBehavior{
 				incorrectAttestPCR: true,
 			}),
-			assertErr: trace.IsBadParameter,
-			wantErr:   "platform attestation verification failed",
+			assertErr:            trace.IsBadParameter,
+			wantErr:              "platform attestation verification failed",
+			wantAuditUserMessage: deviceAuthnFailedMessage,
 		},
 		{
 			name:       "tpm: incorrect platform attestation event",
@@ -378,8 +395,9 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			simulator: newTPMSimulator(tpmBehavior{
 				incorrectAttestEvent: true,
 			}),
-			assertErr: trace.IsBadParameter,
-			wantErr:   "platform attestation verification failed",
+			assertErr:            trace.IsBadParameter,
+			wantErr:              "platform attestation verification failed",
+			wantAuditUserMessage: "event log verification",
 		},
 	}
 	for _, test := range tests {
@@ -426,6 +444,18 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 					WantFail: true,
 				},
 			})
+
+			// Verify audit Status.UserMessage.
+			if test.wantAuditUserMessage == "" {
+				return
+			}
+			var gotMessage string
+			if devEvent, ok := emitter.LastEvent().(*apievents.DeviceEvent2); ok {
+				gotMessage = devEvent.Status.UserMessage
+			}
+			if !strings.Contains(gotMessage, test.wantAuditUserMessage) {
+				t.Errorf("Audit Status.UserMessage=%q, want %q", gotMessage, test.wantAuditUserMessage)
+			}
 		})
 	}
 }
@@ -696,7 +726,7 @@ func TestService_AuthenticateDevice_backfillOwner(t *testing.T) {
 	}
 }
 
-func fakeAugmentFunc(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error) {
+func fakeAugmentFunc(_ context.Context, authCtx *authz.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error) {
 	// Sanity checks.
 	switch {
 	case authCtx == nil:

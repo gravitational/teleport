@@ -42,13 +42,15 @@ func platformAttestationChallenge(
 		}
 		// Now we validate the platform attestation provided by the device using
 		// the nonce generated earlier and the known AK for the device.
-		err := ak.VerifyAll(
+		if err := ak.VerifyAll(
 			platformParams.Quotes,
 			platformParams.PCRs,
 			nonce,
-		)
-		if err != nil {
-			return nil, trace.Wrap(err, "verifying pcrs")
+		); err != nil {
+			return nil, auditStatusError{
+				Err:         trace.Wrap(err, "verifying pcrs"),
+				UserMessage: deviceAuthnFailedMessage,
+			}
 		}
 		// We know now that the PCRs provided are legitimate and signed by the AK
 		// and that our nonce was used in this process to prevent replay attacks.
@@ -63,10 +65,16 @@ func platformAttestationChallenge(
 		// it indicates attempted tampering.
 		eventLog, err := attest.ParseEventLog(platformParams.EventLog)
 		if err != nil {
-			return nil, trace.Wrap(err, "parsing event log")
+			return nil, auditStatusError{
+				Err:         trace.Wrap(err, "parsing event log"),
+				UserMessage: "event log parsing failed",
+			}
 		}
-		if _, err = eventLog.Verify(platformParams.PCRs); err != nil {
-			return nil, trace.Wrap(err, "verifying event log")
+		if _, err := eventLog.Verify(platformParams.PCRs); err != nil {
+			return nil, auditStatusError{
+				Err:         trace.Wrap(err, "verifying event log"),
+				UserMessage: "event log verification failed",
+			}
 		}
 		// We now have a "legitimate" event log, but there is some caveats.
 		// See https://github.com/google/go-attestation/blob/master/docs/event-log-disclosure.md
