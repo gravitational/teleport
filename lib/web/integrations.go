@@ -110,6 +110,7 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 		}
 
 		integration.SetAWSOIDCRoleARN(req.AWSOIDC.RoleARN)
+		integration.SetAWSOIDCIssuer(req.AWSOIDC.Issuer)
 	}
 
 	if _, err := clt.UpdateIntegration(r.Context(), integration); err != nil {

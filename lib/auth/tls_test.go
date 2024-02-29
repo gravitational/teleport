@@ -934,6 +934,19 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	err = clt.UpsertProxy(ctx, proxyServer)
 	require.NoError(t, err)
 
+	integrationName := "my-integration"
+
+	ig, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: integrationName},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
+			Issuer:  "http://localhost:8080",
+		},
+	)
+	require.NoError(t, err)
+	_, err = clt.CreateIntegration(ctx, ig)
+	require.NoError(t, err)
+
 	user1, _, err := CreateUserAndRole(clt, "user1", nil, []types.Rule{
 		types.NewRule(types.KindIntegration, []string{types.VerbUse}),
 	})
@@ -944,7 +957,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 
 	// Create a JWT using the current CA, this will become the "old" CA during
 	// rotation.
-	oldJWT, err := client.GenerateAWSOIDCToken(ctx)
+	oldJWT, err := client.GenerateAWSOIDCToken(ctx, integrationName)
 	require.NoError(t, err)
 
 	// Check that the "old" CA can be used to verify tokens.
@@ -994,7 +1007,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// New tokens should now fail to validate with the old key.
-	newJWT, err := client.GenerateAWSOIDCToken(ctx)
+	newJWT, err := client.GenerateAWSOIDCToken(ctx, integrationName)
 	require.NoError(t, err)
 
 	// New tokens will validate with the new key.
