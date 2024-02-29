@@ -65,13 +65,19 @@ your oldest agents, you can limit your search using the `--older-than` filter:
 
 ```code
 $ tctl inventory ls --upgrader=none --older-than=v1.2.3
-Server ID                            Hostname        Services Version Upgrader
------------------------------------- --------------- -------- ------- --------
-00000000-0000-0000-0000-000000000000 old.example.com Node     v1.1.1  none
+Server ID                            Hostname        Services       Version Upgrader
+------------------------------------ --------------- -------------- ------- --------
+00000000-0000-0000-0000-000000000000 old.example.com Node           v1.1.1  none
+00000000-0000-0000-0000-000000000001 teleport-proxy  Proxy          v14.3.6 none
+00000000-0000-0000-0000-000000000002 teleport-auth   Auth,Discovery v14.3.6 none
 ...
 ```
 
-When you enroll each agent in automatic upgrades in the next section, you can
+Note that the `inventory ls` command will also list `teleport-auth` and `teleport-proxy` services.
+You do not need to update these services or enroll them in automatic updates.
+Teleport Cloud manages updates for these services.
+
+When you enroll each agent in automatic updates in the next section, you can
 run the following commands to fetch the hostname for each agent and access it
 via Teleport. 
 
