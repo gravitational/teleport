@@ -361,6 +361,16 @@ func (c *Client) DeleteAllReverseTunnels() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// DeleteAllRemoteClusters not implemented: can only be called locally.
+func (c *Client) DeleteAllRemoteClusters(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// CreateRemoteCluster not implemented: can only be called locally.
+func (c *Client) CreateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
 // DeleteAllNamespaces not implemented: can only be called locally.
 func (c *Client) DeleteAllNamespaces() error {
 	return trace.NotImplemented(notImplementedMessage)

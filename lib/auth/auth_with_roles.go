@@ -4631,14 +4631,6 @@ func (a *ServerWithRoles) DeleteAllTunnelConnections() error {
 	return a.authServer.DeleteAllTunnelConnections()
 }
 
-func (a *ServerWithRoles) CreateRemoteCluster(ctx context.Context, conn types.RemoteCluster) error {
-	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	_, err := a.authServer.CreateRemoteCluster(ctx, conn)
-	return trace.Wrap(err)
-}
-
 func (a *ServerWithRoles) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error {
 	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
@@ -4692,13 +4684,6 @@ func (a *ServerWithRoles) DeleteRemoteCluster(ctx context.Context, clusterName s
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteRemoteCluster(ctx, clusterName)
-}
-
-func (a *ServerWithRoles) DeleteAllRemoteClusters(ctx context.Context) error {
-	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbList, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteAllRemoteClusters(ctx)
 }
 
 // AcquireSemaphore acquires lease with requested resources from semaphore.

@@ -1257,16 +1257,37 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 
 func TestRemoteClustersCRUD(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	testSrv := newTestTLSServer(t)
-
 	clt, err := testSrv.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	suite := &suite.ServicesTestSuite{
-		PresenceS: clt,
-	}
-	suite.RemoteClustersCRUD(t)
+	clusterName := "example.com"
+	out, err := clt.GetRemoteClusters(ctx)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	rc, err := types.NewRemoteCluster(clusterName)
+	require.NoError(t, err)
+	rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
+
+	_, err = testSrv.Auth().CreateRemoteCluster(ctx, rc)
+	require.NoError(t, err)
+
+	out, err = clt.GetRemoteClusters(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff(out[0], rc, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	err = clt.DeleteRemoteCluster(ctx, clusterName)
+	require.NoError(t, err)
+	err = clt.DeleteRemoteCluster(ctx, clusterName)
+	require.True(t, trace.IsNotFound(err))
+
+	out, err = clt.GetRemoteClusters(ctx)
+	require.NoError(t, err)
+	require.Empty(t, out, 0)
 }
 
 func TestServersCRUD(t *testing.T) {
