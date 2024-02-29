@@ -38,23 +38,33 @@ type output struct {
 	success bool
 }
 
-// GetNopInstall seeks and parses the nop upgrade line output, extracting target name and version.
+// GetNopInstall seeks and parses the nop upgrade line output, extracting target
+// name, version and restart mode.
 func (o *output) GetNopInstall() (params upgradeParams, ok bool) {
 	for _, ln := range strings.Split(o.stdout, "\n") {
 		ln = strings.TrimSpace(ln)
-		ps := strings.TrimPrefix(ln, nopInstallPrefix)
-		if ps == ln {
+		ln, ok := strings.CutPrefix(ln, nopInstallPrefix)
+		if !ok {
+			continue
+		}
+		ln = strings.TrimSpace(ln)
+
+		fields := strings.Split(ln, " ")
+		if len(fields) != 2 {
 			continue
 		}
 
-		parts := strings.Split(ps, "=")
-		if len(parts) != 2 {
+		target, version, ok := strings.Cut(fields[0], "=")
+		if !ok {
 			continue
 		}
+
+		restartMode := fields[1]
 
 		return upgradeParams{
-			target:  strings.TrimSpace(parts[0]),
-			version: strings.TrimSpace(parts[1]),
+			target:      target,
+			version:     version,
+			restartMode: restartMode,
 		}, true
 	}
 
@@ -63,12 +73,12 @@ func (o *output) GetNopInstall() (params upgradeParams, ok bool) {
 
 // upgradeParams represents the output of a 'nop' upgrade attempt.
 type upgradeParams struct {
-	target  string
-	version string
+	target      string
+	version     string
+	restartMode string
 }
 
 func runUpgrader(subcommand string, configDir string) (output, error) {
-
 	agentConfig := fmt.Sprintf("%s/%s", configDir, "teleport.yaml")
 	cmd := exec.Command(upgraderPath, subcommand)
 	cmd.Env = []string{fmt.Sprintf("%s=%s", configVar, configDir), fmt.Sprintf("%s=%s", agentConfigVar, agentConfig)}
@@ -262,6 +272,24 @@ func TestUpgraderBasics(t *testing.T) {
 
 	require.Equal(t, "teleport", nop.target)
 	require.Equal(t, "2.3.4", nop.version)
+	require.Equal(t, "reload", nop.restartMode)
+
+	tc.cfg["restart-mode"] = "restart"
+
+	out, err = tc.Run()
+	require.NoError(t, err)
+
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	nop, ok = out.GetNopInstall()
+	require.True(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	require.Equal(t, "teleport", nop.target)
+	require.Equal(t, "2.3.4", nop.version)
+	require.Equal(t, "restart", nop.restartMode)
+
+	delete(tc.cfg, "restart-mode")
+	tc.exclude = []string{"restart-mode"}
 
 	// simulate a successful upgrade by overriding the upgrader's "current version" view to
 	// now equal the version served by the endpoint.
@@ -308,6 +336,8 @@ func TestUpgraderBasics(t *testing.T) {
 
 	require.Equal(t, "teleport", nop.target)
 	require.Equal(t, "3.4.5", nop.version)
+	// upgrades with an unhealthy schedule state are full restarts
+	require.Equal(t, "restart", nop.restartMode)
 
 	// unhealthy marker state should be cleared/removed
 	us, err = tc.Get("state-unhealthy")
@@ -367,6 +397,8 @@ func TestUpgraderCritical(t *testing.T) {
 	require.True(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
 	require.Equal(t, "teleport", nop.target)
 	require.Equal(t, "2.3.4", nop.version)
+	// critical upgrades cause a full restart rather than a reload
+	require.Equal(t, "restart", nop.restartMode)
 
 	// revert to non-critical and re-check that we are in a "not upgrading but healthy" state.
 	endpoint.SetCritical("no")
@@ -434,6 +466,7 @@ func TestUnknownVersionScenarios(t *testing.T) {
 	require.True(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
 	require.Equal(t, "teleport", nop.target)
 	require.Equal(t, "2.3.4", nop.version)
+	require.Equal(t, "reload", nop.restartMode)
 
 	// shutdown the version endpoint
 	endpoint.Shutdown(context.Background())
@@ -444,7 +477,6 @@ func TestUnknownVersionScenarios(t *testing.T) {
 
 	// if there is no version endpoint, upgrader cannot function
 	require.False(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
-
 }
 
 const testAgentCfg = `
@@ -603,6 +635,7 @@ func TestUpgraderDetectProxyAddr(t *testing.T) {
 
 	require.Equal(t, "teleport", nop.target)
 	require.Equal(t, "2.3.4", nop.version)
+	require.Equal(t, "reload", nop.restartMode)
 
 	// simulate a successful upgrade by overriding the upgrader's "current version" view to
 	// now equal the version served by the endpoint.
@@ -656,6 +689,7 @@ func TestUpgraderHonorOverride(t *testing.T) {
 
 	require.Equal(t, "teleport", nop.target)
 	require.Equal(t, "2.3.4", nop.version)
+	require.Equal(t, "reload", nop.restartMode)
 
 	// simulate a successful upgrade by overriding the upgrader's "current version" view to
 	// now equal the version served by the endpoint.

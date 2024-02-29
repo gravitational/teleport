@@ -62,7 +62,7 @@ esac
 get_conf() {
     conf_name=$1
     default_value=$2
-    
+
     # if file does not exist, use default
     if ! test -f "$conf_dir/$conf_name"; then
         echo "$default_value"
@@ -160,7 +160,7 @@ pop_state() {
     # force use of a common prefix so we don't accidentally delete persistent config values.
     full_name="state-$state_name"
     state_value="$(get_conf "$full_name" "$default_state_value")"
-    
+
     if [[ "$dry_run" == "yes" ]]; then
         log_debug "preserving previous state value '$state_name' due to dry-run."
     else
@@ -219,7 +219,7 @@ in_maintenance_window() {
     fi
 
     time_now="$(date +%s)"
-    
+
     while read line; do
         start_time="$(echo "$line" | awk '{print $1}')"
         end_time="$(echo "$line" | awk '{print $2}')"
@@ -243,7 +243,7 @@ schedule_appears_healthy() {
     fi
 
     time_now="$(date +%s)"
-    
+
     while read line; do
         end_time="$(echo "$line" | awk '{print $2}')"
 
@@ -291,7 +291,7 @@ get_current_version() {
         else
             log_warn "failed to locate teleport binary for local version discovery"
         fi
-     fi 
+    fi
 
     return 1
 }
@@ -299,7 +299,7 @@ get_current_version() {
 # upgrade_endpoint_fetch loads the specified value from the upgrade endpoint. the only
 # currently supported values are 'version' and 'critical'.
 upgrade_endpoint_fetch() {
-    host_path="${upgrade_endpoint}/${1}" 
+    host_path="${upgrade_endpoint}/${1}"
     if is_insecure_mode; then
         log_warn "fetching $host_path in insecure mode (not safe for production use)."
         if if_output="$(curl -sSf "http://${host_path}")"; then
@@ -346,16 +346,40 @@ is_critical() {
     return 1
 }
 
+# do_reload_or_restart reloads or restarts teleport.service (depending on
+# restart_mode) if it's currently running.
+do_reload_or_restart() {
+    systemctl daemon-reload
+    # reload or restart the service if it's currently running
+    if [[ "$restart_mode" == "reload" ]]; then
+        log_info "gracefully restarting Teleport (if already running)"
+        # reload returns an error if the unit isn't active, and
+        # try-reload-or-restart is too recent of an addition for centos7
+        if systemctl is-active --quiet teleport.service; then
+            # we fall back to restart in case the reload fails, for example if
+            # the pidfile used for reloading is not valid; this can happen
+            # across the upgrade to the Teleport version that started locking
+            # the pidfile
+            systemctl reload teleport.service || systemctl try-restart teleport.service
+        fi
+    else
+        log_warn "ungracefully restarting Teleport (if already running), sessions will be ungracefully cut"
+        # restart will eventually terminate the whole cgroup and then start
+        # Teleport again
+        systemctl try-restart teleport.service
+    fi
+}
+
 # do_upgrade invokes the appropriate installer_kind with package_name=target_version.
 do_upgrade() {
     if [[ "$dry_run" == "yes" ]]; then
-        log_info "skipping install: kind=$installer_kind package=$package_name version=$target_version (dry-run)."
+        log_info "skipping install: kind=$installer_kind package=$package_name version=$target_version restart_mode=$restart_mode (dry-run)."
         return 0
     fi
     case "$installer_kind" in
         nop)
             log_info "attempting nop install $package_name=$target_version..."
-            echo "nop-install: $package_name=$target_version"
+            echo "nop-install: $package_name=$target_version $restart_mode"
             return 0
             ;;
         apt)
@@ -365,10 +389,8 @@ do_upgrade() {
                 -o Dir::Etc::sourcelist="sources.list.d/teleport.list" \
                 -o Dir::Etc::sourceparts="-" \
                 -o APT::Get::List-Cleanup="0"
-            # restart the service if it is currently running
             apt install -y --allow-downgrades "$package_name=$target_version"
-            systemctl daemon-reload
-            systemctl try-restart teleport.service
+            do_reload_or_restart
             return 0
             ;;
         yum)
@@ -395,19 +417,14 @@ do_upgrade() {
                 log_info "attempting downgrade command variant..."
                 yum downgrade  -y --disablerepo="*" --enablerepo="teleport" "$package_name-$yum_target_version"
             fi
-
-            # restart the service if it is currently running
-            systemctl daemon-reload
-            systemctl try-restart teleport.service
+            do_reload_or_restart
             return 0
             ;;
         zypper)
             log_info "attempting zypper install $package_name-$target_version"
             zypper refresh --repo="teleport"
             zypper install --oldpackage --no-confirm --repo="teleport" "$package_name-$target_version"
-            # restart the service if it is currently running
-            systemctl daemon-reload
-            systemctl try-restart teleport.service
+            do_reload_or_restart
             return 0
             ;;
         *)
@@ -436,8 +453,8 @@ if ! target_version="$(get_target_version)"; then
 fi
 
 if [[ "$target_version" == "none" ]]; then
-  log_info "version server did not advertise a target version, no upgrade available"
-  exit 0
+    log_info "version server did not advertise a target version, no upgrade available"
+    exit 0
 fi
 
 # we compare current version to target version here, but the only effect this comparison has
@@ -453,7 +470,9 @@ else
     log_warn "failed to detect current version, assuming $target_version to be a potential upgrade."
 fi
 
+restart_mode="$(get_conf restart-mode reload)"
 if is_critical; then
+    restart_mode=restart
     log_info "upgrade is marked as critical, will be attempted without checking maintenance window."
 elif in_maintenance_window; then
     log_info "within maintenance window, upgrade will be attempted."
@@ -462,11 +481,12 @@ elif ! schedule_appears_healthy; then
     # lack of healthy upgrade schedule means the agent was either just restarted, or is unhealthy. if
     # we also observed unhealthy state on the previous tick, we take that to mean the problem is
     # persistent, rather than having been caused by a restart.
-    if [[ "$marked_unhealthy" != "yes" ]]; then 
+    if [[ "$marked_unhealthy" != "yes" ]]; then
         log_warn "agent is new, or newly unhealthy. marking for potential future upgrade."
         set_state unhealthy yes
         exit 0
     fi
+    restart_mode=restart
     log_warn "agent was previously marked unhealthy and does not appear recovered, upgrade will be attempted."
 else
     log_info "upgrade is non-critical and we are outside of maintenance window, not attempting."
