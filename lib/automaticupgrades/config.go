@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -67,7 +68,7 @@ func GetChannel() string {
 
 // GetUpgraderVersion returns the teleport upgrader version
 func GetUpgraderVersion(ctx context.Context) string {
-	if os.Getenv("TELEPORT_EXT_UPGRADER") == "unit" {
+	if os.Getenv(constants.EnvTeleportUpgrader) == "unit" {
 		out, err := exec.CommandContext(ctx, teleportUpgradeScript, "version").Output()
 		if err != nil {
 			log.WithError(err).Debug("Failed to exec /usr/sbin/teleport-upgrade version command.")
@@ -77,5 +78,5 @@ func GetUpgraderVersion(ctx context.Context) string {
 			}
 		}
 	}
-	return os.Getenv("TELEPORT_EXT_UPGRADER_VERSION")
+	return os.Getenv(constants.EnvTeleportUpgraderVersion)
 }

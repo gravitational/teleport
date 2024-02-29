@@ -26,9 +26,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/aws/aws-sdk-go/aws/awsutil"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 )
 
@@ -107,6 +110,12 @@ func updateServiceContainerImage(ctx context.Context, clt DeployServiceClient, l
 
 	registerTaskDefinitionIn, err := generateTaskDefinitionWithImage(taskDefinition, teleportImage, ownershipTags.ToECSTags())
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Ensure that the TELEPORT_EXT_UPGRADER variables are set.
+	// These will ensure that the instance reports Teleport upgrader metrics.
+	if err := ensureUpgraderEnvironmentVariables(registerTaskDefinitionIn); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -279,6 +288,34 @@ func generateTaskDefinitionWithImage(taskDefinition *ecsTypes.TaskDefinition, te
 	registerTaskDefinitionIn.Tags = tags
 
 	return registerTaskDefinitionIn, nil
+}
+
+// ensureUpgraderEnvironmentVariables ensures that the TELEPORT_EXT_UPGRADER environment
+// variables are set.
+func ensureUpgraderEnvironmentVariables(taskDefinition *ecs.RegisterTaskDefinitionInput) error {
+	if len(taskDefinition.ContainerDefinitions) != 1 {
+		return trace.BadParameter("expected 1 task container definition, but got %d", len(taskDefinition.ContainerDefinitions))
+	}
+	environment := []ecsTypes.KeyValuePair{}
+	for _, env := range taskDefinition.ContainerDefinitions[0].Environment {
+		if aws.ToString(env.Name) == constants.EnvTeleportUpgrader ||
+			aws.ToString(env.Name) == constants.EnvTeleportUpgraderVersion {
+			continue
+		}
+		environment = append(environment, env)
+	}
+	environment = append(environment,
+		ecsTypes.KeyValuePair{
+			Name:  aws.String(constants.EnvTeleportUpgrader),
+			Value: aws.String(types.OriginIntegrationAWSOIDC),
+		},
+		ecsTypes.KeyValuePair{
+			Name:  aws.String(constants.EnvTeleportUpgraderVersion),
+			Value: aws.String(teleport.Version),
+		},
+	)
+	taskDefinition.ContainerDefinitions[0].Environment = environment
+	return nil
 }
 
 // generateServiceWithTaskDefinition returns new update service input with the desired task definition
