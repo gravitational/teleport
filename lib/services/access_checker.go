@@ -18,7 +18,6 @@ package services
 
 import (
 	"context"
-	"sort"
 	"strings"
 	"time"
 
@@ -909,12 +908,27 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	}, nil
 }
 
+// cmpCompare replaces cmp.Compare when backporting to a
+// branch that is too old for the cmp package to be available.
+func cmpCompare(x, y string) int {
+	switch {
+	case x < y:
+		return -1
+	case x > y:
+		return 1
+	default:
+		return 0
+	}
+}
+
 // HostSudoers returns host sudoers entries matching a server
 func (a *accessChecker) HostSudoers(s types.Server) ([]string, error) {
 	var sudoers []string
 
 	roleSet := slices.Clone(a.RoleSet)
-	sort.Sort(SortedRoles(roleSet))
+	slices.SortFunc(roleSet, func(a, b types.Role) int {
+		return cmpCompare(a.GetName(), b.GetName())
+	})
 
 	seenSudoers := make(map[string]struct{})
 	for _, role := range roleSet {
