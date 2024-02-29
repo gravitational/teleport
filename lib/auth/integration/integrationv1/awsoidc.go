@@ -37,7 +37,7 @@ import (
 )
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (s *Service) GenerateAWSOIDCToken(ctx context.Context, _ *integrationpb.GenerateAWSOIDCTokenRequest) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
+func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -46,12 +46,24 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, _ *integrationpb.Gen
 	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.generateAWSOIDCTokenWithoutAuthZ(ctx)
+
+	var integration types.Integration
+	// Clients in v15 or lower might not send the Integration
+	// All v16+ clients will send the Integration
+	// TODO(marco) DELETE IN v17.0
+	if req.Integration != "" {
+		integration, err = s.cache.GetIntegration(ctx, req.Integration)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return s.generateAWSOIDCTokenWithoutAuthZ(ctx, integration)
 }
 
 // generateAWSOIDCTokenWithoutAuthZ generates a token to be used when executing an AWS OIDC Integration action.
 // Bypasses authz and should only be used by other methods that validate AuthZ.
-func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
+func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context, integration types.Integration) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
 	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -81,9 +93,19 @@ func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context) (*integr
 		return nil, trace.Wrap(err)
 	}
 
-	issuer, err := oidc.IssuerForCluster(ctx, s.cache)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Clients in v15 or lower might not send the Integration
+	// All v16+ clients will send the Integration
+	// TODO(marco) DELETE IN v17.0
+	// Checking for an empty issuer must be kept.
+	var issuer string
+	if integration != nil && integration.GetAWSOIDCIntegrationSpec().Issuer != "" {
+		issuer = integration.GetAWSOIDCIntegrationSpec().Issuer
+	}
+	if issuer == "" {
+		issuer, err = oidc.IssuerForCluster(ctx, s.cache)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	token, err := privateKey.SignAWSOIDC(jwt.SignParams{
@@ -203,7 +225,7 @@ func (s *AWSOIDCService) awsClientReq(ctx context.Context, integrationName, regi
 		return nil, trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
 	}
 
-	token, err := s.integrationService.generateAWSOIDCTokenWithoutAuthZ(ctx)
+	token, err := s.integrationService.generateAWSOIDCTokenWithoutAuthZ(ctx, integration)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

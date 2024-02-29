@@ -29,6 +29,8 @@ import (
 type IntegrationAWSOIDCSpec struct {
 	// RoleARN is the role associated with the integration when SubKind is `aws-oidc`
 	RoleARN string `json:"roleArn,omitempty"`
+	// Issuer is the OIDC Issuer configured in AWS.
+	Issuer string `json:"issuer,omitempty"`
 }
 
 // Integration describes Integration fields
@@ -102,6 +104,7 @@ func MakeIntegration(ig types.Integration) Integration {
 		SubKind: ig.GetSubKind(),
 		AWSOIDC: &IntegrationAWSOIDCSpec{
 			RoleARN: ig.GetAWSOIDCIntegrationSpec().RoleARN,
+			Issuer:  ig.GetAWSOIDCIntegrationSpec().Issuer,
 		},
 	}
 }

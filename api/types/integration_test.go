@@ -32,6 +32,7 @@ func TestIntegrationJSONMarshalCycle(t *testing.T) {
 		Metadata{Name: "some-integration"},
 		&AWSOIDCIntegrationSpecV1{
 			RoleARN: "arn:aws:iam::123456789012:role/DevTeams",
+			Issuer:  "my-issuer.example.com",
 		},
 	)
 	require.NoError(t, err)
@@ -66,6 +67,7 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 					},
 					&AWSOIDCIntegrationSpecV1{
 						RoleARN: "some arn role",
+						Issuer:  "proxy.example.com",
 					},
 				)
 			},
@@ -84,6 +86,7 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 						SubKindSpec: &IntegrationSpecV1_AWSOIDC{
 							AWSOIDC: &AWSOIDCIntegrationSpecV1{
 								RoleARN: "some arn role",
+								Issuer:  "proxy.example.com",
 							},
 						},
 					},
