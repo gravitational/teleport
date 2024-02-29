@@ -4696,30 +4696,3 @@ func (c *Client) DeleteUserLastSeenNotification(ctx context.Context, username st
 	//TODO implement me
 	panic("implement me")
 }
-
-func (c *Client) GetCrownJewels(ctx context.Context) ([]*types.CrownJewel, error) {
-	resp, err := c.grpc.GetCrownJewels(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return resp.CrownJewels, nil
-}
-
-func (c *Client) CreateCrownJewel(ctx context.Context, req *types.CrownJewel) (*types.CrownJewel, error) {
-	rsp, err := c.grpc.CreateCrownJewel(ctx, req)
-	return rsp, trace.Wrap(err)
-}
-
-func (c *Client) DeleteCrownJewel(ctx context.Context, name string) error {
-	_, err := c.grpc.DeleteCrownJewel(ctx, &types.CrownJewel{
-		Metadata: types.Metadata{
-			Name: name,
-		},
-	})
-	return trace.Wrap(err)
-}
-
-func (c *Client) DeleteAllCrownJewels(ctx context.Context) error {
-	return nil
-}

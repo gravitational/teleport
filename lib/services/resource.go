@@ -230,16 +230,12 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindServerInfo, nil
 	case types.KindBot, "bots":
 		return types.KindBot, nil
-	case types.KindDatabaseObjectImportRule, "db_object_import_rules", "database_object_import_rule":
-		return types.KindDatabaseObjectImportRule, nil
 	case types.KindCrownJewel, "crown_jewels":
 		return types.KindCrownJewel, nil
 	case types.KindPluginNotification:
 		return types.KindPluginNotification, nil
 	case types.KindDatabaseObjectImportRule, "db_object_import_rules", "database_object_import_rule":
 		return types.KindDatabaseObjectImportRule, nil
-	case types.KindCrownJewel, "crown_jewels":
-		return types.KindCrownJewel, nil
 	case types.KindAccessMonitoringRule, "acr":
 		return types.KindAccessMonitoringRule, nil
 	}
