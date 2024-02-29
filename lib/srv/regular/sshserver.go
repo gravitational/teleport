@@ -1244,7 +1244,7 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 // req.Reply(false, nil).
 //
 // For more details: https://tools.ietf.org/html/rfc4254.html#page-4
-func (s *Server) HandleRequest(ctx context.Context, r *ssh.Request) {
+func (s *Server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionContext, r *ssh.Request) {
 	switch r.Type {
 	case teleport.KeepAliveReqType:
 		s.handleKeepAlive(r)
@@ -1455,7 +1455,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	}
 	scx.IsTestStub = s.isTestStub
 	scx.AddCloser(channel)
-	scx.ChannelType = teleport.ChanDirectTCPIP
+	scx.ExecType = teleport.ChanDirectTCPIP
 	scx.SrcAddr = net.JoinHostPort(req.Orig, strconv.Itoa(int(req.OrigPort)))
 	scx.DstAddr = net.JoinHostPort(req.Host, strconv.Itoa(int(req.Port)))
 	scx.SetAllowFileCopying(s.allowFileCopying)
@@ -1545,7 +1545,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	}
 	scx.IsTestStub = s.isTestStub
 	scx.AddCloser(ch)
-	scx.ChannelType = teleport.ChanSession
+	scx.ExecType = teleport.ChanSession
 	scx.SetAllowFileCopying(s.allowFileCopying)
 	defer scx.Close()
 

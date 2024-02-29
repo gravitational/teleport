@@ -985,7 +985,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	// The channel type determines the subcommand to execute (execution or
 	// port forwarding).
 	subCommand := teleport.ExecSubCommand
-	if ctx.ChannelType == teleport.ChanDirectTCPIP {
+	if ctx.ExecType == teleport.ChanDirectTCPIP {
 		subCommand = teleport.ForwardSubCommand
 	}
 
