@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -191,7 +192,7 @@ func (s *Service) ListRemoteClusters(
 	}
 
 	return &presencepb.ListRemoteClustersResponse{
-		RemoteClusters: nil,
+		RemoteClusters: filteredPage,
 		NextPageToken:  nextToken,
 	}, nil
 }
@@ -259,7 +260,7 @@ func (s *Service) UpdateRemoteCluster(
 // DeleteRemoteCluster deletes a remote cluster.
 func (s *Service) DeleteRemoteCluster(
 	ctx context.Context, req *presencepb.DeleteRemoteClusterRequest,
-) (*types.RemoteClusterV3, error) {
+) (*emptypb.Empty, error) {
 	if req.Name == "" {
 		return nil, trace.BadParameter("name: must be specified")
 	}
@@ -278,5 +279,5 @@ func (s *Service) DeleteRemoteCluster(
 		return nil, trace.Wrap(err)
 	}
 
-	return nil, nil
+	return &emptypb.Empty{}, nil
 }
