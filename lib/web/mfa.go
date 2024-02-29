@@ -22,10 +22,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"

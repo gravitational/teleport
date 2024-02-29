@@ -13,9 +13,11 @@ export function DialogHeader({
 }) {
   return (
     <Box mb={4}>
-      <Text typography="body1">
-        Step {stepIndex + 1} of {flowLength}
-      </Text>
+      {flowLength > 1 && (
+        <Text typography="body1">
+          Step {stepIndex + 1} of {flowLength}
+        </Text>
+      )}
       <Text typography="h4">{title}</Text>
     </Box>
   );

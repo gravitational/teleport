@@ -36,8 +36,8 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 import styled from 'styled-components';
-import { DialogHeader } from 'teleport/Account/DialogHeader';
 
+import { DialogHeader } from 'teleport/Account/DialogHeader';
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import { DeviceUsage } from 'teleport/services/mfa';

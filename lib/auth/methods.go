@@ -25,10 +25,10 @@ import (
 	"net"
 	"time"
 
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"

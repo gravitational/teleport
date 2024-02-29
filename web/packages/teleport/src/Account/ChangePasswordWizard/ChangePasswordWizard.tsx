@@ -36,6 +36,7 @@ import { Auth2faType } from 'shared/services';
 import { ChangePasswordReq } from 'teleport/services/auth';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import { MfaDevice } from 'teleport/services/mfa';
+
 import { DialogHeader } from '../DialogHeader';
 
 export interface ChangePasswordWizardProps {
@@ -105,28 +106,35 @@ export function createReauthOptions(
 ) {
   const options: ReauthenticationOption[] = [];
 
-  if (passwordlessEnabled) {
+  const methodsAllowedByDevices = {};
+  for (const d of devices) {
+    methodsAllowedByDevices[reauthMethodForDevice(d)] = true;
+  }
+
+  if (passwordlessEnabled && 'passwordless' in methodsAllowedByDevices) {
     options.push({ value: 'passwordless', label: 'Passkey' });
   }
 
   const mfaEnabled = auth2faType === 'on' || auth2faType === 'optional';
 
-  if (auth2faType === 'webauthn' || mfaEnabled) {
+  if (
+    (auth2faType === 'webauthn' || mfaEnabled) &&
+    'mfaDevice' in methodsAllowedByDevices
+  ) {
     options.push({ value: 'mfaDevice', label: 'MFA Device' });
   }
 
-  if (auth2faType === 'otp' || mfaEnabled) {
+  if (
+    (auth2faType === 'otp' || mfaEnabled) &&
+    'otp' in methodsAllowedByDevices
+  ) {
     options.push({ value: 'otp', label: 'Authenticator App' });
   }
 
-  const allowedMethods = {};
-  for (const d of devices) {
-    allowedMethods[reauthMethodForDevice(d)] = true;
-  }
-
-  return options.filter(o => o.value in allowedMethods);
+  return options;
 }
 
+/** Returns the reauthentication method supported by a given device. */
 function reauthMethodForDevice(d: MfaDevice): ReauthenticationMethod {
   if (d.usage === 'passwordless') return 'passwordless';
   return d.type === 'totp' ? 'otp' : 'mfaDevice';
