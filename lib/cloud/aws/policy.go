@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/url"
+	"slices"
 	"sort"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -27,7 +28,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )

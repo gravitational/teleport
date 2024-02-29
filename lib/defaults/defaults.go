@@ -22,13 +22,13 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"

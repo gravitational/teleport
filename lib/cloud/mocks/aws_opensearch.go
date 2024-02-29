@@ -18,13 +18,13 @@ package mocks
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/aws/aws-sdk-go/service/opensearchservice/opensearchserviceiface"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 )
 
 type OpenSearchMock struct {

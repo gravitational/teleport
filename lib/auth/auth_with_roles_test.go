@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -38,7 +39,6 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"

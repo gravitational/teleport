@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -32,7 +33,6 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"

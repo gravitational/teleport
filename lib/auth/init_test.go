@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -33,7 +34,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"

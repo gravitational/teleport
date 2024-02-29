@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -33,7 +34,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"

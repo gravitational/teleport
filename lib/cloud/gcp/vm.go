@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"slices"
 	"strings"
 	"time"
 
@@ -32,7 +33,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 

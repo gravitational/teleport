@@ -32,6 +32,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -40,7 +41,6 @@ import (
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"

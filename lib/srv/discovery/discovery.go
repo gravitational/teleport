@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -32,7 +33,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 

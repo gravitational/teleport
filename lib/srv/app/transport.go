@@ -23,10 +23,10 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"

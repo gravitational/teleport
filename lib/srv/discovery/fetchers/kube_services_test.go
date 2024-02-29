@@ -22,12 +22,12 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"

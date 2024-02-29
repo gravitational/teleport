@@ -18,12 +18,12 @@ package users
 
 import (
 	"context"
+	"slices"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"

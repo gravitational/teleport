@@ -19,10 +19,10 @@ package awsoidc
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"

@@ -17,11 +17,11 @@ package kubev1
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/defaults"

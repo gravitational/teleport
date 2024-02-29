@@ -19,13 +19,13 @@ package inventory
 import (
 	"context"
 	"runtime"
+	"slices"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"

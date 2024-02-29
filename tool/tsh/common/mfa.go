@@ -25,11 +25,16 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
-	"golang.org/x/exp/slices"
+	"github.com/alecthomas/kingpin/v2"
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -45,12 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/alecthomas/kingpin/v2"
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
-	"github.com/pquerna/otp"
-	"github.com/pquerna/otp/totp"
 )
 
 const (
