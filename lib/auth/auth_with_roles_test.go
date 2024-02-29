@@ -4873,10 +4873,6 @@ func TestGenerateHostCert(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			// Calls deprecated HTTP endpoint to verify migrated code works
-			// fine.
-			_, err = client.generateHostCertHTTP(ctx, pub, "", "", test.principals, clusterName, types.RoleNode, 0)
-			require.True(t, test.expect(err))
 			// Try by calling new gRPC endpoint directly
 			_, err = client.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
 				Key:         pub,
@@ -4887,10 +4883,6 @@ func TestGenerateHostCert(t *testing.T) {
 				Role:        string(types.RoleNode),
 				Ttl:         durationpb.New(0),
 			})
-			require.True(t, test.expect(err))
-			// Finally try calling the wrapper method that should call through
-			// to the gRPC client.
-			_, err = client.GenerateHostCert(ctx, pub, "", "", test.principals, clusterName, types.RoleNode, 0)
 			require.True(t, test.expect(err))
 		})
 	}

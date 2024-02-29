@@ -83,7 +83,7 @@ func (c *Cluster) Connected() bool {
 // GetWithDetails makes requests to the auth server to return details of the current
 // Cluster that cannot be found on the disk only, including details about the user
 // and enabled enterprise features. This method requires a valid cert.
-func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, error) {
+func (c *Cluster) GetWithDetails(ctx context.Context, authClient auth.ClientI) (*ClusterWithDetails, error) {
 	var (
 		authPingResponse proto.PingResponse
 		caps             *types.AccessCapabilities
@@ -97,20 +97,8 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		return nil, trace.Wrap(err)
 	}
 
+	//TODO(gzdunek): These calls should be done in parallel.
 	err = AddMetadataToRetryableError(ctx, func() error {
-		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err := proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
 		authPingResponse, err = authClient.Ping(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -218,12 +206,10 @@ func (c *Cluster) GetRoles(ctx context.Context) ([]*types.Role, error) {
 }
 
 // GetRequestableRoles returns the requestable roles for the currently logged-in user
-func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest) (*types.AccessCapabilities, error) {
+func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest, authClient auth.ClientI) (*types.AccessCapabilities, error) {
 	var (
-		authClient  auth.ClientI
-		proxyClient *client.ProxyClient
-		err         error
-		response    *types.AccessCapabilities
+		err      error
+		response *types.AccessCapabilities
 	)
 
 	resourceIds := make([]types.ResourceID, 0, len(req.GetResourceIds()))
@@ -237,19 +223,6 @@ func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
 		response, err = authClient.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
 			ResourceIDs:      resourceIds,
 			RequestableRoles: true,

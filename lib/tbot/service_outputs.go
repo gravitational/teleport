@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -782,8 +783,10 @@ func (op *outputProvider) GetRemoteClusters(opts ...services.MarshalOption) ([]t
 }
 
 // GenerateHostCert uses the impersonatedClient to call GenerateHostCert.
-func (op *outputProvider) GenerateHostCert(ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
-	return op.impersonatedClient.GenerateHostCert(ctx, key, hostID, nodeName, principals, clusterName, role, ttl)
+func (op *outputProvider) GenerateHostCert(
+	ctx context.Context, req *trustpb.GenerateHostCertRequest,
+) (*trustpb.GenerateHostCertResponse, error) {
+	return op.impersonatedClient.TrustClient().GenerateHostCert(ctx, req)
 }
 
 // GetCertAuthority uses the impersonatedClient to call GetCertAuthority.

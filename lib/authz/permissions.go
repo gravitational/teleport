@@ -150,10 +150,10 @@ type AuthorizerAccessPoint interface {
 	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
 	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 }
 
 // MFAAuthenticator authenticates MFA responses.
@@ -1111,6 +1111,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindNode, services.RO()),
+						types.NewRule(types.KindKubeServer, services.RO()),
 						types.NewRule(types.KindKubernetesCluster, services.RW()),
 						types.NewRule(types.KindDatabase, services.RW()),
 						types.NewRule(types.KindServerInfo, services.RW()),

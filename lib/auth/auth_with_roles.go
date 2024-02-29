@@ -31,7 +31,6 @@ import (
 	"github.com/sirupsen/logrus"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
-	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -40,7 +39,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -49,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
-	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -2632,44 +2629,6 @@ func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role
 	return roles, nil
 }
 
-// GenerateHostCert
-// TODO(noah): DELETE IN 16.0
-// Deprecated: use [trustv1.Service.GenerateHostCert] instead.
-func (a *ServerWithRoles) GenerateHostCert(
-	ctx context.Context,
-	key []byte,
-	hostID, nodeName string,
-	principals []string,
-	clusterName string,
-	role types.SystemRole,
-	ttl time.Duration,
-) ([]byte, error) {
-	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
-		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
-			return &a.context, nil
-		}),
-		Cache:      a.authServer.Cache,
-		Backend:    a.authServer.Services,
-		AuthServer: a.authServer,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	resp, err := trust.GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
-		Key:         key,
-		HostId:      hostID,
-		NodeName:    nodeName,
-		Principals:  principals,
-		ClusterName: clusterName,
-		Role:        string(role),
-		Ttl:         durationpb.New(ttl),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp.SshCertificate, nil
-}
-
 // desiredAccessInfo inspects the current request to determine which access
 // information (roles, traits, and allowed resource IDs) the requesting user
 // wants to be present on the resulting certificate. This does not attempt to
@@ -2929,7 +2888,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			return nil, trace.AccessDenied("access denied")
 		}
 		if req.Expires.Before(a.authServer.GetClock().Now()) {
-			return nil, trace.AccessDenied("access denied: client credentials have expired, please relogin.")
+			return nil, trace.Wrap(client.ErrClientCredentialsHaveExpired)
 		}
 
 		if identity.Renewable || isRoleImpersonation(req) {
@@ -4409,13 +4368,13 @@ func (a *ServerWithRoles) GetClusterAuditConfig(ctx context.Context) (types.Clus
 }
 
 // GetClusterNetworkingConfig gets cluster networking configuration.
-func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	if err := a.action(apidefaults.Namespace, types.KindClusterNetworkingConfig, types.VerbRead); err != nil {
 		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbRead); err2 != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetClusterNetworkingConfig(ctx, opts...)
+	return a.authServer.GetClusterNetworkingConfig(ctx)
 }
 
 // SetClusterNetworkingConfig sets cluster networking configuration.
@@ -4472,13 +4431,13 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 }
 
 // GetSessionRecordingConfig gets session recording configuration.
-func (a *ServerWithRoles) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+func (a *ServerWithRoles) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
 	if err := a.action(apidefaults.Namespace, types.KindSessionRecordingConfig, types.VerbRead); err != nil {
 		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbRead); err2 != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetSessionRecordingConfig(ctx, opts...)
+	return a.authServer.GetSessionRecordingConfig(ctx)
 }
 
 // SetSessionRecordingConfig sets session recording configuration.
@@ -4598,6 +4557,10 @@ func (a *ServerWithRoles) UpsertTrustedCluster(ctx context.Context, tc types.Tru
 		return nil, trace.Wrap(err)
 	}
 
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return a.authServer.UpsertTrustedCluster(ctx, tc)
 }
 
@@ -4614,6 +4577,10 @@ func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRe
 // DeleteTrustedCluster deletes a trusted cluster by name.
 func (a *ServerWithRoles) DeleteTrustedCluster(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindTrustedCluster, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -418,6 +418,7 @@ func ForDiscovery(cfg Config) Config {
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNode},
 		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindKubeServer},
 		{Kind: types.KindDatabase},
 		{Kind: types.KindApp},
 		{Kind: types.KindDiscoveryConfig},
@@ -1785,7 +1786,7 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditCo
 }
 
 // GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
-func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (c *Cache) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterNetworkingConfig")
 	defer span.End()
 
@@ -1796,7 +1797,7 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"networking"}, func(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-			cfg, err := rg.reader.GetClusterNetworkingConfig(ctx, opts...)
+			cfg, err := rg.reader.GetClusterNetworkingConfig(ctx)
 			return cfg, err
 		})
 		if err != nil {
@@ -1804,7 +1805,7 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 		}
 		return cachedCfg.Clone(), nil
 	}
-	return rg.reader.GetClusterNetworkingConfig(ctx, opts...)
+	return rg.reader.GetClusterNetworkingConfig(ctx)
 }
 
 // GetClusterName gets the name of the cluster from the backend.
@@ -2448,7 +2449,7 @@ func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, er
 }
 
 // GetSessionRecordingConfig gets session recording configuration.
-func (c *Cache) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+func (c *Cache) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSessionRecordingConfig")
 	defer span.End()
 
@@ -2457,7 +2458,7 @@ func (c *Cache) GetSessionRecordingConfig(ctx context.Context, opts ...services.
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetSessionRecordingConfig(ctx, opts...)
+	return rg.reader.GetSessionRecordingConfig(ctx)
 }
 
 // GetNetworkRestrictions gets the network restrictions.
@@ -2924,6 +2925,19 @@ func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.Acc
 	}
 	defer rg.Release()
 	return rg.reader.GetAccessList(ctx, name)
+}
+
+// CountAccessListMembers will count all access list members.
+func (c *Cache) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/CountAccessListMembers")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.CountAccessListMembers(ctx, accessListName)
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.

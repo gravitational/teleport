@@ -384,7 +384,7 @@ func (s *ClusterConfigurationService) DeleteClusterAuditConfig(ctx context.Conte
 }
 
 // GetClusterNetworkingConfig gets cluster networking config from the backend.
-func (s *ClusterConfigurationService) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (s *ClusterConfigurationService) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, networkingPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -392,7 +392,7 @@ func (s *ClusterConfigurationService) GetClusterNetworkingConfig(ctx context.Con
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalClusterNetworkingConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
+	return services.UnmarshalClusterNetworkingConfig(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // CreateClusterNetworkingConfig creates a cluster networking config if once does not already exist.
@@ -494,7 +494,7 @@ func (s *ClusterConfigurationService) DeleteClusterNetworkingConfig(ctx context.
 }
 
 // GetSessionRecordingConfig gets session recording config from the backend.
-func (s *ClusterConfigurationService) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+func (s *ClusterConfigurationService) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
 	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, sessionRecordingPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -502,7 +502,7 @@ func (s *ClusterConfigurationService) GetSessionRecordingConfig(ctx context.Cont
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalSessionRecordingConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
+	return services.UnmarshalSessionRecordingConfig(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // CreateSessionRecordingConfig creates a session recording config if once does not already exist.

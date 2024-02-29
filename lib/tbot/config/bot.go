@@ -20,10 +20,10 @@ package config
 
 import (
 	"context"
-	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -46,8 +46,10 @@ type provider interface {
 	// Config returns the current bot config
 	Config() *BotConfig
 
-	// GenerateHostCert uses the impersonatedClient to call GenerateHostCert.
-	GenerateHostCert(ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error)
+	// GenerateHostCert uses the impersonatedClient to call trust.v1.GenerateHostCert.
+	GenerateHostCert(
+		ctx context.Context, req *trustpb.GenerateHostCertRequest,
+	) (*trustpb.GenerateHostCertResponse, error)
 
 	// GetRemoteClusters uses the impersonatedClient to call GetRemoteClusters.
 	GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error)
