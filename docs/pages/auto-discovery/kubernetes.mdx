@@ -13,9 +13,9 @@ minimal access permissions.
 
 ## Supported clouds
 
-- [AWS](./discovery/aws.mdx): Discovery for AWS EKS clusters.
-- [Azure](./discovery/azure.mdx): Discovery for Azure AKS clusters.
-- [Google Cloud](./discovery/google-cloud.mdx): Discovery for
+- [AWS](./kubernetes/aws.mdx): Discovery for AWS EKS clusters.
+- [Azure](./kubernetes/azure.mdx): Discovery for Azure AKS clusters.
+- [Google Cloud](./kubernetes/google-cloud.mdx): Discovery for
   Google Kubernetes Engine clusters.
 
 ## How Kubernetes Clusters Discovery works
@@ -54,7 +54,7 @@ In addition to detecting new Kubernetes clusters, the Discovery Service also rem
 — from Teleport's registry — the Kubernetes clusters that have been deleted or whose tags
 no longer meet the filtering labels.
 
-(!docs/pages/kubernetes-access/discovery/includes/discovery-group.mdx!)
+(!docs/pages/includes/discovery/discovery-group.mdx!)
 
 The following snippet describes the different configuration options for the Discovery Service
 and their default values.

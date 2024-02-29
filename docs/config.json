@@ -876,6 +876,56 @@
       ]
     },
     {
+      "icon": "wand",
+      "title": "Auto-Enroll Resources",
+      "entries": [
+        {
+          "title": "Introduction",
+          "slug": "/auto-discovery/introduction/"
+        },
+        {
+          "title": "Servers",
+          "slug": "/auto-discovery/servers/",
+          "entries": [
+            {
+              "title": "EC2 Instance Discovery",
+              "slug": "/auto-discovery/servers/ec2-discovery/"
+            },
+            {
+              "title": "Azure Instance Discovery",
+              "slug": "/auto-discovery/servers/azure-discovery/"
+            },
+            {
+              "title": "GCP Instance Discovery",
+              "slug": "/auto-discovery/servers/gcp-discovery/"
+            }
+          ]
+        },
+        {
+          "title": "Kubernetes Clusters",
+          "slug": "/auto-discovery/kubernetes/",
+          "entries": [
+            {
+              "title": "AWS",
+              "slug": "/auto-discovery/kubernetes/aws/"
+            },
+            {
+              "title": "Azure",
+              "slug": "/auto-discovery/kubernetes/azure/"
+            },
+            {
+              "title": "Google Cloud",
+              "slug": "/auto-discovery/kubernetes/google-cloud/"
+            }
+          ]
+        },
+        {
+          "title": "Databases",
+          "slug": "/auto-discovery/databases/"
+        }
+      ]
+    },
+    {
       "icon": "window",
       "title": "Application Access",
       "entries": [
@@ -890,7 +940,7 @@
         {
           "title": "Enroll Kubernetes Applications",
           "slug": "/application-access/enroll-kubernetes-applications/",
-          "entries":[
+          "entries": [
             {
               "title": "Get Started",
               "slug": "/application-access/enroll-kubernetes-applications/get-started/"
@@ -1035,10 +1085,10 @@
           "title": "Getting Started",
           "slug": "/server-access/getting-started/"
         },
-	{
-	  "title": "Enrolling OpenSSH Servers",
-	  "slug": "/server-access/openssh/",
-	  "entries": [
+        {
+          "title": "Enrolling OpenSSH Servers",
+          "slug": "/server-access/openssh/",
+          "entries": [
             {
               "title": "Agentless OpenSSH Integration",
               "slug": "/server-access/openssh/openssh/"
@@ -1047,8 +1097,8 @@
               "title": "Agentless OpenSSH Integration (Manual Install)",
               "slug": "/server-access/openssh/openssh-manual-install/"
             }
-	  ]
-	},
+          ]
+        },
         {
           "title": "Guides",
           "slug": "/server-access/guides/",
@@ -1083,18 +1133,6 @@
               "slug": "/server-access/guides/auditd/"
             },
             {
-              "title": "EC2 Instance Discovery",
-              "slug": "/server-access/guides/ec2-discovery/"
-            },
-            {
-              "title": "Azure Instance Discovery",
-              "slug": "/server-access/guides/azure-discovery/"
-            },
-            {
-              "title": "GCP Instance Discovery",
-              "slug": "/server-access/guides/gcp-discovery/"
-            },
-            {
               "title": "Using Teleport with Ansible",
               "slug": "/server-access/guides/ansible/"
             }
@@ -1121,24 +1159,6 @@
         {
           "title": "Enroll a Kubernetes Cluster",
           "slug": "/kubernetes-access/getting-started/"
-        },
-        {
-          "title": "Kubernetes Discovery",
-          "slug": "/kubernetes-access/discovery/",
-          "entries": [
-            {
-              "title": "AWS",
-              "slug": "/kubernetes-access/discovery/aws/"
-            },
-            {
-              "title": "Azure",
-              "slug": "/kubernetes-access/discovery/azure/"
-            },
-            {
-              "title": "Google Cloud",
-              "slug": "/kubernetes-access/discovery/google-cloud/"
-            }
-          ]
         },
         {
           "title": "Manual Cluster Registration",
@@ -1205,10 +1225,6 @@
             {
               "title": "AWS Cross-Account",
               "slug": "/database-access/guides/aws-cross-account/"
-            },
-            {
-              "title": "AWS Discovery",
-              "slug": "/database-access/guides/aws-discovery/"
             },
             {
               "title": "AWS DynamoDB",
@@ -3096,6 +3112,61 @@
     {
       "source": "/access-graph/",
       "destination": "/access-controls/access-graph/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/aws-discovery/",
+      "destination": "/auto-discovery/databases/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/discovery/",
+      "destination": "/auto-discovery/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/discovery/aws/",
+      "destination": "/auto-discovery/kubernetes/aws/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/discovery/azure/",
+      "destination": "/auto-discovery/kubernetes/azure/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/discovery/google-cloud/",
+      "destination": "/auto-discovery/kubernetes/google-cloud/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/discovery/includes/discovery-group/",
+      "destination": "/includes/discovery/discovery-group/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/discovery/includes/step-description/",
+      "destination": "/includes/discovery/step-description/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/discovery/includes/troubleshooting/",
+      "destination": "/includes/discovery/troubleshooting/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/azure-discovery/",
+      "destination": "/auto-discovery/servers/azure-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/ec2-discovery/",
+      "destination": "/auto-discovery/servers/ec2-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/gcp-discovery/",
+      "destination": "/auto-discovery/servers/gcp-discovery/",
       "permanent": true
     }
   ]
