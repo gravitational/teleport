@@ -36,12 +36,13 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	AccessGraphService_Query_FullMethodName           = "/accessgraph.v1alpha.AccessGraphService/Query"
-	AccessGraphService_GetFile_FullMethodName         = "/accessgraph.v1alpha.AccessGraphService/GetFile"
-	AccessGraphService_EventsStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/EventsStream"
-	AccessGraphService_Register_FullMethodName        = "/accessgraph.v1alpha.AccessGraphService/Register"
-	AccessGraphService_ReplaceCAs_FullMethodName      = "/accessgraph.v1alpha.AccessGraphService/ReplaceCAs"
-	AccessGraphService_AWSEventsStream_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/AWSEventsStream"
+	AccessGraphService_Query_FullMethodName                 = "/accessgraph.v1alpha.AccessGraphService/Query"
+	AccessGraphService_GetFile_FullMethodName               = "/accessgraph.v1alpha.AccessGraphService/GetFile"
+	AccessGraphService_EventsStream_FullMethodName          = "/accessgraph.v1alpha.AccessGraphService/EventsStream"
+	AccessGraphService_Register_FullMethodName              = "/accessgraph.v1alpha.AccessGraphService/Register"
+	AccessGraphService_ReplaceCAs_FullMethodName            = "/accessgraph.v1alpha.AccessGraphService/ReplaceCAs"
+	AccessGraphService_AWSEventsStream_FullMethodName       = "/accessgraph.v1alpha.AccessGraphService/AWSEventsStream"
+	AccessGraphService_CrownJewelsMonitoring_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/CrownJewelsMonitoring"
 )
 
 // AccessGraphServiceClient is the client API for AccessGraphService service.
@@ -79,6 +80,8 @@ type AccessGraphServiceClient interface {
 	// and pushes all AWS resources and following events to it.
 	// This stream is used to sync the access graph with the AWS database state.
 	AWSEventsStream(ctx context.Context, opts ...grpc.CallOption) (AccessGraphService_AWSEventsStreamClient, error)
+	// CrownJewelsMonitoring ...
+	CrownJewelsMonitoring(ctx context.Context, in *CrownJewelsMonitoringRequest, opts ...grpc.CallOption) (*CrownJewelsMonitoringResponse, error)
 }
 
 type accessGraphServiceClient struct {
@@ -190,6 +193,15 @@ func (x *accessGraphServiceAWSEventsStreamClient) CloseAndRecv() (*AWSEventsStre
 	return m, nil
 }
 
+func (c *accessGraphServiceClient) CrownJewelsMonitoring(ctx context.Context, in *CrownJewelsMonitoringRequest, opts ...grpc.CallOption) (*CrownJewelsMonitoringResponse, error) {
+	out := new(CrownJewelsMonitoringResponse)
+	err := c.cc.Invoke(ctx, AccessGraphService_CrownJewelsMonitoring_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AccessGraphServiceServer is the server API for AccessGraphService service.
 // All implementations must embed UnimplementedAccessGraphServiceServer
 // for forward compatibility
@@ -225,6 +237,8 @@ type AccessGraphServiceServer interface {
 	// and pushes all AWS resources and following events to it.
 	// This stream is used to sync the access graph with the AWS database state.
 	AWSEventsStream(AccessGraphService_AWSEventsStreamServer) error
+	// CrownJewelsMonitoring ...
+	CrownJewelsMonitoring(context.Context, *CrownJewelsMonitoringRequest) (*CrownJewelsMonitoringResponse, error)
 	mustEmbedUnimplementedAccessGraphServiceServer()
 }
 
@@ -249,6 +263,9 @@ func (UnimplementedAccessGraphServiceServer) ReplaceCAs(context.Context, *Replac
 }
 func (UnimplementedAccessGraphServiceServer) AWSEventsStream(AccessGraphService_AWSEventsStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method AWSEventsStream not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) CrownJewelsMonitoring(context.Context, *CrownJewelsMonitoringRequest) (*CrownJewelsMonitoringResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CrownJewelsMonitoring not implemented")
 }
 func (UnimplementedAccessGraphServiceServer) mustEmbedUnimplementedAccessGraphServiceServer() {}
 
@@ -387,6 +404,24 @@ func (x *accessGraphServiceAWSEventsStreamServer) Recv() (*AWSEventsStreamReques
 	return m, nil
 }
 
+func _AccessGraphService_CrownJewelsMonitoring_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CrownJewelsMonitoringRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessGraphServiceServer).CrownJewelsMonitoring(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessGraphService_CrownJewelsMonitoring_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessGraphServiceServer).CrownJewelsMonitoring(ctx, req.(*CrownJewelsMonitoringRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AccessGraphService_ServiceDesc is the grpc.ServiceDesc for AccessGraphService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -409,6 +444,10 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReplaceCAs",
 			Handler:    _AccessGraphService_ReplaceCAs_Handler,
+		},
+		{
+			MethodName: "CrownJewelsMonitoring",
+			Handler:    _AccessGraphService_CrownJewelsMonitoring_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

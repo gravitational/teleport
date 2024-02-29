@@ -72,6 +72,20 @@ service AccessGraphService {
   // and pushes all AWS resources and following events to it.
   // This stream is used to sync the access graph with the AWS database state.
   rpc AWSEventsStream(stream AWSEventsStreamRequest) returns (AWSEventsStreamResponse);
+
+  // CrownJewelsMonitoring ...
+  rpc CrownJewelsMonitoring(CrownJewelsMonitoringRequest) returns (CrownJewelsMonitoringResponse);
+}
+
+// CrownJewelsMonitoringRequest
+message CrownJewelsMonitoringRequest {
+  string uuid = 1;
+}
+
+// CrownJewelsMonitoringResponse ...
+message CrownJewelsMonitoringResponse {
+  QueryResponse old = 1;
+  QueryResponse new = 2;
 }
 
 // QueryRequest is a request to query the access graph.
@@ -154,8 +168,7 @@ message EventsStreamResponse {
 
 // CrownJewelResponse is a...
 message CrownJewelResponse {
-  QueryResponse old = 1;
-  QueryResponse new = 2;
+  string uuid = 1;
 }
 
 // RegisterRequest is the request for Register.
