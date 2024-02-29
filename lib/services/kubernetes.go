@@ -124,6 +124,10 @@ func MarshalKubeCluster(kubeCluster types.KubeCluster, opts ...MarshalOption) ([
 		return nil, trace.Wrap(err)
 	}
 
+	if c, ok := kubeCluster.(types.DiscoveredEKSCluster); ok {
+		kubeCluster = c.GetKubeCluster()
+	}
+
 	switch cluster := kubeCluster.(type) {
 	case *types.KubernetesClusterV3:
 		if err := cluster.CheckAndSetDefaults(); err != nil {
