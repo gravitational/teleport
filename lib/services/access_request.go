@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -163,6 +164,9 @@ func (r *RequestIDs) IsEmpty() bool {
 type AccessRequestGetter interface {
 	// GetAccessRequests gets all currently active access requests.
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
+
+	// ListAccessRequests is an access request getter with pagination and sorting options.
+	ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error)
 }
 
 // DynamicAccessCore is the core functionality common to all DynamicAccess implementations.
@@ -1635,7 +1639,7 @@ func ValidateAccessRequestForUser(ctx context.Context, clock clockwork.Clock, ge
 }
 
 // UnmarshalAccessRequest unmarshals the AccessRequest resource from JSON.
-func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (types.AccessRequest, error) {
+func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (*types.AccessRequestV3, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
