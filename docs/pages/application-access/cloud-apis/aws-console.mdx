@@ -28,8 +28,8 @@ authorized, forwards the user's requests to AWS.
 
 - (!docs/pages/includes/tctl.mdx!)
 
-- An AWS EC2 instance or Elastic Kubernetes Service cluster where you will run
-  the Teleport Application Service. EC2 instances must be running a Linux
+- An AWS EC2 instance or Elastic Kubernetes Service (EKS) cluster where you will
+  run the Teleport Application Service. EC2 instances must be running a Linux
   distribution. We recommend starting with a fresh demo instance or EKS cluster
   to get familiar with the procedure before following this guide in production.
 
@@ -40,8 +40,8 @@ authorized, forwards the user's requests to AWS.
   [install or update the latest version of the AWS
   CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html).
 
-- If you plan to run the Teleport Application Service on Kubernetes, you will
-  need an IAM OIDC provider running in your Kubernetes cluster. See the [AWS
+- If you plan to run the Teleport Application Service on EKS, you will need an
+  IAM OIDC provider running in your Kubernetes cluster. See the [AWS
   documentation](https://docs.aws.amazon.com/eks/latest/userguide/enable-iam-roles-for-service-accounts.html)
   for how to create an IAM OIDC provider.
 
@@ -115,9 +115,9 @@ Teleport Application Service.
    <Details title="Cross-account access">
 
    If you are configuring the Application Service to proxy access to IAM roles
-   in another AWS account, you need to modify the trust policy of the target
-   roles to allow access from the account used by the Teleport Application
-   Service:
+   in another AWS account, we recommend checking the external ID of the AWS
+   account where the Application Service runs. Add the external ID to the trust
+   policy as follows, assigning <Var name="EXTERNAL_ID" /> to the external ID:
 
    ```json
    {
@@ -126,17 +126,22 @@ Teleport Application Service.
        {
          "Effect": "Allow",
          "Principal": {
-           "AWS": "arn:aws:iam::<Var name="account-id"/>:root"
+           "AWS": "arn:aws:iam::<Var name="AWS_ACCESS_ACCOUNT" />:role/TeleportAWSAccess"
          },
-         "Action": "sts:AssumeRole"
+         "Action": "sts:AssumeRole",
+         "Condition": { 
+           "StringEquals": { 
+             "sts:ExternalId": "<Var name="EXTERNAL_ID" />" 
+           } 
+         }
        }
      ]
    }
    ```
 
-   This policy allows the Teleport Application Service's AWS account to assume
-   roles in the target account.
-
+   See the [AWS
+   documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html)
+   for details on external IDs.
    </Details>
 
 1. Run the following commands to create the `ExampleReadOnlyAccess` role:
