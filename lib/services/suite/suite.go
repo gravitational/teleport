@@ -1086,6 +1086,58 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 	require.NotEqual(t, updated.GetDisplay(), upserted.GetDisplay())
 }
 
+// RemoteClustersCRUD tests CRUD functionality for remote clusters.
+// TODO(noah): DELETE IN V17.0.0
+// We can replace this with specific tests in the `local` package and in the
+// provisioning grpc service.
+func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
+	ctx := context.Background()
+	clusterName := "example.com"
+	out, err := s.PresenceS.GetRemoteClusters(ctx)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	rc, err := types.NewRemoteCluster(clusterName)
+	require.NoError(t, err)
+
+	rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
+
+	got, err := s.PresenceS.CreateRemoteCluster(ctx, rc)
+	require.NoError(t, err)
+	require.Zero(t, cmp.Diff(got, rc, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	_, err = s.PresenceS.CreateRemoteCluster(ctx, rc)
+	require.True(t, trace.IsAlreadyExists(err))
+
+	out, err = s.PresenceS.GetRemoteClusters(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff(out[0], rc, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	err = s.PresenceS.DeleteRemoteCluster(ctx, rc.GetName())
+	require.NoError(t, err)
+
+	out, err = s.PresenceS.GetRemoteClusters(ctx)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// test delete individual connection
+	got, err = s.PresenceS.CreateRemoteCluster(ctx, rc)
+	require.NoError(t, err)
+	require.Zero(t, cmp.Diff(got, rc, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	out, err = s.PresenceS.GetRemoteClusters(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff(out[0], rc, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	err = s.PresenceS.DeleteRemoteCluster(ctx, clusterName)
+	require.NoError(t, err)
+
+	err = s.PresenceS.DeleteRemoteCluster(ctx, clusterName)
+	require.True(t, trace.IsNotFound(err))
+}
+
 // AuthPreference tests authentication preference service
 func (s *ServicesTestSuite) AuthPreference(t *testing.T) {
 	ctx := context.Background()
