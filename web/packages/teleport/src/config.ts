@@ -32,7 +32,7 @@ import type {
 import type { SortType } from 'teleport/services/agents';
 import type { RecordingType } from 'teleport/services/recordings';
 import type { WebauthnAssertionResponse } from './services/auth';
-import type { Regions } from './services/integrations';
+import type { PluginKind, Regions } from './services/integrations';
 import type { ParticipantMode } from 'teleport/services/session';
 
 const cfg = {
@@ -149,6 +149,7 @@ const cfg = {
     kubernetes: '/web/cluster/:clusterId/kubernetes',
     headlessSso: `/web/headless/:requestId`,
     integrations: '/web/integrations',
+    integrationStatus: '/web/integrations/status/:type/:name',
     integrationEnroll: '/web/integrations/new/:type?',
     locks: '/web/locks',
     newLock: '/web/locks/new',
@@ -426,6 +427,10 @@ const cfg = {
 
   getIntegrationEnrollRoute(type?: string) {
     return generatePath(cfg.routes.integrationEnroll, { type });
+  },
+
+  getIntegrationStatusRoute(type: PluginKind, name: string) {
+    return generatePath(cfg.routes.integrationStatus, { type, name });
   },
 
   getNodesRoute(clusterId: string) {

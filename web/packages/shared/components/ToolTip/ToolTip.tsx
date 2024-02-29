@@ -28,6 +28,7 @@ export const ToolTipInfo: React.FC<
     muteIconColor?: boolean;
     sticky?: boolean;
     maxWidth?: number;
+    color?: string;
   }>
 > = ({
   children,
@@ -35,6 +36,7 @@ export const ToolTipInfo: React.FC<
   muteIconColor,
   sticky = false,
   maxWidth = 350,
+  color = undefined,
 }) => {
   const [anchorEl, setAnchorEl] = useState();
   const open = Boolean(anchorEl);
@@ -71,7 +73,7 @@ export const ToolTipInfo: React.FC<
           height: 18px;
         `}
       >
-        <InfoIcon $muteIconColor={muteIconColor} size="medium" />
+        <InfoIcon $muteIconColor={muteIconColor} size="medium" $color={color} />
       </span>
       <Popover
         modalCss={() =>
@@ -106,5 +108,10 @@ const StyledOnHover = styled(Text)`
 const InfoIcon = styled(Icons.Info)`
   height: 18px;
   width: 18px;
-  color: ${p => (p.$muteIconColor ? p.theme.colors.text.disabled : 'inherit')};
+  color: ${p =>
+    p.$muteIconColor
+      ? p.theme.colors.text.disabled
+      : p.$color
+        ? p.$color
+        : 'inherit'};
 `;

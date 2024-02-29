@@ -153,6 +153,62 @@ export type PluginOktaSpec = {
   error: string;
 };
 
+export type PluginStatus<S = any> = {
+  name: string;
+  type: PluginKind;
+  statusCode: IntegrationStatusCode;
+  stats?: S;
+};
+
+export type PluginStatusOkta = {
+  orgUrl: string;
+  accessListSyncEnabled: boolean;
+  details?: PluginOktaDetails;
+};
+
+export type PluginOktaDetails = {
+  ssoDetails?: OktaSsoDetails;
+  appGroupSyncDetails?: OktaAppGroupSyncDetails;
+  usersSyncDetails?: OktaUserSyncDetails;
+  accessListsSyncDetails?: OktaAccessListSyncDetails;
+  scimDetails?: OktaScimDetails;
+};
+
+export type OktaSsoDetails = {
+  enabled: boolean;
+  appId: string;
+  appName: string;
+};
+
+export type OktaAppGroupSyncDetails = {
+  lastSuccess: Date;
+  lastFailed: Date;
+  numApps: number;
+  numGroups: number;
+};
+
+export type OktaUserSyncDetails = {
+  enabled: boolean;
+  lastSuccess: Date;
+  lastFailed: Date;
+  numUsers: number;
+};
+
+export type OktaAccessListSyncDetails = {
+  enabled: boolean;
+  lastSuccess: Date;
+  lastFailed: Date;
+  numApps: number;
+  numGroups: number;
+  appFilters: string[];
+  groupFilters: string[];
+  defaultOwners: string[];
+};
+
+export type OktaScimDetails = {
+  enabled: boolean;
+};
+
 export type IntegrationCreateRequest = {
   name: string;
   subKind: IntegrationKind;

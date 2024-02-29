@@ -100,6 +100,15 @@ export function IntegrationList(props: Props<IntegrationLike>) {
                     <MenuItem onClick={() => props.onDeletePlugin(item)}>
                       Delete...
                     </MenuItem>
+                    {/* TODO(lisa): only okta has a dedicated status page */}
+                    {item.kind === 'okta' && (
+                      <MenuItem
+                        as={Link}
+                        to={cfg.getIntegrationStatusRoute(item.kind, item.name)}
+                      >
+                        View Status
+                      </MenuItem>
+                    )}
                   </MenuButton>
                 </Cell>
               );
