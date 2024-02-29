@@ -950,6 +950,17 @@ func (g *GRPCServer) GetAccessRequestsV2(f *types.AccessRequestFilter, stream au
 	return nil
 }
 
+func (g *GRPCServer) ListAccessRequests(ctx context.Context, req *authpb.ListAccessRequestsRequest) (*authpb.ListAccessRequestsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := auth.ServerWithRoles.ListAccessRequests(ctx, req)
+
+	return rsp, trace.Wrap(err)
+}
+
 func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *types.AccessRequestV3) (*emptypb.Empty, error) {
 	return nil, trace.NotImplemented("access request creation API has changed, please update your client to v14 or newer")
 }
