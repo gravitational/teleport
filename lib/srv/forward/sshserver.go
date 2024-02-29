@@ -1348,8 +1348,10 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 		return trace.AccessDenied("X11 forwarding request denied by server")
 	}
 
+	// Set up the server to handle x11 channel requests from the client. If the OpenSSH
+	// control master option is in use, then the server might already be handling such requests.
 	err = x11.ServeChannelRequests(ctx, s.remoteClient.Client, s.handleX11ChannelRequest)
-	if err != nil {
+	if err != nil && !errors.Is(err, x11.ErrX11ForwardChannelAlreadyOpen) {
 		return trace.Wrap(err)
 	}
 
