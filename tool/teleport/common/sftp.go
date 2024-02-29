@@ -112,23 +112,15 @@ type sftpHandler struct {
 	events  chan<- *apievents.SFTP
 }
 
-func newSFTPHandler(logger *log.Entry, req *srv.FileTransferRequest, homeDir string, events chan<- *apievents.SFTP) (*sftpHandler, error) {
+func newSFTPHandler(logger *log.Entry, req *srv.FileTransferRequest, events chan<- *apievents.SFTP) (*sftpHandler, error) {
 	var allowed *allowedOps
 	if req != nil {
 		allowed = &allowedOps{
 			write: !req.Download,
 		}
+		// TODO(capnspacehook): reject relative paths and symlinks
 		// make filepaths consistent by ensuring all separators use backslashes
 		allowed.path = path.Clean(req.Location)
-
-		if strings.HasPrefix(allowed.path, "~/") {
-			// expand home dir to make an absolute path
-			allowed.path = path.Join(homeDir, allowed.path[2:])
-		} else if !strings.Contains(allowed.path, "/") {
-			// if no directories are specified the file is assumed to
-			// be in the user's home dir
-			allowed.path = path.Join(homeDir, allowed.path)
-		}
 	}
 
 	return &sftpHandler{
@@ -649,7 +641,7 @@ func onSFTP() error {
 	}
 
 	sftpEvents := make(chan *apievents.SFTP, 1)
-	h, err := newSFTPHandler(logger, fileTransferReq, currentUser.HomeDir, sftpEvents)
+	h, err := newSFTPHandler(logger, fileTransferReq, sftpEvents)
 	if err != nil {
 		return trace.Wrap(err)
 	}

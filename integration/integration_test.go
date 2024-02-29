@@ -8307,6 +8307,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	// Create and approve a file upload request
 	err = cmdSess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
 		Download: false,
+		Filename: "upload-file",
 		Location: reqFile,
 	})
 	require.NoError(t, err)

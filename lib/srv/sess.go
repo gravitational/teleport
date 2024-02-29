@@ -24,7 +24,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"os/user"
+	"path"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1674,15 +1678,61 @@ func (s *session) checkIfFileTransferApproved(req *FileTransferRequest) (bool, e
 }
 
 // newFileTransferRequest takes FileTransferParams and creates a new fileTransferRequest struct
-func (s *session) newFileTransferRequest(params *rsession.FileTransferRequestParams) *FileTransferRequest {
-	return &FileTransferRequest{
+func (s *session) newFileTransferRequest(params *rsession.FileTransferRequestParams) (*FileTransferRequest, error) {
+	location, err := s.expandFileTransferRequestPath(params.Location)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req := FileTransferRequest{
 		ID:        uuid.New().String(),
 		Requester: params.Requester,
-		Location:  params.Location,
+		Location:  location,
 		Filename:  params.Filename,
 		Download:  params.Download,
 		approvers: make(map[string]*party),
 	}
+
+	return &req, nil
+}
+
+func (s *session) expandFileTransferRequestPath(p string) (string, error) {
+	expanded := path.Clean(p)
+
+	var tildePrefixed bool
+	var noBaseDir bool
+	if strings.HasPrefix(expanded, "~/") {
+		tildePrefixed = true
+	} else if !strings.Contains(expanded, "/") {
+		noBaseDir = true
+	}
+
+	if tildePrefixed || noBaseDir {
+		localUser, err := user.Lookup(s.login)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		exists, err := CheckHomeDir(localUser)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		homeDir := localUser.HomeDir
+		if !exists {
+			homeDir = string(os.PathSeparator)
+		}
+
+		if tildePrefixed {
+			// expand home dir to make an absolute path
+			expanded = path.Join(homeDir, expanded[2:])
+		} else {
+			// if no directories are specified SFTP will assume the file
+			// to be in the user's home dir
+			expanded = path.Join(homeDir, expanded)
+		}
+	}
+
+	return expanded, nil
 }
 
 // addFileTransferRequest will create a new file transfer request and add it to the current session's fileTransferRequests map
@@ -1694,16 +1744,24 @@ func (s *session) addFileTransferRequest(params *rsession.FileTransferRequestPar
 	if s.fileTransferReq != nil {
 		return trace.AlreadyExists("a file transfer request already exists for this session")
 	}
+	if !params.Download && params.Filename == "" {
+		return trace.BadParameter("no source file is set for the upload")
+	}
 
-	s.fileTransferReq = s.newFileTransferRequest(params)
+	req, err := s.newFileTransferRequest(params)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.fileTransferReq = req
+
 	if params.Download {
 		s.BroadcastMessage("User %s would like to download: %s", params.Requester, params.Location)
 	} else {
 		s.BroadcastMessage("User %s would like to upload %s to: %s", params.Requester, params.Filename, params.Location)
 	}
-	s.registry.NotifyFileTransferRequest(s.fileTransferReq, FileTransferUpdate, scx)
+	err = s.registry.NotifyFileTransferRequest(s.fileTransferReq, FileTransferUpdate, scx)
 
-	return nil
+	return trace.Wrap(err)
 }
 
 // approveFileTransferRequest will add the approver to the approvers map of a file transfer request and notify the members
@@ -1744,10 +1802,9 @@ func (s *session) approveFileTransferRequest(params *rsession.FileTransferDecisi
 	} else {
 		eventType = FileTransferUpdate
 	}
+	err = s.registry.NotifyFileTransferRequest(s.fileTransferReq, eventType, scx)
 
-	s.registry.NotifyFileTransferRequest(s.fileTransferReq, eventType, scx)
-
-	return nil
+	return trace.Wrap(err)
 }
 
 // denyFileTransferRequest will deny a file transfer request and remove it from the current session's file transfer requests map.
@@ -1778,9 +1835,9 @@ func (s *session) denyFileTransferRequest(params *rsession.FileTransferDecisionP
 	s.fileTransferReq = nil
 
 	s.BroadcastMessage("%s denied file transfer request %s", scx.Identity.TeleportUser, req.ID)
-	s.registry.NotifyFileTransferRequest(req, FileTransferDenied, scx)
+	err := s.registry.NotifyFileTransferRequest(req, FileTransferDenied, scx)
 
-	return nil
+	return trace.Wrap(err)
 }
 
 func (s *session) checkIfStart() (bool, auth.PolicyOptions, error) {
