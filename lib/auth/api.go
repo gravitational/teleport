@@ -24,8 +24,10 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -697,6 +699,8 @@ type ReadDiscoveryAccessPoint interface {
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// GetKubernetesServers returns all registered kubernetes servers.
+	GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error)
 
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
@@ -755,6 +759,12 @@ type DiscoveryAccessPoint interface {
 
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 	GenerateAWSOIDCToken(ctx context.Context) (string, error)
+
+	// EnrollEKSClusters enrolls EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.
+	EnrollEKSClusters(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
+
+	// Ping gets basic info about the auth server.
+	Ping(context.Context) (proto.PingResponse, error)
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -1319,6 +1329,16 @@ func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.Subm
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
 	return w.NoCache.GenerateAWSOIDCToken(ctx)
+}
+
+// EnrollEKSClusters enrolls EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.
+func (w *DiscoveryWrapper) EnrollEKSClusters(ctx context.Context, req *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
+	return w.NoCache.EnrollEKSClusters(ctx, req)
+}
+
+// Ping gets basic info about the auth server.
+func (w *DiscoveryWrapper) Ping(ctx context.Context) (proto.PingResponse, error) {
+	return w.NoCache.Ping(ctx)
 }
 
 // Close closes all associated resources

@@ -87,12 +87,14 @@ func (s *Server) startKubeWatchers() error {
 			case newResources := <-watcher.ResourcesC():
 				clusters := make([]types.KubeCluster, 0, len(newResources))
 				for _, r := range newResources {
-					cluster, ok := r.(types.KubeCluster)
-					if !ok {
+					if cluster, ok := r.(types.DiscoveredEKSCluster); ok {
+						clusters = append(clusters, cluster.GetKubeCluster())
 						continue
 					}
-
-					clusters = append(clusters, cluster)
+					if cluster, ok := r.(types.KubeCluster); ok {
+						clusters = append(clusters, cluster)
+						continue
+					}
 				}
 				mu.Lock()
 				kubeResources = clusters
