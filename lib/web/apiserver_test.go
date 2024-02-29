@@ -1016,60 +1016,95 @@ func TestValidateBearerToken(t *testing.T) {
 func TestWebSessionsBadInput(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	user := "bob"
-	pass := "abcdef123456"
-	otpSecret := newOTPSharedSecret()
 
-	err := s.server.Auth().UpsertPassword(user, []byte(pass))
+	authServer := s.server.Auth()
+	clock := s.clock
+	ctx := context.Background()
+
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOTP,
+	})
+	require.NoError(t, err, "NewAuthPreference failed")
+	require.NoError(t,
+		authServer.SetAuthPreference(ctx, authPref),
+		"SetAuthPreference failed",
+	)
+
+	const user = "bob"
+	const pass = "abcdef123456"
+	otpSecret := newOTPSharedSecret()
+	badSecret := newOTPSharedSecret()
+
+	err = authServer.UpsertPassword(user, []byte(pass))
 	require.NoError(t, err)
 
 	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
 	require.NoError(t, err)
-	err = s.server.Auth().UpsertMFADevice(context.Background(), user, dev)
-	require.NoError(t, err)
-
-	// create valid token
-	validToken, err := totp.GenerateCode(otpSecret, time.Now())
+	err = authServer.UpsertMFADevice(context.Background(), user, dev)
 	require.NoError(t, err)
 
 	clt := s.client(t)
 
-	reqs := []CreateSessionReq{
-		// empty request
-		{},
-		// missing user
+	tests := []struct {
+		name                  string
+		user, pass, otpSecret string
+	}{
 		{
-			Pass:              pass,
-			SecondFactorToken: validToken,
+			name: "empty request",
 		},
-		// missing pass
 		{
-			User:              user,
-			SecondFactorToken: validToken,
+			name:      "missing user",
+			pass:      pass,
+			otpSecret: otpSecret,
 		},
-		// bad pass
 		{
-			User:              user,
-			Pass:              "bla bla",
-			SecondFactorToken: validToken,
+			name:      "missing pass",
+			user:      user,
+			otpSecret: otpSecret,
 		},
-		// bad otp token
 		{
-			User:              user,
-			Pass:              pass,
-			SecondFactorToken: "bad token",
+			name:      "bad pass",
+			user:      user,
+			pass:      "bla bla",
+			otpSecret: otpSecret,
 		},
-		// missing otp token
 		{
-			User: user,
-			Pass: pass,
+			name:      "bad otp token",
+			user:      user,
+			pass:      pass,
+			otpSecret: badSecret,
+		},
+		{
+			name: "missing otp token",
+			user: user,
+			pass: pass,
 		},
 	}
-	for i, req := range reqs {
-		t.Run(fmt.Sprintf("tc %v", i), func(t *testing.T) {
-			_, err := clt.PostJSON(s.ctx, clt.Endpoint("webapi", "sessions", "web"), req)
-			require.Error(t, err)
-			require.True(t, trace.IsAccessDenied(err))
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			clock.Advance(1 * time.Minute) // Avoid OTP clashes.
+
+			httpResp, body, err := rawLoginWebOTP(ctx, loginWebOTPParams{
+				webClient: clt,
+				clock:     clock,
+				user:      test.user,
+				password:  test.pass,
+				otpSecret: test.otpSecret,
+			})
+			require.NoError(t, err, "HTTP request errored unexpectedly")
+
+			// Assert HTTP response code.
+			assert.Equal(t, http.StatusForbidden, httpResp.StatusCode, "HTTP status mismatch")
+
+			// Assert body error message.
+			var resp httpErrorResponse
+			require.NoError(t,
+				json.Unmarshal(body, &resp),
+				"HTTP error response unmarshal",
+			)
+			const invalidCredentialsMessage = "invalid credentials"
+			assert.Contains(t, resp.Error.Message, invalidCredentialsMessage, "HTTP error message mismatch")
 		})
 	}
 }
