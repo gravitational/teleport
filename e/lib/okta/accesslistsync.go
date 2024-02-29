@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"regexp"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -335,6 +337,15 @@ func (a *accessListSync) reconcileAll(ctx context.Context) error {
 func (a *accessListSync) startSync(ctx context.Context) {
 	a.log.Info("Starting Okta access list synchronizer")
 
+	// Let's make sure that any existing access lists are reflected in the Okta requester role.
+	if err := a.refreshCurrentImports(ctx); err != nil {
+		a.log.Error("Unable to refresh current imports")
+	} else {
+		if err := a.addRolesToOktaRequester(ctx); err != nil {
+			a.log.Error("Unable to update Okta requester role")
+		}
+	}
+
 	jitter := retryutils.NewSeventhJitter()
 	timer := a.clock.NewTimer(jitter(accessListSyncFirstDuration))
 	defer timer.Stop()
@@ -353,6 +364,10 @@ func (a *accessListSync) startSync(ctx context.Context) {
 			a.log.Info("Synchronizing access lists from Okta.")
 			if err := a.importOktaNativeAssignmentsAsAccessLists(ctx); err != nil {
 				a.log.WithError(err).Error("error importing Okta native assignments")
+			}
+
+			if err := a.addRolesToOktaRequester(ctx); err != nil {
+				a.log.Error("Unable to update Okta requester role")
 			}
 		} else {
 			a.log.Info("Okta synchronizer has not yet completed successfully")
@@ -1046,6 +1061,29 @@ func (a *accessListSync) onDeleteRole(ctx context.Context, role types.Role) erro
 	delete(a.importRoles, role.GetName())
 	a.importRolesMu.Unlock()
 	return nil
+}
+
+// addRolesToOktaRequester will add non-reviewer roles to the Okta requester.
+func (a *accessListSync) addRolesToOktaRequester(ctx context.Context) error {
+	a.importRolesMu.Lock()
+	var roles []string
+	for roleName := range a.importRoles {
+		if strings.HasSuffix(roleName, reviewerSuffix) {
+			continue
+		}
+
+		roles = append(roles, roleName)
+	}
+	a.importRolesMu.Unlock()
+
+	oktaRequesterRole, err := a.access.GetRole(ctx, teleport.SystemOktaRequesterRoleName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	oktaRequesterRole.SetSearchAsRoles(types.Allow, roles)
+	_, err = a.access.UpsertRole(ctx, oktaRequesterRole)
+	return trace.Wrap(err)
 }
 
 // toLabels converts a map of strings to a types.Labels resource.

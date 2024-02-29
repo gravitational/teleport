@@ -14,6 +14,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -22,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 var cmpOpts = []cmp.Option{
@@ -54,7 +56,7 @@ func (a *accessListSyncTestContext) advanceAndWaitForSync() {
 	a.clock.BlockUntil(1)
 }
 
-func initAccessListSync(t *testing.T) *accessListSyncTestContext {
+func initAccessListSync(t *testing.T, ctx context.Context) *accessListSyncTestContext {
 	t.Helper()
 
 	clock := clockwork.NewFakeClock()
@@ -62,6 +64,14 @@ func initAccessListSync(t *testing.T) *accessListSyncTestContext {
 	ap := newTestAccessPoint(t, clockwork.NewFakeClock())
 	emitter := eventstest.NewChannelEmitter(1)
 	stopCh := make(chan struct{}, 1)
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+
+	_, err := ap.UpsertRole(ctx, services.NewSystemOktaAccessRole())
+	require.NoError(t, err)
+	_, err = ap.UpsertRole(ctx, services.NewSystemOktaRequesterRole())
+	require.NoError(t, err)
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
@@ -123,7 +133,7 @@ func TestAccessListSync(t *testing.T) {
 	owners := []string{"owner1", "owner2"}
 
 	t.Run("no apps or groups", func(t *testing.T) {
-		c := initAccessListSync(t)
+		c := initAccessListSync(t, ctx)
 		c.advanceAndWaitForSync()
 
 		require.Empty(t, c.svc.getImportAccessLists())
@@ -145,10 +155,12 @@ func TestAccessListSync(t *testing.T) {
 			require.Zero(t, event.NumAccessLists)
 			require.Zero(t, event.NumAccessListMembers)
 		})
+
+		expectOktaAccessRequesterSearchAsRoles(t, ctx, c.ap)
 	})
 
 	t.Run("Okta apps and groups but no assignments", func(t *testing.T) {
-		c := initAccessListSync(t)
+		c := initAccessListSync(t, ctx)
 
 		c.addApp(newAccessListSyncApp(t, "app1"))
 		c.addApp(newAccessListSyncApp(t, "app2"))
@@ -176,10 +188,12 @@ func TestAccessListSync(t *testing.T) {
 			require.Zero(t, event.NumAccessLists)
 			require.Zero(t, event.NumAccessListMembers)
 		})
+
+		expectOktaAccessRequesterSearchAsRoles(t, ctx, c.ap)
 	})
 
 	t.Run("Okta apps have assignments, groups have no assignments", func(t *testing.T) {
-		c := initAccessListSync(t)
+		c := initAccessListSync(t, ctx)
 
 		c.client.addUserID("user1", "1")
 		c.client.addUserID("user2", "2")
@@ -230,10 +244,12 @@ func TestAccessListSync(t *testing.T) {
 			require.Equal(t, int32(2), event.NumAccessLists)
 			require.Equal(t, int32(6), event.NumAccessListMembers)
 		})
+
+		expectOktaAccessRequesterSearchAsRoles(t, ctx, c.ap, "app1", "app2")
 	})
 
 	t.Run("Okta apps have assignments, groups have assignments", func(t *testing.T) {
-		c := initAccessListSync(t)
+		c := initAccessListSync(t, ctx)
 
 		c.client.addUserID("user1", "1")
 		c.client.addUserID("user2", "2")
@@ -286,10 +302,12 @@ func TestAccessListSync(t *testing.T) {
 			require.Equal(t, int32(3), event.NumAccessLists)
 			require.Equal(t, int32(5), event.NumAccessListMembers)
 		})
+
+		expectOktaAccessRequesterSearchAsRoles(t, ctx, c.ap, "app1", "app2", "group1")
 	})
 
 	t.Run("Okta apps have assignments, groups have assignments, apps and group filters added.", func(t *testing.T) {
-		c := initAccessListSync(t)
+		c := initAccessListSync(t, ctx)
 
 		c.svc.groupFilters = []*regexp.Regexp{
 			regexp.MustCompile("^dev.*$"),
@@ -360,10 +378,12 @@ func TestAccessListSync(t *testing.T) {
 			require.Equal(t, int32(4), event.NumAccessLists)
 			require.Equal(t, int32(8), event.NumAccessListMembers)
 		})
+
+		expectOktaAccessRequesterSearchAsRoles(t, ctx, c.ap, "dev-app2", "dev-app3", "dev-group2", "dev-group3")
 	})
 
 	t.Run("previously existing apps and groups erased or updated, existing fields preserved", func(t *testing.T) {
-		c := initAccessListSync(t)
+		c := initAccessListSync(t, ctx)
 
 		// Let's set the app/groups counters to an arbitrary value. This should be reset.
 		c.svc.appsImported.Store(12)
@@ -458,6 +478,8 @@ func TestAccessListSync(t *testing.T) {
 			require.Equal(t, int32(3), event.NumAccessLists)
 			require.Equal(t, int32(5), event.NumAccessListMembers)
 		})
+
+		expectOktaAccessRequesterSearchAsRoles(t, ctx, c.ap, "app1", "app2", "group1")
 	})
 }
 
@@ -644,4 +666,10 @@ func verifyServiceMatchesBackend(t *testing.T, ap *testAccessPoint, svc *accessL
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(role, get, cmpOpts...))
 	}
+}
+
+func expectOktaAccessRequesterSearchAsRoles(t *testing.T, ctx context.Context, ap *testAccessPoint, expectedRoles ...string) {
+	role, err := ap.Access.GetRole(ctx, teleport.SystemOktaRequesterRoleName)
+	require.NoError(t, err)
+	require.ElementsMatch(t, expectedRoles, role.GetSearchAsRoles(types.Allow))
 }
