@@ -386,7 +386,7 @@ func TestAuthenticate_deviceWebToken(t *testing.T) {
 			},
 		})
 
-		sessionResp := loginWebMFA(ctx, t, loginWebMFAParams{
+		sessionResp, _ := loginWebMFA(ctx, t, loginWebMFAParams{
 			webClient:     proxy.newClient(t),
 			rpID:          rpID,
 			user:          mfaResp.User,
