@@ -129,18 +129,10 @@ func TestUnifiedResourcesList(t *testing.T) {
 		App:      app.GetApp(),
 	}}, response.Resources[3])
 
-	require.Equal(t, UnifiedResource{App: &clusters.App{
-		URI: uri.NewClusterURI(cluster.ProfileName).AppendApp(app.GetApp().GetName()),
-		// FQDN looks weird because we cannot mock cluster.status.ProxyHost in tests.
-		FQDN:     "testApp.",
-		AWSRoles: aws.Roles{},
-		App:      app.GetApp(),
-	}}, response.Resources[4])
-
 	require.Equal(t, UnifiedResource{SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{
 		URI:      uri.NewClusterURI(cluster.ProfileName).AppendApp(samlSP.GetName()),
 		Provider: samlSP,
-	}}, response.Resources[5])
+	}}, response.Resources[4])
 
 	require.Equal(t, mockedNextKey, response.NextKey)
 }
