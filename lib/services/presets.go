@@ -660,6 +660,8 @@ func defaultAllowAccessReviewConditions(enterprise bool) map[string]*types.Acces
 func AddRoleDefaults(role types.Role) (types.Role, error) {
 	changed := false
 
+	oldLabels := role.GetAllLabels()
+
 	// Role labels
 	defaultRoleLabels, ok := bootstrapRoleMetadataLabels()[role.GetName()]
 	if ok {
@@ -680,11 +682,16 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 		}
 	}
 
+	labels := role.GetMetadata().Labels
+	if role.GetName() == teleport.SystemOktaRequesterRoleName {
+		labels = oldLabels
+	}
+
 	// Check if the role has a TeleportInternalResourceType attached. We do this after setting the role metadata
 	// labels because we set the role metadata labels for roles that have been well established (access,
 	// editor, auditor) that may not already have this label set, but we don't set it for newer roles
 	// (group-access, reviewer, requester) that may have customer definitions.
-	resourceType := role.GetMetadata().Labels[types.TeleportInternalResourceType]
+	resourceType := labels[types.TeleportInternalResourceType]
 	if resourceType != types.PresetResource && resourceType != types.SystemResource {
 		return nil, trace.AlreadyExists("not modifying user created role")
 	}
