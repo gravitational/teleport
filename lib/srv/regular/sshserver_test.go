@@ -32,6 +32,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -77,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 // teleportTestUser is additional user used for tests
@@ -2842,6 +2844,71 @@ func TestTargetMetadata(t *testing.T) {
 
 	require.Contains(t, metadata.ServerLabels, "foo")
 	require.Contains(t, metadata.ServerLabels, "baz")
+}
+
+func TestValidateListenerSocket(t *testing.T) {
+	t.Parallel()
+	newSocketFiles := func(t *testing.T) (*uds.Conn, *os.File) {
+		left, right, err := uds.NewSocketpair(uds.SocketTypeStream)
+		require.NoError(t, err)
+		listenerFD, err := right.File()
+		require.NoError(t, err)
+		require.NoError(t, right.Close())
+		t.Cleanup(func() {
+			require.NoError(t, left.Close())
+			require.NoError(t, listenerFD.Close())
+		})
+		return left, listenerFD
+	}
+
+	u, err := user.Current()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		user        string
+		mutateFiles func(*uds.Conn, *os.File) (*uds.Conn, *os.File)
+		assert      require.ErrorAssertionFunc
+	}{
+		{
+			name:   "ok",
+			user:   u.Username,
+			assert: require.NoError,
+		},
+		{
+			name:   "wrong user",
+			user:   "fake-user",
+			assert: require.Error,
+		},
+		{
+			name: "not a socket",
+			user: u.Username,
+			mutateFiles: func(conn *uds.Conn, file *os.File) (*uds.Conn, *os.File) {
+				regularFile, err := os.Create(filepath.Join(t.TempDir(), "test.txt"))
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					require.NoError(t, regularFile.Close())
+				})
+				return conn, regularFile
+			},
+			assert: require.Error,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			scx := &srv.ServerContext{
+				Identity: srv.IdentityContext{
+					Login: tc.user,
+				},
+			}
+			conn, listenerFD := newSocketFiles(t)
+			if tc.mutateFiles != nil {
+				conn, listenerFD = tc.mutateFiles(conn, listenerFD)
+			}
+			err := validateListenerSocket(scx, conn.UnixConn, listenerFD)
+			tc.assert(t, err)
+		})
+	}
 }
 
 // upack holds all ssh signing artifacts needed for signing and checking user keys

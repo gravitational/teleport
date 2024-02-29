@@ -27,14 +27,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"maps"
 	"net"
 	"os"
 	"os/user"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -43,6 +46,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -1157,40 +1161,6 @@ func (s *Server) getDirectTCPIPForwardDialer(scx *srv.ServerContext) (sshutils.T
 	return dialer, nil
 }
 
-// remoteForwardingListener accepts connections from the process that
-// handles remote port forwarding.
-type remoteForwardingListener struct {
-	addr string
-	conn *uds.Conn
-}
-
-// Accept accepts a connection from the forwarding process.
-func (l *remoteForwardingListener) Accept() (net.Conn, error) {
-	var fbuf [1]*os.File
-	_, fn, err := l.conn.ReadWithFDs(nil, fbuf[:])
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if fn == 0 {
-		return nil, trace.Errorf("forwarder didn't supply a socket")
-	}
-	fconn, err := net.FileConn(fbuf[0])
-	return fconn, trace.Wrap(err)
-}
-
-// Close closes the listener.
-func (l *remoteForwardingListener) Close() error {
-	return trace.Wrap(l.conn.Close())
-}
-
-// Addr gets the address the forwarding process is listening on.
-func (l *remoteForwardingListener) Addr() net.Addr {
-	return &utils.NetAddr{
-		Addr:        l.addr,
-		AddrNetwork: "tcp",
-	}
-}
-
 // listenTCPIP creates a new listener in the forwarding process.
 func (s *Server) listenTCPIP(scx *srv.ServerContext, addr string) (net.Listener, error) {
 	proc, err := s.getTCPIPForwardProcess(scx)
@@ -1241,9 +1211,60 @@ func (s *Server) listenTCPIP(scx *srv.ServerContext, addr string) (net.Listener,
 	if fn == 0 {
 		return nil, trace.BadParameter("forwarding process did not return a listener")
 	}
+	if err := validateListenerSocket(scx, localConn.UnixConn, fbuf[0]); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	listener, err := net.FileListener(fbuf[0])
 	return listener, trace.Wrap(err)
+}
+
+func controlSyscallConn(conn syscall.RawConn, f func(fd uintptr) error) error {
+	var err error
+	err2 := conn.Control(func(fd uintptr) {
+		err = f(fd)
+	})
+	return trace.NewAggregate(err2, err)
+}
+
+// validateListenerSocket checks that the socket and listener file descriptor
+// sent from the forwarding process have the expected properties.
+func validateListenerSocket(scx *srv.ServerContext, controlConn *net.UnixConn, listenerFD *os.File) error {
+	// Get the credentials of the client connected to the socket.
+	syscallConn, err := controlConn.SyscallConn()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var cred *unix.Ucred
+	if err := controlSyscallConn(syscallConn, func(fd uintptr) error {
+		cred, err = unix.GetsockoptUcred(int(fd), unix.SOL_SOCKET, unix.SO_PEERCRED)
+		return err
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Check that the user connected to the socket is who we expect.
+	usr, err := user.Lookup(scx.Identity.Login)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	uid, err := strconv.Atoi(usr.Uid)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if int(cred.Uid) != uid {
+		return trace.AccessDenied("unexpected user for the socket")
+	}
+
+	// Check that the listener is a socket.
+	fileInfo, err := listenerFD.Stat()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if fileInfo.Mode().Type() != fs.ModeSocket {
+		return trace.AccessDenied("file is not a socket")
+	}
+	return nil
 }
 
 // getDirectTCPIPForwarder sets up a connection-level subprocess that handles
@@ -2328,7 +2349,7 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 	scx.AddCloser(listener)
 	// Set the src addr again since it may have been updated with a new port.
 	scx.SrcAddr = listener.Addr().String()
-	if err := sshutils.StartRemoteListener(ctx, scx.ConnectionContext, scx.SrcAddr, scx.DstAddr, listener); err != nil {
+	if err := sshutils.StartRemoteListener(ctx, scx.ConnectionContext.ServerConn, scx.SrcAddr, scx.DstAddr, listener); err != nil {
 		scx.Close()
 		return trace.Wrap(err)
 	}
