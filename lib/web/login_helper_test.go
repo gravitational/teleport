@@ -21,16 +21,19 @@ import (
 	"context"
 	"encoding/base32"
 	"encoding/json"
+	"io"
 	"net/http"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/httplib/csrf"
 )
 
 // newOTPSharedSecret returns an OTP shared secret, encoded as a base32 string.
@@ -43,19 +46,74 @@ type loginWebOTPParams struct {
 	webClient      *TestWebClient
 	clock          clockwork.Clock
 	user, password string
-	otpSecret      string // base32-encoded shared OTP secret
+
+	// otpSecret is the shared, base32-encoded OTP secret.
+	// A new code is generated if provided.
+	// Requires clock to the set.
+	// If empty then no OTP is sent in the request.
+	otpSecret string
+
+	userAgent string // Optional.
+
+	cookieCSRF, headerCSRF *string // Explicit CSRF tokens. Optional.
+}
+
+// DrainedHTTPResponse mimics an http.Response, but without a body.
+type DrainedHTTPResponse struct {
+	StatusCode int
+	cookies    []*http.Cookie
+}
+
+// Cookies mimics http.Response.Cookies.
+func (r *DrainedHTTPResponse) Cookies() []*http.Cookie {
+	return r.cookies
+}
+
+// mustLoginWebOTP is the self-failing variant of [loginWebOTP].
+//
+// This is a lower-level utility for tests that want access to the returned
+// unmarshaled CreateSessionResponse or HTTP response.
+func mustLoginWebOTP(t *testing.T, ctx context.Context, params loginWebOTPParams) (*CreateSessionResponse, *DrainedHTTPResponse) {
+	sessionResp, httpResp, err := loginWebOTP(ctx, params)
+	require.NoError(t, err, "Login via /webapi/sessions/new failed")
+	return sessionResp, httpResp
 }
 
 // loginWebOTP logins the user using the /webapi/sessions/new endpoint.
 //
 // This is a lower-level utility for tests that want access to the returned
-// CreateSessionResponse.
-func loginWebOTP(t *testing.T, ctx context.Context, params loginWebOTPParams) *CreateSessionResponse {
+// error, in addition to the CreateSessionResponse or HTTP response.
+func loginWebOTP(ctx context.Context, params loginWebOTPParams) (*CreateSessionResponse, *DrainedHTTPResponse, error) {
+	httpResp, body, err := rawLoginWebOTP(ctx, params)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	sessionResp := &CreateSessionResponse{}
+	if err := json.Unmarshal(body, sessionResp); err != nil {
+		return nil, nil, trace.Wrap(err, "unmarshal CreateSessionResponse")
+	}
+	return sessionResp, httpResp, nil
+}
+
+// rawLoginWebOTP is the raw variant of [loginWebOTP].
+//
+// This is a lower-level utility for tests that want access to the response body
+// itself.
+//
+// Note that the response body is automatically drained into a []byte and
+// closed.
+func rawLoginWebOTP(ctx context.Context, params loginWebOTPParams) (resp *DrainedHTTPResponse, body []byte, err error) {
 	webClient := params.webClient
 	clock := params.clock
 
-	code, err := totp.GenerateCode(params.otpSecret, clock.Now())
-	require.NoError(t, err, "GenerateCode failed")
+	var code string
+	if params.otpSecret != "" {
+		code, err = totp.GenerateCode(params.otpSecret, clock.Now())
+		if err != nil {
+			return nil, nil, trace.Wrap(err, "otp code generation")
+		}
+	}
 
 	// Prepare request JSON body.
 	reqBody, err := json.Marshal(&CreateSessionReq{
@@ -63,27 +121,52 @@ func loginWebOTP(t *testing.T, ctx context.Context, params loginWebOTPParams) *C
 		Pass:              params.password,
 		SecondFactorToken: code,
 	})
-	require.NoError(t, err, "Marshal failed")
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "request marshal")
+	}
 
-	// Prepare request with CSRF token.
+	// Prepare HTTP request.
 	url := webClient.Endpoint("webapi", "sessions", "web")
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(reqBody))
-	require.NoError(t, err, "NewRequestWithContext failed")
-	const csrfToken = "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
-	addCSRFCookieToReq(req, csrfToken)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set(csrf.HeaderName, csrfToken)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "create HTTP request")
+	}
 
-	resp, err := webClient.HTTPClient().Do(req)
-	require.NoError(t, err, "Do failed")
+	// Set assorted headers.
+	req.Header.Set("Content-Type", "application/json")
+	if params.userAgent != "" {
+		req.Header.Set("User-Agent", params.userAgent)
+	}
+
+	// Set CSRF cookie and header.
+	const defaultCSRFToken = "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
+	cookieCSRF := defaultCSRFToken
+	if params.cookieCSRF != nil {
+		cookieCSRF = *params.cookieCSRF
+	}
+	addCSRFCookieToReq(req, cookieCSRF)
+	headerCSRF := defaultCSRFToken
+	if params.headerCSRF != nil {
+		headerCSRF = *params.headerCSRF
+	}
+	req.Header.Set(csrf.HeaderName, headerCSRF)
+
+	httpResp, err := webClient.HTTPClient().Do(req)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "do HTTP request")
+	}
 
 	// Drain body, then close, then handle error.
-	sessionResp := &CreateSessionResponse{}
-	err = json.NewDecoder(resp.Body).Decode(sessionResp)
-	_ = resp.Body.Close()
-	require.NoError(t, err, "Unmarshal failed")
+	body, err = io.ReadAll(httpResp.Body)
+	_ = httpResp.Body.Close()
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "reading body from response")
+	}
 
-	return sessionResp
+	return &DrainedHTTPResponse{
+		StatusCode: httpResp.StatusCode,
+		cookies:    httpResp.Cookies(),
+	}, body, nil
 }
 
 type loginWebMFAParams struct {
