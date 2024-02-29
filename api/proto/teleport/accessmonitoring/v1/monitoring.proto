@@ -50,6 +50,19 @@ message RuleSpec {
   }
   // audit_event is the audit event to monitor.
   AuditEvent audit_event = 4;
+
+  // notification is the notification settings.
+  PluginNotificationConfiguration notification = 5;
+}
+
+// PluginNotificationConfiguration is the configuration for a plugin notification.
+message PluginNotificationConfiguration {
+  // Name is the name of the plugin to which this configuration should apply.
+  string name = 1;
+  // Recipients is the list of recipients the plugin should notify.
+  repeated string recipients = 2;
+  // Message is the message to send to the plugin.
+  string message = 3;
 }
 
 // SecReportsService is a service that manages security reports.
