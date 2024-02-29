@@ -2299,7 +2299,7 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 
 // handleTCPIPForwardRequest handles remote port forwarding requests.
 func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.ConnectionContext, r *ssh.Request) error {
-	req, err := sshutils.ParseTCPIPForwardRequest(r.Payload)
+	req, err := sshutils.ParseTCPIPForwardReq(r.Payload)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2371,7 +2371,7 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 	}
 
 	scx.AddCloser(utils.CloseFunc(func() error {
-		event := scx.GetPortForward()
+		event := scx.GetPortForwardEvent()
 		return trace.Wrap(s.EmitAuditEvent(ctx, &event))
 	}))
 	s.remoteForwardingMap.Store(scx.SrcAddr, scx)
@@ -2381,7 +2381,7 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 // handleCancelTCPIPForwardRequest handles canceling a previously requested
 // remote forwarded port.
 func (s *Server) handleCancelTCPIPForwardRequest(ctx context.Context, ccx *sshutils.ConnectionContext, r *ssh.Request) error {
-	req, err := sshutils.ParseTCPIPForwardRequest(r.Payload)
+	req, err := sshutils.ParseTCPIPForwardReq(r.Payload)
 	if err != nil {
 		return trace.Wrap(err)
 	}

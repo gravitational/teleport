@@ -620,8 +620,6 @@ func handleLocalPortForward(ctx context.Context, addr string, file *os.File) err
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer controlConn.Close()
-
 	defer conn.Close()
 	var d net.Dialer
 	remote, err := d.DialContext(ctx, "tcp", addr)
