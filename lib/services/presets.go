@@ -684,7 +684,7 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 
 	labels := role.GetMetadata().Labels
 	// We're specifically checking the old labels version of the Okta requester role here
-	// because we're bootstrapping new lablels onto the role above. By checking the old labels,
+	// because we're bootstrapping new labels onto the role above. By checking the old labels,
 	// we can be assured that we're looking at the role as it existed before bootstrapping. If
 	// the role was user-created, then this won't have the internal-resource type attached,
 	// and we'll skip the rest of adding in default values.
