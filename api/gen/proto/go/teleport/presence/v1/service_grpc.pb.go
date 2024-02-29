@@ -37,7 +37,6 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	PresenceService_GetRemoteCluster_FullMethodName    = "/teleport.presence.v1.PresenceService/GetRemoteCluster"
 	PresenceService_ListRemoteClusters_FullMethodName  = "/teleport.presence.v1.PresenceService/ListRemoteClusters"
-	PresenceService_CreateRemoteCluster_FullMethodName = "/teleport.presence.v1.PresenceService/CreateRemoteCluster"
 	PresenceService_UpdateRemoteCluster_FullMethodName = "/teleport.presence.v1.PresenceService/UpdateRemoteCluster"
 	PresenceService_DeleteRemoteCluster_FullMethodName = "/teleport.presence.v1.PresenceService/DeleteRemoteCluster"
 )
@@ -50,8 +49,6 @@ type PresenceServiceClient interface {
 	GetRemoteCluster(ctx context.Context, in *GetRemoteClusterRequest, opts ...grpc.CallOption) (*types.RemoteClusterV3, error)
 	// ListRemoteClusters gets all existing RemoteClusters.
 	ListRemoteClusters(ctx context.Context, in *ListRemoteClustersRequest, opts ...grpc.CallOption) (*ListRemoteClustersResponse, error)
-	// CreateRemoteCluster creates a RemoteCluster if one does not already exist.
-	CreateRemoteCluster(ctx context.Context, in *CreateRemoteClusterRequest, opts ...grpc.CallOption) (*types.RemoteClusterV3, error)
 	// UpdateRemoteCluster updates an existing RemoteCluster.
 	UpdateRemoteCluster(ctx context.Context, in *UpdateRemoteClusterRequest, opts ...grpc.CallOption) (*types.RemoteClusterV3, error)
 	// DeleteRemoteCluster removes an existing RemoteCluster by name.
@@ -84,15 +81,6 @@ func (c *presenceServiceClient) ListRemoteClusters(ctx context.Context, in *List
 	return out, nil
 }
 
-func (c *presenceServiceClient) CreateRemoteCluster(ctx context.Context, in *CreateRemoteClusterRequest, opts ...grpc.CallOption) (*types.RemoteClusterV3, error) {
-	out := new(types.RemoteClusterV3)
-	err := c.cc.Invoke(ctx, PresenceService_CreateRemoteCluster_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *presenceServiceClient) UpdateRemoteCluster(ctx context.Context, in *UpdateRemoteClusterRequest, opts ...grpc.CallOption) (*types.RemoteClusterV3, error) {
 	out := new(types.RemoteClusterV3)
 	err := c.cc.Invoke(ctx, PresenceService_UpdateRemoteCluster_FullMethodName, in, out, opts...)
@@ -119,8 +107,6 @@ type PresenceServiceServer interface {
 	GetRemoteCluster(context.Context, *GetRemoteClusterRequest) (*types.RemoteClusterV3, error)
 	// ListRemoteClusters gets all existing RemoteClusters.
 	ListRemoteClusters(context.Context, *ListRemoteClustersRequest) (*ListRemoteClustersResponse, error)
-	// CreateRemoteCluster creates a RemoteCluster if one does not already exist.
-	CreateRemoteCluster(context.Context, *CreateRemoteClusterRequest) (*types.RemoteClusterV3, error)
 	// UpdateRemoteCluster updates an existing RemoteCluster.
 	UpdateRemoteCluster(context.Context, *UpdateRemoteClusterRequest) (*types.RemoteClusterV3, error)
 	// DeleteRemoteCluster removes an existing RemoteCluster by name.
@@ -137,9 +123,6 @@ func (UnimplementedPresenceServiceServer) GetRemoteCluster(context.Context, *Get
 }
 func (UnimplementedPresenceServiceServer) ListRemoteClusters(context.Context, *ListRemoteClustersRequest) (*ListRemoteClustersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListRemoteClusters not implemented")
-}
-func (UnimplementedPresenceServiceServer) CreateRemoteCluster(context.Context, *CreateRemoteClusterRequest) (*types.RemoteClusterV3, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateRemoteCluster not implemented")
 }
 func (UnimplementedPresenceServiceServer) UpdateRemoteCluster(context.Context, *UpdateRemoteClusterRequest) (*types.RemoteClusterV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateRemoteCluster not implemented")
@@ -196,24 +179,6 @@ func _PresenceService_ListRemoteClusters_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
-func _PresenceService_CreateRemoteCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateRemoteClusterRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(PresenceServiceServer).CreateRemoteCluster(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: PresenceService_CreateRemoteCluster_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PresenceServiceServer).CreateRemoteCluster(ctx, req.(*CreateRemoteClusterRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _PresenceService_UpdateRemoteCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateRemoteClusterRequest)
 	if err := dec(in); err != nil {
@@ -264,10 +229,6 @@ var PresenceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListRemoteClusters",
 			Handler:    _PresenceService_ListRemoteClusters_Handler,
-		},
-		{
-			MethodName: "CreateRemoteCluster",
-			Handler:    _PresenceService_CreateRemoteCluster_Handler,
 		},
 		{
 			MethodName: "UpdateRemoteCluster",

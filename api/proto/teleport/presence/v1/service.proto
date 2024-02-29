@@ -27,8 +27,6 @@ service PresenceService {
   rpc GetRemoteCluster(GetRemoteClusterRequest) returns (types.RemoteClusterV3);
   // ListRemoteClusters gets all existing RemoteClusters.
   rpc ListRemoteClusters(ListRemoteClustersRequest) returns (ListRemoteClustersResponse);
-  // CreateRemoteCluster creates a RemoteCluster if one does not already exist.
-  rpc CreateRemoteCluster(CreateRemoteClusterRequest) returns (types.RemoteClusterV3);
   // UpdateRemoteCluster updates an existing RemoteCluster.
   rpc UpdateRemoteCluster(UpdateRemoteClusterRequest) returns (types.RemoteClusterV3);
   // DeleteRemoteCluster removes an existing RemoteCluster by name.
@@ -59,12 +57,6 @@ message ListRemoteClustersResponse {
   // Token to retrieve the next page of results, or empty if there are no
   // more results in the list.
   string next_page_token = 2;
-}
-
-// Request for CreateRemoteCluster
-message CreateRemoteClusterRequest {
-  // RemoteCluster is the RemoteCluster to create.
-  types.RemoteClusterV3 remote_cluster = 1;
 }
 
 // Request for UpdateRemoteCluster
