@@ -85,7 +85,7 @@ func TestGetAccessLists(t *testing.T) {
 	var accessListResp ui.AccessListsResponse
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &accessListResp))
 	require.Len(t, accessListResp.AccessLists, 2)
-	require.Equal(t, 1, *accessListResp.AccessLists[0].MembersCount)
+	require.Equal(t, uint32(1), *accessListResp.AccessLists[0].MembersCount)
 
 	require.Empty(t, cmp.Diff(
 		[]*accesslist.AccessList{accessListResp.AccessLists[0].AccessList, accessListResp.AccessLists[1].AccessList},

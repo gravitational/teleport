@@ -47,9 +47,10 @@ const (
 )
 
 var (
-	// ignoreIDAndRevision will be used to ignore fields that are irrelevant to determining
+	// ignoreEphemeralFields will be used to ignore fields that are irrelevant to determining
 	// equivalence of a resource.
-	ignoreIDAndRevision = []cmp.Option{
+	ignoreEphemeralFields = []cmp.Option{
+		cmpopts.IgnoreFields(accesslist.AccessList{}, "Status"),
 		// ID is handled by the backend, so it'll be ignored here.
 		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 	}
@@ -60,10 +61,8 @@ var (
 	}
 
 	// oktaValidModifications lists the fields that can be modified in an Okta sourced access list.
-	oktaValidModifications = []cmp.Option{
-		cmpopts.IgnoreFields(accesslist.Spec{}, "Owners", "MembershipRequires", "OwnershipRequires"),
-		ignoreIDAndRevision[0],
-	}
+	oktaValidModifications = append([]cmp.Option{cmpopts.IgnoreFields(accesslist.Spec{}, "Owners", "MembershipRequires", "OwnershipRequires")},
+		ignoreEphemeralFields...)
 )
 
 type UsersService interface {
@@ -286,10 +285,11 @@ func (s *Service) ListAccessLists(ctx context.Context, req *accesslistv1.ListAcc
 }
 
 // filterResults will return the following:
-// * If the user has RBAC access to the access lists (authErr == nil), the access lists will be returned as is.
-// * If the user owns any access lists, these will be returned with membership information retained.
-// * IF the user is a member of any access lists, these will be returned with membership information stripped.
+// * If the user has RBAC access to the access lists (authErr == nil), the access lists will be returned with membership information added.
+// * If the user owns any access lists, these will be returned with membership information added.
+// * If the user is a member of any access lists, these will be returned without membership information.
 func (s *Service) filterResults(ctx context.Context, results []*accesslist.AccessList, isPaginated bool, getErr, authErr error) ([]*accesslist.AccessList, error) {
+	isMemberMap := map[string]bool{}
 	if getErr != nil && authErr != nil {
 		// There was an error getting the access lists and an auth error, so return the auth error.
 		return nil, trace.Wrap(authErr)
@@ -304,7 +304,9 @@ func (s *Service) filterResults(ctx context.Context, results []*accesslist.Acces
 		}
 
 		for _, result := range results {
-			if err := s.userCanAccessAccessList(ctx, authCtx, result, types.VerbRead, types.VerbList); err == nil {
+			isMember, err := s.userCanReadAccessList(ctx, authCtx, result, types.VerbRead, types.VerbList)
+			isMemberMap[result.GetName()] = isMember
+			if err == nil {
 				filteredResults = append(filteredResults, result)
 			}
 		}
@@ -324,26 +326,36 @@ func (s *Service) filterResults(ctx context.Context, results []*accesslist.Acces
 		return nil, trace.Wrap(getErr)
 	}
 
+	// Add in member counts if appropriate.
+	for _, result := range results {
+		s.addMemberCounts(ctx, isMemberMap[result.GetName()], result)
+	}
+
 	return results, nil
 }
 
-// userCanAccessAccessList will return true if the user is an owner, a member, or has RBAC access to the access list.
-func (s *Service) userCanAccessAccessList(ctx context.Context, authCtx *authz.Context, accessList *accesslist.AccessList, verb string, additionalVerbs ...string) error {
+// userCanReadAccessList will return no error if the user is an owner, a member, or has RBAC access to the access list.
+// True will be returned if the user can only read the access list because they are a member.
+func (s *Service) userCanReadAccessList(ctx context.Context, authCtx *authz.Context, accessList *accesslist.AccessList, verb string, additionalVerbs ...string) (bool, error) {
 	authErr := s.hasAccessListRBAC(ctx, authCtx, accessList, verb, additionalVerbs...)
 
 	// If access is explicitly denied, we'll not allow owner or membership checks.
 	// We also can't do owner or membership checks if accessList is nil.
 	if services.IsAccessExplicitlyDenied(authErr) || accessList == nil {
-		return trace.Wrap(authErr)
+		return false, trace.Wrap(authErr)
 	}
 
 	// Allow the user to access the list if they are an owner or member.
 	identity := authCtx.Identity.GetIdentity()
-	if services.IsAccessListOwner(identity, accessList) == nil || s.membershipChecker.IsAccessListMember(ctx, identity, accessList) == nil {
-		return nil
+	if services.IsAccessListOwner(identity, accessList) == nil {
+		return false, nil
 	}
 
-	return trace.Wrap(authErr)
+	if s.membershipChecker.IsAccessListMember(ctx, identity, accessList) == nil {
+		return true, nil
+	}
+
+	return false, trace.Wrap(authErr)
 }
 
 // GetAccessList returns the specified access list resource.
@@ -356,7 +368,8 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 	result, getErr := s.accessLists.GetAccessList(ctx, req.GetName())
 
 	// If we can get the access list, authorize using it.
-	if err := s.userCanAccessAccessList(ctx, authCtx, result, types.VerbRead); err != nil {
+	isMember, err := s.userCanReadAccessList(ctx, authCtx, result, types.VerbRead)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -365,6 +378,8 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 	if getErr != nil {
 		return nil, trace.Wrap(getErr)
 	}
+
+	s.addMemberCounts(ctx, isMember, result)
 
 	// Get a list of all users, to compute eligibility for owners.
 	users, err := s.getAllUsers(ctx)
@@ -695,6 +710,23 @@ func (s *Service) emitDeleteAccessListUsageEvent(ctx context.Context, accessList
 // DeleteAllAccessLists removes all access lists.
 func (s *Service) DeleteAllAccessLists(ctx context.Context, _ *accesslistv1.DeleteAllAccessListsRequest) (*emptypb.Empty, error) {
 	return nil, trace.NotImplemented("DeleteAllAccessLists not supported in the gRPC server")
+}
+
+// CountAccessListMembers will count all access list members.
+func (s *Service) CountAccessListMembers(ctx context.Context, req *accesslistv1.CountAccessListMembersRequest) (*accesslistv1.CountAccessListMembersResponse, error) {
+	_, err := s.authOrIsOwner(ctx, req.AccessListName, types.VerbRead)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	count, err := s.accessLists.CountAccessListMembers(ctx, req.AccessListName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &accesslistv1.CountAccessListMembersResponse{
+		Count: count,
+	}, nil
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.
@@ -1271,7 +1303,7 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 		return nil, updated, accessListModified, nil, trace.Wrap(err)
 	}
 
-	accessListModified = !cmp.Equal(oldAccessList, newAccessList, ignoreIDAndRevision...)
+	accessListModified = !cmp.Equal(oldAccessList, newAccessList, ignoreEphemeralFields...)
 
 	// Modifying the access list requires RBAC access.
 	var authErrOld error
@@ -1384,7 +1416,7 @@ func (s *Service) canUpdateMembership(ctx context.Context, authCtx *authz.Contex
 	// since they're represented in it. With this check, so long as owner2 doesn't
 	// actually modify their own entry, we can say that it's okay for them to
 	// modify the users in this list.
-	if !cmp.Equal(oldMember, newMember, ignoreIDAndRevision...) {
+	if !cmp.Equal(oldMember, newMember, ignoreEphemeralFields...) {
 		return trace.Wrap(err)
 	}
 
@@ -1901,6 +1933,20 @@ func (s *Service) authOrIsOwnerWithAccessList(ctx context.Context, accessListNam
 	}
 
 	return accessList, authCtx, nil
+}
+
+// addMemberCounts to the given access list.
+func (s *Service) addMemberCounts(ctx context.Context, isMember bool, accessList *accesslist.AccessList) {
+	if isMember {
+		return
+	}
+
+	memberCount, err := s.accessLists.CountAccessListMembers(ctx, accessList.GetName())
+	if err != nil {
+		s.log.WithError(err).Error("Error counting access list members")
+		return
+	}
+	accessList.Status.MemberCount = &memberCount
 }
 
 type StillEligibleFields struct {

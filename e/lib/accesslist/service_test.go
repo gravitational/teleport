@@ -89,6 +89,11 @@ func TestService_GetAccessLists(t *testing.T) {
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
 		[]*accesslist.AccessList{a1, a2, a3, a4}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a3m1, a3m2})
 
+	a1.Status.MemberCount = ptrToUint32(2)
+	a2.Status.MemberCount = ptrToUint32(1)
+	a3.Status.MemberCount = ptrToUint32(2)
+	a4.Status.MemberCount = ptrToUint32(0)
+
 	getResp, err = c.svc.GetAccessLists(c.userCtx, &accesslistv1.GetAccessListsRequest{})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a3, a4}, mustFromProtoAll(t, getResp.AccessLists...), cmpOpts...))
@@ -102,10 +107,13 @@ func TestService_GetAccessLists(t *testing.T) {
 	_, err = c.svc.GetAccessLists(c.userDenyAllCtx, &accesslistv1.GetAccessListsRequest{})
 	require.True(t, trace.IsAccessDenied(err))
 
+	// member can see the access lists they belong to without counts.
 	memberCtx := genUserContext(context.Background(), member2, []string{"mrole1", "mrole2"}, map[string][]string{
 		"mtrait1": {"mvalue1", "mvalue2"},
 		"mtrait2": {"mvalue3", "mvalue4"},
 	})
+	a1.Status.MemberCount = nil
+	a3.Status.MemberCount = nil
 	getResp, err = c.svc.GetAccessLists(memberCtx, &accesslistv1.GetAccessListsRequest{})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a3}, mustFromProtoAll(t, getResp.AccessLists...), cmpOpts...))
@@ -153,6 +161,13 @@ func TestService_ListAccessLists(t *testing.T) {
 			a1m1, a1m2, a2m1, a3m1, a3m2, a4m1, a4m2, a5m1, a5m2,
 		})
 
+	a1.Status.MemberCount = ptrToUint32(2)
+	a2.Status.MemberCount = ptrToUint32(1)
+	a3.Status.MemberCount = ptrToUint32(2)
+	a4.Status.MemberCount = ptrToUint32(2)
+	a5.Status.MemberCount = ptrToUint32(2)
+	a6.Status.MemberCount = ptrToUint32(0)
+
 	accessLists = listAccessLists(c.userCtx, t, c.svc, 1)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a3, a4, a5, a6}, accessLists, cmpOpts...))
 
@@ -176,6 +191,11 @@ func TestService_ListAccessLists(t *testing.T) {
 	// userDenyWhere should no longer see a5
 	accessLists = listAccessLists(c.userDenyWhereCtx, t, c.svc, 1)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a4}, accessLists, cmpOpts...))
+
+	a1.Status.MemberCount = nil
+	a3.Status.MemberCount = nil
+	a4.Status.MemberCount = nil
+	a5.Status.MemberCount = nil
 
 	memberCtx := genUserContext(context.Background(), member2, []string{"mrole1", "mrole2"}, map[string][]string{
 		"mtrait1": {"mvalue1", "mvalue2"},
@@ -376,6 +396,11 @@ func TestService_GetAccessList(t *testing.T) {
 	a3m1 := newAccessListMember(t, a3.GetName(), member1, c.clock)
 	a3m2 := newAccessListMember(t, a3.GetName(), member2, c.clock)
 
+	a1.Status.MemberCount = ptrToUint32(2)
+	a2.Status.MemberCount = ptrToUint32(1)
+	a3.Status.MemberCount = ptrToUint32(2)
+	a4.Status.MemberCount = ptrToUint32(0)
+
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
 		[]*accesslist.AccessList{a1, a2, a3, a4}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a3m1, a3m2})
 
@@ -401,6 +426,8 @@ func TestService_GetAccessList(t *testing.T) {
 		"mtrait2": {"mvalue3", "mvalue4"},
 	})
 
+	a1.Status.MemberCount = nil
+
 	get, err = c.svc.GetAccessList(memberCtx, &accesslistv1.GetAccessListRequest{Name: a1.GetName()})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(a1, mustFromProto(t, get, conv.WithOwnersIneligibleStatusField(get.Spec.Owners)), cmpOpts...))
@@ -408,9 +435,14 @@ func TestService_GetAccessList(t *testing.T) {
 	_, err = c.svc.GetAccessList(memberCtx, &accesslistv1.GetAccessListRequest{Name: a2.GetName()})
 	require.True(t, trace.IsAccessDenied(err))
 
+	a3.Status.MemberCount = nil
+
 	get, err = c.svc.GetAccessList(memberCtx, &accesslistv1.GetAccessListRequest{Name: a3.GetName()})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(a3, mustFromProto(t, get, conv.WithOwnersIneligibleStatusField(get.Spec.Owners)), cmpOpts...))
+
+	// Owner can see the member counts.
+	a1.Status.MemberCount = ptrToUint32(2)
 
 	get, err = c.svc.GetAccessList(c.ownerCtx, &accesslistv1.GetAccessListRequest{Name: a1.GetName()})
 	require.NoError(t, err)
@@ -607,6 +639,9 @@ func TestService_DeleteAccessList(t *testing.T) {
 	})
 
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{a1, a2}, nil)
+
+	a1.Status.MemberCount = ptrToUint32(0)
+	a2.Status.MemberCount = ptrToUint32(0)
 
 	get, err := c.svc.GetAccessList(c.userCtx, &accesslistv1.GetAccessListRequest{Name: a1.GetName()})
 	require.NoError(t, err)
@@ -958,6 +993,48 @@ func initSvc(t *testing.T) testSvcComponents {
 			identity: userSvc,
 		},
 	}
+}
+func TestService_CountAccessListMembers(t *testing.T) {
+	c := initSvc(t)
+
+	a1 := newAccessList(t, "1", c.clock)
+	a2 := newAccessList(t, "2", c.clock)
+	a3 := newAccessList(t, "3", c.clock)
+	a4 := newAccessList(t, "4", c.clock)
+
+	a1m1 := newAccessListMember(t, a1.GetName(), member1, c.clock)
+	a1m2 := newAccessListMember(t, a1.GetName(), member2, c.clock)
+	a1m3 := newAccessListMember(t, a1.GetName(), member3, c.clock)
+	a2m1 := newAccessListMember(t, a2.GetName(), member1, c.clock)
+	a3m1 := newAccessListMember(t, a3.GetName(), member1, c.clock)
+	a3m2 := newAccessListMember(t, a3.GetName(), member2, c.clock)
+
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
+		[]*accesslist.AccessList{a1, a2, a3, a4}, []*accesslist.AccessListMember{a1m1, a1m2, a1m3, a2m1, a3m1, a3m2})
+
+	resp, err := c.svc.CountAccessListMembers(c.userCtx, &accesslistv1.CountAccessListMembersRequest{AccessListName: a1.GetName()})
+	require.NoError(t, err)
+	require.Equal(t, uint32(3), resp.Count)
+
+	resp, err = c.svc.CountAccessListMembers(c.ownerCtx, &accesslistv1.CountAccessListMembersRequest{AccessListName: a2.GetName()})
+	require.NoError(t, err)
+	require.Equal(t, uint32(1), resp.Count)
+
+	resp, err = c.svc.CountAccessListMembers(c.userCtx, &accesslistv1.CountAccessListMembersRequest{AccessListName: a3.GetName()})
+	require.NoError(t, err)
+	require.Equal(t, uint32(2), resp.Count)
+
+	resp, err = c.svc.CountAccessListMembers(c.userCtx, &accesslistv1.CountAccessListMembersRequest{AccessListName: a4.GetName()})
+	require.NoError(t, err)
+	require.Equal(t, uint32(0), resp.Count)
+
+	memberCtx := genUserContext(context.Background(), member1, []string{"mrole1", "mrole2"}, map[string][]string{
+		"mtrait1": {"mvalue1", "mvalue2"},
+		"mtrait2": {"mvalue3", "mvalue4"},
+	})
+
+	_, err = c.svc.CountAccessListMembers(memberCtx, &accesslistv1.CountAccessListMembersRequest{AccessListName: a1.GetName()})
+	require.True(t, trace.IsAccessDenied(err))
 }
 
 func TestService_ListAccessListMembers(t *testing.T) {
@@ -1465,7 +1542,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 			require.NoError(t, err)
 		}
 		var checkAccessListModificationEvent bool
-		if !cmp.Equal(oldAccessList, accessList, ignoreIDAndRevision...) {
+		if !cmp.Equal(oldAccessList, accessList, ignoreEphemeralFields...) {
 			checkAccessListModificationEvent = true
 		}
 
@@ -2625,4 +2702,8 @@ func expectUsageEvent[T any](t *testing.T, usageEvents *usageEventsClient, fn fu
 	usageEvents.events = usageEvents.events[1:]
 
 	fn(unwrapped)
+}
+
+func ptrToUint32(val uint32) *uint32 {
+	return &val
 }

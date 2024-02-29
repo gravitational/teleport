@@ -16,7 +16,7 @@ type AccessList struct {
 	// A `nil` membersCount means the caller did not have access
 	// to list members (eg: a user can read access list that
 	// they are a member of but not other members).
-	MembersCount *int `json:"membersCount"`
+	MembersCount *uint32 `json:"membersCount"`
 }
 
 // AccessListResponse is a UI representation of an access list response.

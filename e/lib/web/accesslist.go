@@ -24,7 +24,7 @@ func (p *Plugin) getAccessLists(_ http.ResponseWriter, r *http.Request, _ httpro
 		return nil, trace.Wrap(err)
 	}
 
-	accessLlistClient := clt.AccessListClient()
+	accessListClient := clt.AccessListClient()
 
 	// This will grab all access lists but in small chunks to not overload the grpc client.
 	// The web UI won't require "paginating" because we don't expect access lists to get
@@ -34,32 +34,16 @@ func (p *Plugin) getAccessLists(_ http.ResponseWriter, r *http.Request, _ httpro
 	for {
 		var page []*accesslist.AccessList
 		var err error
-		page, nextKey, err = accessLlistClient.ListAccessLists(r.Context(), 0, nextKey)
+
+		page, nextKey, err = accessListClient.ListAccessLists(r.Context(), 0, nextKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		for _, accessList := range page {
-			// None of our backends supports count, so we have to fetch all members to get the count.
-			members, err := listAllMembers(r.Context(), accessLlistClient, accessList.Metadata.Name)
-			// If the user doesn't have access to the access list, we want to return the access list
-			// without the members.
-			if err != nil && !trace.IsAccessDenied(err) {
-				return nil, trace.Wrap(err)
-			}
-
-			if trace.IsAccessDenied(err) {
-				accessLists = append(accessLists, &ui.AccessList{
-					AccessList:   accessList,
-					MembersCount: nil,
-				})
-				continue
-			}
-
-			membersCount := len(members)
 			accessLists = append(accessLists, &ui.AccessList{
 				AccessList:   accessList,
-				MembersCount: &membersCount,
+				MembersCount: accessList.Status.MemberCount,
 			})
 		}
 
@@ -81,14 +65,14 @@ func (p *Plugin) getAccessList(_ http.ResponseWriter, r *http.Request, params ht
 	}
 
 	accessListId := params.ByName("accessListId")
-	accessLlistClient := clt.AccessListClient()
+	accessListClient := clt.AccessListClient()
 
-	accessList, err := accessLlistClient.GetAccessList(r.Context(), accessListId)
+	accessList, err := accessListClient.GetAccessList(r.Context(), accessListId)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	members, err := listAllMembers(r.Context(), accessLlistClient, accessListId)
+	members, err := listAllMembers(r.Context(), accessListClient, accessListId)
 	// If the user doesn't have access to the access list, we want to return the access list
 	// without the members.
 	if err != nil && !trace.IsAccessDenied(err) {
@@ -109,7 +93,7 @@ func (p *Plugin) getAccessList(_ http.ResponseWriter, r *http.Request, params ht
 }
 
 // listAllMembers is a helper function to list all members of an access list.
-func listAllMembers(ctx context.Context, accessLlistClient services.AccessLists, accessListId string) ([]*accesslist.AccessListMember, error) {
+func listAllMembers(ctx context.Context, accessListClient services.AccessLists, accessListId string) ([]*accesslist.AccessListMember, error) {
 	var pageToken string
 	allMembers := make([]*accesslist.AccessListMember, 0)
 
@@ -117,7 +101,7 @@ func listAllMembers(ctx context.Context, accessLlistClient services.AccessLists,
 		var members []*accesslist.AccessListMember
 		var err error
 
-		members, pageToken, err = accessLlistClient.ListAccessListMembers(ctx, accessListId, 0 /* default page size */, pageToken)
+		members, pageToken, err = accessListClient.ListAccessListMembers(ctx, accessListId, 0 /* default page size */, pageToken)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -201,15 +185,15 @@ func (p *Plugin) deleteAccessList(_ http.ResponseWriter, r *http.Request, params
 	}
 
 	accessListId := params.ByName("accessListId")
-	accessLlistClient := clt.AccessListClient()
+	accessListClient := clt.AccessListClient()
 
 	// First, delete all members.
-	if err := accessLlistClient.DeleteAllAccessListMembersForAccessList(r.Context(), accessListId); err != nil {
+	if err := accessListClient.DeleteAllAccessListMembersForAccessList(r.Context(), accessListId); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Then, delete the access list.
-	if err := accessLlistClient.DeleteAccessList(r.Context(), accessListId); err != nil {
+	if err := accessListClient.DeleteAccessList(r.Context(), accessListId); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -229,13 +213,13 @@ func (p *Plugin) addMembersToAccessList(w http.ResponseWriter, r *http.Request, 
 	}
 
 	accessListId := params.ByName("accessListId")
-	accessLlistClient := clt.AccessListClient()
+	accessListClient := clt.AccessListClient()
 
 	var addedMembers []accesslist.AccessListMemberSpec
 	for _, member := range req.Members {
 		alMember := memberToAccessListMember(accessListId, member)
 
-		upsertMember, err := accessLlistClient.UpsertAccessListMember(r.Context(), alMember)
+		upsertMember, err := accessListClient.UpsertAccessListMember(r.Context(), alMember)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
