@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -34,7 +35,8 @@ import (
 
 // newOTPSharedSecret returns an OTP shared secret, encoded as a base32 string.
 func newOTPSharedSecret() string {
-	return base32.StdEncoding.EncodeToString([]byte("supersecretsecret!!1!"))
+	secret := uuid.NewString()
+	return base32.StdEncoding.EncodeToString([]byte(secret))
 }
 
 type loginWebOTPParams struct {

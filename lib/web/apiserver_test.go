@@ -26,7 +26,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base32"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -656,8 +655,7 @@ type authPack struct {
 func (s *WebSuite) authPack(t *testing.T, user string, roles ...string) *authPack {
 	login := s.user
 	pass := "abcdef123456"
-	rawSecret := "def456"
-	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
+	otpSecret := newOTPSharedSecret()
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
@@ -938,7 +936,7 @@ func TestCSRF(t *testing.T) {
 	// create a valid user
 	user := "csrfuser"
 	pass := "abcdef123456"
-	otpSecret := base32.StdEncoding.EncodeToString([]byte("def456"))
+	otpSecret := newOTPSharedSecret()
 	s.createUser(t, user, user, pass, otpSecret)
 
 	// create a valid login form request
@@ -1020,8 +1018,7 @@ func TestWebSessionsBadInput(t *testing.T) {
 	s := newWebSuite(t)
 	user := "bob"
 	pass := "abcdef123456"
-	rawSecret := "def456"
-	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
+	otpSecret := newOTPSharedSecret()
 
 	err := s.server.Auth().UpsertPassword(user, []byte(pass))
 	require.NoError(t, err)
@@ -4800,7 +4797,7 @@ func TestDeleteMFA(t *testing.T) {
 		devName := devName
 		t.Run(devName, func(t *testing.T) {
 			t.Parallel()
-			otpSecret := base32.StdEncoding.EncodeToString([]byte(devName))
+			otpSecret := newOTPSharedSecret()
 			dev, err := services.NewTOTPDevice(devName, otpSecret, env.clock.Now())
 			require.NoError(t, err)
 			err = env.server.Auth().UpsertMFADevice(ctx, pack.user, dev)
@@ -7995,7 +7992,7 @@ func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Ro
 	require.NoError(t, err)
 	loginUser := u.Username
 
-	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
+	otpSecret := newOTPSharedSecret()
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
