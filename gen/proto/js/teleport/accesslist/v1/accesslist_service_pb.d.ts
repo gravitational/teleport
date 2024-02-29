@@ -225,6 +225,48 @@ export namespace GetAccessListsToReviewResponse {
     }
 }
 
+export class CountAccessListMembersRequest extends jspb.Message { 
+    getAccessListName(): string;
+    setAccessListName(value: string): CountAccessListMembersRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): CountAccessListMembersRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: CountAccessListMembersRequest): CountAccessListMembersRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: CountAccessListMembersRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): CountAccessListMembersRequest;
+    static deserializeBinaryFromReader(message: CountAccessListMembersRequest, reader: jspb.BinaryReader): CountAccessListMembersRequest;
+}
+
+export namespace CountAccessListMembersRequest {
+    export type AsObject = {
+        accessListName: string,
+    }
+}
+
+export class CountAccessListMembersResponse extends jspb.Message { 
+    getCount(): number;
+    setCount(value: number): CountAccessListMembersResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): CountAccessListMembersResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: CountAccessListMembersResponse): CountAccessListMembersResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: CountAccessListMembersResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): CountAccessListMembersResponse;
+    static deserializeBinaryFromReader(message: CountAccessListMembersResponse, reader: jspb.BinaryReader): CountAccessListMembersResponse;
+}
+
+export namespace CountAccessListMembersResponse {
+    export type AsObject = {
+        count: number,
+    }
+}
+
 export class ListAccessListMembersRequest extends jspb.Message { 
     getPageSize(): number;
     setPageSize(value: number): ListAccessListMembersRequest;

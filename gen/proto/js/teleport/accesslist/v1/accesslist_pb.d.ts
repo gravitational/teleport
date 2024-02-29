@@ -24,6 +24,12 @@ export class AccessList extends jspb.Message {
     setSpec(value?: AccessListSpec): AccessList;
 
 
+    hasStatus(): boolean;
+    clearStatus(): void;
+    getStatus(): AccessListStatus | undefined;
+    setStatus(value?: AccessListStatus): AccessList;
+
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessList.AsObject;
     static toObject(includeInstance: boolean, msg: AccessList): AccessList.AsObject;
@@ -38,6 +44,7 @@ export namespace AccessList {
     export type AsObject = {
         header?: teleport_header_v1_resourceheader_pb.ResourceHeader.AsObject,
         spec?: AccessListSpec.AsObject,
+        status?: AccessListStatus.AsObject,
     }
 }
 
@@ -487,6 +494,40 @@ export namespace ReviewChanges {
         reviewFrequencyChanged: ReviewFrequency,
         reviewDayOfMonthChanged: ReviewDayOfMonth,
     }
+}
+
+export class AccessListStatus extends jspb.Message { 
+
+    hasMemberCount(): boolean;
+    clearMemberCount(): void;
+    getMemberCount(): number;
+    setMemberCount(value: number): AccessListStatus;
+
+
+    getMemberCountCase(): AccessListStatus.MemberCountCase;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AccessListStatus.AsObject;
+    static toObject(includeInstance: boolean, msg: AccessListStatus): AccessListStatus.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AccessListStatus, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AccessListStatus;
+    static deserializeBinaryFromReader(message: AccessListStatus, reader: jspb.BinaryReader): AccessListStatus;
+}
+
+export namespace AccessListStatus {
+    export type AsObject = {
+        memberCount: number,
+    }
+
+    export enum MemberCountCase {
+        _MEMBER_COUNT_NOT_SET = 0,
+    
+    MEMBER_COUNT = 1,
+
+    }
+
 }
 
 export enum ReviewFrequency {
