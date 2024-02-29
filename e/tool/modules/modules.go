@@ -84,6 +84,10 @@ func SetModules(licenseFile *licensefile.LicenseFile) error {
 		features = *f
 	}
 
+	if cloud.IsCloudEnv() {
+		features.RecoveryCodes = true
+	}
+
 	p.features = features
 
 	modules.SetModules(&p)

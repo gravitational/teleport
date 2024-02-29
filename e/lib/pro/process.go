@@ -1,8 +1,6 @@
 package pro
 
 import (
-	"os"
-
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
 
@@ -11,7 +9,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/prehog"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 )
 
@@ -64,7 +61,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 
 	// if the cloud hostport is set when we don't have a cloud license, we're in
 	// "tenant dashboard mode"
-	if cloudHostPort := os.Getenv(cloud.EnvVarHostPort); cloudHostPort != "" {
+	if cloud.IsCloudEnv() {
 		tlsConfig, err := liblicense.MakeTLSConfig(*cfg.LicenseFile.KeyPair)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -76,7 +73,6 @@ func NewTeleport(cfg Config) (*Process, error) {
 		}
 
 		cfg.AuthPlugin.EnableCloud(cloudClient)
-		modules.GetModules().EnableRecoveryCodes()
 
 		process.OnExit("cloudClient.shutdown", func(payload interface{}) {
 			cloudClient.Close()

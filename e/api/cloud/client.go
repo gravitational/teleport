@@ -133,3 +133,8 @@ func (c *cloudClient) Close() error {
 func (c *cloudClient) setClosed() bool {
 	return atomic.CompareAndSwapInt32(&c.closedFlag, 0, 1)
 }
+
+// IsCloudEnv returns true if the EnvVarHostPort is set within the environment. This is set in the cloud environment.
+func IsCloudEnv() bool {
+	return os.Getenv(EnvVarHostPort) != ""
+}
