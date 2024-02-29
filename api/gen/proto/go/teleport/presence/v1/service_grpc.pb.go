@@ -47,7 +47,7 @@ const (
 type PresenceServiceClient interface {
 	// GetRemoteCluster retrieves a RemoteCluster by name.
 	GetRemoteCluster(ctx context.Context, in *GetRemoteClusterRequest, opts ...grpc.CallOption) (*types.RemoteClusterV3, error)
-	// ListRemoteClusters gets all existing RemoteClusters.
+	// ListRemoteClusters retrieves a page of RemoteClusters.
 	ListRemoteClusters(ctx context.Context, in *ListRemoteClustersRequest, opts ...grpc.CallOption) (*ListRemoteClustersResponse, error)
 	// UpdateRemoteCluster updates an existing RemoteCluster.
 	UpdateRemoteCluster(ctx context.Context, in *UpdateRemoteClusterRequest, opts ...grpc.CallOption) (*types.RemoteClusterV3, error)
@@ -105,7 +105,7 @@ func (c *presenceServiceClient) DeleteRemoteCluster(ctx context.Context, in *Del
 type PresenceServiceServer interface {
 	// GetRemoteCluster retrieves a RemoteCluster by name.
 	GetRemoteCluster(context.Context, *GetRemoteClusterRequest) (*types.RemoteClusterV3, error)
-	// ListRemoteClusters gets all existing RemoteClusters.
+	// ListRemoteClusters retrieves a page of RemoteClusters.
 	ListRemoteClusters(context.Context, *ListRemoteClustersRequest) (*ListRemoteClustersResponse, error)
 	// UpdateRemoteCluster updates an existing RemoteCluster.
 	UpdateRemoteCluster(context.Context, *UpdateRemoteClusterRequest) (*types.RemoteClusterV3, error)
