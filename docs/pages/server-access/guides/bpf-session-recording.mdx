@@ -172,7 +172,7 @@ ssh_service:
 <Details title="Isolate session system resources">
 
 If you operate multiple Teleport instances on the same system, customize the
-`root_path` configuration to change the base cgroup slice path for session
+`root_path` configuration to change the base cgroupv2 slice path for session
 system resources. This ensures security isolation between sessions from
 different Teleport instances, allowing you to apply distinct security rules and
 resource controls.
