@@ -867,6 +867,14 @@ spec:
     - ketanji@example.com
 ```
 
+For Alice to impersonate Jenkins, she can request for a special certificate that can have the existing impersonator field:
+
+```yaml
+Impersonator: alice
+```
+
+Otherwise the certificate will not have any roles embedded in it, and will be checked as any other user action.
+
 ### Scoped admins
 
 Large organizations would like to grant some users admin rights scoped for part of the infrastructure. 
