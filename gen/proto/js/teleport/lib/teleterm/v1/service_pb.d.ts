@@ -36,7 +36,6 @@ export class RemoveClusterRequest extends jspb.Message {
     getClusterUri(): string;
     setClusterUri(value: string): RemoveClusterRequest;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): RemoveClusterRequest.AsObject;
     static toObject(includeInstance: boolean, msg: RemoveClusterRequest): RemoveClusterRequest.AsObject;
@@ -56,7 +55,6 @@ export namespace RemoveClusterRequest {
 export class GetClusterRequest extends jspb.Message { 
     getClusterUri(): string;
     setClusterUri(value: string): GetClusterRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetClusterRequest.AsObject;
@@ -78,7 +76,6 @@ export class LogoutRequest extends jspb.Message {
     getClusterUri(): string;
     setClusterUri(value: string): LogoutRequest;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): LogoutRequest.AsObject;
     static toObject(includeInstance: boolean, msg: LogoutRequest): LogoutRequest.AsObject;
@@ -98,10 +95,8 @@ export namespace LogoutRequest {
 export class GetAccessRequestRequest extends jspb.Message { 
     getClusterUri(): string;
     setClusterUri(value: string): GetAccessRequestRequest;
-
     getAccessRequestId(): string;
     setAccessRequestId(value: string): GetAccessRequestRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetAccessRequestRequest.AsObject;
@@ -123,7 +118,6 @@ export namespace GetAccessRequestRequest {
 export class GetAccessRequestsRequest extends jspb.Message { 
     getClusterUri(): string;
     setClusterUri(value: string): GetAccessRequestsRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetAccessRequestsRequest.AsObject;
@@ -148,7 +142,6 @@ export class GetAccessRequestResponse extends jspb.Message {
     getRequest(): teleport_lib_teleterm_v1_access_request_pb.AccessRequest | undefined;
     setRequest(value?: teleport_lib_teleterm_v1_access_request_pb.AccessRequest): GetAccessRequestResponse;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetAccessRequestResponse.AsObject;
     static toObject(includeInstance: boolean, msg: GetAccessRequestResponse): GetAccessRequestResponse.AsObject;
@@ -171,7 +164,6 @@ export class GetAccessRequestsResponse extends jspb.Message {
     setRequestsList(value: Array<teleport_lib_teleterm_v1_access_request_pb.AccessRequest>): GetAccessRequestsResponse;
     addRequests(value?: teleport_lib_teleterm_v1_access_request_pb.AccessRequest, index?: number): teleport_lib_teleterm_v1_access_request_pb.AccessRequest;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetAccessRequestsResponse.AsObject;
     static toObject(includeInstance: boolean, msg: GetAccessRequestsResponse): GetAccessRequestsResponse.AsObject;
@@ -191,10 +183,8 @@ export namespace GetAccessRequestsResponse {
 export class DeleteAccessRequestRequest extends jspb.Message { 
     getRootClusterUri(): string;
     setRootClusterUri(value: string): DeleteAccessRequestRequest;
-
     getAccessRequestId(): string;
     setAccessRequestId(value: string): DeleteAccessRequestRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DeleteAccessRequestRequest.AsObject;
@@ -216,25 +206,20 @@ export namespace DeleteAccessRequestRequest {
 export class CreateAccessRequestRequest extends jspb.Message { 
     getRootClusterUri(): string;
     setRootClusterUri(value: string): CreateAccessRequestRequest;
-
     getReason(): string;
     setReason(value: string): CreateAccessRequestRequest;
-
     clearRolesList(): void;
     getRolesList(): Array<string>;
     setRolesList(value: Array<string>): CreateAccessRequestRequest;
     addRoles(value: string, index?: number): string;
-
     clearSuggestedReviewersList(): void;
     getSuggestedReviewersList(): Array<string>;
     setSuggestedReviewersList(value: Array<string>): CreateAccessRequestRequest;
     addSuggestedReviewers(value: string, index?: number): string;
-
     clearResourceIdsList(): void;
     getResourceIdsList(): Array<teleport_lib_teleterm_v1_access_request_pb.ResourceID>;
     setResourceIdsList(value: Array<teleport_lib_teleterm_v1_access_request_pb.ResourceID>): CreateAccessRequestRequest;
     addResourceIds(value?: teleport_lib_teleterm_v1_access_request_pb.ResourceID, index?: number): teleport_lib_teleterm_v1_access_request_pb.ResourceID;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): CreateAccessRequestRequest.AsObject;
@@ -263,7 +248,6 @@ export class CreateAccessRequestResponse extends jspb.Message {
     getRequest(): teleport_lib_teleterm_v1_access_request_pb.AccessRequest | undefined;
     setRequest(value?: teleport_lib_teleterm_v1_access_request_pb.AccessRequest): CreateAccessRequestResponse;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): CreateAccessRequestResponse.AsObject;
     static toObject(includeInstance: boolean, msg: CreateAccessRequestResponse): CreateAccessRequestResponse.AsObject;
@@ -283,17 +267,14 @@ export namespace CreateAccessRequestResponse {
 export class AssumeRoleRequest extends jspb.Message { 
     getRootClusterUri(): string;
     setRootClusterUri(value: string): AssumeRoleRequest;
-
     clearAccessRequestIdsList(): void;
     getAccessRequestIdsList(): Array<string>;
     setAccessRequestIdsList(value: Array<string>): AssumeRoleRequest;
     addAccessRequestIds(value: string, index?: number): string;
-
     clearDropRequestIdsList(): void;
     getDropRequestIdsList(): Array<string>;
     setDropRequestIdsList(value: Array<string>): AssumeRoleRequest;
     addDropRequestIds(value: string, index?: number): string;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AssumeRoleRequest.AsObject;
@@ -316,12 +297,10 @@ export namespace AssumeRoleRequest {
 export class GetRequestableRolesRequest extends jspb.Message { 
     getClusterUri(): string;
     setClusterUri(value: string): GetRequestableRolesRequest;
-
     clearResourceIdsList(): void;
     getResourceIdsList(): Array<teleport_lib_teleterm_v1_access_request_pb.ResourceID>;
     setResourceIdsList(value: Array<teleport_lib_teleterm_v1_access_request_pb.ResourceID>): GetRequestableRolesRequest;
     addResourceIds(value?: teleport_lib_teleterm_v1_access_request_pb.ResourceID, index?: number): teleport_lib_teleterm_v1_access_request_pb.ResourceID;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetRequestableRolesRequest.AsObject;
@@ -345,12 +324,10 @@ export class GetRequestableRolesResponse extends jspb.Message {
     getRolesList(): Array<string>;
     setRolesList(value: Array<string>): GetRequestableRolesResponse;
     addRoles(value: string, index?: number): string;
-
     clearApplicableRolesList(): void;
     getApplicableRolesList(): Array<string>;
     setApplicableRolesList(value: Array<string>): GetRequestableRolesResponse;
     addApplicableRoles(value: string, index?: number): string;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetRequestableRolesResponse.AsObject;
@@ -372,21 +349,16 @@ export namespace GetRequestableRolesResponse {
 export class ReviewAccessRequestRequest extends jspb.Message { 
     getRootClusterUri(): string;
     setRootClusterUri(value: string): ReviewAccessRequestRequest;
-
     getState(): string;
     setState(value: string): ReviewAccessRequestRequest;
-
     getReason(): string;
     setReason(value: string): ReviewAccessRequestRequest;
-
     clearRolesList(): void;
     getRolesList(): Array<string>;
     setRolesList(value: Array<string>): ReviewAccessRequestRequest;
     addRoles(value: string, index?: number): string;
-
     getAccessRequestId(): string;
     setAccessRequestId(value: string): ReviewAccessRequestRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ReviewAccessRequestRequest.AsObject;
@@ -415,7 +387,6 @@ export class ReviewAccessRequestResponse extends jspb.Message {
     getRequest(): teleport_lib_teleterm_v1_access_request_pb.AccessRequest | undefined;
     setRequest(value?: teleport_lib_teleterm_v1_access_request_pb.AccessRequest): ReviewAccessRequestResponse;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ReviewAccessRequestResponse.AsObject;
     static toObject(includeInstance: boolean, msg: ReviewAccessRequestResponse): ReviewAccessRequestResponse.AsObject;
@@ -435,16 +406,12 @@ export namespace ReviewAccessRequestResponse {
 export class PromoteAccessRequestRequest extends jspb.Message { 
     getRootClusterUri(): string;
     setRootClusterUri(value: string): PromoteAccessRequestRequest;
-
     getAccessListId(): string;
     setAccessListId(value: string): PromoteAccessRequestRequest;
-
     getReason(): string;
     setReason(value: string): PromoteAccessRequestRequest;
-
     getAccessRequestId(): string;
     setAccessRequestId(value: string): PromoteAccessRequestRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): PromoteAccessRequestRequest.AsObject;
@@ -472,7 +439,6 @@ export class PromoteAccessRequestResponse extends jspb.Message {
     getRequest(): teleport_lib_teleterm_v1_access_request_pb.AccessRequest | undefined;
     setRequest(value?: teleport_lib_teleterm_v1_access_request_pb.AccessRequest): PromoteAccessRequestResponse;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): PromoteAccessRequestResponse.AsObject;
     static toObject(includeInstance: boolean, msg: PromoteAccessRequestResponse): PromoteAccessRequestResponse.AsObject;
@@ -492,10 +458,8 @@ export namespace PromoteAccessRequestResponse {
 export class GetSuggestedAccessListsRequest extends jspb.Message { 
     getRootClusterUri(): string;
     setRootClusterUri(value: string): GetSuggestedAccessListsRequest;
-
     getAccessRequestId(): string;
     setAccessRequestId(value: string): GetSuggestedAccessListsRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetSuggestedAccessListsRequest.AsObject;
@@ -520,7 +484,6 @@ export class GetSuggestedAccessListsResponse extends jspb.Message {
     setAccessListsList(value: Array<teleport_accesslist_v1_accesslist_pb.AccessList>): GetSuggestedAccessListsResponse;
     addAccessLists(value?: teleport_accesslist_v1_accesslist_pb.AccessList, index?: number): teleport_accesslist_v1_accesslist_pb.AccessList;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetSuggestedAccessListsResponse.AsObject;
     static toObject(includeInstance: boolean, msg: GetSuggestedAccessListsResponse): GetSuggestedAccessListsResponse.AsObject;
@@ -541,7 +504,6 @@ export class CredentialInfo extends jspb.Message {
     getUsername(): string;
     setUsername(value: string): CredentialInfo;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): CredentialInfo.AsObject;
     static toObject(includeInstance: boolean, msg: CredentialInfo): CredentialInfo.AsObject;
@@ -561,12 +523,10 @@ export namespace CredentialInfo {
 export class LoginPasswordlessResponse extends jspb.Message { 
     getPrompt(): PasswordlessPrompt;
     setPrompt(value: PasswordlessPrompt): LoginPasswordlessResponse;
-
     clearCredentialsList(): void;
     getCredentialsList(): Array<CredentialInfo>;
     setCredentialsList(value: Array<CredentialInfo>): LoginPasswordlessResponse;
     addCredentials(value?: CredentialInfo, index?: number): CredentialInfo;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): LoginPasswordlessResponse.AsObject;
@@ -592,18 +552,15 @@ export class LoginPasswordlessRequest extends jspb.Message {
     getInit(): LoginPasswordlessRequest.LoginPasswordlessRequestInit | undefined;
     setInit(value?: LoginPasswordlessRequest.LoginPasswordlessRequestInit): LoginPasswordlessRequest;
 
-
     hasPin(): boolean;
     clearPin(): void;
     getPin(): LoginPasswordlessRequest.LoginPasswordlessPINResponse | undefined;
     setPin(value?: LoginPasswordlessRequest.LoginPasswordlessPINResponse): LoginPasswordlessRequest;
 
-
     hasCredential(): boolean;
     clearCredential(): void;
     getCredential(): LoginPasswordlessRequest.LoginPasswordlessCredentialResponse | undefined;
     setCredential(value?: LoginPasswordlessRequest.LoginPasswordlessCredentialResponse): LoginPasswordlessRequest;
-
 
     getRequestCase(): LoginPasswordlessRequest.RequestCase;
 
@@ -629,7 +586,6 @@ export namespace LoginPasswordlessRequest {
         getClusterUri(): string;
         setClusterUri(value: string): LoginPasswordlessRequestInit;
 
-
         serializeBinary(): Uint8Array;
         toObject(includeInstance?: boolean): LoginPasswordlessRequestInit.AsObject;
         static toObject(includeInstance: boolean, msg: LoginPasswordlessRequestInit): LoginPasswordlessRequestInit.AsObject;
@@ -649,7 +605,6 @@ export namespace LoginPasswordlessRequest {
     export class LoginPasswordlessPINResponse extends jspb.Message { 
         getPin(): string;
         setPin(value: string): LoginPasswordlessPINResponse;
-
 
         serializeBinary(): Uint8Array;
         toObject(includeInstance?: boolean): LoginPasswordlessPINResponse.AsObject;
@@ -671,7 +626,6 @@ export namespace LoginPasswordlessRequest {
         getIndex(): number;
         setIndex(value: number): LoginPasswordlessCredentialResponse;
 
-
         serializeBinary(): Uint8Array;
         toObject(includeInstance?: boolean): LoginPasswordlessCredentialResponse.AsObject;
         static toObject(includeInstance: boolean, msg: LoginPasswordlessCredentialResponse): LoginPasswordlessCredentialResponse.AsObject;
@@ -691,13 +645,9 @@ export namespace LoginPasswordlessRequest {
 
     export enum RequestCase {
         REQUEST_NOT_SET = 0,
-    
-    INIT = 1,
-
-    PIN = 2,
-
-    CREDENTIAL = 3,
-
+        INIT = 1,
+        PIN = 2,
+        CREDENTIAL = 3,
     }
 
 }
@@ -705,19 +655,14 @@ export namespace LoginPasswordlessRequest {
 export class FileTransferRequest extends jspb.Message { 
     getLogin(): string;
     setLogin(value: string): FileTransferRequest;
-
     getSource(): string;
     setSource(value: string): FileTransferRequest;
-
     getDestination(): string;
     setDestination(value: string): FileTransferRequest;
-
     getDirection(): FileTransferDirection;
     setDirection(value: FileTransferDirection): FileTransferRequest;
-
     getServerUri(): string;
     setServerUri(value: string): FileTransferRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): FileTransferRequest.AsObject;
@@ -743,7 +688,6 @@ export class FileTransferProgress extends jspb.Message {
     getPercentage(): number;
     setPercentage(value: number): FileTransferProgress;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): FileTransferProgress.AsObject;
     static toObject(includeInstance: boolean, msg: FileTransferProgress): FileTransferProgress.AsObject;
@@ -764,18 +708,15 @@ export class LoginRequest extends jspb.Message {
     getClusterUri(): string;
     setClusterUri(value: string): LoginRequest;
 
-
     hasLocal(): boolean;
     clearLocal(): void;
     getLocal(): LoginRequest.LocalParams | undefined;
     setLocal(value?: LoginRequest.LocalParams): LoginRequest;
 
-
     hasSso(): boolean;
     clearSso(): void;
     getSso(): LoginRequest.SsoParams | undefined;
     setSso(value?: LoginRequest.SsoParams): LoginRequest;
-
 
     getParamsCase(): LoginRequest.ParamsCase;
 
@@ -800,13 +741,10 @@ export namespace LoginRequest {
     export class LocalParams extends jspb.Message { 
         getUser(): string;
         setUser(value: string): LocalParams;
-
         getPassword(): string;
         setPassword(value: string): LocalParams;
-
         getToken(): string;
         setToken(value: string): LocalParams;
-
 
         serializeBinary(): Uint8Array;
         toObject(includeInstance?: boolean): LocalParams.AsObject;
@@ -829,10 +767,8 @@ export namespace LoginRequest {
     export class SsoParams extends jspb.Message { 
         getProviderType(): string;
         setProviderType(value: string): SsoParams;
-
         getProviderName(): string;
         setProviderName(value: string): SsoParams;
-
 
         serializeBinary(): Uint8Array;
         toObject(includeInstance?: boolean): SsoParams.AsObject;
@@ -854,11 +790,8 @@ export namespace LoginRequest {
 
     export enum ParamsCase {
         PARAMS_NOT_SET = 0,
-    
-    LOCAL = 2,
-
-    SSO = 3,
-
+        LOCAL = 2,
+        SSO = 3,
     }
 
 }
@@ -866,7 +799,6 @@ export namespace LoginRequest {
 export class AddClusterRequest extends jspb.Message { 
     getName(): string;
     setName(value: string): AddClusterRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AddClusterRequest.AsObject;
@@ -907,7 +839,6 @@ export class ListClustersResponse extends jspb.Message {
     setClustersList(value: Array<teleport_lib_teleterm_v1_cluster_pb.Cluster>): ListClustersResponse;
     addClusters(value?: teleport_lib_teleterm_v1_cluster_pb.Cluster, index?: number): teleport_lib_teleterm_v1_cluster_pb.Cluster;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListClustersResponse.AsObject;
     static toObject(includeInstance: boolean, msg: ListClustersResponse): ListClustersResponse.AsObject;
@@ -927,25 +858,18 @@ export namespace ListClustersResponse {
 export class GetDatabasesRequest extends jspb.Message { 
     getClusterUri(): string;
     setClusterUri(value: string): GetDatabasesRequest;
-
     getLimit(): number;
     setLimit(value: number): GetDatabasesRequest;
-
     getStartKey(): string;
     setStartKey(value: string): GetDatabasesRequest;
-
     getSearch(): string;
     setSearch(value: string): GetDatabasesRequest;
-
     getQuery(): string;
     setQuery(value: string): GetDatabasesRequest;
-
     getSortBy(): string;
     setSortBy(value: string): GetDatabasesRequest;
-
     getSearchAsRoles(): string;
     setSearchAsRoles(value: string): GetDatabasesRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetDatabasesRequest.AsObject;
@@ -973,7 +897,6 @@ export class ListLeafClustersRequest extends jspb.Message {
     getClusterUri(): string;
     setClusterUri(value: string): ListLeafClustersRequest;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListLeafClustersRequest.AsObject;
     static toObject(includeInstance: boolean, msg: ListLeafClustersRequest): ListLeafClustersRequest.AsObject;
@@ -993,7 +916,6 @@ export namespace ListLeafClustersRequest {
 export class ListDatabaseUsersRequest extends jspb.Message { 
     getDbUri(): string;
     setDbUri(value: string): ListDatabaseUsersRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListDatabaseUsersRequest.AsObject;
@@ -1017,7 +939,6 @@ export class ListDatabaseUsersResponse extends jspb.Message {
     setUsersList(value: Array<string>): ListDatabaseUsersResponse;
     addUsers(value: string, index?: number): string;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListDatabaseUsersResponse.AsObject;
     static toObject(includeInstance: boolean, msg: ListDatabaseUsersResponse): ListDatabaseUsersResponse.AsObject;
@@ -1037,16 +958,12 @@ export namespace ListDatabaseUsersResponse {
 export class CreateGatewayRequest extends jspb.Message { 
     getTargetUri(): string;
     setTargetUri(value: string): CreateGatewayRequest;
-
     getTargetUser(): string;
     setTargetUser(value: string): CreateGatewayRequest;
-
     getLocalPort(): string;
     setLocalPort(value: string): CreateGatewayRequest;
-
     getTargetSubresourceName(): string;
     setTargetSubresourceName(value: string): CreateGatewayRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): CreateGatewayRequest.AsObject;
@@ -1090,7 +1007,6 @@ export class ListGatewaysResponse extends jspb.Message {
     setGatewaysList(value: Array<teleport_lib_teleterm_v1_gateway_pb.Gateway>): ListGatewaysResponse;
     addGateways(value?: teleport_lib_teleterm_v1_gateway_pb.Gateway, index?: number): teleport_lib_teleterm_v1_gateway_pb.Gateway;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListGatewaysResponse.AsObject;
     static toObject(includeInstance: boolean, msg: ListGatewaysResponse): ListGatewaysResponse.AsObject;
@@ -1111,7 +1027,6 @@ export class RemoveGatewayRequest extends jspb.Message {
     getGatewayUri(): string;
     setGatewayUri(value: string): RemoveGatewayRequest;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): RemoveGatewayRequest.AsObject;
     static toObject(includeInstance: boolean, msg: RemoveGatewayRequest): RemoveGatewayRequest.AsObject;
@@ -1131,10 +1046,8 @@ export namespace RemoveGatewayRequest {
 export class SetGatewayTargetSubresourceNameRequest extends jspb.Message { 
     getGatewayUri(): string;
     setGatewayUri(value: string): SetGatewayTargetSubresourceNameRequest;
-
     getTargetSubresourceName(): string;
     setTargetSubresourceName(value: string): SetGatewayTargetSubresourceNameRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SetGatewayTargetSubresourceNameRequest.AsObject;
@@ -1156,10 +1069,8 @@ export namespace SetGatewayTargetSubresourceNameRequest {
 export class SetGatewayLocalPortRequest extends jspb.Message { 
     getGatewayUri(): string;
     setGatewayUri(value: string): SetGatewayLocalPortRequest;
-
     getLocalPort(): string;
     setLocalPort(value: string): SetGatewayLocalPortRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SetGatewayLocalPortRequest.AsObject;
@@ -1181,25 +1092,18 @@ export namespace SetGatewayLocalPortRequest {
 export class GetServersRequest extends jspb.Message { 
     getClusterUri(): string;
     setClusterUri(value: string): GetServersRequest;
-
     getLimit(): number;
     setLimit(value: number): GetServersRequest;
-
     getStartKey(): string;
     setStartKey(value: string): GetServersRequest;
-
     getSearch(): string;
     setSearch(value: string): GetServersRequest;
-
     getQuery(): string;
     setQuery(value: string): GetServersRequest;
-
     getSortBy(): string;
     setSortBy(value: string): GetServersRequest;
-
     getSearchAsRoles(): string;
     setSearchAsRoles(value: string): GetServersRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetServersRequest.AsObject;
@@ -1228,13 +1132,10 @@ export class GetServersResponse extends jspb.Message {
     getAgentsList(): Array<teleport_lib_teleterm_v1_server_pb.Server>;
     setAgentsList(value: Array<teleport_lib_teleterm_v1_server_pb.Server>): GetServersResponse;
     addAgents(value?: teleport_lib_teleterm_v1_server_pb.Server, index?: number): teleport_lib_teleterm_v1_server_pb.Server;
-
     getTotalCount(): number;
     setTotalCount(value: number): GetServersResponse;
-
     getStartKey(): string;
     setStartKey(value: string): GetServersResponse;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetServersResponse.AsObject;
@@ -1259,13 +1160,10 @@ export class GetDatabasesResponse extends jspb.Message {
     getAgentsList(): Array<teleport_lib_teleterm_v1_database_pb.Database>;
     setAgentsList(value: Array<teleport_lib_teleterm_v1_database_pb.Database>): GetDatabasesResponse;
     addAgents(value?: teleport_lib_teleterm_v1_database_pb.Database, index?: number): teleport_lib_teleterm_v1_database_pb.Database;
-
     getTotalCount(): number;
     setTotalCount(value: number): GetDatabasesResponse;
-
     getStartKey(): string;
     setStartKey(value: string): GetDatabasesResponse;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetDatabasesResponse.AsObject;
@@ -1288,25 +1186,18 @@ export namespace GetDatabasesResponse {
 export class GetKubesRequest extends jspb.Message { 
     getClusterUri(): string;
     setClusterUri(value: string): GetKubesRequest;
-
     getLimit(): number;
     setLimit(value: number): GetKubesRequest;
-
     getStartKey(): string;
     setStartKey(value: string): GetKubesRequest;
-
     getSearch(): string;
     setSearch(value: string): GetKubesRequest;
-
     getQuery(): string;
     setQuery(value: string): GetKubesRequest;
-
     getSortBy(): string;
     setSortBy(value: string): GetKubesRequest;
-
     getSearchAsRoles(): string;
     setSearchAsRoles(value: string): GetKubesRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetKubesRequest.AsObject;
@@ -1335,13 +1226,10 @@ export class GetKubesResponse extends jspb.Message {
     getAgentsList(): Array<teleport_lib_teleterm_v1_kube_pb.Kube>;
     setAgentsList(value: Array<teleport_lib_teleterm_v1_kube_pb.Kube>): GetKubesResponse;
     addAgents(value?: teleport_lib_teleterm_v1_kube_pb.Kube, index?: number): teleport_lib_teleterm_v1_kube_pb.Kube;
-
     getTotalCount(): number;
     setTotalCount(value: number): GetKubesResponse;
-
     getStartKey(): string;
     setStartKey(value: string): GetKubesResponse;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetKubesResponse.AsObject;
@@ -1365,7 +1253,6 @@ export class GetAuthSettingsRequest extends jspb.Message {
     getClusterUri(): string;
     setClusterUri(value: string): GetAuthSettingsRequest;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetAuthSettingsRequest.AsObject;
     static toObject(includeInstance: boolean, msg: GetAuthSettingsRequest): GetAuthSettingsRequest.AsObject;
@@ -1385,7 +1272,6 @@ export namespace GetAuthSettingsRequest {
 export class UpdateTshdEventsServerAddressRequest extends jspb.Message { 
     getAddress(): string;
     setAddress(value: string): UpdateTshdEventsServerAddressRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UpdateTshdEventsServerAddressRequest.AsObject;
@@ -1423,13 +1309,10 @@ export namespace UpdateTshdEventsServerAddressResponse {
 export class UpdateHeadlessAuthenticationStateRequest extends jspb.Message { 
     getRootClusterUri(): string;
     setRootClusterUri(value: string): UpdateHeadlessAuthenticationStateRequest;
-
     getHeadlessAuthenticationId(): string;
     setHeadlessAuthenticationId(value: string): UpdateHeadlessAuthenticationStateRequest;
-
     getState(): HeadlessAuthenticationState;
     setState(value: HeadlessAuthenticationState): UpdateHeadlessAuthenticationStateRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UpdateHeadlessAuthenticationStateRequest.AsObject;
@@ -1470,7 +1353,6 @@ export class CreateConnectMyComputerRoleRequest extends jspb.Message {
     getRootClusterUri(): string;
     setRootClusterUri(value: string): CreateConnectMyComputerRoleRequest;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): CreateConnectMyComputerRoleRequest.AsObject;
     static toObject(includeInstance: boolean, msg: CreateConnectMyComputerRoleRequest): CreateConnectMyComputerRoleRequest.AsObject;
@@ -1490,7 +1372,6 @@ export namespace CreateConnectMyComputerRoleRequest {
 export class CreateConnectMyComputerRoleResponse extends jspb.Message { 
     getCertsReloaded(): boolean;
     setCertsReloaded(value: boolean): CreateConnectMyComputerRoleResponse;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): CreateConnectMyComputerRoleResponse.AsObject;
@@ -1512,7 +1393,6 @@ export class CreateConnectMyComputerNodeTokenRequest extends jspb.Message {
     getRootClusterUri(): string;
     setRootClusterUri(value: string): CreateConnectMyComputerNodeTokenRequest;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): CreateConnectMyComputerNodeTokenRequest.AsObject;
     static toObject(includeInstance: boolean, msg: CreateConnectMyComputerNodeTokenRequest): CreateConnectMyComputerNodeTokenRequest.AsObject;
@@ -1533,7 +1413,6 @@ export class CreateConnectMyComputerNodeTokenResponse extends jspb.Message {
     getToken(): string;
     setToken(value: string): CreateConnectMyComputerNodeTokenResponse;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): CreateConnectMyComputerNodeTokenResponse.AsObject;
     static toObject(includeInstance: boolean, msg: CreateConnectMyComputerNodeTokenResponse): CreateConnectMyComputerNodeTokenResponse.AsObject;
@@ -1553,7 +1432,6 @@ export namespace CreateConnectMyComputerNodeTokenResponse {
 export class WaitForConnectMyComputerNodeJoinRequest extends jspb.Message { 
     getRootClusterUri(): string;
     setRootClusterUri(value: string): WaitForConnectMyComputerNodeJoinRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): WaitForConnectMyComputerNodeJoinRequest.AsObject;
@@ -1578,7 +1456,6 @@ export class WaitForConnectMyComputerNodeJoinResponse extends jspb.Message {
     getServer(): teleport_lib_teleterm_v1_server_pb.Server | undefined;
     setServer(value?: teleport_lib_teleterm_v1_server_pb.Server): WaitForConnectMyComputerNodeJoinResponse;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): WaitForConnectMyComputerNodeJoinResponse.AsObject;
     static toObject(includeInstance: boolean, msg: WaitForConnectMyComputerNodeJoinResponse): WaitForConnectMyComputerNodeJoinResponse.AsObject;
@@ -1598,7 +1475,6 @@ export namespace WaitForConnectMyComputerNodeJoinResponse {
 export class DeleteConnectMyComputerNodeRequest extends jspb.Message { 
     getRootClusterUri(): string;
     setRootClusterUri(value: string): DeleteConnectMyComputerNodeRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DeleteConnectMyComputerNodeRequest.AsObject;
@@ -1637,7 +1513,6 @@ export class GetConnectMyComputerNodeNameRequest extends jspb.Message {
     getRootClusterUri(): string;
     setRootClusterUri(value: string): GetConnectMyComputerNodeNameRequest;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetConnectMyComputerNodeNameRequest.AsObject;
     static toObject(includeInstance: boolean, msg: GetConnectMyComputerNodeNameRequest): GetConnectMyComputerNodeNameRequest.AsObject;
@@ -1657,7 +1532,6 @@ export namespace GetConnectMyComputerNodeNameRequest {
 export class GetConnectMyComputerNodeNameResponse extends jspb.Message { 
     getName(): string;
     setName(value: string): GetConnectMyComputerNodeNameResponse;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetConnectMyComputerNodeNameResponse.AsObject;

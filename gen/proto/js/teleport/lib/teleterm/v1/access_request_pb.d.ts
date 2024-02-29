@@ -10,64 +10,50 @@ import * as google_protobuf_timestamp_pb from "google-protobuf/google/protobuf/t
 export class AccessRequest extends jspb.Message { 
     getId(): string;
     setId(value: string): AccessRequest;
-
     getState(): string;
     setState(value: string): AccessRequest;
-
     getResolveReason(): string;
     setResolveReason(value: string): AccessRequest;
-
     getRequestReason(): string;
     setRequestReason(value: string): AccessRequest;
-
     getUser(): string;
     setUser(value: string): AccessRequest;
-
     clearRolesList(): void;
     getRolesList(): Array<string>;
     setRolesList(value: Array<string>): AccessRequest;
     addRoles(value: string, index?: number): string;
-
 
     hasCreated(): boolean;
     clearCreated(): void;
     getCreated(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setCreated(value?: google_protobuf_timestamp_pb.Timestamp): AccessRequest;
 
-
     hasExpires(): boolean;
     clearExpires(): void;
     getExpires(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setExpires(value?: google_protobuf_timestamp_pb.Timestamp): AccessRequest;
-
     clearReviewsList(): void;
     getReviewsList(): Array<AccessRequestReview>;
     setReviewsList(value: Array<AccessRequestReview>): AccessRequest;
     addReviews(value?: AccessRequestReview, index?: number): AccessRequestReview;
-
     clearSuggestedReviewersList(): void;
     getSuggestedReviewersList(): Array<string>;
     setSuggestedReviewersList(value: Array<string>): AccessRequest;
     addSuggestedReviewers(value: string, index?: number): string;
-
     clearThresholdNamesList(): void;
     getThresholdNamesList(): Array<string>;
     setThresholdNamesList(value: Array<string>): AccessRequest;
     addThresholdNames(value: string, index?: number): string;
-
     clearResourceIdsList(): void;
     getResourceIdsList(): Array<ResourceID>;
     setResourceIdsList(value: Array<ResourceID>): AccessRequest;
     addResourceIds(value?: ResourceID, index?: number): ResourceID;
-
     clearResourcesList(): void;
     getResourcesList(): Array<Resource>;
     setResourcesList(value: Array<Resource>): AccessRequest;
     addResources(value?: Resource, index?: number): Resource;
-
     getPromotedAccessListTitle(): string;
     setPromotedAccessListTitle(value: string): AccessRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessRequest.AsObject;
@@ -101,27 +87,21 @@ export namespace AccessRequest {
 export class AccessRequestReview extends jspb.Message { 
     getAuthor(): string;
     setAuthor(value: string): AccessRequestReview;
-
     clearRolesList(): void;
     getRolesList(): Array<string>;
     setRolesList(value: Array<string>): AccessRequestReview;
     addRoles(value: string, index?: number): string;
-
     getState(): string;
     setState(value: string): AccessRequestReview;
-
     getReason(): string;
     setReason(value: string): AccessRequestReview;
-
 
     hasCreated(): boolean;
     clearCreated(): void;
     getCreated(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setCreated(value?: google_protobuf_timestamp_pb.Timestamp): AccessRequestReview;
-
     getPromotedAccessListTitle(): string;
     setPromotedAccessListTitle(value: string): AccessRequestReview;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessRequestReview.AsObject;
@@ -147,16 +127,12 @@ export namespace AccessRequestReview {
 export class ResourceID extends jspb.Message { 
     getKind(): string;
     setKind(value: string): ResourceID;
-
     getName(): string;
     setName(value: string): ResourceID;
-
     getClusterName(): string;
     setClusterName(value: string): ResourceID;
-
     getSubResourceName(): string;
     setSubResourceName(value: string): ResourceID;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ResourceID.AsObject;
@@ -180,10 +156,8 @@ export namespace ResourceID {
 export class ResourceDetails extends jspb.Message { 
     getHostname(): string;
     setHostname(value: string): ResourceDetails;
-
     getFriendlyName(): string;
     setFriendlyName(value: string): ResourceDetails;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ResourceDetails.AsObject;
@@ -209,12 +183,10 @@ export class Resource extends jspb.Message {
     getId(): ResourceID | undefined;
     setId(value?: ResourceID): Resource;
 
-
     hasDetails(): boolean;
     clearDetails(): void;
     getDetails(): ResourceDetails | undefined;
     setDetails(value?: ResourceDetails): Resource;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Resource.AsObject;
