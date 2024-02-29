@@ -144,6 +144,11 @@ func (r *Resource153ToLegacyAdapter) MarshalJSON() ([]byte, error) {
 }
 
 func (r *Resource153ToLegacyAdapter) Expiry() time.Time {
+	// Hack to map protobuf 0 time (epoch) to go's 0 time (day 1)
+	expiry := r.inner.GetMetadata().Expires.AsTime()
+	if expiry.Unix() == 0 {
+		return time.Time{}
+	}
 	return r.inner.GetMetadata().Expires.AsTime()
 }
 
