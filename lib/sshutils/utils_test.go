@@ -59,6 +59,19 @@ func TestSplitHostPort(t *testing.T) {
 			expectHost: "example.com",
 			assertErr:  assert.NoError,
 		},
+		{
+			name:       "ipv6 addr",
+			addr:       "[::1]:80",
+			expectHost: "::1",
+			expectPort: 80,
+			assertErr:  assert.NoError,
+		},
+		{
+			name:       "ipv6 addr without port",
+			addr:       "[::1]",
+			expectHost: "::1",
+			assertErr:  assert.NoError,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

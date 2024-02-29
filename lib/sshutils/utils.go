@@ -35,10 +35,10 @@ func JoinHostPort(host string, port uint32) string {
 // Note that unlike net.SplitHostPort, a missing port is valid and will return
 // a zero port.
 func SplitHostPort(addr string) (string, uint32, error) {
-	if !strings.Contains(addr, ":") {
-		addr += ":0"
-	}
 	host, portStr, err := net.SplitHostPort(addr)
+	if err != nil && strings.Contains(err.Error(), "missing port in address") {
+		host, portStr, err = net.SplitHostPort(addr + ":0")
+	}
 	if err != nil {
 		return "", 0, trace.Wrap(err)
 	}
