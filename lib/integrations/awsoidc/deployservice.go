@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -489,10 +490,20 @@ func upsertTask(ctx context.Context, clt DeployServiceClient, req upsertTaskRequ
 		TaskRoleArn:      &req.TaskRoleARN,
 		ExecutionRoleArn: &req.TaskRoleARN,
 		ContainerDefinitions: []ecsTypes.ContainerDefinition{{
-			Environment: []ecsTypes.KeyValuePair{{
-				Name:  aws.String(types.InstallMethodAWSOIDCDeployServiceEnvVar),
-				Value: aws.String("true"),
-			}},
+			Environment: []ecsTypes.KeyValuePair{
+				{
+					Name:  aws.String(types.InstallMethodAWSOIDCDeployServiceEnvVar),
+					Value: aws.String("true"),
+				},
+				{
+					Name:  aws.String(constants.EnvTeleportUpgrader),
+					Value: aws.String(types.OriginIntegrationAWSOIDC),
+				},
+				{
+					Name:  aws.String(constants.EnvTeleportUpgraderVersion),
+					Value: aws.String(teleport.Version),
+				},
+			},
 			Command: []string{
 				// --rewrite 15:3 rewrites SIGTERM -> SIGQUIT. This enables graceful shutdown of teleport
 				"--rewrite",
