@@ -1,5 +1,21 @@
 # Changelog
 
+## 13.4.17
+
+* Fixed Postgres v16.x compatibility issue preventing multiple connections for auto-provisioned users. [#38541](https://github.com/gravitational/teleport/pull/38541)
+* Ensured that tsh continues to function if one of its profiles is invalid. [#38512](https://github.com/gravitational/teleport/pull/38512)
+* Fixed logging output for `teleport configure ...` commands. [#38510](https://github.com/gravitational/teleport/pull/38510)
+* Removed `telnet` from legacy Ubuntu OCI due to CVE-2021-40491. Use `nc` instead. [#38507](https://github.com/gravitational/teleport/pull/38507)
+* Fixed tsh/WebAuthn.dll panic on Windows Server 2019. [#38488](https://github.com/gravitational/teleport/pull/38488)
+* Added `ssh_service.enhanced_recording.root_path` configuration option to change the cgroup slice path used by the agent. [#38396](https://github.com/gravitational/teleport/pull/38396)
+* Fixed a potential panic in the `tsh status` command. [#38303](https://github.com/gravitational/teleport/pull/38303)
+* Optionally permit the auth server to terminate client connections from unsupported versions. [#38187](https://github.com/gravitational/teleport/pull/38187)
+* Force agents to terminate Auth connections if joining fails. [#38003](https://github.com/gravitational/teleport/pull/38003)
+* Improved error handling when idle desktop connections are terminated. [#37957](https://github.com/gravitational/teleport/pull/37957)
+* Updated Go to 1.21.7. [#37849](https://github.com/gravitational/teleport/pull/37849)
+* Fixed app redirection loop on browser's incognito mode and 3rd party cookie block. [#37698](https://github.com/gravitational/teleport/pull/37698)
+* Fixed a database lateral movement exploit if a self-hosted database host is compromised, see https://goteleport.com/docs/management/operations/db-ca-migrations. [#35951](https://github.com/gravitational/teleport/pull/35951)
+
 ## 13.4.16
 
 * Fixed incorrect resizing of CLI apps in Teleport Connect on Windows. [#37800](https://github.com/gravitational/teleport/pull/37800)
