@@ -1635,6 +1635,8 @@ func (s *session) checkPresence(ctx context.Context) error {
 
 // FileTransferRequest is a request to upload or download a file from a node.
 type FileTransferRequest struct {
+	// ID is a UUID that uniquely identifies a file transfer request
+	// and is unlikely to collide with another file transfer request
 	ID string
 	// Requester is the Teleport User that requested the file transfer
 	Requester string

@@ -142,9 +142,9 @@ func newDisallowedErr(req *sftp.Request) error {
 	return fmt.Errorf("method %q is not allowed on %q", strings.ToLower(req.Method), req.Filepath)
 }
 
-// checkReq returns an error if the SFTP request isn't allowed based on
-// the approved file transfer request for this session.
-func (s *sftpHandler) checkReq(req *sftp.Request) error {
+// ensureReqIsAllowed returns an error if the SFTP request isn't
+// allowed based on the approved file transfer request for this session.
+func (s *sftpHandler) ensureReqIsAllowed(req *sftp.Request) error {
 	if s.allowed == nil {
 		return nil
 	}
@@ -228,7 +228,7 @@ func (s *sftpHandler) Filewrite(req *sftp.Request) (_ io.WriterAt, retErr error)
 }
 
 func (s *sftpHandler) openFile(req *sftp.Request) (*os.File, error) {
-	if err := s.checkReq(req); err != nil {
+	if err := s.ensureReqIsAllowed(req); err != nil {
 		return nil, err
 	}
 
@@ -275,7 +275,7 @@ func (s *sftpHandler) Filecmd(req *sftp.Request) (retErr error) {
 	if req.Filepath == "" {
 		return os.ErrInvalid
 	}
-	if err := s.checkReq(req); err != nil {
+	if err := s.ensureReqIsAllowed(req); err != nil {
 		return err
 	}
 
@@ -412,7 +412,7 @@ func (s *sftpHandler) Filelist(req *sftp.Request) (_ sftp.ListerAt, retErr error
 	if req.Filepath == "" {
 		return nil, os.ErrInvalid
 	}
-	if err := s.checkReq(req); err != nil {
+	if err := s.ensureReqIsAllowed(req); err != nil {
 		return nil, err
 	}
 
@@ -453,7 +453,7 @@ func (s *sftpHandler) Lstat(req *sftp.Request) (sftp.ListerAt, error) {
 	if req.Filepath == "" {
 		return nil, os.ErrInvalid
 	}
-	if err := s.checkReq(req); err != nil {
+	if err := s.ensureReqIsAllowed(req); err != nil {
 		return nil, err
 	}
 

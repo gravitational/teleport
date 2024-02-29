@@ -1410,17 +1410,13 @@ func (c *ServerContext) setApprovedFileTransferRequest(req *FileTransferRequest)
 	c.mu.Unlock()
 }
 
-// GetApprovedFileTransferRequest will return the approved file transfer
+// ConsumeApprovedFileTransferRequest will return the approved file transfer
 // request for this session if there is one present. Note that if an
 // approved request is returned future calls to this method will return
 // nil to prevent an approved request getting reused incorrectly.
-func (c *ServerContext) GetApprovedFileTransferRequest() *FileTransferRequest {
+func (c *ServerContext) ConsumeApprovedFileTransferRequest() *FileTransferRequest {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	if c.approvedFileReq == nil {
-		return nil
-	}
 
 	req := c.approvedFileReq
 	c.approvedFileReq = nil
