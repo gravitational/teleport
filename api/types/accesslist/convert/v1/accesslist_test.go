@@ -184,11 +184,20 @@ func TestFromProtoNils(t *testing.T) {
 		_, err := FromProto(msg)
 		require.NoError(t, err)
 	})
+
+	t.Run("member_count", func(t *testing.T) {
+		msg := ToProto(newAccessList(t, "access-list"))
+		msg.Status.MemberCount = nil
+
+		_, err := FromProto(msg)
+		require.NoError(t, err)
+	})
 }
 
 func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 	t.Helper()
 
+	memberCount := uint32(10)
 	accessList, err := accesslist.NewAccessList(
 		header.Metadata{
 			Name: name,
@@ -240,6 +249,11 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 		},
 	)
 	require.NoError(t, err)
+
+	accessList.Status = accesslist.Status{
+		MemberCount: &memberCount,
+	}
+
 	return accessList
 }
 
