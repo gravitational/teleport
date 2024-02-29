@@ -26,7 +26,7 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 service PresenceService {
   // GetRemoteCluster retrieves a RemoteCluster by name.
   rpc GetRemoteCluster(GetRemoteClusterRequest) returns (types.RemoteClusterV3);
-  // ListRemoteClusters gets all existing RemoteClusters.
+  // ListRemoteClusters retrieves a page of RemoteClusters.
   rpc ListRemoteClusters(ListRemoteClustersRequest) returns (ListRemoteClustersResponse);
   // UpdateRemoteCluster updates an existing RemoteCluster.
   rpc UpdateRemoteCluster(UpdateRemoteClusterRequest) returns (types.RemoteClusterV3);
