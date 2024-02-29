@@ -466,6 +466,14 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 		return false, trace.NotFound("Session does not have a pending file transfer request")
 	}
 	if sess.fileTransferReq.Requester != scx.Identity.TeleportUser {
+		// to be safe deny and remove the pending request if the user
+		// doesn't match what we expect
+		req := sess.fileTransferReq
+		sess.fileTransferReq = nil
+
+		sess.BroadcastMessage("file transfer request %s denied due to %s attempting to transfer files", req.ID, scx.Identity.TeleportUser)
+		_ = s.NotifyFileTransferRequest(req, FileTransferDenied, scx)
+
 		return false, trace.AccessDenied("Teleport user does not match original requester")
 	}
 
