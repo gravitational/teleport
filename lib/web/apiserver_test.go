@@ -668,7 +668,7 @@ func (s *WebSuite) authPack(t *testing.T, user string, roles ...string) *authPac
 	s.createUser(t, user, login, pass, otpSecret, roles...)
 
 	ctx := context.Background()
-	sessionResp, httpResp := mustLoginWebOTP(t, ctx, loginWebOTPParams{
+	sessionResp, httpResp := loginWebOTP(t, ctx, loginWebOTPParams{
 		webClient: s.client(t),
 		clock:     s.clock,
 		user:      user,
@@ -952,14 +952,14 @@ func TestCSRF(t *testing.T) {
 		cookieCSRF: &encodedToken1,
 		headerCSRF: &encodedToken1,
 	}
-	mustLoginWebOTP(t, ctx, validReq)
+	loginWebOTP(t, ctx, validReq)
 
 	// invalid
 	for i := range invalid {
 		req := validReq
 		req.cookieCSRF = &invalid[i].cookieToken
 		req.headerCSRF = &invalid[i].reqToken
-		_, httpResp, err := loginWebOTP(ctx, req)
+		httpResp, _, err := rawLoginWebOTP(ctx, req)
 		require.NoError(t, err, "Login via /webapi/sessions/new failed unexpectedly")
 		assert.Equal(t, http.StatusForbidden, httpResp.StatusCode, "HTTP status code mismatch")
 	}
@@ -2520,7 +2520,7 @@ func TestLogin(t *testing.T) {
 	ctx := context.Background()
 
 	const ua = "test-ua"
-	sessionResp, httpResp := mustLoginWebOTP(t, ctx, loginWebOTPParams{
+	sessionResp, httpResp := loginWebOTP(t, ctx, loginWebOTPParams{
 		webClient: clt,
 		user:      user,
 		password:  pass,
@@ -7999,7 +7999,7 @@ func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Ro
 
 	r.createUser(context.Background(), t, teleportUser, loginUser, pass, otpSecret, roles)
 
-	sessionResp, httpResp := mustLoginWebOTP(t, ctx, loginWebOTPParams{
+	sessionResp, httpResp := loginWebOTP(t, ctx, loginWebOTPParams{
 		webClient: r.newClient(t),
 		clock:     r.clock,
 		user:      teleportUser,

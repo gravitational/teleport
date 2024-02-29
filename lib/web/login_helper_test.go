@@ -69,37 +69,27 @@ func (r *DrainedHTTPResponse) Cookies() []*http.Cookie {
 	return r.cookies
 }
 
-// mustLoginWebOTP is the self-failing variant of [loginWebOTP].
-//
-// This is a lower-level utility for tests that want access to the returned
-// unmarshaled CreateSessionResponse or HTTP response.
-func mustLoginWebOTP(t *testing.T, ctx context.Context, params loginWebOTPParams) (*CreateSessionResponse, *DrainedHTTPResponse) {
-	sessionResp, httpResp, err := loginWebOTP(ctx, params)
-	require.NoError(t, err, "Login via /webapi/sessions/new failed")
-	return sessionResp, httpResp
-}
-
 // loginWebOTP logins the user using the /webapi/sessions/new endpoint.
 //
 // This is a lower-level utility for tests that want access to the returned
-// error, in addition to the CreateSessionResponse or HTTP response.
-func loginWebOTP(ctx context.Context, params loginWebOTPParams) (*CreateSessionResponse, *DrainedHTTPResponse, error) {
+// unmarshaled CreateSessionResponse or HTTP response.
+func loginWebOTP(t *testing.T, ctx context.Context, params loginWebOTPParams) (*CreateSessionResponse, *DrainedHTTPResponse) {
 	httpResp, body, err := rawLoginWebOTP(ctx, params)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
+	require.NoError(t, err, "Login via OTP failed")
+	require.Equal(t, http.StatusOK, httpResp.StatusCode, "Login via OTP failed (status mismatch)")
 
 	sessionResp := &CreateSessionResponse{}
-	if err := json.Unmarshal(body, sessionResp); err != nil {
-		return nil, nil, trace.Wrap(err, "unmarshal CreateSessionResponse")
-	}
-	return sessionResp, httpResp, nil
+	require.NoError(t,
+		json.Unmarshal(body, sessionResp),
+		"Unmarshal failed")
+	return sessionResp, httpResp
 }
 
 // rawLoginWebOTP is the raw variant of [loginWebOTP].
 //
 // This is a lower-level utility for tests that want access to the response body
-// itself.
+// itself. Callers MUST check the response status themselves, a successful login
+// is not guaranteed.
 //
 // Note that the response body is automatically drained into a []byte and
 // closed.

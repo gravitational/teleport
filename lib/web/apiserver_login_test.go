@@ -366,7 +366,7 @@ func TestAuthenticate_deviceWebToken(t *testing.T) {
 		otpSecret := newOTPSharedSecret()
 		proxy.createUser(ctx, t, user, user, pass, otpSecret, nil /* roles */)
 
-		sessionResp, _ := mustLoginWebOTP(t, ctx, loginWebOTPParams{
+		sessionResp, _ := loginWebOTP(t, ctx, loginWebOTPParams{
 			webClient: proxy.newClient(t),
 			clock:     clock,
 			user:      user,
