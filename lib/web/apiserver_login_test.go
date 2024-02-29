@@ -352,7 +352,7 @@ func TestAuthenticate_deviceWebToken(t *testing.T) {
 	proxy := pack.proxies[0]
 	clock := pack.clock
 
-	// Mimic a successfully create DeviceWebToken, regarldess of any parameters.
+	// Mimic a valid DeviceWebToken, regardless of any parameters.
 	wantToken := &types.DeviceWebToken{
 		Id:    "this is an opaque token ID",
 		Token: "this is an opaque token Token",
