@@ -169,6 +169,21 @@ func (r TeleportResourceReconciler[T, K]) Upsert(ctx context.Context, obj kclien
 
 // Delete is the TeleportResourceReconciler of the ResourceBaseReconciler DeleteExertal
 func (r TeleportResourceReconciler[T, K]) Delete(ctx context.Context, obj kclient.Object) error {
+	// This call catches non-existing resources or subkind mismatch (e.g. openssh nodes)
+	// We can then check that we own the resource before deleting it.
+	resource, err := r.resourceClient.Get(ctx, obj.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, isOwned := checkOwnership(resource)
+	if !isOwned {
+		// The resource doesn't belong to us, we bail out but unblock the CR deletion
+		return nil
+	}
+	// This GET->check->DELETE dance is race-prone, but it's good enough for what
+	// we want to do. No one should reconcile the same resource as the operator.
+	// If they do, it's their fault as the resource was clearly flagged as belonging to us.
 	return r.resourceClient.Delete(ctx, obj.GetName())
 }
 

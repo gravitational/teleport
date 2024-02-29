@@ -185,9 +185,9 @@ RUN apt-get -y update && \
 # Code Signing Certificate needs us to use osslsigncode >= 2.6, which
 # allows the use of legacy OpenSSL algorithms. This is not yet provided
 # by Ubuntu, so we will have to fetch it ourselves.
-RUN --mount=type=bind,target=/context \
+RUN --mount=type=bind,source=download-hashes/osslsigncode.sha256,target=/context/osslsigncode.sha256 \
     curl -L https://github.com/mtrojnar/osslsigncode/releases/download/2.6/osslsigncode-2.6-ubuntu-22.04.zip -o osslsigncode.zip \
-    && sha256sum --strict -c /context/download-hashes/osslsigncode.sha256 \
+    && sha256sum --strict -c /context/osslsigncode.sha256 \
     && unzip -d /tmp/osslsigncode osslsigncode.zip \
     && install -m 0755 /tmp/osslsigncode/bin/osslsigncode /usr/bin \
     && rm -rf /tmp/osslsigncode \
@@ -219,10 +219,6 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     rustc --version && \
     rustup component add rustfmt clippy && \
     if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu; fi
-
-ARG WASM_PACK_VERSION
-# Install wasm-pack for targeting WebAssembly from Rust.
-RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
 
 # Switch back to root for the remaining instructions and keep it as the default
 # user.

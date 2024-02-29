@@ -1079,7 +1079,7 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 }
 
 // TestGenerateDatabaseCert makes sure users and services with appropriate
-// permissions can generate certificates for self-hosted databases.
+// permissions can generate database certificates.
 func TestGenerateDatabaseCert(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -1099,22 +1099,26 @@ func TestGenerateDatabaseCert(t *testing.T) {
 	require.NoError(t, srv.Auth().UpsertRole(ctx, roleDb))
 
 	tests := []struct {
-		desc     string
-		identity TestIdentity
-		err      string
+		desc      string
+		identity  TestIdentity
+		requester proto.DatabaseCertRequest_Requester
+		err       string
 	}{
 		{
-			desc:     "user can't sign database certs",
-			identity: TestUser(userWithoutAccess.GetName()),
-			err:      "access denied",
+			desc:      "user can't sign database certs",
+			identity:  TestUser(userWithoutAccess.GetName()),
+			requester: proto.DatabaseCertRequest_TCTL,
+			err:       "access denied",
 		},
 		{
-			desc:     "user can impersonate Db and sign database certs",
-			identity: TestUser(userImpersonateDb.GetName()),
+			desc:      "user can impersonate Db and sign database certs",
+			identity:  TestUser(userImpersonateDb.GetName()),
+			requester: proto.DatabaseCertRequest_TCTL,
 		},
 		{
-			desc:     "built-in admin can sign database certs",
-			identity: TestAdmin(),
+			desc:      "built-in admin can sign database certs",
+			identity:  TestAdmin(),
+			requester: proto.DatabaseCertRequest_TCTL,
 		},
 		{
 			desc:     "database service can sign database certs",
@@ -1134,7 +1138,7 @@ func TestGenerateDatabaseCert(t *testing.T) {
 			client, err := srv.NewClient(test.identity)
 			require.NoError(t, err)
 
-			_, err = client.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{CSR: csr})
+			_, err = client.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{CSR: csr, RequesterName: test.requester})
 			if test.err != "" {
 				require.ErrorContains(t, err, test.err)
 			} else {

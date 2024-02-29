@@ -804,8 +804,9 @@ type ClientI interface {
 	// sessions created by the SAML identity provider.
 	CreateSAMLIdPSession(context.Context, types.CreateSAMLIdPSessionRequest) (types.WebSession, error)
 
-	// GenerateDatabaseCert generates client certificate used by a database
-	// service to authenticate with the database instance.
+	// GenerateDatabaseCert generates a client certificate used by a database
+	// service to authenticate with the database instance, or a server certificate
+	// for configuring a self-hosted database, depending on the requester_name.
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
 
 	// GetWebSession queries the existing web session described with req.
