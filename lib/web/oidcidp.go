@@ -19,6 +19,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gravitational/trace"
@@ -63,14 +64,18 @@ func (h *Handler) openidConfiguration(_ http.ResponseWriter, _ *http.Request, _ 
 
 // jwksOIDC returns all public keys used to sign JWT tokens for this cluster.
 func (h *Handler) jwksOIDC(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
-	clusterName, err := h.GetProxyClient().GetDomainName(r.Context())
+	return h.jwks(r.Context(), types.OIDCIdPCA)
+}
+
+func (h *Handler) jwks(ctx context.Context, caType types.CertAuthType) (*JWKSResponse, error) {
+	clusterName, err := h.GetProxyClient().GetDomainName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Fetch the JWT public keys only.
-	ca, err := h.GetProxyClient().GetCertAuthority(r.Context(), types.CertAuthID{
-		Type:       types.OIDCIdPCA,
+	ca, err := h.GetProxyClient().GetCertAuthority(ctx, types.CertAuthID{
+		Type:       caType,
 		DomainName: clusterName,
 	}, false /* loadKeys */)
 	if err != nil {
