@@ -131,7 +131,7 @@ func newSFTPHandler(logger *log.Entry, req *srv.FileTransferRequest, events chan
 }
 
 func newDisallowedErr(req *sftp.Request) error {
-	return fmt.Errorf("method %q is not allowed on %q", strings.ToLower(req.Method), req.Filepath)
+	return fmt.Errorf("method %s is not allowed on %s", strings.ToLower(req.Method), req.Filepath)
 }
 
 // ensureReqIsAllowed returns an error if the SFTP request isn't
@@ -161,9 +161,9 @@ func (s *sftpHandler) ensureReqIsAllowed(req *sftp.Request) error {
 	case methodOpen:
 		pflags := req.Pflags()
 		if !s.allowed.write && pflags.Write {
-			return fmt.Errorf("%q is not allowed to be written to", req.Filepath)
+			return fmt.Errorf("%s is not allowed to be written to", req.Filepath)
 		} else if s.allowed.write && pflags.Read {
-			return fmt.Errorf("%q is not allowed to be written to", req.Filepath)
+			return fmt.Errorf("%s is not allowed to be written to", req.Filepath)
 		}
 	case methodSetStat:
 		// only allow chmods for uploads
