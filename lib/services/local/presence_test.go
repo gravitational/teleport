@@ -140,6 +140,53 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	require.ErrorIs(t, err, trace.NotFound("key /remoteClusters/foo is not found"))
 }
 
+func TestPresenceService_GetAndUpdateRemoteCluster(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+	presenceBackend := NewPresenceService(bk)
+
+	rc, err := types.NewRemoteCluster("bar")
+	require.NoError(t, err)
+	rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
+	_, err = presenceBackend.CreateRemoteCluster(ctx, rc)
+	require.NoError(t, err)
+
+	updatedRC, err := presenceBackend.GetAndUpdateRemoteCluster(
+		ctx,
+		rc.GetName(),
+		func(rc types.RemoteCluster) (types.RemoteCluster, error) {
+			require.Equal(t, teleport.RemoteClusterStatusOffline, rc.GetConnectionStatus())
+			rc.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
+			return rc, nil
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, teleport.RemoteClusterStatusOnline, updatedRC.GetConnectionStatus())
+
+	// Ensure this was persisted.
+	fetchedRC, err := presenceBackend.GetRemoteCluster(ctx, rc.GetName())
+	require.NoError(t, err)
+	require.Equal(t, teleport.RemoteClusterStatusOnline, fetchedRC.GetConnectionStatus())
+
+	// Ensure that name cannot be updated
+	_, err = presenceBackend.GetAndUpdateRemoteCluster(
+		ctx,
+		rc.GetName(),
+		func(rc types.RemoteCluster) (types.RemoteCluster, error) {
+			rc.SetName("baz")
+			return rc, nil
+		},
+	)
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+	require.Contains(t, err.Error(), "metadata.name: cannot be updated")
+}
+
 func TestPresenceService_ListRemoteClusters(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

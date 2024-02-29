@@ -765,6 +765,10 @@ func (s *PresenceService) GetAndUpdateRemoteCluster(
 			return nil, trace.Wrap(err)
 		}
 
+		if updated.GetName() != existing.GetName() {
+			return nil, trace.BadParameter("metadata.name: cannot be updated")
+		}
+
 		updatedValue, err := services.MarshalRemoteCluster(updated)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -783,8 +787,8 @@ func (s *PresenceService) GetAndUpdateRemoteCluster(
 			}
 			return nil, trace.Wrap(err)
 		}
-		existing.SetRevision(lease.Revision)
-		return existing, nil
+		updated.SetRevision(lease.Revision)
+		return updated, nil
 	}
 	return nil, trace.CompareFailed("failed to update remote cluster within %v iterations", iterationLimit)
 }
