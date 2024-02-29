@@ -2087,7 +2087,7 @@ type CreateSessionResponse struct {
 	SessionInactiveTimeoutMS int `json:"sessionInactiveTimeout"`
 	// DeviceWebToken is the token used to perform on-behalf-of device
 	// authentication.
-	// If not nil it should be forwared to Connect for the device authentication
+	// If not nil it should be forwarded to Connect for the device authentication
 	// ceremony.
 	DeviceWebToken *types.DeviceWebToken `json:"deviceWebToken,omitempty"`
 }
