@@ -32,11 +32,13 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
@@ -104,7 +106,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	a.config = config
 	// operations with authorities
 	auth := app.Command("auth", "Operations with user and host certificate authorities (CAs).").Hidden()
-	a.authExport = auth.Command("export", "Export public cluster (CA) keys to stdout.")
+	a.authExport = auth.Command("export", "Export public cluster CA certificates to stdout.")
 	a.authExport.Flag("keys", "if set, will print private keys").BoolVar(&a.exportPrivateKeys)
 	a.authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&a.exportAuthorityFingerprint)
 	a.authExport.Flag("compat", "export certificates compatible with specific version of Teleport").StringVar(&a.compatVersion)
@@ -465,12 +467,20 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 	}
 	clusterName := cn.GetClusterName()
 
-	key.Cert, err = clusterAPI.GenerateHostCert(ctx, key.MarshalSSHPublicKey(),
-		"", "", principals,
-		clusterName, types.RoleNode, 0)
+	res, err := clusterAPI.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
+		Key:         key.MarshalSSHPublicKey(),
+		HostId:      "",
+		NodeName:    "",
+		Principals:  principals,
+		ClusterName: clusterName,
+		Role:        string(types.RoleNode),
+		Ttl:         durationpb.New(0),
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	key.Cert = res.SshCertificate
+
 	hostCAs, err := clusterAPI.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -586,7 +596,7 @@ var (
 	// dbAuthSignTpl is printed when user generates credentials for a self-hosted database.
 	dbAuthSignTpl = template.Must(template.New("").Parse(
 		`{{if .tarOutput }}
-To unpack the tar archive, pipe the output of tctl to 'tar x'. For example: 
+To unpack the tar archive, pipe the output of tctl to 'tar x'. For example:
 
 $ tctl auth sign ${FLAGS} | tar -xv
 {{else}}
@@ -611,7 +621,7 @@ ssl-ca=/path/to/{{.output}}.cas
 	// mongoAuthSignTpl is printed when user generates credentials for a MongoDB database.
 	mongoAuthSignTpl = template.Must(template.New("").Parse(
 		`{{- if .tarOutput -}}
-To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example: 
+To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example:
 
 $ tctl auth sign ${FLAGS} | tar -x
 {{- else -}}
@@ -658,13 +668,13 @@ https://www.cockroachlabs.com/docs/stable/authentication#using-split-ca-certific
 
 	redisAuthSignTpl = template.Must(template.New("").Parse(
 		`{{- if .tarOutput }}
-Unpack the tar archive by piping the output of tctl to 'tar x'. For example: 
+Unpack the tar archive by piping the output of tctl to 'tar x'. For example:
 
 $ tctl auth sign ${CERT_FLAGS} | tar -xv
 {{else}}
 Database credentials have been written to {{.files}}.
-{{end}}	
-	
+{{end}}
+
 To enable mutual TLS on your Redis server, add the following to your redis.conf:
 
 tls-ca-cert-file /path/to/{{.output}}.cas
@@ -684,7 +694,7 @@ https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-4-assign-the-pu
 
 	elasticsearchAuthSignTpl = template.Must(template.New("").Parse(
 		`{{- if .tarOutput -}}
-To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example: 
+To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example:
 
 $ tctl auth sign ${FLAGS} | tar -x
 {{- else -}}
@@ -712,7 +722,7 @@ https://www.elastic.co/guide/en/elasticsearch/reference/current/security-setting
 
 	cassandraAuthSignTpl = template.Must(template.New("").Parse(
 		`{{- if .tarOutput -}}
-To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example: 
+To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example:
 
 $ tctl auth sign ${FLAGS} | tar -x
 {{- else -}}
@@ -737,7 +747,7 @@ client_encryption_options:
 
 	oracleAuthSignTpl = template.Must(template.New("").Parse(
 		`{{- if .tarOutput -}}
-To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example: 
+To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example:
 
 $ tctl auth sign ${FLAGS} | tar -x
 {{- end }}

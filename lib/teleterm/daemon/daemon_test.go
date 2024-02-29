@@ -20,6 +20,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -271,6 +272,7 @@ func TestGatewayCRUD(t *testing.T) {
 				GatewayCreator: mockGatewayCreator,
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
+				ClientCache:    fakeClientCache{},
 			})
 			require.NoError(t, err)
 
@@ -449,6 +451,7 @@ func TestRetryWithRelogin(t *testing.T) {
 				},
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
+				ClientCache:    fakeClientCache{},
 			})
 			require.NoError(t, err)
 
@@ -499,6 +502,7 @@ func TestImportantModalSemaphore(t *testing.T) {
 		},
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
+		ClientCache:    fakeClientCache{},
 	})
 	require.NoError(t, err)
 
@@ -611,7 +615,7 @@ func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsServic
 		// before grpcServer.Serve is called and grpcServer.Serve will return
 		// grpc.ErrServerStopped.
 		err := <-serveErr
-		if err != grpc.ErrServerStopped {
+		if !errors.Is(err, grpc.ErrServerStopped) {
 			assert.NoError(t, err)
 		}
 	})
@@ -647,6 +651,7 @@ func TestGetGatewayCLICommand(t *testing.T) {
 		},
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
+		ClientCache:    fakeClientCache{},
 	})
 	require.NoError(t, err)
 
@@ -722,4 +727,12 @@ type fakeStorage struct {
 
 func (f fakeStorage) GetByResourceURI(resourceURI uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error) {
 	return &clusters.Cluster{}, &client.TeleportClient{}, nil
+}
+
+type fakeClientCache struct {
+	ClientCache
+}
+
+func (f fakeClientCache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
+	return &client.ProxyClient{}, nil
 }

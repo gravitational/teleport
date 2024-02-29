@@ -34,12 +34,15 @@ import (
 	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -150,6 +153,54 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 func (c *Client) Close() error {
 	c.HTTPClient.Close()
 	return c.APIClient.Close()
+}
+
+func (c *Client) CreateAuthPreference(context.Context, types.AuthPreference) (types.AuthPreference, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpdateAuthPreference(context.Context, types.AuthPreference) (types.AuthPreference, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpsertAuthPreference(context.Context, types.AuthPreference) (types.AuthPreference, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) CreateSessionRecordingConfig(context.Context, types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpdateSessionRecordingConfig(context.Context, types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpsertSessionRecordingConfig(context.Context, types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) CreateClusterAuditConfig(context.Context, types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpdateClusterAuditConfig(context.Context, types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpsertClusterAuditConfig(context.Context, types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) CreateClusterNetworkingConfig(context.Context, types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpdateClusterNetworkingConfig(ctx context.Context, preference types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpsertClusterNetworkingConfig(ctx context.Context, preference types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // CreateCertAuthority not implemented: can only be called locally.
@@ -376,17 +427,17 @@ func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (apieven
 }
 
 // GetClusterAuditConfig gets cluster audit configuration.
-func (c *Client) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
 	return c.APIClient.GetClusterAuditConfig(ctx)
 }
 
 // GetClusterNetworkingConfig gets cluster networking configuration.
-func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (c *Client) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	return c.APIClient.GetClusterNetworkingConfig(ctx)
 }
 
 // GetSessionRecordingConfig gets session recording configuration.
-func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+func (c *Client) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
 	return c.APIClient.GetSessionRecordingConfig(ctx)
 }
 
@@ -468,6 +519,10 @@ func (c *Client) UserLoginStateClient() services.UserLoginStates {
 
 func (c *Client) AccessGraphClient() accessgraphv1.AccessGraphServiceClient {
 	return accessgraphv1.NewAccessGraphServiceClient(c.APIClient.GetConnection())
+}
+
+func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
+	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
 }
 
 // UpsertUser user updates user entry.
@@ -639,22 +694,10 @@ type IdentityService interface {
 	// ChangePassword changes user password
 	ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error
 
-	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
-	// plain text format, signs it using Host Certificate Authority private key and returns the
-	// resulting certificate.
-	GenerateHostCert(ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error)
-
 	// GenerateUserCerts takes the public key in the OpenSSH `authorized_keys` plain
 	// text format, signs it using User Certificate Authority signing key and
 	// returns the resulting certificates.
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
-
-	// GenerateUserSingleUseCerts is like GenerateUserCerts but issues a
-	// certificate for a single session
-	// (https://github.com/gravitational/teleport/blob/3a1cf9111c2698aede2056513337f32bfc16f1f1/rfd/0014-session-2FA.md#sessions).
-	//
-	// Deprecated: Use GenerateUserCerts instead.
-	GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error)
 
 	// IsMFARequired is a request to check whether MFA is required to
 	// access the Target.
@@ -666,13 +709,6 @@ type IdentityService interface {
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
-	// CreateBot creates a new certificate renewal bot and associated resources.
-	CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error)
-	// DeleteBot removes a certificate renewal bot and associated resources.
-	DeleteBot(ctx context.Context, botName string) error
-	// GetBotUsers gets all bot users.
-	GetBotUsers(ctx context.Context) ([]types.User, error)
-
 	// ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
 	// Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).
 	ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error)
@@ -682,10 +718,6 @@ type IdentityService interface {
 
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
-	// Deprecated: Use AddMFADeviceSync instead.
-	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
-	// Deprecated: Use DeleteMFADeviceSync instead.
-	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
 	// AddMFADeviceSync adds a new MFA device (nonstream).
 	AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error)
 	// DeleteMFADeviceSync deletes a users MFA device (nonstream).
@@ -791,6 +823,9 @@ type ClientI interface {
 	types.WebSessionsGetter
 	types.WebTokensGetter
 
+	// TrustClient returns a client to the Trust service.
+	TrustClient() trustpb.TrustServiceClient
+
 	// DevicesClient returns a Device Trust client.
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
 	// still get a client when calling this method, but all RPCs will return
@@ -808,6 +843,9 @@ type ClientI interface {
 
 	// AccessGraphClient returns a client to the Access Graph gRPC service.
 	AccessGraphClient() accessgraphv1.AccessGraphServiceClient
+
+	// IntegrationAWSOIDCClient returns a client to the Integration AWS OIDC gRPC service.
+	IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
@@ -940,6 +978,9 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	AccessListClient() services.AccessLists
 
+	// DatabaseObjectImportRuleClient returns a database import rule client.
+	DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient
+
 	// SecReportsClient returns a client for security reports.
 	// Clients connecting to  older Teleport versions, still get an access list client
 	// when calling this method, but all RPCs will return "not implemented" errors
@@ -975,6 +1016,12 @@ type ClientI interface {
 	// still get a client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	ExternalAuditStorageClient() *externalauditstorage.Client
+
+	// WorkloadIdentityServiceClient returns a workload identity service client.
+	// Clients connecting to  older Teleport versions, still get a client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)

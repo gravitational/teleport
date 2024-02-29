@@ -187,7 +187,8 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 			*usagereporter.SessionStartEvent,
 			*usagereporter.KubeRequestEvent,
 			*usagereporter.SFTPEvent,
-			*usagereporter.ResourceHeartbeatEvent:
+			*usagereporter.ResourceHeartbeatEvent,
+			*usagereporter.SPIFFESVIDIssuedEvent:
 			filtered = append(filtered, event)
 		}
 	}
@@ -368,6 +369,8 @@ Ingest:
 		case *usagereporter.ResourceHeartbeatEvent:
 			// ResourceKind is the same int32 in both prehogv1 and prehogv1alpha1.
 			resourcePresence(prehogv1.ResourceKind(te.Kind))[te.Name] = struct{}{}
+		case *usagereporter.SPIFFESVIDIssuedEvent:
+			userRecord(te.UserName, te.UserKind).SpiffeSvidsIssued++
 		case *usagereporter.BotJoinEvent:
 			botUserName := machineidv1.BotResourceName(te.BotName)
 			userRecord(botUserName, prehogv1alpha.UserKind_USER_KIND_BOT).BotJoins++
@@ -392,7 +395,7 @@ Ingest:
 	}
 
 	if len(resourcePresences) > 0 {
-		r.persistResourcePresence(ctx, userActivityStartTime, resourcePresences)
+		r.persistResourcePresence(ctx, resourceUsageStartTime, resourcePresences)
 	}
 
 	wg.Wait()

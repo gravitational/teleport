@@ -97,10 +97,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// TODO(Joerger): DELETE IN v16.0.0, migrated to gRPC
 	srv.POST("/:version/authorities/:type/rotate/external", srv.WithAuth(srv.rotateExternalCertAuthority))
 
-	// Generating certificates for user and host authorities
-	// TODO(noah): DELETE IN 16.0.0 as replaced with gRPC equiv
-	srv.POST("/:version/ca/host/certs", srv.WithAuth(srv.generateHostCert))
-
 	// Operations on users
 	// TODO(tross): DELETE IN 16.0.0
 	srv.POST("/:version/users", srv.WithAuth(srv.upsertUser))
@@ -187,7 +183,7 @@ func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		// HTTPS server expects auth context to be set by the auth middleware
 		authContext, err := s.Authorizer.Authorize(r.Context())
 		if err != nil {
-			return nil, authz.ConvertAuthorizerError(r.Context(), log, err)
+			return nil, trace.Wrap(err)
 		}
 		auth := &ServerWithRoles{
 			authServer: s.AuthServer,
@@ -529,35 +525,6 @@ func rawMessage(data []byte, err error) (interface{}, error) {
 	}
 	m := json.RawMessage(data)
 	return &m, nil
-}
-
-type generateHostCertReq struct {
-	Key         []byte            `json:"key"`
-	HostID      string            `json:"hostname"`
-	NodeName    string            `json:"node_name"`
-	Principals  []string          `json:"principals"`
-	ClusterName string            `json:"auth_domain"`
-	Roles       types.SystemRoles `json:"roles"`
-	TTL         time.Duration     `json:"ttl"`
-}
-
-// TODO(noah): DELETE IN 16.0.0 as replaced with gRPC equiv
-func (s *APIServer) generateHostCert(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req *generateHostCertReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(req.Roles) != 1 {
-		return nil, trace.BadParameter("exactly one system role is required")
-	}
-
-	cert, err := auth.GenerateHostCert(r.Context(), req.Key, req.HostID, req.NodeName, req.Principals, req.ClusterName, req.Roles[0], req.TTL)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return string(cert), nil
 }
 
 func (s *APIServer) registerUsingToken(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {

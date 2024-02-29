@@ -1923,9 +1923,15 @@ message AuthPreferenceSpecV2 {
   // Requires Teleport Enterprise.
   OktaOptions Okta = 17 [(gogoproto.jsontag) = "okta,omitempty"];
 
-  // PIVSlot is a PIV slot that Teleport clients should use instead of the
-  // default based on private key policy. For example, "9a" or "9e".
-  string PIVSlot = 18 [(gogoproto.jsontag) = "piv_slot,omitempty"];
+  // TODO(Joerger): DELETE IN 17.0.0
+  // Deprecated, replaced by HardwareKey settings.
+  string PIVSlot = 18 [
+    (gogoproto.jsontag) = "piv_slot,omitempty",
+    deprecated = true
+  ];
+
+  // HardwareKey are the settings for hardware key support.
+  HardwareKey HardwareKey = 19 [(gogoproto.jsontag) = "hardware_key,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -2013,6 +2019,30 @@ message DeviceTrust {
   // If not present, then the CA of TPM EKCerts will not be checked during
   // enrollment, this allows any device to enroll.
   repeated string EKCertAllowedCAs = 3 [(gogoproto.jsontag) = "ekcert_allowed_cas,omitempty"];
+}
+
+// HardwareKey holds settings related to hardware key support.
+// Requires Teleport Enterprise.
+message HardwareKey {
+  // PIVSlot is a PIV slot that Teleport clients should use instead of the
+  // default based on private key policy. For example, "9a" or "9e".
+  string PIVSlot = 1 [(gogoproto.jsontag) = "piv_slot,omitempty"];
+
+  // SerialNumberValidation holds settings for hardware key serial number validation.
+  // By default, serial number validation is disabled.
+  HardwareKeySerialNumberValidation SerialNumberValidation = 2 [(gogoproto.jsontag) = "serial_number_validation,omitempty"];
+}
+
+message HardwareKeySerialNumberValidation {
+  // Enabled indicates whether hardware key serial number validation is enabled.
+  bool Enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
+
+  // SerialNumberTraitName is an optional custom user trait name for hardware key
+  // serial numbers to replace the default: "hardware_key_serial_numbers".
+  //
+  // Note: Values for this user trait should be a comma-separated list of serial numbers,
+  // or a list of comm-separated lists. e.g ["123", "345,678"]
+  string SerialNumberTraitName = 2 [(gogoproto.jsontag) = "serial_number_trait_name,omitempty"];
 }
 
 // Namespace represents namespace resource specification
@@ -2964,6 +2994,68 @@ message RoleConditions {
   // GroupLabelsExpression is a predicate expression used to allow/deny
   // access to user groups.
   string GroupLabelsExpression = 37 [(gogoproto.jsontag) = "group_labels_expression,omitempty"];
+  // DatabasePermissions specifies a set of permissions that will be granted
+  // to the database user when using automatic database user provisioning.
+  repeated DatabasePermission DatabasePermissions = 38 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "db_permissions,omitempty"
+  ];
+  // SPIFFE is used to allow or deny access to a role holder to generating a
+  // SPIFFE SVID.
+  repeated SPIFFERoleCondition SPIFFE = 39 [(gogoproto.jsontag) = "spiffe,omitempty"];
+}
+
+// SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or
+// denied to generate. The Path matcher is required, and is evaluated first. If,
+// the Path does not match then the other matcher fields are not evaluated.
+message SPIFFERoleCondition {
+  // Path specifies a matcher for the SPIFFE ID path. It should not include the
+  // trust domain and should start with a leading slash.
+  //
+  // The matcher by default allows '*' to be used to indicate zero or more of
+  // any character. Prepend '^' and append '$' to instead switch to matching
+  // using the Go regex syntax.
+  //
+  // Example:
+  // - /svc/foo/*/bar would match /svc/foo/baz/bar
+  // - ^\/svc\/foo\/.*\/bar$ would match /svc/foo/baz/bar
+  string Path = 1 [(gogoproto.jsontag) = "path,omitempty"];
+  // DNSSANs specifies matchers for the SPIFFE ID DNS SANs.
+  //
+  // Each requested DNS SAN is compared against all matchers configured and if
+  // any match, the condition is considered to be met.
+  //
+  // The matcher by default allows '*' to be used to indicate zero or more of
+  // any character. Prepend '^' and append '$' to instead switch to matching
+  // using the Go regex syntax.
+  //
+  // Example: *.example.com would match foo.example.com
+  repeated string DNSSANs = 2 [(gogoproto.jsontag) = "dns_sans,omitempty"];
+  // IPSANs specifies matchers for the SPIFFE ID IP SANs.
+  //
+  // Each requested IP SAN is compared against all matchers configured and if
+  // any match, the condition is considered to be met.
+  //
+  // The matchers should be specified using CIDR notation, it supports IPv4 and
+  // IPv6.
+  //
+  // Examples:
+  // - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255
+  // - 10.0.0.42/32 would match only 10.0.0.42
+  repeated string IPSANs = 3 [(gogoproto.jsontag) = "ip_sans,omitempty"];
+}
+
+// DatabasePermission specifies the database object permission for the user.
+message DatabasePermission {
+  // Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...
+  repeated string Permissions = 1 [(gogoproto.jsontag) = "permissions"];
+
+  // Match is a list of object labels that must be matched for the permission to be granted.
+  wrappers.LabelValues Match = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "match",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.
@@ -3660,6 +3752,20 @@ message WebSessionSpecV2 {
   string ConsumedAccessRequestID = 10 [(gogoproto.jsontag) = "consumed_access_request_id,omitempty"];
   // SAMLSession is data associated with a SAML IdP session.
   SAMLSessionData SAMLSession = 11 [(gogoproto.jsontag) = "saml_session,omitempty"];
+  // Device trust web authentication token.
+  // May be exchanged for a single on-behalf-of device authentication attempt
+  // (typically performed by Connect).
+  // Only present if on-behalf-of device authentication is possible.
+  DeviceWebToken DeviceWebToken = 12 [(gogoproto.jsontag) = "device_web_token,omitempty"];
+}
+
+// Web-focused view of teleport.devicetrust.v1.DeviceWebToken.
+message DeviceWebToken {
+  // Opaque token identifier.
+  string id = 1;
+  // Opaque device web token, in plaintext, encoded in base64.RawURLEncoding
+  // (so it is inherently safe for URl use).
+  string token = 2;
 }
 
 // WebSessionFilter encodes cache watch parameters for filtering web sessions.
@@ -4903,6 +5009,15 @@ message WindowsDesktopSpecV3 {
   // NonAD marks this desktop as a standalone host that is
   // not joined to an Active Directory domain.
   bool NonAD = 4 [(gogoproto.jsontag) = "non_ad"];
+  // ScreenSize specifies the size of the screen to use for sessions
+  // on this host. In most cases this should be unspecified, in which
+  // case Teleport will fill the browser window.
+  Resolution ScreenSize = 5 [(gogoproto.jsontag) = "screen_size,omitempty"];
+}
+
+message Resolution {
+  uint32 Width = 1 [(gogoproto.jsontag) = "width,omitempty"];
+  uint32 Height = 2 [(gogoproto.jsontag) = "height,omitempty"];
 }
 
 // RegisterUsingTokenRequest is a request to register with the auth server using
@@ -5852,12 +5967,15 @@ message SAMLIdPServiceProviderSpecV1 {
   string EntityID = 2 [(gogoproto.jsontag) = "entity_id"];
   // ACSURL is the endpoint where SAML authentication response will be redirected.
   string ACSURL = 3 [(gogoproto.jsontag) = "acs_url"];
-  // AttributeMapping is used to map Service Provider requested attributes to
+  // AttributeMapping is used to map service provider requested attributes to
   // username, role and traits in Teleport.
   repeated SAMLAttributeMapping AttributeMapping = 4 [(gogoproto.jsontag) = "attribute_mapping"];
+  // Preset is used to define service provider profile that will have a custom behavior
+  // processed by Teleport.
+  string Preset = 5 [(gogoproto.jsontag) = "preset"];
 }
 
-// SAMLAttributeMapping represents SAML Service Provider requested attribute
+// SAMLAttributeMapping represents SAML service provider requested attribute
 // name, format and its values.
 message SAMLAttributeMapping {
   //  name is an attribute name.
@@ -6395,6 +6513,9 @@ message AWSMatcher {
   // Integration is the integration name used to generate credentials to interact with AWS APIs.
   // Environment credentials will not be used when this value is set.
   string Integration = 7 [(gogoproto.jsontag) = "integration,omitempty"];
+  // KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
+  // discovered clusters, currently only affects AWS EKS discovery in integration mode.
+  bool KubeAppDiscovery = 8 [(gogoproto.jsontag) = "kube_app_discovery,omitempty"];
 }
 
 // AssumeRole provides a role ARN and ExternalID to assume an AWS role
@@ -6513,4 +6634,20 @@ message OktaOptions {
     (gogoproto.jsontag) = "sync_period,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+}
+
+// AccessGraphSync is a configuration for Access Graph service.
+message AccessGraphSync {
+  // AWS is a configuration for AWS Access Graph service poll service.
+  repeated AccessGraphAWSSync AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+}
+
+// AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
+message AccessGraphAWSSync {
+  // Regions are AWS regions to import resources from.
+  repeated string Regions = 1 [(gogoproto.jsontag) = "regions,omitempty"];
+  // AssumeRoleARN is the AWS role to assume for database discovery.
+  AssumeRole AssumeRole = 3 [(gogoproto.jsontag) = "assume_role,omitempty"];
+  // Integration is the integration name used to generate credentials to interact with AWS APIs.
+  string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
 }

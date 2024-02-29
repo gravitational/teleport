@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -65,7 +64,7 @@ type mockClient struct {
 	mockGetClusterNetworkingConfig func(context.Context) (types.ClusterNetworkingConfig, error)
 }
 
-func (c *mockClient) GetClusterNetworkingConfig(ctx context.Context, _ ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (c *mockClient) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	if c.mockGetClusterNetworkingConfig != nil {
 		return c.mockGetClusterNetworkingConfig(ctx)
 	}

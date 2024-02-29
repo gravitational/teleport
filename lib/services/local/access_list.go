@@ -245,6 +245,18 @@ func (a *AccessListService) GetSuggestedAccessLists(ctx context.Context, accessR
 	return nil, trace.NotImplemented("GetSuggestedAccessLists should not be called")
 }
 
+// CountAccessListMembers will count all access list members.
+func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error) {
+	count := uint(0)
+	err := a.service.RunWhileLocked(ctx, lockName(accessListName), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		var err error
+		count, err = a.memberService.WithPrefix(accessListName).CountResources(ctx)
+		return trace.Wrap(err)
+	})
+
+	return uint32(count), trace.Wrap(err)
+}
+
 // ListAccessListMembers returns a paginated list of all access list members.
 func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error) {
 	var members []*accesslist.AccessListMember
@@ -271,10 +283,16 @@ func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessLis
 }
 
 // ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
-func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
-	// Locks are not used here as these operations are more likely to be used by the cache.
-	// Lists all access list members for all access lists.
-	return a.memberService.ListResources(ctx, pageSize, nextToken)
+func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+	members, next, err := a.memberService.ListResourcesReturnNextResource(ctx, pageSize, pageToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	var nextKey string
+	if next != nil {
+		nextKey = (*next).Spec.AccessList + string(backend.Separator) + (*next).Metadata.Name
+	}
+	return members, nextKey, nil
 }
 
 // GetAccessListMember returns the specified access list member resource.
@@ -485,10 +503,16 @@ func (a *AccessListService) ListAccessListReviews(ctx context.Context, accessLis
 }
 
 // ListAllAccessListReviews will list access list reviews for all access lists.
-func (a *AccessListService) ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
-	// Locks are not used here as these operations are more likely to be used by the cache.
-	// Lists all access list reviews for all access lists.
-	return a.reviewService.ListResources(ctx, pageSize, pageToken)
+func (a *AccessListService) ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.Review, string, error) {
+	reviews, next, err := a.reviewService.ListResourcesReturnNextResource(ctx, pageSize, pageToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	var nextKey string
+	if next != nil {
+		nextKey = (*next).Spec.AccessList + string(backend.Separator) + (*next).Metadata.Name
+	}
+	return reviews, nextKey, nil
 }
 
 // CreateAccessListReview will create a new review for an access list.

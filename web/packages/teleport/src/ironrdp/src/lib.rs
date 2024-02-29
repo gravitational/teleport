@@ -162,7 +162,7 @@ impl FastPathProcessor {
                 user_channel_id,
                 // These should be set to the same values as they're set to in the
                 // `Config` object in lib/srv/desktop/rdp/rdpclient/src/client.rs.
-                no_server_pointer: true,
+                no_server_pointer: false,
                 pointer_software_rendering: false,
             }
             .build(),
@@ -178,12 +178,17 @@ impl FastPathProcessor {
     /// `draw_cb: (bitmapFrame: BitmapFrame) => void`
     ///
     /// `respond_cb: (responseFrame: ArrayBuffer) => void`
+    ///
+    /// `update_pointer_cb: (data: ImageData | boolean, hotspot_x: number, hotspot_y: number) => void`
+    /// if data is `false` we hide cursor but remember its value, if data is `true` we restore last
+    /// cursor value, otherwise we set cursor to bitmapt from `ImageData`
     pub fn process(
         &mut self,
         tdp_fast_path_frame: &[u8],
         cb_context: &JsValue,
         draw_cb: &js_sys::Function,
         respond_cb: &js_sys::Function,
+        update_pointer_cb: &js_sys::Function,
     ) -> Result<(), JsValue> {
         self.check_remote_fx(tdp_fast_path_frame)?;
 
@@ -211,12 +216,18 @@ impl FastPathProcessor {
                     UpdateKind::Region(region) => {
                         outputs.push(ActiveStageOutput::GraphicsUpdate(region));
                     }
-                    UpdateKind::PointerDefault
-                    | UpdateKind::PointerHidden
-                    | UpdateKind::PointerPosition { .. }
-                    | UpdateKind::PointerBitmap(_) => {
-                        warn!("Pointer updates are not supported");
+                    UpdateKind::PointerDefault => {
+                        outputs.push(ActiveStageOutput::PointerDefault);
+                    }
+                    UpdateKind::PointerHidden => {
+                        outputs.push(ActiveStageOutput::PointerHidden);
+                    }
+                    UpdateKind::PointerPosition { .. } => {
+                        warn!("Pointer position updates are not supported");
                         continue;
+                    }
+                    UpdateKind::PointerBitmap(pointer) => {
+                        outputs.push(ActiveStageOutput::PointerBitmap(pointer))
                     }
                 }
             }
@@ -237,8 +248,32 @@ impl FastPathProcessor {
                     let frame = Uint8Array::from(frame.as_slice()); // todo(isaiah): this is a copy
                     let _ = respond_cb.call1(cb_context, &frame.buffer())?;
                 }
-                ActiveStageOutput::Terminate => {
+                ActiveStageOutput::Terminate(_) => {
                     return Err(JsValue::from_str("Terminate should never be returned"));
+                }
+                ActiveStageOutput::PointerBitmap(pointer) => {
+                    let data = &pointer.bitmap_data;
+                    let image_data = create_image_data_from_image_and_region(
+                        data,
+                        InclusiveRectangle {
+                            left: 0,
+                            top: 0,
+                            right: pointer.width - 1,
+                            bottom: pointer.height - 1,
+                        },
+                    )?;
+                    update_pointer_cb.call3(
+                        cb_context,
+                        &JsValue::from(image_data),
+                        &JsValue::from(pointer.hotspot_x),
+                        &JsValue::from(pointer.hotspot_y),
+                    )?;
+                }
+                ActiveStageOutput::PointerDefault => {
+                    update_pointer_cb.call1(cb_context, &JsValue::from(true))?;
+                }
+                ActiveStageOutput::PointerHidden => {
+                    update_pointer_cb.call1(cb_context, &JsValue::from(false))?;
                 }
                 _ => {
                     debug!("Unhandled ActiveStageOutput: {:?}", output);

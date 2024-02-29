@@ -42,7 +42,7 @@ export class AwsLaunchButton extends React.Component<Props> {
 
   render() {
     const { open } = this.state;
-    const { awsRoles, getLaunchUrl } = this.props;
+    const { awsRoles, getLaunchUrl, onLaunchUrl } = this.props;
     return (
       <>
         <ButtonBorder
@@ -65,7 +65,7 @@ export class AwsLaunchButton extends React.Component<Props> {
             horizontal: 'right',
           }}
           anchorOrigin={{
-            vertical: 'center',
+            vertical: 'bottom',
             horizontal: 'right',
           }}
           getContentAnchorEl={null}
@@ -76,6 +76,7 @@ export class AwsLaunchButton extends React.Component<Props> {
           <RoleItemList
             awsRoles={awsRoles}
             getLaunchUrl={getLaunchUrl}
+            onLaunchUrl={onLaunchUrl}
             closeMenu={this.onClose}
           />
         </Menu>
@@ -88,6 +89,7 @@ function RoleItemList({
   awsRoles,
   getLaunchUrl,
   closeMenu,
+  onLaunchUrl,
 }: Props & { closeMenu: () => void }) {
   const awsRoleItems = awsRoles.map((item, key) => {
     const { display, arn } = item;
@@ -101,7 +103,10 @@ function RoleItemList({
         href={launchUrl}
         target="_blank"
         title={display}
-        onClick={closeMenu}
+        onClick={() => {
+          closeMenu();
+          onLaunchUrl?.(item.arn);
+        }}
       >
         <Text style={{ maxWidth: '25ch' }}>{display}</Text>
       </StyledMenuItem>
@@ -135,6 +140,7 @@ function RoleItemList({
 type Props = {
   awsRoles: AwsRole[];
   getLaunchUrl(arn: string): string;
+  onLaunchUrl?(arn: string): void;
 };
 
 const StyledMenuItem = styled(MenuItem)(

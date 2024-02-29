@@ -20,6 +20,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os/user"
@@ -33,6 +34,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -114,6 +116,12 @@ func TestTeleterm(t *testing.T) {
 	t.Run("DeleteConnectMyComputerNode", func(t *testing.T) {
 		t.Parallel()
 		testDeleteConnectMyComputerNode(t, pack)
+	})
+
+	t.Run("TestClientCache", func(t *testing.T) {
+		t.Parallel()
+
+		testClientCache(t, pack, creds)
 	})
 }
 
@@ -332,6 +340,79 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 		"Expected tshdEventService to receive 1 SendPendingHeadlessAuthentication message but got %v",
 		tshdEventsService.sendPendingHeadlessAuthenticationCount.Load(),
 	)
+}
+
+func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
+	ctx := context.Background()
+
+	tc := mustLogin(t, pack.Root.User.GetName(), pack, creds)
+
+	storageFakeClock := clockwork.NewFakeClockAt(time.Now())
+
+	storage, err := clusters.NewStorage(clusters.Config{
+		Dir:                tc.KeysDir,
+		Clock:              storageFakeClock,
+		InsecureSkipVerify: tc.InsecureSkipVerify,
+	})
+	require.NoError(t, err)
+
+	cluster, _, err := storage.Add(ctx, tc.WebProxyAddr)
+	require.NoError(t, err)
+
+	daemonService, err := daemon.New(daemon.Config{
+		Storage: storage,
+		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
+			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+		},
+		KubeconfigsDir: t.TempDir(),
+		AgentsDir:      t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		daemonService.Stop()
+	})
+
+	// Check if parallel calls trying to get a client will return the same one.
+	eg, egCtx := errgroup.WithContext(ctx)
+	blocker := make(chan struct{})
+	const concurrentCalls = 5
+	concurrentCallsForClient := make([]*client.ProxyClient, concurrentCalls)
+	for i := range concurrentCallsForClient {
+		client := &concurrentCallsForClient[i]
+		eg.Go(func() error {
+			<-blocker
+			c, err := daemonService.GetCachedClient(egCtx, cluster.URI)
+			*client = c
+			return err
+		})
+	}
+	// unblock the operation which is still in progress
+	close(blocker)
+	require.NoError(t, eg.Wait())
+	require.Subset(t, concurrentCallsForClient[:1], concurrentCallsForClient[1:])
+
+	// Since we have a client in the cache, it should be returned.
+	secondCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
+	require.NoError(t, err)
+	require.Equal(t, concurrentCallsForClient[0], secondCallForClient)
+
+	// Let's remove the client from the cache.
+	// The call to GetCachedClient will
+	// connect to proxy and return a new client.
+	err = daemonService.ClearCachedClientsForRoot(cluster.URI)
+	require.NoError(t, err)
+	thirdCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
+	require.NoError(t, err)
+	require.NotEqual(t, secondCallForClient, thirdCallForClient)
+
+	// After closing the client (from our or a remote side)
+	// it will be removed from the cache.
+	// The call to GetCachedClient will connect to proxy and return a new client.
+	err = thirdCallForClient.Close()
+	require.NoError(t, err)
+	fourthCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
+	require.NoError(t, err)
+	require.NotEqual(t, thirdCallForClient, fourthCallForClient)
 }
 
 func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack) {
@@ -882,7 +963,7 @@ func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsServic
 		// before grpcServer.Serve is called and grpcServer.Serve will return
 		// grpc.ErrServerStopped.
 		err := <-serveErr
-		if err != grpc.ErrServerStopped {
+		if !errors.Is(err, grpc.ErrServerStopped) {
 			assert.NoError(t, err)
 		}
 	})

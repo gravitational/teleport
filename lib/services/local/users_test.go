@@ -20,9 +20,9 @@ package local_test
 
 import (
 	"context"
-	"crypto/x509"
 	"encoding/base32"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"slices"
@@ -53,7 +53,7 @@ func newIdentityService(t *testing.T, clock clockwork.Clock) *local.IdentityServ
 	t.Helper()
 	backend, err := memory.New(memory.Config{
 		Context: context.Background(),
-		Clock:   clockwork.NewFakeClock(),
+		Clock:   clock,
 	})
 	require.NoError(t, err)
 	return local.NewIdentityService(backend)
@@ -842,10 +842,7 @@ Tirv9LjajEBxUnuV+wIDAQAB
 			err := identity.UpsertKeyAttestationData(ctx, attestationData, time.Hour)
 			require.NoError(t, err, "UpsertKeyAttestationData failed")
 
-			pub, err := x509.ParsePKIXPublicKey(pubDer)
-			require.NoError(t, err, "ParsePKIXPublicKey failed")
-
-			retrievedAttestationData, err := identity.GetKeyAttestationData(ctx, pub)
+			retrievedAttestationData, err := identity.GetKeyAttestationData(ctx, pubDer)
 			require.NoError(t, err, "GetKeyAttestationData failed")
 			require.Equal(t, attestationData, retrievedAttestationData, "GetKeyAttestationData mismatch")
 		})
@@ -1138,4 +1135,75 @@ func TestIdentityService_ListUsers(t *testing.T) {
 		return strings.Compare(a.GetName(), b.GetName())
 	})
 	require.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.SortSlices(devicesSort)), "not all users returned from listing operation")
+
+	ssoUser := expectedUsers[2]
+	expectedUsers = slices.Delete(expectedUsers, 2, 3)
+	ssoUser.SetExpiry(clock.Now().UTC().Add(time.Minute))
+
+	_, err = identity.UpsertUser(ctx, ssoUser)
+	assert.NoError(t, err, "failed to upsert SSO user")
+
+	clock.Advance(time.Hour)
+
+	retrieved, next, err = identity.ListUsers(ctx, 0, "", true)
+	assert.NoError(t, err, "got an error while listing over an expired user")
+	assert.Empty(t, next, "next page token returned from listing all users")
+	slices.SortFunc(retrieved, func(a, b types.User) int {
+		return strings.Compare(a.GetName(), b.GetName())
+	})
+	require.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.SortSlices(devicesSort)), "not all users returned from listing operation")
+}
+
+func TestCompareAndSwapUser(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+	ctx := context.Background()
+
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+
+	bob1, err := types.NewUser("bob")
+	require.NoError(err)
+	bob1.SetLogins([]string{"bob"})
+
+	bob2, err := types.NewUser("bob")
+	require.NoError(err)
+	bob2.SetLogins([]string{"bob", "alice"})
+
+	require.False(services.UsersEquals(bob1, bob2))
+
+	currentBob, err := identity.UpsertUser(ctx, bob1)
+	require.NoError(err)
+	require.True(services.UsersEquals(currentBob, bob1))
+
+	currentBob, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(err)
+	require.True(services.UsersEquals(currentBob, bob1))
+
+	err = identity.CompareAndSwapUser(ctx, bob2, bob1)
+	require.NoError(err)
+
+	currentBob, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(err)
+	require.True(services.UsersEquals(currentBob, bob2))
+
+	item, err := identity.Backend.Get(ctx, backend.Key(local.WebPrefix, local.UsersPrefix, "bob", local.ParamsPrefix))
+	require.NoError(err)
+	var m map[string]any
+	require.NoError(json.Unmarshal(item.Value, &m))
+	m["deprecated_field"] = 42
+	item.Value, err = json.Marshal(m)
+	require.NoError(err)
+	_, err = identity.Backend.Put(ctx, *item)
+	require.NoError(err)
+
+	currentBob, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(err)
+	require.True(services.UsersEquals(currentBob, bob2))
+
+	err = identity.CompareAndSwapUser(ctx, bob1, bob2)
+	require.NoError(err)
+
+	currentBob, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(err)
+	require.True(services.UsersEquals(currentBob, bob1))
 }

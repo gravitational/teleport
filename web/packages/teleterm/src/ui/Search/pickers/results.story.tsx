@@ -169,6 +169,41 @@ const SearchResultItems = () => {
     makeResourceResult({
       kind: 'app',
       resource: makeApp({
+        uri: `${clusterUri}/apps/web-app`,
+        name: 'web-app',
+        endpointUri: 'http://localhost:3000',
+        addrWithProtocol: 'http://local-app.example.com:3000',
+        desc: '',
+        labels: makeLabelsList({
+          access: 'cloudwatch-metrics,ec2,s3,cloudtrail',
+          'aws/Environment': 'demo-13-biz',
+          'aws/Owner': 'foobar',
+          env: 'dev',
+          'teleport.dev/origin': 'config-file',
+        }),
+      }),
+    }),
+    makeResourceResult({
+      kind: 'app',
+      resource: makeApp({
+        uri: `${clusterUri}/apps/saml-app`,
+        name: 'saml-app',
+        endpointUri: '',
+        addrWithProtocol: '',
+        samlApp: true,
+        desc: 'SAML Application',
+        labels: makeLabelsList({
+          access: 'cloudwatch-metrics,ec2,s3,cloudtrail',
+          'aws/Environment': 'demo-13-biz',
+          'aws/Owner': 'foobar',
+          env: 'dev',
+          'teleport.dev/origin': 'config-file',
+        }),
+      }),
+    }),
+    makeResourceResult({
+      kind: 'app',
+      resource: makeApp({
         uri: `${clusterUri}/apps/no-desc`,
         name: 'no-desc',
         desc: '',

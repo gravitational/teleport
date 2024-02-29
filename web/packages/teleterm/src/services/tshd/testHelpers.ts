@@ -59,7 +59,7 @@ export const makeKube = (props: Partial<tsh.Kube> = {}): tsh.Kube => ({
   ...props,
 });
 
-export const makeApp = (props: Partial<tsh.App> = {}): App => ({
+export const makeApp = (props: Partial<App> = {}): App => ({
   name: 'foo',
   labels: [],
   endpointUri: 'tcp://localhost:3000',

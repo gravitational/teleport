@@ -31,22 +31,18 @@ import { filterSensitiveProperties } from 'teleterm/services/tshd/interceptors';
 
 export interface ReloginRequest extends api.ReloginRequest {
   rootClusterUri: uri.RootClusterUri;
-  gatewayCertExpired?: GatewayCertExpired;
 }
 export interface GatewayCertExpired extends api.GatewayCertExpired {
   gatewayUri: uri.GatewayUri;
   targetUri: uri.DatabaseUri;
 }
 
-export interface SendNotificationRequest extends api.SendNotificationRequest {
-  cannotProxyGatewayConnection?: CannotProxyGatewayConnection;
-}
+export type SendNotificationRequest = api.SendNotificationRequest;
 export interface CannotProxyGatewayConnection
   extends api.CannotProxyGatewayConnection {
   gatewayUri: uri.GatewayUri;
   targetUri: uri.DatabaseUri;
 }
-
 export type PromptMfaRequest = api.PromptMFARequest & {
   rootClusterUri: uri.RootClusterUri;
 };
@@ -153,7 +149,7 @@ function createService(logger: Logger): {
     >,
     Response extends ExtractResponseType<
       Parameters<apiService.ITshdEventsService[RpcName]>[1]
-    >
+    >,
   >(
     rpcName: RpcName,
     call: grpc.ServerUnaryCall<Request, Response>,

@@ -50,22 +50,24 @@ type grpcClientStreamWrapper struct {
 
 // SendMsg wraps around ClientStream.SendMsg
 func (s *grpcClientStreamWrapper) SendMsg(m interface{}) error {
-	if err := s.ClientStream.SendMsg(m); err != nil {
-		return &RemoteError{Err: trace.Unwrap(trail.FromGRPC(s.ClientStream.SendMsg(m)))}
-	}
-	return nil
+	return wrapStreamErr(s.ClientStream.SendMsg(m))
 }
 
 // RecvMsg wraps around ClientStream.RecvMsg
 func (s *grpcClientStreamWrapper) RecvMsg(m interface{}) error {
-	switch err := s.ClientStream.RecvMsg(m); {
+	return wrapStreamErr(s.ClientStream.RecvMsg(m))
+}
+
+func wrapStreamErr(err error) error {
+	switch {
+	case err == nil:
+		return nil
 	case errors.Is(err, io.EOF):
 		// Do not wrap io.EOF errors, they are often used as stop guards for streams.
 		return err
-	case err != nil:
-		return &RemoteError{Err: trace.Unwrap(trail.FromGRPC(s.ClientStream.RecvMsg(m)))}
+	default:
+		return &RemoteError{Err: trace.Unwrap(trail.FromGRPC(err))}
 	}
-	return nil
 }
 
 // GRPCServerUnaryErrorInterceptor is a gRPC unary server interceptor that

@@ -33,6 +33,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -53,13 +54,20 @@ const (
 	pendingKeyTimeout           = 30 * time.Second
 )
 
+type CloudClientProvider interface {
+	// GetAWSSTSClient returns AWS STS client for the specified region.
+	GetAWSSTSClient(ctx context.Context, region string, opts ...cloud.AWSAssumeRoleOptionFn) (stsiface.STSAPI, error)
+	// GetAWSKMSClient returns AWS KMS client for the specified region.
+	GetAWSKMSClient(ctx context.Context, region string, opts ...cloud.AWSAssumeRoleOptionFn) (kmsiface.KMSAPI, error)
+}
+
 // AWSKMSConfig holds configuration parameters specific to AWS KMS keystores.
 type AWSKMSConfig struct {
 	Cluster    string
 	AWSAccount string
 	AWSRegion  string
 
-	CloudClients cloud.Clients
+	CloudClients CloudClientProvider
 	clock        clockwork.Clock
 }
 
@@ -76,11 +84,7 @@ func (c *AWSKMSConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("AWS region is required")
 	}
 	if c.CloudClients == nil {
-		cloudClients, err := cloud.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.CloudClients = cloudClients
+		return trace.BadParameter("CloudClients is required")
 	}
 	if c.clock == nil {
 		c.clock = clockwork.NewRealClock()

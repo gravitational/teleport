@@ -24,6 +24,8 @@
 import { TerminalService } from "./service_pb";
 import type { BinaryWriteOptions } from "@protobuf-ts/runtime";
 import type { BinaryReadOptions } from "@protobuf-ts/runtime";
+import type { AuthenticateWebDeviceResponse } from "./service_pb";
+import type { AuthenticateWebDeviceRequest } from "./service_pb";
 import type { UpdateUserPreferencesResponse } from "./service_pb";
 import type { UpdateUserPreferencesRequest } from "./service_pb";
 import type { GetUserPreferencesResponse } from "./service_pb";
@@ -497,6 +499,19 @@ export interface ITerminalServiceClient {
     updateUserPreferences(input: UpdateUserPreferencesRequest, metadata: grpc.Metadata, callback: (err: grpc.ServiceError | null, value?: UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
     updateUserPreferences(input: UpdateUserPreferencesRequest, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
     updateUserPreferences(input: UpdateUserPreferencesRequest, callback: (err: grpc.ServiceError | null, value?: UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    /**
+     * AuthenticateWebDevice blesses a web session with device trust by performing
+     * the on-behalf-of device authentication ceremony.
+     *
+     * See
+     * https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
+     *
+     * @generated from protobuf rpc: AuthenticateWebDevice(teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest) returns (teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse);
+     */
+    authenticateWebDevice(input: AuthenticateWebDeviceRequest, metadata: grpc.Metadata, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: AuthenticateWebDeviceResponse) => void): grpc.ClientUnaryCall;
+    authenticateWebDevice(input: AuthenticateWebDeviceRequest, metadata: grpc.Metadata, callback: (err: grpc.ServiceError | null, value?: AuthenticateWebDeviceResponse) => void): grpc.ClientUnaryCall;
+    authenticateWebDevice(input: AuthenticateWebDeviceRequest, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: AuthenticateWebDeviceResponse) => void): grpc.ClientUnaryCall;
+    authenticateWebDevice(input: AuthenticateWebDeviceRequest, callback: (err: grpc.ServiceError | null, value?: AuthenticateWebDeviceResponse) => void): grpc.ClientUnaryCall;
 }
 /**
  * TerminalService is used by the Electron app to communicate with the tsh daemon.
@@ -908,5 +923,18 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     updateUserPreferences(input: UpdateUserPreferencesRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: UpdateUserPreferencesResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: UpdateUserPreferencesResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: UpdateUserPreferencesResponse) => void)): grpc.ClientUnaryCall {
         const method = TerminalService.methods[39];
         return this.makeUnaryRequest<UpdateUserPreferencesRequest, UpdateUserPreferencesResponse>(`/${TerminalService.typeName}/${method.name}`, (value: UpdateUserPreferencesRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): UpdateUserPreferencesResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
+    }
+    /**
+     * AuthenticateWebDevice blesses a web session with device trust by performing
+     * the on-behalf-of device authentication ceremony.
+     *
+     * See
+     * https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
+     *
+     * @generated from protobuf rpc: AuthenticateWebDevice(teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest) returns (teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse);
+     */
+    authenticateWebDevice(input: AuthenticateWebDeviceRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: AuthenticateWebDeviceResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: AuthenticateWebDeviceResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: AuthenticateWebDeviceResponse) => void)): grpc.ClientUnaryCall {
+        const method = TerminalService.methods[40];
+        return this.makeUnaryRequest<AuthenticateWebDeviceRequest, AuthenticateWebDeviceResponse>(`/${TerminalService.typeName}/${method.name}`, (value: AuthenticateWebDeviceRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): AuthenticateWebDeviceResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
 }

@@ -47,6 +47,7 @@ import {
   getWebAppLaunchUrl,
   isWebApp,
   getAwsAppLaunchUrl,
+  getSamlAppSsoUrl,
 } from 'teleterm/services/tshd/app';
 
 export function ConnectServerActionButton(props: {
@@ -80,7 +81,7 @@ export function ConnectServerActionButton(props: {
         horizontal: 'right',
       }}
       anchorOrigin={{
-        vertical: 'center',
+        vertical: 'bottom',
         horizontal: 'right',
       }}
     />
@@ -166,7 +167,7 @@ export function ConnectDatabaseActionButton(props: {
         horizontal: 'right',
       }}
       anchorOrigin={{
-        vertical: 'center',
+        vertical: 'bottom',
         horizontal: 'right',
       }}
     />
@@ -229,7 +230,27 @@ function AppButton(props: {
             arn,
           })
         }
+        onLaunchUrl={props.onLaunchUrl}
       />
+    );
+  }
+
+  if (props.app.samlApp) {
+    return (
+      <ButtonBorder
+        size="small"
+        onClick={props.onLaunchUrl}
+        as="a"
+        textTransform="none"
+        title="Log in to the app in the browser"
+        href={getSamlAppSsoUrl({
+          app: props.app,
+          rootCluster: props.rootCluster,
+        })}
+        target="_blank"
+      >
+        Login
+      </ButtonBorder>
     );
   }
 
@@ -247,7 +268,7 @@ function AppButton(props: {
           })}
           onClick={props.onLaunchUrl}
           target="_blank"
-          title="Launch app in the browser"
+          title="Launch the app in the browser"
           css={`
             border-top-right-radius: 0;
             border-bottom-right-radius: 0;

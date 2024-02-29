@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -229,11 +230,7 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 
 	if props.clientMetadata != nil {
 		event.RemoteAddr = props.clientMetadata.RemoteAddr
-		if len(props.clientMetadata.UserAgent) > maxUserAgentLen {
-			event.UserAgent = props.clientMetadata.UserAgent[:maxUserAgentLen-3] + "..."
-		} else {
-			event.UserAgent = props.clientMetadata.UserAgent
-		}
+		event.UserAgent = trimUserAgent(props.clientMetadata.UserAgent)
 	}
 
 	if props.mfaDevice != nil {
@@ -375,6 +372,11 @@ func (a *Server) authenticateUserInternal(ctx context.Context, req AuthenticateU
 		authErr = authenticateHeadlessError
 	case req.Webauthn != nil:
 		authenticateFn = func() (*types.MFADevice, error) {
+			if req.Pass != nil {
+				if err = a.checkPasswordWOToken(user, req.Pass.Password); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
 			mfaResponse := &proto.MFAAuthenticateResponse{
 				Response: &proto.MFAAuthenticateResponse_Webauthn{
 					Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
@@ -643,12 +645,13 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 		return nil, trace.Wrap(err)
 	}
 
-	loginIP := ""
-	if req.ClientMetadata != nil {
-		loginIP, _, err = net.SplitHostPort(req.ClientMetadata.RemoteAddr)
+	var loginIP, userAgent string
+	if cm := req.ClientMetadata; cm != nil {
+		loginIP, _, err = net.SplitHostPort(cm.RemoteAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		userAgent = cm.UserAgent
 	}
 
 	sess, err := a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
@@ -661,6 +664,27 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Create the device trust DeviceWebToken.
+	// We only get a token if the server is enabled for Device Trust and the user
+	// has a suitable trusted device.
+	if loginIP != "" && userAgent != "" {
+		webToken, err := a.createDeviceWebToken(ctx, &devicepb.DeviceWebToken{
+			WebSessionId:     sess.GetName(),
+			BrowserUserAgent: userAgent,
+			BrowserIp:        loginIP,
+			User:             sess.GetUser(),
+		})
+		switch {
+		case err != nil:
+			log.WithError(err).Warn("Failed to create DeviceWebToken for user")
+		case webToken != nil: // May be nil even if err==nil.
+			sess.SetDeviceWebToken(&types.DeviceWebToken{
+				Id:    webToken.Id,
+				Token: webToken.Token,
+			})
+		}
 	}
 
 	return sess, nil
@@ -828,7 +852,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		certReq.ttl = time.Minute
 	}
 
-	certs, err := a.generateUserCert(certReq)
+	certs, err := a.generateUserCert(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -873,7 +897,8 @@ func (a *Server) createUserWebSession(ctx context.Context, user services.UserSta
 }
 
 func getErrorByTraceField(err error) error {
-	traceErr, ok := err.(trace.Error)
+	var traceErr trace.Error
+	ok := errors.As(err, &traceErr)
 	switch {
 	case !ok:
 		log.WithError(err).Warn("Unexpected error type, wanted TraceError")
@@ -883,6 +908,13 @@ func getErrorByTraceField(err error) error {
 	}
 
 	return nil
+}
+
+func trimUserAgent(userAgent string) string {
+	if len(userAgent) > maxUserAgentLen {
+		return userAgent[:maxUserAgentLen-3] + "..."
+	}
+	return userAgent
 }
 
 const noLocalAuth = "local auth disabled"

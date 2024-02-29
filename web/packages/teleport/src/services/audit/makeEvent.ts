@@ -895,10 +895,26 @@ export const formatters: Formatters = {
       )}] in database [${db_name}] on [${db_service}] failed`,
   },
   [eventCodes.DATABASE_SESSION_MALFORMED_PACKET]: {
-    type: 'db.session.malformed_packet"',
+    type: 'db.session.malformed_packet',
     desc: 'Database Malformed Packet',
     format: ({ user, db_service, db_name }) =>
       `Received malformed packet from [${user}] in [${db_name}] on database [${db_service}]`,
+  },
+  [eventCodes.DATABASE_SESSION_PERMISSIONS_UPDATE]: {
+    type: ' db.session.permissions.update',
+    desc: 'Database Permissions Update',
+    format: ({ user, db_service, db_name, permission_summary }) => {
+      console.log(permission_summary);
+      const summary = permission_summary
+        .map(p => {
+          const details = Object.entries(p.counts)
+            .map(([key, value]) => `${key}:${value}`)
+            .join(',');
+          return `${p.permission}:${details}`;
+        })
+        .join('; ');
+      return `User permissions [${user}] in [${db_name}] on database [${db_service}]: ${summary}`;
+    },
   },
   [eventCodes.DATABASE_CREATED]: {
     type: 'db.create',
@@ -1551,6 +1567,27 @@ export const formatters: Formatters = {
     format: ({ name, source, user }) =>
       `Okta assignment [${name}], source [${source}], user [${user}] cleanup has failed`,
   },
+  [eventCodes.OKTA_USER_SYNC]: {
+    type: 'okta.user.sync',
+    desc: 'Okta user synchronization completed',
+    format: ({ num_users_created, num_users_modified, num_users_deleted }) =>
+      `[${num_users_created}] users added, [${num_users_modified}] users updated, [${num_users_deleted}] users deleted`,
+  },
+  [eventCodes.OKTA_USER_SYNC_FAILURE]: {
+    type: 'okta.user.sync',
+    desc: 'Okta user synchronization failed',
+    format: () => `Okta user synchronization failed`,
+  },
+  [eventCodes.OKTA_ACCESS_LIST_SYNC]: {
+    type: 'okta.access_list.sync',
+    desc: 'Okta access list synchronization completed',
+    format: () => `Okta access list synchronization successfully completed`,
+  },
+  [eventCodes.OKTA_ACCESS_LIST_SYNC_FAILURE]: {
+    type: 'okta.access_list.sync',
+    desc: 'Okta access list synchronization failed',
+    format: () => `Okta access list synchronization failed`,
+  },
   [eventCodes.ACCESS_LIST_CREATE]: {
     type: 'access_list.create',
     desc: 'Access list created',
@@ -1685,6 +1722,18 @@ export const formatters: Formatters = {
     desc: 'External Audit Storage Disabled',
     format: ({ updated_by }) =>
       `User [${updated_by}] disabled External Audit Storage`,
+  },
+  [eventCodes.SPIFFE_SVID_ISSUED]: {
+    type: 'spiffe.svid.issued',
+    desc: 'SPIFFE SVID Issued',
+    format: ({ user, spiffe_id }) =>
+      `User [${user}] issued SPIFFE SVID [${spiffe_id}]`,
+  },
+  [eventCodes.SPIFFE_SVID_ISSUED_FAILURE]: {
+    type: 'spiffe.svid.issued',
+    desc: 'SPIFFE SVID Issued Failure',
+    format: ({ user, spiffe_id }) =>
+      `User [${user}] failed to issue SPIFFE SVID [${spiffe_id}]`,
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',

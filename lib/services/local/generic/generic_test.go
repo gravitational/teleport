@@ -165,6 +165,11 @@ func TestGenericCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
+	// Count all resources.
+	count, err := service.CountResources(ctx)
+	require.NoError(t, err)
+	require.Equal(t, uint(2), count)
+
 	// Fetch a list of all resources
 	allResources, err := service.GetResources(ctx)
 	require.NoError(t, err)
@@ -211,6 +216,11 @@ func TestGenericCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff([]*testResource{r2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
+
+	// Make sure count is updated.
+	count, err = service.CountResources(ctx)
+	require.NoError(t, err)
+	require.Equal(t, uint(1), count)
 
 	// Upsert a resource (create).
 	r1, err = service.UpsertResource(ctx, r1)
@@ -273,4 +283,52 @@ func TestGenericCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, out)
+
+	// Make sure count is updated.
+	count, err = service.CountResources(ctx)
+	require.NoError(t, err)
+	require.Equal(t, uint(0), count)
+}
+
+func TestGenericListResourcesReturnNextResource(t *testing.T) {
+	ctx := context.Background()
+
+	memBackend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	service, err := NewService(&ServiceConfig[*testResource]{
+		Backend:       memBackend,
+		ResourceKind:  "generic resource",
+		PageLimit:     200,
+		BackendPrefix: "generic_prefix",
+		UnmarshalFunc: unmarshalResource,
+		MarshalFunc:   marshalResource,
+	})
+	require.NoError(t, err)
+
+	// Create a couple test resources.
+	r1 := newTestResource("r1")
+	r2 := newTestResource("r2")
+
+	_, err = service.WithPrefix("a-unique-prefix").UpsertResource(ctx, r1)
+	require.NoError(t, err)
+	_, err = service.WithPrefix("another-unique-prefix").UpsertResource(ctx, r2)
+	require.NoError(t, err)
+
+	page, next, err := service.ListResourcesReturnNextResource(ctx, 1, "")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]*testResource{r1}, page,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+	require.NotNil(t, next)
+
+	page, next, err = service.ListResourcesReturnNextResource(ctx, 1, "another-unique-prefix"+string(backend.Separator)+backend.GetPaginationKey(*next))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]*testResource{r2}, page,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+	require.Nil(t, next)
 }

@@ -631,17 +631,19 @@ func exitCode(err error) int {
 		return teleport.RemoteCommandSuccess
 	}
 
-	switch v := err.(type) {
+	var execExitErr *exec.ExitError
+	var sshExitErr *ssh.ExitError
+	switch {
 	// Local execution.
-	case *exec.ExitError:
-		waitStatus, ok := v.Sys().(syscall.WaitStatus)
+	case errors.As(err, &execExitErr):
+		waitStatus, ok := execExitErr.Sys().(syscall.WaitStatus)
 		if !ok {
 			return teleport.RemoteCommandFailure
 		}
 		return waitStatus.ExitStatus()
 	// Remote execution.
-	case *ssh.ExitError:
-		return v.ExitStatus()
+	case errors.As(err, &sshExitErr):
+		return sshExitErr.ExitStatus()
 	// An error occurred, but the type is unknown, return a generic 255 code.
 	default:
 		log.Debugf("Unknown error returned when executing command: %T: %v.", err, err)

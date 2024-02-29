@@ -36,11 +36,13 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -59,6 +61,7 @@ type outputsService struct {
 	reloadBroadcaster *channelBroadcaster
 	botIdentitySrc    botIdentitySrc
 	cfg               *config.BotConfig
+	resolver          reversetunnelclient.Resolver
 }
 
 func (s *outputsService) String() string {
@@ -83,7 +86,7 @@ func (s *outputsService) renewOutputs(
 	defer span.End()
 
 	botIdentity := s.botIdentitySrc.BotIdentity()
-	client, err := clientForIdentity(ctx, s.log, s.cfg, botIdentity)
+	client, err := clientForIdentity(ctx, s.log, s.cfg, botIdentity, s.resolver)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -548,7 +551,7 @@ func (s *outputsService) generateImpersonatedIdentity(
 
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
-	impersonatedClient, err = clientForIdentity(ctx, s.log, s.cfg, impersonatedIdentity)
+	impersonatedClient, err = clientForIdentity(ctx, s.log, s.cfg, impersonatedIdentity, s.resolver)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -780,8 +783,10 @@ func (op *outputProvider) GetRemoteClusters(opts ...services.MarshalOption) ([]t
 }
 
 // GenerateHostCert uses the impersonatedClient to call GenerateHostCert.
-func (op *outputProvider) GenerateHostCert(ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
-	return op.impersonatedClient.GenerateHostCert(ctx, key, hostID, nodeName, principals, clusterName, role, ttl)
+func (op *outputProvider) GenerateHostCert(
+	ctx context.Context, req *trustpb.GenerateHostCertRequest,
+) (*trustpb.GenerateHostCertResponse, error) {
+	return op.impersonatedClient.TrustClient().GenerateHostCert(ctx, req)
 }
 
 // GetCertAuthority uses the impersonatedClient to call GetCertAuthority.
