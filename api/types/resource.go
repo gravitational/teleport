@@ -120,6 +120,15 @@ type ResourceWithLabels interface {
 	MatchSearch(searchValues []string) bool
 }
 
+// EnrichedResource is a [ResourceWithLabels] wrapped with
+// additional user-specific information.
+type EnrichedResource struct {
+	// ResourceWithLabels is the underlying resource.
+	ResourceWithLabels
+	// Logins that the user is allowed to access the above resource with.
+	Logins []string
+}
+
 // ResourcesWithLabels is a list of labeled resources.
 type ResourcesWithLabels []ResourceWithLabels
 

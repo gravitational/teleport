@@ -92,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
@@ -2651,7 +2652,33 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 		PredicateExpression: values.Get("query"),
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
 		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",
+		IncludeLogins:       true,
 	}, nil
+}
+
+// calculateSSHLogins returns the subset of the allowedLogins that exist in
+// the principals of the identity. This is required because SSH authorization
+// only allows using a login that exists in the certificates valid principals.
+// When connecting to servers in a leaf cluster, the root certificate is used,
+// so we need to ensure that we only present the allowed logins that would
+// result in a successful connection, if any exists.
+func calculateSSHLogins(identity *tlsca.Identity, allowedLogins []string) ([]string, error) {
+	localLogins := identity.Principals
+
+	allowed := make(map[string]struct{})
+	for _, login := range allowedLogins {
+		allowed[login] = struct{}{}
+	}
+
+	var logins []string
+	for _, local := range localLogins {
+		if _, ok := allowed[local]; ok {
+			logins = append(logins, local)
+		}
+	}
+
+	slices.Sort(logins)
+	return logins, nil
 }
 
 // clusterUnifiedResourcesGet returns a list of resources for a given cluster site. This includes all resources available to be displayed in the web ui
@@ -2672,7 +2699,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 		return nil, trace.Wrap(err)
 	}
 
-	page, err := apiclient.ListUnifiedResourcePage(request.Context(), clt, req)
+	page, next, err := apiclient.GetUnifiedResourcePage(request.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2715,15 +2742,16 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 	var dbNames, dbUsers []string
 	hasFetchedDBUsersAndNames := false
 
-	unifiedResources := make([]any, 0, len(page.Resources))
-	for _, resource := range page.Resources {
-		switch r := resource.(type) {
+	unifiedResources := make([]any, 0, len(page))
+	for _, resource := range page {
+		switch r := resource.ResourceWithLabels.(type) {
 		case types.Server:
-			server, err := ui.MakeServer(site.GetName(), r, accessChecker)
+			logins, err := calculateSSHLogins(identity, resource.Logins)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			unifiedResources = append(unifiedResources, server)
+
+			unifiedResources = append(unifiedResources, ui.MakeServer(site.GetName(), r, logins))
 		case types.DatabaseServer:
 			if !hasFetchedDBUsersAndNames {
 				dbNames, dbUsers, err = getDatabaseUsersAndNames(accessChecker)
@@ -2765,11 +2793,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				unifiedResources = append(unifiedResources, app)
 			}
 		case types.WindowsDesktop:
-			desktop, err := ui.MakeDesktop(r, accessChecker)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			unifiedResources = append(unifiedResources, desktop)
+			unifiedResources = append(unifiedResources, ui.MakeDesktop(r, resource.Logins))
 		case types.KubeCluster:
 			kube := ui.MakeKubeCluster(r, accessChecker)
 			unifiedResources = append(unifiedResources, kube)
@@ -2782,9 +2806,8 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 	}
 
 	resp := listResourcesGetResponse{
-		Items:      unifiedResources,
-		StartKey:   page.NextKey,
-		TotalCount: page.Total,
+		Items:    unifiedResources,
+		StartKey: next,
 	}
 
 	return resp, nil
@@ -2803,20 +2826,31 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	req.IncludeLogins = true
 
-	page, err := apiclient.GetResourcePage[types.Server](r.Context(), clt, req)
+	page, err := apiclient.GetEnrichedResourcePage(r.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := sctx.GetUserAccessChecker()
+	identity, err := sctx.GetIdentity()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	uiServers, err := ui.MakeServers(site.GetName(), page.Resources, accessChecker)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	uiServers := make([]ui.Server, 0, len(page.Resources))
+	for _, resource := range page.Resources {
+		server, ok := resource.ResourceWithLabels.(types.Server)
+		if !ok {
+			continue
+		}
+
+		logins, err := calculateSSHLogins(identity, resource.Logins)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		uiServers = append(uiServers, ui.MakeServer(site.GetName(), server, logins))
 	}
 
 	return listResourcesGetResponse{

@@ -1765,6 +1765,9 @@ type FakePaginateParams struct {
 	Kinds []string
 	// NeedTotalCount indicates whether or not the caller also wants the total number of resources after filtering.
 	NeedTotalCount bool
+	// EnrichResourceFn if provided allows the resource to be enriched with additional
+	// information (logins, db names, etc.) before being added to the response.
+	EnrichResourceFn func(types.ResourceWithLabels) (types.ResourceWithLabels, error)
 }
 
 // GetWindowsDesktopFilter retrieves the WindowsDesktopFilter from params
@@ -1817,6 +1820,12 @@ func FakePaginate(resources []types.ResourceWithLabels, req FakePaginateParams) 
 			return nil, trace.Wrap(err)
 		case !match:
 			continue
+		}
+
+		if req.EnrichResourceFn != nil {
+			if enriched, err := req.EnrichResourceFn(resource); err == nil {
+				resource = enriched
+			}
 		}
 
 		filtered = append(filtered, resource)

@@ -480,11 +480,12 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 
 	servers := make([]ui.Server, 0, len(listResp.Servers))
 	for _, s := range listResp.Servers {
-		serverUI, err := ui.MakeServer(h.auth.clusterName, s, accessChecker)
+		logins, err := accessChecker.GetAllowedLoginsForResource(s)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		servers = append(servers, serverUI)
+
+		servers = append(servers, ui.MakeServer(h.auth.clusterName, s, logins))
 	}
 
 	return ui.AWSOIDCListEC2Response{

@@ -1437,6 +1437,28 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		return nil, trace.Wrap(err, "making paginated unified resources")
 	}
 
+	if req.IncludeLogins {
+		for _, r := range paginatedResources {
+			if n := r.GetNode(); n != nil {
+				logins, err := checker.GetAllowedLoginsForResource(n)
+				if err != nil {
+					log.WithError(err).WithField("resource", n.GetName()).Warn("Unable to determine logins for node")
+					continue
+				}
+				r.Logins = logins
+			}
+
+			if d := r.GetWindowsDesktop(); d != nil {
+				logins, err := checker.GetAllowedLoginsForResource(d)
+				if err != nil {
+					log.WithError(err).WithField("resource", d.GetName()).Warn("Unable to determine logins for desktop")
+					continue
+				}
+				r.Logins = logins
+			}
+		}
+	}
+
 	return &proto.ListUnifiedResourcesResponse{
 		NextKey:   nextKey,
 		Resources: paginatedResources,
@@ -1699,6 +1721,18 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		case err != nil:
 			return trace.Wrap(err)
 		case match:
+			if req.IncludeLogins {
+				logins, err := resourceChecker.GetAllowedLoginsForResource(resource)
+				if err != nil {
+					log.WithError(err).WithField("resource", resource.GetName()).Warn("Unable to determine logins for resource")
+				}
+
+				resource = types.EnrichedResource{
+					ResourceWithLabels: resource,
+					Logins:             logins,
+				}
+			}
+
 			resp.Resources = append(resp.Resources, resource)
 			return nil
 		}
@@ -1714,6 +1748,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 // resourceAccessChecker allows access to be checked differently per resource type.
 type resourceAccessChecker interface {
 	CanAccess(resource types.Resource) error
+	GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error)
 }
 
 // resourceChecker is a pass through checker that utilizes the provided
@@ -1902,6 +1937,23 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		SearchKeywords:      req.SearchKeywords,
 		PredicateExpression: req.PredicateExpression,
 		StartKey:            req.StartKey,
+		EnrichResourceFn: func(r types.ResourceWithLabels) (types.ResourceWithLabels, error) {
+			if req.IncludeLogins && (r.GetKind() == types.KindNode || r.GetKind() == types.KindWindowsDesktop) {
+				resourceChecker, err := a.newResourceAccessChecker(req.ResourceType)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				logins, err := resourceChecker.GetAllowedLoginsForResource(r)
+				if err != nil {
+					log.WithError(err).WithField("resource", r.GetName()).Warn("Unable to determine logins for resource")
+				}
+
+				return &types.EnrichedResource{ResourceWithLabels: r, Logins: logins}, nil
+			}
+
+			return r, nil
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2310,6 +2362,37 @@ type accessChecker interface {
 }
 
 func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
+	// delegate all access-control logic to ListAccessRequests to reduce duplicate maintenance.
+	req := proto.ListAccessRequestsRequest{
+		Filter: &filter,
+	}
+	var requests []types.AccessRequest
+	for {
+		rsp, err := a.ListAccessRequests(ctx, &req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, r := range rsp.AccessRequests {
+			requests = append(requests, r)
+		}
+
+		req.StartKey = rsp.NextKey
+		if req.StartKey == "" {
+			break
+		}
+	}
+
+	return requests, nil
+}
+
+// ListAccessRequests is an access request getter with pagination and sorting options.
+func (a *ServerWithRoles) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+	// ensure filter is non-nil
+	if req.Filter == nil {
+		req.Filter = &types.AccessRequestFilter{}
+	}
+
 	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbList, types.VerbRead); err != nil {
 		// Users are allowed to read + list their own access requests and
 		// requests they are allowed to review, unless access was *explicitly*
@@ -2321,13 +2404,13 @@ func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.Ac
 	} else {
 		// nil err means the user has explicit read + list permissions and can
 		// get all requests.
-		return a.authServer.GetAccessRequests(ctx, filter)
+		return a.authServer.ListAccessRequests(ctx, req)
 	}
 
 	// users can always view their own access requests unless the read or list
 	// verbs are explicitly denied
-	if filter.User != "" && a.currentUserAction(filter.User) == nil {
-		return a.authServer.GetAccessRequests(ctx, filter)
+	if req.Filter.User != "" && a.currentUserAction(req.Filter.User) == nil {
+		return a.authServer.ListAccessRequests(ctx, req)
 	}
 
 	// user does not have read/list permissions and is not specifically requesting only
@@ -2348,38 +2431,33 @@ func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.Ac
 	// unless the user has allow directives for reviewing, they will never be able to
 	// see any requests other than their own.
 	if !checker.HasAllowDirectives() {
-		if filter.User != "" {
+		if req.Filter.User != "" {
 			// filter specifies a user, but it wasn't caught by the preceding exception,
 			// so just return nothing.
-			return nil, nil
+			return &proto.ListAccessRequestsResponse{}, nil
 		}
-		filter.User = a.context.User.GetName()
-		return a.authServer.GetAccessRequests(ctx, filter)
+		req.Filter.User = a.context.User.GetName()
+		return a.authServer.ListAccessRequests(ctx, req)
 	}
 
-	reqs, err := a.authServer.GetAccessRequests(ctx, filter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// filter in place
-	filtered := reqs[:0]
-	for _, req := range reqs {
-		if req.GetUser() == a.context.User.GetName() {
-			filtered = append(filtered, req)
-			continue
+	// aggregate all requests that the caller owns and/or is able to review. Note that we perform all filtering via the
+	// passed-in matcher since the pagination key format varies by sort index and is an internal implementation detail
+	// of the access request cache.
+	rsp, err := a.authServer.ListMatchingAccessRequests(ctx, req, func(accessRequest *types.AccessRequestV3) (matches bool) {
+		if accessRequest.GetUser() == a.context.User.GetName() {
+			return true
 		}
 
-		ok, err := checker.CanReviewRequest(req)
+		canReview, err := checker.CanReviewRequest(accessRequest)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			log.Warnf("Failed to evaluate review permissions for user %q against request %q: %v", a.context.User.GetName(), accessRequest.GetName(), err)
+			return false
 		}
-		if ok {
-			filtered = append(filtered, req)
-			continue
-		}
-	}
-	return filtered, nil
+
+		return canReview
+	})
+
+	return rsp, trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
@@ -2399,7 +2477,7 @@ func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.A
 	}
 
 	// ensure request ID is set server-side
-	req.SetName(uuid.NewString())
+	req.SetName(uuid.Must(uuid.NewV7()).String())
 
 	resp, err := a.authServer.CreateAccessRequestV2(ctx, req, a.context.Identity.GetIdentity())
 	return resp, trace.Wrap(err)
