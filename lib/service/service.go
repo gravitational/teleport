@@ -1040,7 +1040,8 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	})
 
 	// if an external upgrader is defined, we need to set up an appropriate upgrade window exporter.
-	if upgraderKind != "" {
+	// An upgrade window exporter is not needed for AWS OIDC instances.
+	if upgraderKind != "" && upgraderKind != types.OriginIntegrationAWSOIDC {
 		if process.Config.Auth.Enabled || process.Config.Proxy.Enabled {
 			process.log.Warnf("Use of external upgraders on control-plane instances is not recommended.")
 		}
