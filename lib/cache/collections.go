@@ -260,9 +260,14 @@ func (g *genericCollection153[T, R, _]) processEvent(ctx context.Context, event 
 			}
 		}
 	case types.OpPut:
-		resource, ok := event.Resource.(T)
+		adapter, ok := event.Resource.(*types.Resource153ToLegacyAdapter)
 		if !ok {
-			return trace.BadParameter("unexpected type %T", event.Resource)
+			return trace.BadParameter("unexpected type %T, should be resource 153 adapter", event.Resource)
+		}
+		resource153 := adapter.Unwrap()
+		resource, ok := resource153.(T)
+		if !ok {
+			return trace.BadParameter("unexpected wrapped type %T", resource153)
 		}
 		if err := g.exec.upsert(ctx, g.cache, resource); err != nil {
 			return trace.Wrap(err)

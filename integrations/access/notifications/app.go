@@ -165,7 +165,7 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 }
 
 func (a *App) fetchRecipients(ctx context.Context, rawRecipients []string) (common.RecipientSet, error) {
-	recipients := common.RecipientSet{}
+	recipients := common.NewRecipientSet()
 	for _, rawRecipient := range rawRecipients {
 		recipient, err := a.bot.FetchRecipient(ctx, rawRecipient)
 		if err != nil {
