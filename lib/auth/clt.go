@@ -515,26 +515,6 @@ func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
 }
 
-// ListRemoteClusters returns a page of remote clusters.
-func (c *Client) ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error) {
-	return nil, "", trace.NotImplemented("ListRemoteClusters is not implemented yet")
-}
-
-// UpdateRemoteCluster updates a remote cluster.
-func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error) {
-	// This is a little weird during the migration period of the old endpoints
-	// to grpc. Here, we need to call Update via gRPC and Get via HTTP.
-	err := c.APIClient.UpdateRemoteCluster(ctx, rc)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	fetchedRC, err := c.HTTPClient.GetRemoteCluster(ctx, rc.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return fetchedRC, nil
-}
-
 // UpsertUser user updates user entry.
 // TODO(tross): DELETE IN 16.0.0
 func (c *Client) UpsertUser(ctx context.Context, user types.User) (types.User, error) {

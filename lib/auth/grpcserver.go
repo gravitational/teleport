@@ -144,6 +144,11 @@ type GRPCServer struct {
 	// new service.
 	botService *machineidv1.BotService
 
+	// presenceService is used to forward requests to deprecated presence RPCs
+	// to the new service.
+	// TODO(noah) DELETE IN 17.0.0
+	presenceService *presencev1.Service
+
 	// TraceServiceServer exposes the exporter server so that the auth server may
 	// collect and forward spans
 	collectortracepb.TraceServiceServer
@@ -2084,12 +2089,11 @@ func (g *GRPCServer) DeleteAllWebTokens(ctx context.Context, _ *emptypb.Empty) (
 }
 
 // UpdateRemoteCluster updates remote cluster
+// Deprecated: use [presencev1.PresenceService.UpdateRemoteCluster] instead.
+// TODO(noah): DELETE IN 17.0.0
 func (g *GRPCServer) UpdateRemoteCluster(ctx context.Context, req *types.RemoteClusterV3) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	_, err := g.presenceService.UpdateRemoteCluster(ctx, &presencev1pb.UpdateRemoteClusterRequest{RemoteCluster: req})
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.UpdateRemoteCluster(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
@@ -5302,9 +5306,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Entry: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
 		}),
-		server:       server,
-		usersService: usersService,
-		botService:   botService,
+		server:          server,
+		usersService:    usersService,
+		botService:      botService,
+		presenceService: presenceService,
 	}
 
 	authpb.RegisterAuthServiceServer(server, authServer)
