@@ -2319,8 +2319,7 @@ func (s *Server) createForwardingContext(ctx context.Context, ccx *sshutils.Conn
 		return nil, nil, err
 	}
 
-	// Create context for this request. This context will be closed when the
-	// client cancels remote forwarding.
+	// Create context for this request.
 	ctx, scx, err := srv.NewServerContext(ctx, ccx, s, identityContext)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
