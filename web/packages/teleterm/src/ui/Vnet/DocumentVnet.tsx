@@ -16,17 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useState } from 'react';
 import { useTheme } from 'styled-components';
-import { useAsync } from 'shared/hooks/useAsync';
 import { Flex, Alert, Text, ButtonPrimary, ButtonSecondary } from 'design';
 import * as icons from 'design/SVGIcon';
-
 import { StyledTable, StyledTableWrapper } from 'design/DataTable/StyledTable';
 
 import Document from 'teleterm/ui/Document';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useVnetContext } from './vnetContext';
 
 import type * as docTypes from 'teleterm/ui/services/workspacesService';
 
@@ -35,23 +32,8 @@ export function DocumentVnet(props: {
   doc: docTypes.DocumentVnet;
 }) {
   const { doc } = props;
-  const { vnet } = useAppContext();
+  const { status, start, startAttempt, stop, stopAttempt } = useVnetContext();
   const theme = useTheme();
-  const [status, setStatus] = useState<'running' | 'stopped'>('stopped');
-
-  const [startAttempt, startVnet] = useAsync(
-    useCallback(async () => {
-      await vnet.start(doc.rootClusterUri);
-      setStatus('running');
-    }, [vnet, doc.rootClusterUri])
-  );
-
-  const [stopAttempt, stopVnet] = useAsync(
-    useCallback(async () => {
-      await vnet.stop(doc.rootClusterUri);
-      setStatus('stopped');
-    }, [vnet, doc.rootClusterUri])
-  );
 
   return (
     <Document visible={props.visible}>
@@ -69,7 +51,7 @@ export function DocumentVnet(props: {
           <Text typography="h3">VNet</Text>
           {status === 'running' && (
             <ButtonSecondary
-              onClick={stopVnet}
+              onClick={() => stop(doc.rootClusterUri)}
               title="Stop VNet for teleport-local.dev"
               disabled={stopAttempt.status === 'processing'}
             >
@@ -78,7 +60,7 @@ export function DocumentVnet(props: {
           )}
           {status === 'stopped' && (
             <ButtonPrimary
-              onClick={startVnet}
+              onClick={() => start(doc.rootClusterUri)}
               disabled={startAttempt.status === 'processing'}
             >
               Start VNet

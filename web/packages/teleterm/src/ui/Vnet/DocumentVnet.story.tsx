@@ -20,6 +20,7 @@ import { rootClusterUri } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 
 import { DocumentVnet } from './DocumentVnet';
+import { VnetContextProvider } from './vnetContext';
 
 import type * as docTypes from 'teleterm/ui/services/workspacesService';
 
@@ -37,7 +38,9 @@ const doc: docTypes.DocumentVnet = {
 export const Story = () => {
   return (
     <MockAppContextProvider>
-      <DocumentVnet visible={true} doc={doc} />
+      <VnetContextProvider>
+        <DocumentVnet visible={true} doc={doc} />
+      </VnetContextProvider>
     </MockAppContextProvider>
   );
 };
