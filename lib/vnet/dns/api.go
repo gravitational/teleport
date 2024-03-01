@@ -2,21 +2,23 @@ package dns
 
 import (
 	"context"
-
-	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
 type Resolver interface {
-	Resolve(ctx context.Context, domain string) (*Result, error)
+	ResolveA(ctx context.Context, domain string) (Result, error)
+	ResolveAAAA(ctx context.Context, domain string) (Result, error)
 }
 
 // Result holds the result of DNS resolution.
 type Result struct {
-	// IP is the IP address.
-	IP tcpip.Address
-	// NXDomain indicates that the requested domain is invalid or unassigned.
+	// A is an A record.
+	A [4]byte
+	// AAAA is an AAAA record.
+	AAAA [16]byte
+	// NXDomain indicates that the requested domain is invalid or unassigned and
+	// the answer is authoritative.
 	NXDomain bool
-	// ForwardTo indicates that the DNS request should be forwarded to this
-	// address.
-	ForwardTo tcpip.Address
+	// NoRecord indicates the domain exists but the requested record type
+	// doesn't.
+	NoRecord bool
 }

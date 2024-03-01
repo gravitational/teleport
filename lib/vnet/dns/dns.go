@@ -17,14 +17,20 @@
 package dns
 
 import (
+	"bufio"
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
+	"net"
+	"os"
+	"strings"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"golang.org/x/net/dns/dnsmessage"
-	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
 const (
@@ -33,25 +39,34 @@ const (
 )
 
 type Server struct {
+	hostConfFile   string
 	slog           *slog.Logger
 	messageBuffers chan []byte
 	resolver       Resolver
+	ttlCache       *utils.FnCache
 }
 
-func NewServer(slog *slog.Logger, resolver Resolver) *Server {
+func NewServer(slog *slog.Logger, resolver Resolver) (*Server, error) {
 	messageBuffers := make(chan []byte, maxConcurrentQueries)
 	for i := 0; i < maxConcurrentQueries; i++ {
 		messageBuffers <- []byte{}
 	}
+	ttlCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL: 10 * time.Second,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &Server{
+		hostConfFile:   "/etc/resolv.conf",
+		slog:           slog.With(trace.Component, "VNet.DNS"),
 		messageBuffers: messageBuffers,
 		resolver:       resolver,
-		slog:           slog.With(trace.Component, "VNet.DNS"),
-	}
+		ttlCache:       ttlCache,
+	}, nil
 }
 
 func (s *Server) HandleUDPConn(ctx context.Context, conn io.ReadWriteCloser) error {
-	// TODO: IPv6
 	s.slog.Debug("Handling DNS.")
 	defer conn.Close()
 
@@ -78,52 +93,133 @@ func (s *Server) HandleUDPConn(ctx context.Context, conn io.ReadWriteCloser) err
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if requestHeader.OpCode != 0 {
+		s.slog.Debug("OpCode is not QUERY (0), not responding.", "OpCode", requestHeader.OpCode)
+		return nil
+	}
 	question, err := parser.Question()
 	s.slog.Debug("Received DNS question.", "question", question)
 	if question.Class != dnsmessage.ClassINET {
 		s.slog.Debug("Query class is not INET, not responding.", "class", question.Class)
 		return nil
 	}
-
-	// Reset buf to use it for the response.
-	buf = buf[:0]
-
 	fqdn := question.Name.String()
-	result, err := s.resolver.Resolve(ctx, fqdn)
-	if err != nil {
-		return trace.Wrap(err, "resolving DNS request for %s", fqdn)
-	}
 
-	if result.NXDomain {
-		s.slog.Debug("No match for name, responding with authoritative name error.", "fqdn", fqdn)
-		buf, err := buildDNSNXDomainResponse(buf, requestHeader, question)
+	var result Result
+	switch question.Type {
+	case dnsmessage.TypeA:
+		result, err = s.resolver.ResolveA(ctx, fqdn)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "resolving A request for %q", fqdn)
 		}
-		_, err = conn.Write(buf)
-		return trace.Wrap(err, "writing DNS NXDOMAIN response")
+	case dnsmessage.TypeAAAA:
+		result, err = s.resolver.ResolveAAAA(ctx, fqdn)
+		if err != nil {
+			return trace.Wrap(err, "resolving AAAA request for %q", fqdn)
+		}
+	default:
 	}
 
-	if result.ForwardTo != (tcpip.Address{}) {
-		// TODO: support custom domains with DNS forwarding
-		return trace.NotImplemented("DNS forwarding not implemented")
+	var response []byte
+	switch {
+	case result.NXDomain:
+		s.slog.Debug("No match for name, responding with authoritative name error.", "fqdn", fqdn)
+		response, err = buildNXDomainResponse(buf, &requestHeader, &question)
+	case result.NoRecord:
+		s.slog.Debug("Name matched but no record, responding with authoritative non-answer.", "fqdn", fqdn)
+		response, err = buildEmptyResponse(buf, &requestHeader, &question)
+	case result.A != ([4]byte{}):
+		s.slog.Debug("Matched DNS A.", "fqdn", fqdn, "A", result.A)
+		response, err = buildAResponse(buf, &requestHeader, &question, result.A)
+	case result.AAAA != ([16]byte{}):
+		s.slog.Debug("Matched DNS AAAA.", "fqdn", fqdn, "AAAA", result.AAAA)
+		response, err = buildAAAAResponse(buf, &requestHeader, &question, result.AAAA)
+	default:
+		// TODO: forwarding
+		s.slog.Debug("Recursively resolving query.")
+		response, err = s.recurse(ctx, buf)
 	}
-
-	// TODO: Support AAAA
-	aRecord := &dnsmessage.AResource{result.IP.As4()}
-	s.slog.Debug("Matched DNS question.", "fqdn", fqdn, "addr", aRecord.A)
-	buf, err = buildDNSResponseWithAnswer(buf, requestHeader, question, aRecord)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// debugDNS(buf)
+	_, err = conn.Write(response)
+	return trace.Wrap(err, "writing DNS response")
+}
 
-	n, err = conn.Write(buf)
-	if err != nil {
-		return trace.Wrap(err, "writing DNS response")
+func (s *Server) recurse(ctx context.Context, buf []byte) ([]byte, error) {
+	deadline := time.Now().Add(5 * time.Second)
+	dialer := net.Dialer{
+		Deadline: deadline,
 	}
-	return nil
+
+	forwardingNameservers, err := s.forwardingNameservers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting host default nameservers")
+	}
+	responses := make(chan []byte, len(forwardingNameservers))
+	errs := make(chan error, len(forwardingNameservers))
+	for _, addr := range forwardingNameservers {
+		go func() {
+			conn, err := dialer.DialContext(ctx, "udp", addr+":53")
+			if err != nil {
+				errs <- err
+				return
+			}
+			conn.SetWriteDeadline(deadline)
+			conn.SetReadDeadline(deadline)
+			_, err = conn.Write(buf)
+			if err != nil {
+				errs <- err
+				return
+			}
+			responseBuf := make([]byte, 1500 /*MTU*/)
+			n, err := conn.Read(responseBuf)
+			if n == cap(buf) {
+				errs <- fmt.Errorf("DNS response too large")
+				return
+			}
+			responses <- responseBuf
+		}()
+	}
+
+	var allErrs []error
+	for i := 0; i < len(forwardingNameservers); i++ {
+		select {
+		case err := <-errs:
+			allErrs = append(allErrs, err)
+		case resp := <-responses:
+			return resp, nil
+		}
+	}
+	return nil, trace.NewAggregate(allErrs...)
+}
+
+func (s *Server) forwardingNameservers(ctx context.Context) ([]string, error) {
+	return utils.FnCacheGet(ctx, s.ttlCache, "ns", func(ctx context.Context) ([]string, error) {
+		f, err := os.Open(s.hostConfFile)
+		if err != nil {
+			return nil, trace.Wrap(err, "opening %s", s.hostConfFile)
+		}
+		defer f.Close()
+
+		var nameservers []string
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if !strings.HasPrefix(line, "nameserver") {
+				continue
+			}
+			fields := strings.Fields(line)
+			if len(fields) < 2 {
+				continue
+			}
+			nameservers = append(nameservers, fields[1])
+		}
+		s.slog.Debug("Loaded host default nameservers.", "nameservers", nameservers)
+		return nameservers, nil
+	})
 }
 
 func debugDNS(buf []byte) {
@@ -159,79 +255,81 @@ func debugDNS(buf []byte) {
 	})
 }
 
-func buildDNSResponseWithoutAnswer(buf []byte, requestHeader dnsmessage.Header, question dnsmessage.Question) ([]byte, error) {
-	responseBuilder := dnsmessage.NewBuilder(buf, dnsmessage.Header{
-		ID:                 requestHeader.ID,
-		OpCode:             requestHeader.OpCode,
-		Response:           true,
-		Authoritative:      true,
-		Truncated:          false,
-		RecursionDesired:   false,
-		RecursionAvailable: false,
-		RCode:              dnsmessage.RCodeSuccess,
-	})
-	responseBuilder.EnableCompression()
-	if err := responseBuilder.StartQuestions(); err != nil {
-		return buf, trace.Wrap(err, "starting questions section of DNS response")
-	}
-	if err := responseBuilder.Question(question); err != nil {
-		return buf, trace.Wrap(err, "adding question to DNS response")
+func buildEmptyResponse(buf []byte, requestHeader *dnsmessage.Header, question *dnsmessage.Question) ([]byte, error) {
+	responseBuilder, err := prepDNSResponse(buf, requestHeader, question, dnsmessage.RCodeSuccess)
+	if err != nil {
+		return buf, trace.Wrap(err)
 	}
 	// TODO: TTL in SOA record?
-	buf, err := responseBuilder.Finish()
+	buf, err = responseBuilder.Finish()
 	return buf, trace.Wrap(err, "serializing DNS response")
 }
 
-func buildDNSNXDomainResponse(buf []byte, requestHeader dnsmessage.Header, question dnsmessage.Question) ([]byte, error) {
-	responseBuilder := dnsmessage.NewBuilder(buf, dnsmessage.Header{
-		ID:            requestHeader.ID,
-		OpCode:        requestHeader.OpCode,
-		Response:      true,
-		Authoritative: true,
-		RCode:         dnsmessage.RCodeNameError,
-	})
-	responseBuilder.EnableCompression()
-	if err := responseBuilder.StartQuestions(); err != nil {
-		return buf, trace.Wrap(err, "starting questions section of DNS response")
-	}
-	if err := responseBuilder.Question(question); err != nil {
-		return buf, trace.Wrap(err, "adding question to DNS response")
+func buildNXDomainResponse(buf []byte, requestHeader *dnsmessage.Header, question *dnsmessage.Question) ([]byte, error) {
+	responseBuilder, err := prepDNSResponse(buf, requestHeader, question, dnsmessage.RCodeNameError)
+	if err != nil {
+		return buf, trace.Wrap(err)
 	}
 	// TODO: TTL in SOA record?
-	buf, err := responseBuilder.Finish()
+	buf, err = responseBuilder.Finish()
 	return buf, trace.Wrap(err, "serializing DNS response")
 }
 
-func buildDNSResponseWithAnswer(buf []byte, requestHeader dnsmessage.Header, question dnsmessage.Question, aRecord *dnsmessage.AResource) ([]byte, error) {
-	responseBuilder := dnsmessage.NewBuilder(buf, dnsmessage.Header{
-		ID:                 requestHeader.ID,
-		OpCode:             requestHeader.OpCode,
-		Response:           true,
-		Authoritative:      true,
-		Truncated:          false,
-		RecursionDesired:   false,
-		RecursionAvailable: false,
-		RCode:              dnsmessage.RCodeSuccess,
-	})
-	responseBuilder.EnableCompression()
-	if err := responseBuilder.StartQuestions(); err != nil {
-		return buf, trace.Wrap(err, "starting questions section of DNS response")
-	}
-	if err := responseBuilder.Question(question); err != nil {
-		return buf, trace.Wrap(err, "adding question to DNS response")
+func buildAResponse(buf []byte, requestHeader *dnsmessage.Header, question *dnsmessage.Question, addr [4]byte) ([]byte, error) {
+	responseBuilder, err := prepDNSResponse(buf, requestHeader, question, dnsmessage.RCodeSuccess)
+	if err != nil {
+		return buf, trace.Wrap(err)
 	}
 	if err := responseBuilder.StartAnswers(); err != nil {
 		return buf, trace.Wrap(err, "starting answers section of DNS response")
 	}
-	// TODO: IPv6
 	if err := responseBuilder.AResource(dnsmessage.ResourceHeader{
 		Name:  question.Name,
 		Type:  dnsmessage.TypeA,
 		Class: dnsmessage.ClassINET,
-		TTL:   60,
-	}, *aRecord); err != nil {
+		TTL:   10,
+	}, dnsmessage.AResource{addr}); err != nil {
 		return buf, trace.Wrap(err, "adding AResource to DNS response")
 	}
-	buf, err := responseBuilder.Finish()
+	buf, err = responseBuilder.Finish()
 	return buf, trace.Wrap(err, "serializing DNS response")
+}
+
+func buildAAAAResponse(buf []byte, requestHeader *dnsmessage.Header, question *dnsmessage.Question, addr [16]byte) ([]byte, error) {
+	responseBuilder, err := prepDNSResponse(buf, requestHeader, question, dnsmessage.RCodeSuccess)
+	if err != nil {
+		return buf, trace.Wrap(err)
+	}
+	if err := responseBuilder.StartAnswers(); err != nil {
+		return buf, trace.Wrap(err, "starting answers section of DNS response")
+	}
+	if err := responseBuilder.AAAAResource(dnsmessage.ResourceHeader{
+		Name:  question.Name,
+		Type:  dnsmessage.TypeAAAA,
+		Class: dnsmessage.ClassINET,
+		TTL:   10,
+	}, dnsmessage.AAAAResource{addr}); err != nil {
+		return buf, trace.Wrap(err, "adding AAAAResource to DNS response")
+	}
+	buf, err = responseBuilder.Finish()
+	return buf, trace.Wrap(err, "serializing DNS response")
+}
+
+func prepDNSResponse(buf []byte, requestHeader *dnsmessage.Header, question *dnsmessage.Question, rcode dnsmessage.RCode) (*dnsmessage.Builder, error) {
+	buf = buf[:0]
+	responseBuilder := dnsmessage.NewBuilder(buf, dnsmessage.Header{
+		ID:                 requestHeader.ID,
+		Response:           true,
+		Authoritative:      true,
+		RecursionAvailable: true,
+		RCode:              dnsmessage.RCodeSuccess,
+	})
+	responseBuilder.EnableCompression()
+	if err := responseBuilder.StartQuestions(); err != nil {
+		return nil, trace.Wrap(err, "starting questions section of DNS response")
+	}
+	if err := responseBuilder.Question(*question); err != nil {
+		return nil, trace.Wrap(err, "adding question to DNS response")
+	}
+	return &responseBuilder, nil
 }

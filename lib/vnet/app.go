@@ -17,10 +17,13 @@
 package vnet
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"io"
 	"log/slog"
+	"net"
 
 	"github.com/gravitational/trace"
 
@@ -32,21 +35,100 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func proxyToApp(tc *client.TeleportClient, appName, appPublicAddr string) tcpHandler {
-	return func(ctx context.Context, connector tcpConnector) error {
-		cert, err := appCert(ctx, tc, appName, appPublicAddr)
+type tcpAppHandler struct {
+	tc  *client.TeleportClient
+	app types.Application
+}
+
+func (h *tcpAppHandler) handleTCP(ctx context.Context, connector tcpConnector) error {
+	appName := h.app.GetName()
+	cert, err := appCert(ctx, h.tc, appName, h.app.GetPublicAddr())
+	if err != nil {
+		return trace.Wrap(err, "getting cert for app %s", appName)
+	}
+	appConn, err := dialApp(ctx, h.tc, cert)
+	if err != nil {
+		return trace.Wrap(err, "dialing app %s", appName)
+	}
+	conn, err := connector()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(utils.ProxyConn(ctx, conn, appConn))
+}
+
+type httpAppHandler struct {
+	tc  *client.TeleportClient
+	app types.Application
+}
+
+func (h *httpAppHandler) handleTCP(ctx context.Context, connector tcpConnector) error {
+	appName := h.app.GetName()
+	cert, err := appCert(ctx, h.tc, appName, h.app.GetPublicAddr())
+	if err != nil {
+		return trace.Wrap(err, "getting cert for app %s", appName)
+	}
+
+	downstreamConn, err := connector()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	bufReader := bufio.NewReader(downstreamConn)
+	header, err := bufReader.Peek(6)
+	if err != nil {
+		return trace.Wrap(err, "peeking tcp stream")
+	}
+	downstreamConn = peekedConn{WriteCloser: downstreamConn, Reader: bufReader}
+
+	var upstreamConn io.ReadWriteCloser
+	if isTLSClientHello(header) {
+		var dialer net.Dialer
+		upstreamConn, err = dialer.DialContext(ctx, "tcp", h.tc.WebProxyAddr)
 		if err != nil {
-			return trace.Wrap(err, "getting cert for app %s", appName)
+			return trace.Wrap(err, "dialing proxy")
 		}
-		appConn, err := dialApp(ctx, tc, cert)
+	} else {
+		upstreamConn, err = dialApp(ctx, h.tc, cert)
 		if err != nil {
 			return trace.Wrap(err, "dialing app %s", appName)
 		}
-		conn, err := connector()
-		if err != nil {
-			return trace.Wrap(err)
+	}
+
+	return trace.Wrap(utils.ProxyConn(ctx, downstreamConn, upstreamConn))
+}
+
+type peekedConn struct {
+	io.WriteCloser
+	io.Reader
+}
+
+func isTLSClientHello(header []byte) bool {
+	switch {
+	case len(header) < 6:
+		return false
+	case header[0] != 0x16:
+		// not a handshake
+		return false
+	case header[1] != 3:
+		// not TLS 1.x
+		return false
+	case header[5] != 1:
+		// not Client Hello
+		return false
+	}
+	return true
+}
+
+func newAppHandler(tc *client.TeleportClient, app types.Application) tcpHandler {
+	if app.IsTCP() {
+		return &tcpAppHandler{
+			tc:  tc,
+			app: app,
 		}
-		return trace.Wrap(utils.ProxyConn(ctx, conn, appConn))
+	}
+	return &httpAppHandler{
+		tc:  tc,
+		app: app,
 	}
 }
 

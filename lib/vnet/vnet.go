@@ -24,7 +24,6 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -53,9 +52,8 @@ import (
 )
 
 const (
-	nicID             = 1
-	mtu               = 1500
-	dnsSuffixInternal = ".internal."
+	nicID = 1
+	mtu   = 1500
 )
 
 var (
@@ -104,7 +102,9 @@ func (c *Config) CheckAndSetDefaults() error {
 }
 
 type tcpConnector func() (io.ReadWriteCloser, error)
-type tcpHandler func(context.Context, tcpConnector) error
+type tcpHandler interface {
+	handleTCP(context.Context, tcpConnector) error
+}
 
 type udpHandler func(context.Context, io.ReadWriteCloser) error
 
@@ -160,7 +160,10 @@ func NewManager(ctx context.Context, cfg *Config) (*Manager, error) {
 		slog:          slog,
 		state:         newState(),
 	}
-	dnsServer := dns.NewServer(slog, m)
+	dnsServer, err := dns.NewServer(slog, m)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating DNS server")
+	}
 	m.dnsServer = dnsServer
 	m.state.udpHandlers[cfg.DNSAddress] = dnsServer.HandleUDPConn
 	return m, nil
@@ -215,83 +218,134 @@ func (m *Manager) Close() error {
 	return trace.Wrap(m.tun.Close())
 }
 
-func (m *Manager) nextFreeIP() tcpip.Address {
-	m.mu.Lock()
-	ip := m.state.nextFreeIP
-	m.state.nextFreeIP += 1
-	m.mu.Unlock()
-	return tcpip.AddrFrom4([4]byte{byte(ip >> 24), byte(ip >> 16), byte(ip >> 8), byte(ip >> 0)})
+// ResolveA implements [dns.Resolver.ResolveA]
+func (m *Manager) ResolveA(ctx context.Context, fqdn string) (dns.Result, error) {
+	appPublicAddr := strings.TrimSuffix(fqdn, ".")
+
+	matchingProfile, ok, err := m.matchingProfile(appPublicAddr)
+	if err != nil {
+		return dns.Result{}, trace.Wrap(err)
+	}
+	if !ok {
+		// No matching profile, forward the request.
+		return dns.Result{}, nil
+	}
+
+	app, match, err := m.matchingAppForProfile(ctx, matchingProfile, appPublicAddr)
+	if err != nil {
+		return dns.Result{}, trace.Wrap(err)
+	}
+	if !match {
+		if strings.HasSuffix(appPublicAddr, matchingProfile) {
+			// If this is under the proxy address but the app wasn't found,
+			// return a name error.
+			return dns.Result{
+				NXDomain: true,
+			}, nil
+		}
+		// This is a custom DNS zone and the app wasn't found, forward the
+		// request.
+		return dns.Result{}, nil
+	}
+
+	ip := m.assignIPv4ToApp(fqdn, app)
+	return dns.Result{
+		A: ip.As4(),
+	}, nil
 }
 
-// Resolve implements [dns.Resolver.Resolve]
-func (m *Manager) Resolve(ctx context.Context, domain string) (*dns.Result, error) {
-	if ip, ok := m.cachedIP(domain); ok {
-		return &dns.Result{IP: ip}, nil
+// ResolveAAAA implements [dns.Resolver.ResolveAAAA]
+func (m *Manager) ResolveAAAA(ctx context.Context, fqdn string) (dns.Result, error) {
+	appPublicAddr := strings.TrimSuffix(fqdn, ".")
+
+	matchingProfile, ok, err := m.matchingProfile(appPublicAddr)
+	if err != nil {
+		return dns.Result{}, trace.Wrap(err)
 	}
-	if result, ok, err := m.resolveInternal(ctx, domain); err != nil {
-		return nil, trace.Wrap(err)
-	} else if ok {
-		return result, nil
+	if !ok {
+		// No matching profile, forward the request.
+		return dns.Result{}, nil
 	}
-	return m.resolveCustomZone(domain)
+
+	_, match, err := m.matchingAppForProfile(ctx, matchingProfile, appPublicAddr)
+	if err != nil {
+		return dns.Result{}, trace.Wrap(err)
+	}
+	if !match {
+		if strings.HasSuffix(appPublicAddr, matchingProfile) {
+			// If this is under the proxy address but the app wasn't found,
+			// return a name error.
+			return dns.Result{
+				NXDomain: true,
+			}, nil
+		}
+		// This is a custom DNS zone and the app wasn't found, forward the
+		// request.
+		return dns.Result{}, nil
+	}
+
+	// TODO(nklaassen): implement IPv6 assignment
+	return dns.Result{
+		NoRecord: true,
+	}, nil
 }
 
-func (m *Manager) cachedIP(domain string) (tcpip.Address, bool) {
+func (m *Manager) cachedIP(fqdn string) (tcpip.Address, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	ip, ok := m.state.ips[domain]
+	ip, ok := m.state.ips[fqdn]
 	return ip, ok
 }
 
-func (m *Manager) resolveInternal(ctx context.Context, domain string) (*dns.Result, bool, error) {
-	if !strings.HasSuffix(domain, dnsSuffixInternal) {
-		return nil, false, nil
-	}
-	internalDomain := strings.TrimSuffix(domain, dnsSuffixInternal)
-	matchingProfile, ok, err := m.matchingProfile(internalDomain)
+func (m *Manager) matchingApp(ctx context.Context, fqdn string) (types.Application, bool, error) {
+	appPublicAddr := strings.TrimSuffix(fqdn, ".")
+	matchingProfile, ok, err := m.matchingProfile(appPublicAddr)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	}
 	if !ok {
 		return nil, false, nil
 	}
-	// TODO(nklaassen): support leaf clusters
-	clt, err := m.apiClient(ctx, matchingProfile)
-	if err != nil {
-		return nil, false, trace.Wrap(err)
-	}
-	appName := strings.TrimSuffix(internalDomain, matchingProfile)
-	appName = strings.TrimSuffix(appName, ".")
-	app, match, err := m.matchingApp(ctx, clt, appName)
-	if err != nil {
-		return nil, false, trace.Wrap(err)
-	}
-	if !match {
+	if matchingProfile == appPublicAddr {
+		// This is a request for a proxy address
 		return nil, false, nil
 	}
-
-	ip := m.nextFreeIP()
-	m.mu.Lock()
-	// TODO(nklaassen): support non-current profile
-	m.state.tcpHandlers[ip] = proxyToApp(m.tc, appName, app.GetPublicAddr())
-	m.mu.Unlock()
-
-	return &dns.Result{
-		IP: ip,
-	}, true, nil
+	return m.matchingAppForProfile(ctx, matchingProfile, appPublicAddr)
 }
 
-func (m *Manager) matchingProfile(internalDomain string) (string, bool, error) {
+func (m *Manager) matchingProfile(appPublicAddr string) (string, bool, error) {
 	profiles, err := m.tc.ClientStore.ListProfiles()
 	if err != nil {
 		return "", false, trace.Wrap(err, "listing user profiles")
 	}
 	for _, profile := range profiles {
-		if strings.HasSuffix(internalDomain, profile) {
+		if strings.HasSuffix(appPublicAddr, profile) && appPublicAddr != profile {
 			return profile, true, nil
 		}
 	}
 	return "", false, nil
+}
+
+func (m *Manager) matchingAppForProfile(ctx context.Context, profileName, appPublicAddr string) (types.Application, bool, error) {
+	// TODO(nklaassen): support leaf clusters
+	clt, err := m.apiClient(ctx, profileName)
+	if err != nil {
+		return nil, false, trace.Wrap(err)
+	}
+	appServers, err := apiclient.GetAllResources[types.AppServer](ctx, clt, &proto.ListResourcesRequest{
+		ResourceType:        types.KindAppServer,
+		PredicateExpression: fmt.Sprintf(`search(%q)`, appPublicAddr),
+	})
+	if err != nil {
+		return nil, false, trace.Wrap(err, "listing application servers")
+	}
+	for _, appServer := range appServers {
+		app := appServer.GetApp()
+		if app.GetPublicAddr() == appPublicAddr {
+			return app, true, nil
+		}
+	}
+	return nil, false, nil
 }
 
 func (m *Manager) apiClient(ctx context.Context, profileName string) (*apiclient.Client, error) {
@@ -308,28 +362,20 @@ func (m *Manager) apiClient(ctx context.Context, profileName string) (*apiclient
 	})
 }
 
-func (m *Manager) matchingApp(ctx context.Context, clt *apiclient.Client, appName string) (types.Application, bool, error) {
-	appServers, err := apiclient.GetAllResources[types.AppServer](ctx, clt, &proto.ListResourcesRequest{
-		ResourceType:        types.KindAppServer,
-		PredicateExpression: fmt.Sprintf(`name == "%s"`, appName),
-	})
-	if err != nil {
-		return nil, false, trace.Wrap(err, "listing application servers")
-	}
-	if len(appServers) == 0 {
-		return nil, false, nil
-	}
-	if len(appServers) > 1 {
-		return nil, false, trace.Errorf("found multiple apps with same name %q", appName)
-	}
-	return appServers[0].GetApp(), true, nil
-}
+func (m *Manager) assignIPv4ToApp(fqdn string, app types.Application) tcpip.Address {
+	appHandler := newAppHandler(m.tc, app)
 
-func (m *Manager) resolveCustomZone(domain string) (*dns.Result, error) {
-	// TODO(nklaassen): implement this
-	return &dns.Result{
-		NXDomain: true,
-	}, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	ip := m.state.nextFreeIP
+	m.state.nextFreeIP += 1
+	addr := tcpip.AddrFrom4([4]byte{byte(ip >> 24), byte(ip >> 16), byte(ip >> 8), byte(ip >> 0)})
+
+	m.state.tcpHandlers[addr] = appHandler
+	m.state.ips[fqdn] = addr
+
+	return addr
 }
 
 func (m *Manager) tcpHandler(addr tcpip.Address, port uint16) (tcpHandler, bool) {
@@ -395,7 +441,7 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 		return conn, nil
 	}
 
-	if err := handler(ctx, connector); err != nil {
+	if err := handler.handleTCP(ctx, connector); err != nil {
 		if errors.Is(err, context.Canceled) {
 			slog.Debug("TCP connection handler returned early due to canceled context.")
 		} else {
@@ -521,14 +567,4 @@ func forwardOsTUNToVnetEndpoint(ctx context.Context, tun tun.Device, dstEndpoint
 			packet.DecRef()
 		}
 	}
-}
-
-func getenvInt(envVar string) (int, error) {
-	s := os.Getenv(envVar)
-	if s == "" {
-		return 0, trace.BadParameter(envVar + " is not set")
-	}
-	i, err := strconv.Atoi(s)
-	return i, trace.Wrap(err)
-
 }
