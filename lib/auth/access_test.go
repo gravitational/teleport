@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vulcand/predicate/builder"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -865,6 +866,28 @@ func TestGetRoles(t *testing.T) {
 					}),
 				))
 			}
+
+			// verify that ListRoles behavior is equivalent to GetRoles
+			var lgot []types.Role
+			var req proto.ListRolesRequest
+			for {
+				rsp, err := clt.ListRoles(ctx, &req)
+				test.wantErr(t, err)
+				if test.want == nil {
+					require.Nil(t, rsp)
+					break
+				}
+
+				for _, r := range rsp.Roles {
+					lgot = append(lgot, r)
+				}
+				req.StartKey = rsp.NextKey
+				if req.StartKey == "" {
+					break
+				}
+			}
+
+			require.Equal(t, got, lgot)
 		})
 	}
 }
