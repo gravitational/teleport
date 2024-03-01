@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 )
 
 func TestGenerateServiceWithTaskDefinition(t *testing.T) {
@@ -373,4 +374,110 @@ func TestUpdateDeployServices(t *testing.T) {
 		require.Empty(t, m.services)
 		require.Empty(t, m.taskDefinitions)
 	})
+}
+
+func TestEnsureUpgraderEnvironmentVariables(t *testing.T) {
+	tts := []struct {
+		desc     string
+		env      []ecsTypes.KeyValuePair
+		expected []ecsTypes.KeyValuePair
+	}{
+		{
+			desc: "expected values are unmodified",
+			env: []ecsTypes.KeyValuePair{
+				{
+					Name:  aws.String("EXAMPLE_ENV"),
+					Value: aws.String("EXAMPLE"),
+				},
+				{
+					Name:  aws.String(constants.EnvTeleportUpgrader),
+					Value: aws.String(types.OriginIntegrationAWSOIDC),
+				},
+				{
+					Name:  aws.String(constants.EnvTeleportUpgraderVersion),
+					Value: aws.String(teleport.Version),
+				},
+			},
+			expected: []ecsTypes.KeyValuePair{
+				{
+					Name:  aws.String("EXAMPLE_ENV"),
+					Value: aws.String("EXAMPLE"),
+				},
+				{
+					Name:  aws.String(constants.EnvTeleportUpgrader),
+					Value: aws.String(types.OriginIntegrationAWSOIDC),
+				},
+				{
+					Name:  aws.String(constants.EnvTeleportUpgraderVersion),
+					Value: aws.String(teleport.Version),
+				},
+			},
+		},
+		{
+			desc: "Teleport upgrader env variables are added",
+			env: []ecsTypes.KeyValuePair{
+				{
+					Name:  aws.String("EXAMPLE_ENV"),
+					Value: aws.String("EXAMPLE"),
+				},
+			},
+			expected: []ecsTypes.KeyValuePair{
+				{
+					Name:  aws.String("EXAMPLE_ENV"),
+					Value: aws.String("EXAMPLE"),
+				},
+				{
+					Name:  aws.String(constants.EnvTeleportUpgrader),
+					Value: aws.String(types.OriginIntegrationAWSOIDC),
+				},
+				{
+					Name:  aws.String(constants.EnvTeleportUpgraderVersion),
+					Value: aws.String(teleport.Version),
+				},
+			},
+		},
+		{
+			desc: "Teleport upgrader env variables are updated",
+			env: []ecsTypes.KeyValuePair{
+				{
+					Name:  aws.String("EXAMPLE_ENV"),
+					Value: aws.String("EXAMPLE"),
+				},
+				{
+					Name:  aws.String(constants.EnvTeleportUpgrader),
+					Value: aws.String("none"),
+				},
+				{
+					Name:  aws.String(constants.EnvTeleportUpgraderVersion),
+					Value: aws.String("v1.0.0"),
+				},
+			},
+			expected: []ecsTypes.KeyValuePair{
+				{
+					Name:  aws.String("EXAMPLE_ENV"),
+					Value: aws.String("EXAMPLE"),
+				},
+				{
+					Name:  aws.String(constants.EnvTeleportUpgrader),
+					Value: aws.String(types.OriginIntegrationAWSOIDC),
+				},
+				{
+					Name:  aws.String(constants.EnvTeleportUpgraderVersion),
+					Value: aws.String(teleport.Version),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.desc, func(t *testing.T) {
+			taskDefinition := &ecs.RegisterTaskDefinitionInput{
+				ContainerDefinitions: []ecsTypes.ContainerDefinition{
+					{Environment: tt.env},
+				},
+			}
+			require.NoError(t, ensureUpgraderEnvironmentVariables(taskDefinition))
+			require.Equal(t, tt.expected, taskDefinition.ContainerDefinitions[0].Environment)
+		})
+	}
 }

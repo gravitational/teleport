@@ -17,14 +17,19 @@ limitations under the License.
 package awsoidc
 
 import (
+	"context"
 	"regexp"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 )
 
 func TestDeployServiceRequest(t *testing.T) {
@@ -206,4 +211,37 @@ func TestNormalizeECSResourceName(t *testing.T) {
 			require.Equal(t, normalizeECSResourceName(tt.input), tt.expected)
 		})
 	}
+}
+
+func TestUpsertTask(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("verify expected environment variables", func(t *testing.T) {
+		mockClient := &mockDeployServiceClient{
+			clusters:        map[string]*ecsTypes.Cluster{},
+			taskDefinitions: map[string]*ecsTypes.TaskDefinition{},
+			services:        map[string]*ecsTypes.Service{},
+			accountId:       aws.String("123456789012"),
+			iamTokenMissing: true,
+		}
+
+		expected := []ecsTypes.KeyValuePair{
+			{
+				Name:  aws.String(types.InstallMethodAWSOIDCDeployServiceEnvVar),
+				Value: aws.String("true"),
+			},
+			{
+				Name:  aws.String(constants.EnvTeleportUpgrader),
+				Value: aws.String(types.OriginIntegrationAWSOIDC),
+			},
+			{
+				Name:  aws.String(constants.EnvTeleportUpgraderVersion),
+				Value: aws.String(teleport.Version),
+			},
+		}
+
+		taskDefinition, err := upsertTask(ctx, mockClient, upsertTaskRequest{})
+		require.NoError(t, err)
+		require.Equal(t, expected, taskDefinition.ContainerDefinitions[0].Environment)
+	})
 }
