@@ -23,8 +23,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 )
 
 const (
