@@ -31,6 +31,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
@@ -52,6 +54,11 @@ const (
 )
 
 func main() {
+	// Temporary set noop meter provider until go-otel resolves outstanding
+	// memory leaks from otelhttp / otelgrpc when no meter provider is
+	// configured. See the upstream issue for more:
+	// https://github.com/open-telemetry/opentelemetry-go-contrib/issues/5190
+	otel.SetMeterProvider(metricnoop.MeterProvider{})
 	if err := Run(os.Args[1:], os.Stdout); err != nil {
 		utils.FatalError(err)
 	}
