@@ -32,7 +32,11 @@ import {
 
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
-import { LoggerColor, createFileLoggerService } from 'teleterm/services/logger';
+import {
+  LoggerColor,
+  KeepLastChunks,
+  createFileLoggerService,
+} from 'teleterm/services/logger';
 import {
   ChildProcessAddresses,
   MainProcessIpc,
@@ -49,7 +53,7 @@ import {
 
 import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalContextMenu';
 import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
-import { resolveNetworkAddress } from './resolveNetworkAddress';
+import { resolveNetworkAddress, ResolveError } from './resolveNetworkAddress';
 import { WindowsManager } from './windowsManager';
 import { downloadAgent, verifyAgent, FileDownloader } from './agentDownloader';
 import {
@@ -77,7 +81,9 @@ export default class MainProcess {
   private readonly logger: Logger;
   private readonly configService: ConfigService;
   private tshdProcess: ChildProcess;
+  private tshdProcessLastLogs: KeepLastChunks<string>;
   private sharedProcess: ChildProcess;
+  private sharedProcessLastLogs: KeepLastChunks<string>;
   private appStateFileStorage: FileStorage;
   private configFileStorage: FileStorage;
   private resolvedChildProcessAddresses: Promise<ChildProcessAddresses>;
@@ -163,13 +169,19 @@ export default class MainProcess {
 
     this.logProcessExitAndError('tshd', this.tshdProcess);
 
-    createFileLoggerService({
+    const loggerService = createFileLoggerService({
       dev: this.settings.dev,
       dir: this.settings.logsDir,
-      name: 'tshd',
+      name: TSHD_LOGGER_NAME,
       loggerNameColor: LoggerColor.Cyan,
       passThroughMode: true,
-    }).pipeProcessOutputIntoLogger(this.tshdProcess);
+    });
+
+    this.tshdProcessLastLogs = new KeepLastChunks(NO_OF_LAST_LOGS_KEPT);
+    loggerService.pipeProcessOutputIntoLogger(
+      this.tshdProcess,
+      this.tshdProcessLastLogs
+    );
   }
 
   private _initSharedProcess() {
@@ -183,13 +195,19 @@ export default class MainProcess {
 
     this.logProcessExitAndError('shared process', this.sharedProcess);
 
-    createFileLoggerService({
+    const loggerService = createFileLoggerService({
       dev: this.settings.dev,
       dir: this.settings.logsDir,
-      name: 'shared',
+      name: SHARED_PROCESS_LOGGER_NAME,
       loggerNameColor: LoggerColor.Yellow,
       passThroughMode: true,
-    }).pipeProcessOutputIntoLogger(this.sharedProcess);
+    });
+
+    this.sharedProcessLastLogs = new KeepLastChunks(NO_OF_LAST_LOGS_KEPT);
+    loggerService.pipeProcessOutputIntoLogger(
+      this.sharedProcess,
+      this.sharedProcessLastLogs
+    );
   }
 
   private _initResolvingChildProcessAddresses(): void {
@@ -197,10 +215,26 @@ export default class MainProcess {
       resolveNetworkAddress(
         this.settings.tshd.requestedNetworkAddress,
         this.tshdProcess
+      ).catch(
+        rewrapResolveError(
+          this.logger,
+          this.settings,
+          'the tsh daemon',
+          TSHD_LOGGER_NAME,
+          this.tshdProcessLastLogs
+        )
       ),
       resolveNetworkAddress(
         this.settings.sharedProcess.requestedNetworkAddress,
         this.sharedProcess
+      ).catch(
+        rewrapResolveError(
+          this.logger,
+          this.settings,
+          'the shared helper process',
+          SHARED_PROCESS_LOGGER_NAME,
+          this.sharedProcessLastLogs
+        )
       ),
     ]).then(([tsh, shared]) => ({ tsh, shared }));
   }
@@ -544,6 +578,8 @@ export default class MainProcess {
   }
 }
 
+const TSHD_LOGGER_NAME = 'tshd';
+const SHARED_PROCESS_LOGGER_NAME = 'shared';
 const DOCS_URL = 'https://goteleport.com/docs/use-teleport/teleport-connect/';
 
 function openDocsUrl() {
@@ -566,5 +602,42 @@ function sharePromise<T>(promiseFn: () => Promise<T>): () => Promise<T> {
       });
     }
     return pending;
+  };
+}
+
+// The number of lines was chosen by looking at logs from the shared process when the glibc version
+// is too old and making sure that we'd have been able to see the actual issue in the error dialog.
+// See the PR description for the logs: https://github.com/gravitational/teleport/pull/38724
+const NO_OF_LAST_LOGS_KEPT = 25;
+
+function rewrapResolveError(
+  logger: Logger,
+  runtimeSettings: RuntimeSettings,
+  processName: string,
+  processLoggerName: string,
+  processLastLogs: KeepLastChunks<string>
+) {
+  return (error: unknown) => {
+    if (!(error instanceof ResolveError)) {
+      throw error;
+    }
+
+    // Log the original error for full address.
+    logger.error(error);
+
+    const logPath = path.join(
+      runtimeSettings.logsDir,
+      `${processLoggerName}.log`
+    );
+    // TODO(ravicious): It'd have been ideal to get the logs from the file instead of keeping last n
+    // lines in memory.
+    // We tried to use winston.Logger.prototype.query for that but it kept returning no results,
+    // even with structured logging turned on.
+    const lastLogs = processLastLogs.getChunks().join('\n');
+
+    throw new Error(
+      `Could not communicate with ${processName}.\n\n` +
+        `Last logs from ${logPath}:\n${lastLogs}`
+    );
   };
 }
