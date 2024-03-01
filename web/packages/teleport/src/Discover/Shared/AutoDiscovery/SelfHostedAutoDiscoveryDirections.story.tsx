@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +15,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import React from 'react';
 
-export * from './loggerService';
-export { KeepLastChunks } from './keepLastChunks';
+import { SelfHostedAutoDiscoverDirections } from './SelfHostedAutoDiscoverDirections';
+
+export default {
+  title: 'Teleport/Discover/Shared/SelfHostedAutoDiscoveryDirections',
+};
+
+export const Directions = () => {
+  return (
+    <SelfHostedAutoDiscoverDirections
+      clusterPublicUrl="https://teleport.example.com"
+      discoveryGroupName="test-group"
+      setDiscoveryGroupName={() => {}}
+    />
+  );
+};

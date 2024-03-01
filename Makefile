@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=15.0.2
+VERSION=15.1.0
 
 DOCKER_IMAGE ?= teleport
 
@@ -886,7 +886,7 @@ endif
 test-sh:
 	@if ! type bats 2>&1 >/dev/null; then \
 		echo "Not running 'test-sh' target as 'bats' is not installed."; \
-		if [ "$${DRONE}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
+		if [ "$${CI}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
 		exit 0; \
 	fi; \
 	bats $(BATSFLAGS) ./assets/aws/files/tests
@@ -1055,7 +1055,7 @@ lint-sh:
 lint-helm:
 	@if ! type yamllint 2>&1 >/dev/null; then \
 		echo "Not running 'lint-helm' target as 'yamllint' is not installed."; \
-		if [ "$${DRONE}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
+		if [ "$${CI}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
 		exit 0; \
 	fi; \
 	for CHART in ./examples/chart/teleport-cluster ./examples/chart/teleport-kube-agent ./examples/chart/teleport-cluster/charts/teleport-operator; do \
@@ -1474,18 +1474,6 @@ ensure-webassets-e:
 init-submodules-e:
 	git submodule init e
 	git submodule update
-
-# dronegen generates .drone.yml config
-#
-#    Usage:
-#    - tsh login --proxy=platform.teleport.sh
-#    - tsh apps login drone
-#    - set $DRONE_TOKEN and $DRONE_SERVER (http://localhost:8080)
-#    - tsh proxy app --port=8080 drone
-#    - make dronegen
-.PHONY: dronegen
-dronegen:
-	go run ./dronegen
 
 # backport will automatically create backports for a given PR as long as you have the "gh" tool
 # installed locally. To backport, type "make backport PR=1234 TO=branch/1,branch/2".
