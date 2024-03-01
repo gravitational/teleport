@@ -765,7 +765,7 @@ func (s *PresenceService) GetAndUpdateRemoteCluster(
 			return nil, trace.Wrap(err)
 		}
 
-		if updated.GetName() != existing.GetName() {
+		if updated.GetName() != name {
 			return nil, trace.BadParameter("metadata.name: cannot be updated")
 		}
 
