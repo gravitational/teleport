@@ -1,5 +1,14 @@
 # Changelog
 
+## 15.1.1 (03/01/24)
+
+* Fixed panic when an older `tsh` or proxy changes an access list. [#38861](https://github.com/gravitational/teleport/pull/38861)
+* SSH connection resumption now works during graceful upgrades of the Teleport agent. [#38842](https://github.com/gravitational/teleport/pull/38842)
+* Fixed an issue with over counting of reported Teleport updater metrics. [#38831](https://github.com/gravitational/teleport/pull/38831)
+* Fixed `tsh` returning "private key policy not met" errors instead of automatically initiating re-login to satisfy the private key policy. [#38819](https://github.com/gravitational/teleport/pull/38819)
+* Made graceful shutdown and graceful restart terminate active sessions after 30 hours. [#38803](https://github.com/gravitational/teleport/pull/38803)
+* The `teleport-ent-upgrader` package now gracefully restarts the Teleport binary if possible, to avoid cutting off ongoing connections. [#3578](https://github.com/gravitational/teleport.e/pull/3578)
+
 ## 15.1.0 (02/29/24)
 
 ### New Features
