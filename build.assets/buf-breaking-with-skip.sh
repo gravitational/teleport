@@ -7,8 +7,8 @@ fi
 
 BUF="${BUF:-buf}"
 
-base_input="$( "${BUF}" build "$1" --output - | sha256sum | cut -w -f1 )"
-against_input="$( "${BUF}" build "$2" --output - | sha256sum | cut -w -f1 )"
+base_input="$( "${BUF}" build "$1" --output - | sha256sum | cut -d " " -f 1 )"
+against_input="$( "${BUF}" build "$2" --output - | sha256sum | cut -d " " -f 1 )"
 
 "${BUF}" breaking "$1" --against "$2"
 buf_exit=$?
