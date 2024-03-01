@@ -1931,6 +1931,16 @@ func (process *TeleportProcess) initAuthService() error {
 
 	authServer.SetUnifiedResourcesCache(unifiedResourcesCache)
 
+	accessRequestCache, err := services.NewAccessRequestCache(services.AccessRequestCacheConfig{
+		Events: authServer.Services,
+		Getter: authServer.Services,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authServer.SetAccessRequestCache(accessRequestCache)
+
 	if embedderClient != nil {
 		log.Debugf("Starting embedding watcher")
 		embeddingProcessor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
@@ -2688,11 +2698,19 @@ func (process *TeleportProcess) initSSH() error {
 
 		var resumableServer *resumption.SSHServerWrapper
 		if os.Getenv("TELEPORT_UNSTABLE_DISABLE_SSH_RESUMPTION") == "" {
-			resumableServer = resumption.NewSSHServerWrapper(
-				log.WithField(trace.Component, teleport.Component(teleport.ComponentNode, resumption.Component)),
-				s.HandleConnection,
-				serverID,
-			)
+			resumableServer = resumption.NewSSHServerWrapper(resumption.SSHServerWrapperConfig{
+				Log:       log.WithField(trace.Component, teleport.Component(teleport.ComponentNode, resumption.Component)),
+				SSHServer: s.HandleConnection,
+
+				HostID:  serverID,
+				DataDir: cfg.DataDir,
+			})
+
+			go func() {
+				if err := resumableServer.HandoverCleanup(process.GracefulExitContext()); err != nil {
+					log.WithError(err).Warn("Failed to clean up handover sockets.")
+				}
+			}()
 		}
 
 		var agentPool *reversetunnel.AgentPool

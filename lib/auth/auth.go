@@ -804,6 +804,10 @@ type Server struct {
 	// in a unified manner in the web UI.
 	UnifiedResourceCache *services.UnifiedResourceCache
 
+	// AccessRequestCache is a cache of access requests that specifically provides
+	// custom sorting options not available via the standard backend.
+	AccessRequestCache *services.AccessRequestCache
+
 	inventory *inventory.Controller
 
 	// githubOrgSSOCache is used to cache whether Github organizations use
@@ -982,6 +986,13 @@ func (a *Server) SetUnifiedResourcesCache(unifiedResourcesCache *services.Unifie
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.UnifiedResourceCache = unifiedResourcesCache
+}
+
+// SetAccessRequestCache sets the access request cache.
+func (a *Server) SetAccessRequestCache(accessRequestCache *services.AccessRequestCache) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.AccessRequestCache = accessRequestCache
 }
 
 func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
@@ -1612,6 +1623,12 @@ func (a *Server) Close() error {
 
 	if a.bk != nil {
 		if err := a.bk.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if a.AccessRequestCache != nil {
+		if err := a.AccessRequestCache.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -4514,6 +4531,87 @@ func (a *Server) DeleteNamespace(namespace string) error {
 		return trace.BadParameter("can't delete namespace %v that has %v registered nodes", namespace, len(nodes))
 	}
 	return a.Services.DeleteNamespace(namespace)
+}
+
+// IterateRoles is a helper used to read a page of roles with a custom matcher, used by access-control logic to handle
+// per-resource read permissions.
+func (a *Server) IterateRoles(ctx context.Context, req *proto.ListRolesRequest, match func(*types.RoleV6) (bool, error)) ([]*types.RoleV6, string, error) {
+	const maxIterations = 100_000
+
+	if req.Limit == 0 {
+		req.Limit = apidefaults.DefaultChunkSize
+	}
+
+	req.Limit++
+	defer func() {
+		req.Limit--
+	}()
+
+	var filtered []*types.RoleV6
+	var iterations int
+
+Outer:
+	for {
+		iterations++
+		if iterations > maxIterations {
+			return nil, "", trace.Errorf("too many role page iterations (%d), this is likely a bug", iterations)
+		}
+
+		rsp, err := a.Cache.ListRoles(ctx, req)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+	Inner:
+		for _, role := range rsp.Roles {
+			ok, err := match(role)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			if !ok {
+				continue Inner
+			}
+
+			filtered = append(filtered, role)
+			if len(filtered) == int(req.Limit) {
+				break Outer
+			}
+		}
+
+		req.StartKey = rsp.NextKey
+
+		if req.StartKey == "" {
+			break Outer
+		}
+	}
+
+	var nextKey string
+	if len(filtered) == int(req.Limit) {
+		nextKey = filtered[req.Limit-1].GetName()
+		filtered = filtered[:req.Limit-1]
+	}
+
+	return filtered, nextKey, nil
+}
+
+// ListAccessRequests is an access request getter with pagination and sorting options.
+func (a *Server) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+	// most access request methods target the backend directly since access requests are frequently read
+	// immediately after writing, but listing requires support for custom sort orders so we route it to
+	// a special cache. note that the access request cache will still end up forwarding single-request
+	// reads to the real backend due to the read after write issue.
+	return a.AccessRequestCache.ListAccessRequests(ctx, req)
+}
+
+// ListMatchingAccessRequests is equivalent to ListAccessRequests except that it adds the ability to provide an arbitrary matcher function. This method
+// should be preferred when using custom filtering (e.g. access-controls), since the paginations keys used by the access request cache are non-standard.
+func (a *Server) ListMatchingAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest, match func(*types.AccessRequestV3) bool) (*proto.ListAccessRequestsResponse, error) {
+	// most access request methods target the backend directly since access requests are frequently read
+	// immediately after writing, but listing requires support for custom sort orders so we route it to
+	// a special cache. note that the access request cache will still end up forwarding single-request
+	// reads to the real backend due to the read after write issue.
+	return a.AccessRequestCache.ListMatchingAccessRequests(ctx, req, match)
 }
 
 func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (types.AccessRequest, error) {
