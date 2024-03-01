@@ -81,14 +81,14 @@ func ResourceIDToString(id ResourceID) string {
 // have been obtained from ResourceIDToString.
 func ResourceIDFromString(raw string) (ResourceID, error) {
 	if len(raw) < 1 || raw[0] != '/' {
-		return ResourceID{}, trace.BadParameter("%s is not a valid ResourceID string", raw)
+		return ResourceID{}, trace.BadParameter("%s is not a valid ResourceID string. Expected /cluster/type/resource format", raw)
 	}
 	raw = raw[1:]
 	// Should be safe for any Name as long as the ClusterName and Kind don't
 	// contain slashes, which should never happen.
 	parts := strings.SplitN(raw, "/", 3)
 	if len(parts) != 3 {
-		return ResourceID{}, trace.BadParameter("/%s is not a valid ResourceID string", raw)
+		return ResourceID{}, trace.BadParameter("/%s is not a valid ResourceID string. Expected /cluster/type/resource format", raw)
 	}
 	resourceID := ResourceID{
 		ClusterName: parts[0],
