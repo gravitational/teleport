@@ -18,7 +18,9 @@ Users going through EKS enrollment flow in Access Management web UI now have an 
 
 ### Other changes
 
+* Fixed application access events being overwritten when using DynamoDB as event storage. [#38815](https://github.com/gravitational/teleport/pull/38815)
 * Fixed a regression that had reintroduced long freezes for certain actions like "Run as different user". [#38805](https://github.com/gravitational/teleport/pull/38805)
+* When teleport is configured to require MFA for admin actions, MFA is required to get certificate authority secrets. Ex: `tctl auth export --keys` or `tctl get cert_authority/host/root.example.com --with-secrets`. [#38777](https://github.com/gravitational/teleport/pull/38777)
 * Added auto-enrolling capabilities to EKS discover flow in the web UI. [#38773](https://github.com/gravitational/teleport/pull/38773)
 * Heavily optimized the Access List page in the UI, speeding things up considerably. [#38764](https://github.com/gravitational/teleport/pull/38764)
 * Align DynamoDB BatchWriteItem max items limit. [#38763](https://github.com/gravitational/teleport/pull/38763)
