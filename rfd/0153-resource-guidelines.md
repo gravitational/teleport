@@ -376,7 +376,7 @@ func (s *FooService) UpdateFoo(ctx context.Context, foo *foov1.Foo) (*foov1.Foo,
 
 #### Patch
 
-For handling partial updates of a resource, the patch operation exists. The
+The patch operation is intended for handling partial updates of a resource. The
 patch operation accepts the name of the resource and an update function. It 
 fetches the resource, calls the update function with the fetched resource and
 then calls `ConditionalUpdate` with the updated resource. It then returns the
