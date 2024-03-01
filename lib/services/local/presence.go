@@ -778,7 +778,7 @@ func (s *PresenceService) GetAndUpdateRemoteCluster(
 			Key:      backend.Key(remoteClustersPrefix, name),
 			Value:    updatedValue,
 			Expires:  updated.Expiry(),
-			Revision: updated.GetRevision(),
+			Revision: existing.GetRevision(),
 		})
 		if err != nil {
 			if trace.IsCompareFailed(err) {
