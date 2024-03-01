@@ -533,9 +533,13 @@ func (s *adminActionTestSuite) testCommand(t *testing.T, ctx context.Context, tc
 		originalAuthPref, err := s.authServer.GetAuthPreference(ctx)
 		require.NoError(t, err)
 
-		require.NoError(t, s.authServer.SetAuthPreference(ctx, authPref))
+		authPref.SetRevision(originalAuthPref.GetRevision())
+		authPref, err = s.authServer.UpdateAuthPreference(ctx, authPref)
+		require.NoError(t, err)
 		t.Cleanup(func() {
-			require.NoError(t, s.authServer.SetAuthPreference(ctx, originalAuthPref))
+			originalAuthPref.SetRevision(authPref.GetRevision())
+			originalAuthPref, err = s.authServer.UpdateAuthPreference(ctx, originalAuthPref)
+			require.NoError(t, err)
 		})
 
 		err = runTestCase(t, ctx, s.userClientNoMFA, tc)

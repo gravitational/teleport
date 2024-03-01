@@ -126,8 +126,8 @@ func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
 	})
 	require.NoError(t, err)
 	require.NoError(t, clusterConfiguration.SetClusterName(clusterName))
-
-	require.NoError(t, clusterConfiguration.SetAuthPreference(ctx, types.DefaultAuthPreference()))
+	_, err = clusterConfiguration.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+	require.NoError(t, err)
 
 	client := &testAccessPoint{
 		Streamer:              streamer,

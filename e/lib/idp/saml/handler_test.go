@@ -54,7 +54,8 @@ func TestAuth(t *testing.T) {
 	authPref, err := env.testServices.ClusterService.GetAuthPreference(ctx)
 	require.NoError(t, err)
 	authPref.SetSAMLIdPEnabled(false)
-	require.NoError(t, env.testServices.ClusterService.SetAuthPreference(ctx, authPref))
+	authPref, err = env.testServices.ClusterService.UpdateAuthPreference(ctx, authPref)
+	require.NoError(t, err)
 
 	w = httptest.NewRecorder()
 	r = httptest.NewRequest(http.MethodGet, path, nil)
@@ -72,7 +73,8 @@ func TestAuth(t *testing.T) {
 
 	// Reenable the SAML IdP.
 	authPref.SetSAMLIdPEnabled(true)
-	require.NoError(t, env.testServices.ClusterService.SetAuthPreference(ctx, authPref))
+	_, err = env.testServices.ClusterService.UpdateAuthPreference(ctx, authPref)
+	require.NoError(t, err)
 
 	w = httptest.NewRecorder()
 

@@ -96,7 +96,7 @@ func TestNodeAccess(t *testing.T) {
 	)
 
 	authServer := process.GetAuthServer()
-	err = authServer.SetAuthPreference(ctx, &types.AuthPreferenceV2{
+	_, err = authServer.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOptional,

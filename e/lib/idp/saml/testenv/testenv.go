@@ -109,7 +109,8 @@ func NewTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 	eventService := local.NewEventsService(backend)
 
 	// Set up default singletons
-	require.NoError(t, clusterService.SetAuthPreference(ctx, types.DefaultAuthPreference()))
+	_, err = clusterService.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+	require.NoError(t, err)
 	require.NoError(t, clusterService.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()))
 	require.NoError(t, clusterService.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()))
 	require.NoError(t, clusterService.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
@@ -124,8 +125,6 @@ func NewTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 		Events:                  eventService,
 		Access:                  accessService,
 	}
-
-	require.NoError(t, clusterService.SetAuthPreference(ctx, types.DefaultAuthPreference()))
 
 	// Set up the cluster name and the CA.
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{

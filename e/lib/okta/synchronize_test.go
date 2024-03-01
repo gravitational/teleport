@@ -392,14 +392,16 @@ func TestTickerUpdates(t *testing.T) {
 	pref, err := ap.GetAuthPreference(ctx)
 	require.NoError(t, err)
 	pref.SetOktaSyncPeriod(time.Second * 300)
-	require.NoError(t, ap.SetAuthPreference(ctx, pref))
+	pref, err = ap.UpdateAuthPreference(ctx, pref)
+	require.NoError(t, err)
 
 	interval = svc.getSynchronizerInterval(ctx)
 	require.Equal(t, pref.GetOktaSyncPeriod(), interval)
 
 	// Set the duration back to zero, should set the ticker back to 10 seconds.
 	pref.SetOktaSyncPeriod(0)
-	require.NoError(t, ap.SetAuthPreference(ctx, pref))
+	_, err = ap.UpdateAuthPreference(ctx, pref)
+	require.NoError(t, err)
 
 	interval = svc.getSynchronizerInterval(ctx)
 	require.Equal(t, svc.timeBetweenSyncs, interval)
