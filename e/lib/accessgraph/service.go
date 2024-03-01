@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/licensefile"
@@ -30,6 +31,10 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+)
+
+const (
+	maxGRPCMessageSize = 20 * 1024 * 1024 // 20MB
 )
 
 type ServiceConfig struct {
@@ -94,13 +99,20 @@ func (s *Service) Query(ctx context.Context, request *accessgraphv1.QueryRequest
 		return nil, trace.WrapWithMessage(err, "not allowed to read the access graph")
 	}
 
-	resp, err := s.client.Query(ctx, request)
+	resp, err := s.client.Query(
+		ctx,
+		request,
+		grpc.MaxCallRecvMsgSize(maxGRPCMessageSize),
+		grpc.MaxCallSendMsgSize(maxGRPCMessageSize),
+	)
 	return resp, trace.Wrap(err)
 }
 
 func (s *Service) GetFile(ctx context.Context, request *accessgraphv1.GetFileRequest) (*accessgraphv1.GetFileResponse, error) {
 	// Do not perform access check as we only serve webassets.
-	resp, err := s.client.GetFile(ctx, request)
+	resp, err := s.client.GetFile(ctx, request,
+		grpc.MaxCallRecvMsgSize(maxGRPCMessageSize),
+		grpc.MaxCallSendMsgSize(maxGRPCMessageSize))
 	return resp, trace.Wrap(err)
 }
 

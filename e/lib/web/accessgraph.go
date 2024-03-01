@@ -25,11 +25,16 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/web"
+)
+
+const (
+	maxGRPCAccessGraphMessageSize = 20 * 1024 * 1024 // 20MB
 )
 
 // queryAccessGraph is a handler for the /v1/accessgraph/query endpoint.
@@ -52,9 +57,15 @@ func (p *Plugin) queryAccessGraph(_ http.ResponseWriter, r *http.Request, _ http
 
 	// Skip the RBAC check. Auth server will perform it.
 	ctx := r.Context()
-	resp, err := agClt.Query(ctx, &accessgraphv1.QueryRequest{
-		Query: query,
-	})
+
+	resp, err := agClt.Query(
+		ctx,
+		&accessgraphv1.QueryRequest{
+			Query: query,
+		},
+		grpc.MaxCallRecvMsgSize(maxGRPCAccessGraphMessageSize),
+		grpc.MaxCallSendMsgSize(maxGRPCAccessGraphMessageSize),
+	)
 
 	usageReport := getTAGResponseReport(resp)
 	go func() {
@@ -102,7 +113,10 @@ func (p *Plugin) getAccessGraphFile(w http.ResponseWriter, r *http.Request, para
 	ctx := r.Context()
 	resp, err := agClt.GetFile(ctx, &accessgraphv1.GetFileRequest{
 		Filepath: filePath,
-	})
+	},
+		grpc.MaxCallRecvMsgSize(maxGRPCAccessGraphMessageSize),
+		grpc.MaxCallSendMsgSize(maxGRPCAccessGraphMessageSize),
+	)
 	if err != nil {
 		// If access graph is not enabled in the Auth server, return 404 instead of 500.
 		if trace.IsNotImplemented(err) {
