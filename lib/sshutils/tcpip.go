@@ -19,9 +19,15 @@
 package sshutils
 
 import (
+	"context"
+	"net"
+
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // DirectTCPIPReq represents the payload of an SSH "direct-tcpip" or
@@ -54,4 +60,62 @@ type TCPIPForwardReq struct {
 	Addr string
 	// Port is the port to listen on.
 	Port uint32
+}
+
+// ParseTCPIPForwardReq parses an SSH request's payload into a TCPIPForwardReq.
+func ParseTCPIPForwardReq(data []byte) (*TCPIPForwardReq, error) {
+	var r TCPIPForwardReq
+	if err := ssh.Unmarshal(data, &r); err != nil {
+		log.Infof("failed to parse TCP IP Forward request: %v", err)
+		return nil, trace.Wrap(err)
+	}
+	return &r, nil
+}
+
+type channelOpener interface {
+	OpenChannel(name string, data []byte) (ssh.Channel, <-chan *ssh.Request, error)
+}
+
+// StartRemoteListener listens on the given listener and forwards any accepted
+// connections over a new "forwarded-tcpip" channel.
+func StartRemoteListener(ctx context.Context, sshConn channelOpener, srcAddr, dstAddr string, listener net.Listener) error {
+	srcHost, srcPort, err := SplitHostPort(srcAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dstHost, dstPort, err := SplitHostPort(dstAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	req := ForwardedTCPIPRequest{
+		Addr:     srcHost,
+		Port:     srcPort,
+		OrigAddr: dstHost,
+		OrigPort: dstPort,
+	}
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	reqBytes := ssh.Marshal(req)
+
+	go func() {
+		for ctx.Err() == nil {
+			conn, err := listener.Accept()
+			if err != nil {
+				log.WithError(err).Warn("failed to accept connection")
+				return
+			}
+
+			ch, rch, err := sshConn.OpenChannel(teleport.ChanForwardedTCPIP, reqBytes)
+			if err != nil {
+				log.WithError(err).Warn("failed to open channel")
+				continue
+			}
+			go ssh.DiscardRequests(rch)
+			go utils.ProxyConn(ctx, conn, ch)
+		}
+	}()
+
+	return nil
 }
