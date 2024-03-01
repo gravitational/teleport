@@ -71,16 +71,6 @@ export default function ConnectDialog({
           <Text bold as="span">
             Step 2
           </Text>
-          {' - Retrieve credentials for the database'}
-          <TextSelectCopy
-            mt="2"
-            text={`tsh db login [--db-user=<user>] [--db-name=<name>] ${dbName}`}
-          />
-        </Box>
-        <Box mb={4}>
-          <Text bold as="span">
-            Step 3
-          </Text>
           {' - Connect to the database'}
           <TextSelectCopy
             mt="2"
@@ -90,7 +80,7 @@ export default function ConnectDialog({
         {accessRequestId && (
           <Box mb={4}>
             <Text bold as="span">
-              Step 4 (Optional)
+              Step 3 (Optional)
             </Text>
             {' - When finished, drop the assumed role'}
             <TextSelectCopy mt="2" text={`tsh request drop`} />
