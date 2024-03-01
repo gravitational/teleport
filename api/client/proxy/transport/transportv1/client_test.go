@@ -239,7 +239,7 @@ func TestClient_DialHost(t *testing.T) {
 				return trail.ToGRPC(trace.NotImplemented("not implemented"))
 			case req.DialTarget.Cluster == "payload-too-large":
 				// send the initial cluster details
-				if err := server.Send(&transportv1pb.ProxySSHResponse{Details: &transportv1pb.ClusterDetails{FipsEnabled: true}}); err != nil {
+				if err := server.Send(&transportv1pb.ProxySSHResponse{Details: &transportv1pb.ClusterDetails{FipsEnabled: true}}); err != nil && !errors.Is(err, io.EOF) {
 					return trail.ToGRPC(trace.Wrap(err))
 				}
 
@@ -255,7 +255,7 @@ func TestClient_DialHost(t *testing.T) {
 					if err := server.Send(&transportv1pb.ProxySSHResponse{
 						Details: nil,
 						Frame:   &transportv1pb.ProxySSHResponse_Ssh{Ssh: &transportv1pb.Frame{Payload: bytes.Repeat([]byte{0}, 1001)}},
-					}); err != nil {
+					}); err != nil && !errors.Is(err, io.EOF) {
 						return trail.ToGRPC(trace.Wrap(err))
 					}
 				case *transportv1pb.ProxySSHRequest_Agent:
@@ -265,7 +265,7 @@ func TestClient_DialHost(t *testing.T) {
 				return nil
 			case req.DialTarget.Cluster == "echo":
 				// send the initial cluster details
-				if err := server.Send(&transportv1pb.ProxySSHResponse{Details: &transportv1pb.ClusterDetails{FipsEnabled: true}}); err != nil {
+				if err := server.Send(&transportv1pb.ProxySSHResponse{Details: &transportv1pb.ClusterDetails{FipsEnabled: true}}); err != nil && !errors.Is(err, io.EOF) {
 					return trail.ToGRPC(trace.Wrap(err))
 				}
 
@@ -281,7 +281,7 @@ func TestClient_DialHost(t *testing.T) {
 					if err := server.Send(&transportv1pb.ProxySSHResponse{
 						Details: nil,
 						Frame:   &transportv1pb.ProxySSHResponse_Ssh{Ssh: &transportv1pb.Frame{Payload: f.Ssh.Payload}},
-					}); err != nil {
+					}); err != nil && !errors.Is(err, io.EOF) {
 						return trail.ToGRPC(trace.Wrap(err))
 					}
 				case *transportv1pb.ProxySSHRequest_Agent:
@@ -290,7 +290,7 @@ func TestClient_DialHost(t *testing.T) {
 				return nil
 			case req.DialTarget.Cluster == "forward":
 				// send the initial cluster details
-				if err := server.Send(&transportv1pb.ProxySSHResponse{Details: &transportv1pb.ClusterDetails{FipsEnabled: true}}); err != nil {
+				if err := server.Send(&transportv1pb.ProxySSHResponse{Details: &transportv1pb.ClusterDetails{FipsEnabled: true}}); err != nil && !errors.Is(err, io.EOF) {
 					return trail.ToGRPC(trace.Wrap(err))
 				}
 
@@ -306,7 +306,7 @@ func TestClient_DialHost(t *testing.T) {
 					if err := server.Send(&transportv1pb.ProxySSHResponse{
 						Details: nil,
 						Frame:   &transportv1pb.ProxySSHResponse_Ssh{Ssh: &transportv1pb.Frame{Payload: f.Ssh.Payload}},
-					}); err != nil {
+					}); err != nil && !errors.Is(err, io.EOF) {
 						return trail.ToGRPC(trace.Wrap(err))
 					}
 				case *transportv1pb.ProxySSHRequest_Agent:
@@ -360,7 +360,7 @@ func TestClient_DialHost(t *testing.T) {
 				if err := server.Send(&transportv1pb.ProxySSHResponse{
 					Details: nil,
 					Frame:   &transportv1pb.ProxySSHResponse_Ssh{Ssh: &transportv1pb.Frame{Payload: keys[0].Blob}},
-				}); err != nil {
+				}); err != nil && !errors.Is(err, io.EOF) {
 					return trail.ToGRPC(trace.Wrap(err))
 				}
 				return nil
