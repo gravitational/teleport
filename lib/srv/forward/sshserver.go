@@ -638,6 +638,13 @@ func (s *Server) Serve() {
 		return
 	}
 
+	// Once the client and server connections are established, ensure we forward
+	// x11 channel requests from the server to the client.
+	if err := x11.ServeChannelRequests(ctx, s.remoteClient.Client, s.handleX11ChannelRequest); err != nil {
+		s.log.Errorf("Unable to forward x11 channel requests: %v.", err)
+		return
+	}
+
 	succeeded = true
 
 	// The keep-alive loop will keep pinging the remote server and after it has
@@ -1262,7 +1269,12 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.S
 // Servers which support X11 forwarding request a separate channel for serving each
 // inbound connection on the X11 socket of the remote session.
 func (s *Server) handleX11ChannelRequest(ctx context.Context, nch ssh.NewChannel) {
-	// accept inbound X11 channel from server
+	// According to RFC 4254, client "implementations MUST reject any X11 channel
+	// open requests if they have not requested X11 forwarding". However, since this
+	// is a forwarding client implementation, we should simply accept and forward,
+	// leaving it up to the remote client to reject the channel request.
+
+	// accept inbound X11 channel from remote server
 	sch, sin, err := nch.Accept()
 	if err != nil {
 		s.log.Errorf("X11 channel fwd failed: %v", err)
@@ -1346,13 +1358,6 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 		return trace.Wrap(err)
 	} else if !ok {
 		return trace.AccessDenied("X11 forwarding request denied by server")
-	}
-
-	// Set up the server to handle x11 channel requests from the client. If the OpenSSH
-	// control master option is in use, then the server might already be handling such requests.
-	err = x11.ServeChannelRequests(ctx, s.remoteClient.Client, s.handleX11ChannelRequest)
-	if err != nil && !errors.Is(err, x11.ErrX11ForwardChannelAlreadyOpen) {
-		return trace.Wrap(err)
 	}
 
 	return nil

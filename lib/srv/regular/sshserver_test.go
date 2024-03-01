@@ -1096,10 +1096,6 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 	})
 	require.NoError(t, err)
 
-	// Additional calls to handle channel requests should result in ErrX11ForwardChannelAlreadyOpen.
-	err = x11.ServeChannelRequests(ctx, clt.Client, func(ctx context.Context, nch ssh.NewChannel) {})
-	require.ErrorIs(t, err, x11.ErrX11ForwardChannelAlreadyOpen)
-
 	// Client requests x11 forwarding for the server session.
 	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
 	require.NoError(t, err)

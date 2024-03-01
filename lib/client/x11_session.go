@@ -209,7 +209,7 @@ func (ns *NodeSession) serveX11Channels(ctx context.Context, sess *tracessh.Sess
 func (ns *NodeSession) rejectX11Channels(ctx context.Context) error {
 	err := x11.ServeChannelRequests(ctx, ns.nodeClient.Client.Client, func(_ context.Context, nch ssh.NewChannel) {
 		// According to RFC 4254, client "implementations MUST reject any X11 channel
-		// open requests if they have not requested X11 forwarding. Following openssh's
+		// open requests if they have not requested X11 forwarding". Following openssh's
 		// example, we treat such a request as a break in attempt and warn the user.
 		log.Warn("server tried X11 forwarding without client requesting it, this is likely a break-in attempt by a malicious user")
 		nch.Reject(ssh.Prohibited, "")
