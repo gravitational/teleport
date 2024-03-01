@@ -182,7 +182,7 @@ populated server side are provided to clients without requiring an additional ca
 If partial updates of a resource are desired, the request may contain a
 [FieldMask](https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#field-mask).
 Where a field mask is specified, the RPC should leverage the `Patch` method of
-the backend to perform a partial update of the resource.
+the storage service to perform a partial update of the resource.
 
 The request MUST fail and return a `trace.NotFound` error if there is no matching resource in the backend.
 
