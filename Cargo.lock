@@ -1258,6 +1258,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ironrdp-dvc"
+version = "0.1.0"
+dependencies = [
+ "ironrdp-pdu",
+ "ironrdp-svc",
+ "slab",
+ "tracing",
+]
+
+[[package]]
 name = "ironrdp-error"
 version = "0.1.0"
 
@@ -2004,6 +2014,7 @@ dependencies = [
  "env_logger",
  "ironrdp-cliprdr",
  "ironrdp-connector",
+ "ironrdp-dvc",
  "ironrdp-pdu",
  "ironrdp-rdpdr",
  "ironrdp-rdpsnd",

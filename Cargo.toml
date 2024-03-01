@@ -42,5 +42,6 @@ ironrdp-rdpdr = { path = "/Users/ibeckermayer/gravitational/probakowski/IronRDP/
 ironrdp-rdpsnd = { path = "/Users/ibeckermayer/gravitational/probakowski/IronRDP/crates/ironrdp-rdpsnd" }
 ironrdp-session = { path = "/Users/ibeckermayer/gravitational/probakowski/IronRDP/crates/ironrdp-session" }
 ironrdp-svc = { path = "/Users/ibeckermayer/gravitational/probakowski/IronRDP/crates/ironrdp-svc" }
+ironrdp-dvc = { path = "/Users/ibeckermayer/gravitational/probakowski/IronRDP/crates/ironrdp-dvc" }
 ironrdp-tls = { path = "/Users/ibeckermayer/gravitational/probakowski/IronRDP/crates/ironrdp-tls", features = ["rustls"]}
 ironrdp-tokio = { path = "/Users/ibeckermayer/gravitational/probakowski/IronRDP/crates/ironrdp-tokio" }

@@ -20,7 +20,6 @@ use crate::{
     CGOErrCode, CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel,
     CGOSyncKeys, CgoHandle,
 };
-use bitflags::Flags;
 #[cfg(feature = "fips")]
 use boring::error::ErrorStack;
 use bytes::BytesMut;
@@ -46,11 +45,11 @@ use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
 use ironrdp_rdpsnd::Rdpsnd;
-use ironrdp_session::x224::{self, Processor, ProcessorOutput};
+use ironrdp_session::x224::{self, ProcessorOutput};
 use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
-use ironrdp_tokio::{connect_finalize_no_credssp, single_connect_step_read, Framed, TokioStream};
+use ironrdp_tokio::{single_connect_step_read, Framed, TokioStream};
 use log::{debug, warn};
 use rand::{Rng, SeedableRng};
 use std::error::Error;
@@ -70,7 +69,6 @@ use crate::rdpdr::TeleportRdpdrBackend;
 use crate::ssl::TlsStream;
 #[cfg(feature = "fips")]
 use tokio_boring::{HandshakeError, SslStream};
-use tracing::field::debug;
 
 const RDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -182,7 +180,7 @@ impl Client {
             ssl::upgrade(initial_stream, &server_socket_addr.ip().to_string()).await?;
 
         // Upgrade the stream
-        let upgraded = ironrdp_tokio::mark_as_upgraded(should_upgrade, &mut connector);
+        let _upgraded = ironrdp_tokio::mark_as_upgraded(should_upgrade, &mut connector);
 
         // Frame the stream again for use by connect_finalize
         let mut rdp_stream = ironrdp_tokio::TokioFramed::new(upgraded_stream);
@@ -313,8 +311,7 @@ impl Client {
         config: Config,
         io_channel_id: u16,
         user_channel_id: u16,
-    ) -> tokio::task::JoinHandle<ClientResult<()>> {
-        // ) -> tokio::task::JoinHandle<ClientResult<Option<DisconnectReason>>> {
+    ) -> tokio::task::JoinHandle<ClientResult<Option<DisconnectReason>>> {
         global::TOKIO_RT.spawn(async move {
             loop {
                 let (action, mut frame) = read_stream.read_pdu().await?;
