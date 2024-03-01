@@ -70,27 +70,11 @@ endif
 # $(ARCH) is the target architecture we want to build for.
 REQUIRE_HOST_ARCH = $(if $(filter-out $(ARCH),$(RUNTIME_ARCH)),$(error Cannot cross-compile $@ $(ARCH) on $(RUNTIME_ARCH)))
 
-# PULL_ON_CI is used by the buildbox targets to pull the latest buildbox before building
-# a new one so that less work is done if the buildbox is up-to-date already. This is only
-# needed on CI as they start with a fresh state each time.
-PULL_ON_CI = $(if $(filter $(CI),true),docker inspect --type=image $(1) >/dev/null 2>&1 || docker pull $(1) || true)
-
 # This determines which make target we call in this repo's top level Makefile when
 # make release in this Makefile is called. Currently this supports its default value
 # (release) and release-unix-preserving-webassets. See the release-arm target for
 # more details.
 RELEASE_TARGET ?= release
-
-# DOCKER_BUILDER_NAME extracts the name of the buildx builder that uses the "docker" driver.
-#
-# The awk command looks for the first line that has "docker" in the second (DRIVER) column.
-# -F '[ *]+': there may be an asterisk between the first and second column if that record is the default,
-# so just subsume the asterisk into the field separator.
-DOCKER_BUILDER_NAME ?= $(shell docker buildx ls 2>/dev/null | awk -F '[ *]+' '$$2 == "docker" {print $$1}')
-
-.PHONY:print-docker-builder-name
-print-docker-builder-name:
-	@echo $(DOCKER_BUILDER_NAME)
 
 #
 # Build 'teleport' release inside a docker container
@@ -134,9 +118,7 @@ build-binaries-fips: buildbox-centos7-fips webassets
 #
 .PHONY:buildbox
 buildbox:
-	$(call PULL_ON_CI,$(BUILDBOX))
 	docker buildx build \
-		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
@@ -175,9 +157,8 @@ buildbox-fips: buildbox-centos7-fips
 .PHONY:buildbox-centos7
 buildbox-centos7:
 	$(REQUIRE_HOST_ARCH)
-	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7))
 	docker buildx build \
-		--builder $(DOCKER_BUILDER_NAME) \
+		--target buildbox \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDBOX_CENTOS7_ASSETS=$(BUILDBOX_CENTOS7_ASSETS) \
@@ -195,25 +176,31 @@ buildbox-centos7:
 		--tag $(BUILDBOX_CENTOS7) -f Dockerfile-centos7 .
 
 #
-# Builds a Docker buildbox for CentOS 7 FIPS builds
-# Uses regular CentOS 7 buildbox as base, so limited arguments are needed.
-#
-# Because this target uses the image built by the buildbox-centos7 target, it is
-# expected to be run with a buildx builder that uses the "docker" driver. If another
-# driver is used, the --build-arg BUILDBOX_CENTOS7=$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH)
-# will not know about the local image that was just built, and will pull the image from
-# the Docker repository instead, which will be out of date.
+# Builds a Docker buildbox for CentOS 7 FIPS builds. This uses the same
+# Dockerfile as `buildbox-centos7` but with the `buildbox-fips` target which
+# sets the appropriate environment variables and config files to build
+# FIPS-compliant binaries. It also does a test build to ensure the built
+# binaries are FIPS-compliant.
 #
 .PHONY:buildbox-centos7-fips
-buildbox-centos7-fips: buildbox-centos7
-	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_FIPS))
+buildbox-centos7-fips:
 	docker buildx build \
-		--builder $(DOCKER_BUILDER_NAME) \
-		--build-arg BUILDBOX_CENTOS7=$(BUILDBOX_CENTOS7) \
+		--target buildbox-fips \
+		--build-arg UID=$(UID) \
+		--build-arg GID=$(GID) \
+		--build-arg BUILDBOX_CENTOS7_ASSETS=$(BUILDBOX_CENTOS7_ASSETS) \
+		--build-arg BUILDARCH=$(HOST_ARCH) \
+		--build-arg TARGETARCH=$(RUNTIME_ARCH) \
+		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
+		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
+		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
 		--cache-to type=inline \
 		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
 		$(if $(PUSH),--push,--load) \
-		--tag $(BUILDBOX_CENTOS7_FIPS) -f Dockerfile-centos7-fips .
+		--tag $(BUILDBOX_CENTOS7_FIPS) -f Dockerfile-centos7 .
 
 #
 # Builds a Docker buildbox for ARMv7/ARM64 builds
@@ -222,9 +209,7 @@ buildbox-centos7-fips: buildbox-centos7
 #
 .PHONY:buildbox-arm
 buildbox-arm:
-	$(call PULL_ON_CI,$(BUILDBOX_ARM))
 	docker buildx build \
-		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
@@ -246,9 +231,7 @@ endif
 #
 .PHONY:buildbox-node
 buildbox-node:
-	$(call PULL_ON_CI,$(BUILDBOX_NODE))
 	docker buildx build \
-		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
@@ -635,7 +618,6 @@ print-buildbox-version:
 .PHONY:build-centos7-assets
 build-centos7-assets:
 	docker buildx build \
-		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg BUILDARCH=$(HOST_ARCH) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg TARGETARCH=$(RUNTIME_ARCH) \
