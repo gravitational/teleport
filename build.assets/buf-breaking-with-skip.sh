@@ -1,7 +1,7 @@
 #!/bin/sh
 
 if [ $# -ne 3 ] ; then
-    printf "usage: %q <base input> <against input> <skip list>\n" "$0" >&2
+    printf "usage: %s <base input> <against input> <skip list>\n" "$0" >&2
     exit 1
 fi
 
