@@ -290,8 +290,8 @@ func generateTaskDefinitionWithImage(taskDefinition *ecsTypes.TaskDefinition, te
 	return registerTaskDefinitionIn, nil
 }
 
-// ensureUpgraderEnvironmentVariables ensures that the TELEPORT_EXT_UPGRADER environment
-// variables are set.
+// ensureUpgraderEnvironmentVariables modifies the taskDefinition and ensures that
+// the TELEPORT_EXT_UPGRADER environment variables are set.
 func ensureUpgraderEnvironmentVariables(taskDefinition *ecs.RegisterTaskDefinitionInput) error {
 	if len(taskDefinition.ContainerDefinitions) != 1 {
 		return trace.BadParameter("expected 1 task container definition, but got %d", len(taskDefinition.ContainerDefinitions))
