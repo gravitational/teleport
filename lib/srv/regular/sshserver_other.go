@@ -1,3 +1,6 @@
+//go:build !darwin && !linux
+// +build !darwin,!linux
+
 /*
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
@@ -15,30 +18,18 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-package sshutils
+package regular
 
 import (
 	"net"
-	"strconv"
+	"os"
+	"runtime"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/srv"
 )
 
-// JoinHostPort is a wrapper for net.JoinHostPort that takes a uint32 port.
-func JoinHostPort(host string, port uint32) string {
-	return net.JoinHostPort(host, strconv.Itoa(int(port)))
-}
-
-// SplitHostPort is a wrapper for net.SplitHostPort that returns a uint32 port.
-// Note that unlike net.SplitHostPort, a missing port is valid and will return
-// a zero port.
-func SplitHostPort(addrString string) (string, uint32, error) {
-	addr, err := utils.ParseHostPortAddr(addrString, 0)
-	if err != nil {
-		return "", 0, trace.Wrap(err)
-	}
-	return addr.Host(), uint32(addr.Port(0)), nil
+func validateListenerSocket(scx *srv.ServerContext, controlConn *net.UnixConn, listenerFD *os.File) error {
+	return trace.BadParameter("remote forwarding is not implemented for %s", runtime.GOOS)
 }
