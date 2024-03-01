@@ -83,7 +83,7 @@ impersonates the `viewers` group when proxying requests from the user.
 
 While you have authorized the `kube-access` role to access Kubernetes clusters
 as a member of the `viewers` group, this group does not yet have permissions
-within its Kubernetes cluster. To assign thes permissions, create a Kubernetes
+within its Kubernetes cluster. To assign these permissions, create a Kubernetes
 `RoleBinding` or `ClusterRoleBindings` that grants permission to the `viewers`
 group.
    
@@ -114,7 +114,7 @@ group.
    ```
 
 Your Teleport user now has permissions to assume membership in the `viewers`
-group when accessingy your Kubernetes cluster, and the `viewers` group now has
+group when accessing your Kubernetes cluster, and the `viewers` group now has
 permissions to view resources in the cluster. The next step is to deploy the
 Teleport Kubernetes Service in the cluster to proxy user requests.
 
