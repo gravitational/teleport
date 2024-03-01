@@ -775,7 +775,7 @@ func (s *PresenceService) GetAndUpdateRemoteCluster(
 		}
 
 		lease, err := s.ConditionalUpdate(ctx, backend.Item{
-			Key:      backend.Key(remoteClustersPrefix, updated.GetName()),
+			Key:      backend.Key(remoteClustersPrefix, name),
 			Value:    updatedValue,
 			Expires:  updated.Expiry(),
 			Revision: updated.GetRevision(),
