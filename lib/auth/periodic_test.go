@@ -25,20 +25,21 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 )
 
 func TestInstanceMetricsPeriodic(t *testing.T) {
 	tts := []struct {
 		desc           string
-		specs          []types.InstanceSpecV1
+		instances      []proto.UpstreamInventoryHello
 		expectedCounts map[string]map[string]int
 		upgraders      []string
 		expectEnrolled int
 	}{
 		{
 			desc: "mixed",
-			specs: []types.InstanceSpecV1{
+			instances: []proto.UpstreamInventoryHello{
 				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0"},
 				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "14.0.0"},
 				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0"},
@@ -68,7 +69,7 @@ func TestInstanceMetricsPeriodic(t *testing.T) {
 		},
 		{
 			desc: "all-unenrolled",
-			specs: []types.InstanceSpecV1{
+			instances: []proto.UpstreamInventoryHello{
 				{},
 				{},
 			},
@@ -80,7 +81,7 @@ func TestInstanceMetricsPeriodic(t *testing.T) {
 		},
 		{
 			desc: "all-enrolled",
-			specs: []types.InstanceSpecV1{
+			instances: []proto.UpstreamInventoryHello{
 				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0"},
 				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0"},
 				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0"},
@@ -104,7 +105,7 @@ func TestInstanceMetricsPeriodic(t *testing.T) {
 		},
 		{
 			desc: "nil version",
-			specs: []types.InstanceSpecV1{
+			instances: []proto.UpstreamInventoryHello{
 				{ExternalUpgrader: "kube"},
 				{ExternalUpgrader: "unit"},
 			},
@@ -132,10 +133,7 @@ func TestInstanceMetricsPeriodic(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			periodic := newInstanceMetricsPeriodic()
 
-			for _, upgrader := range tt.specs {
-				instance, err := types.NewInstance(uuid.New().String(), upgrader)
-				require.NoError(t, err)
-
+			for _, instance := range tt.instances {
 				periodic.VisitInstance(instance)
 			}
 

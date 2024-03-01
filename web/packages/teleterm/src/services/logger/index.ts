@@ -17,3 +17,4 @@
  */
 
 export * from './loggerService';
+export { KeepLastChunks } from './keepLastChunks';

@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
@@ -252,6 +253,136 @@ func TestSessions(t *testing.T) {
 		SessionID: ws.GetName(),
 	})
 	require.True(t, trace.IsNotFound(err), "%#v", err)
+}
+
+func TestAuthenticateWebUser_deviceWebToken(t *testing.T) {
+	t.Parallel()
+	s := newAuthSuite(t)
+
+	authServer := s.a
+
+	const user = "llama"
+	const pass = "supersecretpassword!!1!"
+
+	// Prepare user and password.
+	// 2nd factors are not important for this test.
+	_, _, err := CreateUserAndRole(authServer, user, []string{user}, nil /* allowRules */)
+	require.NoError(t, err, "CreateUserAndRole failed")
+	require.NoError(t,
+		authServer.UpsertPassword(user, []byte(pass)),
+		"UpsertPassword failed")
+
+	const userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+	const remoteIP = "40.89.244.232"
+	const remoteAddr = remoteIP + ":4242"
+
+	makeTokenSuccess := func(t *testing.T) CreateDeviceWebTokenFunc {
+		return func(ctx context.Context, dwt *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
+			if !assert.NotNil(t, dwt, "dwt parameter is nil") {
+				return nil, errors.New("dtw parameter is nil")
+			}
+			assert.NotEmpty(t, dwt.WebSessionId, "dwt.WebSessionId is empty")
+			assert.Equal(t, userAgent, dwt.BrowserUserAgent, "dwt.BrowserUserAgent mismatch")
+			assert.Equal(t, remoteIP, dwt.BrowserIp, "dwt.BrowserIp mismatch")
+			assert.Equal(t, user, dwt.User, "dwt.User mismatch")
+
+			return &devicepb.DeviceWebToken{
+				Id:    "this is an opaque ID",
+				Token: "this is an opaque token",
+			}, nil
+		}
+	}
+
+	makeTokenError := func(t *testing.T) CreateDeviceWebTokenFunc {
+		return func(ctx context.Context, dwt *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
+			return nil, errors.New("something bad happened")
+		}
+	}
+
+	ctx := context.Background()
+	validReq := &AuthenticateUserRequest{
+		Username: user,
+		Pass: &PassCreds{
+			Password: []byte(pass),
+		},
+		ClientMetadata: &ForwardedClientMetadata{
+			UserAgent:  userAgent,
+			RemoteAddr: remoteAddr,
+		},
+	}
+
+	tests := []struct {
+		name          string
+		makeTokenFunc func(t *testing.T) CreateDeviceWebTokenFunc
+		req           *AuthenticateUserRequest
+		wantErr       string
+		wantToken     bool
+	}{
+		{
+			name:          "success",
+			makeTokenFunc: makeTokenSuccess,
+			req:           validReq,
+			wantToken:     true,
+		},
+		{
+			name:          "CreateDeviceWebToken fails",
+			makeTokenFunc: makeTokenError,
+			req:           validReq,
+		},
+		{
+			name:          "empty ClientMetadata.UserAgent",
+			makeTokenFunc: makeTokenSuccess,
+			req: func() *AuthenticateUserRequest {
+				req := *validReq
+				req.ClientMetadata = &ForwardedClientMetadata{
+					RemoteAddr: remoteAddr, // AuthenticateWebUser fails if RemoteAddr is missing.
+				}
+				return &req
+			}(),
+		},
+		{
+			name:          "nil ClientMetadata",
+			makeTokenFunc: makeTokenSuccess,
+			req: func() *AuthenticateUserRequest {
+				req := *validReq
+				req.ClientMetadata = nil
+				return &req
+			}(),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var gotSessionID string // captured session ID from DeviceWebToken
+			tokenFn := test.makeTokenFunc(t)
+			captureSessionFn := func(ctx context.Context, dwt *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
+				gotSessionID = dwt.GetWebSessionId()
+				return tokenFn(ctx, dwt)
+			}
+
+			// Set a fake SetCreateDeviceWebTokenFunc.
+			// This is set during server creation for Enterprise servers.
+			authServer.SetCreateDeviceWebTokenFunc(captureSessionFn)
+
+			webSession, err := authServer.AuthenticateWebUser(ctx, *test.req)
+			// AuthenticateWebUser is never expected to fail in this test.
+			// Either a DeviceWebToken exists in the response, or it doesn't, but the
+			// method itself always works.
+			require.NoError(t, err, "AuthenticateWebUser failed unexpectedly")
+
+			// Verify the token itself.
+			deviceToken := webSession.GetDeviceWebToken()
+			if !test.wantToken {
+				assert.Nil(t, deviceToken, "WebSession.GetDeviceWebToken is not nil")
+				return
+			}
+			require.NotNil(t, deviceToken, "WebSession.GetDeviceWebToken is nil")
+			assert.NotEmpty(t, deviceToken.Id, "DeviceWebToken.Id is empty")
+			assert.NotEmpty(t, deviceToken.Token, "DeviceWebToken.Token is empty")
+
+			// Verify the WebSessionId sent to CreateDeviceWebTokenFunc.
+			assert.Equal(t, webSession.GetName(), gotSessionID, "Captured DeviceWebToken.WebSessionId mismatch")
+		})
+	}
 }
 
 func TestAuthenticateSSHUser(t *testing.T) {
