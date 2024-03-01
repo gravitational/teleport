@@ -922,6 +922,24 @@
         {
           "title": "Databases",
           "slug": "/auto-discovery/databases/"
+        },
+        {
+          "title": "Kubernetes Applications",
+          "slug": "/auto-discovery/kubernetes-applications/",
+          "entries": [
+            {
+              "title": "Get Started",
+              "slug": "/auto-discovery/kubernetes-applications/get-started/"
+            },
+            {
+              "title": "Architecture",
+              "slug": "/auto-discovery/kubernetes-applications/architecture/"
+            },
+            {
+              "title": "Reference",
+              "slug": "/auto-discovery/kubernetes-applications/reference/"
+            }
+          ]
         }
       ]
     },
@@ -936,24 +954,6 @@
         {
           "title": "Getting Started",
           "slug": "/application-access/getting-started/"
-        },
-        {
-          "title": "Enroll Kubernetes Applications",
-          "slug": "/application-access/enroll-kubernetes-applications/",
-          "entries": [
-            {
-              "title": "Get Started",
-              "slug": "/application-access/enroll-kubernetes-applications/get-started/"
-            },
-            {
-              "title": "Architecture",
-              "slug": "/application-access/enroll-kubernetes-applications/architecture/"
-            },
-            {
-              "title": "Reference",
-              "slug": "/application-access/enroll-kubernetes-applications/reference/"
-            }
-          ]
         },
         {
           "title": "Securing Cloud Provider APIs",
@@ -3167,6 +3167,26 @@
     {
       "source": "/server-access/guides/gcp-discovery/",
       "destination": "/auto-discovery/servers/gcp-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/enroll-kubernetes-applications/",
+      "destination": "/auto-discovery/kubernetes-applications/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/enroll-kubernetes-applications/architecture/",
+      "destination": "/auto-discovery/kubernetes-applications/architecture/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/enroll-kubernetes-applications/get-started/",
+      "destination": "/auto-discovery/kubernetes-applications/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/enroll-kubernetes-applications/reference/",
+      "destination": "/auto-discovery/kubernetes-applications/reference/",
       "permanent": true
     }
   ]
