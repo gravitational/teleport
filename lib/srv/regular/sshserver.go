@@ -2373,7 +2373,7 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			binary.BigEndian.PutUint32(payload, uint32(port))
+			binary.BigEndian.PutUint32(payload, port)
 		}
 
 		if err := r.Reply(true, payload); err != nil {
