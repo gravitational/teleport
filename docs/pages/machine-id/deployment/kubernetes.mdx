@@ -240,9 +240,7 @@ spec:
     spec:
       containers:
         - name: tbot
-          image: public.ecr.aws/gravitational/teleport-distroless:(=teleport.version=)
-          command:
-            - tbot
+          image: public.ecr.aws/gravitational/tbot-distroless:(=teleport.version=)
           args:
             - start
             - -c
