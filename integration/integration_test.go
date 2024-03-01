@@ -2126,7 +2126,7 @@ func (r repeatingReader) Close() error {
 // the client idle timeout that the session is not terminated.
 func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 	netConfig := types.DefaultClusterNetworkingConfig()
-	netConfig.SetClientIdleTimeout(time.Second)
+	netConfig.SetClientIdleTimeout(3 * time.Second)
 
 	tconf := servicecfg.MakeDefaultConfig()
 	tconf.SSH.Enabled = true
@@ -2147,22 +2147,23 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 	sessionErr := make(chan error)
 	openSession := func() {
 		cl, err := instance.NewClient(helpers.ClientConfig{
-			Login:   suite.Me.Username,
-			Cluster: helpers.Site,
-			Host:    Host,
+			Login:                suite.Me.Username,
+			Cluster:              helpers.Site,
+			Host:                 Host,
+			DisableSSHResumption: true,
 		})
 		if err != nil {
 			sessionErr <- trace.Wrap(err)
 			return
 		}
 		cl.Stdout = &output
-		// Execute a command 10x faster than the idle timeout to stay active.
-		reader := newRepeatingReader("echo txlxport | sed 's/x/e/g'\n", netConfig.GetClientIdleTimeout()/10)
+		// Execute a command faster than the idle timeout to stay active.
+		reader := newRepeatingReader("echo txlxport | sed 's/x/e/g'\n", 100*time.Millisecond)
 		defer func() { reader.Close() }()
 		cl.Stdin = reader
 
-		// Terminate the session after 3x the idle timeout
-		ctx, cancel := context.WithTimeout(context.Background(), netConfig.GetClientIdleTimeout()*3)
+		// Terminate the session after 2x the idle timeout
+		ctx, cancel := context.WithTimeout(context.Background(), netConfig.GetClientIdleTimeout()*2)
 		defer cancel()
 		sessionErr <- cl.SSH(ctx, nil, false)
 	}
@@ -2171,16 +2172,16 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 
 	// Wait for the sessions to end - we expect an error
 	// since we are canceling the context.
-	err := waitForError(sessionErr, time.Second*10)
+	err := waitForError(sessionErr, time.Second*15)
 	require.Error(t, err)
 
 	// Ensure that the session was alive beyond the idle timeout by
 	// counting the number of times "teleport" was output. If the session
-	// was alive past the idle timeout then there should be at least 11 occurrences
-	// since the command is run at 1/10 the idle timeout.
+	// was alive past the idle timeout, then there should be at least 30 occurrences
+	// since the command is run more frequently the idle timeout.
 	require.NotEmpty(t, output)
 	count := strings.Count(output.String(), "teleport")
-	require.Greater(t, count, 10)
+	require.Greater(t, count, 30)
 }
 
 // TestDisconnectScenarios tests multiple scenarios with client disconnects
