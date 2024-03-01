@@ -96,7 +96,7 @@ WebSocket `ping` frames periodically and the client will respond with `pong`.
 
 ### The legacy "connection upgrade"
 
-This section decribes the legacy Teleport-custom connection upgrade used before v15 (TBD).
+This section decribes the legacy Teleport-custom connection upgrade used before v15.1.
 
 Borrowed from the "WebSocket" design, the Teleport client can make a connection upgrade through a web API on the
 Teleport Proxy:
