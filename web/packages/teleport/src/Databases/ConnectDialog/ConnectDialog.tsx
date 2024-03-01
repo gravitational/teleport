@@ -37,7 +37,40 @@ export default function ConnectDialog({
   onClose,
   authType,
   accessRequestId,
+  dbProtocol,
 }: Props) {
+  // For dynamodb and clickhouse-http protocols, the command is `tsh proxy db --tunnel` instead of `tsh db connect`.
+  let connectCommand =
+    dbProtocol == 'dynamodb' || dbProtocol == 'clickhouse-http'
+      ? 'proxy db --tunnel'
+      : 'db connect';
+
+  // Adjust `--db-name` flag based on db protocol, as it's required for
+  // some, optional for some, and unsupported by some.
+  let dbNameFlag: string;
+  switch (dbProtocol) {
+    case 'postgres':
+    case 'sqlserver':
+    case 'oracle':
+    case 'mongodb':
+      // Required
+      dbNameFlag = ' --db-name=<name>';
+      break;
+    case 'cassandra':
+    case 'clickhouse':
+    case 'clickhouse-http':
+    case 'dynamodb':
+    case 'opensearch':
+    case 'elasticsearch':
+    case 'redis':
+      // No flag
+      dbNameFlag = '';
+      break;
+    default:
+      // Default to optional
+      dbNameFlag = ' [--db-name=<name>]';
+  }
+
   return (
     <Dialog
       dialogCss={() => ({
@@ -74,7 +107,7 @@ export default function ConnectDialog({
           {' - Connect to the database'}
           <TextSelectCopy
             mt="2"
-            text={`tsh db connect [--db-user=<user>] [--db-name=<name>] ${dbName}`}
+            text={`tsh ${connectCommand} ${dbName} --db-user=<user> ${dbNameFlag}`}
           />
         </Box>
         {accessRequestId && (
