@@ -188,6 +188,8 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 			*usagereporter.KubeRequestEvent,
 			*usagereporter.SFTPEvent,
 			*usagereporter.ResourceHeartbeatEvent,
+			*usagereporter.UserCertificateIssuedEvent,
+			*usagereporter.BotJoinEvent,
 			*usagereporter.SPIFFESVIDIssuedEvent:
 			filtered = append(filtered, event)
 		}
