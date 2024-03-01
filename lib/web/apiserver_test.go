@@ -676,6 +676,7 @@ func (s *WebSuite) authPack(t *testing.T, user string, roles ...string) *authPac
 		otpSecret: otpSecret,
 		user:      user,
 		login:     login,
+		password:  pass,
 		session:   sess,
 		clt:       clt,
 		cookies:   httpResp.Cookies(),
@@ -963,8 +964,8 @@ func TestPasswordChange(t *testing.T) {
 	require.NoError(t, err)
 
 	req := changePasswordReq{
-		OldPassword:       []byte("abc123"),
-		NewPassword:       []byte("abc1234"),
+		OldPassword:       []byte(pack.password),
+		NewPassword:       []byte("defabc12345678"),
 		SecondFactorToken: validToken,
 	}
 
