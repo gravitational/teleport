@@ -31,8 +31,6 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 )
 
@@ -157,46 +155,4 @@ func rawLoginWebOTP(ctx context.Context, params loginWebOTPParams) (resp *Draine
 		StatusCode: httpResp.StatusCode,
 		cookies:    httpResp.Cookies(),
 	}, body, nil
-}
-
-type loginWebMFAParams struct {
-	webClient      *TestWebClient
-	rpID           string
-	user, password string
-	authenticator  *mocku2f.Key
-}
-
-// loginWebMFA logins the user using /webapi/mfa/login/begin and
-// /webapi/mfa/login/finishsession.
-//
-// This is a lower-level utility for tests that want access to the returned
-// CreateSessionResponse.
-func loginWebMFA(ctx context.Context, t *testing.T, params loginWebMFAParams) *CreateSessionResponse {
-	webClient := params.webClient
-
-	beginResp, err := webClient.PostJSON(ctx, webClient.Endpoint("webapi", "mfa", "login", "begin"), &client.MFAChallengeRequest{
-		User: params.user,
-		Pass: params.password,
-	})
-	require.NoError(t, err)
-
-	authChallenge := &client.MFAAuthenticateChallenge{}
-	require.NoError(t, json.Unmarshal(beginResp.Bytes(), authChallenge))
-	require.NotNil(t, authChallenge.WebauthnChallenge)
-
-	// Sign Webauthn challenge (requires user interaction in real-world
-	// scenarios).
-	key := params.authenticator
-	assertionResp, err := key.SignAssertion("https://"+params.rpID, authChallenge.WebauthnChallenge)
-	require.NoError(t, err)
-
-	// 2nd login step: reply with signed challenge.
-	sessionResp, err := webClient.PostJSON(ctx, webClient.Endpoint("webapi", "mfa", "login", "finishsession"), &client.AuthenticateWebUserRequest{
-		User:                      params.user,
-		WebauthnAssertionResponse: assertionResp,
-	})
-	require.NoError(t, err)
-	createSessionResp := &CreateSessionResponse{}
-	require.NoError(t, json.Unmarshal(sessionResp.Bytes(), createSessionResp))
-	return createSessionResp
 }
