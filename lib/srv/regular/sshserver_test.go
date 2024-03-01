@@ -19,6 +19,7 @@
 package regular
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -49,6 +50,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -76,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 // teleportTestUser is additional user used for tests
@@ -699,6 +702,51 @@ func TestDirectTCPIP(t *testing.T) {
 		//nolint:bodyclose // We expect an error here, no need to close.
 		_, err := httpClientUsingSessionJoin.Get(ts.URL)
 		require.ErrorContains(t, err, "ssh: rejected: administratively prohibited (attempted direct-tcpip channel open in join-only mode")
+	})
+}
+
+// TestTCPIPForward ensures that the server can create a listener from a
+// "tcpip-forward" request and do remote port forwarding.
+func TestTCPIPForward(t *testing.T) {
+	t.Parallel()
+	f := newFixtureWithoutDiskBasedLogging(t)
+
+	// Request a listener from the server.
+	listener, err := f.ssh.clt.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	// Start up a test server that uses the port forwarded listener.
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "hello, world")
+	}))
+	t.Cleanup(ts.Close)
+	ts.Listener = listener
+	ts.Start()
+
+	// Dial the test server over the SSH connection.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	t.Cleanup(cancel)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL, &bytes.Buffer{})
+	require.NoError(t, err)
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, resp.Body.Close())
+	})
+
+	// Make sure the response is what was expected.
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, []byte("hello, world\n"), body)
+
+	t.Run("SessionJoinPrincipal cannot use tcpip-forward", func(t *testing.T) {
+		// Ensure that ssh client using SessionJoinPrincipal as Login, cannot
+		// connect using "tcpip-forward".
+		ctx := context.Background()
+		cliUsingSessionJoin := f.newSSHClient(ctx, t, &user.User{Username: teleport.SSHSessionJoinPrincipal})
+		_, err := cliUsingSessionJoin.Listen("tcp", "127.0.0.1:0")
+		require.ErrorContains(t, err, "ssh: tcpip-forward request denied by peer")
 	})
 }
 
@@ -2796,6 +2844,120 @@ func TestTargetMetadata(t *testing.T) {
 
 	require.Contains(t, metadata.ServerLabels, "foo")
 	require.Contains(t, metadata.ServerLabels, "baz")
+}
+
+func TestValidateListenerSocket(t *testing.T) {
+	t.Parallel()
+
+	newSocketFiles := func(t *testing.T) (*uds.Conn, *os.File) {
+		left, right, err := uds.NewSocketpair(uds.SocketTypeStream)
+		require.NoError(t, err)
+
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		tcpListener := listener.(*net.TCPListener)
+		listenerFD, err := tcpListener.File()
+		require.NoError(t, err)
+
+		conn, err := tcpListener.SyscallConn()
+		require.NoError(t, err)
+		err2 := conn.Control(func(descriptor uintptr) {
+			// Disable address reuse to prevent socket replacement.
+			err = syscall.SetsockoptInt(int(descriptor), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 0)
+		})
+		require.NoError(t, err2)
+		require.NoError(t, err)
+
+		t.Cleanup(func() {
+			require.NoError(t, left.Close())
+			require.NoError(t, right.Close())
+		})
+		return left, listenerFD
+	}
+
+	u, err := user.Current()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		user        string
+		mutateFiles func(*testing.T, *uds.Conn, *os.File) (*uds.Conn, *os.File)
+		mutateConn  func(*testing.T, *os.File)
+		assert      require.ErrorAssertionFunc
+	}{
+		{
+			name:   "ok",
+			user:   u.Username,
+			assert: require.NoError,
+		},
+		{
+			name:   "wrong user",
+			user:   "fake-user",
+			assert: require.Error,
+		},
+		{
+			name: "socket type not STREAM",
+			user: u.Username,
+			mutateFiles: func(t *testing.T, conn *uds.Conn, file *os.File) (*uds.Conn, *os.File) {
+				left, right, err := uds.NewSocketpair(uds.SocketTypeDatagram)
+				require.NoError(t, err)
+				listenerFD, err := right.File()
+				require.NoError(t, err)
+				require.NoError(t, right.Close())
+				t.Cleanup(func() {
+					require.NoError(t, left.Close())
+					require.NoError(t, listenerFD.Close())
+				})
+				return left, listenerFD
+			},
+			assert: require.Error,
+		},
+		{
+			name: "SO_REUSEADDR enabled",
+			user: u.Username,
+			mutateConn: func(t *testing.T, file *os.File) {
+				fd := file.Fd()
+				err := unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEADDR, 1)
+				require.NoError(t, err)
+			},
+			assert: require.Error,
+		},
+		{
+			name: "listener socket is not listening",
+			user: u.Username,
+			mutateFiles: func(t *testing.T, conn *uds.Conn, file *os.File) (*uds.Conn, *os.File) {
+				left, right, err := uds.NewSocketpair(uds.SocketTypeStream)
+				require.NoError(t, err)
+				listenerFD, err := right.File()
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					require.NoError(t, left.Close())
+					require.NoError(t, listenerFD.Close())
+				})
+				return left, listenerFD
+			},
+			assert: require.Error,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			scx := &srv.ServerContext{
+				Identity: srv.IdentityContext{
+					Login: tc.user,
+				},
+			}
+			conn, listenerFD := newSocketFiles(t)
+			if tc.mutateFiles != nil {
+				conn, listenerFD = tc.mutateFiles(t, conn, listenerFD)
+			}
+			if tc.mutateConn != nil {
+				tc.mutateConn(t, listenerFD)
+			}
+			err := validateListenerSocket(scx, conn.UnixConn, listenerFD)
+			tc.assert(t, err)
+		})
+	}
 }
 
 // upack holds all ssh signing artifacts needed for signing and checking user keys
