@@ -140,7 +140,7 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	require.ErrorIs(t, err, trace.NotFound("key /remoteClusters/foo is not found"))
 }
 
-func TestPresenceService_GetAndUpdateRemoteCluster(t *testing.T) {
+func TestPresenceService_PatchRemoteCluster(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
@@ -156,7 +156,7 @@ func TestPresenceService_GetAndUpdateRemoteCluster(t *testing.T) {
 	_, err = presenceBackend.CreateRemoteCluster(ctx, rc)
 	require.NoError(t, err)
 
-	updatedRC, err := presenceBackend.GetAndUpdateRemoteCluster(
+	updatedRC, err := presenceBackend.PatchRemoteCluster(
 		ctx,
 		rc.GetName(),
 		func(rc types.RemoteCluster) (types.RemoteCluster, error) {
@@ -174,7 +174,7 @@ func TestPresenceService_GetAndUpdateRemoteCluster(t *testing.T) {
 	require.Equal(t, teleport.RemoteClusterStatusOnline, fetchedRC.GetConnectionStatus())
 
 	// Ensure that name cannot be updated
-	_, err = presenceBackend.GetAndUpdateRemoteCluster(
+	_, err = presenceBackend.PatchRemoteCluster(
 		ctx,
 		rc.GetName(),
 		func(rc types.RemoteCluster) (types.RemoteCluster, error) {

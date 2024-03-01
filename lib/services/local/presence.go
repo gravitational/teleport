@@ -745,9 +745,9 @@ func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc types.Remo
 	return nil, trace.CompareFailed("failed to update remote cluster within %v iterations", iterationLimit)
 }
 
-// GetAndUpdateRemoteCluster fetches a remote cluster and then calls updateFn
+// PatchRemoteCluster fetches a remote cluster and then calls updateFn
 // to apply any changes, before persisting the updated remote cluster.
-func (s *PresenceService) GetAndUpdateRemoteCluster(
+func (s *PresenceService) PatchRemoteCluster(
 	ctx context.Context,
 	name string,
 	updateFn func(types.RemoteCluster) (types.RemoteCluster, error),
@@ -769,6 +769,10 @@ func (s *PresenceService) GetAndUpdateRemoteCluster(
 			return nil, trace.BadParameter("metadata.name: cannot be updated")
 		}
 
+		// When the user explicitly sets the revision in updateFn, we do not
+		// want to retry on failure. This becomes the callers responsibility.
+		revisionSet := updated.GetRevision() != existing.GetRevision()
+
 		updatedValue, err := services.MarshalRemoteCluster(updated)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -778,10 +782,10 @@ func (s *PresenceService) GetAndUpdateRemoteCluster(
 			Key:      backend.Key(remoteClustersPrefix, name),
 			Value:    updatedValue,
 			Expires:  updated.Expiry(),
-			Revision: existing.GetRevision(),
+			Revision: updated.GetRevision(),
 		})
 		if err != nil {
-			if trace.IsCompareFailed(err) {
+			if trace.IsCompareFailed(err) && !revisionSet {
 				// Retry!
 				continue
 			}
