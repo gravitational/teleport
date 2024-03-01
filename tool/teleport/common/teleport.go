@@ -57,9 +57,6 @@ type Options struct {
 	// InitOnly when set to true, initializes config and aux
 	// endpoints but does not start the process
 	InitOnly bool
-	// EnableCloudAWSCredCmd enables hidden cloud aws cred command when true.
-	// This command does nothing in OSS.
-	EnableCloudAWSCredCmd bool
 }
 
 // Run inits/starts the process according to the provided options
@@ -475,12 +472,18 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfListDatabasesCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfListDatabasesIAMArguments.Region)
 	integrationConfListDatabasesCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfListDatabasesIAMArguments.Role)
 
-	if options.EnableCloudAWSCredCmd {
-		cloudAWSCred := app.Command("cloud-aws-cred", "Helper command used by Teleport Cloud to produce credentials.").Hidden()
-		cloudAWSCred.Flag("config",
-			fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
-			Short('c').ExistingFileVar(&ccf.ConfigFile)
-	}
+	integrationConfExternalAuditCmd := integrationConfigureCmd.Command("externalauditstorage", "Bootstraps required infrastructure and adds required IAM permissions for External Audit Storage logs.")
+	integrationConfExternalAuditCmd.Flag("bootstrap", "Bootstrap required infrastructure.").Default("false").BoolVar(&ccf.IntegrationConfExternalAuditStorageArguments.Bootstrap)
+	integrationConfExternalAuditCmd.Flag("aws-region", "AWS region.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Region)
+	integrationConfExternalAuditCmd.Flag("role", "The IAM Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Role)
+	integrationConfExternalAuditCmd.Flag("policy", "The name for the Policy to attach to the IAM role.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Policy)
+	integrationConfExternalAuditCmd.Flag("session-recordings", "The S3 URI where session recordings are stored.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.SessionRecordingsURI)
+	integrationConfExternalAuditCmd.Flag("audit-events", "The S3 URI where audit events are stored.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.AuditEventsURI)
+	integrationConfExternalAuditCmd.Flag("athena-results", "The S3 URI where athena results are stored.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.AthenaResultsURI)
+	integrationConfExternalAuditCmd.Flag("athena-workgroup", "The name of the Athena workgroup used.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.AthenaWorkgroup)
+	integrationConfExternalAuditCmd.Flag("glue-database", "The name of the Glue database used.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.GlueDatabase)
+	integrationConfExternalAuditCmd.Flag("glue-table", "The name of the Glue table used.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.GlueTable)
+	integrationConfExternalAuditCmd.Flag("aws-partition", "AWS partition (default: aws).").Default("aws").StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Partition)
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
@@ -578,12 +581,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	}
 	if err != nil {
 		utils.FatalError(err)
-	}
-
-	if options.EnableCloudAWSCredCmd && command == app.GetCommand("cloud-aws-cred").FullCommand() {
-		if err = config.Configure(&ccf, conf, false); err != nil {
-			utils.FatalError(err)
-		}
 	}
 
 	return app, command, conf
