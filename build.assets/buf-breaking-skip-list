@@ -1,0 +1,2 @@
+This file should list pairs of hashes for "base" and "against" buf inputs for
+which we should not enforce the "buf breaking" check.
