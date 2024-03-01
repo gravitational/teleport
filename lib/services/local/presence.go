@@ -765,13 +765,15 @@ func (s *PresenceService) PatchRemoteCluster(
 			return nil, trace.Wrap(err)
 		}
 
-		if updated.GetName() != name {
+		switch {
+		case updated.GetName() != name:
 			return nil, trace.BadParameter("metadata.name: cannot be updated")
+		case updated.GetRevision() != existing.GetRevision():
+			// If they've provided a revision, and it doesn't match the revision
+			// of the resource we just fetched, we know the conditional update
+			// will fail, so we exit early to avoid the write.
+			return nil, backend.ErrConditionFailed
 		}
-
-		// When the user explicitly sets the revision in updateFn, we do not
-		// want to retry on failure. This becomes the callers responsibility.
-		revisionSet := updated.GetRevision() != existing.GetRevision()
 
 		updatedValue, err := services.MarshalRemoteCluster(updated)
 		if err != nil {
@@ -785,7 +787,7 @@ func (s *PresenceService) PatchRemoteCluster(
 			Revision: updated.GetRevision(),
 		})
 		if err != nil {
-			if trace.IsCompareFailed(err) && !revisionSet {
+			if trace.IsCompareFailed(err) {
 				// Retry!
 				continue
 			}
