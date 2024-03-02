@@ -21,7 +21,7 @@ import { Link } from 'react-router-dom';
 
 import { ButtonSecondary } from 'design/Button';
 import { Platform, getPlatform } from 'design/platform';
-import { Text, Flex } from 'design';
+import { Text, Flex, Box, Image } from 'design';
 import * as Icons from 'design/Icon';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { Path, makeDeepLinkWithSafeInput } from 'shared/deepLinks';
@@ -44,6 +44,8 @@ import {
   SuccessBox,
   WaitingInfo,
 } from 'teleport/Discover/Shared/HintBox';
+
+import connectMyComputerTabPng from './connect-my-computer-tab.png';
 
 import type { AgentStepProps } from '../../types';
 
@@ -213,16 +215,35 @@ export function SetupConnect(
       </StyledBox>
 
       <StyledBox>
-        <Text bold>Step 2: Sign In and Connect My Computer</Text>
+        <Flex gap={5} flexWrap="wrap">
+          <Box flex={1} minWidth="300px">
+            <Text bold>Step 2: Sign In and Connect My Computer</Text>
 
-        <Text typography="subtitle1" mb={2}>
-          The button below will open Teleport Connect. Once you are logged in,
-          Teleport Connect will prompt you to connect your computer.
-        </Text>
+            <Text typography="subtitle1" mb={2}>
+              The button below will open Teleport Connect. Once you are logged
+              in, Teleport Connect will prompt you to connect your computer.
+            </Text>
 
-        <ButtonSecondary as="a" href={connectMyComputerDeepLink}>
-          Sign In & Connect My Computer
-        </ButtonSecondary>
+            <ButtonSecondary as="a" href={connectMyComputerDeepLink}>
+              Sign In & Connect My Computer
+            </ButtonSecondary>
+          </Box>
+
+          <a
+            css={`
+              flex: 1;
+            `}
+            target="_blank"
+            href={connectMyComputerTabPng}
+          >
+            <Image
+              alt="Connect My Computer tab in Teleport Connect"
+              width="100%"
+              minWidth="300px"
+              src={connectMyComputerTabPng}
+            />
+          </a>
+        </Flex>
       </StyledBox>
 
       {pollingStatus}
