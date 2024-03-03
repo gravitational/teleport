@@ -210,6 +210,34 @@ func TestSeekForward(t *testing.T) {
 	}
 }
 
+// TestInterruptsDelay tests that the player responds to playback
+// controls even when it is waiting to emit an event.
+func TestInterruptsDelay(t *testing.T) {
+	clk := clockwork.NewFakeClock()
+	p, err := player.New(&player.Config{
+		Clock:     clk,
+		SessionID: "test-session",
+		Streamer:  &simpleStreamer{count: 3, delay: 5000},
+	})
+	require.NoError(t, err)
+	require.NoError(t, p.Play())
+
+	t.Cleanup(func() { p.Close() })
+
+	clk.BlockUntil(1) // player is now waiting to emit event 0
+
+	// emulate the user seeking forward while the player is waiting..
+	p.SetPos(10_001 * time.Millisecond)
+
+	// expect event 0 and event 1 to be emitted right away
+	// even without advancing the clock
+	evt0 := <-p.C()
+	evt1 := <-p.C()
+
+	require.Equal(t, int64(0), evt0.GetIndex())
+	require.Equal(t, int64(1), evt1.GetIndex())
+}
+
 func TestRewind(t *testing.T) {
 	clk := clockwork.NewFakeClock()
 	p, err := player.New(&player.Config{
