@@ -92,7 +92,7 @@ func TestAppLoginLeaf(t *testing.T) {
 	require.True(t, ok)
 
 	rootAppURL := startDummyHTTPServer(t, "rootapp")
-	rootAppServer := makeTestApplicationServer(t, rootAuth, rootProxy, servicecfg.App{Name: "rootapp", URI: rootAppURL})
+	rootAppServer := makeTestApplicationServer(t, rootProxy, servicecfg.App{Name: "rootapp", URI: rootAppURL})
 	_, err = rootAppServer.WaitForEventTimeout(time.Second*10, service.TeleportReadyEvent)
 	require.NoError(t, err)
 
@@ -119,7 +119,7 @@ func TestAppLoginLeaf(t *testing.T) {
 	leafAuth, leafProxy := makeTestServers(t, withClusterName(t, "leaf"), withConfig(configStorage))
 
 	leafAppURL := startDummyHTTPServer(t, "leafapp")
-	leafAppServer := makeTestApplicationServer(t, leafAuth, leafProxy, servicecfg.App{Name: "leafapp", URI: leafAppURL})
+	leafAppServer := makeTestApplicationServer(t, leafProxy, servicecfg.App{Name: "leafapp", URI: leafAppURL})
 	_, err = leafAppServer.WaitForEventTimeout(time.Second*10, service.TeleportReadyEvent)
 	require.NoError(t, err)
 

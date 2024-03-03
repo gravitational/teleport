@@ -330,9 +330,6 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 				}
 			}
 			g.Debugf("Completed stream for session %v", sessionID)
-			if err != nil {
-				return trace.Wrap(err)
-			}
 			return nil
 		} else if flushAndClose := request.GetFlushAndCloseStream(); flushAndClose != nil {
 			if eventStream == nil {
@@ -688,8 +685,7 @@ func (g *GRPCServer) generateUserSingleUseCerts(ctx context.Context, actx *grpcC
 	singleUseCert, err := userSingleUseCertsGenerate(
 		ctx,
 		actx,
-		*req,
-		nil /* mfaDev handled by generateUserCerts */)
+		*req)
 	if err != nil {
 		g.Entry.Warningf("Failed to generate single-use cert: %v", err)
 		return nil, trace.Wrap(err)
@@ -2539,7 +2535,7 @@ var ErrNoMFADevices = &trace.AccessDeniedError{
 	Message: "MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices",
 }
 
-func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req authpb.UserCertsRequest, mfaDev *types.MFADevice) (*authpb.Certs, error) {
+func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req authpb.UserCertsRequest) (*authpb.Certs, error) {
 	// Get the client IP.
 	clientPeer, ok := peer.FromContext(ctx)
 	if !ok {
@@ -5227,9 +5223,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		),
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	usersService, err := usersv1.NewService(usersv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,

@@ -443,7 +443,7 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 			require.ErrorContains(t, err, contains)
 		}
 	}
-	newRole := func(t *testing.T, spec RoleSpecV6) *RoleV6 {
+	newRole := func(spec RoleSpecV6) *RoleV6 {
 		return &RoleV6{
 			Metadata: Metadata{
 				Name: "test",
@@ -459,7 +459,7 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 	}{
 		{
 			name: "spiffe: valid",
-			role: newRole(t, RoleSpecV6{
+			role: newRole(RoleSpecV6{
 				Allow: RoleConditions{
 					SPIFFE: []*SPIFFERoleCondition{{Path: "/test"}},
 				},
@@ -468,7 +468,7 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "spiffe: valid regex path",
-			role: newRole(t, RoleSpecV6{
+			role: newRole(RoleSpecV6{
 				Allow: RoleConditions{
 					SPIFFE: []*SPIFFERoleCondition{{Path: `^\/svc\/foo\/.*\/bar$`}},
 				},
@@ -477,7 +477,7 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "spiffe: missing path",
-			role: newRole(t, RoleSpecV6{
+			role: newRole(RoleSpecV6{
 				Allow: RoleConditions{
 					SPIFFE: []*SPIFFERoleCondition{{Path: ""}},
 				},
@@ -486,7 +486,7 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "spiffe: path not prepended",
-			role: newRole(t, RoleSpecV6{
+			role: newRole(RoleSpecV6{
 				Allow: RoleConditions{
 					SPIFFE: []*SPIFFERoleCondition{{Path: "foo"}},
 				},
@@ -495,7 +495,7 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "spiffe: invalid ip cidr",
-			role: newRole(t, RoleSpecV6{
+			role: newRole(RoleSpecV6{
 				Allow: RoleConditions{
 					SPIFFE: []*SPIFFERoleCondition{
 						{

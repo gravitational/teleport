@@ -931,14 +931,12 @@ func (t *TerminalHandler) streamEvents(ctx context.Context, tc *client.TeleportC
 			logger.Debug("Sending audit event to web client.")
 
 			if err := t.stream.writeAuditEvent(data); err != nil {
-				if err != nil {
-					if errors.Is(err, websocket.ErrCloseSent) {
-						logger.WithError(err).Debug("Websocket was closed, no longer streaming events")
-						return
-					}
-					logger.WithError(err).Error("Unable to send audit event to web client")
-					continue
+				if errors.Is(err, websocket.ErrCloseSent) {
+					logger.WithError(err).Debug("Websocket was closed, no longer streaming events")
+					return
 				}
+				logger.WithError(err).Error("Unable to send audit event to web client")
+				continue
 			}
 
 		// Once the terminal stream is over (and the close envelope has been sent),

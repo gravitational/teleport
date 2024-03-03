@@ -2247,7 +2247,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 
 			dev := tc.registerDevice(t, ctx, clt)
 
-			ws := proxy.makeDesktopSession(t, pack, session.NewID(), env.server.TLS.Listener.Addr())
+			ws := proxy.makeDesktopSession(t, pack)
 			tc.mfaHandler(t, ws, dev)
 
 			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws})
@@ -8135,7 +8135,7 @@ func makeAuthReqOverWS(ws *websocket.Conn, token string) error {
 	return nil
 }
 
-func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID session.ID, addr net.Addr) *websocket.Conn {
+func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack) *websocket.Conn {
 	u := url.URL{
 		Host:   r.webURL.Host,
 		Scheme: client.WSS,
@@ -9194,7 +9194,7 @@ func TestWebSocketAuthenticateRequest(t *testing.T) {
 					return
 				}
 				t.Cleanup(func() { ws.Close() })
-				if err == nil && tc.serverExpectError != "" {
+				if tc.serverExpectError != "" {
 					t.Errorf("expected error, got nil")
 					return
 				}
