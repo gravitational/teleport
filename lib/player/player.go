@@ -58,6 +58,7 @@ type Player struct {
 	advanceTo atomic.Int64
 
 	emit chan events.AuditEvent
+	wake chan struct{}
 	done chan struct{}
 
 	// playPause holds a channel to be closed when
@@ -119,6 +120,7 @@ func New(cfg *Config) (*Player, error) {
 		streamer:  cfg.Streamer,
 		emit:      make(chan events.AuditEvent, 1024),
 		playPause: make(chan chan struct{}, 1),
+		wake:      make(chan struct{}),
 		done:      make(chan struct{}),
 	}
 
@@ -274,6 +276,13 @@ func (p *Player) SetPos(d time.Duration) error {
 		d = -1 * d
 	}
 	p.advanceTo.Store(d.Milliseconds())
+
+	// try to wake up the player if it's waiting to emit an event
+	select {
+	case p.wake <- struct{}{}:
+	default:
+	}
+
 	return nil
 }
 
@@ -281,9 +290,12 @@ func (p *Player) SetPos(d time.Duration) error {
 // can be canceled
 func (p *Player) applyDelay(d time.Duration) error {
 	scaled := float64(d) / p.speed.Load().(float64)
+
 	select {
 	case <-p.done:
 		return errClosed
+	case <-p.wake:
+		return nil
 	case <-p.clock.After(time.Duration(scaled)):
 		return nil
 	}
