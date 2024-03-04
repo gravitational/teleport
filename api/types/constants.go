@@ -506,6 +506,15 @@ const (
 	// KindSecurityReportCostLimiter const limiter
 	KindSecurityReportCostLimiter = "security_report_cost_limiter"
 
+	// KindNotification is a notification resource.
+	KindNotification = "notification"
+	// KindGlobalNotification is a global notification resource.
+	KindGlobalNotification = "global_notification"
+	// KindUserLastSeenNotification is a resource which stores the timestamp of a user's last seen notification.
+	KindUserLastSeenNotification = "user_last_seen_notification"
+	// KindUserNotificationState is a resource which tracks whether a user has clicked on or dismissed a notification.
+	KindUserNotificationState = "user_notification_state"
+
 	// V7 is the seventh version of resources.
 	V7 = "v7"
 
