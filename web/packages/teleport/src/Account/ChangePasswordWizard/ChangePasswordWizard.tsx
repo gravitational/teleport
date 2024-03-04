@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import styled from 'styled-components';
 import { OutlineDanger } from 'design/Alert/Alert';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Dialog from 'design/Dialog';
@@ -72,7 +73,7 @@ export function ChangePasswordWizard({
     <Dialog
       open={true}
       disableEscapeKeyDown={false}
-      dialogCss={() => ({ width: '650px' })}
+      dialogCss={() => ({ width: '650px', padding: 0 })}
       onClose={onClose}
     >
       <StepSlider
@@ -183,7 +184,7 @@ export function ReauthenticateStep({
   };
 
   return (
-    <div ref={refCallback} data-testid="reauthenticate-step">
+    <StepContainer ref={refCallback} data-testid="reauthenticate-step">
       <DialogHeader
         stepIndex={stepIndex}
         flowLength={flowLength}
@@ -213,7 +214,7 @@ export function ReauthenticateStep({
           </ButtonSecondary>
         </Flex>
       </form>
-    </div>
+    </StepContainer>
   );
 }
 
@@ -273,7 +274,7 @@ export function ChangePasswordStep({
   }
 
   return (
-    <div ref={refCallback} data-testid="change-password-step">
+    <StepContainer ref={refCallback} data-testid="change-password-step">
       <DialogHeader
         stepIndex={stepIndex}
         flowLength={flowLength}
@@ -341,6 +342,15 @@ export function ChangePasswordStep({
           </form>
         )}
       </Validation>
-    </div>
+    </StepContainer>
   );
 }
+
+/**
+ * Sets the padding on the dialog content instead of the dialog itself to make
+ * the slide animations reach the dialog border.
+ */
+const StepContainer = styled.div`
+  padding: ${props => props.theme.space[5]}px;
+  padding-top: ${props => props.theme.space[4]}px;
+`;
