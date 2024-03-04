@@ -1239,7 +1239,8 @@ func triggerLoginLock(t *testing.T, srv *Server, username string) {
 				Username: username,
 				OTP:      &OTPCreds{},
 			},
-			mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN)
+			mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN},
+		)
 		require.True(t, trace.IsAccessDenied(err))
 
 		// Test last attempt returns locked error.
