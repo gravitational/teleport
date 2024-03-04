@@ -83,6 +83,12 @@ func (e *Engine) getGCPUserAndPassword(ctx context.Context, sessionCtx *common.S
 		}
 		return user, password, nil
 
+	// Make the original error message "object not found" more readable. Note
+	// that catching not found here also prevents Google creating a new
+	// database user during OTP generation.
+	case trace.IsNotFound(err):
+		return "", "", trace.NotFound("database user %q does not exist in database %q", sessionCtx.DatabaseUser, sessionCtx.Database.GetName())
+
 	// Report any other error.
 	case err != nil:
 		return "", "", trace.Wrap(err)
