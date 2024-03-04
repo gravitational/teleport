@@ -314,7 +314,7 @@ These come in multiple forms:
 - A TPM offered to a VM by the hypervisor, which may or may not be backed by a 
   physical TPM. Some implementations use a physical TPM available to the
   hypervisor to secure the vTPMs available to the VMs.
-- A TPM offered to containers running ona a host, which may or may not be backed 
+- A TPM offered to containers running on a host, which may or may not be backed 
   by a physical TPM. Some implementations use a physical TPM available to the
   host to secure the vTPMs available to the VMs.
 
