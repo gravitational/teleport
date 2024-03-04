@@ -2420,9 +2420,6 @@ func TestGetAndList_SAMLIdPServiceProviders(t *testing.T) {
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
-	// Permit user to get all apps and saml idp service providers.
-	// role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
-
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
