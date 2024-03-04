@@ -41,14 +41,14 @@ type fakeAuth struct {
 }
 
 func (a fakeAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
-	if !isDBUserGCPServiceAccount(sessionCtx.DatabaseUser) {
+	if !isDBUserFullGCPServerAccountID(sessionCtx.DatabaseUser) {
 		return "", trace.BadParameter("database user must be a service account")
 	}
 	return "iam-auth-token", nil
 }
 
 func (a fakeAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *common.Session) (string, error) {
-	if isDBUserGCPServiceAccount(sessionCtx.DatabaseUser) {
+	if isDBUserFullGCPServerAccountID(sessionCtx.DatabaseUser) {
 		return "", trace.BadParameter("database user must not be a service account")
 	}
 	return "one-time-password", nil
@@ -80,8 +80,7 @@ func Test_getGCPUserAndPassowrd(t *testing.T) {
 			name:              "iam auth with short service account",
 			inputDatabaseUser: "iam-auth-user@project-id.iam",
 			mockDBAuth:        dbAuth,
-			wantDatabaseUser:  "iam-auth-user",
-			wantPassword:      "iam-auth-token",
+			wantError:         true,
 		},
 		{
 			name:              "iam auth with CLOUD_IAM_SERVICE_ACCOUNT user",
