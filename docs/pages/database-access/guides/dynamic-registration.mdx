@@ -34,22 +34,7 @@ resources:
 - labels:
     "env": "test"
     "engine": "mysql"
-  aws:
-    # Optional AWS role that the Database Service will assume to access
-    # this database.
-    assume_role_arn: ""
-    # Optional AWS external ID that the Database Service will use to assume
-    # a role in an external AWS account.
-    external_id: ""
 ```
-
-By default, the Database Service authenticates with the database servers using
-the IAM identity assigned to the host running it or the `assume_role_arn` field
-defined in the dynamic resources.
-
-You can use `aws.assume_role_arn` to overwrite the IAM identity. If the role
-requires an external ID, use `aws.external_id`. The IAM identity assigned to
-the host must be able to assume the specified role.
 
 Next define a database resource:
 
@@ -128,3 +113,4 @@ Aside from `tctl`, dynamic resources can also be added by:
 
 See [Using Dynamic Resources](../../management/dynamic-resources.mdx) to learn
 more about managing Teleport's dynamic resources in general.
+
