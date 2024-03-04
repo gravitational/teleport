@@ -248,7 +248,7 @@ message TPMAttestationParameters {
 // The initial information sent from the client to the server.
 message RegisterUsingTPMMethodInitialRequest {
   // Holds the registration parameters shared by all join methods.
-  types.RegisterUsingTokenRequest common = 1;
+  types.RegisterUsingTokenRequest join_request = 1;
   oneof ek {
     // The device's endorsement certificate in X509, ASN.1 DER form. This
     // certificate contains the public key of the endorsement key. This is
