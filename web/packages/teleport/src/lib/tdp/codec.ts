@@ -320,8 +320,13 @@ export default class Codec {
   encoder = new window.TextEncoder();
   decoder = new window.TextDecoder();
 
-  // Maps from browser KeyboardEvent.code values to Windows hardware keycodes.
-  private _keyScancodes = {
+  /**
+   *  Maps from browser KeyboardEvent.code values to Windows hardware keycodes.
+   *
+   * The latest version of [scancode.h](https://github.com/FreeRDP/FreeRDP/blob/ba8cf8cf2158018fb7abbedb51ab245f369be813/include/freerdp/scancode.h)
+   * in FreeRDP should be considered the canonical source of truth for these values.
+   */
+  private _keyScancodes: { [key: string]: number | number[] } = {
     Escape: 0x0001,
     Digit1: 0x0002,
     Digit2: 0x0003,
@@ -390,7 +395,8 @@ export default class Codec {
     F8: 0x0042,
     F9: 0x0043,
     F10: 0x0044,
-    Pause: 0x0045,
+    // This must be sent as Ctrl + NumLock, see https://github.com/FreeRDP/FreeRDP/blob/ba8cf8cf2158018fb7abbedb51ab245f369be813/include/freerdp/scancode.h#L115-L116
+    Pause: [0x001d, 0x0045],
     ScrollLock: 0x0046,
     Numpad7: 0x0047,
     Numpad8: 0x0048,
@@ -449,7 +455,7 @@ export default class Codec {
     NumpadDivide: 0xe035,
     PrintScreen: 0xe037,
     AltRight: 0xe038,
-    NumLock: 0xe045,
+    NumLock: 0x0045,
     Home: 0xe047,
     ArrowUp: 0xe048,
     PageUp: 0xe049,
@@ -523,19 +529,38 @@ export default class Codec {
     return buffer;
   }
 
+  static keyboardButtonMessageLength =
+    1 /* MessageType */ + 4 /* scanCode */ + 1 /* state */;
+
   // encodeKeyboardInput encodes a keyboard action.
   // Returns null if an unsupported code is passed.
   // | message type (5) | key_code uint32 | state byte |
   encodeKeyboardInput(code: string, state: ButtonState): Message | null {
-    const scanCode = this._keyScancodes[code];
-    if (!scanCode) {
+    const scanCodeOrCodes = this._keyScancodes[code];
+    if (!scanCodeOrCodes) {
+      console.warn(`unsupported key code: ${code}`);
       return null;
     }
-    const buffer = new ArrayBuffer(6);
+
+    // Normalize scanCodeOrCodes to always be an array
+    const scanCodes = Array.isArray(scanCodeOrCodes)
+      ? scanCodeOrCodes
+      : [scanCodeOrCodes];
+    const totalScanCodes = scanCodes.length;
+
+    // Calculate the total buffer size needed
+    const bufferSize = totalScanCodes * Codec.keyboardButtonMessageLength;
+    const buffer = new ArrayBuffer(bufferSize);
     const view = new DataView(buffer);
-    view.setUint8(0, MessageType.KEYBOARD_BUTTON);
-    view.setUint32(1, scanCode);
-    view.setUint8(5, state);
+
+    let offset = 0;
+    scanCodes.forEach(scanCode => {
+      view.setUint8(offset++, MessageType.KEYBOARD_BUTTON);
+      view.setUint32(offset, scanCode);
+      offset += uint32Length;
+      view.setUint8(offset++, state);
+    });
+
     return buffer;
   }
 
