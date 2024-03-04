@@ -306,6 +306,9 @@ func (b *Bot) preRunChecks(ctx context.Context) (func() error, error) {
 		return nil, trace.BadParameter(
 			"either a proxy or auth address must be set using --proxy, --auth-server or configuration",
 		)
+	case config.AddressKindAuth:
+		// TODO(noah): DELETE IN V17.0.0
+		b.log.Warn("We recently introduced the ability to explicitly configure the address of the Teleport Proxy using --proxy-server. We recommend switching to this if you currently provide the address of the Proxy to --auth-server.")
 	}
 
 	// Ensure they have provided a join method.
