@@ -38,6 +38,7 @@ import (
 	workloadpb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -178,10 +179,52 @@ func createListener(addr string) (net.Listener, error) {
 	case "tcp":
 		return net.Listen("tcp", parsed.Host)
 	case "unix":
-		return net.Listen("unix", parsed.Path)
+		lis, err := net.Listen("unix", parsed.Path)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating unix socket %q", parsed.Path)
+		}
+		return &attestingListener{Listener: lis.(*net.UnixListener)}, nil
 	default:
 		return nil, trace.BadParameter("unsupported scheme %q", parsed.Scheme)
 	}
+}
+
+type attestingListener struct {
+	net.Listener
+}
+
+func (al *attestingListener) Accept() (net.Conn, error) {
+	conn, err := al.Listener.Accept()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uConn := conn.(*net.UnixConn)
+
+	rawConn, err := uConn.SyscallConn()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := rawConn.Control(func(fd uintptr) {
+		/*
+			result, err := unix.GetsockoptInt(int(fd), 0,  unix.LOCAL_PEERPID) // getsockopt(fd, SOL_LOCAL, LOCAL_PEERPID)
+			if err != nil {
+				panic(err)
+			}
+
+			fmt.Printf("peer pid: %d\n", result)
+		*/
+		ucred, err := unix.GetsockoptXucred(int(fd), unix.SOL_LOCAL, unix.LOCAL_PEERCRED)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("peer pid: %d\n", ucred.Uid)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conn, nil
 }
 
 func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
