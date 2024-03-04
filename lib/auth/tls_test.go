@@ -784,7 +784,7 @@ func TestAppTokenRotation(t *testing.T) {
 				"trait2": {"value3", "value4"},
 				"trait3": nil,
 			},
-			URI:     "http://localhost:8080",
+			URI:     "https://localhost:8080",
 			Expires: clock.Now().Add(1 * time.Minute),
 		})
 	require.NoError(t, err)
@@ -845,7 +845,7 @@ func TestAppTokenRotation(t *testing.T) {
 				"trait2": {"value3", "value4"},
 				"trait3": nil,
 			},
-			URI:     "http://localhost:8080",
+			URI:     "https://localhost:8080",
 			Expires: clock.Now().Add(1 * time.Minute),
 		})
 	require.NoError(t, err)
@@ -926,8 +926,10 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	clt, err := testSrv.NewClient(TestAdmin())
 	require.NoError(t, err)
 
+	publicAddress := "https://localhost:8080"
+
 	proxyServer, err := types.NewServer("proxy-hostname", types.KindProxy, types.ServerSpecV2{
-		PublicAddrs: []string{"http://localhost:8080"},
+		PublicAddrs: []string{publicAddress},
 	})
 	require.NoError(t, err)
 
@@ -940,7 +942,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 		types.Metadata{Name: integrationName},
 		&types.AWSOIDCIntegrationSpecV1{
 			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
-			Issuer:  "http://localhost:8080",
+			Issuer:  "https://localhost:8080",
 		},
 	)
 	require.NoError(t, err)
@@ -2701,7 +2703,7 @@ func TestGenerateAppToken(t *testing.T) {
 					"trait2": {"value3", "value4"},
 					"trait3": nil,
 				},
-				URI:     "http://localhost:8080",
+				URI:     "https://localhost:8080",
 				Expires: clock.Now().Add(1 * time.Minute),
 			})
 		require.Equal(t, err != nil, ts.outError, ts.inComment)
@@ -2709,7 +2711,7 @@ func TestGenerateAppToken(t *testing.T) {
 			claims, err := key.Verify(jwt.VerifyParams{
 				Username: "foo@example.com",
 				RawToken: token,
-				URI:      "http://localhost:8080",
+				URI:      "https://localhost:8080",
 			})
 			require.NoError(t, err, ts.inComment)
 			require.Equal(t, "foo@example.com", claims.Username, ts.inComment)
@@ -4720,7 +4722,7 @@ func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyP
 		claims, err := key.Verify(jwt.VerifyParams{
 			RawToken: token,
 			Username: "foo",
-			URI:      "http://localhost:8080",
+			URI:      "https://localhost:8080",
 		})
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
@@ -4753,7 +4755,7 @@ func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.
 		}
 		claims, err := key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
 			RawToken: token,
-			Issuer:   "http://localhost:8080",
+			Issuer:   "https://localhost:8080",
 		})
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
