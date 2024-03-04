@@ -64,25 +64,19 @@ func FromProto(amr *accessmonitoringrulev1.AccessMonitoringRuleV1) (*accessmonit
 // ToProto converts an internal access monitoring rule into a v1 access monitoring rule object.
 func ToProto(amr *accessmonitoringrule.AccessMonitoringRule) *accessmonitoringrulev1.AccessMonitoringRuleV1 {
 	subjects := make([]string, 0, len(amr.Spec.Subjects))
-	for _, sub := range amr.Spec.Subjects {
-		subjects = append(subjects, sub)
-	}
+	subjects = append(subjects, amr.Spec.Subjects...)
 	states := make([]string, 0, len(amr.Spec.States))
-	for _, state := range amr.Spec.States {
-		states = append(states, state)
-	}
+	states = append(states, amr.Spec.States...)
 	recipients := make([]string, 0, len(amr.Spec.Notification.Recipients))
-	for _, recipient := range amr.Spec.Notification.Recipients {
-		recipients = append(recipients, recipient)
-	}
+	recipients = append(recipients, amr.Spec.Notification.Recipients...)
 	return &accessmonitoringrulev1.AccessMonitoringRuleV1{
 		Header: headerv1.ToResourceHeaderProto(amr.ResourceHeader),
 		Spec: &accessmonitoringrulev1.AccessMonitoringRuleSpec{
-			Subjects: subjects,
-			States: states,
+			Subjects:  subjects,
+			States:    states,
 			Condition: amr.Spec.Condition,
 			Notification: &accessmonitoringrulev1.Notification{
-				Name: amr.Spec.Notification.Name,
+				Name:       amr.Spec.Notification.Name,
 				Recipients: recipients,
 			},
 		},
