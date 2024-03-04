@@ -14,10 +14,12 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package permissions
+package databaseobjectimportrule
 
 import (
 	"sort"
+
+	"github.com/gravitational/trace"
 
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
@@ -26,13 +28,16 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 	libutils "github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 // ApplyDatabaseObjectImportRules applies the given set of rules onto a set of objects coming from a same database.
 // Returns a fresh copy of a subset of supplied objects, filtered and modified.
 // For the object to be returned, it must match at least one rule.
 // The modification consists of application of extra labels, per matching mappings.
-func ApplyDatabaseObjectImportRules(rules []*dbobjectimportrulev1.DatabaseObjectImportRule, database types.Database, objs []*dbobjectv1.DatabaseObject) []*dbobjectv1.DatabaseObject {
+// If there are any errors due to invalid label template, the corresponding objects will be dropped.
+func ApplyDatabaseObjectImportRules(rules []*dbobjectimportrulev1.DatabaseObjectImportRule, database types.Database, objs []*dbobjectv1.DatabaseObject) ([]*dbobjectv1.DatabaseObject, map[string]error) {
 	// sort: rules with higher priorities are applied last.
 	sort.Slice(rules, func(i, j int) bool {
 		return rules[i].Spec.Priority < rules[j].Spec.Priority
@@ -52,46 +57,122 @@ func ApplyDatabaseObjectImportRules(rules []*dbobjectimportrulev1.DatabaseObject
 		}
 	}
 
+	var objects []*dbobjectv1.DatabaseObject
+	errors := map[string]error{}
+
 	// anything to do?
 	if len(mappings) == 0 {
-		return nil
+		return objects, errors
 	}
-
-	var out []*dbobjectv1.DatabaseObject
 
 	// find all objects that match any of the rules
 	for _, obj := range objs {
-		var objClone *dbobjectv1.DatabaseObject
+		// prepare object clone
+		objClone := utils.CloneProtoMsg(obj)
+		if objClone.Metadata.Labels == nil {
+			objClone.Metadata.Labels = map[string]string{}
+		}
 
 		// apply each mapping in order.
+		matched := false
+		hadError := false
 		for _, mapping := range mappings {
-			// the matching is applied to the object spec; existing object labels does not matter
-			if !databaseObjectScopeMatch(mapping.GetScope(), obj.GetSpec()) {
-				continue
+			match, err := applyMappingToObject(mapping, objClone.GetSpec(), objClone.Metadata.Labels)
+			if err != nil {
+				errors[obj.GetMetadata().GetName()] = trace.Wrap(err)
+				hadError = true
+				break
 			}
-			if databaseObjectImportMatch(mapping.GetMatch(), obj.GetSpec()) {
-				if objClone == nil {
-					objClone = utils.CloneProtoMsg(obj)
-				}
-
-				// mapping applies additional labels
-				labels := objClone.Metadata.Labels
-				if labels == nil {
-					labels = map[string]string{}
-				}
-				for k, v := range mapping.AddLabels {
-					labels[k] = v
-				}
-				objClone.Metadata.Labels = labels
+			if match {
+				matched = true
 			}
 		}
 
-		if objClone != nil {
-			out = append(out, objClone)
+		if !hadError && matched {
+			objects = append(objects, objClone)
 		}
 	}
 
-	return out
+	return objects, errors
+}
+
+// validateTemplate evaluates the template, checking for potential errors.
+func validateTemplate(template string) error {
+	_, err := evalTemplate(template, nil)
+	return trace.Wrap(err)
+}
+
+func evalTemplate(template string, spec *dbobjectv1.DatabaseObjectSpec) (string, error) {
+	result, err := parse.SplitExpression(template)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if result.Literal {
+		return template, nil
+	}
+
+	type evaluationEnv struct{}
+
+	envVar := map[string]typical.Variable{
+		"true":  true,
+		"false": false,
+		"obj": typical.DynamicMapFunction(func(e evaluationEnv, key string) (string, error) {
+			switch key {
+			case "protocol":
+				return spec.GetProtocol(), nil
+			case "database_service_name":
+				return spec.GetDatabaseServiceName(), nil
+			case "object_kind":
+				return spec.GetObjectKind(), nil
+			case "database":
+				return spec.GetDatabase(), nil
+			case "schema":
+				return spec.GetSchema(), nil
+			case "name":
+				return spec.GetName(), nil
+			}
+
+			return "", trace.NotFound("key %v not found", key)
+		}),
+	}
+
+	parser, err := typical.NewParser[evaluationEnv, string](typical.ParserSpec{Variables: envVar})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	expr, err := parser.Parse(result.ExprText)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	middle, err := expr.Evaluate(evaluationEnv{})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return result.Prefix + middle + result.Suffix, nil
+}
+
+func applyMappingToObject(mapping *dbobjectimportrulev1.DatabaseObjectImportRuleMapping, spec *dbobjectv1.DatabaseObjectSpec, labels map[string]string) (bool, error) {
+	// the matching is applied to the object spec; existing object labels does not matter
+	if !databaseObjectScopeMatch(mapping.GetScope(), spec) {
+		return false, nil
+	}
+	if !databaseObjectImportMatch(mapping.GetMatch(), spec) {
+		return false, nil
+	}
+
+	for key, value := range mapping.AddLabels {
+		out, err := evalTemplate(value, spec)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		labels[key] = out
+	}
+
+	return true, nil
 }
 
 func matchPattern(pattern, value string) bool {

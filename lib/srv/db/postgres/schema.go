@@ -22,9 +22,9 @@ import (
 	"github.com/jackc/pgx/v4"
 
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
-	"github.com/gravitational/teleport/api/types/databaseobject"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/srv/db/common/permissions"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 )
 
 // schemaInfo represents information about all schemas in a database.
@@ -54,14 +54,14 @@ func fetchDatabaseObjects(ctx context.Context, session *common.Session, conn *pg
 				session.Database.GetProtocol(),
 				session.Database.GetType(),
 				session.Database.GetName(),
-				permissions.ObjectKindTable,
+				databaseobjectimportrule.ObjectKindTable,
 				session.DatabaseName,
 				schemaName,
 				table,
 			}, "/")
 
 			obj, err := databaseobject.NewDatabaseObject(name, &dbobjectv1.DatabaseObjectSpec{
-				ObjectKind:          permissions.ObjectKindTable,
+				ObjectKind:          databaseobjectimportrule.ObjectKindTable,
 				DatabaseServiceName: session.Database.GetName(),
 				Protocol:            session.Database.GetProtocol(),
 				Database:            session.DatabaseName,

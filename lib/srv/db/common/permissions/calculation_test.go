@@ -24,9 +24,10 @@ import (
 
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/databaseobject"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 )
 
 type mockGetter struct {
@@ -43,7 +44,7 @@ func TestCalculatePermissions(t *testing.T) {
 		out, err := databaseobject.NewDatabaseObjectWithLabels(name, maps.Clone(labels), &dbobjectv1.DatabaseObjectSpec{
 			Protocol:            types.DatabaseProtocolPostgreSQL,
 			DatabaseServiceName: "dummy",
-			ObjectKind:          ObjectKindTable,
+			ObjectKind:          databaseobjectimportrule.ObjectKindTable,
 			Database:            "dummy",
 			Schema:              "public",
 			Name:                name,
@@ -176,7 +177,7 @@ func TestDatabasePermissionMatch(t *testing.T) {
 		out, err := databaseobject.NewDatabaseObjectWithLabels("foo", maps.Clone(labels), &dbobjectv1.DatabaseObjectSpec{
 			Protocol:            types.DatabaseProtocolPostgreSQL,
 			DatabaseServiceName: "dummy",
-			ObjectKind:          ObjectKindTable,
+			ObjectKind:          databaseobjectimportrule.ObjectKindTable,
 			Database:            "dummy",
 			Schema:              "public",
 			Name:                "foo",

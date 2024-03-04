@@ -27,9 +27,10 @@ import (
 
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/databaseobject"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/srv/db/common/permissions"
 )
 
@@ -100,25 +101,25 @@ func TestCheckPgPermission(t *testing.T) {
 		{
 			name:     "valid permission",
 			perm:     "SELECT",
-			objKind:  permissions.ObjectKindTable,
+			objKind:  databaseobjectimportrule.ObjectKindTable,
 			checkErr: require.NoError,
 		},
 		{
 			name:     "whitespace trimmed",
 			perm:     "  SELECT   ",
-			objKind:  permissions.ObjectKindTable,
+			objKind:  databaseobjectimportrule.ObjectKindTable,
 			checkErr: require.NoError,
 		},
 		{
 			name:     "case-insensitive",
 			perm:     "seLEct",
-			objKind:  permissions.ObjectKindTable,
+			objKind:  databaseobjectimportrule.ObjectKindTable,
 			checkErr: require.NoError,
 		},
 		{
 			name:    "invalid permission",
 			perm:    "INVALID",
-			objKind: permissions.ObjectKindTable,
+			objKind: databaseobjectimportrule.ObjectKindTable,
 			checkErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "unrecognized \"table\" Postgres permission: \"INVALID\"")
 			},
@@ -126,7 +127,7 @@ func TestCheckPgPermission(t *testing.T) {
 		{
 			name:    "multiple permissions not allowed",
 			perm:    "SELECT, UPDATE",
-			objKind: permissions.ObjectKindTable,
+			objKind: databaseobjectimportrule.ObjectKindTable,
 			checkErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "unrecognized \"table\" Postgres permission: \"SELECT, UPDATE\"")
 			},
@@ -168,9 +169,9 @@ func TestConvertPermissions(t *testing.T) {
 		{
 			name: "valid table permissions, ignoring procedure",
 			input: permissions.PermissionSet{
-				"SELECT":  {mkObject("my_table", "public", permissions.ObjectKindTable)},
-				"INSERT":  {mkObject("other_table", "secret", permissions.ObjectKindTable)},
-				"EXECUTE": {mkObject("my_proc", "public", permissions.ObjectKindProcedure)},
+				"SELECT":  {mkObject("my_table", "public", databaseobjectimportrule.ObjectKindTable)},
+				"INSERT":  {mkObject("other_table", "secret", databaseobjectimportrule.ObjectKindTable)},
+				"EXECUTE": {mkObject("my_proc", "public", databaseobjectimportrule.ObjectKindProcedure)},
 			},
 			expected: &Permissions{
 				Tables: []TablePermission{
@@ -190,7 +191,7 @@ func TestConvertPermissions(t *testing.T) {
 		{
 			name: "invalid table permissions lead to an error",
 			input: permissions.PermissionSet{
-				"invalid": {mkObject("my_table", "public", permissions.ObjectKindTable)},
+				"invalid": {mkObject("my_table", "public", databaseobjectimportrule.ObjectKindTable)},
 			},
 			expectedError: trace.BadParameter("unrecognized \"table\" Postgres permission: \"invalid\""),
 		},

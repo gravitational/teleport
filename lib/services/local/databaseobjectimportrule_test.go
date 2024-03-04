@@ -30,9 +30,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	databaseobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
-	"github.com/gravitational/teleport/api/types/databaseobjectimportrule"
 	"github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 )
 
 // TestDatabaseObjectImportRuleCRUD tests backend operations with DatabaseObject import rule resources.

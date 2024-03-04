@@ -22,8 +22,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/gravitational/teleport/api/defaults"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
-	"github.com/gravitational/teleport/api/types/databaseobjectimportrule"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/teleport/api/types"
 	apilabels "github.com/gravitational/teleport/api/types/label"
 )
 
@@ -49,8 +51,15 @@ func TestMarshalDatabaseObjectImportRuleRoundTrip(t *testing.T) {
 			},
 		},
 	}
-	obj, err := databaseobjectimportrule.NewDatabaseObjectImportRule("import_all_staging_tables", spec)
-	require.NoError(t, err)
+	obj := &dbobjectimportrulev1.DatabaseObjectImportRule{
+		Kind:    types.KindDatabaseObjectImportRule,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name:      "import_all_staging_tables",
+			Namespace: defaults.Namespace,
+		},
+		Spec: spec,
+	}
 
 	out, err := MarshalDatabaseObjectImportRule(obj)
 	require.NoError(t, err)
