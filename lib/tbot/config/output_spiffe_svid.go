@@ -74,6 +74,7 @@ type SVIDRequest struct {
 	SANS SVIDRequestSANs `yaml:"sans,omitempty"`
 }
 
+// CheckAndSetDefaults checks the SVIDRequest values and sets any defaults.
 func (o *SVIDRequest) CheckAndSetDefaults() error {
 	switch {
 	case o.Path == "":
@@ -104,6 +105,8 @@ type spiffeSVIDSigner interface {
 	SignX509SVIDs(ctx context.Context, req *machineidv1pb.SignX509SVIDsRequest, opts ...grpc.CallOption) (*machineidv1pb.SignX509SVIDsResponse, error)
 }
 
+// GenerateSVID generates the pre-requisites and makes a SVID generation RPC
+// call.
 func GenerateSVID(
 	ctx context.Context,
 	signer spiffeSVIDSigner,
@@ -146,6 +149,7 @@ func GenerateSVID(
 	return res, privateKey, nil
 }
 
+// Render generates the SVID and writes it to the destination.
 func (o *SPIFFESVIDOutput) Render(
 	ctx context.Context, p provider, _ *identity.Identity,
 ) error {
@@ -211,19 +215,24 @@ func (o *SPIFFESVIDOutput) Render(
 	return nil
 }
 
+// Init initializes the destination.
 func (o *SPIFFESVIDOutput) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
 
+// GetDestination returns the destination.
 func (o *SPIFFESVIDOutput) GetDestination() bot.Destination {
 	return o.Destination
 }
 
+// GetRoles returns the roles. SPIFFE SVIDs do not have roles. This exists for
+// compatibility with the Output interface.
 func (o *SPIFFESVIDOutput) GetRoles() []string {
 	// Always use all roles default - which is empty
 	return []string{}
 }
 
+// CheckAndSetDefaults checks the SPIFFESVIDOutput values and sets any defaults.
 func (o *SPIFFESVIDOutput) CheckAndSetDefaults() error {
 	if !experiment.Enabled() {
 		return trace.AccessDenied("workload identity has not been enabled")
@@ -238,6 +247,7 @@ func (o *SPIFFESVIDOutput) CheckAndSetDefaults() error {
 	return nil
 }
 
+// Describe returns the file descriptions for the SPIFFE SVID output.
 func (o *SPIFFESVIDOutput) Describe() []FileDescription {
 	return []FileDescription{
 		{
@@ -252,11 +262,13 @@ func (o *SPIFFESVIDOutput) Describe() []FileDescription {
 	}
 }
 
+// MarshalYAML marshals the SPIFFESVIDOutput into YAML.
 func (o *SPIFFESVIDOutput) MarshalYAML() (interface{}, error) {
 	type raw SPIFFESVIDOutput
 	return withTypeHeader((*raw)(o), SPIFFESVIDOutputType)
 }
 
+// UnmarshalYAML unmarshals the SPIFFESVIDOutput from YAML.
 func (o *SPIFFESVIDOutput) UnmarshalYAML(node *yaml.Node) error {
 	dest, err := extractOutputDestination(node)
 	if err != nil {
@@ -271,6 +283,7 @@ func (o *SPIFFESVIDOutput) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
+// String returns a string representation of the SPIFFESVIDOutput.
 func (o *SPIFFESVIDOutput) String() string {
 	return fmt.Sprintf("%s (%s) (%s)", SPIFFESVIDOutputType, o.SVID.Path, o.GetDestination())
 }
