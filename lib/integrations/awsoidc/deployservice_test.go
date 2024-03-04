@@ -218,32 +218,30 @@ func TestNormalizeECSResourceName(t *testing.T) {
 func TestUpsertTask(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("verify expected environment variables", func(t *testing.T) {
-		mockClient := &mockDeployServiceClient{
-			clusters:        map[string]*ecsTypes.Cluster{},
-			taskDefinitions: map[string]*ecsTypes.TaskDefinition{},
-			services:        map[string]*ecsTypes.Service{},
-			accountId:       aws.String("123456789012"),
-			iamTokenMissing: true,
-		}
+	mockClient := &mockDeployServiceClient{
+		clusters:        map[string]*ecsTypes.Cluster{},
+		taskDefinitions: map[string]*ecsTypes.TaskDefinition{},
+		services:        map[string]*ecsTypes.Service{},
+		accountId:       aws.String("123456789012"),
+		iamTokenMissing: true,
+	}
 
-		expected := []ecsTypes.KeyValuePair{
-			{
-				Name:  aws.String(types.InstallMethodAWSOIDCDeployServiceEnvVar),
-				Value: aws.String("true"),
-			},
-			{
-				Name:  aws.String(constants.EnvTeleportUpgrader),
-				Value: aws.String(types.OriginIntegrationAWSOIDC),
-			},
-			{
-				Name:  aws.String(constants.EnvTeleportUpgraderVersion),
-				Value: aws.String(teleport.Version),
-			},
-		}
+	expected := []ecsTypes.KeyValuePair{
+		{
+			Name:  aws.String(types.InstallMethodAWSOIDCDeployServiceEnvVar),
+			Value: aws.String("true"),
+		},
+		{
+			Name:  aws.String(constants.EnvTeleportUpgrader),
+			Value: aws.String(types.OriginIntegrationAWSOIDC),
+		},
+		{
+			Name:  aws.String(constants.EnvTeleportUpgraderVersion),
+			Value: aws.String(teleport.Version),
+		},
+	}
 
-		taskDefinition, err := upsertTask(ctx, mockClient, upsertTaskRequest{})
-		require.NoError(t, err)
-		require.Equal(t, expected, taskDefinition.ContainerDefinitions[0].Environment)
-	})
+	taskDefinition, err := upsertTask(ctx, mockClient, upsertTaskRequest{})
+	require.NoError(t, err)
+	require.Equal(t, expected, taskDefinition.ContainerDefinitions[0].Environment)
 }
