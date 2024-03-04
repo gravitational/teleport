@@ -153,9 +153,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindServerInfo:               rc.createServerInfo,
 		types.KindBot:                      rc.createBot,
 		types.KindDatabaseObjectImportRule: rc.createDatabaseObjectImportRule,
-		types.KindCrownJewel:               rc.createCrownJewel,
 		types.KindPluginNotification:       rc.createPluginNotification,
-		types.KindDatabaseObjectImportRule: rc.createDatabaseObjectImportRule,
 		types.KindCrownJewel:               rc.createCrownJewel,
 		types.KindAccessMonitoringRule:     rc.createAccessMonitoringRule,
 	}
