@@ -17,10 +17,11 @@ limitations under the License.
 package v1
 
 import (
+	"github.com/gravitational/trace"
+
 	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types/accessmonitoringrule"
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
-	"github.com/gravitational/trace"
 )
 
 // FromProto converts a v1 access monitoring rule into an internal access monitoring rule object.
@@ -32,19 +33,13 @@ func FromProto(amr *accessmonitoringrulev1.AccessMonitoringRuleV1) (*accessmonit
 		return nil, trace.BadParameter("access monitoring rule spec is nil")
 	}
 	subjects := make([]string, 0, len(amr.Spec.Subjects))
-	for _, sub := range amr.Spec.Subjects {
-		subjects = append(subjects, sub)
-	}
+	subjects = append(subjects, amr.Spec.Subjects...)
 	states := make([]string, 0, len(amr.Spec.States))
-	for _, state := range amr.Spec.States {
-		states = append(states, state)
-	}
+	states = append(states, amr.Spec.States...)
 	var notification *accessmonitoringrule.Notification
 	if amr.Spec.Notification != nil {
 		recipients := make([]string, 0, len(amr.Spec.Notification.Recipients))
-		for _, recipient := range amr.Spec.Notification.Recipients {
-			recipients = append(recipients, recipient)
-		}
+		recipients = append(recipients, amr.Spec.Notification.Recipients...)
 		notification = &accessmonitoringrule.Notification{
 			Name:       amr.Spec.Notification.Name,
 			Recipients: recipients,
