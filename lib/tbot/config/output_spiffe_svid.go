@@ -149,6 +149,13 @@ func GenerateSVID(
 	return res, privateKey, nil
 }
 
+const (
+	// pemPrivateKey is the PEM block type for a PKCS 8 encoded private key.
+	pemPrivateKey = "PRIVATE KEY"
+	// pemCertificate is the PEM block type for a DER encoded certificate.
+	pemCertificate = "CERTIFICATE"
+)
+
 // Render generates the SVID and writes it to the destination.
 func (o *SPIFFESVIDOutput) Render(
 	ctx context.Context, p provider, _ *identity.Identity,
@@ -175,7 +182,7 @@ func (o *SPIFFESVIDOutput) Render(
 		return trace.Wrap(err)
 	}
 	privPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "PRIVATE KEY",
+		Type:  pemPrivateKey,
 		Bytes: privBytes,
 	})
 
@@ -194,7 +201,7 @@ func (o *SPIFFESVIDOutput) Render(
 	}
 
 	certPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
+		Type:  pemCertificate,
 		Bytes: svid.Certificate,
 	})
 	if err := o.Destination.Write(ctx, svidPEMPath, certPEM); err != nil {
