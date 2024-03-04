@@ -64,12 +64,12 @@ import (
 type SPIFFEWorkloadAPIService struct {
 	workloadpb.UnimplementedSpiffeWorkloadAPIServer
 
-	svcIdentity    *config.UnstableClientCredentialOutput
-	botCfg         *config.BotConfig
-	cfg            *config.SPIFFEWorkloadAPIService
-	log            logrus.FieldLogger
-	botIdentitySrc botIdentitySrc
-	resolver       reversetunnelclient.Resolver
+	svcIdentity *config.UnstableClientCredentialOutput
+	botCfg      *config.BotConfig
+	cfg         *config.SPIFFEWorkloadAPIService
+	log         logrus.FieldLogger
+	botClient   auth.ClientI
+	resolver    reversetunnelclient.Resolver
 	// rootReloadBroadcaster allows the service to listen for CA rotations and
 	// update the trust bundle cache.
 	rootReloadBroadcaster *channelBroadcaster
@@ -103,16 +103,7 @@ func (s *SPIFFEWorkloadAPIService) getTrustBundle() []byte {
 }
 
 func (s *SPIFFEWorkloadAPIService) fetchBundle(ctx context.Context) error {
-	botIdentity := s.botIdentitySrc.BotIdentity()
-	client, err := clientForIdentity(
-		ctx, s.log, s.botCfg, botIdentity, s.resolver,
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer client.Close()
-
-	cas, err := client.GetCertAuthorities(ctx, types.SPIFFECA, false)
+	cas, err := s.botClient.GetCertAuthorities(ctx, types.SPIFFECA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -61,7 +61,8 @@ const renewalRetryLimit = 5
 type outputsService struct {
 	log               logrus.FieldLogger
 	reloadBroadcaster *channelBroadcaster
-	botIdentitySrc    botIdentitySrc
+	botClient         auth.ClientI
+	getBotIdentity    getBotIdentityFn
 	cfg               *config.BotConfig
 	resolver          reversetunnelclient.Resolver
 }
@@ -87,24 +88,17 @@ func (s *outputsService) renewOutputs(
 	ctx, span := tracer.Start(ctx, "outputsService/renewOutputs")
 	defer span.End()
 
-	botIdentity := s.botIdentitySrc.BotIdentity()
-	client, err := clientForIdentity(ctx, s.log, s.cfg, botIdentity, s.resolver)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer client.Close()
-
 	// create a cache shared across outputs so they don't hammer the auth
 	// server with similar requests
 	drc := &outputRenewalCache{
-		client: client,
+		client: s.botClient,
 		cfg:    s.cfg,
 	}
 
 	// Determine the default role list based on the bot role. The role's
 	// name should match the certificate's Key ID (user and role names
 	// should all match bot-$name)
-	defaultRoles, err := fetchDefaultRoles(ctx, client, botIdentity)
+	defaultRoles, err := fetchDefaultRoles(ctx, s.botClient, s.getBotIdentity())
 	if err != nil {
 		s.log.WithError(err).Warnf("Unable to determine default roles, no roles will be requested if unspecified")
 		defaultRoles = []string{}
@@ -133,7 +127,7 @@ func (s *outputsService) renewOutputs(
 		}
 
 		impersonatedIdentity, impersonatedClient, err := s.generateImpersonatedIdentity(
-			ctx, client, botIdentity, output, defaultRoles,
+			ctx, s.botClient, s.getBotIdentity(), output, defaultRoles,
 		)
 		if err != nil {
 			return trace.Wrap(err, "generating impersonated certs for output: %s", output)
@@ -552,7 +546,8 @@ func (s *outputsService) generateImpersonatedIdentity(
 
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
-	impersonatedClient, err = clientForIdentity(ctx, s.log, s.cfg, impersonatedIdentity, s.resolver)
+	facade := identity.NewFacade(s.cfg.FIPS, s.cfg.Insecure, impersonatedIdentity)
+	impersonatedClient, err = clientForFacade(ctx, s.log, s.cfg, facade, s.resolver)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

@@ -104,14 +104,12 @@ func (b *Bot) markStarted() error {
 	return nil
 }
 
-type botIdentitySrc interface {
-	BotIdentity() *identity.Identity
-}
+type getBotIdentityFn func() *identity.Identity
 
 // BotIdentity returns the bot's own identity. This will return nil if the bot
 // has not been started.
 func (b *Bot) BotIdentity() *identity.Identity {
-	return b.botIdentitySvc.ident()
+	return b.botIdentitySvc.GetIdentity()
 }
 
 func (b *Bot) Run(ctx context.Context) error {
@@ -185,6 +183,11 @@ func (b *Bot) Run(ctx context.Context) error {
 	if err := b.botIdentitySvc.Initialize(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+	defer func() {
+		if err := b.botIdentitySvc.Close(); err != nil {
+			b.log.WithError(err).Error("Failed to close bot identity service")
+		}
+	}()
 	services = append(services, b.botIdentitySvc)
 
 	// Setup all other services
@@ -198,7 +201,8 @@ func (b *Bot) Run(ctx context.Context) error {
 		})
 	}
 	services = append(services, &outputsService{
-		botIdentitySrc: b,
+		getBotIdentity: b.botIdentitySvc.GetIdentity,
+		botClient:      b.botIdentitySvc.GetClient(),
 		cfg:            b.cfg,
 		resolver:       resolver,
 		log: b.log.WithField(
@@ -207,9 +211,8 @@ func (b *Bot) Run(ctx context.Context) error {
 		reloadBroadcaster: reloadBroadcaster,
 	})
 	services = append(services, &caRotationService{
-		botIdentitySrc: b,
-		cfg:            b.cfg,
-		resolver:       resolver,
+		getBotIdentity: b.botIdentitySvc.GetIdentity,
+		botClient:      b.botIdentitySvc.GetClient(),
 		log: b.log.WithField(
 			trace.Component, teleport.Component(componentTBot, "ca-rotation"),
 		),
@@ -227,7 +230,7 @@ func (b *Bot) Run(ctx context.Context) error {
 			b.cfg.Outputs = append(b.cfg.Outputs, svcIdentity)
 
 			svc := &SPIFFEWorkloadAPIService{
-				botIdentitySrc:        b,
+				botClient:             b.botIdentitySvc.GetClient(),
 				svcIdentity:           svcIdentity,
 				botCfg:                b.cfg,
 				cfg:                   svcCfg,
@@ -402,31 +405,10 @@ func checkIdentity(log logrus.FieldLogger, ident *identity.Identity) error {
 	return nil
 }
 
-// clientForIdentity creates a new auth client from the given
-// identity. Note that depending on the connection address given, this may
+// clientForFacade creates a new auth client from the given
+// facade. Note that depending on the connection address given, this may
 // attempt to connect via the proxy and therefore requires both SSH and TLS
 // credentials.
-func clientForIdentity(
-	ctx context.Context,
-	log logrus.FieldLogger,
-	cfg *config.BotConfig,
-	id *identity.Identity,
-	resolver reversetunnelclient.Resolver,
-) (auth.ClientI, error) {
-	ctx, span := tracer.Start(ctx, "clientForIdentity")
-	defer span.End()
-
-	if id.SSHCert == nil || id.X509Cert == nil {
-		return nil, trace.BadParameter("auth client requires a fully formed identity")
-	}
-
-	// TODO(noah): Eventually we'll want to reuse this facade across the bot
-	// rather than recreating it. Right now the blocker to that is handling the
-	// generation field on the certificate.
-	facade := identity.NewFacade(cfg.FIPS, cfg.Insecure, id)
-	return clientForFacade(ctx, log, cfg, facade, resolver)
-}
-
 func clientForFacade(
 	ctx context.Context,
 	log logrus.FieldLogger,
