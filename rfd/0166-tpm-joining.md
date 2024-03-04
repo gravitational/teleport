@@ -303,11 +303,45 @@ message RegisterUsingTPMMethodResponse {
 }
 ```
 
+### vTPMs
+
+vTPM (virtual TPM) refers to software which emulates the functionality of a TPM,
+without necessarily being backed by a physical TPM.
+
+These come in multiple forms:
+
+- A software TPM running on the host intended for use in development and testing
+- A TPM offered to a VM by the hypervisor, which may or may not be backed by a 
+  physical TPM. Some implementations use a physical TPM available to the
+  hypervisor to secure the vTPMs available to the VMs.
+- A TPM offered to containers running ona a host, which may or may not be backed 
+  by a physical TPM. Some implementations use a physical TPM available to the
+  host to secure the vTPMs available to the VMs.
+
+vTPMs expose the same interface as a physical TPM and for our purposes are
+effectively indistinguishable. It may be possible to identify a vTPM by the
+lack of an EKCert or an EKCert signed by a CA that is not a TPM manufacturer's.
+This difficulty ultimately means it would be fruitless to attempt to do so.
+
+vTPMs may not offer the same guarantees as a physical TPM, this varies depending
+on the implementation. For example, a simulator TPM intended for use in testing
+is likely to offer none of the guarantees. On the other hand, a vTPM offered
+by a hypervisor may offer the same guarantees as a physical TPM, unless the
+hypervisor has been compromised. Operators must fully understand the limitations
+of their chosen implementation.
+
+Regardless, for the purposes of TPM joining, we do not need to distinguish or
+change behaviour based on the "realness" of the TPM. It is ultimately the
+responsibility of the operator to ensure that their TPM implementation meets
+their security requirements.
+
 ## Product Considerations
 
 ### Licensing
 
 The TPM join method will be restricted to Enterprise/Cloud licensed clusters.
+
+This should be enforced by the Auth Server at join time.
 
 ### Improvement: Platform Attestation
 
@@ -383,6 +417,43 @@ typically required to read the memory of a process.
 To mitigate this entirely, we should implement "Storing Bot private key material
 in the TPM" as described in the "Future Improvements" section.
 
+### FIPS 140 Compliance
+
+See https://trustedcomputinggroup.org/wp-content/uploads/TCG_FIPS_140_Guidance_for_TPM2_0_v1r1_20170202.pdf
+for the official guidance on the compatibility of TPM 2.0 with FIPS 140.
+
+The initial implementation of TPM joining will not be FIPS 140 compatible and
+we should ensure the documentation is clear on this.
+
+To make TPM joining FIPS 140 compatible, the following must be completed:
+
+- The operator must ensure that the TPM is FIPS 140 compliant.
+- Teleport must implement parameter encryption for the Critical Security 
+  Parameters (CSPs) listed in the above document. This will be backwards
+  compatible and we should also enable this mechanism for non-FIPS environments.
+- Teleport should audit the Go libraries used for TPM joining to ensure a FIPS
+  compliant implementation (e.g boringcrypto) is used for any cryptographic
+  operations.
+
+### Operator Responsibility
+
+One common theme across this RFD is the extent to which the operator is
+responsible for:
+
+- Ensuring their operating system is uncompromised prior to initial joining.
+  Once enrolled, the TPM provides strong guarantees but prior to this, a
+  malicious actor with sufficient access to the host can impersonate a TPM.
+  EKCert CA validation mitigates this, but it is the responsibility of the
+  operator to configure this.
+- A TPM's guarantees are only as strong as the TPM itself. If the operator
+  chooses substandard TPMs, these guarantees are lost when the TPM is
+  compromised. In particular, if using vTPMs, the operator must understand the
+  threat models of their chosen implementation, e.g if the hypervisor is
+  compromised then so are the guarantees of the vTPM.
+
+We should ensure that documentation is clear on these two points as a
+pre-requisite of using the vTPM in a production environment.
+
 ### Audit Logs
 
 Whether the join was successful or not, the Auth Server should omit the
@@ -392,4 +463,4 @@ to the already standard fields, the following:
 - The EKPub hash
 - The EKCert serial
 - The TPM manufacturer, part number and firmware version if encoded in the
-  EKCert SAN
+  EKCert SAN as per TCG EK Credential Profile 2.0.
