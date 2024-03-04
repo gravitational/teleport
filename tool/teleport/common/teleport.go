@@ -57,9 +57,6 @@ type Options struct {
 	// InitOnly when set to true, initializes config and aux
 	// endpoints but does not start the process
 	InitOnly bool
-	// EnableCloudAWSCredCmd enables hidden cloud aws cred command when true.
-	// This command does nothing in OSS.
-	EnableCloudAWSCredCmd bool
 }
 
 // Run inits/starts the process according to the provided options
@@ -475,13 +472,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfListDatabasesCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfListDatabasesIAMArguments.Region)
 	integrationConfListDatabasesCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfListDatabasesIAMArguments.Role)
 
-	if options.EnableCloudAWSCredCmd {
-		cloudAWSCred := app.Command("cloud-aws-cred", "Helper command used by Teleport Cloud to produce credentials.").Hidden()
-		cloudAWSCred.Flag("config",
-			fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
-			Short('c').ExistingFileVar(&ccf.ConfigFile)
-	}
-
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
 	command, err := app.Parse(options.Args)
@@ -578,12 +568,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	}
 	if err != nil {
 		utils.FatalError(err)
-	}
-
-	if options.EnableCloudAWSCredCmd && command == app.GetCommand("cloud-aws-cred").FullCommand() {
-		if err = config.Configure(&ccf, conf, false); err != nil {
-			utils.FatalError(err)
-		}
 	}
 
 	return app, command, conf
