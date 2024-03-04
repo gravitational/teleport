@@ -127,8 +127,6 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		t.Log(resp.GetToken())
-
 		_, err = key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
 			RawToken: resp.GetToken(),
 			Issuer:   s3BasedIssuer,

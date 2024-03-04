@@ -32,7 +32,7 @@ func TestIntegrationJSONMarshalCycle(t *testing.T) {
 		Metadata{Name: "some-integration"},
 		&AWSOIDCIntegrationSpecV1{
 			RoleARN: "arn:aws:iam::123456789012:role/DevTeams",
-			Issuer:  "my-issuer.example.com",
+			Issuer:  "https://my-issuer.example.com",
 		},
 	)
 	require.NoError(t, err)
@@ -67,7 +67,7 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 					},
 					&AWSOIDCIntegrationSpecV1{
 						RoleARN: "some arn role",
-						Issuer:  "proxy.example.com",
+						Issuer:  "https://proxy.example.com",
 					},
 				)
 			},
@@ -86,7 +86,7 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 						SubKindSpec: &IntegrationSpecV1_AWSOIDC{
 							AWSOIDC: &AWSOIDCIntegrationSpecV1{
 								RoleARN: "some arn role",
-								Issuer:  "proxy.example.com",
+								Issuer:  "https://proxy.example.com",
 							},
 						},
 					},
@@ -102,6 +102,40 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 						Name: name,
 					},
 					nil,
+				)
+			},
+			expectedErrorIs: func(err error) bool {
+				return trace.IsBadParameter(err)
+			},
+		},
+		{
+			name: "aws-oidc: error when issuer is not a valid url",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationAWSOIDC(
+					Metadata{
+						Name: name,
+					},
+					&AWSOIDCIntegrationSpecV1{
+						RoleARN: "some-role",
+						Issuer:  "not-a-url",
+					},
+				)
+			},
+			expectedErrorIs: func(err error) bool {
+				return trace.IsBadParameter(err)
+			},
+		},
+		{
+			name: "aws-oidc: issuer is not an https url",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationAWSOIDC(
+					Metadata{
+						Name: name,
+					},
+					&AWSOIDCIntegrationSpecV1{
+						RoleARN: "some-role",
+						Issuer:  "http://localhost:8080",
+					},
 				)
 			},
 			expectedErrorIs: func(err error) bool {

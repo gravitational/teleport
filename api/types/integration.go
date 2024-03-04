@@ -19,6 +19,7 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 
 	"github.com/gravitational/trace"
 
@@ -141,6 +142,15 @@ func (s *IntegrationSpecV1_AWSOIDC) CheckAndSetDefaults() error {
 
 	if s.AWSOIDC.RoleARN == "" {
 		return trace.BadParameter("role_arn is required for %q subkind", IntegrationSubKindAWSOIDC)
+	}
+
+	// The Issuer can be empty.
+	// In that case it will use the cluster's web endpoint.
+	if s.AWSOIDC.Issuer != "" {
+		issuerURL, err := url.Parse(s.AWSOIDC.Issuer)
+		if err != nil || issuerURL.Scheme != "https" {
+			return trace.BadParameter("issuer must be a valid HTTPS endpoint")
+		}
 	}
 
 	return nil
