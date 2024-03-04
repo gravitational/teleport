@@ -21,9 +21,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v4"
 
-	"github.com/gravitational/teleport/api/types/databaseobject"
-
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	"github.com/gravitational/teleport/api/types/databaseobject"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/permissions"
 )
