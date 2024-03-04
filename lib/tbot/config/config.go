@@ -158,9 +158,9 @@ type CLIConf struct {
 	// should be written to
 	ConfigureOutput string
 
-	// Proxy is the teleport proxy address. Unlike `AuthServer` this must
+	// ProxyServer is the teleport proxy address. Unlike `AuthServer` this must
 	// explicitly point to a Teleport proxy.
-	Proxy string
+	ProxyServer string
 
 	// Cluster is the name of the Teleport cluster on which resources should
 	// be accessed.
@@ -273,7 +273,7 @@ type BotConfig struct {
 
 	Debug           bool          `yaml:"debug"`
 	AuthServer      string        `yaml:"auth_server,omitempty"`
-	Proxy           string        `yaml:"proxy,omitempty"`
+	ProxyServer     string        `yaml:"proxy_server,omitempty"`
 	CertificateTTL  time.Duration `yaml:"certificate_ttl"`
 	RenewalInterval time.Duration `yaml:"renewal_interval"`
 	Oneshot         bool          `yaml:"oneshot"`
@@ -309,11 +309,11 @@ const (
 // a proxy, and the kind of address it is.
 func (conf *BotConfig) Address() (string, AddressKind) {
 	switch {
-	case conf.AuthServer != "" && conf.Proxy != "":
+	case conf.AuthServer != "" && conf.ProxyServer != "":
 		// This is an error case that should be prevented by the validation.
 		return "", AddressKindUnspecified
-	case conf.Proxy != "":
-		return conf.Proxy, AddressKindProxy
+	case conf.ProxyServer != "":
+		return conf.ProxyServer, AddressKindProxy
 	case conf.AuthServer != "":
 		return conf.AuthServer, AddressKindAuth
 	default:
@@ -645,11 +645,11 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		config.AuthServer = cf.AuthServer
 	}
 
-	if cf.Proxy != "" {
-		if config.Proxy != "" {
+	if cf.ProxyServer != "" {
+		if config.ProxyServer != "" {
 			log.Warnf("CLI parameters are overriding proxy configured in %s", cf.ConfigPath)
 		}
-		config.Proxy = cf.Proxy
+		config.ProxyServer = cf.ProxyServer
 	}
 
 	if cf.CertificateTTL != 0 {

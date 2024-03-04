@@ -71,7 +71,7 @@ func TestRun_Configure(t *testing.T) {
 		{
 			name: "all parameters provided",
 			args: append(baseArgs, []string{
-				"--proxy", "proxy.example.com:443",
+				"--proxy-server", "proxy.example.com:443",
 			}...),
 		},
 	}
