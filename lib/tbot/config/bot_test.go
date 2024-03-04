@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -153,15 +154,13 @@ func (p *mockProvider) SignX509SVIDs(
 }
 
 func (p *mockProvider) GenerateHostCert(
-	ctx context.Context,
-	key []byte, hostID, nodeName string, principals []string,
-	clusterName string, role types.SystemRole, ttl time.Duration,
-) ([]byte, error) {
+	ctx context.Context, req *trustpb.GenerateHostCertRequest,
+) (*trustpb.GenerateHostCertResponse, error) {
 	// We could generate a cert easily enough here, but the template generates a
 	// random key each run so the resulting cert will change too.
 	// The CA fixture isn't even a cert but we never examine it, so it'll do the
 	// job.
-	return []byte(fixtures.SSHCAPublicKey), nil
+	return &trustpb.GenerateHostCertResponse{SshCertificate: []byte(fixtures.SSHCAPublicKey)}, nil
 }
 
 func (p *mockProvider) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {

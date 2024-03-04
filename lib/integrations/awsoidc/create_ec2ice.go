@@ -38,7 +38,7 @@ type CreateEC2ICERequest struct {
 	// Used to tag resources created in AWS.
 	IntegrationName string
 
-	// Endpoints is a list of EC2 Instance Connect Endpoints to be createed.
+	// Endpoints is a list of EC2 Instance Connect Endpoints to be created.
 	Endpoints []EC2ICEEndpoint
 
 	// ResourceCreationTags is used to add tags when creating resources in AWS.

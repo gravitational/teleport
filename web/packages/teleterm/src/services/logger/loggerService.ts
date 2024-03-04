@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import stream from 'node:stream';
+
 import winston, {
   createLogger as createWinston,
   format,
@@ -26,6 +28,7 @@ import { isObject } from 'shared/utils/highbar';
 import split2 from 'split2';
 
 import { Logger, LoggerService, NodeLoggerService } from './types';
+import { KeepLastChunks } from './keepLastChunks';
 
 import type { ChildProcess } from 'node:child_process';
 
@@ -111,13 +114,34 @@ export function createFileLoggerService(
   }
 
   return {
-    pipeProcessOutputIntoLogger(childProcess: ChildProcess): void {
-      const splitStream = split2(line => ({ level: 'info', message: [line] }));
+    pipeProcessOutputIntoLogger(
+      childProcess: ChildProcess,
+      lastLogs?: KeepLastChunks<string>
+    ): void {
+      const splitStream = split2();
+      const lineToWinstonFormat = new stream.Transform({
+        // Must be enabled in order for this stream to return anything else than a string or a
+        // buffer from the transform function.
+        objectMode: true,
+        transform: (line: string, encoding, callback) => {
+          callback(null, { level: 'info', message: [line] });
+        },
+      });
 
+      // splitStream receives raw output from the child process and outputs lines as chunks.
       childProcess.stdout.pipe(splitStream, { end: false });
       childProcess.stderr.pipe(splitStream, { end: false });
 
-      splitStream.pipe(instance);
+      // lineToWinstonFormat takes each line and converts it to Winston format.
+      splitStream.pipe(lineToWinstonFormat);
+
+      // Finally, we pipe the converted lines to a Winston instance.
+      lineToWinstonFormat.pipe(instance);
+
+      // Optionally, we pipe each line to lastLogs.
+      if (lastLogs) {
+        splitStream.pipe(lastLogs);
+      }
 
       // Because the .pipe calls above use { end: false }, the split stream won't end when the
       // source streams end. This gives us a chance to wait for both stdout and stderr to get closed

@@ -19,6 +19,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -841,7 +842,9 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 
 		role := role
 		g.Go(func() error {
-			if types.IsSystemResource(role) {
+			// Specifically skip the Okta requester role, as it will be
+			// modified by the Okta access list sync.
+			if types.IsSystemResource(role) && role.GetName() != teleport.SystemOktaRequesterRoleName {
 				// System resources *always* get reset on every auth startup
 				if _, err := rm.UpsertRole(gctx, role); err != nil {
 					return trace.Wrap(err, "failed upserting system role %s", role.GetName())
@@ -1445,7 +1448,7 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 	slices.SortFunc(resources, func(a, b types.Resource) int {
 		priorityA := ResourceApplyPriority[a.GetKind()]
 		priorityB := ResourceApplyPriority[b.GetKind()]
-		return priorityA - priorityB
+		return cmp.Compare(priorityA, priorityB)
 	})
 	for _, resource := range resources {
 		// Unwrap "new style" resources.

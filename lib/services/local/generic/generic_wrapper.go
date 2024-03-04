@@ -18,6 +18,7 @@ package generic
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -62,6 +63,24 @@ type ServiceWrapper[T types.ResourceMetadata] struct {
 	service *Service[resourceMetadataAdapter[T]]
 }
 
+// WithPrefix will return a service wrapper with the given parts appended to the backend prefix.
+func (s ServiceWrapper[T]) WithPrefix(parts ...string) *ServiceWrapper[T] {
+	if len(parts) == 0 {
+		return &s
+	}
+
+	return &ServiceWrapper[T]{
+		service: &Service[resourceMetadataAdapter[T]]{
+			backend:       s.service.backend,
+			resourceKind:  s.service.resourceKind,
+			pageLimit:     s.service.pageLimit,
+			backendPrefix: strings.Join(append([]string{s.service.backendPrefix}, parts...), string(backend.Separator)),
+			marshalFunc:   s.service.marshalFunc,
+			unmarshalFunc: s.service.unmarshalFunc,
+		},
+	}
+}
+
 // UpsertResource upserts a resource.
 func (s ServiceWrapper[T]) UpsertResource(ctx context.Context, resource T) (T, error) {
 	adapter, err := s.service.UpsertResource(ctx, newResourceMetadataAdapter(resource))
@@ -89,6 +108,12 @@ func (s ServiceWrapper[T]) GetResource(ctx context.Context, name string) (resour
 // DeleteResource removes the specified resource.
 func (s ServiceWrapper[T]) DeleteResource(ctx context.Context, name string) error {
 	return trace.Wrap(s.service.DeleteResource(ctx, name))
+}
+
+// DeleteAllResources removes all resources.
+func (s ServiceWrapper[T]) DeleteAllResources(ctx context.Context) error {
+	startKey := backend.ExactKey(s.service.backendPrefix)
+	return trace.Wrap(s.service.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
 // ListResources returns a paginated list of resources.
