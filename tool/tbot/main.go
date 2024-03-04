@@ -145,7 +145,7 @@ func Run(args []string, stdout io.Writer) error {
 	))
 
 	proxyCmd := app.Command("proxy", "Start a local TLS proxy via tsh to connect to Teleport in single-port mode.")
-	proxyCmd.Flag("proxy-server", "The Teleport proxy server to use, in host:port form.").Required().StringVar(&cf.ProxyServer)
+	proxyCmd.Flag("proxy-server", "The Teleport proxy server to use, in host:port form.").StringVar(&cf.ProxyServer)
 	// We're migrating from --proxy to --proxy-server so this flag is hidden
 	// but still supported.
 	// TODO(strideynet): DELETE IN 17.0.0
