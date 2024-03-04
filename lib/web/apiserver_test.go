@@ -4554,7 +4554,7 @@ func TestGetWebConfig(t *testing.T) {
 			StaticVersion: testVersion,
 		},
 	}
-	require.NoError(t, channels.CheckAndSetDefaults(authproto.Features{AutomaticUpgrades: true, Cloud: true}))
+	require.NoError(t, channels.CheckAndSetDefaults())
 	env.proxies[0].handler.handler.cfg.AutomaticUpgradesChannels = channels
 
 	expectedCfg.IsCloud = true
