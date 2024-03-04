@@ -112,11 +112,12 @@ func (b *Bot) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	addr, _ := b.cfg.Address()
 	resolver, err := reversetunnelclient.CachingResolver(
 		ctx,
 		reversetunnelclient.WebClientResolver(&webclient.Config{
 			Context:   ctx,
-			ProxyAddr: b.cfg.AuthServer,
+			ProxyAddr: addr,
 			Insecure:  b.cfg.Insecure,
 		}),
 		nil /* clock */)
@@ -388,8 +389,10 @@ func clientForIdentity(
 	}
 
 	authClientConfig := &authclient.Config{
-		TLS:         tlsConfig,
-		SSH:         sshConfig,
+		TLS: tlsConfig,
+		SSH: sshConfig,
+		// TODO(noah): It'd be ideal to distinguish the proxy addr and auth addr
+		// here to avoid pointlessly hitting the address as an auth server.
 		AuthServers: []utils.NetAddr{*parsedAddr},
 		Log:         log,
 		Insecure:    cfg.Insecure,
