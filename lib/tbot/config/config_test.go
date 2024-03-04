@@ -288,7 +288,7 @@ func TestBotConfig_YAML(t *testing.T) {
 			name: "minimal config using proxy addr",
 			in: BotConfig{
 				Version:         V2,
-				Proxy:           "example.teleport.sh:443",
+				ProxyServer:     "example.teleport.sh:443",
 				CertificateTTL:  time.Minute,
 				RenewalInterval: time.Second * 30,
 				Outputs: Outputs{

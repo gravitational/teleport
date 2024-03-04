@@ -8,7 +8,7 @@ storage:
   symlinks: secure
   acls: try
 debug: false
-proxy: proxy.example.com:443
+proxy_server: proxy.example.com:443
 certificate_ttl: 1h0m0s
 renewal_interval: 20m0s
 oneshot: false
