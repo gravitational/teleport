@@ -1286,7 +1286,7 @@ func TestRemoteClustersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	updated, err := clt.GetRemoteCluster(ctx, rc.GetName())
 	require.NoError(t, err)
-	require.Equal(t, updated.GetConnectionStatus(), teleport.RemoteClusterStatusOnline)
+	require.Equal(t, teleport.RemoteClusterStatusOnline, updated.GetConnectionStatus())
 	// Ensure other fields unchanged
 	require.Empty(t,
 		cmp.Diff(
