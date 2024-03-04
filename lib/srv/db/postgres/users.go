@@ -44,7 +44,6 @@ func (e *Engine) connectAsAdmin(ctx context.Context, sessionCtx *common.Session,
 		loginDatabase = sessionCtx.Database.GetAdminUser().DefaultDatabase
 	} else {
 		e.Log.WithField("database", loginDatabase).Info("Connecting to session database")
-
 	}
 	conn, err := e.pgxConnect(ctx, sessionCtx.WithUserAndDatabase(sessionCtx.Database.GetAdminUser().Name, loginDatabase))
 	return conn, trace.Wrap(err)
@@ -103,6 +102,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	return nil
 }
 
+// TablePermission is the represents a permission for particular database table.
 type TablePermission struct {
 	Privilege string `json:"privilege"`
 	Schema    string `json:"schema"`
