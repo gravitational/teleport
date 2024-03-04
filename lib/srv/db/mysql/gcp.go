@@ -31,19 +31,16 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
-func isDBUserGCPServiceAccount(dbUser string) bool {
-	if strings.Contains(dbUser, "@") {
-		switch {
-		// Example: mysql-iam-user@my-project-id.iam
-		// This format is used to align with PostgreSQL.
-		case strings.HasSuffix(dbUser, ".iam"):
-			return true
-		// Example: mysql-iam-user@my-project-id.iam.gserviceaccount.com
-		case strings.HasSuffix(dbUser, ".iam.gserviceaccount.com"):
-			return true
-		}
-	}
-	return false
+func isDBUserFullGCPServerAccountID(dbUser string) bool {
+	// Example: mysql-iam-user@my-project-id.iam.gserviceaccount.com
+	return strings.Contains(dbUser, "@") &&
+		strings.HasSuffix(dbUser, ".iam.gserviceaccount.com")
+}
+
+func isDBUserShortGCPServiceAccountID(dbUser string) bool {
+	// Example: mysql-iam-user@my-project-id.iam
+	return strings.Contains(dbUser, "@") &&
+		strings.HasSuffix(dbUser, ".iam")
 }
 
 func gcpServiceAccountToDatabaseUser(serviceAccountName string) string {
@@ -56,14 +53,22 @@ func databaseUserToGCPServiceAccount(sessionCtx *common.Session) string {
 }
 
 func (e *Engine) getGCPUserAndPassword(ctx context.Context, sessionCtx *common.Session, gcpClient gcp.SQLAdminClient) (string, string, error) {
-	// If `--db-user` is an service account email, use IAM Auth.
-	if isDBUserGCPServiceAccount(sessionCtx.DatabaseUser) {
+	// If `--db-user` is the full service account email ID, use IAM Auth.
+	if isDBUserFullGCPServerAccountID(sessionCtx.DatabaseUser) {
 		user := gcpServiceAccountToDatabaseUser(sessionCtx.DatabaseUser)
 		password, err := e.getGCPIAMAuthToken(ctx, sessionCtx)
 		if err != nil {
 			return "", "", trace.Wrap(err)
 		}
 		return user, password, nil
+	}
+
+	// Note that GCP Postgres' format "user@my-project-id.iam" is not accepted
+	// for GCP MySQL. For GCP Postgres, "user@my-project-id.iam" is the actual
+	// mapped in-database username. However, the mapped in-database username
+	// for GCP MySQL does not have the "@my-project-id.iam" part.
+	if isDBUserShortGCPServiceAccountID(sessionCtx.DatabaseUser) {
+		return "", "", trace.BadParameter("username %q is not accepted for GCP MySQL. Please use the in-database username or the full service account Email ID.", sessionCtx.DatabaseUser)
 	}
 
 	// Get user info to decide how to authenticate.
