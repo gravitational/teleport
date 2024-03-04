@@ -20,7 +20,6 @@ package aws_sync
 
 import (
 	"context"
-	awsutil "github.com/gravitational/teleport/lib/utils/aws"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -29,6 +28,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	awsutil "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // pollAWSS3Buckets is a function that returns a function that fetches
