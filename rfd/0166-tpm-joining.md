@@ -84,7 +84,8 @@ Before joining is possible, the user must configure the Auth Server with a join
 token which allows that TPM to join. The Join Token will contain the EKPub
 hashes and EKCert serials which are allowed to join.
 
-To assist in this process, a new command will be added `tbot tpm identify`:
+To assist in this process, a new command will be added
+`tbot tpm identify`/`teleport tpm identify`:
 
 1. User runs `tbot tpm identify` on the host. This will query the EKPub and
   EKCert from the TPM attached to the host and output these values for the user.
@@ -153,15 +154,19 @@ TPM joining:
 // ProvisionTokenSpecV2
 message ProvisionTokenSpecV2TPM {
   message Rule {
-    // Hint is a human-readable hint for the rule. This does not impact joining
-    // but can be used for associating a business name with an EKPub or EKCert
-    // serial.
+    // Description is a human-readable hint for the rule. This does not impact
+    // joining but can be used for associating a business name with an EKPub or
+    // EKCert serial.
     // Example: "build-server-100"
-    string Hint = 1  [(gogoproto.jsontag) = "hint,omitempty"];
+    string Description = 1  [(gogoproto.jsontag) = "description,omitempty"];
     oneof Identifier {
-      // EKPubHash is the SHA256 hash of the EKPub.
+      // EKPubHash is the SHA256 hash of the EKPub marshaled in PKIX format
+      // and encoded in hexadecimal.
+      // Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6
       string EKPubHash = 2 [(gogoproto.jsontag) = "ekpub_hash,omitempty"];
-      // EKCertSerial is the serial number of the EKCert.
+      // EKCertSerial is the serial number of the EKCert in hexadecimal with
+      // colon seperated nibbles.
+      // Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
       string EKCertSerial = 3 [(gogoproto.jsontag) = "ekcert_serial,omitempty"];
     }
   }
@@ -196,7 +201,7 @@ spec:
       -----END CERTIFICATE-----
     allow:
     - hint: "kansas-build-server-100"
-      ekpub_hash: fc5a1047f5919892fcdf8aa79ea5d6bb6531b5c176939ef0110906cb225941c1
+      ekpub_hash: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6
     - hint: "london-build-server-42"
       ekcert_serial: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
 ```
