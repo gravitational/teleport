@@ -159,11 +159,6 @@ func (o *SPIFFESVIDOutput) Render(
 	)
 	defer span.End()
 
-	spiffeCAs, err := p.GetCertAuthorities(ctx, types.SPIFFECA)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	res, privateKey, err := GenerateSVID(
 		ctx,
 		p,
@@ -184,6 +179,15 @@ func (o *SPIFFESVIDOutput) Render(
 		Bytes: privBytes,
 	})
 
+	spiffeCAs, err := p.GetCertAuthorities(ctx, types.SPIFFECA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(res.Svids) != 1 {
+		return trace.BadParameter("expected 1 SVID, got %d", len(res.Svids))
+
+	}
 	svid := res.Svids[0]
 	if err := o.Destination.Write(ctx, svidKeyPEMPath, privPEM); err != nil {
 		return trace.Wrap(err, "writing svid key")
