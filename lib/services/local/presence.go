@@ -861,6 +861,7 @@ func (s *PresenceService) ListRemoteClusters(
 	next := ""
 	if len(clusters) > pageSize {
 		next = backend.GetPaginationKey(clusters[pageSize])
+		clear(clusters[pageSize:])
 		// Truncate the last item that was used to determine next row existence.
 		clusters = clusters[:pageSize]
 	}
