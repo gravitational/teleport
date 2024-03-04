@@ -12,10 +12,12 @@ type Client interface {
 }
 
 type Server interface {
-	Accept(context.Context) (*clientapi.DialRequest, PendingConn, error)
+	Accept(context.Context) (PendingConn, error)
 }
 
 type PendingConn interface {
+	DialRequest() *clientapi.DialRequest
+
 	Accept() (net.Conn, error)
 	Reject(msg string) error
 }
