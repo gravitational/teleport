@@ -3987,31 +3987,55 @@ func (a *ServerWithRoles) DeleteNamespace(name string) error {
 
 // GetRoles returns a list of roles
 func (a *ServerWithRoles) GetRoles(ctx context.Context) ([]types.Role, error) {
-	authErr := a.action(apidefaults.Namespace, types.KindRole, types.VerbList, types.VerbRead)
-	if authErr == nil {
-		return a.authServer.GetRoles(ctx)
-	}
+	// delegate all access-control logic to ListRoles, which will eventually
+	// supplant GetRoles everywhere.
+	var roles []types.Role
+	var req proto.ListRolesRequest
+	for {
+		rsp, err := a.ListRoles(ctx, &req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	roles, err := a.authServer.GetRoles(ctx)
-	if err != nil {
-		// If we get an error here, let's return the previous auth error.
-		return nil, trace.Wrap(authErr)
-	}
-
-	var filteredRoles []types.Role
-	// See if the user has access to these roles through things like where clauses.
-	for _, role := range roles {
-		if err := a.actionForResource(role, types.KindRole, types.VerbList, types.VerbRead); err == nil {
-			filteredRoles = append(filteredRoles, role)
+		for _, r := range rsp.Roles {
+			roles = append(roles, r)
+		}
+		req.StartKey = rsp.NextKey
+		if req.StartKey == "" {
+			break
 		}
 	}
 
+	return roles, nil
+}
+
+// ListRoles is a paginated role getter.
+func (a *ServerWithRoles) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	authErr := a.action(apidefaults.Namespace, types.KindRole, types.VerbList, types.VerbRead)
+	if authErr == nil {
+		rsp, err := a.authServer.ListRoles(ctx, req)
+		return rsp, trace.Wrap(err)
+	}
+
+	firstPage := req.StartKey == ""
+
+	// most users are at least allowed to view *some* roles, so fallback to per-role access checks.
+	roles, nextKey, err := a.authServer.IterateRoles(ctx, req, func(role *types.RoleV6) (bool, error) {
+		return a.actionForResource(role, types.KindRole, types.VerbList, types.VerbRead) == nil, nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// If we found no roles, let's return the previous auth error.
-	if len(filteredRoles) == 0 {
+	if firstPage && len(roles) == 0 {
 		return nil, trace.Wrap(authErr)
 	}
 
-	return filteredRoles, nil
+	return &proto.ListRolesResponse{
+		Roles:   roles,
+		NextKey: nextKey,
+	}, nil
 }
 
 func (a *ServerWithRoles) validateRole(ctx context.Context, role types.Role) error {
@@ -4567,6 +4591,10 @@ func (a *ServerWithRoles) UpsertTrustedCluster(ctx context.Context, tc types.Tru
 		return nil, trace.Wrap(err)
 	}
 
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return a.authServer.UpsertTrustedCluster(ctx, tc)
 }
 
@@ -4583,6 +4611,10 @@ func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRe
 // DeleteTrustedCluster deletes a trusted cluster by name.
 func (a *ServerWithRoles) DeleteTrustedCluster(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindTrustedCluster, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 

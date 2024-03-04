@@ -25,12 +25,6 @@ Teleport remote desktop sessions will automatically change the mouse cursor
 depending on context (when hovering over a link, resizing a window, or editing
 text, for example).
 
-#### New paginated APIs
-
-Teleport's gRPC server will expose new paginated APIs for listing roles and
-access requests, which will improve performance on clusters with large numbers
-of these resources.
-
 #### Synchronization of Okta groups and apps
 
 Okta integration will support automatic synchronization of Okta groups and app
@@ -43,6 +37,14 @@ Users going through EKS enrollment flow in Access Management web UI will have
 an option to enable auto-discovery for EKS clusters.
 
 ### 15.1.1
+
+#### New paginated APIs
+
+Teleport's gRPC server will expose new paginated APIs for listing roles and
+access requests, which will improve performance on clusters with large numbers
+of these resources.
+
+*Delayed from Teleport 15.1.0*
 
 #### SSH remote port forwarding
 

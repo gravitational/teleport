@@ -20,10 +20,12 @@ package services
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,7 +33,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/google/go-cmp/cmp"
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -6417,7 +6419,7 @@ func TestExtractConditionForIdentifier(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 	cond, err := set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, guestParticipantCond))
+	require.Empty(t, gocmp.Diff(cond, guestParticipantCond))
 
 	// Add a role allowing access to the user's own session recordings.
 	role = allowWhere(`contains(session.participants, user.metadata.name)`)
@@ -6428,13 +6430,13 @@ func TestExtractConditionForIdentifier(t *testing.T) {
 
 	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, userParticipantCond(emptyUser)))
+	require.Empty(t, gocmp.Diff(cond, userParticipantCond(emptyUser)))
 	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, userParticipantCond(user)))
+	require.Empty(t, gocmp.Diff(cond, userParticipantCond(user)))
 	cond, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{Or: types.WhereExpr2{L: guestParticipantCond, R: userParticipantCond(user2)}}))
+	require.Empty(t, gocmp.Diff(cond, &types.WhereExpr{Or: types.WhereExpr2{L: guestParticipantCond, R: userParticipantCond(user2)}}))
 
 	// Add a role denying access to sessions with root login.
 	role = denyWhere(`equals(session.login, "root")`)
@@ -6443,13 +6445,13 @@ func TestExtractConditionForIdentifier(t *testing.T) {
 
 	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(emptyUser)}}))
+	require.Empty(t, gocmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(emptyUser)}}))
 	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(user)}}))
+	require.Empty(t, gocmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(user)}}))
 	cond, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: &types.WhereExpr{Or: types.WhereExpr2{L: guestParticipantCond, R: userParticipantCond(user2)}}}}))
+	require.Empty(t, gocmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: &types.WhereExpr{Or: types.WhereExpr2{L: guestParticipantCond, R: userParticipantCond(user2)}}}}))
 
 	// Add a role denying access for user2.
 	role = denyWhere(fmt.Sprintf(`equals(user.metadata.name, "%s")`, user2.GetName()))
@@ -6457,10 +6459,10 @@ func TestExtractConditionForIdentifier(t *testing.T) {
 
 	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(emptyUser)}}))
+	require.Empty(t, gocmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(emptyUser)}}))
 	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(user)}}))
+	require.Empty(t, gocmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(user)}}))
 	_, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.True(t, trace.IsAccessDenied(err))
 
@@ -6471,10 +6473,10 @@ func TestExtractConditionForIdentifier(t *testing.T) {
 
 	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, noRootLoginCond))
+	require.Empty(t, gocmp.Diff(cond, noRootLoginCond))
 	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, noRootLoginCond))
+	require.Empty(t, gocmp.Diff(cond, noRootLoginCond))
 	_, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.True(t, trace.IsAccessDenied(err))
 
@@ -7747,7 +7749,9 @@ func TestNewAccessCheckerForRemoteCluster(t *testing.T) {
 
 	// After sort: "admin","default-implicit-role","dev"
 	roles := accessChecker.Roles()
-	sort.Sort(SortedRoles(roles))
+	slices.SortFunc(roles, func(a, b types.Role) int {
+		return cmp.Compare(a.GetName(), b.GetName())
+	})
 	require.Len(t, roles, 3)
 	require.Contains(t, roles, devRole, "devRole not found in roleSet")
 	require.Contains(t, roles, adminRole, "adminRole not found in roleSet")

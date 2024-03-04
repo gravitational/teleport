@@ -994,6 +994,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+						types.NewRule(types.KindDatabaseObjectImportRule, services.RO()),
 					},
 				},
 			})
@@ -1110,6 +1111,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindNode, services.RO()),
+						types.NewRule(types.KindKubeServer, services.RO()),
 						types.NewRule(types.KindKubernetesCluster, services.RW()),
 						types.NewRule(types.KindDatabase, services.RW()),
 						types.NewRule(types.KindServerInfo, services.RW()),

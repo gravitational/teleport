@@ -248,7 +248,7 @@ impl FastPathProcessor {
                     let frame = Uint8Array::from(frame.as_slice()); // todo(isaiah): this is a copy
                     let _ = respond_cb.call1(cb_context, &frame.buffer())?;
                 }
-                ActiveStageOutput::Terminate => {
+                ActiveStageOutput::Terminate(_) => {
                     return Err(JsValue::from_str("Terminate should never be returned"));
                 }
                 ActiveStageOutput::PointerBitmap(pointer) => {

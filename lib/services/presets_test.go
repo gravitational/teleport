@@ -490,6 +490,7 @@ func TestAddRoleDefaults(t *testing.T) {
 					Name: teleport.SystemOktaRequesterRoleName,
 					Labels: map[string]string{
 						types.TeleportInternalResourceType: types.SystemResource,
+						types.OriginLabel:                  types.OriginOkta,
 					},
 				},
 			},
@@ -503,6 +504,7 @@ func TestAddRoleDefaults(t *testing.T) {
 					Name: teleport.SystemOktaRequesterRoleName,
 					Labels: map[string]string{
 						types.TeleportInternalResourceType: types.SystemResource,
+						types.OriginLabel:                  types.OriginOkta,
 					},
 				},
 			},
@@ -514,6 +516,7 @@ func TestAddRoleDefaults(t *testing.T) {
 					Name: teleport.SystemOktaRequesterRoleName,
 					Labels: map[string]string{
 						types.TeleportInternalResourceType: types.SystemResource,
+						types.OriginLabel:                  types.OriginOkta,
 					},
 				},
 				Spec: types.RoleSpecV6{
@@ -541,6 +544,7 @@ func TestAddRoleDefaults(t *testing.T) {
 					Name: teleport.SystemOktaRequesterRoleName,
 					Labels: map[string]string{
 						types.TeleportInternalResourceType: types.SystemResource,
+						types.OriginLabel:                  types.OriginOkta,
 					},
 				},
 				Spec: types.RoleSpecV6{

@@ -950,7 +950,7 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	if fc.Auth.AccessMonitoring != nil {
-		if fc.Auth.AccessMonitoring.CheckAndSetDefaults(); err != nil {
+		if err := fc.Auth.AccessMonitoring.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "failed to validate access monitoring config")
 		}
 		cfg.Auth.AccessMonitoring = fc.Auth.AccessMonitoring
@@ -2227,7 +2227,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 			log.SetLevel(log.DebugLevel)
 			cfg.Log.SetLevel(log.DebugLevel)
 		} else {
-			if fileConf.Logger.Severity != "trace" {
+			if strings.ToLower(fileConf.Logger.Severity) != "trace" {
 				fileConf.Logger.Severity = teleport.DebugLevel
 			}
 		}
