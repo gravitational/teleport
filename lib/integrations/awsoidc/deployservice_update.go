@@ -29,7 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 )
 
@@ -296,19 +296,19 @@ func ensureUpgraderEnvironmentVariables(taskDefinition *ecs.RegisterTaskDefiniti
 	}
 	environment := []ecsTypes.KeyValuePair{}
 	for _, env := range taskDefinition.ContainerDefinitions[0].Environment {
-		if aws.ToString(env.Name) == constants.EnvTeleportUpgrader ||
-			aws.ToString(env.Name) == constants.EnvTeleportUpgraderVersion {
+		if aws.ToString(env.Name) == automaticupgrades.EnvUpgrader ||
+			aws.ToString(env.Name) == automaticupgrades.EnvUpgraderVersion {
 			continue
 		}
 		environment = append(environment, env)
 	}
 	environment = append(environment,
 		ecsTypes.KeyValuePair{
-			Name:  aws.String(constants.EnvTeleportUpgrader),
+			Name:  aws.String(automaticupgrades.EnvUpgrader),
 			Value: aws.String(types.OriginIntegrationAWSOIDC),
 		},
 		ecsTypes.KeyValuePair{
-			Name:  aws.String(constants.EnvTeleportUpgraderVersion),
+			Name:  aws.String(automaticupgrades.EnvUpgraderVersion),
 			Value: aws.String(teleport.Version),
 		},
 	)

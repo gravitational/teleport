@@ -24,11 +24,14 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 )
 
 const (
+	// EnvUpgrader environment variable specifies the external upgrader type
+	EnvUpgrader = "TELEPORT_EXT_UPGRADER"
+	// EnvUpgraderVersion environment variable specifies the external upgrader version
+	EnvUpgraderVersion = "TELEPORT_EXT_UPGRADER_VERSION"
+
 	// automaticUpgradesEnvar defines the env var to lookup when deciding whether to enable AutomaticUpgrades feature.
 	automaticUpgradesEnvar = "TELEPORT_AUTOMATIC_UPGRADES"
 
@@ -67,7 +70,7 @@ func GetChannel() string {
 
 // GetUpgraderVersion returns the teleport upgrader version
 func GetUpgraderVersion(ctx context.Context) string {
-	if os.Getenv(constants.EnvTeleportUpgrader) == "unit" {
+	if os.Getenv(EnvUpgrader) == "unit" {
 		out, err := exec.CommandContext(ctx, teleportUpgradeScript, "version").Output()
 		if err != nil {
 			log.WithError(err).Debug("Failed to exec /usr/sbin/teleport-upgrade version command.")
@@ -77,5 +80,5 @@ func GetUpgraderVersion(ctx context.Context) string {
 			}
 		}
 	}
-	return os.Getenv(constants.EnvTeleportUpgraderVersion)
+	return os.Getenv(EnvUpgraderVersion)
 }

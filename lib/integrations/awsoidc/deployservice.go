@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -496,11 +496,11 @@ func upsertTask(ctx context.Context, clt DeployServiceClient, req upsertTaskRequ
 					Value: aws.String("true"),
 				},
 				{
-					Name:  aws.String(constants.EnvTeleportUpgrader),
+					Name:  aws.String(automaticupgrades.EnvUpgrader),
 					Value: aws.String(types.OriginIntegrationAWSOIDC),
 				},
 				{
-					Name:  aws.String(constants.EnvTeleportUpgraderVersion),
+					Name:  aws.String(automaticupgrades.EnvUpgraderVersion),
 					Value: aws.String(teleport.Version),
 				},
 			},

@@ -34,10 +34,3 @@ const (
 	// This can be caused by the target version being incompatible with the cluster version.
 	NoVersion = "none"
 )
-
-const (
-	// EnvTeleportUpgrader environment variable specifies the external upgrader type
-	EnvTeleportUpgrader = "TELEPORT_EXT_UPGRADER"
-	// EnvTeleportUpgraderVersion environment variable specifies the external upgrader version
-	EnvTeleportUpgraderVersion = "TELEPORT_EXT_UPGRADER_VERSION"
-)

@@ -22,14 +22,14 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 )
 
 func TestDeployServiceRequest(t *testing.T) {
@@ -217,24 +217,24 @@ func TestUpsertTask(t *testing.T) {
 	ctx := context.Background()
 
 	mockClient := &mockDeployServiceClient{
-		clusters:        map[string]*ecsTypes.Cluster{},
-		taskDefinitions: map[string]*ecsTypes.TaskDefinition{},
-		services:        map[string]*ecsTypes.Service{},
+		clusters:        map[string]*ecstypes.Cluster{},
+		taskDefinitions: map[string]*ecstypes.TaskDefinition{},
+		services:        map[string]*ecstypes.Service{},
 		accountId:       aws.String("123456789012"),
 		iamTokenMissing: true,
 	}
 
-	expected := []ecsTypes.KeyValuePair{
+	expected := []ecstypes.KeyValuePair{
 		{
 			Name:  aws.String(types.InstallMethodAWSOIDCDeployServiceEnvVar),
 			Value: aws.String("true"),
 		},
 		{
-			Name:  aws.String(constants.EnvTeleportUpgrader),
+			Name:  aws.String(automaticupgrades.EnvUpgrader),
 			Value: aws.String(types.OriginIntegrationAWSOIDC),
 		},
 		{
-			Name:  aws.String(constants.EnvTeleportUpgraderVersion),
+			Name:  aws.String(automaticupgrades.EnvUpgraderVersion),
 			Value: aws.String(teleport.Version),
 		},
 	}

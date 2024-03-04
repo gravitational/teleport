@@ -28,7 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 )
 
 func TestGenerateServiceWithTaskDefinition(t *testing.T) {
@@ -390,11 +390,11 @@ func TestEnsureUpgraderEnvironmentVariables(t *testing.T) {
 					Value: aws.String("EXAMPLE"),
 				},
 				{
-					Name:  aws.String(constants.EnvTeleportUpgrader),
+					Name:  aws.String(automaticupgrades.EnvUpgrader),
 					Value: aws.String(types.OriginIntegrationAWSOIDC),
 				},
 				{
-					Name:  aws.String(constants.EnvTeleportUpgraderVersion),
+					Name:  aws.String(automaticupgrades.EnvUpgraderVersion),
 					Value: aws.String(teleport.Version),
 				},
 			},
@@ -404,11 +404,11 @@ func TestEnsureUpgraderEnvironmentVariables(t *testing.T) {
 					Value: aws.String("EXAMPLE"),
 				},
 				{
-					Name:  aws.String(constants.EnvTeleportUpgrader),
+					Name:  aws.String(automaticupgrades.EnvUpgrader),
 					Value: aws.String(types.OriginIntegrationAWSOIDC),
 				},
 				{
-					Name:  aws.String(constants.EnvTeleportUpgraderVersion),
+					Name:  aws.String(automaticupgrades.EnvUpgraderVersion),
 					Value: aws.String(teleport.Version),
 				},
 			},
@@ -427,11 +427,11 @@ func TestEnsureUpgraderEnvironmentVariables(t *testing.T) {
 					Value: aws.String("EXAMPLE"),
 				},
 				{
-					Name:  aws.String(constants.EnvTeleportUpgrader),
+					Name:  aws.String(automaticupgrades.EnvUpgrader),
 					Value: aws.String(types.OriginIntegrationAWSOIDC),
 				},
 				{
-					Name:  aws.String(constants.EnvTeleportUpgraderVersion),
+					Name:  aws.String(automaticupgrades.EnvUpgraderVersion),
 					Value: aws.String(teleport.Version),
 				},
 			},
@@ -444,11 +444,11 @@ func TestEnsureUpgraderEnvironmentVariables(t *testing.T) {
 					Value: aws.String("EXAMPLE"),
 				},
 				{
-					Name:  aws.String(constants.EnvTeleportUpgrader),
+					Name:  aws.String(automaticupgrades.EnvUpgrader),
 					Value: aws.String("none"),
 				},
 				{
-					Name:  aws.String(constants.EnvTeleportUpgraderVersion),
+					Name:  aws.String(automaticupgrades.EnvUpgraderVersion),
 					Value: aws.String("v1.0.0"),
 				},
 			},
@@ -458,11 +458,11 @@ func TestEnsureUpgraderEnvironmentVariables(t *testing.T) {
 					Value: aws.String("EXAMPLE"),
 				},
 				{
-					Name:  aws.String(constants.EnvTeleportUpgrader),
+					Name:  aws.String(automaticupgrades.EnvUpgrader),
 					Value: aws.String(types.OriginIntegrationAWSOIDC),
 				},
 				{
-					Name:  aws.String(constants.EnvTeleportUpgraderVersion),
+					Name:  aws.String(automaticupgrades.EnvUpgraderVersion),
 					Value: aws.String(teleport.Version),
 				},
 			},
