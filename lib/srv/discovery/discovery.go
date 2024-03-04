@@ -398,8 +398,10 @@ func (s *Server) startDynamicMatchersWatcher(ctx context.Context) error {
 	}
 
 	s.dynamicMatcherWatcher = watcher
-
-	go s.startDynamicWatcherUpdater()
+	notify := make(chan struct{})
+	go s.startDynamicWatcherUpdater(notify)
+	// wait for initial discovery configs to load before proceed.
+	<-notify
 	return nil
 }
 
@@ -1237,7 +1239,7 @@ func (s *Server) Start() error {
 // Before consuming changes, it iterates over all DiscoveryConfigs and
 // For deleted resources, it deletes the matchers.
 // For new/updated resources, it replaces the set of fetchers.
-func (s *Server) startDynamicWatcherUpdater() {
+func (s *Server) startDynamicWatcherUpdater(notify chan<- struct{}) {
 	// Add all existing DiscoveryConfigs as matchers.
 	nextKey := ""
 	for {
@@ -1246,11 +1248,11 @@ func (s *Server) startDynamicWatcherUpdater() {
 			s.Log.WithError(err).Warnf("failed to list discovery configs")
 			return
 		}
+
 		for _, dc := range dcs {
 			if dc.GetDiscoveryGroup() != s.DiscoveryGroup {
 				continue
 			}
-
 			if err := s.upsertDynamicMatchers(s.ctx, dc); err != nil {
 				s.Log.WithError(err).Warnf("failed to update dynamic matchers for discovery config %q", dc.GetName())
 				continue
@@ -1261,7 +1263,7 @@ func (s *Server) startDynamicWatcherUpdater() {
 		}
 		nextKey = respNextKey
 	}
-
+	close(notify)
 	// Consume DiscoveryConfig events to update Matchers as they change.
 	for {
 		select {

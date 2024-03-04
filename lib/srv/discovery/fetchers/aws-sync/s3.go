@@ -20,6 +20,7 @@ package aws_sync
 
 import (
 	"context"
+	awsutil "github.com/gravitational/teleport/lib/utils/aws"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -65,8 +66,14 @@ func (a *awsFetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.
 		}
 	}
 
+	region := awsutil.GetKnownRegions()[0]
+	if len(a.Regions) > 0 {
+		region = a.Regions[0]
+	}
+
 	s3Client, err := a.CloudClients.GetAWSS3Client(
 		ctx,
+		region,
 		a.getAWSOptions()...,
 	)
 	if err != nil {
