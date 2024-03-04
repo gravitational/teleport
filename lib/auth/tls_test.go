@@ -1272,13 +1272,30 @@ func TestRemoteClustersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 
-	_, err = testSrv.Auth().CreateRemoteCluster(ctx, rc)
+	rc, err = testSrv.Auth().CreateRemoteCluster(ctx, rc)
 	require.NoError(t, err)
 
 	out, err = clt.GetRemoteClusters(ctx)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
-	require.Empty(t, cmp.Diff(out[0], rc, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(out[0], rc))
+
+	update := rc.Clone()
+	update.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
+	_, err = clt.UpdateRemoteCluster(ctx, update)
+	require.NoError(t, err)
+	updated, err := clt.GetRemoteCluster(ctx, rc.GetName())
+	require.NoError(t, err)
+	require.Equal(t, updated.GetConnectionStatus(), teleport.RemoteClusterStatusOnline)
+	// Ensure other fields unchanged
+	require.Empty(t,
+		cmp.Diff(
+			rc,
+			updated,
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+			cmpopts.IgnoreFields(types.RemoteClusterStatusV3{}, "Connection"),
+		),
+	)
 
 	err = clt.DeleteRemoteCluster(ctx, clusterName)
 	require.NoError(t, err)
@@ -1287,7 +1304,7 @@ func TestRemoteClustersCRUD(t *testing.T) {
 
 	out, err = clt.GetRemoteClusters(ctx)
 	require.NoError(t, err)
-	require.Empty(t, out, 0)
+	require.Empty(t, out)
 }
 
 func TestServersCRUD(t *testing.T) {

@@ -173,6 +173,15 @@ func TestPresenceService_PatchRemoteCluster(t *testing.T) {
 	fetchedRC, err := presenceBackend.GetRemoteCluster(ctx, rc.GetName())
 	require.NoError(t, err)
 	require.Equal(t, teleport.RemoteClusterStatusOnline, fetchedRC.GetConnectionStatus())
+	// Ensure other fields unchanged
+	require.Empty(t,
+		cmp.Diff(
+			rc,
+			fetchedRC,
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+			cmpopts.IgnoreFields(types.RemoteClusterStatusV3{}, "Connection"),
+		),
+	)
 
 	// Ensure that name cannot be updated
 	_, err = presenceBackend.PatchRemoteCluster(
