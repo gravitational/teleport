@@ -57,7 +57,7 @@ func (c Channels) CheckAndSetDefaults() error {
 	// Else if cloud/stable channel is specified in the config, we use it as default.
 	// Else, we build a default channel based on the teleport binary version.
 	if _, ok := c[DefaultChannelName]; ok {
-		log.Debugln("'default' automatic update channel manually specified, honouring it.")
+		log.Debugln("'default' automatic update channel manually specified, honoring it.")
 	} else if cloudDefaultChannel, ok := c[DefaultCloudChannelName]; ok {
 		log.Debugln("'default' automatic update channel not specified, but 'stable/cloud' is, using the cloud default channel by default.")
 		c[DefaultChannelName] = cloudDefaultChannel
