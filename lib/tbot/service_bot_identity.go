@@ -61,18 +61,22 @@ type identityService struct {
 	facade *identity.Facade
 }
 
+// GetIdentity returns the current Bot identity.
 func (s *identityService) GetIdentity() *identity.Identity {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.facade.Get()
 }
 
+// GetClient returns the facaded client for the Bot identity for use by other
+// components of `tbot`. Consumers should not call `Close` on the client.
 func (s *identityService) GetClient() auth.ClientI {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.client
 }
 
+// String returns a human-readable name of the service.
 func (s *identityService) String() string {
 	return "identity"
 }
