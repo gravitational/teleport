@@ -8,6 +8,7 @@ import history from 'teleport/services/history';
 import celebratePamPng from 'teleport/Discover/Shared/Finished/celebrate-pam.png';
 
 import { useDiscover } from 'teleport/Discover/useDiscover';
+import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 
 export function Finished() {
   const { exitFlow, agentMeta } = useDiscover();
@@ -41,7 +42,16 @@ export function Finished() {
           size="large"
           onClick={() =>
             history.push(
-              generatePath(cfg.routes.apps, { clusterId: cfg.proxyCluster }),
+              encodeUrlQueryParams(
+                generatePath(cfg.routes.unifiedResources, {
+                  clusterId: cfg.proxyCluster,
+                }),
+                '' /* searchString */,
+                null /* sort */,
+                ['app'] /* kind */,
+                false /* isAdvancedSearch */,
+                false /* pinnedOnly */
+              ),
               true
             )
           }
