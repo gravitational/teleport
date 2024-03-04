@@ -207,7 +207,7 @@ const auth = {
       old_password: base64EncodeUnicode(oldPassword),
       new_password: base64EncodeUnicode(newPassword),
       second_factor_token: secondFactorToken,
-      webauthn_assertion_response:
+      webauthnAssertionResponse:
         credential && makeWebauthnAssertionResponse(credential),
     };
 
