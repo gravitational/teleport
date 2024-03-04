@@ -22,7 +22,7 @@ import { bool, string } from 'prop-types';
 
 import { space, width, height, alignSelf, gap } from 'design/system';
 
-const Button = ({ children, setRef, ...props }) => {
+const Button = ({ children, setRef = undefined, ...props }) => {
   return (
     <StyledButton {...props} ref={setRef}>
       {children}

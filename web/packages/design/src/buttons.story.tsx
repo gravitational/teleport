@@ -18,9 +18,11 @@
 
 import React from 'react';
 
+import { MenuItem } from 'design';
+
 import ButtonLink from './ButtonLink';
 import ButtonIcon from './ButtonIcon';
-import { AddUsers, Trash, Ellipsis } from './Icon';
+import * as icons from './Icon';
 import Flex from './Flex';
 import Button, {
   ButtonPrimary,
@@ -29,6 +31,7 @@ import Button, {
   ButtonBorder,
   ButtonText,
 } from './Button';
+import { ButtonWithMenu } from './ButtonWithMenu';
 
 export default {
   title: 'Design/Button',
@@ -58,9 +61,35 @@ export const Buttons = () => (
 
     <Flex gap={3}>
       <ButtonPrimary gap={2}>
-        <AddUsers />
+        <icons.AddUsers />
         Add users
       </ButtonPrimary>
+    </Flex>
+
+    <Flex gap={3} alignItems="center">
+      <ButtonWithMenu
+        text="Button with menu"
+        onClick={() => alert('Button with menu')}
+      >
+        {menuItemsForButtonWithMenu}
+      </ButtonWithMenu>
+      <ButtonWithMenu
+        text="Large"
+        size="large"
+        onClick={() => alert('Large button with menu')}
+      >
+        {menuItemsForButtonWithMenu}
+      </ButtonWithMenu>
+      <ButtonWithMenu
+        text="Small"
+        size="small"
+        onClick={() => alert('Small button with menu')}
+      >
+        {menuItemsForButtonWithMenu}
+      </ButtonWithMenu>
+      <ButtonWithMenu text="With different icon" MenuIcon={icons.Cog}>
+        {menuItemsForButtonWithMenu}
+      </ButtonWithMenu>
     </Flex>
 
     <Flex gap={3}>
@@ -79,38 +108,50 @@ export const Buttons = () => (
 
     <Flex gap={3}>
       <ButtonIcon size={2}>
-        <AddUsers />
+        <icons.AddUsers />
       </ButtonIcon>
       <ButtonIcon size={2}>
-        <Ellipsis />
+        <icons.Ellipsis />
       </ButtonIcon>
       <ButtonIcon size={2}>
-        <Trash />
+        <icons.Trash />
       </ButtonIcon>
     </Flex>
 
     <Flex gap={3}>
       <ButtonIcon size={1}>
-        <AddUsers />
+        <icons.AddUsers />
       </ButtonIcon>
       <ButtonIcon size={1}>
-        <Ellipsis />
+        <icons.Ellipsis />
       </ButtonIcon>
       <ButtonIcon size={1}>
-        <Trash />
+        <icons.Trash />
       </ButtonIcon>
     </Flex>
 
     <Flex gap={3}>
       <ButtonIcon size={0}>
-        <AddUsers />
+        <icons.AddUsers />
       </ButtonIcon>
       <ButtonIcon size={0}>
-        <Ellipsis />
+        <icons.Ellipsis />
       </ButtonIcon>
       <ButtonIcon size={0}>
-        <Trash />
+        <icons.Trash />
       </ButtonIcon>
     </Flex>
   </Flex>
+);
+
+const menuItemsForButtonWithMenu = (
+  <>
+    <MenuItem onClick={() => alert('Foo')}>Foo</MenuItem>
+    <MenuItem as="a" href="https://example.com" target="_blank">
+      Link to example.com
+    </MenuItem>
+    <MenuItem onClick={() => alert('Lorem ipsum dolor sit amet')}>
+      Lorem ipsum dolor sit amet
+    </MenuItem>
+  </>
 );
