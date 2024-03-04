@@ -83,8 +83,8 @@ func Run(args []string, stdout io.Writer) error {
 	versionCmd := app.Command("version", "Print the version of your tbot binary.")
 
 	startCmd := app.Command("start", "Starts the renewal bot, writing certificates to the data dir at a set interval.")
-	startCmd.Flag("auth-server", "Address of the Teleport Auth Server. Prefer using --proxy where possible.").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
-	startCmd.Flag("proxy", "Address of the Teleport Proxy Server.").StringVar(&cf.Proxy)
+	startCmd.Flag("auth-server", "Address of the Teleport Auth Server. Prefer using --proxy-server where possible.").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
+	startCmd.Flag("proxy-server", "Address of the Teleport Proxy Server.").StringVar(&cf.ProxyServer)
 	startCmd.Flag("token", "A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&cf.Token)
 	startCmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&cf.CAPins)
 	startCmd.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&cf.DataDir)
@@ -111,8 +111,8 @@ func Run(args []string, stdout io.Writer) error {
 		EnumVar(&cf.LogFormat, utils.LogFormatJSON, utils.LogFormatText)
 
 	configureCmd := app.Command("configure", "Creates a config file based on flags provided, and writes it to stdout or a file (-c <path>).")
-	configureCmd.Flag("auth-server", "Address of the Teleport Auth Server. Prefer using --proxy where possible.").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
-	configureCmd.Flag("proxy", "Address of the Teleport Proxy Server.").StringVar(&cf.Proxy)
+	configureCmd.Flag("auth-server", "Address of the Teleport Auth Server. Prefer using --proxy-server where possible.").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
+	configureCmd.Flag("proxy-server", "Address of the Teleport Proxy Server.").StringVar(&cf.ProxyServer)
 	configureCmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&cf.CAPins)
 	configureCmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").Default("60m").DurationVar(&cf.CertificateTTL)
 	configureCmd.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&cf.DataDir)
@@ -129,8 +129,14 @@ func Run(args []string, stdout io.Writer) error {
 	migrateCmd := app.Command("migrate", "Migrates a config file from an older version to the newest version. Outputs to stdout by default.")
 	migrateCmd.Flag("output", "Path to write the generated configuration file to rather than write to stdout.").Short('o').StringVar(&cf.ConfigureOutput)
 
+	legacyProxyFlag := ""
+
 	dbCmd := app.Command("db", "Execute database commands through tsh.")
-	dbCmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Required().StringVar(&cf.Proxy)
+	dbCmd.Flag("proxy-server", "The Teleport proxy server to use, in host:port form.").StringVar(&cf.ProxyServer)
+	// We're migrating from --proxy to --proxy-server so this flag is hidden
+	// but still supported.
+	// TODO(strideynet): DELETE IN 17.0.0
+	dbCmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Hidden().StringVar(&legacyProxyFlag)
 	dbCmd.Flag("destination-dir", "The destination directory with which to authenticate tsh").StringVar(&cf.DestinationDir)
 	dbCmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&cf.Cluster)
 	dbRemaining := config.RemainingArgs(dbCmd.Arg(
@@ -139,7 +145,11 @@ func Run(args []string, stdout io.Writer) error {
 	))
 
 	proxyCmd := app.Command("proxy", "Start a local TLS proxy via tsh to connect to Teleport in single-port mode.")
-	proxyCmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Required().StringVar(&cf.Proxy)
+	proxyCmd.Flag("proxy-server", "The Teleport proxy server to use, in host:port form.").Required().StringVar(&cf.ProxyServer)
+	// We're migrating from --proxy to --proxy-server so this flag is hidden
+	// but still supported.
+	// TODO(strideynet): DELETE IN 17.0.0
+	proxyCmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Hidden().StringVar(&legacyProxyFlag)
 	proxyCmd.Flag("destination-dir", "The destination directory with which to authenticate tsh").StringVar(&cf.DestinationDir)
 	proxyCmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&cf.Cluster)
 	proxyRemaining := config.RemainingArgs(proxyCmd.Arg(
@@ -156,6 +166,11 @@ func Run(args []string, stdout io.Writer) error {
 	if err != nil {
 		app.Usage(args)
 		return trace.Wrap(err)
+	}
+
+	if legacyProxyFlag != "" {
+		cf.ProxyServer = legacyProxyFlag
+		log.Warn("The --proxy flag is deprecated and will be removed in v17.0.0. Use --proxy-server instead.")
 	}
 
 	// Remaining args are stored directly to a []string rather than written to
