@@ -767,12 +767,13 @@ func (s *PresenceService) PatchRemoteCluster(
 
 		switch {
 		case updated.GetName() != name:
-			return nil, trace.BadParameter("metadata.name: cannot be updated")
+			return nil, trace.BadParameter("metadata.name: cannot be patched")
 		case updated.GetRevision() != existing.GetRevision():
-			// If they've provided a revision, and it doesn't match the revision
-			// of the resource we just fetched, we know the conditional update
-			// will fail, so we exit early to avoid the write.
-			return nil, backend.ErrConditionFailed
+			// We don't allow revision to be specified when performing a patch.
+			// This is because it creates some complex semantics. Instead they
+			// should use the Update method if they wish to specify the
+			// revision.
+			return nil, trace.BadParameter("metadata.revision: cannot be patched")
 		}
 
 		updatedValue, err := services.MarshalRemoteCluster(updated)

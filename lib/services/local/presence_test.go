@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services/suite"
 )
@@ -46,7 +47,7 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, bk.Close()) })
 
@@ -144,7 +145,7 @@ func TestPresenceService_PatchRemoteCluster(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, bk.Close()) })
 
@@ -184,14 +185,27 @@ func TestPresenceService_PatchRemoteCluster(t *testing.T) {
 	)
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err))
-	require.Contains(t, err.Error(), "metadata.name: cannot be updated")
+	require.Contains(t, err.Error(), "metadata.name: cannot be patched")
+
+	// Ensure that revision cannot be updated
+	_, err = presenceBackend.PatchRemoteCluster(
+		ctx,
+		rc.GetName(),
+		func(rc types.RemoteCluster) (types.RemoteCluster, error) {
+			rc.SetRevision("baz")
+			return rc, nil
+		},
+	)
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+	require.Contains(t, err.Error(), "metadata.revision: cannot be patched")
 }
 
 func TestPresenceService_ListRemoteClusters(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, bk.Close()) })
 
