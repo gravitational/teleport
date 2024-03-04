@@ -247,37 +247,76 @@ func TestServer_ChangePassword(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name                        string
-		oldPass                     string
-		newPass                     string
-		userVerificationRequirement string
-		device                      *TestDevice
+		name             string
+		oldPass          string
+		newPass          string
+		device           *TestDevice
+		challengeRequest *proto.CreateAuthenticateChallengeRequest
 	}{
 		{
 			name:    "OK TOTP-based change",
 			oldPass: password,
 			newPass: "llamasarecool11",
 			device:  mfa.TOTPDev,
+			challengeRequest: &proto.CreateAuthenticateChallengeRequest{
+				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+					ContextUser: &proto.ContextUser{},
+				},
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD,
+				},
+			},
 		},
 		{
-			name:    "OK Webauthn-based change",
+			name:    "OK TOTP-based change (legacy flow)",
 			oldPass: "llamasarecool11",
-			newPass: "llamasarecool13",
+			newPass: "llamasarecool12",
+			device:  mfa.TOTPDev,
+			challengeRequest: &proto.CreateAuthenticateChallengeRequest{
+				Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+					UserCredentials: &proto.UserCredentials{
+						Username: username,
+						Password: []byte("llamasarecool11"),
+					},
+				},
+			},
+		},
+		{
+			name:             "OK Webauthn-based change",
+			oldPass:          "llamasarecool12",
+			newPass:          "llamasarecool13",
+			device:           mfa.WebDev,
+			challengeRequest: &proto.CreateAuthenticateChallengeRequest{},
+		},
+		{
+			name:    "OK with verification explicitly set to discouraged",
+			oldPass: "llamasarecool13",
+			newPass: "llamasarecool14",
 			device:  mfa.WebDev,
+			challengeRequest: &proto.CreateAuthenticateChallengeRequest{
+				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+					ContextUser: &proto.ContextUser{},
+				},
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
+					UserVerificationRequirement: "discouraged",
+					Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD,
+				},
+			},
 		},
 		{
-			name:                        "OK with verification explicitly set to discouraged",
-			oldPass:                     "llamasarecool13",
-			newPass:                     "llamasarecool14",
-			userVerificationRequirement: "discouraged",
-			device:                      mfa.WebDev,
-		},
-		{
-			name:                        "OK passwordless change",
-			oldPass:                     "",
-			newPass:                     "llamasarecool15",
-			userVerificationRequirement: "required",
-			device:                      passwordlessDev,
+			name:    "OK passwordless change",
+			oldPass: "",
+			newPass: "llamasarecool15",
+			device:  passwordlessDev,
+			challengeRequest: &proto.CreateAuthenticateChallengeRequest{
+				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+					ContextUser: &proto.ContextUser{},
+				},
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
+					UserVerificationRequirement: "required",
+					Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD,
+				},
+			},
 		},
 	}
 
@@ -290,15 +329,7 @@ func TestServer_ChangePassword(t *testing.T) {
 			newPass := []byte(test.newPass)
 
 			// Acquire and solve an MFA challenge.
-			mfaChallenge, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
-					ContextUser: &proto.ContextUser{},
-				},
-				ChallengeExtensions: &mfav1.ChallengeExtensions{
-					UserVerificationRequirement: test.userVerificationRequirement,
-					Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD,
-				},
-			})
+			mfaChallenge, err := userClient.CreateAuthenticateChallenge(ctx, test.challengeRequest)
 			require.NoError(t, err, "creating challenge")
 			mfaResp, err := test.device.SolveAuthn(mfaChallenge)
 			require.NoError(t, err, "solving challenge with device")

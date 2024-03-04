@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
@@ -133,10 +132,10 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 }
 
 type createAuthenticateChallengeRequest struct {
-	IsMFARequiredRequest        *isMFARequiredRequest                 `json:"is_mfa_required_req"`
-	ChallengeScope              int                                   `json:"challenge_scope"`
-	ChallengeAllowReuse         bool                                  `json:"challenge_allow_reuse"`
-	UserVerificationRequirement *protocol.UserVerificationRequirement `json:"user_verification_requirement"`
+	IsMFARequiredRequest        *isMFARequiredRequest `json:"is_mfa_required_req"`
+	ChallengeScope              int                   `json:"challenge_scope"`
+	ChallengeAllowReuse         bool                  `json:"challenge_allow_reuse"`
+	UserVerificationRequirement string                `json:"user_verification_requirement"`
 }
 
 // createAuthenticateChallengeHandle creates and returns MFA authentication challenges for the user in context (logged in user).
@@ -165,11 +164,6 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		allowReuse = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
 	}
 
-	uvr := "" // default
-	if req.UserVerificationRequirement != nil {
-		uvr = string(*req.UserVerificationRequirement)
-	}
-
 	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
@@ -178,7 +172,7 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
 			Scope:                       mfav1.ChallengeScope(req.ChallengeScope),
 			AllowReuse:                  allowReuse,
-			UserVerificationRequirement: uvr,
+			UserVerificationRequirement: req.UserVerificationRequirement,
 		},
 	})
 	if err != nil {
