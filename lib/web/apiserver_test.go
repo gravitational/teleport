@@ -4560,7 +4560,7 @@ func TestGetWebConfig(t *testing.T) {
 	expectedCfg.IsCloud = true
 	expectedCfg.IsUsageBasedBilling = true
 	expectedCfg.AutomaticUpgrades = true
-	expectedCfg.AutomaticUpgradesTargetVersion = teleport.Version
+	expectedCfg.AutomaticUpgradesTargetVersion = "v" + teleport.Version
 	expectedCfg.AssistEnabled = false
 
 	// request and verify enabled features are enabled.
