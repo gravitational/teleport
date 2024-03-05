@@ -597,7 +597,12 @@ func (c *Client) connect(peerID string, peerAddr string) (*clientConn, error) {
 
 	tlsConfig.ServerName = auth.HostFQDN(peerID, c.config.ClusterName)
 
-	tlsConfig.VerifyConnection = func(state tls.ConnectionState) error {
+	tlsConfig.VerifyConnection = func(state tls.ConnectionState) (err error) {
+		defer func() {
+			if err != nil {
+				c.config.Log.Warnf("---> Custom VerifyConnection client impl has rejected a cert: %v", err)
+			}
+		}()
 		// VerifiedChains must be populated after the handshake.
 		if len(state.VerifiedChains) < 1 || len(state.VerifiedChains[0]) < 1 {
 			return trace.Errorf("missing expected certificate chains")
@@ -629,6 +634,7 @@ func (c *Client) connect(peerID string, peerAddr string) (*clientConn, error) {
 
 	qconn, err := goquic.DialAddr(c.ctx, peerAddr, tlsConfig, nil)
 	if err != nil {
+		c.config.Log.Warnf("---> Failed to perform quic dial: %v", err)
 		return nil, trace.Wrap(err)
 	}
 
