@@ -17,3 +17,6 @@
  */
 
 export * from './DocumentVnet';
+export * from './VnetSliderStep';
+export * from './vnetContext';
+export { VnetConnectionItem } from './VnetConnectionItem';

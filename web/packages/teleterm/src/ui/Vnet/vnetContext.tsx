@@ -51,6 +51,11 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
   const [startAttempt, start] = useAsync(
     useCallback(
       async (uri: uri.RootClusterUri) => {
+        // TODO(ravicious): If the osascript dialog was canceled, do not throw an error and instead
+        // just don't update status. Perhaps even revert back attempt status if possible.
+        //
+        // A custom error wrapper is needed to detect cancellation.
+        // https://github.com/gravitational/teleport/issues/30753
         await vnet.start(uri);
         setStatus('running');
       },
