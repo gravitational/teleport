@@ -1,4 +1,4 @@
-import React, { lazy } from 'react';
+import React from 'react';
 import { Switch, Route } from 'teleport/components/Router';
 import { FeatureBox } from 'teleport/components/Layout';
 
@@ -6,8 +6,8 @@ import cfg from 'teleport/config';
 
 import { getRoutesToEnrollIntegrations } from 'e-teleport/Integrations/IntegrationRoute';
 
-const IntegrationPick = lazy(() => import('./IntegrationPick'));
-const PluginEnroll = lazy(() => import('./PluginEnroll'));
+import IntegrationPick from './IntegrationPick';
+import PluginEnroll from './PluginEnroll';
 
 export function IntegrationEnroll() {
   return (

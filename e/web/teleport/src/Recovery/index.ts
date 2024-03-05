@@ -1,3 +1,1 @@
-import Recovery from './Recovery';
-
-export default Recovery;
+export { Recovery } from './Recovery';

@@ -5,7 +5,7 @@ import auth from 'teleport/services/auth/auth';
 import history from 'teleport/services/history';
 import cfg from 'teleport/config';
 
-import Login from './Login';
+import { LoginContainer as Login } from './Login';
 
 beforeEach(() => {
   jest.restoreAllMocks();

@@ -9,7 +9,7 @@ import historyService from 'teleport/services/history';
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { makeAccessRequest } from 'e-teleport/services/workflow';
 
-import WaitingRoom from './WaitingRoom';
+import { Container as WaitingRoom } from './WaitingRoom';
 
 beforeAll(() => {
   jest.useFakeTimers();

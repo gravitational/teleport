@@ -1,3 +1,1 @@
-import { PaymentsAndInvoicesLoader } from './PaymentsAndInvoicesLoader';
-
-export default PaymentsAndInvoicesLoader;
+export { PaymentsAndInvoicesLoader } from './PaymentsAndInvoicesLoader';

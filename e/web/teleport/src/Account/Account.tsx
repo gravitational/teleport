@@ -1,11 +1,11 @@
 import React from 'react';
-import AccountPage from 'teleport/Account';
+import { AccountPage } from 'teleport/Account';
 
 import cfg from 'e-teleport/config';
 
 import Recovery from './Recovery';
 
-export default function Account() {
+export function Account() {
   return (
     <AccountPage
       enterpriseComponent={cfg.oss.recoveryCodesEnabled ? Recovery : undefined}

@@ -1,1 +1,1 @@
-export { AccessMonitoring as default } from './AccessMonitoring';
+export { AccessMonitoring } from './AccessMonitoring';

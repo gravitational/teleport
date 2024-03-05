@@ -1,4 +1,4 @@
-import React, { lazy } from 'react';
+import React from 'react';
 import { Route, Switch } from 'teleport/components/Router';
 import Teleport, {
   getSharedPrivateRoutes,
@@ -7,11 +7,15 @@ import Teleport, {
 } from 'teleport/Teleport';
 
 import ossConfig from 'teleport/config';
-import Welcome from 'teleport/Welcome';
+import { Welcome } from 'teleport/Welcome';
 
 import cfg from 'e-teleport/config';
-import WaitingRoom from 'e-teleport/WaitingRoom';
+import { WaitingRoom } from 'e-teleport/WaitingRoom';
 import { ENewCredentials } from 'e-teleport/Welcome/NewCredentials';
+
+import { Recovery } from './Recovery';
+import { Login } from './Login';
+import { Main } from './Main';
 
 const TeleportE: React.FC<Props> = ({ history, ctx }) => {
   return (
@@ -23,10 +27,6 @@ const TeleportE: React.FC<Props> = ({ history, ctx }) => {
     />
   );
 };
-
-const Login = lazy(() => import('./Login'));
-
-const Recovery = lazy(() => import('./Recovery'));
 
 function publicERoutes() {
   return [
@@ -57,8 +57,6 @@ function publicERoutes() {
     ...getSharedPublicRoutes(),
   ];
 }
-
-const Main = lazy(() => import('./Main'));
 
 function privateERoutes() {
   return (

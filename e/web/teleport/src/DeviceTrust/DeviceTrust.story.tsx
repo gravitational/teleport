@@ -8,7 +8,7 @@ import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 
 import ecfg from 'e-teleport/config';
 
-import { Container as DeviceTrust } from './DeviceTrust';
+import { DeviceTrust } from './DeviceTrust';
 
 import type { TrustedDevice } from 'teleport/DeviceTrust/types';
 

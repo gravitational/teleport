@@ -12,17 +12,15 @@ import RequestDenied from './RequestDenied';
 import RequestError from './RequestError';
 import useWaitingRoom, { State } from './useWaitingRoom';
 
-const Container: React.FC<PropsWithChildren<Props>> = props => {
+export const Container: React.FC<PropsWithChildren<Props>> = props => {
   const ctx = useTeleportE();
   useStore(ctx.storeAccessRequests);
 
   const state = useWaitingRoom(ctx);
-  return <WaitingRoom {...props} {...state} />;
+  return <WaitingRoomComponent {...props} {...state} />;
 };
 
-export default Container;
-
-export const WaitingRoom: React.FC<
+export const WaitingRoomComponent: React.FC<
   PropsWithChildren<State & Partial<Props>>
 > = props => {
   const {

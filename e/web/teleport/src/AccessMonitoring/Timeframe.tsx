@@ -1,7 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { components } from 'react-select';
-import Select, { Option } from 'shared/components/Select';
+import Select, { type Option } from 'shared/components/Select';
 import cfg from 'teleport/config';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { CtaEvent } from 'teleport/services/userEvent';

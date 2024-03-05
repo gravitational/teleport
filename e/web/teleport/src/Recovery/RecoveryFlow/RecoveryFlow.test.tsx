@@ -10,7 +10,7 @@ import { act } from '@testing-library/react';
 import cfg from 'e-teleport/config';
 import RecoveryService from 'e-teleport/services/recovery';
 
-import Recovery from '../Recovery';
+import { Recovery } from '../Recovery';
 
 const startToken = {
   username: 'joe@example.com',

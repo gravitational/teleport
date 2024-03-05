@@ -20,6 +20,7 @@ import {
 } from 'design/Icon';
 
 import { NavTitle } from 'teleport/types';
+import { Users } from 'teleport/Users';
 
 import { storageService } from 'teleport/services/storageService';
 
@@ -28,6 +29,28 @@ import cfg from 'e-teleport/config';
 import { NewRequest, ReviewRequests } from 'e-teleport/Workflow';
 
 import { Downloads } from 'e-teleport/Downloads';
+import { AuthConnectors } from 'e-teleport/AuthConnectors';
+import { Account as AccountE } from 'e-teleport/Account';
+import Integrations from 'e-teleport/Integrations';
+import { IntegrationEnroll } from 'e-teleport/Integrations/IntegrationEnroll';
+import SupportE from 'e-teleport/Support';
+import { NewLock } from 'e-teleport/NewLockV2';
+
+import { DeviceTrust } from 'e-teleport/DeviceTrust';
+
+import { SummaryLoader as BillingSummaryE } from 'e-teleport/Billing/Summary';
+import EubpBillingSummaryE from 'e-teleport/Billing/EubpSummary';
+
+import { PaymentsAndInvoicesLoader as PaymentsInvoicesE } from 'e-teleport/Billing/PaymentsAndInvoices';
+
+import { InvoiceSettingsLoader as InvoiceSettingsE } from 'e-teleport/Billing/InvoiceSettings';
+
+import { Discover as DiscoverE } from 'e-teleport/Discover';
+import { AccessListManagement as AccessListManagement } from 'e-teleport/AccessListManagement';
+import { AccessMonitoring } from 'e-teleport/AccessMonitoring';
+
+import { InviteCollaboratorsDialog } from 'e-teleport/InviteCollaborators';
+import EmailPasswordResetDialog from 'e-teleport/InviteCollaborators/EmailPasswordResetDialog';
 
 import type {
   FeatureFlags,
@@ -36,50 +59,11 @@ import type {
   TeleportFeatureRoute,
 } from 'teleport/types';
 
-const AuthConnectors = lazy(() => import('e-teleport/AuthConnectors'));
-const AccountE = lazy(() => import('e-teleport/Account'));
-const Integrations = lazy(() => import('e-teleport/Integrations'));
-const IntegrationEnroll = lazy(
-  () => import('e-teleport/Integrations/IntegrationEnroll')
-);
-const SupportE = lazy(() => import('e-teleport/Support'));
-const NewLock = lazy(() => import('e-teleport/NewLockV2'));
-
-const DeviceTrust = lazy(() => import('e-teleport/DeviceTrust'));
-
-const BillingSummaryE = lazy(() => import('e-teleport/Billing/Summary'));
-const EubpBillingSummaryE = lazy(
-  () => import('e-teleport/Billing/EubpSummary')
-);
-
-const PaymentsInvoicesE = lazy(
-  () => import('e-teleport/Billing/PaymentsAndInvoices')
-);
-
-const InvoiceSettingsE = lazy(
-  () => import('e-teleport/Billing/InvoiceSettings')
-);
-
-const DiscoverE = lazy(() => import('e-teleport/Discover'));
-const AccessListManagement = lazy(
-  () => import('e-teleport/AccessListManagement')
-);
-const AccessMonitoring = lazy(() => import('e-teleport/AccessMonitoring'));
-const AccessGraph = lazy(() => import('e-teleport/AccessGraph'));
-
-const Users = lazy(() => import('teleport/Users'));
-
-const InviteCollaboratorsDialog = lazy(
-  () => import('e-teleport/InviteCollaborators')
-);
-const EmailPasswordResetDialog = lazy(
-  () => import('e-teleport/InviteCollaborators/EmailPasswordResetDialog')
-);
-
 // ****************************
 // Resource Features
 // ****************************
 
+const AccessGraph = lazy(() => import('e-teleport/AccessGraph'));
 class FeatureAccessRequests implements TeleportFeature {
   route: TeleportFeatureRoute; // intentionally undefined
   category = NavigationCategory.Resources;

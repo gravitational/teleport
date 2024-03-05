@@ -1,3 +1,1 @@
-import WaitingRoom from './WaitingRoom';
-
-export default WaitingRoom;
+export { Container as WaitingRoom } from './WaitingRoom';

@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useRef } from 'react';
+import React, { Suspense, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
 import { Box } from 'design';
@@ -14,10 +14,8 @@ import config from 'e-teleport/config';
 // keep the report list in the bundle as it's the default page
 import { ReportList } from 'e-teleport/AccessMonitoring/ReportList';
 
-const Report = lazy(() => import('e-teleport/AccessMonitoring/Report'));
-const QueryEditor = lazy(
-  () => import('e-teleport/AccessMonitoring/QueryEditor')
-);
+import Report from 'e-teleport/AccessMonitoring/Report';
+import QueryEditor from 'e-teleport/AccessMonitoring/QueryEditor';
 
 const Container = styled.div``;
 

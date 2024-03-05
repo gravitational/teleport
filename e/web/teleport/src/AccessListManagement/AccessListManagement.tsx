@@ -1,11 +1,11 @@
-import React, { lazy } from 'react';
+import React from 'react';
 import { Switch, Route } from 'teleport/components/Router';
 
 import cfg from 'e-teleport/config';
 
-const CreateAccessList = lazy(() => import('./CreateAccessList'));
-const AccessLists = lazy(() => import('./AccessLists'));
-const ViewEditAccessList = lazy(() => import('./ViewEditAccessList'));
+import { CreateAccessList } from './CreateAccessList';
+import { AccessLists } from './AccessLists';
+import { ViewEditAccessList } from './ViewEditAccessList';
 
 export function AccessListManagement() {
   return (

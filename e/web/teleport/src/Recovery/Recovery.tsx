@@ -8,7 +8,7 @@ import cfg from 'e-teleport/config';
 import RecoveryStart from './RecoveryStart';
 import RecoveryFlow from './RecoveryFlow';
 
-export default function UserRecovery() {
+export function Recovery() {
   return (
     <>
       <LogoHero />

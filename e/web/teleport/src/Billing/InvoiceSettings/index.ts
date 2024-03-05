@@ -1,3 +1,1 @@
-import { InvoiceSettingsLoader } from './InvoiceSettingsLoader';
-
-export default InvoiceSettingsLoader;
+export { InvoiceSettingsLoader } from './InvoiceSettingsLoader';

@@ -11,7 +11,7 @@ import {
 import { CtaEvent } from 'teleport/services/userEvent';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
-import { useDevices, State } from './useDevices';
+import { useDevices } from './useDevices';
 
 import { DeviceList } from './DeviceList';
 import { EmptyList } from './EmptyList';
@@ -19,12 +19,8 @@ import { EmptyList } from './EmptyList';
 export const deviceTrustDocUrl =
   'https://goteleport.com/docs/access-controls/guides/device-trust';
 
-export const Container = () => {
-  const state = useDevices();
-  return <DeviceTrust {...state} />;
-};
-
-export const DeviceTrust = (props: State) => {
+export const DeviceTrust = () => {
+  const props = useDevices();
   let { attempt, items, fetchData, fetchStatus, showTrustedDevicesCTA } = props;
   const isEmpty = items?.length === 0;
   return (

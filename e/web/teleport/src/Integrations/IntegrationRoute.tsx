@@ -1,13 +1,11 @@
-import React, { lazy } from 'react';
+import React from 'react';
 
 import cfg from 'teleport/config';
 import { Route } from 'teleport/components/Router';
 import { IntegrationKind } from 'teleport/services/integrations';
 import { getRoutesToEnrollIntegrations as getOSSRoutes } from 'teleport/Integrations/Enroll';
 
-const ExternalAuditStorage = lazy(
-  () => import('./IntegrationEnroll/ExternalAuditStorage')
-);
+import ExternalAuditStorage from './IntegrationEnroll/ExternalAuditStorage';
 
 export function getRoutesToEnrollIntegrations() {
   return [

@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { WaitingRoom } from './WaitingRoom';
+import { WaitingRoomComponent as WaitingRoom } from './WaitingRoom';
 import RequestPending from './RequestPending';
 
 export default {

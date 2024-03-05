@@ -1,2 +1,1 @@
-import { InviteCollaboratorsDialog } from './InviteCollaboratorsDialog';
-export default InviteCollaboratorsDialog;
+export { InviteCollaboratorsDialog } from './InviteCollaboratorsDialog';

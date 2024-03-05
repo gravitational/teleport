@@ -10,7 +10,7 @@ import Motd from 'teleport/Login/Motd';
 
 import cfg from 'e-teleport/config';
 
-export default function Container() {
+export function LoginContainer() {
   const state = useLogin() as State;
   state.isRecoveryEnabled = cfg.oss.recoveryCodesEnabled;
   state.onRecover = (isRecoverPassword: boolean) => {

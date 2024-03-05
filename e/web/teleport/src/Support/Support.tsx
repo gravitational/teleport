@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { Box, Flex } from 'design';
 import { Edit } from 'design/Icon';
 import Text from 'design/Text';
-import Support from 'teleport/Support';
+import { Support } from 'teleport/Support';
 import cfg from 'teleport/config';
 
 import { DataContainer, DataItem } from 'teleport/Support/Support';
