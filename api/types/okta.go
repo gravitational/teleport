@@ -396,6 +396,79 @@ func (o *OktaAssignmentV1) CheckAndSetDefaults() error {
 	return nil
 }
 
+// IsEqual determines if two okta assignment resources are equivalent to one another.
+func (o *OktaAssignmentV1) IsEqual(i interface{}) bool {
+	ptr, ok := i.(*OktaAssignmentV1)
+	if ok {
+		if o == nil && ptr == nil {
+			return true
+		}
+		if o != nil && ptr != nil {
+			return o.isEqual(*ptr)
+		}
+		return false
+	}
+
+	other, ok := i.(OktaAssignmentV1)
+	if ok {
+		return o.isEqual(other)
+	}
+
+	return false
+
+}
+
+func (o OktaAssignmentV1) isEqual(other OktaAssignmentV1) bool {
+	// Expanding the if statements here purely for readability.
+	if !o.ResourceHeader.IsEqual(other.ResourceHeader) {
+		return false
+	}
+
+	if o.Spec.CleanupTime != other.Spec.CleanupTime {
+		return false
+	}
+
+	if o.Spec.Finalized != other.Spec.Finalized {
+		return false
+	}
+
+	if o.Spec.LastTransition != other.Spec.LastTransition {
+		return false
+	}
+
+	if o.Spec.Status != other.Spec.Status {
+		return false
+	}
+
+	if len(o.Spec.Targets) != len(other.Spec.Targets) {
+		return false
+	}
+
+	for i, expectedTarget := range o.Spec.Targets {
+		otherTarget := other.Spec.Targets[i]
+
+		// Both targets are nil, continue.
+		if expectedTarget == nil && otherTarget == nil {
+			continue
+		}
+
+		// One target is nil when the other is not, return false.
+		if (expectedTarget == nil) != (otherTarget == nil) {
+			return false
+		}
+
+		if expectedTarget.Id != otherTarget.Id {
+			return false
+		}
+
+		if expectedTarget.Type != otherTarget.Type {
+			return false
+		}
+	}
+
+	return o.Spec.User == other.Spec.User
+}
+
 // OktaAssignmentTarget is an target for an Okta assignment.
 type OktaAssignmentTarget interface {
 	// GetTargetType returns the target type.
