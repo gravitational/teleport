@@ -18,7 +18,7 @@
 
 import React from 'react';
 import styled, { useTheme } from 'styled-components';
-import { Flex, Box } from 'design';
+import { Flex, Box, rotate360 } from 'design';
 import * as icons from 'design/Icon';
 import { decomposeColor, emphasize } from 'design/theme/utils/colorManipulator';
 import { AttemptStatus } from 'shared/hooks/useAsync';
@@ -161,13 +161,5 @@ const Spinner = styled.div`
   width: 24px;
   height: 24px;
   position: absolute;
-  animation: spinner 4s linear infinite;
-  @keyframes spinner {
-    0% {
-      transform: rotate(0deg);
-    }
-    100% {
-      transform: rotate(360deg);
-    }
-  }
+  animation: ${rotate360} 4s linear infinite;
 `;
