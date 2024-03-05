@@ -34,13 +34,12 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	AccessMonitoringRulesService_CreateAccessMonitoringRule_FullMethodName     = "/teleport.accessmonitoringrules.v1.AccessMonitoringRulesService/CreateAccessMonitoringRule"
-	AccessMonitoringRulesService_UpdateAccessMonitoringRule_FullMethodName     = "/teleport.accessmonitoringrules.v1.AccessMonitoringRulesService/UpdateAccessMonitoringRule"
-	AccessMonitoringRulesService_UpsertAccessMonitoringRule_FullMethodName     = "/teleport.accessmonitoringrules.v1.AccessMonitoringRulesService/UpsertAccessMonitoringRule"
-	AccessMonitoringRulesService_GetAccessMonitoringRule_FullMethodName        = "/teleport.accessmonitoringrules.v1.AccessMonitoringRulesService/GetAccessMonitoringRule"
-	AccessMonitoringRulesService_DeleteAccessMonitoringRule_FullMethodName     = "/teleport.accessmonitoringrules.v1.AccessMonitoringRulesService/DeleteAccessMonitoringRule"
-	AccessMonitoringRulesService_DeleteAllAccessMonitoringRules_FullMethodName = "/teleport.accessmonitoringrules.v1.AccessMonitoringRulesService/DeleteAllAccessMonitoringRules"
-	AccessMonitoringRulesService_ListAccessMonitoringRules_FullMethodName      = "/teleport.accessmonitoringrules.v1.AccessMonitoringRulesService/ListAccessMonitoringRules"
+	AccessMonitoringRulesService_CreateAccessMonitoringRule_FullMethodName = "/teleport.accessmonitoringrules.v1.AccessMonitoringRulesService/CreateAccessMonitoringRule"
+	AccessMonitoringRulesService_UpdateAccessMonitoringRule_FullMethodName = "/teleport.accessmonitoringrules.v1.AccessMonitoringRulesService/UpdateAccessMonitoringRule"
+	AccessMonitoringRulesService_UpsertAccessMonitoringRule_FullMethodName = "/teleport.accessmonitoringrules.v1.AccessMonitoringRulesService/UpsertAccessMonitoringRule"
+	AccessMonitoringRulesService_GetAccessMonitoringRule_FullMethodName    = "/teleport.accessmonitoringrules.v1.AccessMonitoringRulesService/GetAccessMonitoringRule"
+	AccessMonitoringRulesService_DeleteAccessMonitoringRule_FullMethodName = "/teleport.accessmonitoringrules.v1.AccessMonitoringRulesService/DeleteAccessMonitoringRule"
+	AccessMonitoringRulesService_ListAccessMonitoringRules_FullMethodName  = "/teleport.accessmonitoringrules.v1.AccessMonitoringRulesService/ListAccessMonitoringRules"
 )
 
 // AccessMonitoringRulesServiceClient is the client API for AccessMonitoringRulesService service.
@@ -48,17 +47,15 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AccessMonitoringRulesServiceClient interface {
 	// CreateAccessMonitoringRule creates the specified access monitoring rule.
-	CreateAccessMonitoringRule(ctx context.Context, in *CreateAccessMonitoringRuleRequest, opts ...grpc.CallOption) (*AccessMonitoringRuleV1, error)
+	CreateAccessMonitoringRule(ctx context.Context, in *CreateAccessMonitoringRuleRequest, opts ...grpc.CallOption) (*AccessMonitoringRule, error)
 	// UpdateAccessMonitoringRule updates the specified access monitoring rule.
-	UpdateAccessMonitoringRule(ctx context.Context, in *UpdateAccessMonitoringRuleRequest, opts ...grpc.CallOption) (*AccessMonitoringRuleV1, error)
+	UpdateAccessMonitoringRule(ctx context.Context, in *UpdateAccessMonitoringRuleRequest, opts ...grpc.CallOption) (*AccessMonitoringRule, error)
 	// UpsertAccessMonitoringRule upserts the specified access monitoring rule.
-	UpsertAccessMonitoringRule(ctx context.Context, in *UpsertAccessMonitoringRuleRequest, opts ...grpc.CallOption) (*AccessMonitoringRuleV1, error)
+	UpsertAccessMonitoringRule(ctx context.Context, in *UpsertAccessMonitoringRuleRequest, opts ...grpc.CallOption) (*AccessMonitoringRule, error)
 	// GetAccessMonitoringRule gets the specified access monitoring rule.
-	GetAccessMonitoringRule(ctx context.Context, in *GetAccessMonitoringRuleRequest, opts ...grpc.CallOption) (*AccessMonitoringRuleV1, error)
+	GetAccessMonitoringRule(ctx context.Context, in *GetAccessMonitoringRuleRequest, opts ...grpc.CallOption) (*AccessMonitoringRule, error)
 	// DeleteAccessMonitoringRule deletes the specified access monitoring rule.
 	DeleteAccessMonitoringRule(ctx context.Context, in *DeleteAccessMonitoringRuleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// DeleteAllAccessMonitoringRules deletes all access monitoring rules.
-	DeleteAllAccessMonitoringRules(ctx context.Context, in *DeleteAllAccessMonitoringRulesRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// ListAccessMonitoringRules lists current access monitoring rules.
 	ListAccessMonitoringRules(ctx context.Context, in *ListAccessMonitoringRulesRequest, opts ...grpc.CallOption) (*ListAccessMonitoringRulesResponse, error)
 }
@@ -71,8 +68,8 @@ func NewAccessMonitoringRulesServiceClient(cc grpc.ClientConnInterface) AccessMo
 	return &accessMonitoringRulesServiceClient{cc}
 }
 
-func (c *accessMonitoringRulesServiceClient) CreateAccessMonitoringRule(ctx context.Context, in *CreateAccessMonitoringRuleRequest, opts ...grpc.CallOption) (*AccessMonitoringRuleV1, error) {
-	out := new(AccessMonitoringRuleV1)
+func (c *accessMonitoringRulesServiceClient) CreateAccessMonitoringRule(ctx context.Context, in *CreateAccessMonitoringRuleRequest, opts ...grpc.CallOption) (*AccessMonitoringRule, error) {
+	out := new(AccessMonitoringRule)
 	err := c.cc.Invoke(ctx, AccessMonitoringRulesService_CreateAccessMonitoringRule_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -80,8 +77,8 @@ func (c *accessMonitoringRulesServiceClient) CreateAccessMonitoringRule(ctx cont
 	return out, nil
 }
 
-func (c *accessMonitoringRulesServiceClient) UpdateAccessMonitoringRule(ctx context.Context, in *UpdateAccessMonitoringRuleRequest, opts ...grpc.CallOption) (*AccessMonitoringRuleV1, error) {
-	out := new(AccessMonitoringRuleV1)
+func (c *accessMonitoringRulesServiceClient) UpdateAccessMonitoringRule(ctx context.Context, in *UpdateAccessMonitoringRuleRequest, opts ...grpc.CallOption) (*AccessMonitoringRule, error) {
+	out := new(AccessMonitoringRule)
 	err := c.cc.Invoke(ctx, AccessMonitoringRulesService_UpdateAccessMonitoringRule_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -89,8 +86,8 @@ func (c *accessMonitoringRulesServiceClient) UpdateAccessMonitoringRule(ctx cont
 	return out, nil
 }
 
-func (c *accessMonitoringRulesServiceClient) UpsertAccessMonitoringRule(ctx context.Context, in *UpsertAccessMonitoringRuleRequest, opts ...grpc.CallOption) (*AccessMonitoringRuleV1, error) {
-	out := new(AccessMonitoringRuleV1)
+func (c *accessMonitoringRulesServiceClient) UpsertAccessMonitoringRule(ctx context.Context, in *UpsertAccessMonitoringRuleRequest, opts ...grpc.CallOption) (*AccessMonitoringRule, error) {
+	out := new(AccessMonitoringRule)
 	err := c.cc.Invoke(ctx, AccessMonitoringRulesService_UpsertAccessMonitoringRule_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -98,8 +95,8 @@ func (c *accessMonitoringRulesServiceClient) UpsertAccessMonitoringRule(ctx cont
 	return out, nil
 }
 
-func (c *accessMonitoringRulesServiceClient) GetAccessMonitoringRule(ctx context.Context, in *GetAccessMonitoringRuleRequest, opts ...grpc.CallOption) (*AccessMonitoringRuleV1, error) {
-	out := new(AccessMonitoringRuleV1)
+func (c *accessMonitoringRulesServiceClient) GetAccessMonitoringRule(ctx context.Context, in *GetAccessMonitoringRuleRequest, opts ...grpc.CallOption) (*AccessMonitoringRule, error) {
+	out := new(AccessMonitoringRule)
 	err := c.cc.Invoke(ctx, AccessMonitoringRulesService_GetAccessMonitoringRule_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -110,15 +107,6 @@ func (c *accessMonitoringRulesServiceClient) GetAccessMonitoringRule(ctx context
 func (c *accessMonitoringRulesServiceClient) DeleteAccessMonitoringRule(ctx context.Context, in *DeleteAccessMonitoringRuleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, AccessMonitoringRulesService_DeleteAccessMonitoringRule_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *accessMonitoringRulesServiceClient) DeleteAllAccessMonitoringRules(ctx context.Context, in *DeleteAllAccessMonitoringRulesRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, AccessMonitoringRulesService_DeleteAllAccessMonitoringRules_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -139,17 +127,15 @@ func (c *accessMonitoringRulesServiceClient) ListAccessMonitoringRules(ctx conte
 // for forward compatibility
 type AccessMonitoringRulesServiceServer interface {
 	// CreateAccessMonitoringRule creates the specified access monitoring rule.
-	CreateAccessMonitoringRule(context.Context, *CreateAccessMonitoringRuleRequest) (*AccessMonitoringRuleV1, error)
+	CreateAccessMonitoringRule(context.Context, *CreateAccessMonitoringRuleRequest) (*AccessMonitoringRule, error)
 	// UpdateAccessMonitoringRule updates the specified access monitoring rule.
-	UpdateAccessMonitoringRule(context.Context, *UpdateAccessMonitoringRuleRequest) (*AccessMonitoringRuleV1, error)
+	UpdateAccessMonitoringRule(context.Context, *UpdateAccessMonitoringRuleRequest) (*AccessMonitoringRule, error)
 	// UpsertAccessMonitoringRule upserts the specified access monitoring rule.
-	UpsertAccessMonitoringRule(context.Context, *UpsertAccessMonitoringRuleRequest) (*AccessMonitoringRuleV1, error)
+	UpsertAccessMonitoringRule(context.Context, *UpsertAccessMonitoringRuleRequest) (*AccessMonitoringRule, error)
 	// GetAccessMonitoringRule gets the specified access monitoring rule.
-	GetAccessMonitoringRule(context.Context, *GetAccessMonitoringRuleRequest) (*AccessMonitoringRuleV1, error)
+	GetAccessMonitoringRule(context.Context, *GetAccessMonitoringRuleRequest) (*AccessMonitoringRule, error)
 	// DeleteAccessMonitoringRule deletes the specified access monitoring rule.
 	DeleteAccessMonitoringRule(context.Context, *DeleteAccessMonitoringRuleRequest) (*emptypb.Empty, error)
-	// DeleteAllAccessMonitoringRules deletes all access monitoring rules.
-	DeleteAllAccessMonitoringRules(context.Context, *DeleteAllAccessMonitoringRulesRequest) (*emptypb.Empty, error)
 	// ListAccessMonitoringRules lists current access monitoring rules.
 	ListAccessMonitoringRules(context.Context, *ListAccessMonitoringRulesRequest) (*ListAccessMonitoringRulesResponse, error)
 	mustEmbedUnimplementedAccessMonitoringRulesServiceServer()
@@ -159,23 +145,20 @@ type AccessMonitoringRulesServiceServer interface {
 type UnimplementedAccessMonitoringRulesServiceServer struct {
 }
 
-func (UnimplementedAccessMonitoringRulesServiceServer) CreateAccessMonitoringRule(context.Context, *CreateAccessMonitoringRuleRequest) (*AccessMonitoringRuleV1, error) {
+func (UnimplementedAccessMonitoringRulesServiceServer) CreateAccessMonitoringRule(context.Context, *CreateAccessMonitoringRuleRequest) (*AccessMonitoringRule, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateAccessMonitoringRule not implemented")
 }
-func (UnimplementedAccessMonitoringRulesServiceServer) UpdateAccessMonitoringRule(context.Context, *UpdateAccessMonitoringRuleRequest) (*AccessMonitoringRuleV1, error) {
+func (UnimplementedAccessMonitoringRulesServiceServer) UpdateAccessMonitoringRule(context.Context, *UpdateAccessMonitoringRuleRequest) (*AccessMonitoringRule, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateAccessMonitoringRule not implemented")
 }
-func (UnimplementedAccessMonitoringRulesServiceServer) UpsertAccessMonitoringRule(context.Context, *UpsertAccessMonitoringRuleRequest) (*AccessMonitoringRuleV1, error) {
+func (UnimplementedAccessMonitoringRulesServiceServer) UpsertAccessMonitoringRule(context.Context, *UpsertAccessMonitoringRuleRequest) (*AccessMonitoringRule, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertAccessMonitoringRule not implemented")
 }
-func (UnimplementedAccessMonitoringRulesServiceServer) GetAccessMonitoringRule(context.Context, *GetAccessMonitoringRuleRequest) (*AccessMonitoringRuleV1, error) {
+func (UnimplementedAccessMonitoringRulesServiceServer) GetAccessMonitoringRule(context.Context, *GetAccessMonitoringRuleRequest) (*AccessMonitoringRule, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessMonitoringRule not implemented")
 }
 func (UnimplementedAccessMonitoringRulesServiceServer) DeleteAccessMonitoringRule(context.Context, *DeleteAccessMonitoringRuleRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccessMonitoringRule not implemented")
-}
-func (UnimplementedAccessMonitoringRulesServiceServer) DeleteAllAccessMonitoringRules(context.Context, *DeleteAllAccessMonitoringRulesRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllAccessMonitoringRules not implemented")
 }
 func (UnimplementedAccessMonitoringRulesServiceServer) ListAccessMonitoringRules(context.Context, *ListAccessMonitoringRulesRequest) (*ListAccessMonitoringRulesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAccessMonitoringRules not implemented")
@@ -284,24 +267,6 @@ func _AccessMonitoringRulesService_DeleteAccessMonitoringRule_Handler(srv interf
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AccessMonitoringRulesService_DeleteAllAccessMonitoringRules_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteAllAccessMonitoringRulesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AccessMonitoringRulesServiceServer).DeleteAllAccessMonitoringRules(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AccessMonitoringRulesService_DeleteAllAccessMonitoringRules_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccessMonitoringRulesServiceServer).DeleteAllAccessMonitoringRules(ctx, req.(*DeleteAllAccessMonitoringRulesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _AccessMonitoringRulesService_ListAccessMonitoringRules_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListAccessMonitoringRulesRequest)
 	if err := dec(in); err != nil {
@@ -346,10 +311,6 @@ var AccessMonitoringRulesService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAccessMonitoringRule",
 			Handler:    _AccessMonitoringRulesService_DeleteAccessMonitoringRule_Handler,
-		},
-		{
-			MethodName: "DeleteAllAccessMonitoringRules",
-			Handler:    _AccessMonitoringRulesService_DeleteAllAccessMonitoringRules_Handler,
 		},
 		{
 			MethodName: "ListAccessMonitoringRules",

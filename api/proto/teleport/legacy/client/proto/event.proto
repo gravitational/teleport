@@ -149,6 +149,6 @@ message Event {
     // AccessListReview is an access list review resource.
     teleport.accesslist.v1.Review AccessListReview = 53;
     // AccessMonitoringRule is an access monitoring rule resource.
-    teleport.accessmonitoringrules.v1.AccessMonitoringRuleV1 AccessMonitoringRule = 54;
+    teleport.accessmonitoringrules.v1.AccessMonitoringRule AccessMonitoringRule = 54;
   }
 }

@@ -24,20 +24,19 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // AccessMonitoringRulesService provieds CRUD methods for Access Monitoring Rules resources.
 service AccessMonitoringRulesService {
   // CreateAccessMonitoringRule creates the specified access monitoring rule.
-  rpc CreateAccessMonitoringRule(CreateAccessMonitoringRuleRequest) returns (AccessMonitoringRuleV1);
+  rpc CreateAccessMonitoringRule(CreateAccessMonitoringRuleRequest) returns (AccessMonitoringRule);
 
   // UpdateAccessMonitoringRule updates the specified access monitoring rule.
-  rpc UpdateAccessMonitoringRule(UpdateAccessMonitoringRuleRequest) returns (AccessMonitoringRuleV1);
+  rpc UpdateAccessMonitoringRule(UpdateAccessMonitoringRuleRequest) returns (AccessMonitoringRule);
 
   // UpsertAccessMonitoringRule upserts the specified access monitoring rule.
-  rpc UpsertAccessMonitoringRule(UpsertAccessMonitoringRuleRequest) returns (AccessMonitoringRuleV1);
+  rpc UpsertAccessMonitoringRule(UpsertAccessMonitoringRuleRequest) returns (AccessMonitoringRule);
 
   // GetAccessMonitoringRule gets the specified access monitoring rule.
-  rpc GetAccessMonitoringRule(GetAccessMonitoringRuleRequest) returns (AccessMonitoringRuleV1);
+  rpc GetAccessMonitoringRule(GetAccessMonitoringRuleRequest) returns (AccessMonitoringRule);
 
   // DeleteAccessMonitoringRule deletes the specified access monitoring rule.
   rpc DeleteAccessMonitoringRule(DeleteAccessMonitoringRuleRequest) returns (google.protobuf.Empty);
-
 
   // ListAccessMonitoringRules lists current access monitoring rules.
   rpc ListAccessMonitoringRules(ListAccessMonitoringRulesRequest) returns (ListAccessMonitoringRulesResponse);
