@@ -22,7 +22,7 @@ import "teleport/legacy/types/types.proto";
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1;accessmonitoringrulesv1";
 
 // AccessMonitoringRule represents an access monitoring rule resources.
-message AccessMonitoringRuleV1 {
+message AccessMonitoringRule {
   // header is the header for the resource.
   teleport.header.v1.ResourceHeader header = 1;
 
