@@ -111,9 +111,9 @@ func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProvider(ctx context.Co
 func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
 	if sp.GetEntityDescriptor() == "" {
 		// fetchAndSetEntityDescriptor is expected to return error if it fails
-		// to set entity descriptor. Let's still be defensive and double check
-		// for sp.GetEntityDescriptor() value.
-		if err := s.fetchAndSetEntityDescriptor(sp); err != nil || sp.GetEntityDescriptor() == "" {
+		// to fetch a valid entity descriptor.
+		if err := s.fetchAndSetEntityDescriptor(sp); err != nil {
+			s.log.Debugf("Failed to fetch entity descriptor from %q. %v.", sp.GetEntityID(), err)
 			// We aren't interested in checking error type as any occurrence of error mean entity descriptor was not set.
 			if err := s.generateAndSetEntityDescriptor(sp); err != nil {
 				return trace.BadParameter("could not generate entity descriptor with given entity_id %q and acs_url %q: %v",
@@ -255,7 +255,7 @@ func (s *SAMLIdPServiceProviderService) fetchAndSetEntityDescriptor(sp types.SAM
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return trace.NotFound("entity descriptor not found on the given endpoint")
+		return trace.Wrap(trace.BadParameter("unexpected response status: %q", resp.StatusCode))
 	}
 
 	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
