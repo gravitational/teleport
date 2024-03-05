@@ -198,7 +198,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240221002015-b0ce06bbee7c
 	google.golang.org/grpc v1.62.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0
-	google.golang.org/protobuf v1.32.0
+	google.golang.org/protobuf v1.33.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/dnaeon/go-vcr.v3 v3.1.2
 	gopkg.in/ini.v1 v1.67.0
