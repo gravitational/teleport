@@ -32,8 +32,6 @@ message AccessMonitoringRuleV1 {
   string sub_kind = 3;
   // version is version
   string version = 4;
-  // metadata is the access resource's metadata
-  types.Metadata metadata = 5;
   // Spec is an AccessMonitoringRule specification
   AccessMonitoringRuleSpec spec = 6;
 }
