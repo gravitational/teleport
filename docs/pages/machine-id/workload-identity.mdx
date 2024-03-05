@@ -1,0 +1,67 @@
+---
+title: Workload Identity
+description: Teleport's Workload Identity for SPIFFE
+---
+
+<Admonition type="tip" title="Preview">
+Teleport Workload Identity is currently in Preview. We are actively working on
+improving the feature and would love to hear your feedback. We currently do
+not recommend using this feature in production.
+</Admonition>
+
+Teleport's Workload Identity is a solution for issuing flexible short-lived
+identities intended for workloads. It is compatible with the industry-standard
+SPIFFE specification meaning that it can be used in place of other SPIFFE
+compatible identity providers.
+
+Teleport's Workload Identity brings a number of Teleport features you are
+already familiar with, such as:
+
+- Rich auditing
+- .. TODO: Why use our SPIFFE implementation? ..
+
+## Overview
+
+### What is SPIFFE?
+
+SPIFFE (Secure Production Identity Framework For Everyone) is a set of standards
+for securely identifying workloads.
+
+SPIFFE sets out:
+
+- A format for uniquely specifying an identity, the SPIFFE ID.
+- Standards for encoding the SPIFFE ID into verifiable documents, the SVID.
+- Processes for securely validating a SVID as legitimate.
+- A set of APIs that workloads can use to request SVIDS, the
+  Workload Identity API.
+
+The open nature and popularity of SPIFFE make it a great choice as a foundation
+for workload identity within your infrastructure. It is supported as an identity
+source by a number of popular tools (such as Linkerd and Istio) and a number
+of off-the-shelf SDKs exist for implementing SPIFFE directly into your own
+services.
+
+### SPIFFE IDs and Trust Domains
+
+### Secure Verifiable Identity Documents (SVIDs)
+
+### Workload API
+
+### Controlling the issuance of SVIDs with Teleport
+
+## Next Steps
+
+- [Server Access](./access-guides/ssh.mdx): How to use Machine ID to access servers via SSH.
+- [Best Practices](./access-guides/kubernetes.mdx): How to use Machine ID to access Kubernetes clusters.
+- [Database Access](./access-guides/databases.mdx): How to use Machine ID to access Database servers.
+- [Application Access](./access-guides/applications.mdx): How to use Machine ID to access Applications.
+
+- Read the [architecture overview](./architecture.mdx) to learn about how
+Machine ID works in more detail.
+- Check out the [deployment guides](./deployment.mdx) to learn about
+configuring `tbot` in a production-ready way for your platform.
+- Check out the [access guides](./access-guides.mdx) to learn about configuring
+`tbot` for different use cases than SSH.
+- Read the [configuration reference](./reference/configuration.mdx) to explore
+all the available configuration options.
+
