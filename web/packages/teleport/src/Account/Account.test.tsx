@@ -21,7 +21,7 @@ import { render, screen, waitFor } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
 import TeleportContext from 'teleport/teleportContext';
 
-import Account from 'teleport/Account/Account';
+import { AccountPage as Account } from 'teleport/Account/Account';
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
