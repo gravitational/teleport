@@ -412,6 +412,9 @@ func (s *FooService) PatchFoo(
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if proto.Equal(stored, updated) {
+			return stored, nil
+		}
 		
 		switch {
 		case updated.GetName() != name:
