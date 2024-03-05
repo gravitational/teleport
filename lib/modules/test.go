@@ -92,7 +92,7 @@ func (m *TestModules) BuildType() string {
 
 // AttestHardwareKey attests a hardware key.
 func (m *TestModules) AttestHardwareKey(ctx context.Context, obj interface{}, as *keys.AttestationStatement, pk crypto.PublicKey, d time.Duration) (*keys.AttestationData, error) {
-	if m.MockAttestationData != nil {
+	if as != nil && m.MockAttestationData != nil {
 		return m.MockAttestationData, nil
 	}
 	return nil, trace.NotFound("no attestation data for the given key")
