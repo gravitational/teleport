@@ -627,18 +627,13 @@ func (c *Client) connect(peerID string, peerAddr string) (*clientConn, error) {
 		return nil
 	}
 
-	qconn, err := goquic.DialAddr(egCtx, peerAddr, tlsConfig, nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	client, err := quic.NewClient(qconn)
+	qconn, err := goquic.DialAddr(c.ctx, peerAddr, tlsConfig, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &clientConn{
-		clt:  client,
+		clt:  quic.NewClient(qconn),
 		id:   peerID,
 		addr: peerAddr,
 	}, nil
