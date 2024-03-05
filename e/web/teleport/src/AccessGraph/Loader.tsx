@@ -29,6 +29,7 @@ import * as propTypes from 'prop-types';
 const ASSETS_PREFIX = '/enterprise/accessgraph/static';
 const STYLE_URL = `${ASSETS_PREFIX}/style.css`;
 const JS_URL = `${ASSETS_PREFIX}/access-graph.umd.js`;
+const JS_MONACO_URL = `${ASSETS_PREFIX}/access-graph.js`;
 
 declare global {
   interface Window {
@@ -74,26 +75,32 @@ function loadAccessGraph() {
     propTypes,
   };
 
-  return new Promise<{ default: React.ComponentType<any> }>(
-    (resolve, reject) => {
-      const style = document.createElement('link');
+  return new Promise<{
+    default: React.ComponentType<any>;
+  }>((resolve, reject) => {
+    const style = document.createElement('link');
 
-      style.rel = 'stylesheet';
-      style.href = STYLE_URL;
+    style.rel = 'stylesheet';
+    style.href = STYLE_URL;
 
-      document.head.appendChild(style);
+    document.head.appendChild(style);
 
-      const script = document.createElement('script');
+    const script = document.createElement('script');
 
+    if (
+      localStorage.getItem('grv_teleport_access_graph_monaco_bundle') === 'true'
+    ) {
+      script.src = JS_MONACO_URL;
+    } else {
       script.src = JS_URL;
-
-      script.onload = () =>
-        resolve({ default: window.AccessGraphLib.AccessGraph });
-      script.onerror = reject;
-
-      document.body.appendChild(script);
     }
-  );
+
+    script.onload = () =>
+      resolve({ default: window.AccessGraphLib.AccessGraph });
+    script.onerror = reject;
+
+    document.body.appendChild(script);
+  });
 }
 
 const Graph = lazy(loadAccessGraph);
