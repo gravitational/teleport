@@ -67,11 +67,10 @@ type Notification struct {
 
 // NewAccessMonitoringRule creates a new AccessMonitoringRule resource.
 func NewAccessMonitoringRule(metadata header.Metadata, spec Spec) *AccessMonitoringRule {
-	p := &AccessMonitoringRule{
+	return &AccessMonitoringRule{
 		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
 		Spec:           spec,
 	}
-	return p
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
