@@ -98,6 +98,13 @@ func Update(ctx context.Context, rootClient Client, leafClient Client, newPrefer
 
 	// We do not use errgroup.WithContext since we don't want to cancel
 	// the other request when one of them fails.
+	//
+	// We can run update requests concurrently because the preferences for the root
+	// cluster and the leaf cluster aren't dependent on each other.
+	// The preferences for the unified view are always set for the root cluster,
+	// while pinned resources can be set for either the root or the leaf.
+	// So if, for example, setting unified view preferences fails,
+	// we can still update pinned resources for leaf.
 	upsertGroup := errgroup.Group{}
 
 	hasUnifiedResourcePreferencesForRoot := newPreferences.UnifiedResourcePreferences != nil
