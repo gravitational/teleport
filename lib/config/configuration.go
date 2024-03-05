@@ -1168,7 +1168,7 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Proxy.AutomaticUpgradesChannels = make(automaticupgrades.Channels)
 	}
 	if err = cfg.Proxy.AutomaticUpgradesChannels.CheckAndSetDefaults(); err != nil {
-		return trace.BadParameter("error checking the automatic upgrades configuration")
+		return trace.Wrap(err, "validating the automatic upgrades configuration")
 	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
