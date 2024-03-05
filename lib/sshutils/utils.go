@@ -22,8 +22,9 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // JoinHostPort is a wrapper for net.JoinHostPort that takes a uint32 port.

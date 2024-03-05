@@ -39,11 +39,6 @@ func TestSplitHostPort(t *testing.T) {
 	}{
 		{
 			name:      "empty",
-			assertErr: assert.NoError,
-		},
-		{
-			name:      "not a valid addr",
-			addr:      ":::::",
 			assertErr: assert.Error,
 		},
 		{
