@@ -191,12 +191,12 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 		return trace.BadParameter("workload identity has not been enabled")
 	}
 
-	s.log.Info("Completing pre-run initialization")
+	s.log.Debug("Starting pre-run initialization")
 	if err := s.setup(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	defer s.client.Close()
-	s.log.Info("Completed pre-run initialization")
+	s.log.Debug("Completed pre-run initialization")
 
 	srvMetrics := metrics.CreateGRPCServerMetrics(
 		true, prometheus.Labels{
