@@ -129,7 +129,7 @@ type AWSClients interface {
 	// GetAWSEKSClient returns AWS EKS client for the specified region.
 	GetAWSEKSClient(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (eksiface.EKSAPI, error)
 	// GetAWSS3Client returns AWS S3 client.
-	GetAWSS3Client(ctx context.Context, opts ...AWSAssumeRoleOptionFn) (s3iface.S3API, error)
+	GetAWSS3Client(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (s3iface.S3API, error)
 }
 
 // AzureClients is an interface for Azure-specific API clients
@@ -541,8 +541,8 @@ func (c *cloudClients) GetAWSIAMClient(ctx context.Context, region string, opts 
 }
 
 // GetAWSS3Client returns AWS S3 client.
-func (c *cloudClients) GetAWSS3Client(ctx context.Context, opts ...AWSAssumeRoleOptionFn) (s3iface.S3API, error) {
-	session, err := c.GetAWSSession(ctx, "", opts...)
+func (c *cloudClients) GetAWSS3Client(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (s3iface.S3API, error) {
+	session, err := c.GetAWSSession(ctx, region, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1080,8 +1080,8 @@ func (c *TestCloudClients) GetAWSIAMClient(ctx context.Context, region string, o
 }
 
 // GetAWSS3Client returns AWS S3 client.
-func (c *TestCloudClients) GetAWSS3Client(ctx context.Context, opts ...AWSAssumeRoleOptionFn) (s3iface.S3API, error) {
-	_, err := c.GetAWSSession(ctx, "", opts...)
+func (c *TestCloudClients) GetAWSS3Client(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (s3iface.S3API, error) {
+	_, err := c.GetAWSSession(ctx, region, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
