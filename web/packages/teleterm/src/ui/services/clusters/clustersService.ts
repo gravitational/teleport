@@ -633,7 +633,8 @@ export function makeApp(source: tsh.App): App {
     if (isCloud) {
       addrWithProtocol = `cloud://${publicAddr}`;
     } else if (isTcp) {
-      addrWithProtocol = `tcp://${publicAddr}`;
+      // addrWithProtocol = `tcp://${publicAddr}`;
+      addrWithProtocol = `tcp://${source.name}.company.private`;
     } else {
       addrWithProtocol = `https://${publicAddr}`;
     }
