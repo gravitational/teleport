@@ -34,14 +34,14 @@ version: v2
 # false.
 debug: true
 
-# auth_server specifies the address of Auth Server that `tbot` should connect
-# to. You should prefer specifying `proxy_server` to specify the Proxy Server
+# auth_server specifies the address of the Auth Service instance that `tbot` should connect
+# to. You should prefer specifying `proxy_server` to specify the Proxy Service
 # address.
 auth_server: "teleport.example.com:3025"
 
-# proxy_server specifies the address of the Teleport Proxy that `tbot` should
+# proxy_server specifies the address of the Teleport Proxy Service that `tbot` should
 # connect to.
-# It is recommended to use the address of your Teleport Proxy, or, if using
+# It is recommended to use the address of your Teleport Proxy Service, or, if using
 # Teleport Cloud, the address of your Teleport Cloud instance.
 proxy_server: "teleport.example.com:443" # or "example.teleport.sh:443" for Teleport Cloud
 
