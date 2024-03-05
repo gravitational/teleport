@@ -4740,8 +4740,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 
 	// Only run this test if we have access to the external SSH binary.
 	if _, err := exec.LookPath("ssh"); err != nil {
-		t.Skip("Skipping TestControlMaster, no external SSH binary found.")
-		return
+		t.Skip("Skipping TestX11Forwarding, no external SSH binary found.")
 	}
 
 	// Create a fake client XServer listener.
@@ -4809,9 +4808,8 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 						controlPath = filepath.Join(controlDir, "control-path")
 					}
 
-					// Create and run an exec command twice with the passed. When ControlPath is set,
-					// this will cause re-use of the connection and creation of two sessions within
-					// the connection.
+					// Create and run an exec command twice. When ControlPath is set, this will cause
+					// re-use of the connection and creation of two sessions within  the connection.
 					for i := 0; i < 2; i++ {
 						execCmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
 							ForcePTY:      true,

@@ -31,8 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 )
 
-var ErrX11ForwardChannelAlreadyOpen = &trace.AlreadyExistsError{Message: "X11 forwarding channel already open"}
-
 // forwardIO forwards io between two XServer connections until
 // one of the connections is closed. If the ctx is closed early,
 // the function will return, but forwarding will continue until
@@ -120,7 +118,7 @@ type x11ChannelHandler func(ctx context.Context, nch ssh.NewChannel)
 func ServeChannelRequests(ctx context.Context, clt *ssh.Client, handler x11ChannelHandler) error {
 	channels := clt.HandleChannelOpen(sshutils.X11ChannelRequest)
 	if channels == nil {
-		return trace.Wrap(ErrX11ForwardChannelAlreadyOpen)
+		return trace.Wrap(trace.AlreadyExists("X11 forwarding channel already open"))
 	}
 
 	go func() {
