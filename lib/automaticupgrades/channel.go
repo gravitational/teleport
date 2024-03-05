@@ -76,7 +76,7 @@ func (c Channels) CheckAndSetDefaults() error {
 	}
 
 	// Checking each channel. We'll double-check the 'default' one, but
-	// channel.CheckAndSetDefaults is be idempotent.
+	// channel.CheckAndSetDefaults is idempotent.
 	var errs []error
 	for name, channel := range c {
 		// Wrapping is not mandatory here, but it adds the channel name in the
