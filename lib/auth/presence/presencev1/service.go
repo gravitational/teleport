@@ -201,8 +201,11 @@ func (s *Service) ListRemoteClusters(
 func (s *Service) UpdateRemoteCluster(
 	ctx context.Context, req *presencepb.UpdateRemoteClusterRequest,
 ) (*types.RemoteClusterV3, error) {
-	if req.RemoteCluster == nil {
+	switch {
+	case req.RemoteCluster == nil:
 		return nil, trace.BadParameter("remote_cluster: must not be nil")
+	case req.RemoteCluster.GetName() == "":
+		return nil, trace.BadParameter("remote_cluster.Metadata.Name: must be non-empty")
 	}
 
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -212,12 +215,53 @@ func (s *Service) UpdateRemoteCluster(
 	if err := authCtx.CheckAccessToKind(types.KindRemoteCluster, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	rc, err := s.backend.UpdateRemoteCluster(ctx, req.RemoteCluster)
-	if err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// If the update mask is empty, update the entire remote cluster.
+	if len(req.GetUpdateMask().GetPaths()) == 0 {
+		rc, err := s.backend.UpdateRemoteCluster(ctx, req.RemoteCluster)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		v3, ok := rc.(*types.RemoteClusterV3)
+		if !ok {
+			s.logger.Warnf("expected type RemoteClusterV3, got %T for user %q", rc, rc.GetName())
+			return nil, trace.BadParameter("encountered unexpected remote cluster type")
+		}
+		return v3, nil
+	}
+
+	// Otherwise, we apply the update mask to the current remote cluster using
+	// a patch operation.
+	req.GetUpdateMask().Normalize()
+	rc, err := s.backend.PatchRemoteCluster(ctx, req.RemoteCluster.GetName(), func(rc types.RemoteCluster) (types.RemoteCluster, error) {
+		for _, path := range req.GetUpdateMask().GetPaths() {
+			switch path {
+			case "Metadata.Labels":
+				md := rc.GetMetadata()
+				md.Labels = req.RemoteCluster.GetMetadata().Labels
+				rc.SetMetadata(md)
+			case "Metadata.Description":
+				md := rc.GetMetadata()
+				md.Description = req.RemoteCluster.GetMetadata().Description
+				rc.SetMetadata(md)
+			case "Metadata.Expires":
+				rc.SetExpiry(req.RemoteCluster.Expiry())
+			case "Status.Connection":
+				rc.SetConnectionStatus(req.RemoteCluster.GetConnectionStatus())
+			case "Status.LastHeartbeat":
+				rc.SetLastHeartbeat(req.RemoteCluster.GetLastHeartbeat())
+			default:
+				return nil, trace.BadParameter("unsupported field: %q", path)
+			}
+		}
+		return rc, nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	v3, ok := rc.(*types.RemoteClusterV3)
 	if !ok {
 		s.logger.Warnf("expected type RemoteClusterV3, got %T for user %q", rc, rc.GetName())
@@ -242,6 +286,9 @@ func (s *Service) DeleteRemoteCluster(
 	if err := authCtx.CheckAccessToKind(
 		types.KindRemoteCluster, types.VerbDelete,
 	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
