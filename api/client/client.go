@@ -3635,8 +3635,7 @@ func getResourceFromProtoPage(resource *proto.PaginatedResource) (types.Resource
 	} else if r := resource.GetDatabaseService(); r != nil {
 		out = r
 		return out, nil
-	} else if r := resource.GetAppServerOrSAMLIdPServiceProvider(); r != nil {
-		//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
+	} else if r := resource.GetAppServerOrSAMLIdPServiceProvider(); r != nil { //nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 		out = r
 		return out, nil
 	} else if r := resource.GetWindowsDesktop(); r != nil {
