@@ -32,7 +32,7 @@ import { userEventService } from 'teleport/services/userEvent';
 
 import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 
-import Welcome from './Welcome';
+import { Welcome } from './Welcome';
 
 const invitePath = '/web/invite/5182';
 const inviteContinuePath = '/web/invite/5182/continue';
