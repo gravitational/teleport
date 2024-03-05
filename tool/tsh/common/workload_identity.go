@@ -22,12 +22,14 @@ import (
 	"bytes"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"os"
 	"path"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -133,6 +135,7 @@ func (c *workloadIdentityIssueCommand) run(cf *CLIConf) error {
 							PublicKey:    pubBytes,
 							DnsSans:      c.svidDNSSANs,
 							IpSans:       c.svidIPSANs,
+							Ttl:          durationpb.New(c.svidTTL),
 						},
 					},
 				},
@@ -149,8 +152,9 @@ func (c *workloadIdentityIssueCommand) run(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		keyPath := path.Join(c.outputDirectory, svidKeyPEMPath)
 		err = os.WriteFile(
-			path.Join(c.outputDirectory, svidKeyPEMPath),
+			keyPath,
 			pem.EncodeToMemory(&pem.Block{
 				Type:  "PRIVATE KEY",
 				Bytes: privBytes,
@@ -162,8 +166,9 @@ func (c *workloadIdentityIssueCommand) run(cf *CLIConf) error {
 		}
 
 		// Write SVID
+		svidPath := path.Join(c.outputDirectory, svidPEMPath)
 		err = os.WriteFile(
-			path.Join(c.outputDirectory, svidPEMPath),
+			svidPath,
 			pem.EncodeToMemory(&pem.Block{
 				Type:  "CERTIFICATE",
 				Bytes: res.Svids[0].Certificate,
@@ -190,14 +195,24 @@ func (c *workloadIdentityIssueCommand) run(cf *CLIConf) error {
 				}
 			}
 		}
+		trustBundlePath := path.Join(c.outputDirectory, svidTrustBundlePEMPath)
 		err = os.WriteFile(
-			path.Join(c.outputDirectory, svidTrustBundlePEMPath),
+			trustBundlePath,
 			trustBundleBytes.Bytes(),
 			teleport.FileMaskOwnerOnly,
 		)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		fmt.Fprintf(
+			cf.Stdout(),
+			"SVID %q issued. Files written to: \n - %s\n - %s\n - %s\n",
+			res.Svids[0].SpiffeId,
+			keyPath,
+			svidPath,
+			trustBundlePath,
+		)
 
 		return nil
 	})
