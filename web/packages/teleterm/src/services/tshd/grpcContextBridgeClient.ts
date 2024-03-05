@@ -5,11 +5,10 @@ import {
   ServerStreamingCall,
   DuplexStreamingCall,
   RpcInterceptor,
+  RpcOutputStream,
+  ServiceInfo,
+  RpcError,
 } from '@protobuf-ts/runtime-rpc';
-
-import { ServiceInfo } from '@protobuf-ts/runtime-rpc/build/types/reflection-info';
-
-import type { RpcOutputStream } from '@protobuf-ts/runtime-rpc/build/types/rpc-output-stream';
 
 function objectifyRequests<O extends object>(
   original: RpcInputStream<O>
@@ -26,17 +25,26 @@ function objectifyResponses<O extends object>(
   return {
     ...original,
     onMessage: (...args) => original.onMessage(...args),
-    onError: (...args) => original.onError(...args),
+    onError: errorCallback =>
+      original.onError(e => errorCallback(objectifyError(e) as Error)),
     onComplete: (...args) => original.onComplete(...args),
     onNext: (...args) => original.onNext(...args),
   };
 }
 
-function objectifyError(e) {
-  return { ...e, message: e.message, cause: e.cause, stack: e.stack };
+function objectifyError(error: unknown): object {
+  const e = error as RpcError;
+  return {
+    ...e,
+    message: e.message,
+    cause: e.cause,
+    stack: e.stack,
+    code: e.code,
+    isResolvableWithRelogin: e.meta['is-resolvable-with-relogin'] === '1',
+  };
 }
 
-type PublicPart<T> = { [K in keyof T]: T[K] }; //keyof only sees public properties
+type PublicProperties<T> = { [K in keyof T]: T[K] }; //keyof only sees public properties
 
 function validateAbortSignalType(
   abortSignal: AbortSignal | ObjectifiedAbortSignal
@@ -46,6 +54,30 @@ function validateAbortSignalType(
       'You must not pass AbortSignal instance. Use objectified version (ObjectifedAbortSignal).'
     );
   }
+}
+
+async function objectifyPromiseRejection<TResult>(
+  p: Promise<TResult>
+): Promise<TResult> {
+  try {
+    return await p;
+  } catch (e) {
+    throw objectifyError(e);
+  }
+}
+
+function objectifyThenRejection<TResult>(
+  originalThen: Promise<TResult>['then']
+): Promise<TResult>['then'] {
+  return (onFulfilled, onRejected) => {
+    // If onRejected callback is provided, then it will handle the rejection.
+    if (onRejected) {
+      return originalThen(onFulfilled, reason =>
+        onRejected(objectifyError(reason))
+      );
+    }
+    return objectifyPromiseRejection(originalThen(onFulfilled));
+  };
 }
 
 export function getObjectifiedInterceptors(): RpcInterceptor[] {
@@ -59,71 +91,85 @@ export function getObjectifiedInterceptors(): RpcInterceptor[] {
         // so we can't assign an object to it.
         // The workaround is satisfying only the public part of it
         // and then casting to UnaryCall.
-        const objectifiedUnaryCall: PublicPart<UnaryCall> = {
-          ...output,
-          response: output.response.catch(e => objectifyError(e)),
-          then: (...args) =>
-            output.then(...args).catch(e => {
-              throw objectifyError(e);
-            }),
+        const objectifiedUnaryCall: PublicProperties<UnaryCall> = {
+          method: output.method,
+          request: output.request,
+          requestHeaders: output.requestHeaders,
+          status: objectifyPromiseRejection(output.status),
+          trailers: objectifyPromiseRejection(output.trailers),
+          headers: objectifyPromiseRejection(output.headers),
+          response: objectifyPromiseRejection(output.response),
+          // then is a method on UnaryClass,
+          // we have to set correct "this" before passing it further.
+          then: objectifyThenRejection(output.then.bind(output)),
         };
-        return objectifiedUnaryCall as UnaryCall;
+        return { ...output, ...objectifiedUnaryCall } as UnaryCall;
       },
       interceptClientStreaming(next, method, options) {
         validateAbortSignalType(options.abort);
 
         const output = next(method, options);
-        const objectifiedClientStreamingCall: PublicPart<ClientStreamingCall> =
+        const objectifiedClientStreamingCall: PublicProperties<ClientStreamingCall> =
           {
-            ...output,
-            then: (...args) =>
-              objectifiedClientStreamingCall.then(...args).catch(e => {
-                throw objectifyError(e);
-              }),
+            method: output.method,
+            requestHeaders: output.requestHeaders,
+            status: objectifyPromiseRejection(output.status),
+            trailers: objectifyPromiseRejection(output.trailers),
+            headers: objectifyPromiseRejection(output.headers),
+            response: objectifyPromiseRejection(output.response),
             requests: objectifyRequests(output.requests),
-            response: output.response.catch(e => objectifyError(e)),
+            then: objectifyThenRejection(output.then.bind(output)),
           };
-        return objectifiedClientStreamingCall as ClientStreamingCall;
+        return {
+          ...output,
+          ...objectifiedClientStreamingCall,
+        } as ClientStreamingCall;
       },
       interceptServerStreaming(next, method, input, options) {
         validateAbortSignalType(options.abort);
 
         const output = next(method, input, options);
-        const objectifiedServerStreamingCall: PublicPart<ServerStreamingCall> =
+        const objectifiedServerStreamingCall: PublicProperties<ServerStreamingCall> =
           {
-            ...output,
-            then: (...args) =>
-              objectifiedServerStreamingCall.then(...args).catch(e => {
-                throw objectifyError(e);
-              }),
+            method: output.method,
+            request: output.request,
+            requestHeaders: output.requestHeaders,
+            status: objectifyPromiseRejection(output.status),
+            trailers: objectifyPromiseRejection(output.trailers),
+            headers: objectifyPromiseRejection(output.headers),
             responses: objectifyResponses(output.responses),
+            then: objectifyThenRejection(output.then.bind(output)),
           };
-        return objectifiedServerStreamingCall as ServerStreamingCall;
+        return {
+          ...output,
+          ...objectifiedServerStreamingCall,
+        } as ServerStreamingCall;
       },
       interceptDuplex(next, method, options) {
         validateAbortSignalType(options.abort);
 
         const output = next(method, options);
-        const duplexStreamingCall: PublicPart<DuplexStreamingCall> = {
-          ...output,
+        const duplexStreamingCall: PublicProperties<DuplexStreamingCall> = {
+          method: output.method,
+          requestHeaders: output.requestHeaders,
+          status: objectifyPromiseRejection(output.status),
+          trailers: objectifyPromiseRejection(output.trailers),
+          headers: objectifyPromiseRejection(output.headers),
           requests: objectifyRequests(output.requests),
           responses: objectifyResponses(output.responses),
-          then: (...args) =>
-            duplexStreamingCall.then(...args).catch(e => {
-              throw objectifyError(e);
-            }),
+          then: objectifyThenRejection(output.then.bind(output)),
         };
-        return duplexStreamingCall as DuplexStreamingCall;
+        return { ...output, ...duplexStreamingCall } as DuplexStreamingCall;
       },
     },
   ];
 }
 
-export function objectifyClient<T>(client: ServiceInfo): T {
-  return client.methods.reduce<T>((previousValue, currentValue) => {
-    const { localName } = currentValue;
-    previousValue[localName] = (...args) => client[localName](...args);
-    return previousValue;
+export function objectifyClient<T>(client: T & ServiceInfo): T {
+  return client.methods.reduce<T>((objectifiedClient, method) => {
+    const { localName } = method;
+    objectifiedClient[localName] = (...args) => client[localName](...args);
+    return objectifiedClient;
   }, {} as T);
 }
 
