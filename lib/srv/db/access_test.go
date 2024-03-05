@@ -263,7 +263,7 @@ func TestAccessMySQL(t *testing.T) {
 		withSelfHostedMySQL("mysql"),
 		withSelfHostedMySQL("version-update-test",
 			// Set an older version in DB spec.
-			withMySQLServerVersionInSpec("6.6.6-before"),
+			withMySQLServerVersionInDBSpec("6.6.6-before"),
 			// Set a newer version in TestServer.
 			withMySQLServerVersion("8.8.8-after"),
 		),
@@ -343,7 +343,7 @@ func TestAccessMySQL(t *testing.T) {
 	}
 
 	t.Run("server version update on connection", func(t *testing.T) {
-		// Force the db version to be something else.
+		// Confirm the server version configured in the spec.
 		db, err := testCtx.server.getProxiedDatabase("version-update-test")
 		require.NoError(t, err)
 		require.Equal(t, "6.6.6-before", db.GetMySQLServerVersion())
@@ -2781,7 +2781,7 @@ func withMySQLServerVersion(version string) selfHostedMySQLOption {
 	}
 }
 
-func withMySQLServerVersionInSpec(version string) selfHostedMySQLOption {
+func withMySQLServerVersionInDBSpec(version string) selfHostedMySQLOption {
 	return func(opts *selfHostedMySQLOptions) {
 		opts.databaseOptions = append(opts.databaseOptions, func(db *types.DatabaseV3) {
 			db.Spec.MySQL.ServerVersion = version
