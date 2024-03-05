@@ -371,6 +371,10 @@ func (a *Server) authenticateUserInternal(
 
 	// Only one path if passwordless, other variants shouldn't see an empty user.
 	if passwordless {
+		if requiredExt.Scope != mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN {
+			return nil, "", trace.BadParameter(
+				"passwordless authentication can only be used with the PASSWORDLESS scope")
+		}
 		return a.authenticatePasswordless(ctx, req)
 	}
 
