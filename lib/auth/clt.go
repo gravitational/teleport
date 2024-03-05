@@ -352,6 +352,11 @@ func (c *Client) CreateRemoteCluster(ctx context.Context, rc types.RemoteCluster
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
+// PatchRemoteCluster not implemented: can only be called locally.
+func (c *Client) PatchRemoteCluster(ctx context.Context, name string, updateFn func(rc types.RemoteCluster) (types.RemoteCluster, error)) (types.RemoteCluster, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
 // DeleteAllNamespaces not implemented: can only be called locally.
 func (c *Client) DeleteAllNamespaces() error {
 	return trace.NotImplemented(notImplementedMessage)

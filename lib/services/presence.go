@@ -187,6 +187,10 @@ type Presence interface {
 	// UpdateRemoteCluster updates a remote cluster
 	UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error)
 
+	// PatchRemoteCluster fetches a remote cluster and then calls updateFn
+	// to apply any changes, before persisting the updated remote cluster.
+	PatchRemoteCluster(ctx context.Context, name string, updateFn func(rc types.RemoteCluster) (types.RemoteCluster, error)) (types.RemoteCluster, error)
+
 	// GetRemoteClusters returns a list of remote clusters
 	// Prefer ListRemoteClusters
 	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
