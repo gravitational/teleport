@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ITshdEventsServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb.client';
+import { ITshdEventsService } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb.grpc-server';
 import { ITerminalServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
 
 import { sendUnaryData, ServerUnaryCall } from 'grpc';
@@ -80,13 +80,11 @@ export type {
  * actually uses the returned object.
  */
 export type TshdEventContextBridgeService = {
-  [RpcName in keyof ITshdEventsServiceClient]: (args: {
+  [RpcName in keyof ITshdEventsService]: (args: {
     /**
      * request is the result of calling call.request.toObject() in a gRPC handler.
      */
-    request: ExtractRequestType<
-      Parameters<ITshdEventsServiceClient[RpcName]>[0]
-    >;
+    request: ExtractRequestType<Parameters<ITshdEventsService[RpcName]>[0]>;
     /**
      * onRequestCancelled sets up a callback that is called when the request gets canceled by the
      * client (tshd in this case).
@@ -95,7 +93,7 @@ export type TshdEventContextBridgeService = {
   }) => Promise<
     // The following type maps to the object version of the response type expected as the second
     // argument to the callback function in a gRPC handler.
-    ExtractResponseType<Parameters<ITshdEventsServiceClient[RpcName]>[1]>
+    ExtractResponseType<Parameters<ITshdEventsService[RpcName]>[1]>
   >;
 };
 

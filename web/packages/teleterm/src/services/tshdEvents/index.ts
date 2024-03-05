@@ -18,9 +18,7 @@
 
 import * as grpc from '@grpc/grpc-js';
 import * as api from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
-import * as apiService from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
-
-import { adaptService } from '@protobuf-ts/grpc-backend';
+import * as apiService from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb.grpc-server';
 
 import * as uri from 'teleterm/ui/uri';
 import Logger from 'teleterm/logger';
@@ -78,7 +76,7 @@ export async function createTshdEventsServer(
   );
   const { service, setupTshdEventContextBridgeService } = createService(logger);
 
-  server.addService(...adaptService(apiService.TshdEventsService, service));
+  server.addService(apiService.tshdEventsServiceDefinition, service);
 
   return { resolvedAddress, setupTshdEventContextBridgeService };
 }
