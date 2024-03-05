@@ -54,7 +54,7 @@ export interface AccessList {
     /**
      * status contains dynamically calculated fields.
      *
-     * @generated from protobuf field: teleport.accesslist.v1.AccessListStatus status = 3;
+     * @generated from protobuf field: teleport.accesslist.v1.AccessListStatus status = 4;
      */
     status?: AccessListStatus;
 }
@@ -552,7 +552,7 @@ class AccessList$Type extends MessageType<AccessList> {
         super("teleport.accesslist.v1.AccessList", [
             { no: 1, name: "header", kind: "message", T: () => ResourceHeader },
             { no: 2, name: "spec", kind: "message", T: () => AccessListSpec },
-            { no: 3, name: "status", kind: "message", T: () => AccessListStatus }
+            { no: 4, name: "status", kind: "message", T: () => AccessListStatus }
         ]);
     }
     create(value?: PartialMessage<AccessList>): AccessList {
@@ -572,7 +572,7 @@ class AccessList$Type extends MessageType<AccessList> {
                 case /* teleport.accesslist.v1.AccessListSpec spec */ 2:
                     message.spec = AccessListSpec.internalBinaryRead(reader, reader.uint32(), options, message.spec);
                     break;
-                case /* teleport.accesslist.v1.AccessListStatus status */ 3:
+                case /* teleport.accesslist.v1.AccessListStatus status */ 4:
                     message.status = AccessListStatus.internalBinaryRead(reader, reader.uint32(), options, message.status);
                     break;
                 default:
@@ -593,9 +593,9 @@ class AccessList$Type extends MessageType<AccessList> {
         /* teleport.accesslist.v1.AccessListSpec spec = 2; */
         if (message.spec)
             AccessListSpec.internalBinaryWrite(message.spec, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
-        /* teleport.accesslist.v1.AccessListStatus status = 3; */
+        /* teleport.accesslist.v1.AccessListStatus status = 4; */
         if (message.status)
-            AccessListStatus.internalBinaryWrite(message.status, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+            AccessListStatus.internalBinaryWrite(message.status, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

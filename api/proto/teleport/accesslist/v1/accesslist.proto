@@ -34,7 +34,7 @@ message AccessList {
   AccessListSpec spec = 2;
 
   // status contains dynamically calculated fields.
-  AccessListStatus status = 3;
+  AccessListStatus status = 4;
 }
 
 // AccessListSpec is the specification for an access list.
