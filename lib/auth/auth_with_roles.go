@@ -1835,11 +1835,11 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		resources = appsOrSPs.AsResources()
 
 	case types.KindSAMLIdPServiceProvider:
-		var serviceProviders []types.SAMLIdPServiceProvider
 		// Only add SAMLIdPServiceProviders to the list if the caller has an enterprise license.
 		if modules.GetModules().BuildType() == modules.BuildEnterprise {
 			// Only attempt to list SAMLIdPServiceProviders if the caller has the permission to.
 			if err := a.action(req.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList); err == nil {
+				var serviceProviders []types.SAMLIdPServiceProvider
 				var startKey string
 				for {
 					sps, nextKey, err := a.authServer.ListSAMLIdPServiceProviders(ctx, int(req.Limit), startKey)
@@ -1852,14 +1852,13 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 					}
 					startKey = nextKey
 				}
+				sps := types.SAMLIdPServiceProviders(serviceProviders)
+				if err := sps.SortByCustom(req.SortBy); err != nil {
+					return nil, trace.Wrap(err)
+				}
+				resources = sps.AsResources()
 			}
 		}
-
-		sps := types.SAMLIdPServiceProviders(serviceProviders)
-		if err := sps.SortByCustom(req.SortBy); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resources = sps.AsResources()
 
 	case types.KindDatabaseServer:
 		dbservers, err := a.GetDatabaseServers(ctx, req.Namespace)

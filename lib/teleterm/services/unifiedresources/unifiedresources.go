@@ -93,8 +93,8 @@ func List(ctx context.Context, cluster *clusters.Cluster, client Client, req *pr
 					App:      app,
 				},
 			})
-		//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 		case *proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider:
+			//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 			if e.AppServerOrSAMLIdPServiceProvider.IsAppServer() {
 				app := e.AppServerOrSAMLIdPServiceProvider.GetAppServer().GetApp()
 				response.Resources = append(response.Resources, UnifiedResource{
@@ -114,14 +114,14 @@ func List(ctx context.Context, cluster *clusters.Cluster, client Client, req *pr
 					},
 				})
 			}
-		case *proto.PaginatedResource_SAMLIdPServiceProvider:
-			provider := e.SAMLIdPServiceProvider
-			response.Resources = append(response.Resources, UnifiedResource{
-				SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{
-					URI:      cluster.URI.AppendApp(provider.GetName()),
-					Provider: provider,
-				},
-			})
+			// case *proto.PaginatedResource_SAMLIdPServiceProvider:
+			// 	provider := e.SAMLIdPServiceProvider
+			// 	response.Resources = append(response.Resources, UnifiedResource{
+			// 		SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{
+			// 			URI:      cluster.URI.AppendApp(provider.GetName()),
+			// 			Provider: provider,
+			// 		},
+			// 	})
 		}
 	}
 

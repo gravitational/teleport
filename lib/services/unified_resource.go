@@ -814,8 +814,8 @@ func MakePaginatedResources(requestType string, resources []types.ResourceWithLa
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_UserGroup{UserGroup: userGroup}}
-		//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 		case types.KindAppOrSAMLIdPServiceProvider:
+			//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 			switch appOrSP := resource.(type) {
 			case *types.AppServerV3:
 				protoResource = &proto.PaginatedResource{

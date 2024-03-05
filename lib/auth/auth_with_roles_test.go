@@ -2539,10 +2539,13 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	require.Empty(t, resp.Resources)
 }
 
-// TestGetAndList_SAMLIdPServiceProviders verifies RBAC and filtering is applied when fetching SAML IdP service providers.
+// TestGetAndList_SAMLIdPServiceProviders verifies RBAC when fetching SAML IdP service providers.
+// TODO(sshah): update test with ListResources() instead of directly using listResourcesWithSort()
+// once SAMLIdPServiceProvider supports label matcher.
 func TestGetAndList_SAMLIdPServiceProviders(t *testing.T) {
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
 
 	// Set license to enterprise in order to be able to list SAML IdP Service Providers.
 	modules.SetTestModules(t, &modules.TestModules{
@@ -2560,12 +2563,12 @@ func TestGetAndList_SAMLIdPServiceProviders(t *testing.T) {
 			EntityID: fmt.Sprintf("entity-id-%v", i),
 		})
 		require.NoError(t, err)
-		err = srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp)
+		err = srv.AuthServer.CreateSAMLIdPServiceProvider(ctx, sp)
 		require.NoError(t, err)
 
 	}
 
-	testServiceProviders, _, err := srv.Auth().ListSAMLIdPServiceProviders(ctx, 0, "")
+	testServiceProviders, _, err := srv.AuthServer.ListSAMLIdPServiceProviders(ctx, 0, "")
 	require.NoError(t, err)
 
 	numResources := len(testServiceProviders)
@@ -2575,43 +2578,34 @@ func TestGetAndList_SAMLIdPServiceProviders(t *testing.T) {
 		testResources[i] = sp
 	}
 
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.AuthServer, username, nil, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	require.NoError(t, err)
+
+	ctxWithUser := authz.ContextWithUser(ctx, identity.I)
+	authContext, err := srv.Authorizer.Authorize(ctxWithUser)
+	require.NoError(t, err)
+	s := &ServerWithRoles{
+		authServer: srv.AuthServer,
+		alog:       srv.AuditLog,
+		context:    *authContext,
+	}
+
 	listSAMLIdPSPRequest := proto.ListResourcesRequest{
 		Namespace: apidefaults.Namespace,
-		// Guarantee that the list will have all the app servers and IdP service providers.
+		// Guarantee that the list will have all SAML IdP service providers.
 		Limit:        int32(numResources + 1),
 		ResourceType: types.KindSAMLIdPServiceProvider,
 	}
 
-	// create user, role, and client
-	username := "user"
-	user, role, err := CreateUserAndRole(srv.Auth(), username, nil, nil)
-	require.NoError(t, err)
-	identity := TestUser(user.GetName())
-	clt, err := srv.NewClient(identity)
-	require.NoError(t, err)
-
-	_, err = srv.Auth().UpsertRole(ctx, role)
-	require.NoError(t, err)
-
-	// Test getting all apps and SAML IdP service providers.
-	resp, err := clt.ListResources(ctx, listSAMLIdPSPRequest)
+	// Test getting all SAML IdP service providers.
+	resp, err := s.listResourcesWithSort(ctxWithUser, listSAMLIdPSPRequest)
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, len(testResources))
 	require.Empty(t, cmp.Diff(testResources, resp.Resources))
-
-	// Test various filtering.
-	baseRequest := proto.ListResourcesRequest{
-		Namespace:    apidefaults.Namespace,
-		Limit:        int32(numResources + 1),
-		ResourceType: types.KindSAMLIdPServiceProvider,
-	}
-
-	// Test search keywords match for saml idp service providers servers.
-	withSearchKeywords := baseRequest
-	withSearchKeywords.SearchKeywords = []string{"saml-app", testServiceProviders[0].GetName()}
-	resp, err = clt.ListResources(ctx, withSearchKeywords)
-	require.NoError(t, err)
-	require.Len(t, resp.Resources, 1)
 
 	// deny user to get all service providers
 	role.SetRules(types.Deny, []types.Rule{
@@ -2620,11 +2614,22 @@ func TestGetAndList_SAMLIdPServiceProviders(t *testing.T) {
 			Verbs:     []string{types.VerbList},
 		},
 	})
-	_, err = srv.Auth().UpsertRole(ctx, role)
+	_, err = srv.AuthServer.UpsertRole(ctxWithUser, role)
 	require.NoError(t, err)
-	resp, err = clt.ListResources(ctx, listSAMLIdPSPRequest)
+
+	// setup new context and ServerWithRoles env
+	ctxWithUser = authz.ContextWithUser(ctx, identity.I)
+	authContext, err = srv.Authorizer.Authorize(ctxWithUser)
 	require.NoError(t, err)
-	require.Empty(t, resp.Resources)
+	s = &ServerWithRoles{
+		authServer: srv.AuthServer,
+		alog:       srv.AuditLog,
+		context:    *authContext,
+	}
+
+	resp2, err := s.listResourcesWithSort(ctxWithUser, listSAMLIdPSPRequest)
+	require.NoError(t, err)
+	require.Empty(t, resp2.Resources)
 }
 
 // TestApps verifies RBAC is applied to app resources.

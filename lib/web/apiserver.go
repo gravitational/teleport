@@ -2744,8 +2744,8 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				Logger:            h.log,
 			})
 			unifiedResources = append(unifiedResources, app)
-		//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 		case types.AppServerOrSAMLIdPServiceProvider:
+			//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 			if r.IsAppServer() {
 				app := ui.MakeApp(r.GetAppServer().GetApp(), ui.MakeAppsConfig{
 					LocalClusterName:  h.auth.clusterName,
