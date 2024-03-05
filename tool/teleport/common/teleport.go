@@ -601,7 +601,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case integrationConfEKSCmd.FullCommand():
 		err = onIntegrationConfEKSIAM(ccf.IntegrationConfEKSIAMArguments)
 	case integrationConfAWSOIDCIdPCmd.FullCommand():
-		err = onIntegrationConfAWSOIDCIdP(ccf, ccf.IntegrationConfAWSOIDCIdPArguments)
+		err = onIntegrationConfAWSOIDCIdP(ccf)
 	case integrationConfListDatabasesCmd.FullCommand():
 		err = onIntegrationConfListDatabasesIAM(ccf.IntegrationConfListDatabasesIAMArguments)
 	case integrationConfExternalAuditCmd.FullCommand():
@@ -1012,7 +1012,7 @@ func onIntegrationConfEKSIAM(params config.IntegrationConfEKSIAM) error {
 	return nil
 }
 
-func onIntegrationConfAWSOIDCIdP(clf config.CommandLineFlags, params config.IntegrationConfAWSOIDCIdP) error {
+func onIntegrationConfAWSOIDCIdP(clf config.CommandLineFlags) error {
 	ctx := context.Background()
 
 	// pass the value of --insecure flag to the runtime
@@ -1027,10 +1027,10 @@ func onIntegrationConfAWSOIDCIdP(clf config.CommandLineFlags, params config.Inte
 	}
 
 	err = awsoidc.ConfigureIdPIAM(ctx, iamClient, awsoidc.IdPIAMConfigureRequest{
-		Cluster:            params.Cluster,
-		IntegrationName:    params.Name,
-		IntegrationRole:    params.Role,
-		ProxyPublicAddress: params.ProxyPublicURL,
+		Cluster:            clf.IntegrationConfAWSOIDCIdPArguments.Cluster,
+		IntegrationName:    clf.IntegrationConfAWSOIDCIdPArguments.Name,
+		IntegrationRole:    clf.IntegrationConfAWSOIDCIdPArguments.Role,
+		ProxyPublicAddress: clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
 	})
 	if err != nil {
 		return trace.Wrap(err)
