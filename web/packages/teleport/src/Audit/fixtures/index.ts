@@ -2856,11 +2856,11 @@ export const events = [
   {
     cluster_name: 'im-a-cluster-name',
     code: 'TV008I',
-    device:{
+    device: {
       asset_tag: 'M2CQVQV64R',
       credential_id: 'c7572891-8426-4e62-874f-c793029d53a6',
       device_id: 'f84f6b35-6226-4e73-8205-3bcbd7d12970',
-      os_type: 2
+      os_type: 2,
     },
     ei: 0,
     event: 'device.webtoken.create',
@@ -2868,7 +2868,7 @@ export const events = [
     time: '2024-03-05T17:18:43.296Z',
     uid: 'b1361d51-70fa-4f1b-803c-a252c2877707',
     user: 'llama',
-    user_kind: 1
+    user_kind: 1,
   },
   {
     cluster_name: 'im-a-cluster-name',
