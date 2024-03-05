@@ -117,12 +117,16 @@ type Channel struct {
 	// teleportMajor stores the current teleport major for comparison.
 	// This field is initialized during CheckAndSetDefaults.
 	teleportMajor int
+	// mutex protects versionGetter, criticalTrigger, and teleportMajor
+	mutex sync.Mutex
 }
 
 // CheckAndSetDefaults checks that the Channel configuration is valid and inits
 // the version getter and maintenance trigger of the Channel based on its
 // configuration. This function must be called before using the channel.
 func (c *Channel) CheckAndSetDefaults() error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	switch {
 	case c.ForwardURL != "" && (c.StaticVersion != "" || c.Critical):
 		return trace.BadParameter("cannot set both ForwardURL and (StaticVersion or Critical)")
@@ -157,6 +161,8 @@ func (c *Channel) CheckAndSetDefaults() error {
 // If the version source intentionally did not specify a version, a
 // NoNewVersionError is returned.
 func (c *Channel) GetVersion(ctx context.Context) (string, error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	targetVersion, err := c.versionGetter.GetVersion(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -182,6 +188,8 @@ func (c *Channel) GetVersion(ctx context.Context) (string, error) {
 // GetCritical returns the current criticality of the channel. If io is involved,
 // this function implements cache and is safe to call frequently.
 func (c *Channel) GetCritical(ctx context.Context) (bool, error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	return c.criticalTrigger.CanStart(ctx, nil)
 }
 
