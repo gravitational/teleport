@@ -100,10 +100,12 @@ func StartRemoteListener(ctx context.Context, sshConn channelOpener, srcAddr, ds
 	reqBytes := ssh.Marshal(req)
 
 	go func() {
-		for ctx.Err() == nil {
+		for {
 			conn, err := listener.Accept()
 			if err != nil {
-				log.WithError(err).Warn("failed to accept connection")
+				if !utils.IsOKNetworkError(err) {
+					log.WithError(err).Warn("failed to accept connection")
+				}
 				return
 			}
 
