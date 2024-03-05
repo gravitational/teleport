@@ -19,6 +19,8 @@
 package web
 
 import (
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/types/header"
 	"net/http"
 
 	"github.com/gravitational/trace"
@@ -73,6 +75,39 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 			return nil, trace.AlreadyExists("failed to create Integration (%q already exists), please use another name", req.Name)
 		}
 		return nil, trace.Wrap(err)
+	}
+	switch req.SubKind {
+	case types.IntegrationSubKindAWSOIDC:
+
+		dc, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{
+				Name: req.Name,
+			},
+			discoveryconfig.Spec{
+				DiscoveryGroup: "test", /* hardcoded */
+				AccessGraph: &types.AccessGraphSync{
+					AWS: []*types.AccessGraphAWSSync{
+						{
+							Regions:     []string{"eu-west-1", "us-central-1", "us-west-1"},
+							Integration: req.Name,
+						},
+					},
+				},
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		clt, err := sctx.GetUserClient(r.Context(), site)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		_, err = clt.DiscoveryConfigClient().UpsertDiscoveryConfig(r.Context(), dc)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return ui.MakeIntegration(storedIntegration), nil

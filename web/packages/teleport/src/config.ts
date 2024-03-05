@@ -271,6 +271,8 @@ const cfg = {
 
     awsConfigureIamScriptOidcIdpPath:
       '/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
+    awsConfigureTAGIdpPath:
+        '/webapi/scripts/integrations/configure/access-graph-cloud-sync-iam.sh?kind=aws-iam&role=:roleName',
     awsConfigureIamScriptDeployServicePath:
       '/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
     awsConfigureIamScriptListDatabasesPath:
@@ -465,6 +467,13 @@ const cfg = {
     return (
       cfg.baseUrl +
       generatePath(cfg.api.awsConfigureIamScriptOidcIdpPath, { ...p })
+    );
+  },
+
+  getAwsTAGConfigureScriptUrl(p: UrlAwsTAGConfigure) {
+    return (
+        cfg.baseUrl +
+        generatePath(cfg.api.awsConfigureTAGIdpPath, { ...p })
     );
   },
 
@@ -1152,6 +1161,11 @@ export interface UrlAwsOidcConfigureIdp {
   integrationName: string;
   roleName: string;
 }
+
+export interface UrlAwsTAGConfigure {
+  roleName: string;
+}
+
 
 export interface UrlAwsConfigureIamScriptParams {
   region: Regions;

@@ -54,6 +54,7 @@ export function AwsOidc() {
   const [roleArn, setRoleArn] = useState('');
   const [roleName, setRoleName] = useState('');
   const [scriptUrl, setScriptUrl] = useState('');
+  const [scriptUrl2, setScriptUrl2] = useState('');
   const [createdIntegration, setCreatedIntegration] = useState<Integration>();
   const { attempt, run } = useAttempt('');
 
@@ -120,7 +121,12 @@ export function AwsOidc() {
       roleName,
     });
 
+    const newScriptUrl2 = cfg.getAwsTAGConfigureScriptUrl({
+            roleName,
+    });
+
     setScriptUrl(newScriptUrl);
+    setScriptUrl2(newScriptUrl2);
   }
 
   return (
@@ -218,6 +224,30 @@ export function AwsOidc() {
                 </Container>
                 <Container mb={5}>
                   <Text bold>Step 3</Text>
+                  Configure the required permission in your AWS account for TAG sync service.
+                  <Text mb={2}>
+                    Open{' '}
+                    <Link
+                        href="https://console.aws.amazon.com/cloudshell/home"
+                        target="_blank"
+                    >
+                      AWS CloudShell
+                    </Link>{' '}
+                    and copy and paste the command that configures the
+                    permissions for you:
+                  </Text>
+                  <Box mb={2}>
+                    <TextSelectCopyMulti
+                        lines={[
+                          {
+                            text: `bash -c "$(curl '${scriptUrl2}')"`,
+                          },
+                        ]}
+                    />
+                  </Box>
+                </Container>
+                <Container mb={5}>
+                  <Text bold>Step 4</Text>
                   After configuring is finished, go to your{' '}
                   <Link
                     target="_blank"
