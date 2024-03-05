@@ -371,13 +371,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		h.cfg.AutomaticUpgradesChannels = automaticupgrades.Channels{}
 	}
 
-	if h.cfg.AutomaticUpgradesChannels != nil {
-		err := h.cfg.AutomaticUpgradesChannels.CheckAndSetDefaults(cfg.ClusterFeatures)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	// for properly handling url-encoded parameter values.
 	h.UseRawPath = true
 
