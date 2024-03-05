@@ -1259,16 +1259,54 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 
 func TestRemoteClustersCRUD(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	testSrv := newTestTLSServer(t)
-
 	clt, err := testSrv.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	suite := &suite.ServicesTestSuite{
-		PresenceS: clt,
-	}
-	suite.RemoteClustersCRUD(t)
+	clusterName := "example.com"
+	out, err := clt.GetRemoteClusters(ctx)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	rc, err := types.NewRemoteCluster(clusterName)
+	require.NoError(t, err)
+	rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
+
+	rc, err = testSrv.Auth().CreateRemoteCluster(ctx, rc)
+	require.NoError(t, err)
+
+	out, err = clt.GetRemoteClusters(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff(out[0], rc))
+
+	update := rc.Clone()
+	update.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
+	_, err = clt.UpdateRemoteCluster(ctx, update)
+	require.NoError(t, err)
+	updated, err := clt.GetRemoteCluster(ctx, rc.GetName())
+	require.NoError(t, err)
+	require.Equal(t, teleport.RemoteClusterStatusOnline, updated.GetConnectionStatus())
+	// Ensure other fields unchanged
+	require.Empty(t,
+		cmp.Diff(
+			rc,
+			updated,
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+			cmpopts.IgnoreFields(types.RemoteClusterStatusV3{}, "Connection"),
+		),
+	)
+
+	err = clt.DeleteRemoteCluster(ctx, clusterName)
+	require.NoError(t, err)
+	err = clt.DeleteRemoteCluster(ctx, clusterName)
+	require.True(t, trace.IsNotFound(err))
+
+	out, err = clt.GetRemoteClusters(ctx)
+	require.NoError(t, err)
+	require.Empty(t, out)
 }
 
 func TestServersCRUD(t *testing.T) {
@@ -1570,7 +1608,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	// Create remote cluster so create access request doesn't err due to non existent cluster
 	rc, err := types.NewRemoteCluster("foobar")
 	require.NoError(t, err)
-	err = testSrv.AuthServer.AuthServer.CreateRemoteCluster(rc)
+	_, err = testSrv.AuthServer.AuthServer.CreateRemoteCluster(ctx, rc)
 	require.NoError(t, err)
 
 	// Create approved resource request
@@ -2427,7 +2465,7 @@ func TestGenerateCerts(t *testing.T) {
 		// but can renew their own cert, for example set route to cluster
 		rc, err := types.NewRemoteCluster("cluster-remote")
 		require.NoError(t, err)
-		err = srv.Auth().CreateRemoteCluster(rc)
+		rc, err = srv.Auth().CreateRemoteCluster(ctx, rc)
 		require.NoError(t, err)
 
 		userCerts, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -2456,7 +2494,7 @@ func TestGenerateCerts(t *testing.T) {
 
 		rc1, err := types.NewRemoteCluster("cluster1")
 		require.NoError(t, err)
-		err = srv.Auth().CreateRemoteCluster(rc1)
+		rc1, err = srv.Auth().CreateRemoteCluster(ctx, rc1)
 		require.NoError(t, err)
 
 		// User can renew their certificates, however the TTL will be limited
@@ -2556,7 +2594,7 @@ func TestGenerateCerts(t *testing.T) {
 		meta := rc2.GetMetadata()
 		meta.Labels = map[string]string{"env": "prod"}
 		rc2.SetMetadata(meta)
-		err = srv.Auth().CreateRemoteCluster(rc2)
+		rc2, err = srv.Auth().CreateRemoteCluster(ctx, rc2)
 		require.NoError(t, err)
 
 		// User can't generate certificates for leaf cluster they don't have access
@@ -3893,7 +3931,7 @@ func TestEvents(t *testing.T) {
 		ConfigS:       clt,
 		LocalConfigS:  testSrv.Auth(),
 		EventsS:       clt,
-		PresenceS:     clt,
+		PresenceS:     testSrv.Auth(),
 		CAS:           clt,
 		ProvisioningS: clt,
 		Access:        clt,

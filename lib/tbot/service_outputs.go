@@ -774,8 +774,8 @@ type outputProvider struct {
 }
 
 // GetRemoteClusters uses the impersonatedClient to call GetRemoteClusters.
-func (op *outputProvider) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
-	return op.impersonatedClient.GetRemoteClusters(opts...)
+func (op *outputProvider) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
+	return op.impersonatedClient.GetRemoteClusters(ctx)
 }
 
 // GenerateHostCert uses the impersonatedClient to call GenerateHostCert.

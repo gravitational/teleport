@@ -767,7 +767,7 @@ var _ executor[types.TunnelConnection, tunnelConnectionGetter] = tunnelConnectio
 type remoteClusterExecutor struct{}
 
 func (remoteClusterExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.RemoteCluster, error) {
-	return cache.Presence.GetRemoteClusters()
+	return cache.Presence.GetRemoteClusters(ctx)
 }
 
 func (remoteClusterExecutor) upsert(ctx context.Context, cache *Cache, resource types.RemoteCluster) error {
@@ -778,11 +778,12 @@ func (remoteClusterExecutor) upsert(ctx context.Context, cache *Cache, resource 
 			return trace.Wrap(err)
 		}
 	}
-	return trace.Wrap(cache.presenceCache.CreateRemoteCluster(resource))
+	_, err = cache.presenceCache.CreateRemoteCluster(ctx, resource)
+	return trace.Wrap(err)
 }
 
 func (remoteClusterExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllRemoteClusters()
+	return cache.presenceCache.DeleteAllRemoteClusters(ctx)
 }
 
 func (remoteClusterExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
@@ -799,8 +800,9 @@ func (remoteClusterExecutor) getReader(cache *Cache, cacheOK bool) remoteCluster
 }
 
 type remoteClusterGetter interface {
-	GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error)
-	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
+	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
+	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
+	ListRemoteClusters(ctx context.Context, pageSize int, pageToken string) ([]types.RemoteCluster, string, error)
 }
 
 var _ executor[types.RemoteCluster, remoteClusterGetter] = remoteClusterExecutor{}

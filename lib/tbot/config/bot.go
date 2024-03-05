@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // provider is an interface that allows Templates to fetch information they
@@ -52,7 +51,7 @@ type provider interface {
 	) (*trustpb.GenerateHostCertResponse, error)
 
 	// GetRemoteClusters uses the impersonatedClient to call GetRemoteClusters.
-	GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error)
+	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
 
 	// GetCertAuthority uses the impersonatedClient to call GetCertAuthority.
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)

@@ -395,7 +395,8 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Register the leaf cluster.
 	leaf, err := types.NewRemoteCluster("leaf.localhost")
 	require.NoError(t, err)
-	require.NoError(t, s.a.CreateRemoteCluster(leaf))
+	_, err = s.a.CreateRemoteCluster(ctx, leaf)
+	require.NoError(t, err)
 
 	user := "user1"
 	pass := []byte("abcdef123456")
