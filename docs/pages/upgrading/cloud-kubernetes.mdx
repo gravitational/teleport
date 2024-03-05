@@ -13,10 +13,10 @@ upgrade them manually using the method you used to install Teleport.
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components of your cluster.
 
-- Teleport Enterprise Cloud or Teleport Team account. You can determine the
-  current version of these services by running the following command, where
-  `mytenant` is the name of your Teleport Team or Teleport Enterprise Cloud
-  tenant. This requires the [`jq` CLI tool](https://jqlang.github.io/jq/):
+- Teleport Enterprise Cloud. You can determine the current version of these
+  services by running the following command, where `mytenant` is the name of
+  your Teleport Enterprise Cloud tenant. This requires the
+  [`jq` CLI tool](https://jqlang.github.io/jq/):
 
   ```code
   $ curl -s https://mytenant.teleport.sh/webapi/ping | jq '.server_version'

@@ -13,11 +13,10 @@ upgrades or upgrade them manually using the method you used to install Teleport.
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components in your cluster.
 
-- A Teleport Enterprise Cloud or Teleport Team account. You can determine the
-  current version of the Auth Service and Proxy Service by running the following
-  command, where `mytenant` is the name of your Teleport Team or Teleport
-  Enterprise Cloud account. This requires the [`jq` CLI
-  tool](https://jqlang.github.io/jq/):
+- A Teleport Enterprise Cloud account. You can determine the current version of
+  the Auth Service and Proxy Service by running the following command, where
+  `mytenant` is the name of your Teleport Enterprise Cloud account. This
+  requires the [`jq` CLI tool](https://jqlang.github.io/jq/):
 
   ```code
   $ curl -s https://mytenant.teleport.sh/webapi/ping | jq '.server_version'
