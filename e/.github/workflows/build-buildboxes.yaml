@@ -1,16 +1,93 @@
-# This is a placeholder workflow and will be replaced once the appropriate
-# functionality passes code review.
-#
-# Dispatching workflow calls to a GHA workflow on a branch requires that a
-# workflow file with the correct name exists in the default branch, even
-# if that workflow bears no resemblance to the target workflow
-
 name: Build Buildboxes
 on:
+  schedule:
+    # Run daily at 6am UTC which is about 23:00 PST (plus/minus DST).
+    # The minute offset of 33 is a "random" offset to not run at the top of the hour.
+    - cron: '33 6 * * *'
+
   workflow_dispatch:
+    inputs:
+      amd64:
+        description: |
+          Build amd64 buildboxes. Normally we only build arm64 buildboxes as
+          they require our self-hosted arm64 runners which are not available
+          from the OSS Teleport repo. We build the amd64 buildboxes from there.
+          If this input is true, we'll also build amd64 buildboxes here.
+        type: boolean
+        default: false
+      branch:
+        description: |
+          Branch to build the buildboxes for. Should only be used for dev/testing
+          this workflow when on a non-main branch. Normally the branch the workflow
+          is on is used to checkout the equivalent branch in OSS Teleport.
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+
 jobs:
-  dummy:
-    runs-on: ubuntu-latest
+  buildbox:
+    strategy:
+      matrix:
+        hostarch: [amd64, arm64]
+        target: [buildbox, buildbox-node, buildbox-arm, buildbox-centos7, buildbox-centos7-fips]
+        exclude:
+          # Exclude amd64 on dispatched builds if inputs.arm64 is not set
+          - hostarch: ${{ (github.event_name == 'workflow_dispatch' && ! inputs.amd64) && 'amd64' }}
+
+          # Exclude buildbox, buildbox-node and buildbox-arm on arm64. They are amd64 only
+          - hostarch: arm64
+            target: buildbox
+          - hostarch: arm64
+            target: buildbox-node
+          - hostarch: arm64
+            target: buildbox-arm
+
+        include:
+          # Add our self-hosted builder to arm64 matrix combos
+          - hostarch: arm64
+            builder:
+              group: prod
+              labels: [ self-hosted, linux, arm64 ]
+
+    name: ${{ matrix.hostarch }} ${{ matrix.target }}
+    runs-on: ${{ matrix.builder || 'ubuntu-22.04-32core' }}
+
+    permissions:
+      contents: read
+      packages: write
+
     steps:
-      - name: Greeting
-        run: echo "This is a dummy build to placate GitHub."
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-ref: ${{ inputs.branch || github.ref_name }}
+          edition: oss
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@0d103c3126aa41d772a8362f6aa67afac040f80c # v3.1.0
+        with:
+          driver: docker
+
+      - name: Login to registry
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Ensure required packages are installed
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          if [[ "${CI_SYSTEM}" == "ARC" ]]; then
+            sudo apt update
+            sudo apt install -y make
+          fi
+
+      - name: Build and push buildbox image
+        env:
+          ARCH: ${{ matrix.hostarch }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          make --no-print-directory -C build.assets "${TARGET}" PUSH=1 ARCH="${ARCH}"
