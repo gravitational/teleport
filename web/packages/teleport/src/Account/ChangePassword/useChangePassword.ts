@@ -18,15 +18,37 @@
 
 import authService from 'teleport/services/auth';
 import cfg from 'teleport/config';
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 export default function useChangePassword() {
-  function changePassword(oldPass: string, newPass: string, otpToken: string) {
-    return authService.changePassword(oldPass, newPass, otpToken);
+  function changePassword(
+    oldPassword: string,
+    newPassword: string,
+    secondFactorToken: string
+  ) {
+    return authService.changePassword({
+      oldPassword,
+      newPassword,
+      secondFactorToken,
+    });
   }
 
-  function changePasswordWithWebauthn(oldPass: string, newPass: string) {
-    return authService.changePasswordWithWebauthn(oldPass, newPass);
+  async function changePasswordWithWebauthn(
+    oldPassword: string,
+    newPassword: string
+  ) {
+    const credential = await authService.fetchWebAuthnChallenge({
+      scope: MfaChallengeScope.CHANGE_PASSWORD,
+      userVerificationRequirement: 'discouraged',
+    });
+    return authService.changePassword({
+      oldPassword,
+      newPassword,
+      secondFactorToken: '',
+      credential,
+    });
   }
+
   return {
     changePassword,
     changePasswordWithWebauthn,

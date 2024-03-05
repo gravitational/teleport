@@ -34,7 +34,9 @@ import {
   ResetPasswordReqWithEvent,
   ResetPasswordWithWebauthnReqWithEvent,
   UserCredentials,
+  ChangePasswordReq,
 } from './types';
+import { CreateAuthenticateChallengeRequest } from './types';
 
 const auth = {
   checkWebauthnSupport() {
@@ -195,11 +197,18 @@ const auth = {
     });
   },
 
-  changePassword(oldPass: string, newPass: string, token: string) {
+  changePassword({
+    oldPassword,
+    newPassword,
+    secondFactorToken,
+    credential,
+  }: ChangePasswordReq) {
     const data = {
-      old_password: base64EncodeUnicode(oldPass),
-      new_password: base64EncodeUnicode(newPass),
-      second_factor_token: token,
+      old_password: base64EncodeUnicode(oldPassword),
+      new_password: base64EncodeUnicode(newPassword),
+      second_factor_token: secondFactorToken,
+      webauthnAssertionResponse:
+        credential && makeWebauthnAssertionResponse(credential),
     };
 
     return api.put(cfg.api.changeUserPasswordPath, data);
@@ -240,7 +249,7 @@ const auth = {
 
   headlessSSOAccept(transactionId: string) {
     return auth
-      .fetchWebauthnChallenge(MfaChallengeScope.HEADLESS_LOGIN)
+      .fetchWebAuthnChallenge({ scope: MfaChallengeScope.HEADLESS_LOGIN })
       .then(res => {
         const request = {
           action: 'accept',
@@ -263,11 +272,12 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
   },
 
-  async fetchWebauthnChallenge(
-    scope: MfaChallengeScope,
-    allowReuse?: boolean,
-    isMfaRequiredRequest?: IsMfaRequiredRequest
-  ) {
+  async fetchWebAuthnChallenge({
+    scope,
+    allowReuse,
+    isMfaRequiredRequest,
+    userVerificationRequirement,
+  }: CreateAuthenticateChallengeRequest) {
     return auth
       .checkWebauthnSupport()
       .then(() =>
@@ -276,6 +286,7 @@ const auth = {
             is_mfa_required_req: isMfaRequiredRequest,
             challenge_scope: scope,
             challenge_allow_reuse: allowReuse,
+            user_verification_requirement: userVerificationRequirement,
           })
           .then(makeMfaAuthenticateChallenge)
       )
@@ -287,7 +298,7 @@ const auth = {
   },
 
   createPrivilegeTokenWithWebauthn(scope: MfaChallengeScope) {
-    return auth.fetchWebauthnChallenge(scope).then(res =>
+    return auth.fetchWebAuthnChallenge({ scope }).then(res =>
       api.post(cfg.api.createPrivilegeTokenPath, {
         webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
       })
@@ -328,7 +339,7 @@ const auth = {
     }
 
     return auth
-      .fetchWebauthnChallenge(scope, allowReuse, isMfaRequiredRequest)
+      .fetchWebAuthnChallenge({ scope, allowReuse, isMfaRequiredRequest })
       .then(res => makeWebauthnAssertionResponse(res));
   },
 
@@ -430,4 +441,5 @@ export enum MfaChallengeScope {
   ACCOUNT_RECOVERY = 5,
   USER_SESSION = 6,
   ADMIN_ACTION = 7,
+  CHANGE_PASSWORD = 8,
 }
