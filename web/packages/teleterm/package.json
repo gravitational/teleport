@@ -34,8 +34,7 @@
     "strip-ansi": "^7.1.0",
     "tar-fs": "^3.0.3",
     "winston": "^3.3.3",
-    "@protobuf-ts/grpc-transport": "^2.9.3",
-    "@protobuf-ts/grpc-backend": "^2.9.3"
+    "@protobuf-ts/grpc-transport": "^2.9.3"
   },
   "devDependencies": {
     "@gravitational/build": "^1.0.0",
