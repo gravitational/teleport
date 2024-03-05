@@ -42,7 +42,7 @@ import { ElectronGlobals, RuntimeSettings } from 'teleterm/types';
 import { createTshdEventsServer } from 'teleterm/services/tshdEvents';
 
 import {
-  getObjectifiedInterceptors,
+  getObjectifiedMethodsInterceptor,
   objectifyClient,
 } from 'teleterm/services/tshd/grpcContextBridgeClient';
 
@@ -72,7 +72,7 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
   const transport = new GrpcTransport({
     host: addresses.tsh,
     channelCredentials: credentials.shared,
-    interceptors: getObjectifiedInterceptors(),
+    interceptors: [getObjectifiedMethodsInterceptor()],
   });
 
   const terminalServiceClient = new TerminalServiceClient(transport);
