@@ -44,7 +44,7 @@ type workloadIdentityCommands struct {
 }
 
 func newWorkloadIdentityCommands(app *kingpin.Application) workloadIdentityCommands {
-	cmd := app.Command("workloadid", "Manage Teleport Workload Identity for SPIFFE.")
+	cmd := app.Command("workloadid", "Manage Teleport Workload Identity.")
 	cmds := workloadIdentityCommands{
 		issue: newWorkloadIdentityIssueCommand(cmd),
 	}
@@ -73,22 +73,22 @@ type workloadIdentityIssueCommand struct {
 
 func newWorkloadIdentityIssueCommand(parent *kingpin.CmdClause) *workloadIdentityIssueCommand {
 	cmd := &workloadIdentityIssueCommand{
-		CmdClause: parent.Command("issue", "Issue a SPIFFE SVID"),
+		CmdClause: parent.Command("issue", "Issues a SPIFFE SVID using Teleport Workload Identity and writes it to a local directory."),
 	}
-	cmd.Arg("path", "Path to include the the SPIFFE ID. Must start with a /").
+	cmd.Arg("path", "Path use for the SVID SPIFFE ID. Must have a preceding '/'.").
 		Required().
 		StringVar(&cmd.svidPath)
-	cmd.Flag("type", "Type of the SVID to issue (x509)").
+	cmd.Flag("type", "Type of the SVID to issue (x509). Defaults to x509.").
 		Default(svidTypeX509).
 		EnumVar(&cmd.svidType, svidTypeX509)
-	cmd.Flag("output", "Path to directory to write SVID into").
+	cmd.Flag("output", "Path to the directory to write the SVID into.").
 		Required().
 		StringVar(&cmd.outputDirectory)
-	cmd.Flag("dns-san", "DNS SANs to include in the SVID").
+	cmd.Flag("dns-san", "DNS SANs to include in the SVID. By default, none are included.").
 		StringsVar(&cmd.svidDNSSANs)
-	cmd.Flag("ip-san", "IP SANs to include in the SVID").
+	cmd.Flag("ip-san", "IP SANs to include in the SVID. By default, none are included.").
 		StringsVar(&cmd.svidIPSANs)
-	cmd.Flag("svid-ttl", "Time to live for the SVID").
+	cmd.Flag("svid-ttl", "Sets the time to live for the SVID.").
 		Default("1h").
 		DurationVar(&cmd.svidTTL)
 	return cmd
