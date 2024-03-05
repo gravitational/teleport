@@ -32,7 +32,7 @@ message AccessMonitoringRule {
   // version is version
   string version = 4;
   // Spec is an AccessMonitoringRule specification
-  AccessMonitoringRuleSpec spec = 6;
+  AccessMonitoringRuleSpec spec = 5;
 }
 
 // AccessMonitoringRuleSpec is the access monitoring rule spec
