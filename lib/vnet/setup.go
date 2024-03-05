@@ -227,6 +227,7 @@ do shell script quoted form of executableName & " %s --socket " & quoted form of
 		if err, ok := err.(*exec.ExitError); ok {
 			stderr := stderr.String()
 
+			// When the user closes the prompt for administrator privileges, the -128 error is returned.
 			// https://developer.apple.com/library/archive/documentation/AppleScript/Conceptual/AppleScriptLangGuide/reference/ASLR_error_codes.html#//apple_ref/doc/uid/TP40000983-CH220-SW2
 			if strings.Contains(stderr, "-128") {
 				return trace.Errorf("admin setup canceled by user")
