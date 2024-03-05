@@ -43,7 +43,6 @@ import {
   DocumentTshNode,
   DocumentTshNodeWithServerId,
   DocumentClusterQueryParams,
-  DocumentVnet,
 } from './types';
 
 export class DocumentsService {
@@ -239,32 +238,10 @@ export class DocumentsService {
 
     const doc: DocumentConnectMyComputer = {
       uri: routing.getDocUri({ docId: unique() }),
-      kind: 'doc.connect_my_computer',
+      kind: 'doc.connect_my_computer' as const,
       title: 'Connect My Computer',
       rootClusterUri: opts.rootClusterUri,
       status: '',
-    };
-    this.add(doc);
-    this.open(doc.uri);
-  }
-
-  openVnetDocument(opts: {
-    // URI of the root cluster could be passed to the `DocumentsService`
-    // constructor and then to the document, instead of being taken from the parameter.
-    // However, we decided not to do so because other documents are based only on the provided parameters.
-    rootClusterUri: RootClusterUri;
-  }): void {
-    const existingDoc = this.findFirstOfKind('doc.vnet');
-    if (existingDoc) {
-      this.open(existingDoc.uri);
-      return;
-    }
-
-    const doc: DocumentVnet = {
-      uri: routing.getDocUri({ docId: unique() }),
-      kind: 'doc.vnet',
-      title: 'VNet',
-      rootClusterUri: opts.rootClusterUri,
     };
     this.add(doc);
     this.open(doc.uri);

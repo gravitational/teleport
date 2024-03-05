@@ -44,7 +44,6 @@ import {
 } from 'teleterm/ui/ConnectMyComputer';
 import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp';
-import { DocumentVnet } from 'teleterm/ui/Vnet';
 
 import Document from 'teleterm/ui/Document';
 import { RootClusterUri, isDatabaseUri, isAppUri } from 'teleterm/ui/uri';
@@ -162,8 +161,6 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         return <DocumentAccessRequests doc={doc} visible={visible} />;
       case 'doc.connect_my_computer':
         return <DocumentConnectMyComputer doc={doc} visible={visible} />;
-      case 'doc.vnet':
-        return <DocumentVnet doc={doc} visible={visible} />;
       default:
         return (
           <Document visible={visible}>
