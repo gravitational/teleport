@@ -1101,6 +1101,16 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 				Clock:      s.cfg.Clock,
 			}
 		},
+		UpdateProxiedDatabase: func(name string, doUpdate func(types.Database) error) error {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			for _, db := range s.proxiedDatabases {
+				if db.GetName() == name {
+					return trace.Wrap(doUpdate(db))
+				}
+			}
+			return trace.NotFound("%q not found among registered databases", name)
+		},
 	})
 }
 

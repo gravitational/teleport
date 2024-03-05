@@ -115,6 +115,9 @@ type EngineConfig struct {
 	DataDir string
 	// GetUserProvisioner is automatic database users creation handler.
 	GetUserProvisioner func(AutoUsers) *UserProvisioner
+	// UpdateProxiedDatabase finds the proxied database by name and provide a
+	// function to update its status.
+	UpdateProxiedDatabase func(string, func(types.Database) error) error
 }
 
 // CheckAndSetDefaults validates the config and sets default values.
