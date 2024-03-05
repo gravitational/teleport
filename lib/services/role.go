@@ -3233,26 +3233,13 @@ const (
 	MFARequiredPerRole MFARequired = "per-role"
 )
 
-// SortedRoles sorts roles by name
-type SortedRoles []types.Role
-
-// Len returns length of a role list
-func (s SortedRoles) Len() int {
-	return len(s)
-}
-
-// Less compares roles by name
-func (s SortedRoles) Less(i, j int) bool {
-	return s[i].GetName() < s[j].GetName()
-}
-
-// Swap swaps two roles in a list
-func (s SortedRoles) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
 // UnmarshalRole unmarshals the Role resource from JSON.
 func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
+	return UnmarshalRoleV6(bytes, opts...)
+}
+
+// UnmarshalRoleV6 unmarshals the RoleV6 resource from JSON.
+func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error) {
 	var h types.ResourceHeader
 	err := json.Unmarshal(bytes, &h)
 	if err != nil {

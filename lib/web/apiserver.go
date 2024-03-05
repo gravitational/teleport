@@ -2085,6 +2085,11 @@ type CreateSessionResponse struct {
 	// a user WebUI session can be left idle before being logged out
 	// by the server. A zero value means there is no idle timeout set.
 	SessionInactiveTimeoutMS int `json:"sessionInactiveTimeout"`
+	// DeviceWebToken is the token used to perform on-behalf-of device
+	// authentication.
+	// If not nil it should be forwarded to Connect for the device authentication
+	// ceremony.
+	DeviceWebToken *types.DeviceWebToken `json:"deviceWebToken,omitempty"`
 }
 
 func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
@@ -2107,6 +2112,7 @@ func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
 		Token:                    token.GetName(),
 		TokenExpiresIn:           int(token.Expiry().Sub(sctx.cfg.Parent.clock.Now()) / time.Second),
 		SessionInactiveTimeoutMS: int(sctx.cfg.Session.GetIdleTimeout().Milliseconds()),
+		DeviceWebToken:           sctx.cfg.Session.GetDeviceWebToken(),
 	}, nil
 }
 
@@ -2558,7 +2564,7 @@ func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprout
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	remoteClusters, err := clt.GetRemoteClusters()
+	remoteClusters, err := clt.GetRemoteClusters(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

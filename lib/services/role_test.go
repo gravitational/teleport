@@ -20,10 +20,12 @@ package services
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,7 +33,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/google/go-cmp/cmp"
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -4331,7 +4333,7 @@ func TestCheckDatabaseRoles(t *testing.T) {
 		Metadata: types.Metadata{Name: "roleB", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
-				CreateDatabaseUser: types.NewBoolOption(true),
+				CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
 			},
 			Allow: types.RoleConditions{
 				DatabaseLabelsExpression: `labels["env"] == "prod"`,
@@ -4350,7 +4352,7 @@ func TestCheckDatabaseRoles(t *testing.T) {
 		Metadata: types.Metadata{Name: "roleC", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
-				CreateDatabaseUser: types.NewBoolOption(true),
+				CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
 			},
 			Allow: types.RoleConditions{
 				DatabaseLabels: types.Labels{"app": []string{"metrics"}},
@@ -4364,7 +4366,7 @@ func TestCheckDatabaseRoles(t *testing.T) {
 		Metadata: types.Metadata{Name: "roleD", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
-				CreateDatabaseUser: types.NewBoolOption(true),
+				CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
 			},
 			Allow: types.RoleConditions{
 				DatabaseLabelsExpression: `a bad expression`,
@@ -4373,15 +4375,67 @@ func TestCheckDatabaseRoles(t *testing.T) {
 		},
 	}
 
+	// roleE is like roleB, allows auto-user provisioning for production database,
+	// but uses database permissions instead of roles.
+	roleE := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleB", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			},
+			Allow: types.RoleConditions{
+				DatabaseLabelsExpression: `labels["env"] == "prod"`,
+				DatabasePermissions: []types.DatabasePermission{
+					{
+						Permissions: []string{"SELECT"},
+						Match:       map[string]apiutils.Strings{"*": []string{"*"}},
+					},
+				},
+			},
+			Deny: types.RoleConditions{
+				DatabaseLabelsExpression: `labels["env"] == "prod"`,
+				DatabasePermissions: []types.DatabasePermission{
+					{
+						Permissions: []string{"UPDATE", "INSERT", "DELETE"},
+						Match:       map[string]apiutils.Strings{"*": []string{"*"}},
+					},
+				},
+			},
+		},
+	}
+
+	// roleF is like roleC, allows auto-user provisioning for metrics database,
+	// but uses database permissions instead of roles.
+	roleF := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleC", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			},
+			Allow: types.RoleConditions{
+				DatabaseLabels: types.Labels{"app": []string{"metrics"}},
+				DatabasePermissions: []types.DatabasePermission{
+					{
+						Permissions: []string{"SELECT", "UPDATE", "INSERT", "DELETE"},
+						Match:       map[string]apiutils.Strings{"*": []string{"*"}},
+					},
+				},
+			},
+		},
+	}
+
 	tests := []struct {
-		name             string
-		roleSet          RoleSet
-		inDatabaseLabels map[string]string
-		inRequestedRoles []string
-		outModeError     bool
-		outRolesError    bool
-		outCreateUser    bool
-		outRoles         []string
+		name                string
+		roleSet             RoleSet
+		inDatabaseLabels    map[string]string
+		inRequestedRoles    []string
+		outModeError        bool
+		outRolesError       bool
+		outCreateUser       bool
+		outRoles            []string
+		outPermissionsError bool
+		outAllowPermissions types.DatabasePermissions
+		outDenyPermissions  types.DatabasePermissions
 	}{
 		{
 			name:             "no auto-provision roles assigned",
@@ -4412,11 +4466,37 @@ func TestCheckDatabaseRoles(t *testing.T) {
 			outRoles:         []string{"reader", "writer"},
 		},
 		{
+			name:             "connect to metrics database, get reader/writer permissions",
+			roleSet:          RoleSet{roleA, roleE, roleF},
+			inDatabaseLabels: map[string]string{"app": "metrics"},
+			outCreateUser:    true,
+			outRoles:         []string{},
+			outAllowPermissions: types.DatabasePermissions{
+				types.DatabasePermission{Permissions: []string{"SELECT", "UPDATE", "INSERT", "DELETE"}, Match: types.Labels{"*": apiutils.Strings{"*"}}},
+			},
+		},
+		{
 			name:             "connect to prod database, get reader role",
 			roleSet:          RoleSet{roleA, roleB, roleC},
 			inDatabaseLabels: map[string]string{"app": "metrics", "env": "prod"},
 			outCreateUser:    true,
 			outRoles:         []string{"reader"},
+		},
+		{
+			name:             "connect to prod database, get reader permissions",
+			roleSet:          RoleSet{roleA, roleE, roleF},
+			inDatabaseLabels: map[string]string{"app": "metrics", "env": "prod"},
+			outCreateUser:    true,
+			outRoles:         []string{},
+			// the overlap between outAllowPermissions and outDenyPermissions is expected.
+			// the permission arithmetic (e.g. removing denied permissions) will be done ba a downstream function.
+			outAllowPermissions: types.DatabasePermissions{
+				types.DatabasePermission{Permissions: []string{"SELECT"}, Match: types.Labels{"*": apiutils.Strings{"*"}}},
+				types.DatabasePermission{Permissions: []string{"SELECT", "UPDATE", "INSERT", "DELETE"}, Match: types.Labels{"*": apiutils.Strings{"*"}}},
+			},
+			outDenyPermissions: types.DatabasePermissions{
+				types.DatabasePermission{Permissions: []string{"UPDATE", "INSERT", "DELETE"}, Match: types.Labels{"*": apiutils.Strings{"*"}}},
+			},
 		},
 		{
 			name:             "connect to metrics database, requested writer role",
@@ -4435,11 +4515,12 @@ func TestCheckDatabaseRoles(t *testing.T) {
 			outRolesError:    true,
 		},
 		{
-			name:             "check fails",
-			roleSet:          RoleSet{roleD},
-			inDatabaseLabels: map[string]string{"app": "metrics"},
-			outModeError:     true,
-			outRolesError:    true,
+			name:                "check fails",
+			roleSet:             RoleSet{roleD},
+			inDatabaseLabels:    map[string]string{"app": "metrics"},
+			outModeError:        true,
+			outRolesError:       true,
+			outPermissionsError: true,
 		},
 	}
 
@@ -4469,6 +4550,17 @@ func TestCheckDatabaseRoles(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, test.outRoles, roles)
+			}
+
+			allow, deny, err := accessChecker.GetDatabasePermissions(database)
+			if test.outPermissionsError {
+				require.Error(t, err)
+				require.Empty(t, allow)
+				require.Empty(t, deny)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.outAllowPermissions, allow)
+				require.Equal(t, test.outDenyPermissions, deny)
 			}
 		})
 	}
@@ -6417,7 +6509,7 @@ func TestExtractConditionForIdentifier(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 	cond, err := set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, guestParticipantCond))
+	require.Empty(t, gocmp.Diff(cond, guestParticipantCond))
 
 	// Add a role allowing access to the user's own session recordings.
 	role = allowWhere(`contains(session.participants, user.metadata.name)`)
@@ -6428,13 +6520,13 @@ func TestExtractConditionForIdentifier(t *testing.T) {
 
 	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, userParticipantCond(emptyUser)))
+	require.Empty(t, gocmp.Diff(cond, userParticipantCond(emptyUser)))
 	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, userParticipantCond(user)))
+	require.Empty(t, gocmp.Diff(cond, userParticipantCond(user)))
 	cond, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{Or: types.WhereExpr2{L: guestParticipantCond, R: userParticipantCond(user2)}}))
+	require.Empty(t, gocmp.Diff(cond, &types.WhereExpr{Or: types.WhereExpr2{L: guestParticipantCond, R: userParticipantCond(user2)}}))
 
 	// Add a role denying access to sessions with root login.
 	role = denyWhere(`equals(session.login, "root")`)
@@ -6443,13 +6535,13 @@ func TestExtractConditionForIdentifier(t *testing.T) {
 
 	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(emptyUser)}}))
+	require.Empty(t, gocmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(emptyUser)}}))
 	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(user)}}))
+	require.Empty(t, gocmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(user)}}))
 	cond, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: &types.WhereExpr{Or: types.WhereExpr2{L: guestParticipantCond, R: userParticipantCond(user2)}}}}))
+	require.Empty(t, gocmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: &types.WhereExpr{Or: types.WhereExpr2{L: guestParticipantCond, R: userParticipantCond(user2)}}}}))
 
 	// Add a role denying access for user2.
 	role = denyWhere(fmt.Sprintf(`equals(user.metadata.name, "%s")`, user2.GetName()))
@@ -6457,10 +6549,10 @@ func TestExtractConditionForIdentifier(t *testing.T) {
 
 	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(emptyUser)}}))
+	require.Empty(t, gocmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(emptyUser)}}))
 	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(user)}}))
+	require.Empty(t, gocmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(user)}}))
 	_, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.True(t, trace.IsAccessDenied(err))
 
@@ -6471,10 +6563,10 @@ func TestExtractConditionForIdentifier(t *testing.T) {
 
 	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, noRootLoginCond))
+	require.Empty(t, gocmp.Diff(cond, noRootLoginCond))
 	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cond, noRootLoginCond))
+	require.Empty(t, gocmp.Diff(cond, noRootLoginCond))
 	_, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.True(t, trace.IsAccessDenied(err))
 
@@ -7747,7 +7839,9 @@ func TestNewAccessCheckerForRemoteCluster(t *testing.T) {
 
 	// After sort: "admin","default-implicit-role","dev"
 	roles := accessChecker.Roles()
-	sort.Sort(SortedRoles(roles))
+	slices.SortFunc(roles, func(a, b types.Role) int {
+		return cmp.Compare(a.GetName(), b.GetName())
+	})
 	require.Len(t, roles, 3)
 	require.Contains(t, roles, devRole, "devRole not found in roleSet")
 	require.Contains(t, roles, adminRole, "adminRole not found in roleSet")

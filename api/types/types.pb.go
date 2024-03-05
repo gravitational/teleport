@@ -4087,7 +4087,7 @@ var xxx_messageInfo_ProvisionTokenSpecV2GitLab proto.InternalMessageInfo
 type ProvisionTokenSpecV2GitLab_Rule struct {
 	// Sub roughly uniquely identifies the workload. Example:
 	// `project_path:mygroup/my-project:ref_type:branch:ref:main`
-	// project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}
+	// project_path:GROUP/PROJECT:ref_type:TYPE:ref:BRANCH_NAME
 	//
 	// This field supports simple "glob-style" matching:
 	// - Use '*' to match zero or more characters.

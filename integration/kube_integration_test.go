@@ -671,7 +671,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		"Two clusters do not see each other: tunnels are not working.")
 
 	require.Eventually(t, func() bool {
-		tc, err := main.Process.GetAuthServer().GetRemoteCluster(aux.Secrets.SiteName)
+		tc, err := main.Process.GetAuthServer().GetRemoteCluster(ctx, aux.Secrets.SiteName)
 		if err != nil {
 			return false
 		}
@@ -949,7 +949,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 		"Two clusters do not see each other: tunnels are not working.")
 
 	require.Eventually(t, func() bool {
-		tc, err := main.Process.GetAuthServer().GetRemoteCluster(aux.Secrets.SiteName)
+		tc, err := main.Process.GetAuthServer().GetRemoteCluster(ctx, aux.Secrets.SiteName)
 		if err != nil {
 			return false
 		}

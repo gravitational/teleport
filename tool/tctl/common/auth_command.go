@@ -978,7 +978,7 @@ func (a *AuthCommand) checkLeafCluster(clusterAPI auth.ClientI) error {
 		return nil
 	}
 
-	clusters, err := clusterAPI.GetRemoteClusters()
+	clusters, err := clusterAPI.GetRemoteClusters(context.TODO())
 	if err != nil {
 		return trace.WrapWithMessage(err, "couldn't load leaf clusters")
 	}

@@ -25,7 +25,7 @@ ironrdp-tls.workspace = true
 ironrdp-tokio.workspace = true
 iso7816 = "0.1.2"
 iso7816-tlv = "0.4.4"
-log = "0.4.20"
+log = "0.4.21"
 parking_lot = "0.12.1"
 rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
@@ -39,7 +39,7 @@ uuid = { version = "1.7.0", features = ["v4"] }
 
 [build-dependencies]
 cbindgen = "0.26.0"
-tempfile = "3.10.0"
+tempfile = "3.10.1"
 
 [features]
 fips = ["tokio-boring/fips", "boring/fips"]

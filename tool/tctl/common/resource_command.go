@@ -47,6 +47,7 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -898,7 +899,6 @@ func (rc *ResourceCommand) createUIConfig(ctx context.Context, client auth.Clien
 	}
 	fmt.Printf("ui_config %q has been set\n", uic.GetName())
 	return nil
-
 }
 
 func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
@@ -1718,7 +1718,7 @@ func (rc *ResourceCommand) UpdateFields(ctx context.Context, clt auth.ClientI) e
 
 	switch rc.ref.Kind {
 	case types.KindRemoteCluster:
-		cluster, err := clt.GetRemoteCluster(rc.ref.Name)
+		cluster, err := clt.GetRemoteCluster(ctx, rc.ref.Name)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1730,7 +1730,7 @@ func (rc *ResourceCommand) UpdateFields(ctx context.Context, clt auth.ClientI) e
 		if !expiry.IsZero() {
 			cluster.SetExpiry(expiry)
 		}
-		if err = clt.UpdateRemoteCluster(ctx, cluster); err != nil {
+		if _, err = clt.UpdateRemoteCluster(ctx, cluster); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("cluster %v has been updated\n", rc.ref.Name)
@@ -1819,7 +1819,21 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		}
 		return &reverseTunnelCollection{tunnels: []types.ReverseTunnel{tunnel}}, nil
 	case types.KindCertAuthority:
-		if rc.ref.SubKind == "" && rc.ref.Name == "" {
+		getAll := rc.ref.SubKind == "" && rc.ref.Name == ""
+
+		// Prompt for admin action MFA if secrets were requested.
+		if rc.withSecrets {
+			// allow reuse for multiple calls to GetCertAuthorities with different ca types.
+			allowReuse := getAll
+			mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, allowReuse)
+			if err == nil {
+				ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+			} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		if getAll {
 			var allAuthorities []types.CertAuthority
 			for _, caType := range types.CertAuthTypes {
 				authorities, err := client.GetCertAuthorities(ctx, caType, rc.withSecrets)
@@ -1834,6 +1848,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			}
 			return &authorityCollection{cas: allAuthorities}, nil
 		}
+
 		id := types.CertAuthID{Type: types.CertAuthType(rc.ref.SubKind), DomainName: rc.ref.Name}
 		authority, err := client.GetCertAuthority(ctx, id, rc.withSecrets)
 		if err != nil {
@@ -1924,13 +1939,13 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		return &trustedClusterCollection{trustedClusters: []types.TrustedCluster{trustedCluster}}, nil
 	case types.KindRemoteCluster:
 		if rc.ref.Name == "" {
-			remoteClusters, err := client.GetRemoteClusters()
+			remoteClusters, err := client.GetRemoteClusters(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &remoteClusterCollection{remoteClusters: remoteClusters}, nil
 		}
-		remoteCluster, err := client.GetRemoteCluster(rc.ref.Name)
+		remoteCluster, err := client.GetRemoteCluster(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -443,7 +443,7 @@ func (c *mockClient) GetProxies() ([]types.Server, error) {
 	return c.proxies, nil
 }
 
-func (c *mockClient) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+func (c *mockClient) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
 	return c.remoteClusters, nil
 }
 

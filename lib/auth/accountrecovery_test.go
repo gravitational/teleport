@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
@@ -1232,10 +1233,14 @@ func TestGetAccountRecoveryCodes(t *testing.T) {
 
 func triggerLoginLock(t *testing.T, srv *Server, username string) {
 	for i := 1; i <= defaults.MaxLoginAttempts; i++ {
-		_, _, _, err := srv.authenticateUser(context.Background(), AuthenticateUserRequest{
-			Username: username,
-			OTP:      &OTPCreds{},
-		})
+		_, _, _, err := srv.authenticateUser(
+			context.Background(),
+			AuthenticateUserRequest{
+				Username: username,
+				OTP:      &OTPCreds{},
+			},
+			mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN},
+		)
 		require.True(t, trace.IsAccessDenied(err))
 
 		// Test last attempt returns locked error.

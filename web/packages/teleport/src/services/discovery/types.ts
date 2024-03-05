@@ -27,20 +27,22 @@ export type DiscoveryConfig = {
   aws: AwsMatcher[];
 };
 
-type AwsMatcherDatabaseTypes = 'ec2' | 'rds';
+type AwsMatcherTypes = 'rds' | 'eks' | 'ec2';
 
-// AWSMatcher matches AWS EC2 instances and AWS Databases
+// AWSMatcher matches AWS EC2 instances, AWS EKS clusters and AWS Databases
 export type AwsMatcher = {
-  // types are AWS database types to match, "ec2", "rds", "redshift", "elasticache",
+  // types are AWS types to match, "ec2", "eks", "rds", "redshift", "elasticache",
   // or "memorydb".
-  types: AwsMatcherDatabaseTypes[];
-  // regions are AWS regions to query for databases.
+  types: AwsMatcherTypes[];
+  // regions are AWS regions to query for resources.
   regions: Regions[];
   // tags are AWS resource tags to match.
   tags: Labels;
   // integration is the integration name used to generate credentials to interact with AWS APIs.
   // Environment credentials will not be used when this value is set.
   integration: string;
+  // kubeAppDiscovery specifies if Kubernetes App Discovery should be enabled for a discovered cluster.
+  kubeAppDiscovery?: boolean;
 };
 
 type Labels = Record<string, string[]>;
