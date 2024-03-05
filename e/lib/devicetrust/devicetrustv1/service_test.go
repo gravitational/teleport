@@ -2609,12 +2609,26 @@ func TestService_CreateDeviceWebToken(t *testing.T) {
 				t.Errorf("CreateDeviceWebToken returned token without the token itself: %#v", got)
 			}
 
-			assertEvents(t, emitter.Events(), []wantEvent{
+			allEvents := emitter.Events()
+			assertEvents(t, allEvents, []wantEvent{
 				{
 					Type: events.DeviceWebTokenCreateEvent,
 					Code: events.DeviceWebTokenCreateCode,
 				},
 			})
+
+			// Assert that the audit event user is the token.User, the context user
+			// here is the Auth process.
+			//
+			// Do some rudimentary checks below to avoid panics, but otherwise we rely
+			// on the assertEvents call above to verify the number and type of events.
+			if len(allEvents) == 1 {
+				if event, ok := allEvents[0].(*apievents.DeviceEvent2); ok {
+					if event.User != test.token.User {
+						t.Errorf("Audit event user mismatch: got=%q, want %q", event.User, test.token.User)
+					}
+				}
+			}
 		})
 	}
 }

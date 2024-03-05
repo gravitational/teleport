@@ -1020,8 +1020,11 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 		Status: apievents.Status{
 			Success: true,
 		},
-		Device:       getDeviceMetadata(auditDev),
-		UserMetadata: getUserMetadata(ctx),
+		Device: getDeviceMetadata(auditDev),
+		// Do not use getUserMetadata, the context user is the Auth process.
+		UserMetadata: apievents.UserMetadata{
+			User: token.User,
+		},
 	})
 
 	return created, nil
