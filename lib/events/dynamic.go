@@ -143,7 +143,7 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.GithubConnectorDelete{}
 	case OIDCConnectorCreatedEvent:
 		e = &events.OIDCConnectorCreate{}
-	case OIDCConnectorUpdatedEvent:
+	case OIDCConnectorUpdatedEvent, "oidc.updated":
 		e = &events.OIDCConnectorUpdate{}
 	case OIDCConnectorDeletedEvent:
 		e = &events.OIDCConnectorDelete{}

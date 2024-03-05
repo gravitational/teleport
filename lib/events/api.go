@@ -373,7 +373,7 @@ const (
 	// OIDCConnectorCreatedEvent fires when OIDC connector is created.
 	OIDCConnectorCreatedEvent = "oidc.created"
 	// OIDCConnectorUpdatedEvent fires when OIDC connector is updated.
-	OIDCConnectorUpdatedEvent = "oidc.updated"
+	OIDCConnectorUpdatedEvent = "access.graph.crown.jewel.access.updated"
 	// OIDCConnectorDeletedEvent fires when OIDC connector is deleted.
 	OIDCConnectorDeletedEvent = "oidc.deleted"
 	// SAMLConnectorCreatedEvent fires when SAML connector is created.

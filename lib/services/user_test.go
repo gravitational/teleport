@@ -21,6 +21,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/coreos/go-oidc/jose"
@@ -31,6 +32,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestTraits(t *testing.T) {
@@ -347,4 +349,27 @@ func claimsToAttributes(claims jose.Claims) saml2.AssertionInfo {
 		info.Values[claim] = attr
 	}
 	return info
+}
+
+func BenchmarkUnmarshalUser(b *testing.B) {
+	u := types.UserV2{
+		Kind: types.KindUser,
+		Metadata: types.Metadata{
+			Name:        strings.Repeat("a", 1000),
+			Namespace:   "",
+			Description: "",
+			Labels:      nil,
+		},
+	}
+	bytes, err := utils.FastMarshal(u)
+	require.NoError(b, err)
+
+	b.ResetTimer()
+	// Run the benchmark
+	for i := 0; i < b.N; i++ {
+		_, err := UnmarshalUser(bytes)
+		if err != nil {
+			b.Fatalf("error unmarshaling user: %v", err)
+		}
+	}
 }
