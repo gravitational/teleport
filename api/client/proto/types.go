@@ -85,7 +85,7 @@ func (req *ListResourcesRequest) RequiresFakePagination() bool {
 	return req.SortBy.Field != "" ||
 		req.NeedTotalCount ||
 		req.ResourceType == types.KindKubernetesCluster ||
-		req.ResourceType == types.KindSAMLIdPServiceProvider
+		req.ResourceType == types.KindAppOrSAMLIdPServiceProvider
 }
 
 // UpstreamInventoryMessage is a sealed interface representing the possible

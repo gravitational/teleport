@@ -3337,6 +3337,9 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetKubernetesServer()
 		case types.KindUserGroup:
 			resources[i] = respResource.GetUserGroup()
+		//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
+		case types.KindAppOrSAMLIdPServiceProvider:
+			resources[i] = respResource.GetAppServerOrSAMLIdPServiceProvider()
 		case types.KindSAMLIdPServiceProvider:
 			resources[i] = respResource.GetSAMLIdPServiceProvider()
 		default:
@@ -3414,6 +3417,9 @@ func getResourceFromProtoPage(resource *proto.PaginatedResource) (types.Resource
 		out = r
 		return out, nil
 	} else if r := resource.GetDatabaseService(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetAppServerOrSAMLIdPServiceProvider(); r != nil {
 		out = r
 		return out, nil
 	} else if r := resource.GetWindowsDesktop(); r != nil {
@@ -3531,6 +3537,9 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				resource = respResource.GetKubernetesServer()
 			case types.KindUserGroup:
 				resource = respResource.GetUserGroup()
+			//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
+			case types.KindAppOrSAMLIdPServiceProvider:
+				resource = respResource.GetAppServerOrSAMLIdPServiceProvider()
 			case types.KindSAMLIdPServiceProvider:
 				resource = respResource.GetSAMLIdPServiceProvider()
 			default:

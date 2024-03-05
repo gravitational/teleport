@@ -46,9 +46,8 @@ import (
 // clusterAppsGet returns a list of applications in a form the UI can present.
 // Not in use since v15+.
 // Pre v15 (v14 and below), clusterAppsGet returned both App and SAML service providers.
-// DELETE IN 16.0 (sshah).
 //
-//nolint:staticcheck // SA1019. To be deleted along with the API in 16.0.
+//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	identity, err := sctx.GetIdentity()
 	if err != nil {

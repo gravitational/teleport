@@ -2738,6 +2738,27 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				Logger:            h.log,
 			})
 			unifiedResources = append(unifiedResources, app)
+		//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
+		case types.AppServerOrSAMLIdPServiceProvider:
+			if r.IsAppServer() {
+				app := ui.MakeApp(r.GetAppServer().GetApp(), ui.MakeAppsConfig{
+					LocalClusterName:  h.auth.clusterName,
+					LocalProxyDNSName: h.proxyDNSName(),
+					AppClusterName:    site.GetName(),
+					Identity:          identity,
+					UserGroupLookup:   getUserGroupLookup(),
+					Logger:            h.log,
+				})
+				unifiedResources = append(unifiedResources, app)
+			} else {
+				app := ui.MakeAppTypeFromSAMLApp(r.GetSAMLIdPServiceProvider(), ui.MakeAppsConfig{
+					LocalClusterName:  h.auth.clusterName,
+					LocalProxyDNSName: h.proxyDNSName(),
+					AppClusterName:    site.GetName(),
+					Identity:          identity,
+				})
+				unifiedResources = append(unifiedResources, app)
+			}
 		case types.SAMLIdPServiceProvider:
 			// SAMLIdPServiceProvider resource are shown as
 			// "apps" in the UI.

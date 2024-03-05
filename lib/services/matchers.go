@@ -154,8 +154,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		types.KindDatabaseService,
 		types.KindKubernetesCluster,
 		types.KindWindowsDesktop, types.KindWindowsDesktopService,
-		types.KindUserGroup,
-		types.KindSAMLIdPServiceProvider:
+		types.KindUserGroup:
 		specResource = resource
 		resourceKey.name = fmt.Sprintf("%s/%s", specResource.GetName(), resourceKind)
 
@@ -172,14 +171,19 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		}
 		specResource = server.GetDatabase()
 		resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
-	case types.KindAppServer:
-		apps, ok := resource.(types.AppServer)
-		if !ok {
-			return false, trace.BadParameter("expected types.AppServer, got %T", resource)
+	case types.KindAppServer, types.KindSAMLIdPServiceProvider, types.KindAppOrSAMLIdPServiceProvider:
+		switch appOrSP := resource.(type) {
+		case types.AppServer:
+			app := appOrSP.GetApp()
+			specResource = app
+			resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
+			resourceKey.addr = app.GetPublicAddr()
+		case types.SAMLIdPServiceProvider:
+			specResource = appOrSP
+			resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
+		default:
+			return false, trace.BadParameter("expected types.SAMLIdPServiceProvider or types.AppServer, got %T", resource)
 		}
-		specResource = apps.GetApp()
-		resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
-		resourceKey.addr = apps.GetApp().GetPublicAddr()
 	default:
 		// We check if the resource kind is a Kubernetes resource kind to reduce the amount of
 		// of cases we need to handle. If the resource type didn't match any arm before
