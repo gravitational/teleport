@@ -2720,13 +2720,19 @@ func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toU
 	return decodedEvents, response.LastKey, nil
 }
 
+// ClusterConfigClient returns an unadorned Cluster Configuration client, using the underlying
+// Auth gRPC connection.
+func (c *Client) ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClient {
+	return clusterconfigpb.NewClusterConfigServiceClient(c.conn)
+}
+
 // GetClusterNetworkingConfig gets cluster networking configuration.
 func (c *Client) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-	resp, err := c.grpc.GetClusterNetworkingConfig(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	resp, err := c.ClusterConfigClient().GetClusterNetworkingConfig(ctx, &clusterconfigpb.GetClusterNetworkingConfigRequest{})
+	if err != nil && trace.IsNotImplemented(err) {
+		resp, err = c.grpc.GetClusterNetworkingConfig(ctx, &emptypb.Empty{})
 	}
-	return resp, nil
+	return resp, trace.Wrap(err)
 }
 
 // SetClusterNetworkingConfig sets cluster networking configuration.
@@ -2739,19 +2745,47 @@ func (c *Client) SetClusterNetworkingConfig(ctx context.Context, netConfig types
 	return trace.Wrap(err)
 }
 
+// UpdateClusterNetworkingConfig updates an existing cluster networking configuration.
+func (c *Client) UpdateClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
+	v2, ok := cfg.(*types.ClusterNetworkingConfigV2)
+	if !ok {
+		return nil, trace.BadParameter("unsupported cluster networking config type %T", cfg)
+	}
+
+	updated, err := c.ClusterConfigClient().UpdateClusterNetworkingConfig(ctx, &clusterconfigpb.UpdateClusterNetworkingConfigRequest{ClusterNetworkConfig: v2})
+	return updated, trace.Wrap(err)
+}
+
+// UpsertClusterNetworkingConfig creates a new configuration or overwrites the existing cluster networking configuration.
+func (c *Client) UpsertClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
+	v2, ok := cfg.(*types.ClusterNetworkingConfigV2)
+	if !ok {
+		return nil, trace.BadParameter("unsupported cluster networking config type %T", cfg)
+	}
+
+	updated, err := c.ClusterConfigClient().UpsertClusterNetworkingConfig(ctx, &clusterconfigpb.UpsertClusterNetworkingConfigRequest{ClusterNetworkConfig: v2})
+	return updated, trace.Wrap(err)
+}
+
 // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
 func (c *Client) ResetClusterNetworkingConfig(ctx context.Context) error {
-	_, err := c.grpc.ResetClusterNetworkingConfig(ctx, &emptypb.Empty{})
+	_, err := c.ClusterConfigClient().ResetClusterNetworkingConfig(ctx, &clusterconfigpb.ResetClusterNetworkingConfigRequest{})
+	if err != nil && trace.IsNotImplemented(err) {
+		_, err := c.grpc.ResetClusterNetworkingConfig(ctx, &emptypb.Empty{})
+		return trace.Wrap(err)
+	}
+
 	return trace.Wrap(err)
 }
 
 // GetSessionRecordingConfig gets session recording configuration.
 func (c *Client) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
-	resp, err := c.grpc.GetSessionRecordingConfig(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	resp, err := c.ClusterConfigClient().GetSessionRecordingConfig(ctx, &clusterconfigpb.GetSessionRecordingConfigRequest{})
+	if err != nil && trace.IsNotImplemented(err) {
+		resp, err = c.grpc.GetSessionRecordingConfig(ctx, &emptypb.Empty{})
 	}
-	return resp, nil
+
+	return resp, trace.Wrap(err)
 }
 
 // SetSessionRecordingConfig sets session recording configuration.
@@ -2766,22 +2800,52 @@ func (c *Client) SetSessionRecordingConfig(ctx context.Context, recConfig types.
 
 // ResetSessionRecordingConfig resets session recording configuration to defaults.
 func (c *Client) ResetSessionRecordingConfig(ctx context.Context) error {
-	_, err := c.grpc.ResetSessionRecordingConfig(ctx, &emptypb.Empty{})
+	_, err := c.ClusterConfigClient().ResetSessionRecordingConfig(ctx, &clusterconfigpb.ResetSessionRecordingConfigRequest{})
+	if err != nil && trace.IsNotImplemented(err) {
+		_, err := c.grpc.ResetSessionRecordingConfig(ctx, &emptypb.Empty{})
+		return trace.Wrap(err)
+	}
+
 	return trace.Wrap(err)
 }
 
-// GetAuthPreference gets cluster auth preference.
-func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	pref, err := c.grpc.GetAuthPreference(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, trace.Wrap(err)
+// UpdateSessionRecordingConfig updates an existing session recording configuration.
+func (c *Client) UpdateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	v2, ok := cfg.(*types.SessionRecordingConfigV2)
+	if !ok {
+		return nil, trace.BadParameter("unsupported session recording config type %T", cfg)
 	}
 
-	// An old server would send PIVSlot instead of HardwareKey.PIVSlot
-	// TODO(Joerger): DELETE IN 17.0.0
-	pref.CheckSetPIVSlot()
+	updated, err := c.ClusterConfigClient().UpdateSessionRecordingConfig(ctx, &clusterconfigpb.UpdateSessionRecordingConfigRequest{SessionRecordingConfig: v2})
+	return updated, trace.Wrap(err)
+}
 
-	return pref, nil
+// UpsertSessionRecordingConfig creates a new configuration or overwrites the existing session recording configuration.
+func (c *Client) UpsertSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	v2, ok := cfg.(*types.SessionRecordingConfigV2)
+	if !ok {
+		return nil, trace.BadParameter("unsupported session recording config type %T", cfg)
+	}
+
+	updated, err := c.ClusterConfigClient().UpsertSessionRecordingConfig(ctx, &clusterconfigpb.UpsertSessionRecordingConfigRequest{SessionRecordingConfig: v2})
+	return updated, trace.Wrap(err)
+}
+
+// GetAuthPreference gets the active cluster auth preference.
+func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+	pref, err := c.ClusterConfigClient().GetAuthPreference(ctx, &clusterconfigpb.GetAuthPreferenceRequest{})
+	if err != nil && trace.IsNotImplemented(err) {
+		pref, err := c.grpc.GetAuthPreference(ctx, &emptypb.Empty{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// An old server would send PIVSlot instead of HardwareKey.PIVSlot
+		// TODO(Joerger): DELETE IN 17.0.0
+		pref.CheckSetPIVSlot()
+	}
+
+	return pref, trace.Wrap(err)
 }
 
 // SetAuthPreference sets cluster auth preference.
@@ -2801,8 +2865,34 @@ func (c *Client) SetAuthPreference(ctx context.Context, authPref types.AuthPrefe
 
 // ResetAuthPreference resets cluster auth preference to defaults.
 func (c *Client) ResetAuthPreference(ctx context.Context) error {
-	_, err := c.grpc.ResetAuthPreference(ctx, &emptypb.Empty{})
+	_, err := c.ClusterConfigClient().ResetAuthPreference(ctx, &clusterconfigpb.ResetAuthPreferenceRequest{})
+	if err != nil && trace.IsNotImplemented(err) {
+		_, err := c.grpc.ResetAuthPreference(ctx, &emptypb.Empty{})
+		return trace.Wrap(err)
+	}
 	return trace.Wrap(err)
+}
+
+// UpdateAuthPreference updates an existing auth preference.
+func (c *Client) UpdateAuthPreference(ctx context.Context, p types.AuthPreference) (types.AuthPreference, error) {
+	v2, ok := p.(*types.AuthPreferenceV2)
+	if !ok {
+		return nil, trace.BadParameter("unsupported auth preference type %T", p)
+	}
+
+	updated, err := c.ClusterConfigClient().UpdateAuthPreference(ctx, &clusterconfigpb.UpdateAuthPreferenceRequest{AuthPreference: v2})
+	return updated, trace.Wrap(err)
+}
+
+// UpsertAuthPreference creates a new preference or overwrites the existing auth preference.
+func (c *Client) UpsertAuthPreference(ctx context.Context, p types.AuthPreference) (types.AuthPreference, error) {
+	v2, ok := p.(*types.AuthPreferenceV2)
+	if !ok {
+		return nil, trace.BadParameter("unsupported auth preference type %T", p)
+	}
+
+	updated, err := c.ClusterConfigClient().UpsertAuthPreference(ctx, &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: v2})
+	return updated, trace.Wrap(err)
 }
 
 // GetClusterAuditConfig gets cluster audit configuration.
