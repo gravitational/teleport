@@ -87,8 +87,6 @@ message DeleteAccessMonitoringRuleRequest {
   string resource_name = 1;
 }
 
-// DeleteAllAccessMonitoringRulesRequest is the request for DeleteAllAccessMonitoringRulesRequest.
-message DeleteAllAccessMonitoringRulesRequest {}
 
 // ListAccessMonitoringRulesResponse is the request for ListAccessMonitoringRules.
 message ListAccessMonitoringRulesRequest {
