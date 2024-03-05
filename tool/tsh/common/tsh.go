@@ -2993,7 +2993,7 @@ func onListClusters(cf *CLIConf) error {
 		}
 		defer rootAuthClient.Close()
 
-		leafClusters, err = rootAuthClient.GetRemoteClusters()
+		leafClusters, err = rootAuthClient.GetRemoteClusters(cf.Context)
 		return trace.Wrap(err)
 	})
 	if err != nil {

@@ -2564,7 +2564,7 @@ func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprout
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	remoteClusters, err := clt.GetRemoteClusters()
+	remoteClusters, err := clt.GetRemoteClusters(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	ecatypes "github.com/gravitational/teleport/api/types/externalauditstorage"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/configurators"
@@ -487,6 +488,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		IntegrationConfAWSOIDCIdPArguments.Role)
 	integrationConfAWSOIDCIdPCmd.Flag("proxy-public-url", "Proxy Public URL (eg https://mytenant.teleport.sh).").Required().StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL)
+	integrationConfAWSOIDCIdPCmd.Flag("insecure", "Insecure mode disables certificate validation.").BoolVar(&ccf.InsecureMode)
 
 	integrationConfListDatabasesCmd := integrationConfigureCmd.Command("listdatabases-iam", "Adds required IAM permissions to List RDS Databases (Instances and Clusters).")
 	integrationConfListDatabasesCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfListDatabasesIAMArguments.Region)
@@ -599,7 +601,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case integrationConfEKSCmd.FullCommand():
 		err = onIntegrationConfEKSIAM(ccf.IntegrationConfEKSIAMArguments)
 	case integrationConfAWSOIDCIdPCmd.FullCommand():
-		err = onIntegrationConfAWSOIDCIdP(ccf.IntegrationConfAWSOIDCIdPArguments)
+		err = onIntegrationConfAWSOIDCIdP(ccf)
 	case integrationConfListDatabasesCmd.FullCommand():
 		err = onIntegrationConfListDatabasesIAM(ccf.IntegrationConfListDatabasesIAMArguments)
 	case integrationConfExternalAuditCmd.FullCommand():
@@ -1010,8 +1012,11 @@ func onIntegrationConfEKSIAM(params config.IntegrationConfEKSIAM) error {
 	return nil
 }
 
-func onIntegrationConfAWSOIDCIdP(params config.IntegrationConfAWSOIDCIdP) error {
+func onIntegrationConfAWSOIDCIdP(clf config.CommandLineFlags) error {
 	ctx := context.Background()
+
+	// pass the value of --insecure flag to the runtime
+	lib.SetInsecureDevMode(clf.InsecureMode)
 
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
@@ -1022,10 +1027,10 @@ func onIntegrationConfAWSOIDCIdP(params config.IntegrationConfAWSOIDCIdP) error 
 	}
 
 	err = awsoidc.ConfigureIdPIAM(ctx, iamClient, awsoidc.IdPIAMConfigureRequest{
-		Cluster:            params.Cluster,
-		IntegrationName:    params.Name,
-		IntegrationRole:    params.Role,
-		ProxyPublicAddress: params.ProxyPublicURL,
+		Cluster:            clf.IntegrationConfAWSOIDCIdPArguments.Cluster,
+		IntegrationName:    clf.IntegrationConfAWSOIDCIdPArguments.Name,
+		IntegrationRole:    clf.IntegrationConfAWSOIDCIdPArguments.Role,
+		ProxyPublicAddress: clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
 	})
 	if err != nil {
 		return trace.Wrap(err)

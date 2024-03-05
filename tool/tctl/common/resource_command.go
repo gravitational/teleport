@@ -1718,7 +1718,7 @@ func (rc *ResourceCommand) UpdateFields(ctx context.Context, clt auth.ClientI) e
 
 	switch rc.ref.Kind {
 	case types.KindRemoteCluster:
-		cluster, err := clt.GetRemoteCluster(rc.ref.Name)
+		cluster, err := clt.GetRemoteCluster(ctx, rc.ref.Name)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1730,7 +1730,7 @@ func (rc *ResourceCommand) UpdateFields(ctx context.Context, clt auth.ClientI) e
 		if !expiry.IsZero() {
 			cluster.SetExpiry(expiry)
 		}
-		if err = clt.UpdateRemoteCluster(ctx, cluster); err != nil {
+		if _, err = clt.UpdateRemoteCluster(ctx, cluster); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("cluster %v has been updated\n", rc.ref.Name)
@@ -1939,13 +1939,13 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		return &trustedClusterCollection{trustedClusters: []types.TrustedCluster{trustedCluster}}, nil
 	case types.KindRemoteCluster:
 		if rc.ref.Name == "" {
-			remoteClusters, err := client.GetRemoteClusters()
+			remoteClusters, err := client.GetRemoteClusters(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &remoteClusterCollection{remoteClusters: remoteClusters}, nil
 		}
-		remoteCluster, err := client.GetRemoteCluster(rc.ref.Name)
+		remoteCluster, err := client.GetRemoteCluster(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

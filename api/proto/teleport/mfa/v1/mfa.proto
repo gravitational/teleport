@@ -66,6 +66,8 @@ enum ChallengeScope {
   // more precise scope. Instead, new scopes should be added. This scope may
   // also be split into multiple smaller scopes in the future.
   CHALLENGE_SCOPE_ADMIN_ACTION = 7;
+  // Used for changing user's password.
+  CHALLENGE_SCOPE_CHANGE_PASSWORD = 8;
 }
 
 // ChallengeAllowReuse determines whether an MFA challenge response can be used

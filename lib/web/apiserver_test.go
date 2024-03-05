@@ -738,7 +738,8 @@ func (s *WebSuite) authPackWithMFA(t *testing.T, name string, roles ...types.Rol
 
 	device.SetPasswordless()
 
-	ccr, err := device.SignCredentialCreation("https://localhost", cc)
+	const rpID = "localhost"
+	ccr, err := device.SignCredentialCreation("https://"+rpID, cc)
 	require.NoError(t, err)
 
 	_, err = s.server.Auth().ChangeUserAuthentication(s.ctx, &authproto.ChangeUserAuthenticationRequest{
@@ -752,31 +753,30 @@ func (s *WebSuite) authPackWithMFA(t *testing.T, name string, roles ...types.Rol
 	})
 	require.NoError(t, err)
 
-	beginReq := &client.MFAChallengeRequest{
-		User: name,
-		Pass: password,
-	}
-	re, err := s.loginMFA(clt, beginReq, device)
-	require.NoError(t, err)
+	ctx := context.Background()
+	sessionResp, httpResp := loginWebMFA(ctx, t, loginWebMFAParams{
+		webClient:     clt,
+		rpID:          rpID,
+		user:          name,
+		password:      password,
+		authenticator: device,
+	})
 
-	var rawSess *CreateSessionResponse
-	require.NoError(t, json.Unmarshal(re.Bytes(), &rawSess))
-
-	sess, err := rawSess.response()
+	sess, err := sessionResp.response()
 	require.NoError(t, err)
 
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
 	clt = s.client(t, roundtrip.BearerAuth(sess.Token), roundtrip.CookieJar(jar))
-	jar.SetCookies(s.url(), re.Cookies())
+	jar.SetCookies(s.url(), httpResp.Cookies())
 
 	return &authPack{
 		user:    name,
 		login:   s.user,
 		session: sess,
 		clt:     clt,
-		cookies: re.Cookies(),
+		cookies: httpResp.Cookies(),
 		device:  &auth.TestDevice{Key: device},
 	}
 }
@@ -7431,54 +7431,6 @@ func (c *TestWebClient) RoundTrip(fn roundtrip.RoundTripFn) (*roundtrip.Response
 	verifySecurityResponseHeaders(c.t, resp.Headers())
 
 	return resp, err
-}
-
-func (s *WebSuite) loginMFA(clt *TestWebClient, reqData *client.MFAChallengeRequest, device *mocku2f.Key) (*roundtrip.Response, error) {
-	resp, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
-		data, err := json.Marshal(reqData)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "mfa", "login", "begin"), bytes.NewBuffer(data))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-		resp, err := clt.HTTPClient().Do(req)
-		return resp, trace.Wrap(err)
-	}))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var challenge client.MFAAuthenticateChallenge
-	err = json.Unmarshal(resp.Bytes(), &challenge)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	car, err := device.SignAssertion("https://localhost", challenge.WebauthnChallenge)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
-		respData := &client.AuthenticateWebUserRequest{
-			User:                      reqData.User,
-			WebauthnAssertionResponse: car,
-		}
-		data, err := json.Marshal(respData)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "mfa", "login", "finishsession"), bytes.NewBuffer(data))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-		resp, err := clt.HTTPClient().Do(req)
-		return resp, trace.Wrap(err)
-	}))
 }
 
 func (s *WebSuite) url() *url.URL {
