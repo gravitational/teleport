@@ -20,6 +20,8 @@ import { pluralize } from 'shared/utils/text';
 
 import { makeApp, App } from 'teleterm/ui/services/clusters';
 
+import { objectifyAbortSignal } from 'teleterm/services/tshd/grpcContextBridgeClient';
+
 import type * as types from 'teleterm/services/tshd/types';
 import type * as uri from 'teleterm/ui/uri';
 import type { ResourceTypeFilter } from 'teleterm/ui/Search/searchResult';
@@ -146,23 +148,10 @@ export class ResourcesService {
     params: types.ListUnifiedResourcesRequest,
     abortSignal: AbortSignal
   ) {
-    const tshAbortSignal = {
-      aborted: false,
-      addEventListener: (string, cb: (...args: any[]) => void) => {
-        abortSignal.addEventListener('abort', cb);
-      },
-      removeEventListener: (string, cb: (...args: any[]) => void) => {
-        abortSignal.removeEventListener('abort', cb);
-      },
-    };
-    abortSignal.addEventListener(
-      'abort',
-      () => {
-        tshAbortSignal.aborted = true;
-      },
-      { once: true }
+    return this.tshClient.listUnifiedResources(
+      params,
+      objectifyAbortSignal(abortSignal)
     );
-    return this.tshClient.listUnifiedResources(params, tshAbortSignal);
   }
 }
 

@@ -38,10 +38,12 @@ function objectifyError(e) {
 
 type PublicPart<T> = { [K in keyof T]: T[K] }; //keyof only sees public properties
 
-function validateAbortSignalType(abortSignal: AbortSignal) {
-  if (abortSignal instanceof AbortSignal) {
+function validateAbortSignalType(
+  abortSignal: AbortSignal | ObjectifiedAbortSignal
+) {
+  if (abortSignal && abortSignal['canBePassedThroughContextBridge'] !== true) {
     throw new Error(
-      'You must not pass AbortSignal instance. Use objectified version (tshAbortSignal).'
+      'You must not pass AbortSignal instance. Use objectified version (ObjectifedAbortSignal).'
     );
   }
 }
@@ -123,4 +125,30 @@ export function objectifyClient<T>(client: ServiceInfo): T {
     previousValue[localName] = (...args) => client[localName](...args);
     return previousValue;
   }, {} as T);
+}
+
+export type ObjectifiedAbortSignal = AbortSignal & {
+  canBePassedThroughContextBridge: true;
+};
+
+export function objectifyAbortSignal(a: AbortSignal): ObjectifiedAbortSignal {
+  return {
+    canBePassedThroughContextBridge: true,
+    onabort: (...args) => a.onabort(...args),
+    throwIfAborted: () => a.throwIfAborted(),
+    // getters allow reading the fresh value of class fields
+    get reason() {
+      return a.reason;
+    },
+    get aborted() {
+      return a.aborted;
+    },
+    dispatchEvent: (...args) => a.dispatchEvent(...args),
+    addEventListener: (type, listener, options) =>
+      a.addEventListener(type, listener, options),
+    removeEventListener: (type, listener, options) =>
+      a.removeEventListener(type, listener, options),
+    eventListeners: (...args) => a.eventListeners(...args),
+    removeAllListeners: (...args) => a.removeAllListeners(...args),
+  };
 }

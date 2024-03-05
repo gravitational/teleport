@@ -182,7 +182,7 @@ describe('updating preferences', () => {
     jest
       .spyOn(appContext.tshd, 'getUserPreferences')
       .mockImplementation((requestParams, abortSignal) => {
-        abortSignal.addEventListener(() =>
+        abortSignal.addEventListener('abort', () =>
           rejectGetUserPreferencesPromise(new Error('Aborted'))
         );
         return getUserPreferencesPromise;

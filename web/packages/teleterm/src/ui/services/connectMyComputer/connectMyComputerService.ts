@@ -23,8 +23,8 @@ import {
   Cluster,
   CreateConnectMyComputerRoleResponse,
   Server,
-  TshAbortSignal,
 } from 'teleterm/services/tshd/types';
+import { ObjectifiedAbortSignal } from 'teleterm/services/tshd/grpcContextBridgeClient';
 
 import type * as uri from 'teleterm/ui/uri';
 
@@ -110,7 +110,7 @@ export class ConnectMyComputerService {
 
   async waitForNodeToJoin(
     rootClusterUri: uri.RootClusterUri,
-    abortSignal: TshAbortSignal
+    abortSignal: ObjectifiedAbortSignal
   ): Promise<Server> {
     const response =
       await this.terminalServiceClient.waitForConnectMyComputerNodeJoin(

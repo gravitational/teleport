@@ -17,6 +17,7 @@
  */
 
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { ObjectifiedAbortSignal } from 'teleterm/services/tshd/grpcContextBridgeClient';
 
 import * as types from '../types';
 
@@ -55,7 +56,6 @@ export class MockTshClient implements types.TshdClient {
   createAccessRequest: (
     params: types.CreateAccessRequestParams
   ) => Promise<types.AccessRequest>;
-  createAbortController: () => types.TshAbortController;
   addRootCluster: (addr: string) => Promise<types.Cluster>;
 
   listGateways: () => Promise<types.Gateway[]>;
@@ -75,15 +75,15 @@ export class MockTshClient implements types.TshdClient {
   removeCluster = () => Promise.resolve();
   loginLocal: (
     params: types.LoginLocalParams,
-    abortSignal?: types.TshAbortSignal
+    abortSignal?: ObjectifiedAbortSignal
   ) => Promise<undefined>;
   loginSso: (
     params: types.LoginSsoParams,
-    abortSignal?: types.TshAbortSignal
+    abortSignal?: ObjectifiedAbortSignal
   ) => Promise<undefined>;
   loginPasswordless: (
     params: types.LoginPasswordlessParams,
-    abortSignal?: types.TshAbortSignal
+    abortSignal?: ObjectifiedAbortSignal
   ) => Promise<undefined>;
   logout = () => Promise.resolve();
   transferFile: () => undefined;

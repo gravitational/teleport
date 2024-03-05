@@ -30,6 +30,7 @@ import {
   resourceOneOfIsKube,
 } from 'teleterm/helpers';
 
+import { ObjectifiedAbortSignal } from './grpcContextBridgeClient';
 import { createFileTransferStream } from './createFileTransferStream';
 import * as types from './types';
 import {
@@ -37,7 +38,6 @@ import {
   UpdateHeadlessAuthenticationStateParams,
   UnifiedResourceResponse,
 } from './types';
-import createAbortController from './createAbortController';
 
 export function createTshdClient(
   tshd: ITerminalServiceClient
@@ -46,7 +46,6 @@ export function createTshdClient(
 
   // Create a client instance that could be shared with the  renderer (UI) via Electron contextBridge
   const client = {
-    createAbortController,
     async logout(clusterUri: uri.RootClusterUri) {
       const req: api.LogoutRequest = { clusterUri };
       await tshd.logout(req);
@@ -83,7 +82,7 @@ export function createTshdClient(
       startKey,
       limit,
     }: types.GetResourcesParams) {
-      return (
+      const { response, trailers, headers, request, status } =
         await tshd.getApps({
           clusterUri,
           searchAsRoles,
@@ -92,8 +91,9 @@ export function createTshdClient(
           query,
           limit,
           sortBy: sort ? `${sort.fieldName}:${sort.dir.toLowerCase()}` : '',
-        })
-      ).response as types.GetAppsResponse;
+        });
+
+      return response as types.GetAppsResponse;
     },
 
     async listGateways() {
@@ -105,7 +105,7 @@ export function createTshdClient(
         .clusters as types.Cluster[];
     },
 
-    async listRootClusters(abortSignal?: types.TshAbortSignal) {
+    async listRootClusters(abortSignal?: ObjectifiedAbortSignal) {
       return (
         await tshd.listRootClusters(
           {},
@@ -250,7 +250,7 @@ export function createTshdClient(
 
     async loginLocal(
       params: types.LoginLocalParams,
-      abortSignal?: types.TshAbortSignal
+      abortSignal?: ObjectifiedAbortSignal
     ) {
       await tshd.login(
         {
@@ -272,7 +272,7 @@ export function createTshdClient(
 
     async loginSso(
       params: types.LoginSsoParams,
-      abortSignal?: types.TshAbortSignal
+      abortSignal?: ObjectifiedAbortSignal
     ) {
       await tshd.login(
         {
@@ -291,7 +291,7 @@ export function createTshdClient(
 
     async loginPasswordless(
       params: types.LoginPasswordlessParams,
-      abortSignal?: types.TshAbortSignal
+      abortSignal?: ObjectifiedAbortSignal
     ) {
       return new Promise<void>((resolve, reject) => {
         const stream = tshd.loginPasswordless({
@@ -432,7 +432,7 @@ export function createTshdClient(
 
     transferFile(
       req: types.FileTransferRequest,
-      abortSignal: types.TshAbortSignal
+      abortSignal: ObjectifiedAbortSignal
     ) {
       return createFileTransferStream(
         tshd.transferFile(req, {
@@ -463,7 +463,7 @@ export function createTshdClient(
 
     async waitForConnectMyComputerNodeJoin(
       uri: uri.RootClusterUri,
-      abortSignal: types.TshAbortSignal
+      abortSignal: ObjectifiedAbortSignal
     ) {
       return (await tshd.waitForConnectMyComputerNodeJoin(
         {
@@ -491,7 +491,7 @@ export function createTshdClient(
 
     async updateHeadlessAuthenticationState(
       params: UpdateHeadlessAuthenticationStateParams,
-      abortSignal?: types.TshAbortSignal
+      abortSignal?: ObjectifiedAbortSignal
     ) {
       await tshd.updateHeadlessAuthenticationState(params, {
         abort: abortSignal,
@@ -500,7 +500,7 @@ export function createTshdClient(
 
     async listUnifiedResources(
       params: types.ListUnifiedResourcesRequest,
-      abortSignal?: types.TshAbortSignal
+      abortSignal?: ObjectifiedAbortSignal
     ) {
       const req: api.ListUnifiedResourcesRequest = {
         clusterUri: params.clusterUri,
@@ -555,7 +555,7 @@ export function createTshdClient(
     },
     async getUserPreferences(
       params: api.GetUserPreferencesRequest,
-      abortSignal?: types.TshAbortSignal
+      abortSignal?: ObjectifiedAbortSignal
     ): Promise<api.UserPreferences> {
       return (
         await tshd.getUserPreferences(params, {
@@ -565,7 +565,7 @@ export function createTshdClient(
     },
     async updateUserPreferences(
       params: api.UpdateUserPreferencesRequest,
-      abortSignal?: types.TshAbortSignal
+      abortSignal?: ObjectifiedAbortSignal
     ): Promise<api.UserPreferences> {
       const userPreferences: api.UserPreferences = {};
       if (params.userPreferences.clusterPreferences) {
@@ -600,7 +600,7 @@ export function createTshdClient(
     },
     async promoteAccessRequest(
       params: api.PromoteAccessRequestRequest,
-      abortSignal?: types.TshAbortSignal
+      abortSignal?: ObjectifiedAbortSignal
     ): Promise<types.AccessRequest> {
       return (
         await tshd.promoteAccessRequest(params, {
@@ -610,7 +610,7 @@ export function createTshdClient(
     },
     async getSuggestedAccessLists(
       params: api.GetSuggestedAccessListsRequest,
-      abortSignal?: types.TshAbortSignal
+      abortSignal?: ObjectifiedAbortSignal
     ): Promise<types.AccessList[]> {
       return (
         await tshd.getSuggestedAccessLists(params, {

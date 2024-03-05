@@ -21,6 +21,8 @@ import { MainProcessClient } from 'teleterm/types';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { ConfigService } from 'teleterm/services/config';
 
+import { ObjectifiedAbortSignal } from 'teleterm/services/tshd/grpcContextBridgeClient';
+
 import type * as types from 'teleterm/services/tshd/types';
 
 export class HeadlessAuthenticationService {
@@ -60,7 +62,7 @@ export class HeadlessAuthenticationService {
 
   async updateHeadlessAuthenticationState(
     params: types.UpdateHeadlessAuthenticationStateParams,
-    abortSignal: types.TshAbortSignal
+    abortSignal: ObjectifiedAbortSignal
   ): Promise<void> {
     return this.tshClient.updateHeadlessAuthenticationState(
       params,
