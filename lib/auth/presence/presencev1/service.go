@@ -41,8 +41,8 @@ type Cache interface{}
 type Backend interface {
 	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
 	ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error)
-	CreateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error)
 	UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error)
+	PatchRemoteCluster(ctx context.Context, name string, updateFn func(rc types.RemoteCluster) (types.RemoteCluster, error)) (types.RemoteCluster, error)
 }
 
 type AuthServer interface {
@@ -195,36 +195,6 @@ func (s *Service) ListRemoteClusters(
 		RemoteClusters: filteredPage,
 		NextPageToken:  nextToken,
 	}, nil
-}
-
-// CreateRemoteCluster creates a new remote cluster.
-func (s *Service) CreateRemoteCluster(
-	ctx context.Context, req *presencepb.CreateRemoteClusterRequest,
-) (*types.RemoteClusterV3, error) {
-	if req.RemoteCluster == nil {
-		return nil, trace.BadParameter("remote_cluster: must not be nil")
-	}
-
-	authCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := authCtx.CheckAccessToKind(types.KindRemoteCluster, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	rc, err := s.backend.CreateRemoteCluster(ctx, req.RemoteCluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	v3, ok := rc.(*types.RemoteClusterV3)
-	if !ok {
-		s.logger.Warnf("expected type RemoteClusterV3, got %T for %q", rc, rc.GetName())
-		return nil, trace.BadParameter("encountered unexpected remote cluster type")
-	}
-
-	return v3, nil
 }
 
 // UpdateRemoteCluster updates a remote cluster.

@@ -4791,18 +4791,6 @@ func (c *Client) ListRemoteClusters(ctx context.Context, pageSize int, nextToken
 	return rcs, res.NextPageToken, nil
 }
 
-// CreateRemoteCluster creates remote cluster resource
-func (c *Client) CreateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error) {
-	rcV3, ok := rc.(*types.RemoteClusterV3)
-	if !ok {
-		return nil, trace.BadParameter("unsupported remote cluster type %T", rcV3)
-	}
-	rc, err := c.PresenceServiceClient().CreateRemoteCluster(ctx, &presencepb.CreateRemoteClusterRequest{
-		RemoteCluster: rcV3,
-	})
-	return rc, trace.Wrap(err)
-}
-
 // DeleteRemoteCluster creates remote cluster resource
 func (c *Client) DeleteRemoteCluster(ctx context.Context, name string) error {
 	_, err := c.PresenceServiceClient().DeleteRemoteCluster(ctx, &presencepb.DeleteRemoteClusterRequest{
