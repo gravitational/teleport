@@ -33,6 +33,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -85,7 +86,7 @@ func newWorkloadIdentityIssueCommand(parent *kingpin.CmdClause) *workloadIdentit
 		StringsVar(&cmd.svidDNSSANs)
 	cmd.Flag("ip-san", "IP SANs to include in the SVID").
 		StringsVar(&cmd.svidIPSANs)
-	cmd.Flag("ttl", "Time to live for the SVID").
+	cmd.Flag("svid-ttl", "Time to live for the SVID").
 		Default("1h").
 		DurationVar(&cmd.svidTTL)
 	return cmd
@@ -102,102 +103,102 @@ func (c *workloadIdentityIssueCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	clusterClient, err := tc.ConnectToCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer clusterClient.Close()
-
-	rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer rootAuthClient.Close()
-
-	privateKey, err := native.GenerateRSAPrivateKey()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	pubBytes, err := x509.MarshalPKIXPublicKey(privateKey.Public())
-	if err != nil {
-		return trace.Wrap(err)
+	if cf.Headless {
+		tc.AllowHeadless = true
 	}
 
-	res, err := rootAuthClient.WorkloadIdentityServiceClient().SignX509SVIDs(ctx,
-		&machineidv1pb.SignX509SVIDsRequest{
-			Svids: []*machineidv1pb.SVIDRequest{
-				{
-					SpiffeIdPath: c.svidPath,
-					PublicKey:    pubBytes,
-					DnsSans:      c.svidDNSSANs,
-					IpSans:       c.svidIPSANs,
+	return client.RetryWithRelogin(ctx, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		// Generate keypair to use in SVID
+		privateKey, err := native.GenerateRSAPrivateKey()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		pubBytes, err := x509.MarshalPKIXPublicKey(privateKey.Public())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		res, err := clusterClient.AuthClient.WorkloadIdentityServiceClient().
+			SignX509SVIDs(ctx,
+				&machineidv1pb.SignX509SVIDsRequest{
+					Svids: []*machineidv1pb.SVIDRequest{
+						{
+							SpiffeIdPath: c.svidPath,
+							PublicKey:    pubBytes,
+							DnsSans:      c.svidDNSSANs,
+							IpSans:       c.svidIPSANs,
+						},
+					},
 				},
-			},
-		},
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(res.Svids) != 1 {
-		return trace.BadParameter("expected 1 SVID, got %v", len(res.Svids))
-	}
+			)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(res.Svids) != 1 {
+			return trace.BadParameter("expected 1 SVID, got %v", len(res.Svids))
+		}
 
-	// Write private key
-	privBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = os.WriteFile(
-		path.Join(c.outputDirectory, svidKeyPEMPath),
-		pem.EncodeToMemory(&pem.Block{
-			Type:  "PRIVATE KEY",
-			Bytes: privBytes,
-		}),
-		teleport.FileMaskOwnerOnly,
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+		// Write private key
+		privBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		err = os.WriteFile(
+			path.Join(c.outputDirectory, svidKeyPEMPath),
+			pem.EncodeToMemory(&pem.Block{
+				Type:  "PRIVATE KEY",
+				Bytes: privBytes,
+			}),
+			teleport.FileMaskOwnerOnly,
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	// Write SVID
-	err = os.WriteFile(
-		path.Join(c.outputDirectory, svidPEMPath),
-		pem.EncodeToMemory(&pem.Block{
-			Type:  "CERTIFICATE",
-			Bytes: res.Svids[0].Certificate,
-		}),
-		teleport.FileMaskOwnerOnly,
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+		// Write SVID
+		err = os.WriteFile(
+			path.Join(c.outputDirectory, svidPEMPath),
+			pem.EncodeToMemory(&pem.Block{
+				Type:  "CERTIFICATE",
+				Bytes: res.Svids[0].Certificate,
+			}),
+			teleport.FileMaskOwnerOnly,
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	// Write trust bundle
-	caRes, err := rootAuthClient.GetCertAuthorities(
-		ctx, types.SPIFFECA, false,
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	trustBundleBytes := &bytes.Buffer{}
-	for _, ca := range caRes {
-		for _, cert := range services.GetTLSCerts(ca) {
-			// Values are already PEM encoded, so we just append to the buffer
-			if _, err := trustBundleBytes.Write(cert); err != nil {
-				return trace.Wrap(err, "writing trust bundle to buffer")
+		// Write trust bundle
+		caRes, err := clusterClient.AuthClient.GetCertAuthorities(
+			ctx, types.SPIFFECA, false,
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		trustBundleBytes := &bytes.Buffer{}
+		for _, ca := range caRes {
+			for _, cert := range services.GetTLSCerts(ca) {
+				// Values are already PEM encoded, so we just append to the buffer
+				if _, err := trustBundleBytes.Write(cert); err != nil {
+					return trace.Wrap(err, "writing trust bundle to buffer")
+				}
 			}
 		}
-	}
-	err = os.WriteFile(
-		path.Join(c.outputDirectory, svidTrustBundlePEMPath),
-		trustBundleBytes.Bytes(),
-		teleport.FileMaskOwnerOnly,
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+		err = os.WriteFile(
+			path.Join(c.outputDirectory, svidTrustBundlePEMPath),
+			trustBundleBytes.Bytes(),
+			teleport.FileMaskOwnerOnly,
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	return nil
-
+		return nil
+	})
 }
