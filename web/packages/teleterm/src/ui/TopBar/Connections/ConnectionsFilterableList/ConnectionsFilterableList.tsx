@@ -16,122 +16,55 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { Box, Text, ButtonIcon, Flex } from 'design';
-import { Unlink } from 'design/Icon';
-
 import { FilterableList } from 'teleterm/ui/components/FilterableList';
 import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
 import { useKeyboardArrowsNavigationStateUpdate } from 'teleterm/ui/components/KeyboardArrowsNavigation';
-import { ListItem } from 'teleterm/ui/components/ListItem';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { VnetConnectionItem } from 'teleterm/ui/Vnet';
 
 import { ConnectionItem } from './ConnectionItem';
-import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 
 export function ConnectionsFilterableList(props: {
   items: ExtendedTrackedConnection[];
   onActivateItem(id: string): void;
   onRemoveItem(id: string): void;
   onDisconnectItem(id: string): void;
-  closePopover(): void;
+  slideToVnet(): void;
 }) {
   const { setActiveIndex } = useKeyboardArrowsNavigationStateUpdate();
 
+  // TODO(ravicious): Render "No Connections" if props.items.length is zero and VNet isn't
+  // supported.
   return (
-    <Box width="300px">
+    <FilterableList<ExtendedTrackedConnection>
+      items={props.items}
+      filterBy="title"
+      placeholder="Search Connections"
+      onFilterChange={value =>
+        value.length ? setActiveIndex(0) : setActiveIndex(-1)
+      }
+      Node={({ item, index }) => (
+        <ConnectionItem
+          item={item}
+          index={index}
+          onActivate={() => props.onActivateItem(item.id)}
+          onRemove={() => props.onRemoveItem(item.id)}
+          onDisconnect={() => props.onDisconnectItem(item.id)}
+        />
+      )}
+    >
       {/*
-        TODO(ravicious): Render "No Connections" if props.items.length is zero and VNet isn't
-        supported.
-      */}
-      <FilterableList<ExtendedTrackedConnection>
-        items={props.items}
-        filterBy="title"
-        placeholder="Search Connections"
-        onFilterChange={value =>
-          value.length ? setActiveIndex(0) : setActiveIndex(-1)
-        }
-        Node={({ item, index }) => (
-          <ConnectionItem
-            item={item}
-            index={index}
-            onActivate={() => props.onActivateItem(item.id)}
-            onRemove={() => props.onRemoveItem(item.id)}
-            onDisconnect={() => props.onDisconnectItem(item.id)}
-          />
-        )}
-      >
-        {/*
-            TODO(ravicious): Change the type of FilterableList above to something like
-            FilterableList<ExtendedTrackedConnection | Vnet> and render a different component in Node
-            depending on the item type.
+        TODO(ravicious): Change the type of FilterableList above to something like
+        FilterableList<ExtendedTrackedConnection | Vnet> and render a different component in Node
+        depending on the item type. This way VNet will have tighter integration with the connection
+        list, i.e. be searchable and selectable through keyboard.
 
-            We don't want to put VNet into ExtendedTrackedConnection because these are two
-            fundamentally different things.
-          */}
-        <VnetConnection closePopover={props.closePopover} />
-      </FilterableList>
-    </Box>
+        We don't want to put VNet into ExtendedTrackedConnection because these are two fundamentally
+        different things.
+      */}
+      <VnetConnectionItem
+        onClick={props.slideToVnet}
+        title="Open VNet details"
+      />
+    </FilterableList>
   );
 }
-
-const VnetConnection = (props: { closePopover: () => void }) => {
-  const { workspacesService } = useAppContext();
-  const documentsService =
-    workspacesService.getActiveWorkspaceDocumentService();
-  const rootClusterUri = workspacesService.getRootClusterUri();
-
-  return (
-    <ListItem
-      css={`
-        padding: 6px 8px;
-        height: unset;
-      `}
-      onClick={() => {
-        documentsService.openVnetDocument({ rootClusterUri });
-        props.closePopover();
-      }}
-    >
-      <ConnectionStatusIndicator
-        mr={3}
-        css={`
-          flex-shrink: 0;
-        `}
-        connected={true}
-      />
-      <Flex
-        alignItems="center"
-        justifyContent="space-between"
-        flex="1"
-        minWidth="0"
-      >
-        <div
-          css={`
-            min-width: 0;
-          `}
-        >
-          <Text
-            typography="body1"
-            bold
-            color="text.main"
-            css={`
-              line-height: 16px;
-            `}
-          >
-            <span
-              css={`
-                vertical-align: middle;
-              `}
-            >
-              VNet
-            </span>
-          </Text>
-        </div>
-        <ButtonIcon mr="-3px" title="Disconnect">
-          <Unlink size={18} />
-        </ButtonIcon>
-      </Flex>
-    </ListItem>
-  );
-};

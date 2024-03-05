@@ -20,6 +20,7 @@ import React from 'react';
 
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { VnetContextProvider } from 'teleterm/ui/Vnet';
 
 import { Connections } from './Connections';
 
@@ -69,7 +70,9 @@ export function ExpanderConnections() {
 
   return (
     <AppContextProvider value={appContext}>
-      <Connections />
+      <VnetContextProvider>
+        <Connections />
+      </VnetContextProvider>
     </AppContextProvider>
   );
 }
