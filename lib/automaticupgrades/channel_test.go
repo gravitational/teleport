@@ -119,19 +119,19 @@ func Test_Channel_CheckAndSetDefaults(t *testing.T) {
 
 	tests := []struct {
 		name                        string
-		channel                     Channel
+		channel                     *Channel
 		assertError                 require.ErrorAssertionFunc
 		expectedVersionGetterType   interface{}
 		expectedCriticalTriggerType interface{}
 	}{
 		{
 			name:        "empty (invalid)",
-			channel:     Channel{},
+			channel:     &Channel{},
 			assertError: require.Error,
 		},
 		{
 			name: "forward URL (valid)",
-			channel: Channel{
+			channel: &Channel{
 				ForwardURL: stableCloudVersionBaseURL,
 			},
 			assertError:                 require.NoError,
@@ -140,7 +140,7 @@ func Test_Channel_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "static version (valid)",
-			channel: Channel{
+			channel: &Channel{
 				StaticVersion: testVersion,
 			},
 			assertError:                 require.NoError,
@@ -149,7 +149,7 @@ func Test_Channel_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "all set (invalid)",
-			channel: Channel{
+			channel: &Channel{
 				ForwardURL:    stableCloudVersionBaseURL,
 				StaticVersion: testVersion,
 			},
