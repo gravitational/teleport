@@ -120,7 +120,11 @@ type SessionCreds struct {
 func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
 	username := req.Username
 
-	verifyMFALocks, mfaDev, actualUsername, err := a.authenticateUser(ctx, req)
+	requiredExt := mfav1.ChallengeExtensions{
+		Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+	}
+	verifyMFALocks, mfaDev, actualUsername, err := a.authenticateUser(
+		ctx, req, requiredExt)
 	if err != nil {
 		// Log event after authentication failure
 		if err := a.emitAuthAuditEvent(ctx, authAuditProps{
@@ -259,7 +263,7 @@ var (
 	authenticateHeadlessError = trace.AccessDenied("headless authentication failed")
 	// authenticateWebauthnError is the generic error returned for failed WebAuthn
 	// authentication attempts.
-	authenticateWebauthnError = trace.AccessDenied("invalid Webauthn response")
+	authenticateWebauthnError = trace.AccessDenied("invalid credentials")
 	// invalidUserPassError is the error for when either the provided username or
 	// password is incorrect.
 	invalidUserPassError = trace.AccessDenied("invalid username or password")
@@ -285,7 +289,19 @@ type verifyMFADeviceLocksParams struct {
 }
 
 // authenticateUser authenticates a user through various methods (password, MFA,
-// passwordless)
+// passwordless). Note that "authenticate" may mean different things, depending
+// on the request and required extensions. The caller is responsible for making
+// sure that the request and extensions correctly describe the conditions that
+// are being asserted during the authentication process. One important caveat is
+// that if the request contains a WebAuthn challenge response, the user name is
+// known, and `authenticateUser` is called without a password, the function only
+// performs a second factor check; in this case, the caller must provide
+// appropriate required extensions to validate the WebAuthn challenge response.
+//
+// The `requiredExt` parameter is used to assert that the MFA challenge has a
+// correct extensions. It is ignored for passwordless authentication, where we
+// override it with an extension that has scope set to
+// `mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN`.
 //
 // Returns a callback to verify MFA device locks, the MFA device used to
 // authenticate (if applicable), and the authenticated user name.
@@ -294,8 +310,9 @@ type verifyMFADeviceLocksParams struct {
 func (a *Server) authenticateUser(
 	ctx context.Context,
 	req AuthenticateUserRequest,
+	requiredExt mfav1.ChallengeExtensions,
 ) (verifyLocks func(verifyMFADeviceLocksParams) error, mfaDev *types.MFADevice, user string, err error) {
-	mfaDev, user, err = a.authenticateUserInternal(ctx, req)
+	mfaDev, user, err = a.authenticateUserInternal(ctx, req, requiredExt)
 	if err != nil || mfaDev == nil {
 		return func(verifyMFADeviceLocksParams) error { return nil }, mfaDev, user, trace.Wrap(err)
 	}
@@ -340,7 +357,11 @@ func (a *Server) authenticateUser(
 }
 
 // Do not use this method directly, use authenticateUser instead.
-func (a *Server) authenticateUserInternal(ctx context.Context, req AuthenticateUserRequest) (mfaDev *types.MFADevice, user string, err error) {
+func (a *Server) authenticateUserInternal(
+	ctx context.Context,
+	req AuthenticateUserRequest,
+	requiredExt mfav1.ChallengeExtensions,
+) (mfaDev *types.MFADevice, user string, err error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -349,6 +370,10 @@ func (a *Server) authenticateUserInternal(ctx context.Context, req AuthenticateU
 
 	// Only one path if passwordless, other variants shouldn't see an empty user.
 	if passwordless {
+		if requiredExt.Scope != mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN {
+			return nil, "", trace.BadParameter(
+				"passwordless authentication can only be used with the PASSWORDLESS scope")
+		}
 		return a.authenticatePasswordless(ctx, req)
 	}
 
@@ -381,8 +406,7 @@ func (a *Server) authenticateUserInternal(ctx context.Context, req AuthenticateU
 					Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
 				},
 			}
-			requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN}
-			mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, requiredExt)
+			mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, &requiredExt)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
