@@ -26,23 +26,15 @@ description: How to configure Teleport database access with GCP Cloud SQL MySQL.
 
 ## Step 1/7. Enable Cloud SQL IAM authentication
 
-Teleport can access MySQL on GCP Cloud SQL as built-in database users with
-passwords or database users with [IAM
-authentication](https://cloud.google.com/sql/docs/mysql/iam-authentication).
-
-Teleport generates a one-time password for built-in database users and updates
-the database user before each connection. However, this method is only
-maintained for legacy reasons and it's highly recommended to use IAM
-authentication instead. You can skip this step if only built-in database users
-are used.
+Teleport uses [IAM
+authentication](https://cloud.google.com/sql/docs/mysql/iam-authentication)
+with Cloud SQL MySQL instances.
 
 (!docs/pages/includes/database-access/cloudsql_enable_iam_auth.mdx type="MySQL" !)
 
 ## Step 2/7. Create a service account to access the MySQL instance
 
-Teleport uses service accounts to connect to Cloud SQL databases when using IAM
-authentication. You can skip this step if only built-in database users are
-used.
+Teleport uses service accounts to connect to Cloud SQL databases.
 
 (!docs/pages/includes/database-access/cloudsql_create_db_user_account.mdx!)
 
@@ -75,13 +67,6 @@ page and create another service account:
 
 ### Grant permissions
 
-Grant the following permissions to the service account depending on the
-how database users are authenticated:
-
-<Tabs>
-
-<TabItem label="Database users with IAM Authentication">
-
 (!docs/pages/includes/database-access/cloudsql_grant_db_service_account.mdx!)
 
 <Admonition type="note" title="Service account permissions">
@@ -98,33 +83,6 @@ how database users are authenticated:
   cloudsql.instances.get
   ```
 </Admonition>
-
-</TabItem>
-
-<TabItem label="Built-in database users with passwords">
-Assign the Service Account the "Cloud SQL Admin" role:
-
-![Grant Cloud SQL Admin to Service Account](../../../img/database-access/guides/cloudsql/service-account-sql-admin-grant@2x.png)
-
-<Admonition type="note" title="Service account permissions">
-  The default "Cloud SQL Admin" IAM role includes more permissions than the
-  Database Service needs to generate one-time user passwords. To further restrict
-  the service account, you can create a role that includes only the following
-  permissions:
-
-  ```ini
-  # Used to check database user type.
-  cloudsql.users.get
-  # Used to update a user with a one-time password.
-  cloudsql.users.update
-  # Used to auto-download the instance's root CA certificate.
-  cloudsql.instances.get
-  ```
-</Admonition>
-
-</TabItem>
-</Tabs>
-
 
 ### (Optional) Allow only SSL connections
 
@@ -336,12 +294,9 @@ $ tsh db connect --db-user=teleport --db-name=mysql cloudsql
   title="What database user name to use?"
 >
 
-When connecting as a database user with IAM authentication enabled, use either
-the database username or the service account's Email ID. Both the username and
-the service account's Email ID are shown on the Users page of your Cloud SQL
-instance.
-
-When connecting as a built-in database user, just use the database username.
+When connecting to the database, use either the database user name or the
+service account's Email ID. Both the user name and the service account's Email
+ID are shown on the Users page of your Cloud SQL instance.
 
 </Admonition>
 
