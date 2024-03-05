@@ -38,8 +38,6 @@ service AccessMonitoringRulesService {
   // DeleteAccessMonitoringRule deletes the specified access monitoring rule.
   rpc DeleteAccessMonitoringRule(DeleteAccessMonitoringRuleRequest) returns (google.protobuf.Empty);
 
-  // DeleteAllAccessMonitoringRules deletes all access monitoring rules.
-  rpc DeleteAllAccessMonitoringRules(DeleteAllAccessMonitoringRulesRequest) returns (google.protobuf.Empty);
 
   // ListAccessMonitoringRules lists current access monitoring rules.
   rpc ListAccessMonitoringRules(ListAccessMonitoringRulesRequest) returns (ListAccessMonitoringRulesResponse);
