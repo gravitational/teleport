@@ -1,7 +1,7 @@
 # Keep all tool versions in one place.
 # This file can be included in other Makefiles to avoid duplication.
 
-GOLANG_VERSION ?= go1.21.7
+GOLANG_VERSION ?= go1.21.8
 GOLANGCI_LINT_VERSION ?= v1.56.2
 
 NODE_VERSION ?= 18.19.1
