@@ -114,14 +114,14 @@ func List(ctx context.Context, cluster *clusters.Cluster, client Client, req *pr
 					},
 				})
 			}
-			// case *proto.PaginatedResource_SAMLIdPServiceProvider:
-			// 	provider := e.SAMLIdPServiceProvider
-			// 	response.Resources = append(response.Resources, UnifiedResource{
-			// 		SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{
-			// 			URI:      cluster.URI.AppendApp(provider.GetName()),
-			// 			Provider: provider,
-			// 		},
-			// 	})
+		case *proto.PaginatedResource_SAMLIdPServiceProvider:
+			provider := e.SAMLIdPServiceProvider
+			response.Resources = append(response.Resources, UnifiedResource{
+				SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{
+					URI:      cluster.URI.AppendApp(provider.GetName()),
+					Provider: provider,
+				},
+			})
 		}
 	}
 
