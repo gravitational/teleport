@@ -62,7 +62,11 @@ func Get(ctx context.Context, rootClient Client, leafClient Client) (*api.UserPr
 }
 
 // Update updates the preferences for a given user.
-// Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
+// Only the properties that are set (cluster_preferences, unified_resource_preferences) are updated.
+// When updating the preferences for the root cluster, both unified_resource_preferences
+// and cluster_preferences are updated in it.
+// When updating the preferences for the leaf cluster, only cluster_preferences are updated
+// in the leaf, unified_resource_preferences are always updated in the root.
 func Update(ctx context.Context, rootClient Client, leafClient Client, newPreferences *api.UserPreferences) (*api.UserPreferences, error) {
 	// We have to fetch the full user preferences struct and modify only
 	// the fields that change.
