@@ -85,12 +85,20 @@ func TestGetRemoteCluster(t *testing.T) {
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	unprivilegedUser, _, err := auth.CreateUserAndRole(
+	unprivilegedUser, unprivilegedRole, err := auth.CreateUserAndRole(
 		srv.Auth(),
 		"no-perms",
 		[]string{},
 		[]types.Rule{},
 	)
+	require.NoError(t, err)
+	unprivilegedRole.SetRules(types.Deny, []types.Rule{
+		{
+			Resources: []string{types.KindRemoteCluster},
+			Verbs:     []string{types.VerbRead},
+		},
+	})
+	_, err = srv.Auth().UpsertRole(ctx, unprivilegedRole)
 	require.NoError(t, err)
 
 	matchingRC, err := types.NewRemoteCluster("matching")
@@ -143,8 +151,7 @@ func TestGetRemoteCluster(t *testing.T) {
 				Name: notMatchingRC.GetName(),
 			},
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				// Opaque no permission presents as not found
-				require.True(t, trace.IsNotFound(err), "error should be not found")
+				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
 		{
@@ -179,6 +186,123 @@ func TestGetRemoteCluster(t *testing.T) {
 			if tt.want != nil {
 				// Check that the returned bot matches
 				require.Empty(t, cmp.Diff(tt.want, bot, protocmp.Transform()))
+			}
+		})
+	}
+}
+
+// TestListRemoteClusters is an integration test that uses a real gRPC
+// client/server.
+func TestListRemoteClusters(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	user, role, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"rc-getter",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindRemoteCluster},
+				Verbs:     []string{types.VerbList},
+			},
+		})
+	require.NoError(t, err)
+	err = role.SetLabelMatchers(types.Allow, types.KindRemoteCluster, types.LabelMatchers{
+		Labels: map[string]utils.Strings{
+			"label": {"foo"},
+		},
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	unprivilegedUser, unprivilegedRole, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"no-perms",
+		[]string{},
+		[]types.Rule{},
+	)
+	require.NoError(t, err)
+	unprivilegedRole.SetRules(types.Deny, []types.Rule{
+		{
+			Resources: []string{types.KindRemoteCluster},
+			Verbs:     []string{types.VerbList},
+		},
+	})
+	_, err = srv.Auth().UpsertRole(ctx, unprivilegedRole)
+	require.NoError(t, err)
+
+	matchingRC, err := types.NewRemoteCluster("matching")
+	require.NoError(t, err)
+	md := matchingRC.GetMetadata()
+	md.Labels = map[string]string{"label": "foo"}
+	matchingRC.SetMetadata(md)
+	matchingRC, err = srv.Auth().CreateRemoteCluster(ctx, matchingRC)
+	require.NoError(t, err)
+
+	matchingRC2, err := types.NewRemoteCluster("matching-2")
+	require.NoError(t, err)
+	md = matchingRC2.GetMetadata()
+	md.Labels = map[string]string{"label": "foo"}
+	matchingRC2.SetMetadata(md)
+	matchingRC2, err = srv.Auth().CreateRemoteCluster(ctx, matchingRC2)
+	require.NoError(t, err)
+
+	notMatchingRC, err := types.NewRemoteCluster("not-matching")
+	require.NoError(t, err)
+	md = notMatchingRC.GetMetadata()
+	md.Labels = map[string]string{"label": "bar"}
+	notMatchingRC.SetMetadata(md)
+	notMatchingRC, err = srv.Auth().CreateRemoteCluster(ctx, notMatchingRC)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		user        string
+		req         *presencev1pb.ListRemoteClustersRequest
+		assertError require.ErrorAssertionFunc
+		want        *presencev1pb.ListRemoteClustersResponse
+	}{
+		{
+			name:        "success",
+			user:        user.GetName(),
+			req:         &presencev1pb.ListRemoteClustersRequest{},
+			assertError: require.NoError,
+			want: &presencev1pb.ListRemoteClustersResponse{
+				RemoteClusters: []*types.RemoteClusterV3{
+					matchingRC.(*types.RemoteClusterV3),
+					matchingRC2.(*types.RemoteClusterV3),
+				},
+			},
+		},
+		{
+			name: "no permissions",
+			user: unprivilegedUser.GetName(),
+			req:  &presencev1pb.ListRemoteClustersRequest{},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := srv.NewClient(auth.TestUser(tt.user))
+			require.NoError(t, err)
+
+			res, err := client.PresenceServiceClient().ListRemoteClusters(ctx, tt.req)
+			tt.assertError(t, err)
+			if tt.want != nil {
+				// Check that the returned data matches
+				require.Empty(
+					t, cmp.Diff(
+						tt.want,
+						res,
+						protocmp.Transform(),
+						protocmp.SortRepeatedFields(&presencev1pb.ListRemoteClustersResponse{}, "remote_clusters"),
+					),
+				)
 			}
 		})
 	}
