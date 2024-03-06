@@ -1,6 +1,6 @@
 ---
 authors: Krzysztof Skrzętnicki (krzysztof.skrzetnicki@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 151 - Database Permission Management
@@ -96,7 +96,7 @@ metadata:
   name: rule_widget_prod
 spec:
   priority: 10
-  db_labels:
+  database_labels:
     env: prod
   mappings:
     - scope:
@@ -172,7 +172,7 @@ version: v1
 metadata:
   name: mark_confidential
 spec:
-  db_labels:
+  database_labels:
     env: prod
   mappings:
     - scope:
@@ -199,7 +199,7 @@ version: v1
 metadata:
   name: import_all_staging_tables
 spec:
-  db_labels:
+  database_labels:
     env: staging
   mappings:
     - add_labels:
@@ -222,7 +222,7 @@ version: v1
 metadata:
   name: import_specific_tables
 spec:
-  db_labels:
+  database_labels:
     env: dev
   mappings:
     - add_labels:
@@ -324,7 +324,7 @@ kind: db_object_import_rule
 metadata:
   name: object-kind
 spec:
-  db_labels:
+  database_labels:
     '*': '*'
   mappings:
     - add_labels:
