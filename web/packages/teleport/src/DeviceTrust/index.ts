@@ -16,4 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { DeviceTrustLocked } from './DeviceTrustLocked';
+export { DeviceTrustLocked as default } from './DeviceTrustLocked';

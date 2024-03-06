@@ -16,6 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Login } from './Login';
-export { LoginFailed } from './LoginFailed';
-export { LoginSuccess } from './LoginSuccess';
+import Login from './Login';
+import LoginFailed from './LoginFailed';
+import LoginSuccess from './LoginSuccess';
+
+export default Login;
+export { LoginFailed, LoginSuccess };

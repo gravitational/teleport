@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { IntegrationEnroll } from './IntegrationEnroll';
+// export as default for use with React.lazy
+export { IntegrationEnroll as default } from './IntegrationEnroll';
 
 export { IntegrationTiles } from './IntegrationTiles';
 export { getRoutesToEnrollIntegrations } from './IntegrationRoute';

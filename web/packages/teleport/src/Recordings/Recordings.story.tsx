@@ -24,7 +24,7 @@ import { Context, ContextProvider } from 'teleport';
 
 import { makeRecording } from 'teleport/services/recordings/makeRecording';
 
-import { RecordingsContainer as Recordings } from './Recordings';
+import Recordings from './Recordings';
 
 export default {
   title: 'Teleport/Recordings',

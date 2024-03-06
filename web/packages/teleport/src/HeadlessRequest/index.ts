@@ -16,4 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { HeadlessRequest } from './HeadlessRequest';
+// export as default for use with React.lazy
+export { HeadlessRequest as default } from './HeadlessRequest';

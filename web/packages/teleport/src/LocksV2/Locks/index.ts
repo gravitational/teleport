@@ -16,4 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Locks } from './Locks';
+// export as default for use with React.lazy
+export { Locks as default } from './Locks';

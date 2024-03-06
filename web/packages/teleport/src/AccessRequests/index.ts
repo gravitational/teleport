@@ -16,4 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { LockedAccessRequests } from './LockedAccessRequests/LockedAccessRequests';
+export { LockedAccessRequests as default } from './LockedAccessRequests/LockedAccessRequests';

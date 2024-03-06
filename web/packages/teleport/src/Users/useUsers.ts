@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ReactElement, useEffect, useState } from 'react';
+import { LazyExoticComponent, ReactElement, useEffect, useState } from 'react';
 import { useAttempt } from 'shared/hooks';
 
 import { User } from 'teleport/services/user';
@@ -181,8 +181,12 @@ type EmailPasswordResetElement = (
 ) => ReactElement;
 
 export type UsersContainerProps = {
-  InviteCollaborators?: InviteCollaboratorsElement;
-  EmailPasswordReset?: EmailPasswordResetElement;
+  InviteCollaborators?:
+    | LazyExoticComponent<InviteCollaboratorsElement>
+    | InviteCollaboratorsElement;
+  EmailPasswordReset?:
+    | LazyExoticComponent<EmailPasswordResetElement>
+    | EmailPasswordResetElement;
 };
 
 export type State = ReturnType<typeof useUsers>;

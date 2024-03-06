@@ -16,4 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { NewLockView } from './NewLock';
+// export as default for use with React.lazy
+import NewLockWrapper from './NewLock';
+export default NewLockWrapper;

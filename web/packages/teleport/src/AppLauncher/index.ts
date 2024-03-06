@@ -16,4 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { AppLauncher } from './AppLauncher';
+export { AppLauncher as default } from './AppLauncher';

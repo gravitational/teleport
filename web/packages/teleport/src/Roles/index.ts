@@ -16,4 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Roles, RolesContainer } from './Roles';
+import Roles from './Roles';
+export default Roles;
