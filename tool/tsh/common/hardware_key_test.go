@@ -2,7 +2,7 @@
 
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -22,9 +22,9 @@ package common
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -65,13 +65,12 @@ func TestHardwareKeyLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// mock SSO login and count the number of login attempts.
-	var loginCount int
+	var lastLoginCount int
 	setMockSSOLogin := func(cf *CLIConf) error {
-		loginCount = 0
+		lastLoginCount = 0
 		mockSSOLogin := mockSSOLogin(t, authServer, alice)
 		cf.MockSSOLogin = func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
-			fmt.Println(priv.GetPrivateKeyPolicy())
-			loginCount++
+			lastLoginCount++
 			return mockSSOLogin(ctx, connectorID, priv, protocol)
 		}
 		cf.AuthConnector = connector.GetName()
@@ -110,7 +109,7 @@ func TestHardwareKeyLogin(t *testing.T) {
 			"--proxy", proxyAddr.String(),
 		}, setHomePath(tmpHomePath), setMockSSOLogin)
 		require.NoError(t, err)
-		require.Equal(t, 1, loginCount)
+		assert.Equal(t, 1, lastLoginCount, "expected one login attempt but got %v", lastLoginCount)
 
 		// Upgrading the auth preference requireMFAType should trigger relogin
 		// on the next command run.
@@ -122,7 +121,7 @@ func TestHardwareKeyLogin(t *testing.T) {
 			"--proxy", proxyAddr.String(),
 		}, setHomePath(tmpHomePath), setMockSSOLogin)
 		require.NoError(t, err)
-		require.Equal(t, 1, loginCount)
+		assert.Equal(t, 1, lastLoginCount, "expected one login attempt but got %v", lastLoginCount)
 	})
 
 	t.Run("role", func(t *testing.T) {
@@ -156,7 +155,7 @@ func TestHardwareKeyLogin(t *testing.T) {
 			"--proxy", proxyAddr.String(),
 		}, setHomePath(tmpHomePath), setMockSSOLogin)
 		require.NoError(t, err)
-		require.Equal(t, 2, loginCount)
+		assert.Equal(t, 2, lastLoginCount, "expected two login attempts but got %v", lastLoginCount)
 
 		// Upgrading the auth preference requireMFAType should trigger relogin
 		// on the next command run.
@@ -168,6 +167,6 @@ func TestHardwareKeyLogin(t *testing.T) {
 			"--proxy", proxyAddr.String(),
 		}, setHomePath(tmpHomePath), setMockSSOLogin)
 		require.NoError(t, err)
-		require.Equal(t, 1, loginCount)
+		assert.Equal(t, 1, lastLoginCount, "expected one login attempt but got %v", lastLoginCount)
 	})
 }
