@@ -27,7 +27,7 @@ import { Text, Box } from 'design';
 import { ClusterDropdown } from './ClusterDropdown';
 
 export default {
-  title: 'ClusterDropdown',
+  title: 'Shared/ClusterDropdown',
 };
 
 const fetchClusters = () => null;
