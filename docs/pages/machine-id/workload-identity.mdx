@@ -98,6 +98,14 @@ by the Auth Server and signed using the cluster's `spiffe` CA.
 
 ### Teleport's Workload Identity
 
+Teleport's Workload Identity is an implementation of a SPIFFE.
+
+Each Teleport cluster acts as a SPIFFE trust domain.
+
+The SPIFFE Workload API is implemented as a service within the `tbot` agent.
+The ability to issue SVIDs is granted to the Bot associated with `tbot` through
+Teleport's Roles.
+
 ## Next Steps
 
 - [Getting Started](./workload-identity/getting-started.mdx): How to configure Teleport for Workload Identity.
