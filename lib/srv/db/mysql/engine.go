@@ -162,18 +162,25 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 func (e *Engine) updateServerVersion(sessionCtx *common.Session, serverConn *client.Conn) error {
 	serverVersion := serverConn.GetServerVersion()
 	statusVersion := sessionCtx.Database.GetMySQLServerVersion()
+
 	// Update only when needed.
-	// Note that sessionCtx.Database is a copy of the database cached by
-	// database service. Call UpdateProxiedDatabase to do the update instead of
-	// setting the copy.
-	if serverVersion != "" && serverVersion != statusVersion {
-		return trace.Wrap(e.UpdateProxiedDatabase(sessionCtx.Database.GetName(), func(db types.Database) error {
-			db.SetMySQLServerVersion(serverVersion)
-			e.Log.WithField("server-version", serverVersion).Debug("Updated MySQL server version.")
-			return nil
-		}))
+	if serverVersion == "" || serverVersion == statusVersion {
+		return nil
 	}
 
+	// Note that sessionCtx.Database is a copy of the database cached by
+	// database service. Call e.UpdateProxiedDatabase to do the update instead of
+	// setting the copy.
+	doUpdate := func(db types.Database) error {
+		db.SetMySQLServerVersion(serverVersion)
+		return nil
+	}
+
+	if err := e.UpdateProxiedDatabase(sessionCtx.Database.GetName(), doUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	e.Log.WithField("server-version", serverVersion).Debug("Updated MySQL server version.")
 	return nil
 }
 
