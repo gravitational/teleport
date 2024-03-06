@@ -30,12 +30,14 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -96,9 +98,7 @@ func (s *outputsService) renewOutputs(
 	// Determine the default role list based on the bot role. The role's
 	// name should match the certificate's Key ID (user and role names
 	// should all match bot-$name)
-	botIdentity := s.getBotIdentity()
-	botResourceName := botIdentity.X509Cert.Subject.CommonName
-	defaultRoles, err := fetchDefaultRoles(ctx, s.botClient, botResourceName)
+	defaultRoles, err := fetchDefaultRoles(ctx, s.botClient, s.getBotIdentity())
 	if err != nil {
 		s.log.WithError(err).Warnf("Unable to determine default roles, no roles will be requested if unspecified")
 		defaultRoles = []string{}
@@ -127,7 +127,7 @@ func (s *outputsService) renewOutputs(
 		}
 
 		impersonatedIdentity, impersonatedClient, err := s.generateImpersonatedIdentity(
-			ctx, s.botClient, botIdentity, output, defaultRoles,
+			ctx, s.botClient, s.getBotIdentity(), output, defaultRoles,
 		)
 		if err != nil {
 			return trace.Wrap(err, "generating impersonated certs for output: %s", output)
@@ -636,6 +636,8 @@ func (s *outputsService) generateImpersonatedIdentity(
 		return impersonatedIdentity, impersonatedClient, nil
 	case *config.UnstableClientCredentialOutput:
 		return impersonatedIdentity, impersonatedClient, nil
+	case *config.SPIFFESVIDOutput:
+		return impersonatedIdentity, impersonatedClient, nil
 	default:
 		return nil, nil, trace.BadParameter("generateImpersonatedIdentity does not support output type (%T)", output)
 	}
@@ -643,8 +645,8 @@ func (s *outputsService) generateImpersonatedIdentity(
 
 // fetchDefaultRoles requests the bot's own role from the auth server and
 // extracts its full list of allowed roles.
-func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, botRole string) ([]string, error) {
-	role, err := roleGetter.GetRole(ctx, botRole)
+func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, identity *identity.Identity) ([]string, error) {
+	role, err := roleGetter.GetRole(ctx, identity.X509Cert.Subject.CommonName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -788,6 +790,13 @@ func (op *outputProvider) GenerateHostCert(
 // GetCertAuthority uses the impersonatedClient to call GetCertAuthority.
 func (op *outputProvider) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	return op.impersonatedClient.GetCertAuthority(ctx, id, loadKeys)
+}
+
+// SignX509SVIDs uses the impersonatedClient to call SignX509SVIDs.
+func (op *outputProvider) SignX509SVIDs(
+	ctx context.Context, in *machineidv1pb.SignX509SVIDsRequest, opts ...grpc.CallOption,
+) (*machineidv1pb.SignX509SVIDsResponse, error) {
+	return op.impersonatedClient.WorkloadIdentityServiceClient().SignX509SVIDs(ctx, in, opts...)
 }
 
 // chooseOneDatabase chooses one matched database by name, or tries to choose

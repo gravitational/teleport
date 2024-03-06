@@ -51,7 +51,7 @@ import { NavTitle } from './types';
 import { AuditContainer as Audit } from './Audit';
 import { SessionsContainer as Sessions } from './Sessions';
 import { UnifiedResources } from './UnifiedResources';
-import { Account } from './Account';
+import { AccountPage } from './Account';
 import { Support } from './Support';
 import { Clusters } from './Clusters';
 import { Nodes } from './Nodes';
@@ -60,7 +60,7 @@ import { Users } from './Users';
 import { RolesContainer as Roles } from './Roles';
 import { DeviceTrustLocked } from './DeviceTrust';
 import { RecordingsContainer as Recordings } from './Recordings';
-import { AuthConnectors } from './AuthConnectors';
+import { AuthConnectorsContainer as AuthConnectors } from './AuthConnectors';
 import { Locks } from './LocksV2/Locks';
 import { NewLockView } from './LocksV2/NewLock';
 import { Discover } from './Discover';
@@ -569,7 +569,7 @@ export class FeatureAccount implements TeleportFeature {
   route = {
     title: 'Account Settings',
     path: cfg.routes.account,
-    component: Account,
+    component: AccountPage,
   };
 
   hasAccess() {

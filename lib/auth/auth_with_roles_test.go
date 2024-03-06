@@ -2370,6 +2370,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 }
 
 // TestGetAndList_AppServersAndSAMLIdPServiceProviders verifies RBAC and filtering is applied when fetching App Servers and SAML IdP Service Providers.
+// DELETE IN 17.0
 func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -2402,15 +2403,7 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 				Name:      name,
 				Namespace: apidefaults.Namespace,
 			}, types.SAMLIdPServiceProviderSpecV1{
-				EntityDescriptor: fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
-				<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="entity-id-%v" validUntil="2025-12-09T09:13:31.006Z">
-					 <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
-							<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
-							<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
-							<md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
-					 </md:SPSSODescriptor>
-				</md:EntityDescriptor>
-				`, i),
+				ACSURL:   fmt.Sprintf("entity-id-%v", i),
 				EntityID: fmt.Sprintf("entity-id-%v", i),
 			})
 			require.NoError(t, err)
@@ -2477,7 +2470,6 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, len(testResources))
 	require.Empty(t, cmp.Diff(testResources, resp.Resources))
-
 	// Test various filtering.
 	baseRequest := proto.ListResourcesRequest{
 		Namespace:    apidefaults.Namespace,
@@ -2545,6 +2537,99 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
 	require.Empty(t, resp.Resources)
+}
+
+// TestGetAndList_SAMLIdPServiceProviders verifies RBAC when fetching SAML IdP service providers.
+// TODO(sshah): update test with ListResources() instead of directly using listResourcesWithSort()
+// once SAMLIdPServiceProvider supports label matcher.
+func TestGetAndList_SAMLIdPServiceProviders(t *testing.T) {
+	ctx := context.Background()
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
+	// Set license to enterprise in order to be able to list SAML IdP Service Providers.
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+
+	// Create SAML IdP service providers.
+	for i := 0; i < 3; i++ {
+		name := fmt.Sprintf("saml-app-%v", i)
+		sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+			Name:      name,
+			Namespace: apidefaults.Namespace,
+		}, types.SAMLIdPServiceProviderSpecV1{
+			ACSURL:   fmt.Sprintf("entity-id-%v", i),
+			EntityID: fmt.Sprintf("entity-id-%v", i),
+		})
+		require.NoError(t, err)
+		err = srv.AuthServer.CreateSAMLIdPServiceProvider(ctx, sp)
+		require.NoError(t, err)
+
+	}
+
+	testServiceProviders, _, err := srv.AuthServer.ListSAMLIdPServiceProviders(ctx, 0, "")
+	require.NoError(t, err)
+
+	numResources := len(testServiceProviders)
+
+	testResources := make([]types.ResourceWithLabels, numResources)
+	for i, sp := range testServiceProviders {
+		testResources[i] = sp
+	}
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.AuthServer, username, nil, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	require.NoError(t, err)
+
+	ctxWithUser := authz.ContextWithUser(ctx, identity.I)
+	authContext, err := srv.Authorizer.Authorize(ctxWithUser)
+	require.NoError(t, err)
+	s := &ServerWithRoles{
+		authServer: srv.AuthServer,
+		alog:       srv.AuditLog,
+		context:    *authContext,
+	}
+
+	listSAMLIdPSPRequest := proto.ListResourcesRequest{
+		Namespace: apidefaults.Namespace,
+		// Guarantee that the list will have all SAML IdP service providers.
+		Limit:        int32(numResources + 1),
+		ResourceType: types.KindSAMLIdPServiceProvider,
+	}
+
+	// Test getting all SAML IdP service providers.
+	resp, err := s.listResourcesWithSort(ctxWithUser, listSAMLIdPSPRequest)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resp.Resources))
+
+	// deny user to get all service providers
+	role.SetRules(types.Deny, []types.Rule{
+		{
+			Resources: []string{types.KindSAMLIdPServiceProvider},
+			Verbs:     []string{types.VerbList},
+		},
+	})
+	_, err = srv.AuthServer.UpsertRole(ctxWithUser, role)
+	require.NoError(t, err)
+
+	// setup new context and ServerWithRoles env
+	ctxWithUser = authz.ContextWithUser(ctx, identity.I)
+	authContext, err = srv.Authorizer.Authorize(ctxWithUser)
+	require.NoError(t, err)
+	s = &ServerWithRoles{
+		authServer: srv.AuthServer,
+		alog:       srv.AuditLog,
+		context:    *authContext,
+	}
+
+	resp2, err := s.listResourcesWithSort(ctxWithUser, listSAMLIdPSPRequest)
+	require.NoError(t, err)
+	require.Empty(t, resp2.Resources)
 }
 
 // TestApps verifies RBAC is applied to app resources.
@@ -4480,8 +4565,8 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 			},
 		},
 		Spec: types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: newEntityDescriptor("tifaSAML"),
-			EntityID:         "tifaSAML",
+			ACSURL:   "tifaSAML",
+			EntityID: "tifaSAML",
 		},
 	}
 	require.NoError(t, srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp))
@@ -4508,7 +4593,7 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 
 	// Check that our returned resource has the correct name
 	for _, resource := range resp.Resources {
-		r := resource.GetAppServerOrSAMLIdPServiceProvider()
+		r := resource.GetSAMLIdPServiceProvider()
 		require.True(t, strings.Contains(r.GetName(), "tifa"))
 	}
 }
@@ -6757,6 +6842,8 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 }
 
 // createAppServerOrSPFromAppServer returns a AppServerOrSAMLIdPServiceProvider given an AppServer.
+//
+//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 func createAppServerOrSPFromAppServer(appServer types.AppServer) types.AppServerOrSAMLIdPServiceProvider {
 	appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
 		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
@@ -6768,6 +6855,8 @@ func createAppServerOrSPFromAppServer(appServer types.AppServer) types.AppServer
 }
 
 // createAppServerOrSPFromApp returns a AppServerOrSAMLIdPServiceProvider given a SAMLIdPServiceProvider.
+//
+//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 func createAppServerOrSPFromSP(sp types.SAMLIdPServiceProvider) types.AppServerOrSAMLIdPServiceProvider {
 	appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
 		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
