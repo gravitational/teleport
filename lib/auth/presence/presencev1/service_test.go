@@ -258,7 +258,7 @@ func TestListRemoteClusters(t *testing.T) {
 	md = notMatchingRC.GetMetadata()
 	md.Labels = map[string]string{"label": "bar"}
 	notMatchingRC.SetMetadata(md)
-	notMatchingRC, err = srv.Auth().CreateRemoteCluster(ctx, notMatchingRC)
+	_, err = srv.Auth().CreateRemoteCluster(ctx, notMatchingRC)
 	require.NoError(t, err)
 
 	tests := []struct {
