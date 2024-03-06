@@ -45,6 +45,8 @@ type DefaultBotConfigOpts struct {
 
 	// Makes the bot accept an Insecure auth or proxy server
 	Insecure bool
+
+	ServiceConfigs botconfig.ServiceConfigs
 }
 
 // DefaultConfig returns a FileConfig to be used in tests, with random listen
@@ -178,7 +180,11 @@ func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) *p
 // - Uses a memory storage destination
 // - Does not verify Proxy WebAPI certificates
 func DefaultBotConfig(
-	t *testing.T, fc *config.FileConfig, botParams *proto.CreateBotResponse, outputs []botconfig.Output, opts DefaultBotConfigOpts,
+	t *testing.T,
+	fc *config.FileConfig,
+	botParams *proto.CreateBotResponse,
+	outputs []botconfig.Output,
+	opts DefaultBotConfigOpts,
 ) *botconfig.BotConfig {
 	t.Helper()
 
@@ -204,6 +210,7 @@ func DefaultBotConfig(
 		// Set Insecure so the bot will trust the Proxy's webapi default signed
 		// certs.
 		Insecure: opts.Insecure,
+		Services: opts.ServiceConfigs,
 	}
 
 	cfg.Onboarding.SetToken(botParams.TokenID)
