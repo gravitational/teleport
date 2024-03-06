@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -825,4 +826,26 @@ func NewAccessRequestAllowedPromotions(promotions []*AccessRequestAllowedPromoti
 	return &AccessRequestAllowedPromotions{
 		Promotions: promotions,
 	}
+}
+
+// ValidateAssumeStartTime returns error if start time is in an invalid range.
+func ValidateAssumeStartTime(assumeStartTime time.Time, accessExpiry time.Time, creationTime time.Time) error {
+	// Guard against requesting a start time before the request creation time.
+	if assumeStartTime.Before(creationTime) {
+		return trace.BadParameter("assume start time has to be greater than: %q", creationTime.Format(time.RFC3339))
+	}
+	// Guard against requesting a start time after access expiry.
+	if assumeStartTime.After(accessExpiry) || assumeStartTime.Equal(accessExpiry) {
+		return trace.BadParameter("assume start time cannot equal or exceed access expiry time at: %q",
+			accessExpiry.Format(time.RFC3339))
+	}
+	// Access expiry can be greater than constants.MaxAssumeStartDuration, but start time
+	// should be on or before constants.MaxAssumeStartDuration.
+	maxAssumableStartTime := creationTime.Add(constants.MaxAssumeStartDuration)
+	if maxAssumableStartTime.Before(accessExpiry) && assumeStartTime.After(maxAssumableStartTime) {
+		return trace.BadParameter("assume start time is too far in the future, latest time allowed %q",
+			maxAssumableStartTime.Format(time.RFC3339))
+	}
+
+	return nil
 }
