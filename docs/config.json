@@ -1888,8 +1888,8 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "14.3.6",
-      "major_version": "14",
+      "version": "15.1.1",
+      "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",
         "monthly_downtime": "44 minutes"
