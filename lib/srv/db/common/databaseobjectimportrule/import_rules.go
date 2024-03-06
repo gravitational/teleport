@@ -17,7 +17,10 @@
 package databaseobjectimportrule
 
 import (
+	"regexp"
 	"sort"
+	"strings"
+	"unicode"
 
 	"github.com/gravitational/trace"
 
@@ -28,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 	libutils "github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -102,16 +104,23 @@ func validateTemplate(template string) error {
 	return trace.Wrap(err)
 }
 
-func evalTemplate(template string, spec *dbobjectv1.DatabaseObjectSpec) (string, error) {
-	result, err := parse.SplitExpression(template)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+type eval interface {
+	eval(spec *dbobjectv1.DatabaseObjectSpec) (string, error)
+}
 
-	if result.Literal {
-		return template, nil
-	}
+type literal struct {
+	text string
+}
 
+func (l literal) eval(_ *dbobjectv1.DatabaseObjectSpec) (string, error) {
+	return l.text, nil
+}
+
+type expression struct {
+	text string
+}
+
+func (e expression) eval(spec *dbobjectv1.DatabaseObjectSpec) (string, error) {
 	type evaluationEnv struct{}
 
 	envVar := map[string]typical.Variable{
@@ -142,17 +151,65 @@ func evalTemplate(template string, spec *dbobjectv1.DatabaseObjectSpec) (string,
 		return "", trace.Wrap(err)
 	}
 
-	expr, err := parser.Parse(result.ExprText)
+	expr, err := parser.Parse(e.text)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	middle, err := expr.Evaluate(evaluationEnv{})
+	text, err := expr.Evaluate(evaluationEnv{})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	return result.Prefix + middle + result.Suffix, nil
+	return text, nil
+}
+
+var reVariable = regexp.MustCompile(
+	// prefix is anything that is not { or }
+	`^(?P<prefix>[^}{]*)` +
+		// variable is anything in brackets {{}} that is not { or }
+		`{{(?P<expression>\s*[^}{]*\s*)}}` +
+		// suffix is anything that is not { or }
+		`(?P<suffix>[^}{]*)$`,
+)
+
+// splitExpression splits the template into several parts, to be evaluated separately.
+func splitExpression(value string) ([]eval, error) {
+	match := reVariable.FindStringSubmatch(value)
+	if len(match) == 0 {
+		if strings.Contains(value, "{{") || strings.Contains(value, "}}") {
+			return nil, trace.BadParameter(
+				"%q is using template brackets '{{' or '}}', however expression does not parse, make sure the format is {{expression}}",
+				value,
+			)
+		}
+		return []eval{literal{text: strings.TrimSpace(value)}}, nil
+	}
+
+	return []eval{
+		literal{text: strings.TrimLeftFunc(match[1], unicode.IsSpace)},
+		expression{text: match[2]},
+		literal{text: strings.TrimRightFunc(match[3], unicode.IsSpace)},
+	}, nil
+}
+
+func evalTemplate(template string, spec *dbobjectv1.DatabaseObjectSpec) (string, error) {
+	chunks, err := splitExpression(template)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	var sb strings.Builder
+
+	for _, chunk := range chunks {
+		text, err := chunk.eval(spec)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		sb.WriteString(text)
+	}
+
+	return sb.String(), nil
 }
 
 func applyMappingToObject(mapping *dbobjectimportrulev1.DatabaseObjectImportRuleMapping, spec *dbobjectv1.DatabaseObjectSpec, labels map[string]string) (bool, error) {

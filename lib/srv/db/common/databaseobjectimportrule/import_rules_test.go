@@ -559,3 +559,72 @@ func Test_applyMappingToObject(t *testing.T) {
 		})
 	}
 }
+
+func Test_splitExpression(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		want    []eval
+		wantErr bool
+	}{
+		{
+			name:    "empty string",
+			value:   "",
+			want:    []eval{literal{text: ""}},
+			wantErr: false,
+		},
+		{
+			name:    "literal",
+			value:   "literal",
+			want:    []eval{literal{text: "literal"}},
+			wantErr: false,
+		},
+		{
+			name:    "literal with whitespace",
+			value:   "      literal   ",
+			want:    []eval{literal{text: "literal"}},
+			wantErr: false,
+		},
+		{
+			name:    "prefix, expr, suffix",
+			value:   "prefix-{{expr}}-suffix",
+			want:    []eval{literal{text: "prefix-"}, expression{text: "expr"}, literal{text: "-suffix"}},
+			wantErr: false,
+		},
+		{
+			name:    "prefix, expr, suffix with extra whitespace",
+			value:   "    prefix-{{expr}}-suffix        ",
+			want:    []eval{literal{text: "prefix-"}, expression{text: "expr"}, literal{text: "-suffix"}},
+			wantErr: false,
+		},
+		{
+			name:    "unmatched {{",
+			value:   "foo bar {{ baz",
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "unmatched }}",
+			value:   "foo bar }} baz",
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "multiple templates",
+			value:   "foo {{bar}} {{baz}}",
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := splitExpression(tt.value)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
