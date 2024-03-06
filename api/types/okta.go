@@ -397,8 +397,11 @@ func (o *OktaAssignmentV1) CheckAndSetDefaults() error {
 }
 
 // IsEqual determines if two okta assignment resources are equivalent to one another.
-func (o *OktaAssignmentV1) IsEqual(i *OktaAssignmentV1) bool {
-	return deriveTeleportEqualOktaAssignmentV1(o, i)
+func (o *OktaAssignmentV1) IsEqual(i OktaAssignment) bool {
+	if other, ok := i.(*OktaAssignmentV1); ok {
+		return deriveTeleportEqualOktaAssignmentV1(o, other)
+	}
+	return false
 }
 
 // OktaAssignmentTarget is an target for an Okta assignment.
