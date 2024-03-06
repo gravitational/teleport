@@ -30,7 +30,7 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 	// Mimic's how we used to set legacy cloud from [func getLicenseFeatures]:
 	// https://github.com/gravitational/teleport.e/blob/9b826916ba7d79b1b649286607c358252061f5c5/tool/modules/modules.go#L184
 	if isLegacyEnterpiseCloud := !resp.IsUsageBased; isLegacyEnterpiseCloud {
-		return &modules.Features{
+		f := &modules.Features{
 			Kubernetes:              true,
 			App:                     true,
 			DB:                      true,
@@ -44,16 +44,22 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 			RecoveryCodes:           true,
 			FeatureHiding:           resp.FeatureHiding,
 			CustomTheme:             resp.CustomTheme,
+			// IGS is enabled for a subset of non-usage based products
+			IdentityGovernanceSecurity: resp.IdentityGovernanceSecurity,
 			// Assist is disabled by default.
 			Assist: false,
 			DeviceTrust: modules.DeviceTrustFeature{
 				Enabled: true,
 			},
+		}
 
+		if !resp.IdentityGovernanceSecurity {
 			// New features that are limited even for legacies.
-			AccessList:       GetUsageBasedAccessListFeatureLimits(),
-			AccessMonitoring: GetUsageBasedAccessMonitoringFeatureLimits(false),
-		}, nil
+			f.AccessList = GetUsageBasedAccessListFeatureLimits()
+			f.AccessMonitoring = GetUsageBasedAccessMonitoringFeatureLimits(false)
+		}
+
+		return f, nil
 	}
 
 	// From here on, it is usage based billing.

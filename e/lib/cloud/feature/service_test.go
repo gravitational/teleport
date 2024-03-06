@@ -343,6 +343,70 @@ func TestRun_Legacy_NonUsageBased(t *testing.T) {
 	})
 }
 
+func TestRun_Legacy_NonUsageBased_WithIGS(t *testing.T) {
+	t.Parallel()
+
+	mockCloudClient := &testClient{}
+	backend := newMemoryBackend(t)
+
+	fakeClock := clockwork.NewFakeClock()
+	cfg := Config{
+		Backend:        backend,
+		CloudClient:    mockCloudClient,
+		Interval:       500 * time.Millisecond,
+		RequestTimeout: 500 * time.Millisecond,
+		Clock:          fakeClock,
+	}
+	service, err := NewService(cfg)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Despite getting feature response, teleport should still hard code
+	// features.
+	mockCloudClient.setMockGetFeatures(
+		func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error) {
+			return &cloudapi.GetFeaturesResponse{
+				Kubernetes:     false, // should be ignored
+				AccessRequests: false, // should be ignored
+				App:            false, // should be ignored
+				// The two fields below are the only ones
+				// modifiable.
+				FeatureHiding: true,
+				CustomTheme:   "llama-theme",
+				// IGS is enabled for a subset of non-usage based products
+				IdentityGovernanceSecurity: true,
+			}, nil
+		},
+	)
+
+	// Run the service.
+	go service.Run(ctx)
+	fakeClock.BlockUntil(1)
+
+	requireFeatures(t, fakeClock, backend, ctx, modules.Features{
+		Kubernetes:              true,
+		App:                     true,
+		DB:                      true,
+		Desktop:                 true,
+		Cloud:                   true,
+		OIDC:                    true,
+		SAML:                    true,
+		AccessControls:          true,
+		AdvancedAccessWorkflows: true,
+		HSM:                     true,
+		RecoveryCodes:           true,
+		FeatureHiding:           true,
+		CustomTheme:             "llama-theme",
+		Assist:                  false,
+		DeviceTrust: modules.DeviceTrustFeature{
+			Enabled: true,
+		},
+		IdentityGovernanceSecurity: true,
+	})
+}
+
 func newMemoryBackend(t *testing.T) backend.Backend {
 	b, err := memory.New(memory.Config{})
 	require.NoError(t, err)
