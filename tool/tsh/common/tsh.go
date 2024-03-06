@@ -3638,15 +3638,16 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 
 	// If we are missing client profile information, ping the webproxy
 	// for proxy info and load it into the client config.
-	if profileError != nil || cf.IdentityFileIn != "" {
+	if profileError != nil || profile.MissingClusterDetails {
 		log.Debug("Pinging the proxy to fetch listening addresses for non-web ports.")
 		_, err := tc.Ping(cf.Context)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		// Identityfile uses a placeholder profile. Save missing profile info.
-		if cf.IdentityFileIn != "" {
+		// This is a placeholder profile created from limited cluster details.
+		// Save missing cluster details gathererd during Ping.
+		if profileError == nil && profile.MissingClusterDetails {
 			if err := tc.SaveProfile(true); err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -4234,38 +4235,26 @@ func onFlatten(cf *CLIConf) error {
 		return trace.BadParameter("--proxy must be specified")
 	}
 
-	// Making a client validates the connection and builds a valid profile for us
-	tc, err := makeClientForProxy(cf, cf.Proxy)
-	if err != nil {
-		return trace.Wrap(err, "making client for proxy")
-	}
-	profile := tc.Profile()
-
-	// We clear the identity flag and create a new client store.
-	// Because the identity flag is unset, it will be backed by the filesystem (in ~/.tsh or TELEPORT_HOME).
+	// We clear the identity flag so that the client store will be backed
+	// by the filesystem instead (in ~/.tsh or TELEPORT_HOME).
 	cf.IdentityFileIn = ""
-	store, err := initClientStore(cf, cf.Proxy)
+
+	// Load client config as normal to parse client inputs and add defaults.
+	c, err := loadClientConfigFromCLIConf(cf, cf.Proxy)
 	if err != nil {
-		return trace.Wrap(err, "initializing client store")
+		return trace.Wrap(err)
 	}
 
-	// Now we extract the key from the identity file and load it into our new store.
-	key, err := identityfile.KeyFromIdentityFile(identityFile, cf.Proxy, cf.SiteName)
-	if err != nil {
-		return trace.Wrap(err, "loading key from identity file")
+	// Load the identity file key and partial profile into the client store.
+	if err := identityfile.LoadIdentityFileIntoClientStore(c.ClientStore, identityFile, c.WebProxyAddr, c.SiteName); err != nil {
+		return trace.Wrap(err)
 	}
 
-	if err = store.AddKey(key); err != nil {
-		return trace.Wrap(err, "adding key into the client store")
-	}
+	fmt.Printf("Successfully flattened Identity file %q into a tsh profile.\n", identityFile)
 
-	// Finally we also save the profile built by the client into our new store.
-	if err := store.SaveProfile(profile, true); err != nil {
-		return trace.Wrap(err, "saving profile")
-	}
-
-	fmt.Printf("Identity file %q flattented into a tsh profile.", identityFile)
-	return nil
+	// onStatus will ping the proxy to fill in cluster profile information missing in the
+	// client store, then print the login status.
+	return trace.Wrap(onStatus(cf))
 }
 
 // onShow reads an identity file (a public SSH key or a cert) and dumps it to stdout
