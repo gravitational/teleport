@@ -153,6 +153,20 @@ exports[`rendering of Session Recordings 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c24 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c27 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 16px;
+  padding: 4px;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -172,20 +186,6 @@ exports[`rendering of Session Recordings 1`] = `
   margin: 0px;
   margin-right: 4px;
   color: #FFFFFF;
-}
-
-.c24 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c27 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16px;
-  padding: 4px;
 }
 
 .c1 {

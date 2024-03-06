@@ -203,26 +203,6 @@ exports[`active sessions CTA 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
-.c7 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-}
-
-.c25 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 4px;
-  color: #FFFFFF;
-}
-
 .c13 {
   display: inline-flex;
   align-items: center;
@@ -243,6 +223,26 @@ exports[`active sessions CTA 1`] = `
   justify-content: center;
   color: rgba(255,255,255,0.72);
   margin-left: 4px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c25 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+  color: #FFFFFF;
 }
 
 .c1 {
@@ -1262,26 +1262,6 @@ exports[`loaded 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
-.c7 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-}
-
-.c20 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 4px;
-  color: #FFFFFF;
-}
-
 .c24 {
   display: inline-flex;
   align-items: center;
@@ -1302,6 +1282,26 @@ exports[`loaded 1`] = `
   justify-content: center;
   color: rgba(255,255,255,0.72);
   margin-left: 4px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c20 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+  color: #FFFFFF;
 }
 
 .c1 {
@@ -2276,26 +2276,6 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
-.c7 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-}
-
-.c20 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 4px;
-  color: #FFFFFF;
-}
-
 .c24 {
   display: inline-flex;
   align-items: center;
@@ -2316,6 +2296,26 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   justify-content: center;
   color: rgba(255,255,255,0.72);
   margin-left: 4px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c20 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+  color: #FFFFFF;
 }
 
 .c1 {

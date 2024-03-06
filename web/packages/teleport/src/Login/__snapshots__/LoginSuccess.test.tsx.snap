@@ -12,6 +12,14 @@ exports[`renders 1`] = `
   text-align: center;
 }
 
+.c3 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #00BFA6;
+  margin-bottom: 16px;
+}
+
 .c2 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
@@ -26,14 +34,6 @@ exports[`renders 1`] = `
   line-height: 32px;
   margin: 0px;
   margin-bottom: 24px;
-}
-
-.c3 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #00BFA6;
-  margin-bottom: 16px;
 }
 
 .c0 {

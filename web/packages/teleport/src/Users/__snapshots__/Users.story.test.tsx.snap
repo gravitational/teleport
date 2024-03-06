@@ -191,6 +191,21 @@ exports[`success state 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c23 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c29 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.72);
+  margin-left: 8px;
+  margin-right: -8px;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -209,21 +224,6 @@ exports[`success state 1`] = `
   margin: 0px;
   margin-right: 4px;
   color: #FFFFFF;
-}
-
-.c23 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c29 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255,255,255,0.72);
-  margin-left: 8px;
-  margin-right: -8px;
 }
 
 .c27 {

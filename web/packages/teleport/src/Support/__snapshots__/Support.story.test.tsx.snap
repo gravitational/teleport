@@ -43,6 +43,12 @@ exports[`support Cloud 1`] = `
   margin-bottom: 16px;
 }
 
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c4 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
@@ -82,12 +88,6 @@ exports[`support Cloud 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c1 {
@@ -477,6 +477,12 @@ exports[`support Enterprise 1`] = `
   margin-bottom: 16px;
 }
 
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c4 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
@@ -516,12 +522,6 @@ exports[`support Enterprise 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c1 {
@@ -964,6 +964,12 @@ exports[`support Enterprise with CTA 1`] = `
   cursor: auto;
 }
 
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c4 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
@@ -1003,12 +1009,6 @@ exports[`support Enterprise with CTA 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c1 {
@@ -1438,6 +1438,12 @@ exports[`support OSS 1`] = `
   margin-bottom: 16px;
 }
 
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c4 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
@@ -1477,12 +1483,6 @@ exports[`support OSS 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c1 {
@@ -1917,6 +1917,12 @@ exports[`support OSSWithCTA 1`] = `
   cursor: auto;
 }
 
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c4 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
@@ -1956,12 +1962,6 @@ exports[`support OSSWithCTA 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c1 {

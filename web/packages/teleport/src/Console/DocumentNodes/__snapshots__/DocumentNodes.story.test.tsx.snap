@@ -170,6 +170,21 @@ exports[`render DocumentNodes 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c27 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c35 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.72);
+  margin-left: 4px;
+  margin-right: -8px;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -195,21 +210,6 @@ exports[`render DocumentNodes 1`] = `
   margin: 0px;
   margin-right: 4px;
   color: #FFFFFF;
-}
-
-.c27 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c35 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255,255,255,0.72);
-  margin-left: 4px;
-  margin-right: -8px;
 }
 
 .c32 {

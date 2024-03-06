@@ -3028,6 +3028,13 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   cursor: auto;
 }
 
+.c7 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
 .c1 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
@@ -3043,13 +3050,6 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   margin: 0px;
   padding-top: 24px;
   text-align: center;
-}
-
-.c7 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
 }
 
 .c5 {
@@ -3340,6 +3340,13 @@ exports[`sso providers rendering 1`] = `
   cursor: auto;
 }
 
+.c9 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
 .c1 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
@@ -3355,13 +3362,6 @@ exports[`sso providers rendering 1`] = `
   margin: 0px;
   padding-top: 24px;
   text-align: center;
-}
-
-.c9 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
 }
 
 .c4 .prev-slide-enter {
