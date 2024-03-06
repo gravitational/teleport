@@ -1,7 +1,7 @@
 //go:build pivtest
 
 /*
-Copyright 2022 Gravitational, Inc.
+Copyright 2024 Gravitational, Inc.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -19,6 +19,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/ed25519"
+	"crypto/rand"
 	"errors"
 
 	"github.com/gravitational/trace"
@@ -28,7 +29,7 @@ var errPIVUnavailable = errors.New("PIV is unavailable in current build")
 
 // Return a fake YubiKey private key.
 func getOrGenerateYubiKeyPrivateKey(_ context.Context, policy PrivateKeyPolicy, _ PIVSlot) (*PrivateKey, error) {
-	_, priv, err := ed25519.GenerateKey(nil)
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
