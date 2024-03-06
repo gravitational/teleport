@@ -23,21 +23,21 @@ import { Route, Switch } from 'teleport/components/Router';
 import LogoHero from 'teleport/components/LogoHero';
 import cfg from 'teleport/config';
 
-export default function Container() {
+export function LoginFailed() {
   return (
     <Switch>
       <Route path={cfg.routes.loginErrorCallback}>
-        <LoginFailed message="unable to process callback" />
+        <LoginFailedComponent message="unable to process callback" />
       </Route>
       <Route path={cfg.routes.loginErrorUnauthorized}>
-        <LoginFailed message="You are not authorized, please contact your SSO administrator." />
+        <LoginFailedComponent message="You are not authorized, please contact your SSO administrator." />
       </Route>
       <Route component={LoginFailed} />
     </Switch>
   );
 }
 
-export function LoginFailed({ message }: { message?: string }) {
+export function LoginFailedComponent({ message }: { message?: string }) {
   const defaultMsg = "unable to login, please check Teleport's log for details";
   return (
     <>

@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -84,18 +85,24 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 		case signal := <-sigC:
 			switch signal {
 			case syscall.SIGQUIT:
-				process.Shutdown(ctx)
+				timeoutCtx, cancel := context.WithTimeout(ctx, apidefaults.MaxCertDuration)
+				defer cancel()
+				process.Shutdown(timeoutCtx)
 				process.log.Infof("All services stopped, exiting.")
 				return nil
 			case syscall.SIGTERM, syscall.SIGINT:
 				timeout := getShutdownTimeout(process.log)
-				cancelCtx, cancelFunc := context.WithTimeout(ctx, timeout)
+				timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
 				process.log.Infof("Got signal %q, exiting within %vs.", signal, timeout.Seconds())
+				// we run the shutdown in a goroutine and return when the
+				// context is done even if Shutdown hasn't returned because we
+				// want to ensure that we exit shortly after SIGTERM even in
+				// case of bugs
 				go func() {
-					defer cancelFunc()
-					process.Shutdown(cancelCtx)
+					defer cancel()
+					process.Shutdown(timeoutCtx)
 				}()
-				<-cancelCtx.Done()
+				<-timeoutCtx.Done()
 				process.log.Infof("All services stopped or timeout passed, exiting immediately.")
 				return nil
 			case syscall.SIGUSR1:
@@ -124,7 +131,9 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 					continue
 				}
 				process.log.Infof("Successfully started new process, shutting down gracefully.")
-				process.Shutdown(ctx)
+				timeoutCtx, cancel := context.WithTimeout(ctx, apidefaults.MaxCertDuration)
+				defer cancel()
+				process.Shutdown(timeoutCtx)
 				process.log.Infof("All services stopped, exiting.")
 				return nil
 			default:

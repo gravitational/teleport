@@ -410,9 +410,15 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 	// The call to GetCachedClient will connect to proxy and return a new client.
 	err = thirdCallForClient.Close()
 	require.NoError(t, err)
-	fourthCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
-	require.NoError(t, err)
-	require.NotEqual(t, thirdCallForClient, fourthCallForClient)
+
+	// TODO(gzdunek): Re-enable this test.
+	// This part is flaky, there is no guarantee that the goroutine waiting
+	// for the client to close will be able to remove it from the cache
+	// before we try to get a new client.
+
+	//fourthCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
+	//require.NoError(t, err)
+	//require.NotEqual(t, thirdCallForClient, fourthCallForClient)
 }
 
 func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack) {

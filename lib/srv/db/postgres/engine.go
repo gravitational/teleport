@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -401,6 +402,11 @@ func (e *Engine) auditFuncCallMessage(session *common.Session, msg *pgproto3.Fun
 	}
 	e.Audit.EmitEvent(e.Context, makeFuncCallEvent(session, msg.Function,
 		formatParameters(msg.Arguments, formatCodes)))
+}
+
+// auditUserPermissions calls OnPermissionsUpdate() with appropriate context.
+func (e *Engine) auditUserPermissions(session *common.Session, entries []events.DatabasePermissionEntry) {
+	e.Audit.OnPermissionsUpdate(e.Context, session, entries)
 }
 
 // receiveFromServer receives messages from the provided frontend (which

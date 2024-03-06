@@ -31,12 +31,12 @@
             {
               "title": "Teleport Cloud Agents (Linux)",
               "slug": "/upgrading/cloud-linux/",
-              "forScopes": ["cloud", "team"]
+              "forScopes": ["cloud"]
             },
             {
               "title": "Teleport Cloud Agents (Kubernetes)",
               "slug": "/upgrading/cloud-kubernetes/",
-              "forScopes": ["cloud", "team"]
+              "forScopes": ["cloud"]
             },
             {
               "title": "Self-Hosted Linux",
@@ -62,7 +62,7 @@
         {
           "title": "Usage Reporting and Billing",
           "slug": "/usage-billing/",
-          "forScopes": ["cloud", "team", "enterprise"]
+          "forScopes": ["cloud", "enterprise"]
         },
         {
           "title": "Upcoming Releases",
@@ -75,7 +75,7 @@
         {
           "title": "Teleport Assist",
           "slug": "/ai-assist/",
-          "forScopes": ["oss", "team"]
+          "forScopes": ["oss"]
         }
       ]
     },
@@ -88,15 +88,15 @@
           "slug": "/choose-an-edition/introduction/"
         },
         {
-          "title": "Teleport Team",
-          "slug": "/choose-an-edition/teleport-team/",
-          "forScopes": ["team"]
-        },
-        {
           "title": "Teleport Enterprise Cloud",
           "slug": "/choose-an-edition/teleport-cloud/introduction/",
           "forScopes": ["cloud"],
           "entries": [
+            {
+              "title": "Get Started",
+              "slug": "/choose-an-edition/teleport-cloud/get-started/",
+              "forScopes": ["cloud"]
+            },
             {
               "title": "Architecture",
               "slug": "/choose-an-edition/teleport-cloud/architecture/",
@@ -316,7 +316,7 @@
         {
           "title": "Single Sign-On (SSO)",
           "slug": "/access-controls/sso/",
-          "forScopes": ["oss", "team", "enterprise", "cloud"],
+          "forScopes": ["oss", "enterprise", "cloud"],
           "entries": [
             {
               "title": "Active Directory (ADFS)",
@@ -331,7 +331,7 @@
             {
               "title": "GitHub",
               "slug": "/access-controls/sso/github-sso/",
-              "forScopes": ["oss", "team", "enterprise", "cloud"]
+              "forScopes": ["oss", "enterprise", "cloud"]
             },
             {
               "title": "GitLab",
@@ -363,27 +363,27 @@
         {
           "title": "Teleport as an IdP",
           "slug": "/access-controls/idps/",
-          "forScopes": ["enterprise", "cloud", "team"],
+          "forScopes": ["enterprise", "cloud"],
           "entries": [
             {
               "title": "SAML Identity Provider Guide",
               "slug": "/access-controls/idps/saml-guide/",
-              "forScopes": ["enterprise", "cloud", "team"]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "SAML Attribute Mapping",
               "slug": "/access-controls/idps/saml-attribute-mapping/",
-              "forScopes": ["enterprise", "cloud", "team"]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Authenticate to Grafana with Teleport SAML",
               "slug": "/access-controls/idps/saml-grafana/",
-              "forScopes": ["enterprise", "cloud", "team"]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "SAML Identity Provider Reference",
               "slug": "/access-controls/idps/saml-reference/",
-              "forScopes": ["enterprise", "cloud", "team"]
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
@@ -419,8 +419,7 @@
           "slug": "/access-controls/device-trust/",
           "forScopes": [
             "enterprise",
-            "cloud",
-            "team"
+            "cloud"
           ],
           "entries": [
             {
@@ -428,8 +427,7 @@
               "slug": "/access-controls/device-trust/guide/",
               "forScopes": [
                 "enterprise",
-                "cloud",
-                "team"
+                "cloud"
               ]
             },
             {
@@ -437,8 +435,7 @@
               "slug": "/access-controls/device-trust/device-management/",
               "forScopes": [
                 "enterprise",
-                "cloud",
-                "team"
+                "cloud"
               ]
             },
             {
@@ -446,8 +443,7 @@
               "slug": "/access-controls/device-trust/enforcing-device-trust/",
               "forScopes": [
                 "enterprise",
-                "cloud",
-                "team"
+                "cloud"
               ]
             },
             {
@@ -481,7 +477,6 @@
           "title": "Access Graph",
           "slug": "/access-controls/access-graph/",
           "forScopes": [
-            "team",
             "enterprise"
           ],
           "entries": [
@@ -876,6 +871,74 @@
       ]
     },
     {
+      "icon": "wand",
+      "title": "Auto-Enroll Resources",
+      "entries": [
+        {
+          "title": "Introduction",
+          "slug": "/auto-discovery/introduction/"
+        },
+        {
+          "title": "Servers",
+          "slug": "/auto-discovery/servers/",
+          "entries": [
+            {
+              "title": "EC2 Instance Discovery",
+              "slug": "/auto-discovery/servers/ec2-discovery/"
+            },
+            {
+              "title": "Azure Instance Discovery",
+              "slug": "/auto-discovery/servers/azure-discovery/"
+            },
+            {
+              "title": "GCP Instance Discovery",
+              "slug": "/auto-discovery/servers/gcp-discovery/"
+            }
+          ]
+        },
+        {
+          "title": "Kubernetes Clusters",
+          "slug": "/auto-discovery/kubernetes/",
+          "entries": [
+            {
+              "title": "AWS",
+              "slug": "/auto-discovery/kubernetes/aws/"
+            },
+            {
+              "title": "Azure",
+              "slug": "/auto-discovery/kubernetes/azure/"
+            },
+            {
+              "title": "Google Cloud",
+              "slug": "/auto-discovery/kubernetes/google-cloud/"
+            }
+          ]
+        },
+        {
+          "title": "Databases",
+          "slug": "/auto-discovery/databases/"
+        },
+        {
+          "title": "Kubernetes Applications",
+          "slug": "/auto-discovery/kubernetes-applications/",
+          "entries": [
+            {
+              "title": "Get Started",
+              "slug": "/auto-discovery/kubernetes-applications/get-started/"
+            },
+            {
+              "title": "Architecture",
+              "slug": "/auto-discovery/kubernetes-applications/architecture/"
+            },
+            {
+              "title": "Reference",
+              "slug": "/auto-discovery/kubernetes-applications/reference/"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "icon": "window",
       "title": "Application Access",
       "entries": [
@@ -886,24 +949,6 @@
         {
           "title": "Getting Started",
           "slug": "/application-access/getting-started/"
-        },
-        {
-          "title": "Enroll Kubernetes Applications",
-          "slug": "/application-access/enroll-kubernetes-applications/",
-          "entries":[
-            {
-              "title": "Get Started",
-              "slug": "/application-access/enroll-kubernetes-applications/get-started/"
-            },
-            {
-              "title": "Architecture",
-              "slug": "/application-access/enroll-kubernetes-applications/architecture/"
-            },
-            {
-              "title": "Reference",
-              "slug": "/application-access/enroll-kubernetes-applications/reference/"
-            }
-          ]
         },
         {
           "title": "Securing Cloud Provider APIs",
@@ -1035,10 +1080,10 @@
           "title": "Getting Started",
           "slug": "/server-access/getting-started/"
         },
-	{
-	  "title": "Enrolling OpenSSH Servers",
-	  "slug": "/server-access/openssh/",
-	  "entries": [
+        {
+          "title": "Enrolling OpenSSH Servers",
+          "slug": "/server-access/openssh/",
+          "entries": [
             {
               "title": "Agentless OpenSSH Integration",
               "slug": "/server-access/openssh/openssh/"
@@ -1047,8 +1092,8 @@
               "title": "Agentless OpenSSH Integration (Manual Install)",
               "slug": "/server-access/openssh/openssh-manual-install/"
             }
-	  ]
-	},
+          ]
+        },
         {
           "title": "Guides",
           "slug": "/server-access/guides/",
@@ -1083,18 +1128,6 @@
               "slug": "/server-access/guides/auditd/"
             },
             {
-              "title": "EC2 Instance Discovery",
-              "slug": "/server-access/guides/ec2-discovery/"
-            },
-            {
-              "title": "Azure Instance Discovery",
-              "slug": "/server-access/guides/azure-discovery/"
-            },
-            {
-              "title": "GCP Instance Discovery",
-              "slug": "/server-access/guides/gcp-discovery/"
-            },
-            {
               "title": "Using Teleport with Ansible",
               "slug": "/server-access/guides/ansible/"
             }
@@ -1121,24 +1154,6 @@
         {
           "title": "Enroll a Kubernetes Cluster",
           "slug": "/kubernetes-access/getting-started/"
-        },
-        {
-          "title": "Kubernetes Discovery",
-          "slug": "/kubernetes-access/discovery/",
-          "entries": [
-            {
-              "title": "AWS",
-              "slug": "/kubernetes-access/discovery/aws/"
-            },
-            {
-              "title": "Azure",
-              "slug": "/kubernetes-access/discovery/azure/"
-            },
-            {
-              "title": "Google Cloud",
-              "slug": "/kubernetes-access/discovery/google-cloud/"
-            }
-          ]
         },
         {
           "title": "Manual Cluster Registration",
@@ -1205,10 +1220,6 @@
             {
               "title": "AWS Cross-Account",
               "slug": "/database-access/guides/aws-cross-account/"
-            },
-            {
-              "title": "AWS Discovery",
-              "slug": "/database-access/guides/aws-discovery/"
             },
             {
               "title": "AWS DynamoDB",
@@ -2410,7 +2421,7 @@
     },
     {
       "source": "/cloud/getting-started/",
-      "destination": "/choose-an-edition/teleport-team/",
+      "destination": "/choose-an-edition/teleport-cloud/get-started/",
       "permanent": true
     },
     {
@@ -2675,7 +2686,7 @@
     },
     {
       "source": "/deploy-a-cluster/teleport-cloud/getting-started/",
-      "destination": "/choose-an-edition/teleport-team/",
+      "destination": "/choose-an-edition/teleport-cloud/get-started/",
       "permanent": true
     },
     {
@@ -2775,7 +2786,7 @@
     },
     {
       "source": "/choose-an-edition/teleport-cloud/getting-started/",
-      "destination": "/choose-an-edition/teleport-team/",
+      "destination": "/choose-an-edition/teleport-cloud/get-started/",
       "permanent": true
     },
     {
@@ -3096,6 +3107,96 @@
     {
       "source": "/access-graph/",
       "destination": "/access-controls/access-graph/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/aws-discovery/",
+      "destination": "/auto-discovery/databases/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/discovery/",
+      "destination": "/auto-discovery/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/discovery/aws/",
+      "destination": "/auto-discovery/kubernetes/aws/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/discovery/azure/",
+      "destination": "/auto-discovery/kubernetes/azure/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/discovery/google-cloud/",
+      "destination": "/auto-discovery/kubernetes/google-cloud/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/discovery/includes/discovery-group/",
+      "destination": "/includes/discovery/discovery-group/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/discovery/includes/step-description/",
+      "destination": "/includes/discovery/step-description/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/discovery/includes/troubleshooting/",
+      "destination": "/includes/discovery/troubleshooting/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/azure-discovery/",
+      "destination": "/auto-discovery/servers/azure-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/ec2-discovery/",
+      "destination": "/auto-discovery/servers/ec2-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/gcp-discovery/",
+      "destination": "/auto-discovery/servers/gcp-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/enroll-kubernetes-applications/",
+      "destination": "/auto-discovery/kubernetes-applications/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/enroll-kubernetes-applications/architecture/",
+      "destination": "/auto-discovery/kubernetes-applications/architecture/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/enroll-kubernetes-applications/get-started/",
+      "destination": "/auto-discovery/kubernetes-applications/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/enroll-kubernetes-applications/reference/",
+      "destination": "/auto-discovery/kubernetes-applications/reference/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/openssh/openssh-manual-install/",
+      "destination": "/server-access/openssh/openssh-manual-install/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/openssh/openssh/",
+      "destination": "/server-access/openssh/openssh/",
+      "permanent": true
+    },
+    {
+      "source": "/choose-an-edition/teleport-team/",
+      "destination": "/choose-an-edition/teleport-cloud/get-started/",
       "permanent": true
     }
   ]

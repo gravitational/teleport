@@ -28,10 +28,12 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -76,7 +78,7 @@ func newMockProvider(cfg *BotConfig) *mockProvider {
 	}
 }
 
-func (p *mockProvider) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+func (p *mockProvider) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
 	rc, err := types.NewRemoteCluster(p.remoteClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -141,6 +143,14 @@ func (p *mockProvider) AuthPing(_ context.Context) (*proto.PingResponse, error) 
 		ProxyPublicAddr: p.proxyAddr,
 		ClusterName:     p.clusterName,
 	}, nil
+}
+
+func (p *mockProvider) SignX509SVIDs(
+	ctx context.Context,
+	in *machineidv1pb.SignX509SVIDsRequest,
+	opts ...grpc.CallOption,
+) (*machineidv1pb.SignX509SVIDsResponse, error) {
+	return nil, nil
 }
 
 func (p *mockProvider) GenerateHostCert(

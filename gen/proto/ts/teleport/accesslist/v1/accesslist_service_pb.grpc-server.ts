@@ -41,6 +41,8 @@ import { ListAllAccessListMembersResponse } from "./accesslist_service_pb";
 import { ListAllAccessListMembersRequest } from "./accesslist_service_pb";
 import { ListAccessListMembersResponse } from "./accesslist_service_pb";
 import { ListAccessListMembersRequest } from "./accesslist_service_pb";
+import { CountAccessListMembersResponse } from "./accesslist_service_pb";
+import { CountAccessListMembersRequest } from "./accesslist_service_pb";
 import { GetAccessListsToReviewResponse } from "./accesslist_service_pb";
 import { GetAccessListsToReviewRequest } from "./accesslist_service_pb";
 import { DeleteAllAccessListsRequest } from "./accesslist_service_pb";
@@ -97,11 +99,19 @@ export interface IAccessListService extends grpc.UntypedServiceImplementation {
      */
     deleteAllAccessLists: grpc.handleUnaryCall<DeleteAllAccessListsRequest, Empty>;
     /**
-     * GetAccessListsToReview will return access lists that need to be reviewed by the current user.
+     * GetAccessListsToReview will return access lists that need to be reviewed by
+     * the current user.
      *
      * @generated from protobuf rpc: GetAccessListsToReview(teleport.accesslist.v1.GetAccessListsToReviewRequest) returns (teleport.accesslist.v1.GetAccessListsToReviewResponse);
      */
     getAccessListsToReview: grpc.handleUnaryCall<GetAccessListsToReviewRequest, GetAccessListsToReviewResponse>;
+    /**
+     * CountAccessListMembers returns the count of access list members in an
+     * access list.
+     *
+     * @generated from protobuf rpc: CountAccessListMembers(teleport.accesslist.v1.CountAccessListMembersRequest) returns (teleport.accesslist.v1.CountAccessListMembersResponse);
+     */
+    countAccessListMembers: grpc.handleUnaryCall<CountAccessListMembersRequest, CountAccessListMembersResponse>;
     /**
      * ListAccessListMembers returns a paginated list of all access list members.
      *
@@ -109,7 +119,8 @@ export interface IAccessListService extends grpc.UntypedServiceImplementation {
      */
     listAccessListMembers: grpc.handleUnaryCall<ListAccessListMembersRequest, ListAccessListMembersResponse>;
     /**
-     * ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+     * ListAllAccessListMembers returns a paginated list of all access list
+     * members for all access lists.
      *
      * @generated from protobuf rpc: ListAllAccessListMembers(teleport.accesslist.v1.ListAllAccessListMembersRequest) returns (teleport.accesslist.v1.ListAllAccessListMembersResponse);
      */
@@ -127,19 +138,22 @@ export interface IAccessListService extends grpc.UntypedServiceImplementation {
      */
     upsertAccessListMember: grpc.handleUnaryCall<UpsertAccessListMemberRequest, Member>;
     /**
-     * DeleteAccessListMember hard deletes the specified access list member resource.
+     * DeleteAccessListMember hard deletes the specified access list member
+     * resource.
      *
      * @generated from protobuf rpc: DeleteAccessListMember(teleport.accesslist.v1.DeleteAccessListMemberRequest) returns (google.protobuf.Empty);
      */
     deleteAccessListMember: grpc.handleUnaryCall<DeleteAccessListMemberRequest, Empty>;
     /**
-     * DeleteAllAccessListMembers hard deletes all access list members for an access list.
+     * DeleteAllAccessListMembers hard deletes all access list members for an
+     * access list.
      *
      * @generated from protobuf rpc: DeleteAllAccessListMembersForAccessList(teleport.accesslist.v1.DeleteAllAccessListMembersForAccessListRequest) returns (google.protobuf.Empty);
      */
     deleteAllAccessListMembersForAccessList: grpc.handleUnaryCall<DeleteAllAccessListMembersForAccessListRequest, Empty>;
     /**
-     * DeleteAllAccessListMembers hard deletes all access list members for an access list.
+     * DeleteAllAccessListMembers hard deletes all access list members for an
+     * access list.
      *
      * @generated from protobuf rpc: DeleteAllAccessListMembers(teleport.accesslist.v1.DeleteAllAccessListMembersRequest) returns (google.protobuf.Empty);
      */
@@ -151,20 +165,23 @@ export interface IAccessListService extends grpc.UntypedServiceImplementation {
      */
     upsertAccessListWithMembers: grpc.handleUnaryCall<UpsertAccessListWithMembersRequest, UpsertAccessListWithMembersResponse>;
     /**
-     * ListAccessListReviews will list access list reviews for a particular access list.
+     * ListAccessListReviews will list access list reviews for a particular access
+     * list.
      *
      * @generated from protobuf rpc: ListAccessListReviews(teleport.accesslist.v1.ListAccessListReviewsRequest) returns (teleport.accesslist.v1.ListAccessListReviewsResponse);
      */
     listAccessListReviews: grpc.handleUnaryCall<ListAccessListReviewsRequest, ListAccessListReviewsResponse>;
     /**
-     * ListAllAccessListReviews will list access list reviews for all access lists.
+     * ListAllAccessListReviews will list access list reviews for all access
+     * lists.
      *
      * @generated from protobuf rpc: ListAllAccessListReviews(teleport.accesslist.v1.ListAllAccessListReviewsRequest) returns (teleport.accesslist.v1.ListAllAccessListReviewsResponse);
      */
     listAllAccessListReviews: grpc.handleUnaryCall<ListAllAccessListReviewsRequest, ListAllAccessListReviewsResponse>;
     /**
-     * CreateAccessListReview will create a new review for an access list. It will also modify the original access list
-     * and its members depending on the details of the review.
+     * CreateAccessListReview will create a new review for an access list. It will
+     * also modify the original access list and its members depending on the
+     * details of the review.
      *
      * @generated from protobuf rpc: CreateAccessListReview(teleport.accesslist.v1.CreateAccessListReviewRequest) returns (teleport.accesslist.v1.CreateAccessListReviewResponse);
      */
@@ -182,7 +199,8 @@ export interface IAccessListService extends grpc.UntypedServiceImplementation {
      */
     accessRequestPromote: grpc.handleUnaryCall<AccessRequestPromoteRequest, AccessRequestPromoteResponse>;
     /**
-     * GetSuggestedAccessLists returns suggested access lists for an access request.
+     * GetSuggestedAccessLists returns suggested access lists for an access
+     * request.
      *
      * @generated from protobuf rpc: GetSuggestedAccessLists(teleport.accesslist.v1.GetSuggestedAccessListsRequest) returns (teleport.accesslist.v1.GetSuggestedAccessListsResponse);
      */
@@ -269,6 +287,16 @@ export const accessListServiceDefinition: grpc.ServiceDefinition<IAccessListServ
         requestDeserialize: bytes => GetAccessListsToReviewRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(GetAccessListsToReviewResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetAccessListsToReviewRequest.toBinary(value))
+    },
+    countAccessListMembers: {
+        path: "/teleport.accesslist.v1.AccessListService/CountAccessListMembers",
+        originalName: "CountAccessListMembers",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => CountAccessListMembersResponse.fromBinary(bytes),
+        requestDeserialize: bytes => CountAccessListMembersRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(CountAccessListMembersResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(CountAccessListMembersRequest.toBinary(value))
     },
     listAccessListMembers: {
         path: "/teleport.accesslist.v1.AccessListService/ListAccessListMembers",

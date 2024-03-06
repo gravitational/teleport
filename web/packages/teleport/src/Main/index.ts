@@ -17,7 +17,7 @@
  */
 
 export {
-  Main as default,
+  Main,
   useContentMinWidthContext,
   useNoMinWidth,
   HorizontalSplit,

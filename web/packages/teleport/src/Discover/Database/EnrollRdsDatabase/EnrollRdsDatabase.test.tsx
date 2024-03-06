@@ -28,7 +28,10 @@ import DatabaseService from 'teleport/services/databases/databases';
 import * as discoveryService from 'teleport/services/discovery/discovery';
 import { ComponentWrapper } from 'teleport/Discover/Fixtures/databases';
 import cfg from 'teleport/config';
-import { DISCOVERY_GROUP_CLOUD } from 'teleport/services/discovery/discovery';
+import {
+  DISCOVERY_GROUP_CLOUD,
+  DEFAULT_DISCOVERY_GROUP_NON_CLOUD,
+} from 'teleport/services/discovery/discovery';
 
 import { EnrollRdsDatabase } from './EnrollRdsDatabase';
 
@@ -207,7 +210,7 @@ describe('test EnrollRdsDatabase.tsx', () => {
     // Second array are the parameters that this api got called with,
     // we are interested in the second parameter.
     expect(createDiscoveryConfig.mock.calls[0][1]['discoveryGroup']).toBe(
-      'aws-prod'
+      DEFAULT_DISCOVERY_GROUP_NON_CLOUD
     );
 
     expect(DatabaseService.prototype.createDatabase).not.toHaveBeenCalled();

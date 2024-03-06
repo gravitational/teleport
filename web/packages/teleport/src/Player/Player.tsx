@@ -38,7 +38,7 @@ import Tabs, { TabItem } from './PlayerTabs';
 
 const validRecordingTypes = ['ssh', 'k8s', 'desktop'];
 
-export default function Player() {
+export function Player() {
   const { sid, clusterId } = useParams<UrlPlayerParams>();
   const { search } = useLocation();
 
@@ -51,7 +51,7 @@ export default function Player() {
   const validRecordingType = validRecordingTypes.includes(recordingType);
   const validDurationMs = Number.isInteger(durationMs) && durationMs > 0;
 
-  document.title = `${clusterId} • Play ${sid}`;
+  document.title = `Play ${sid} • ${clusterId}`;
 
   function onLogout() {
     session.logout();
