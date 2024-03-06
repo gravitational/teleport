@@ -180,7 +180,9 @@ func TestBot(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make and join a new bot instance.
-	botParams := testhelpers.MakeBot(t, rootClient, "test", defaultRoles...)
+	botParams, botResource := testhelpers.MakeBot(
+		t, rootClient, "test", defaultRoles...,
+	)
 
 	identityOutput := &config.IdentityOutput{
 		Destination: &config.DestinationMemory{},
@@ -253,22 +255,22 @@ func TestBot(t *testing.T) {
 		require.True(t, tlsIdent.Renewable)
 		require.False(t, tlsIdent.DisallowReissue)
 		require.Equal(t, uint64(1), tlsIdent.Generation)
-		require.ElementsMatch(t, []string{botParams.RoleName}, tlsIdent.Groups)
+		require.ElementsMatch(t, []string{botResource.Status.RoleName}, tlsIdent.Groups)
 	})
 
 	t.Run("output: identity", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, identityOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
+		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
 	})
 
 	t.Run("output: identity with role specified", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, identityOutputWithRoles.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, []string{mainRole}, botParams.UserName)
+		requireValidOutputTLSIdent(t, tlsIdent, []string{mainRole}, botResource.Status.UserName)
 	})
 
 	t.Run("output: kubernetes", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, kubeOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
+		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
 		require.Equal(t, kubeClusterName, tlsIdent.KubernetesCluster)
 		require.Equal(t, kubeGroups, tlsIdent.KubernetesGroups)
 		require.Equal(t, kubeUsers, tlsIdent.KubernetesUsers)
@@ -276,7 +278,7 @@ func TestBot(t *testing.T) {
 
 	t.Run("output: kubernetes discovered name", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, kubeDiscoveredNameOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
+		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
 		require.Equal(t, kubeClusterName, tlsIdent.KubernetesCluster)
 		require.Equal(t, kubeGroups, tlsIdent.KubernetesGroups)
 		require.Equal(t, kubeUsers, tlsIdent.KubernetesUsers)
@@ -284,7 +286,7 @@ func TestBot(t *testing.T) {
 
 	t.Run("output: application", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, appOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
+		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
 		route := tlsIdent.RouteToApp
 		require.Equal(t, appName, route.Name)
 		require.Equal(t, "test-app.example.com", route.PublicAddr)
@@ -293,7 +295,7 @@ func TestBot(t *testing.T) {
 
 	t.Run("output: database", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, dbOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
+		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
 		route := tlsIdent.RouteToDatabase
 		require.Equal(t, databaseServiceName, route.ServiceName)
 		require.Equal(t, databaseName, route.Database)
@@ -303,7 +305,7 @@ func TestBot(t *testing.T) {
 
 	t.Run("output: database discovered name", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, dbDiscoveredNameOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
+		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
 		route := tlsIdent.RouteToDatabase
 		require.Equal(t, databaseServiceName, route.ServiceName)
 		require.Equal(t, databaseName, route.Database)
@@ -405,7 +407,7 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
 
 	// Create bot user and join token
-	botParams := testhelpers.MakeBot(t, rootClient, "test", "access")
+	botParams, _ := testhelpers.MakeBot(t, rootClient, "test", "access")
 
 	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{},
 		testhelpers.DefaultBotConfigOpts{
@@ -450,7 +452,7 @@ func TestBot_InsecureViaProxy(t *testing.T) {
 	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
 
 	// Create bot user and join token
-	botParams := testhelpers.MakeBot(t, rootClient, "test", "access")
+	botParams, _ := testhelpers.MakeBot(t, rootClient, "test", "access")
 
 	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{},
 		testhelpers.DefaultBotConfigOpts{
