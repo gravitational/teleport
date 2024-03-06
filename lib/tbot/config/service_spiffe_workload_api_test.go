@@ -20,8 +20,6 @@ package config
 
 import (
 	"testing"
-
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/experiment"
 )
 
 func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
@@ -60,8 +58,7 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 }
 
 func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
-	experiment.SetEnabled(true)
-	defer experiment.SetEnabled(false)
+	t.Parallel()
 
 	tests := []testCheckAndSetDefaultsCase[*SPIFFEWorkloadAPIService]{
 		{

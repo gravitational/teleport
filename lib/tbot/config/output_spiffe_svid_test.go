@@ -20,8 +20,6 @@ package config
 
 import (
 	"testing"
-
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/experiment"
 )
 
 func TestSPIFFESVIDOutput_YAML(t *testing.T) {
@@ -57,9 +55,6 @@ func TestSPIFFESVIDOutput_YAML(t *testing.T) {
 }
 
 func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
-	experiment.SetEnabled(true)
-	defer experiment.SetEnabled(false)
-
 	tests := []testCheckAndSetDefaultsCase[*SPIFFESVIDOutput]{
 		{
 			name: "valid",

@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/experiment"
 	"github.com/gravitational/teleport/lib/auth/native"
 	apisshutils "github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -614,9 +613,7 @@ func newMockDiscoveredKubeCluster(t *testing.T, name, discoveredName string) *ty
 // TestBotSPIFFEWorkloadAPI is an end-to-end test of Workload ID's ability to
 // issue a SPIFFE SVID to a workload connecting via the SPIFFE Workload API.
 func TestBotSPIFFEWorkloadAPI(t *testing.T) {
-	experiment.SetEnabled(true)
-	defer experiment.SetEnabled(false)
-
+	t.Parallel()
 	ctx := context.Background()
 	log := utils.NewLoggerForTests()
 

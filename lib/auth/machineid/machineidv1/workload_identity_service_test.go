@@ -31,17 +31,13 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/experiment"
 	"github.com/gravitational/teleport/lib/auth/native"
 )
 
 // TestWorkloadIdentityService_SignX509SVIDs is an integration test that uses a
 // real gRPC client/server.
 func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
-	experimentBefore := experiment.Enabled()
-	experiment.SetEnabled(true)
-	t.Cleanup(func() { experiment.SetEnabled(experimentBefore) })
-
+	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
