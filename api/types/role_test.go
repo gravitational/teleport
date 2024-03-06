@@ -453,9 +453,10 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
-		role         *RoleV6
-		requireError require.ErrorAssertionFunc
+		name                string
+		role                *RoleV6
+		requireError        require.ErrorAssertionFunc
+		compareDefaultValue RoleConditions
 	}{
 		{
 			name: "spiffe: valid",
@@ -516,6 +517,75 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.role.CheckAndSetDefaults()
 			tt.requireError(t, err)
+		})
+	}
+}
+
+func TestRoleV6_SAMLIdpServiceProviderLabels_CheckAndSetDefaults(t *testing.T) {
+	t.Parallel()
+	requireBadParameterContains := func(contains string) require.ErrorAssertionFunc {
+		return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+			require.True(t, trace.IsBadParameter(err))
+			require.ErrorContains(t, err, contains)
+		}
+	}
+	newRole := func(spec RoleSpecV6) *RoleV6 {
+		return &RoleV6{
+			Metadata: Metadata{
+				Name: "test",
+			},
+			Spec: spec,
+		}
+	}
+
+	tests := []struct {
+		name         string
+		role         *RoleV6
+		requireError require.ErrorAssertionFunc
+		wantLabels   Labels
+	}{
+		{
+			name: "SAMLIdpServiceProviderLabels: valid labels",
+			role: newRole(RoleSpecV6{
+				Allow: RoleConditions{
+					SAMLIdPServiceProviderLabels: Labels{
+						Wildcard: {Wildcard},
+					},
+				},
+			}),
+			requireError: require.NoError,
+		},
+		{
+			name: "SAMLIdpServiceProviderLabels: default wildcard Value",
+			role: newRole(RoleSpecV6{
+				Allow: RoleConditions{},
+			}),
+			requireError: require.NoError,
+			wantLabels: Labels{
+				Wildcard: {Wildcard},
+			},
+		},
+		{
+			name: "SAMLIdpServiceProviderLabels: invalid labels",
+			role: newRole(RoleSpecV6{
+				Allow: RoleConditions{
+					SAMLIdPServiceProviderLabels: Labels{
+						Wildcard: {"val"},
+					},
+				},
+			}),
+			requireError: requireBadParameterContains("not supported"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.role.CheckAndSetDefaults()
+			tt.requireError(t, err)
+
+			if tt.wantLabels != nil {
+				require.Equal(t, tt.role.Spec.Allow.SAMLIdPServiceProviderLabels, tt.wantLabels)
+			}
 		})
 	}
 }

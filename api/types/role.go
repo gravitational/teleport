@@ -1143,6 +1143,10 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		if err := validateRoleSpecKubeResources(r.Version, r.Spec); err != nil {
 			return trace.Wrap(err)
 		}
+
+		if r.Spec.Allow.SAMLIdPServiceProviderLabels == nil {
+			r.Spec.Allow.SAMLIdPServiceProviderLabels = Labels{Wildcard: []string{Wildcard}}
+		}
 	default:
 		return trace.BadParameter("unrecognized role version: %v", r.Version)
 	}
