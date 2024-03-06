@@ -272,7 +272,7 @@ type DynamicAccessExt interface {
 	// CreateAccessRequest stores a new access request.
 	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
 	// ApplyAccessReview applies a review to a request in the backend and returns the post-application state.
-	ApplyAccessReview(ctx context.Context, params types.AccessReviewSubmission, checker ReviewPermissionChecker, clock clockwork.Clock) (types.AccessRequest, error)
+	ApplyAccessReview(ctx context.Context, params types.AccessReviewSubmission, checker ReviewPermissionChecker) (types.AccessRequest, error)
 	// UpsertAccessRequest creates or updates an access request.
 	UpsertAccessRequest(ctx context.Context, req types.AccessRequest) error
 	// DeleteAllAccessRequests deletes all existent access requests.
@@ -385,7 +385,7 @@ func ValidateAccessPredicates(role types.Role) error {
 }
 
 // ApplyAccessReview attempts to apply the specified access review to the specified request.
-func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author UserState, clock clockwork.Clock) error {
+func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author UserState) error {
 	if rev.Author != author.GetName() {
 		return trace.BadParameter("mismatched review author (expected %q, got %q)", rev.Author, author)
 	}

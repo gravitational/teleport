@@ -20,10 +20,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 func TestAssertAccessRequestImplementsResourceWithLabels(t *testing.T) {
@@ -33,36 +33,52 @@ func TestAssertAccessRequestImplementsResourceWithLabels(t *testing.T) {
 }
 
 func TestValidateAssumeStartTime(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-	creation := clock.Now().UTC()
-	day := 24 * time.Hour
+	creation := time.Now().UTC()
+	const day = 24 * time.Hour
 
 	expiry := creation.Add(12 * day)
 	maxAssumeStartDuration := creation.Add(constants.MaxAssumeStartDuration)
 
-	// Start time too far in the future.
-	invalidMaxedAssumeStartTime := creation.Add(constants.MaxAssumeStartDuration + (1 * day))
-	err := ValidateAssumeStartTime(invalidMaxedAssumeStartTime, expiry, creation)
-	require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
-	require.ErrorIs(t, err, trace.BadParameter("assume start time is too far in the future, latest time allowed %q",
-		maxAssumeStartDuration.Format(time.RFC3339)))
+	testCases := []struct {
+		name      string
+		startTime time.Time
+		errCheck  require.ErrorAssertionFunc
+	}{
+		{
+			name:      "start time too far in the future",
+			startTime: creation.Add(constants.MaxAssumeStartDuration + day),
+			errCheck: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorIs(tt, err, trace.BadParameter("assume start time is too far in the future, latest time allowed is %v",
+					maxAssumeStartDuration.Format(time.RFC3339)))
+			},
+		},
+		{
+			name:      "expired start time",
+			startTime: creation.Add(100 * day),
+			errCheck: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorIs(t, err, trace.BadParameter("assume start time must be prior to access expiry time at %v",
+					expiry.Format(time.RFC3339)))
+			},
+		},
+		{
+			name:      "before creation start time",
+			startTime: creation.Add(-10 * day),
+			errCheck: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorIs(t, err, trace.BadParameter("assume start time has to be after %v",
+					creation.Format(time.RFC3339)))
+			},
+		},
+		{
+			name:      "valid start time",
+			startTime: creation.Add(6 * day),
+			errCheck:  require.NoError,
+		},
+	}
 
-	// Expired start time.
-	invalidExpiredAssumeStartTime := creation.Add(100 * day)
-	err = ValidateAssumeStartTime(invalidExpiredAssumeStartTime, expiry, creation)
-	require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
-	require.ErrorIs(t, err, trace.BadParameter("assume start time cannot equal or exceed access expiry time at: %q",
-		expiry.Format(time.RFC3339)))
-
-	// Before creation start time.
-	invalidBeforeCreationStartTime := creation.Add(-10 * day)
-	err = ValidateAssumeStartTime(invalidBeforeCreationStartTime, expiry, creation)
-	require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
-	require.ErrorIs(t, err, trace.BadParameter("assume start time has to be greater than: %q",
-		creation.Format(time.RFC3339)))
-
-	// Valid start time.
-	validStartTime := creation.Add(6 * day)
-	err = ValidateAssumeStartTime(validStartTime, expiry, creation)
-	require.NoError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateAssumeStartTime(tc.startTime, expiry, creation)
+			tc.errCheck(t, err)
+		})
+	}
 }

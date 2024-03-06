@@ -4986,7 +4986,7 @@ func (a *Server) submitAccessReview(
 
 	// final permission checks and review application must be done by the local backend
 	// service, as their validity depends upon optimistic locking.
-	req, err := a.ApplyAccessReview(ctx, params, checker, a.clock)
+	req, err := a.ApplyAccessReview(ctx, params, checker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

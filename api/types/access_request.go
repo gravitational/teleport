@@ -832,18 +832,18 @@ func NewAccessRequestAllowedPromotions(promotions []*AccessRequestAllowedPromoti
 func ValidateAssumeStartTime(assumeStartTime time.Time, accessExpiry time.Time, creationTime time.Time) error {
 	// Guard against requesting a start time before the request creation time.
 	if assumeStartTime.Before(creationTime) {
-		return trace.BadParameter("assume start time has to be greater than: %q", creationTime.Format(time.RFC3339))
+		return trace.BadParameter("assume start time has to be after %v", creationTime.Format(time.RFC3339))
 	}
 	// Guard against requesting a start time after access expiry.
 	if assumeStartTime.After(accessExpiry) || assumeStartTime.Equal(accessExpiry) {
-		return trace.BadParameter("assume start time cannot equal or exceed access expiry time at: %q",
+		return trace.BadParameter("assume start time must be prior to access expiry time at %v",
 			accessExpiry.Format(time.RFC3339))
 	}
 	// Access expiry can be greater than constants.MaxAssumeStartDuration, but start time
 	// should be on or before constants.MaxAssumeStartDuration.
 	maxAssumableStartTime := creationTime.Add(constants.MaxAssumeStartDuration)
 	if maxAssumableStartTime.Before(accessExpiry) && assumeStartTime.After(maxAssumableStartTime) {
-		return trace.BadParameter("assume start time is too far in the future, latest time allowed %q",
+		return trace.BadParameter("assume start time is too far in the future, latest time allowed is %v",
 			maxAssumableStartTime.Format(time.RFC3339))
 	}
 

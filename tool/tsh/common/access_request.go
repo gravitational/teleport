@@ -222,7 +222,6 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 		table.AddRow([]string{"Access Expires:", req.GetAccessExpiry().Local().Format(time.DateTime)})
 	}
 	if req.GetAssumeStartTime() != nil {
-		table.AddRow([]string{"Assume Start Time (UTC):", req.GetAssumeStartTime().UTC().Format(time.RFC822)})
 		table.AddRow([]string{"Assume Start Time:", req.GetAssumeStartTime().Local().Format(time.DateTime)})
 	}
 	table.AddRow([]string{"Status:", req.GetState().String()})

@@ -1520,7 +1520,162 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 	}
 }
 
-func TestAccessRequest_AssumeStartTime(t *testing.T) {
+func TestAssumeStartTime_CreateAccessRequestV2(t *testing.T) {
+	ctx := context.Background()
+	s := createAccessRequestWithStartTime(t)
+
+	testCases := []struct {
+		name      string
+		startTime time.Time
+		errCheck  require.ErrorAssertionFunc
+	}{
+		{
+			name:      "too far in the future",
+			startTime: s.invalidMaxedAssumeStartTime,
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+				require.ErrorContains(t, err, "assume start time is too far in the future")
+			},
+		},
+		{
+			name:      "after access expiry time",
+			startTime: s.invalidExpiredAssumeStartTime,
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+				require.ErrorContains(t, err, "assume start time must be prior to access expiry time")
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := services.NewAccessRequest(s.requesterUserName, "admins")
+			require.NoError(t, err)
+			req.SetMaxDuration(s.maxDuration)
+			req.SetAssumeStartTime(tc.startTime)
+			_, err = s.requesterClient.CreateAccessRequestV2(ctx, req)
+			tc.errCheck(t, err)
+		})
+	}
+}
+
+func TestAssumeStartTime_SubmitAccessReview(t *testing.T) {
+	ctx := context.Background()
+	s := createAccessRequestWithStartTime(t)
+
+	testCases := []struct {
+		name      string
+		startTime time.Time
+		errCheck  require.ErrorAssertionFunc
+	}{
+		{
+			name:      "too far in the future",
+			startTime: s.invalidMaxedAssumeStartTime,
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+				require.ErrorContains(t, err, "assume start time is too far in the future")
+			},
+		},
+		{
+			name:      "after access expiry time",
+			startTime: s.invalidExpiredAssumeStartTime,
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+				require.ErrorContains(t, err, "assume start time must be prior to access expiry time")
+			},
+		},
+		{
+			name:      "valid submission",
+			startTime: s.validStartTime,
+			errCheck:  require.NoError,
+		},
+	}
+	review := types.AccessReviewSubmission{
+		RequestID: s.createdRequest.GetName(),
+		Review: types.AccessReview{
+			Author:        "admin",
+			ProposedState: types.RequestState_APPROVED,
+		},
+	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			review.Review.AssumeStartTime = &tc.startTime
+			resp, err := s.testPack.tlsServer.AuthServer.AuthServer.SubmitAccessReview(ctx, review)
+			tc.errCheck(t, err)
+			if err == nil {
+				require.Equal(t, tc.startTime, *resp.GetAssumeStartTime())
+			}
+		})
+	}
+}
+
+func TestAssumeStartTime_SetAccessRequestState(t *testing.T) {
+	ctx := context.Background()
+	s := createAccessRequestWithStartTime(t)
+
+	testCases := []struct {
+		name      string
+		startTime time.Time
+		errCheck  require.ErrorAssertionFunc
+	}{
+		{
+			name:      "too far in the future",
+			startTime: s.invalidMaxedAssumeStartTime,
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+				require.ErrorContains(t, err, "assume start time is too far in the future")
+			},
+		},
+		{
+			name:      "after access expiry time",
+			startTime: s.invalidExpiredAssumeStartTime,
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+				require.ErrorContains(t, err, "assume start time must be prior to access expiry time")
+			},
+		},
+		{
+			name:      "valid set state",
+			startTime: s.validStartTime,
+			errCheck:  require.NoError,
+		},
+	}
+	update := types.AccessRequestUpdate{
+		RequestID: s.createdRequest.GetName(),
+		State:     types.RequestState_APPROVED,
+	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			update.AssumeStartTime = &tc.startTime
+			err := s.testPack.tlsServer.Auth().SetAccessRequestState(ctx, update)
+			tc.errCheck(t, err)
+			if err == nil {
+				resp, err := s.testPack.tlsServer.AuthServer.AuthServer.GetAccessRequests(ctx, types.AccessRequestFilter{})
+				require.NoError(t, err)
+				require.Len(t, resp, 1)
+				require.Equal(t, tc.startTime, *resp[0].GetAssumeStartTime())
+			}
+		})
+	}
+}
+
+type accessRequestWithStartTime struct {
+	testPack                      *accessRequestTestPack
+	requesterClient               *Client
+	invalidMaxedAssumeStartTime   time.Time
+	invalidExpiredAssumeStartTime time.Time
+	validStartTime                time.Time
+	maxDuration                   time.Time
+	requesterUserName             string
+	createdRequest                types.AccessRequest
+}
+
+func createAccessRequestWithStartTime(t *testing.T) accessRequestWithStartTime {
+	t.Helper()
+
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -1534,107 +1689,33 @@ func TestAccessRequest_AssumeStartTime(t *testing.T) {
 
 	t.Cleanup(func() { require.NoError(t, requesterClient.Close()) })
 
-	clock := clockwork.NewFakeClock()
-	now := clock.Now().UTC()
+	now := time.Now().UTC()
 	day := 24 * time.Hour
 
-	maxDuration := clock.Now().UTC().Add(12 * day)
+	maxDuration := time.Now().UTC().Add(12 * day)
 
 	invalidMaxedAssumeStartTime := now.Add(constants.MaxAssumeStartDuration + (1 * day))
 	invalidExpiredAssumeStartTime := now.Add(100 * day)
 	validStartTime := now.Add(6 * day)
 
-	var createdReq types.AccessRequest
+	// create the access request object
+	req, err := services.NewAccessRequest(requesterUserName, "admins")
+	require.NoError(t, err)
+	req.SetMaxDuration(maxDuration)
 
-	t.Run("CreateAccessRequest, request a specific start time", func(t *testing.T) {
-		// create the access request object
-		req, err := services.NewAccessRequest(requesterUserName, "admins")
-		require.NoError(t, err)
-		req.SetMaxDuration(maxDuration)
+	req.SetAssumeStartTime(validStartTime)
+	createdReq, err := requesterClient.CreateAccessRequestV2(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, validStartTime, *createdReq.GetAssumeStartTime())
 
-		// invalid, greater than constants.MaxAssumeStartDuration
-		req.SetAssumeStartTime(invalidMaxedAssumeStartTime)
-		_, err = requesterClient.CreateAccessRequestV2(ctx, req)
-		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
-		require.Contains(t, err.Error(), "assume start time is too far in the future")
-
-		// invalid, after access expiry time
-		req.SetAssumeStartTime(invalidExpiredAssumeStartTime)
-		_, err = requesterClient.CreateAccessRequestV2(ctx, req)
-		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
-		require.Contains(t, err.Error(), "assume start time cannot equal or exceed access expiry time")
-
-		// valid start time
-		req.SetAssumeStartTime(validStartTime)
-		createdReq, err = requesterClient.CreateAccessRequestV2(ctx, req)
-		require.NoError(t, err)
-		require.Equal(t, validStartTime, *createdReq.GetAssumeStartTime())
-	})
-
-	var changedStartTime time.Time
-	t.Run("SubmitAccessReview, initial change requested start time", func(t *testing.T) {
-		review := types.AccessReviewSubmission{
-			RequestID: createdReq.GetName(),
-			Review: types.AccessReview{
-				Author:        "admin",
-				ProposedState: types.RequestState_APPROVED,
-			},
-		}
-
-		// invalid, greater than constants.MaxAssumeStartDuration
-		review.Review.AssumeStartTime = &invalidMaxedAssumeStartTime
-		_, err := testPack.tlsServer.AuthServer.AuthServer.SubmitAccessReview(ctx, review)
-		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
-		require.Contains(t, err.Error(), "assume start time is too far in the future")
-
-		// invalid, after access expiry time
-		review.Review.AssumeStartTime = &invalidExpiredAssumeStartTime
-		_, err = testPack.tlsServer.AuthServer.AuthServer.SubmitAccessReview(ctx, review)
-		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
-		require.Contains(t, err.Error(), "assume start time cannot equal or exceed access expiry time")
-
-		// valid, changed start time
-		changedStartTime = validStartTime.Add(-day * 2)
-		review.Review.AssumeStartTime = &changedStartTime
-		resp, err := testPack.tlsServer.AuthServer.AuthServer.SubmitAccessReview(ctx, review)
-		require.NoError(t, err)
-		require.Equal(t, changedStartTime, *resp.GetAssumeStartTime())
-	})
-
-	t.Run("SetAccessRequestState, subsequent change changed start time", func(t *testing.T) {
-		// double check current assume start time was from previous results.
-		resp, err := testPack.tlsServer.AuthServer.AuthServer.GetAccessRequests(ctx, types.AccessRequestFilter{})
-		require.NoError(t, err)
-		require.Len(t, resp, 1)
-		require.Equal(t, changedStartTime, *resp[0].GetAssumeStartTime())
-
-		update := types.AccessRequestUpdate{
-			RequestID: createdReq.GetName(),
-			State:     types.RequestState_APPROVED,
-		}
-
-		// invalid, greater than constants.MaxAssumeStartDuration
-		update.AssumeStartTime = &invalidMaxedAssumeStartTime
-		err = testPack.tlsServer.Auth().SetAccessRequestState(ctx, update)
-		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
-		require.Contains(t, err.Error(), "assume start time is too far in the future")
-
-		// invalid, after access expiry time
-		update.AssumeStartTime = &invalidExpiredAssumeStartTime
-		err = testPack.tlsServer.Auth().SetAccessRequestState(ctx, update)
-		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
-		require.Contains(t, err.Error(), "assume start time cannot equal or exceed access expiry time")
-
-		// valid, changed again start time
-		changedAgainStartTime := changedStartTime.Add(-day * 2)
-		update.AssumeStartTime = &changedAgainStartTime
-		err = testPack.tlsServer.Auth().SetAccessRequestState(ctx, update)
-		require.NoError(t, err)
-
-		// double check accesss request was updated.
-		resp, err = testPack.tlsServer.AuthServer.AuthServer.GetAccessRequests(ctx, types.AccessRequestFilter{})
-		require.NoError(t, err)
-		require.Len(t, resp, 1)
-		require.Equal(t, changedAgainStartTime, *resp[0].GetAssumeStartTime())
-	})
+	return accessRequestWithStartTime{
+		testPack:                      testPack,
+		requesterClient:               requesterClient,
+		invalidMaxedAssumeStartTime:   invalidMaxedAssumeStartTime,
+		invalidExpiredAssumeStartTime: invalidExpiredAssumeStartTime,
+		validStartTime:                validStartTime,
+		maxDuration:                   maxDuration,
+		requesterUserName:             requesterUserName,
+		createdRequest:                createdReq,
+	}
 }

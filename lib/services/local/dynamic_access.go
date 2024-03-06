@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -154,7 +153,7 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 }
 
 // ApplyAccessReview applies a review to a request and returns the post-application state.
-func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params types.AccessReviewSubmission, checker services.ReviewPermissionChecker, clock clockwork.Clock) (types.AccessRequest, error) {
+func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params types.AccessReviewSubmission, checker services.ReviewPermissionChecker) (types.AccessRequest, error) {
 	if err := params.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -188,7 +187,7 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 		}
 
 		// run the application logic
-		if err := services.ApplyAccessReview(req, params.Review, checker.UserState, clock); err != nil {
+		if err := services.ApplyAccessReview(req, params.Review, checker.UserState); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
