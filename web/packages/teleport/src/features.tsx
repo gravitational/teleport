@@ -60,7 +60,7 @@ import { Users } from './Users';
 import { RolesContainer as Roles } from './Roles';
 import { DeviceTrustLocked } from './DeviceTrust';
 import { RecordingsContainer as Recordings } from './Recordings';
-import { AuthConnectors } from './AuthConnectors';
+import { AuthConnectorsContainer as AuthConnectors } from './AuthConnectors';
 import { Locks } from './LocksV2/Locks';
 import { NewLockView } from './LocksV2/NewLock';
 import { Discover } from './Discover';
