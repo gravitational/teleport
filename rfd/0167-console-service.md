@@ -15,7 +15,7 @@ This RFD proposes a mechanism for Teleport administrators to switch log-level
 and enable profile consumption without restarting the instance.
 
 ## Why
-During incidents in production environments, debug logs and diagnosis profiles
+During incidents in production environments, debug logs and diagnostic profiles
 (such as CPU and Memory allocation) are often unavailable for timely
 troubleshooting. To enable those, administrators need to restart the instance,
 potentially disrupting the application state and obscuring the issue they're
@@ -138,7 +138,7 @@ Changes the application log level.
 Usage examples:
 ```bash
 $ teleport console set-log-level DEBUG
-$ teleprot -c /random/teleport.yaml console set-log-level INFO
+$ teleport -c /random/teleport.yaml console set-log-level INFO
 ```
 
 #### Capture `pprof` profiles command
