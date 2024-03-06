@@ -518,6 +518,10 @@ func registerDeviceTrustService(s *grpc.Server, authGRPC *auth.GRPCServer) (*dev
 	}
 
 	devicepb.RegisterDeviceTrustServiceServer(s, deviceService)
+
+	// Wire DeviceWebToken creation into auth.Server.
+	authServer.SetCreateDeviceWebTokenFunc(deviceService.CreateDeviceWebToken)
+
 	return deviceService, nil
 }
 
