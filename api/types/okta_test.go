@@ -113,7 +113,7 @@ func TestOktAssignmentIsEqual(t *testing.T) {
 	tests := []struct {
 		name     string
 		o1       *OktaAssignmentV1
-		o2       interface{}
+		o2       *OktaAssignmentV1
 		expected bool
 	}{
 		{
@@ -138,12 +138,6 @@ func TestOktAssignmentIsEqual(t *testing.T) {
 			name:     "populated equals",
 			o1:       newAssignment(),
 			o2:       newAssignment(),
-			expected: true,
-		},
-		{
-			name:     "populated equals and other is not a pointer",
-			o1:       newAssignment(),
-			o2:       *newAssignment(),
 			expected: true,
 		},
 		{

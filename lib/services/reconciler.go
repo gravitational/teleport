@@ -32,11 +32,6 @@ type Reconciled interface {
 	GetName() string
 }
 
-// IsEqual will be used instead of CompareResources if a resource implements it.
-type IsEqual interface {
-	IsEqual(any) bool
-}
-
 // ReconcilerConfig is the resource reconciler configuration.
 type ReconcilerConfig[T Reconciled] struct {
 	// Matcher is used to match resources.
@@ -202,15 +197,7 @@ func (r *Reconciler[T]) processNewResource(ctx context.Context, currentResources
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	var resourcesEqual bool
-	hasEqual, ok := any(newT).(IsEqual)
-	if ok {
-		resourcesEqual = hasEqual.IsEqual(registered)
-	} else {
-		resourcesEqual = CompareResources(newT, registered) == Equal
-	}
-	if !resourcesEqual {
+	if CompareResources(newT, registered) != Equal {
 		if r.cfg.Matcher(newT) {
 			r.log.Infof("%v %v updated, updating.", kind, name)
 			if err := r.cfg.OnUpdate(ctx, newT, registered); err != nil {

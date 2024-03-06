@@ -17,7 +17,6 @@ limitations under the License.
 package types
 
 import (
-	"maps"
 	"regexp"
 	"slices"
 	"sort"
@@ -380,45 +379,8 @@ func (h *ResourceHeader) GetAllLabels() map[string]string {
 }
 
 // IsEqual determines if two resource header resources are equivalent to one another.
-func (h *ResourceHeader) IsEqual(i interface{}) bool {
-	ptr, ok := i.(*ResourceHeader)
-	if ok {
-		if h == nil && ptr == nil {
-			return true
-		}
-		if h != nil && ptr != nil {
-			return h.isEqual(*ptr)
-		}
-		return false
-	}
-
-	other, ok := i.(ResourceHeader)
-	if ok {
-		return h.isEqual(other)
-	}
-
-	return false
-
-}
-
-func (h *ResourceHeader) isEqual(other ResourceHeader) bool {
-	if h.Kind != other.Kind {
-		return false
-	}
-
-	if !h.Metadata.IsEqual(other.Metadata) {
-		return false
-	}
-
-	if h.SubKind != other.SubKind {
-		return false
-	}
-
-	if h.Version != other.Version {
-		return false
-	}
-
-	return true
+func (h *ResourceHeader) IsEqual(other *ResourceHeader) bool {
+	return deriveTeleportEqualResourceHeader(h, other)
 }
 
 func (h *ResourceHeader) CheckAndSetDefaults() error {
@@ -496,53 +458,8 @@ func (m *Metadata) SetOrigin(origin string) {
 }
 
 // IsEqual determines if two metadata resources are equivalent to one another.
-func (m *Metadata) IsEqual(i interface{}) bool {
-	ptr, ok := i.(*Metadata)
-	if ok {
-		if m == nil && ptr == nil {
-			return true
-		}
-		if m != nil && ptr != nil {
-			return m.isEqual(*ptr)
-		}
-		return false
-	}
-
-	other, ok := i.(Metadata)
-	if ok {
-		return m.isEqual(other)
-	}
-
-	return false
-}
-
-func (m Metadata) isEqual(other Metadata) bool {
-	// Disregard ID and revision
-	if m.Description != other.Description {
-		return false
-	}
-
-	if m.Expires != nil && other.Expires != nil {
-		if !m.Expires.Equal(*other.Expires) {
-			return false
-		}
-	} else if (m.Expires == nil) != (other.Expires == nil) {
-		return false
-	}
-
-	if !maps.Equal(m.Labels, other.Labels) {
-		return false
-	}
-
-	if m.Name != other.Name {
-		return false
-	}
-
-	if m.Namespace != other.Namespace {
-		return false
-	}
-
-	return true
+func (m *Metadata) IsEqual(other *Metadata) bool {
+	return deriveTeleportEqualMetadata(m, other)
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults

@@ -30,54 +30,42 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-type hasMetadata interface {
-	GetMetadata() *headerv1.Metadata
-}
-
 // TestReconciler makes sure appropriate callbacks are called during reconciliation.
 func TestReconciler(t *testing.T) {
-	type updateCall struct{ new, old Reconciled }
-	getLabels := func(r Reconciled) map[string]string {
-		return any(r).(hasMetadata).GetMetadata().Labels
-	}
-	forceCompare := func(forceCompare bool) func(Reconciled) {
-		return func(r Reconciled) {
-			any(r).(*testResourceWithEqual).ForceCompare = forceCompare
-		}
-	}
+	type updateCall struct{ new, old testResource }
 	tests := []struct {
 		description         string
 		selectors           []ResourceMatcher
-		registeredResources []Reconciled
-		newResources        []Reconciled
-		onCreateCalls       []Reconciled
+		registeredResources []testResource
+		newResources        []testResource
+		onCreateCalls       []testResource
 		onUpdateCalls       []updateCall
-		onDeleteCalls       []Reconciled
+		onDeleteCalls       []testResource
 	}{
 		{
 			description: "new matching resource should be registered",
 			selectors: []ResourceMatcher{{
 				Labels: types.Labels{"*": []string{"*"}},
 			}},
-			newResources:  []Reconciled{makeDynamicResource("res1", nil, false)},
-			onCreateCalls: []Reconciled{makeDynamicResource("res1", nil, false)},
+			newResources:  []testResource{makeDynamicResource("res1", nil)},
+			onCreateCalls: []testResource{makeDynamicResource("res1", nil)},
 		},
 		{
 			description: "new non-matching resource should not be registered",
 			selectors: []ResourceMatcher{{
 				Labels: types.Labels{"env": []string{"prod"}},
 			}},
-			newResources: []Reconciled{makeDynamicResource("res1", map[string]string{"env": "dev"}, false)},
+			newResources: []testResource{makeDynamicResource("res1", map[string]string{"env": "dev"})},
 		},
 		{
 			description: "resources that equal don't overwrite each other ",
 			selectors: []ResourceMatcher{{
 				Labels: types.Labels{"*": []string{"*"}},
 			}},
-			registeredResources: []Reconciled{makeDynamicResource("res1", nil, false)},
-			newResources: []Reconciled{
-				makeDynamicResource("res1", nil, false, func(r Reconciled) {
-					any(r).(testResource).Metadata.Labels = map[string]string{"env": "dev"}
+			registeredResources: []testResource{makeDynamicResource("res1", nil)},
+			newResources: []testResource{
+				makeDynamicResource("res1", nil, func(r *testResource) {
+					r.Metadata.Labels = map[string]string{"env": "dev"}
 				}),
 			},
 		},
@@ -86,52 +74,28 @@ func TestReconciler(t *testing.T) {
 			selectors: []ResourceMatcher{{
 				Labels: types.Labels{"*": []string{"*"}},
 			}},
-			registeredResources: []Reconciled{makeStaticResource("res1", nil, false)},
-			newResources:        []Reconciled{makeDynamicResource("res1", nil, false)},
+			registeredResources: []testResource{makeStaticResource("res1", nil)},
+			newResources:        []testResource{makeDynamicResource("res1", nil)},
 		},
 		{
 			description: "resource that's no longer present should be removed",
 			selectors: []ResourceMatcher{{
 				Labels: types.Labels{"*": []string{"*"}},
 			}},
-			registeredResources: []Reconciled{makeDynamicResource("res1", nil, false)},
-			onDeleteCalls:       []Reconciled{makeDynamicResource("res1", nil, false)},
+			registeredResources: []testResource{makeDynamicResource("res1", nil)},
+			onDeleteCalls:       []testResource{makeDynamicResource("res1", nil)},
 		},
 		{
 			description: "resource with updated matching labels should be updated",
 			selectors: []ResourceMatcher{{
 				Labels: types.Labels{"*": []string{"*"}},
 			}},
-			registeredResources: []Reconciled{makeDynamicResource("res1", nil, false)},
-			newResources:        []Reconciled{makeDynamicResource("res1", map[string]string{"env": "dev"}, false)},
+			registeredResources: []testResource{makeDynamicResource("res1", nil)},
+			newResources:        []testResource{makeDynamicResource("res1", map[string]string{"env": "dev"})},
 			onUpdateCalls: []updateCall{
 				{
-					old: makeDynamicResource("res1", nil, false),
-					new: makeDynamicResource("res1", map[string]string{"env": "dev"}, false),
-				},
-			},
-		},
-		{
-			description: "resource with custom equal forced to true, no update expected",
-			selectors: []ResourceMatcher{{
-				Labels: types.Labels{"*": []string{"*"}},
-			}},
-			registeredResources: []Reconciled{makeDynamicResource("res1", nil, true)},
-			newResources:        []Reconciled{makeDynamicResource("res1", map[string]string{"env": "dev"}, true, forceCompare(true))},
-		},
-		{
-			description: "resource with custom equal forced to false, update expected",
-			selectors: []ResourceMatcher{{
-				Labels: types.Labels{"*": []string{"*"}},
-			}},
-			registeredResources: []Reconciled{makeDynamicResource("res1", nil, true, func(r Reconciled) {
-				any(r).(*testResourceWithEqual).ForceCompare = false
-			})},
-			newResources: []Reconciled{makeDynamicResource("res1", map[string]string{"env": "dev"}, true)},
-			onUpdateCalls: []updateCall{
-				{
-					old: makeDynamicResource("res1", nil, true),
-					new: makeDynamicResource("res1", map[string]string{"env": "dev"}, true),
+					old: makeDynamicResource("res1", nil),
+					new: makeDynamicResource("res1", map[string]string{"env": "dev"}),
 				},
 			},
 		},
@@ -140,42 +104,42 @@ func TestReconciler(t *testing.T) {
 			selectors: []ResourceMatcher{{
 				Labels: types.Labels{"env": []string{"prod"}},
 			}},
-			registeredResources: []Reconciled{makeDynamicResource("res1", map[string]string{"env": "prod"}, false)},
-			newResources:        []Reconciled{makeDynamicResource("res1", map[string]string{"env": "dev"}, false)},
-			onDeleteCalls:       []Reconciled{makeDynamicResource("res1", map[string]string{"env": "prod"}, false)},
+			registeredResources: []testResource{makeDynamicResource("res1", map[string]string{"env": "prod"})},
+			newResources:        []testResource{makeDynamicResource("res1", map[string]string{"env": "dev"})},
+			onDeleteCalls:       []testResource{makeDynamicResource("res1", map[string]string{"env": "prod"})},
 		},
 		{
 			description: "complex scenario with multiple created/updated/deleted resources",
 			selectors: []ResourceMatcher{{
 				Labels: types.Labels{"env": []string{"prod"}},
 			}},
-			registeredResources: []Reconciled{
-				makeStaticResource("res0", nil, false),
-				makeDynamicResource("res1", map[string]string{"env": "prod"}, false),
-				makeDynamicResource("res2", map[string]string{"env": "prod"}, false),
-				makeDynamicResource("res3", map[string]string{"env": "prod"}, false),
-				makeDynamicResource("res4", map[string]string{"env": "prod"}, false),
+			registeredResources: []testResource{
+				makeStaticResource("res0", nil),
+				makeDynamicResource("res1", map[string]string{"env": "prod"}),
+				makeDynamicResource("res2", map[string]string{"env": "prod"}),
+				makeDynamicResource("res3", map[string]string{"env": "prod"}),
+				makeDynamicResource("res4", map[string]string{"env": "prod"}),
 			},
-			newResources: []Reconciled{
-				makeDynamicResource("res0", map[string]string{"env": "prod"}, false),
-				makeDynamicResource("res2", map[string]string{"env": "prod", "a": "b"}, false),
-				makeDynamicResource("res3", map[string]string{"env": "prod"}, false),
-				makeDynamicResource("res4", map[string]string{"env": "dev"}, false),
-				makeDynamicResource("res5", map[string]string{"env": "prod"}, false),
-				makeDynamicResource("res6", map[string]string{"env": "dev"}, false),
+			newResources: []testResource{
+				makeDynamicResource("res0", map[string]string{"env": "prod"}),
+				makeDynamicResource("res2", map[string]string{"env": "prod", "a": "b"}),
+				makeDynamicResource("res3", map[string]string{"env": "prod"}),
+				makeDynamicResource("res4", map[string]string{"env": "dev"}),
+				makeDynamicResource("res5", map[string]string{"env": "prod"}),
+				makeDynamicResource("res6", map[string]string{"env": "dev"}),
 			},
-			onCreateCalls: []Reconciled{
-				makeDynamicResource("res5", map[string]string{"env": "prod"}, false),
+			onCreateCalls: []testResource{
+				makeDynamicResource("res5", map[string]string{"env": "prod"}),
 			},
 			onUpdateCalls: []updateCall{
 				{
-					new: makeDynamicResource("res2", map[string]string{"env": "prod", "a": "b"}, false),
-					old: makeDynamicResource("res2", map[string]string{"env": "prod"}, false),
+					new: makeDynamicResource("res2", map[string]string{"env": "prod", "a": "b"}),
+					old: makeDynamicResource("res2", map[string]string{"env": "prod"}),
 				},
 			},
-			onDeleteCalls: []Reconciled{
-				makeDynamicResource("res1", map[string]string{"env": "prod"}, false),
-				makeDynamicResource("res4", map[string]string{"env": "prod"}, false),
+			onDeleteCalls: []testResource{
+				makeDynamicResource("res1", map[string]string{"env": "prod"}),
+				makeDynamicResource("res4", map[string]string{"env": "prod"}),
 			},
 		},
 	}
@@ -183,32 +147,32 @@ func TestReconciler(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.description, func(t *testing.T) {
 			// Reconciler will record all callback calls in these lists.
-			var onCreateCalls, onDeleteCalls []Reconciled
+			var onCreateCalls, onDeleteCalls []testResource
 			var onUpdateCalls []updateCall
 
-			reconciler, err := NewReconciler[Reconciled](ReconcilerConfig[Reconciled]{
-				Matcher: func(tr Reconciled) bool {
-					return MatchResourceLabels(test.selectors, getLabels(tr))
+			reconciler, err := NewReconciler[testResource](ReconcilerConfig[testResource]{
+				Matcher: func(tr testResource) bool {
+					return MatchResourceLabels(test.selectors, tr.GetMetadata().Labels)
 				},
-				GetCurrentResources: func() map[string]Reconciled {
-					return utils.FromSlice[Reconciled](test.registeredResources, func(t Reconciled) string {
-						return t.GetName()
+				GetCurrentResources: func() map[string]testResource {
+					return utils.FromSlice[testResource](test.registeredResources, func(t testResource) string {
+						return t.Metadata.Name
 					})
 				},
-				GetNewResources: func() map[string]Reconciled {
-					return utils.FromSlice[Reconciled](test.newResources, func(t Reconciled) string {
-						return t.GetName()
+				GetNewResources: func() map[string]testResource {
+					return utils.FromSlice[testResource](test.newResources, func(t testResource) string {
+						return t.Metadata.Name
 					})
 				},
-				OnCreate: func(ctx context.Context, tr Reconciled) error {
+				OnCreate: func(ctx context.Context, tr testResource) error {
 					onCreateCalls = append(onCreateCalls, tr)
 					return nil
 				},
-				OnUpdate: func(ctx context.Context, tr, old Reconciled) error {
+				OnUpdate: func(ctx context.Context, tr, old testResource) error {
 					onUpdateCalls = append(onUpdateCalls, updateCall{new: tr, old: old})
 					return nil
 				},
-				OnDelete: func(ctx context.Context, tr Reconciled) error {
+				OnDelete: func(ctx context.Context, tr testResource) error {
 					onDeleteCalls = append(onDeleteCalls, tr)
 					return nil
 				},
@@ -225,41 +189,31 @@ func TestReconciler(t *testing.T) {
 	}
 }
 
-func makeStaticResource(name string, labels map[string]string, customEqual bool) Reconciled {
+func makeStaticResource(name string, labels map[string]string) testResource {
 	return makeResource(name, labels, map[string]string{
 		types.OriginLabel: types.OriginConfigFile,
-	}, customEqual)
+	})
 }
 
-func makeDynamicResource(name string, labels map[string]string, customEqual bool, opts ...func(Reconciled)) Reconciled {
+func makeDynamicResource(name string, labels map[string]string, opts ...func(*testResource)) testResource {
 	return makeResource(name, labels, map[string]string{
 		types.OriginLabel: types.OriginDynamic,
-	}, customEqual, opts...)
+	}, opts...)
 }
 
-func makeResource(name string, labels map[string]string, additionalLabels map[string]string, customEqual bool, opts ...func(Reconciled)) Reconciled {
+func makeResource(name string, labels map[string]string, additionalLabels map[string]string, opts ...func(*testResource)) testResource {
 	if labels == nil {
 		labels = make(map[string]string)
 	}
 	maps.Copy(labels, additionalLabels)
-	var r Reconciled
-	if customEqual {
-		r = &testResourceWithEqual{
-			Metadata: &headerv1.Metadata{
-				Name:   name,
-				Labels: labels,
-			},
-		}
-	} else {
-		r = testResource{
-			Metadata: &headerv1.Metadata{
-				Name:   name,
-				Labels: labels,
-			},
-		}
+	r := testResource{
+		Metadata: &headerv1.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
 	}
 	for _, opt := range opts {
-		opt(r)
+		opt(&r)
 	}
 	return r
 }
@@ -278,25 +232,4 @@ func (r testResource) GetName() string {
 
 func (r testResource) GetKind() string {
 	return "testResource"
-}
-
-type testResourceWithEqual struct {
-	Metadata     *headerv1.Metadata
-	ForceCompare bool
-}
-
-func (r *testResourceWithEqual) GetMetadata() *headerv1.Metadata {
-	return r.Metadata
-}
-
-func (r *testResourceWithEqual) GetName() string {
-	return r.Metadata.GetName()
-}
-
-func (r *testResourceWithEqual) GetKind() string {
-	return "testResourceWithEqual"
-}
-
-func (r *testResourceWithEqual) IsEqual(i interface{}) bool {
-	return r.ForceCompare
 }

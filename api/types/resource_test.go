@@ -609,7 +609,7 @@ func TestMetadataIsEqual(t *testing.T) {
 	tests := []struct {
 		name     string
 		m1       *Metadata
-		m2       interface{}
+		m2       *Metadata
 		expected bool
 	}{
 		{
@@ -634,12 +634,6 @@ func TestMetadataIsEqual(t *testing.T) {
 			name:     "populated equals",
 			m1:       newMetadata(),
 			m2:       newMetadata(),
-			expected: true,
-		},
-		{
-			name:     "populated equals and other is not a pointer",
-			m1:       newMetadata(),
-			m2:       *newMetadata(),
 			expected: true,
 		},
 		{
@@ -745,7 +739,7 @@ func TestResourceHeaderIsEqual(t *testing.T) {
 	tests := []struct {
 		name     string
 		h1       *ResourceHeader
-		h2       interface{}
+		h2       *ResourceHeader
 		expected bool
 	}{
 		{
@@ -770,12 +764,6 @@ func TestResourceHeaderIsEqual(t *testing.T) {
 			name:     "populated equals",
 			h1:       newHeader(),
 			h2:       newHeader(),
-			expected: true,
-		},
-		{
-			name:     "populated equals and other is not a pointer",
-			h1:       newHeader(),
-			h2:       *newHeader(),
 			expected: true,
 		},
 		{
