@@ -4227,6 +4227,7 @@ func TestClusterKubePodsGet(t *testing.T) {
 	}
 }
 
+// DELETE IN 16.0
 func TestClusterAppsGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
@@ -4282,27 +4283,10 @@ func TestClusterAppsGet(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	resource3, err := types.NewSAMLIdPServiceProvider(types.Metadata{
-		Name: "test-saml-app",
-	}, types.SAMLIdPServiceProviderSpecV1{
-		EntityDescriptor: `<?xml version="1.0" encoding="UTF-8"?>
-		<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="test-saml-app" validUntil="2025-12-09T09:13:31.006Z">
-			 <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
-					<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
-					<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
-					<md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
-			 </md:SPSSODescriptor>
-		</md:EntityDescriptor>`,
-		EntityID: "test-saml-app",
-	})
-	require.NoError(t, err)
-
 	// Register apps and service providers.
 	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource)
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource2)
-	require.NoError(t, err)
-	err = env.server.Auth().CreateSAMLIdPServiceProvider(context.Background(), resource3)
 	require.NoError(t, err)
 
 	// Make the call.
@@ -4313,8 +4297,8 @@ func TestClusterAppsGet(t *testing.T) {
 	// Test correct response.
 	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 3)
-	require.Equal(t, 3, resp.TotalCount)
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, 2, resp.TotalCount)
 	require.ElementsMatch(t, resp.Items, []ui.App{{
 		Kind:        types.KindApp,
 		Name:        "app1",
@@ -4335,17 +4319,6 @@ func TestClusterAppsGet(t *testing.T) {
 		FQDN:       "publicaddrs",
 		PublicAddr: "publicaddrs",
 		AWSConsole: false,
-	}, {
-		Kind:        types.KindApp,
-		Name:        "test-saml-app",
-		Description: "SAML Application",
-		URI:         "",
-		Labels:      []ui.Label{},
-		ClusterID:   env.server.ClusterName(),
-		FQDN:        "",
-		PublicAddr:  "",
-		AWSConsole:  false,
-		SAMLApp:     true,
 	}})
 }
 

@@ -3554,7 +3554,10 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 		case types.KindUserGroup:
 			resources[i] = respResource.GetUserGroup()
 		case types.KindAppOrSAMLIdPServiceProvider:
+			//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 			resources[i] = respResource.GetAppServerOrSAMLIdPServiceProvider()
+		case types.KindSAMLIdPServiceProvider:
+			resources[i] = respResource.GetSAMLIdPServiceProvider()
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
@@ -3632,7 +3635,7 @@ func getResourceFromProtoPage(resource *proto.PaginatedResource) (types.Resource
 	} else if r := resource.GetDatabaseService(); r != nil {
 		out = r
 		return out, nil
-	} else if r := resource.GetAppServerOrSAMLIdPServiceProvider(); r != nil {
+	} else if r := resource.GetAppServerOrSAMLIdPServiceProvider(); r != nil { //nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 		out = r
 		return out, nil
 	} else if r := resource.GetWindowsDesktop(); r != nil {
@@ -3651,6 +3654,9 @@ func getResourceFromProtoPage(resource *proto.PaginatedResource) (types.Resource
 		out = r
 		return out, nil
 	} else if r := resource.GetAppServer(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetSAMLIdPServiceProvider(); r != nil {
 		out = r
 		return out, nil
 	} else {
@@ -3748,7 +3754,10 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 			case types.KindUserGroup:
 				resource = respResource.GetUserGroup()
 			case types.KindAppOrSAMLIdPServiceProvider:
+				//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 				resource = respResource.GetAppServerOrSAMLIdPServiceProvider()
+			case types.KindSAMLIdPServiceProvider:
+				resource = respResource.GetSAMLIdPServiceProvider()
 			default:
 				out.Resources = nil
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)

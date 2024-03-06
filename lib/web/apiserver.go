@@ -2738,6 +2738,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.AppServerOrSAMLIdPServiceProvider:
+			//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 			if r.IsAppServer() {
 				app := ui.MakeApp(r.GetAppServer().GetApp(), ui.MakeAppsConfig{
 					LocalClusterName:  h.auth.clusterName,
@@ -2749,7 +2750,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				})
 				unifiedResources = append(unifiedResources, app)
 			} else {
-				app := ui.MakeSAMLApp(r.GetSAMLIdPServiceProvider(), ui.MakeAppsConfig{
+				app := ui.MakeAppTypeFromSAMLApp(r.GetSAMLIdPServiceProvider(), ui.MakeAppsConfig{
 					LocalClusterName:  h.auth.clusterName,
 					LocalProxyDNSName: h.proxyDNSName(),
 					AppClusterName:    site.GetName(),
@@ -2757,6 +2758,16 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				})
 				unifiedResources = append(unifiedResources, app)
 			}
+		case types.SAMLIdPServiceProvider:
+			// SAMLIdPServiceProvider resources are shown as
+			// "apps" in the UI.
+			app := ui.MakeAppTypeFromSAMLApp(r, ui.MakeAppsConfig{
+				LocalClusterName:  h.auth.clusterName,
+				LocalProxyDNSName: h.proxyDNSName(),
+				AppClusterName:    site.GetName(),
+				Identity:          identity,
+			})
+			unifiedResources = append(unifiedResources, app)
 		case types.WindowsDesktop:
 			desktop, err := ui.MakeDesktop(r, accessChecker)
 			if err != nil {

@@ -39,7 +39,14 @@ import (
 )
 
 // UnifiedResourceKinds is a list of all kinds that are stored in the unified resource cache.
-var UnifiedResourceKinds []string = []string{types.KindNode, types.KindKubeServer, types.KindDatabaseServer, types.KindAppServer, types.KindSAMLIdPServiceProvider, types.KindWindowsDesktop}
+var UnifiedResourceKinds []string = []string{
+	types.KindNode,
+	types.KindKubeServer,
+	types.KindDatabaseServer,
+	types.KindAppServer,
+	types.KindWindowsDesktop,
+	types.KindSAMLIdPServiceProvider,
+}
 
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
 type UnifiedResourceCacheConfig struct {
@@ -807,7 +814,8 @@ func MakePaginatedResources(requestType string, resources []types.ResourceWithLa
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_UserGroup{UserGroup: userGroup}}
-		case types.KindSAMLIdPServiceProvider, types.KindAppOrSAMLIdPServiceProvider:
+		case types.KindAppOrSAMLIdPServiceProvider:
+			//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 			switch appOrSP := resource.(type) {
 			case *types.AppServerV3:
 				protoResource = &proto.PaginatedResource{
@@ -830,6 +838,13 @@ func MakePaginatedResources(requestType string, resources []types.ResourceWithLa
 			default:
 				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 			}
+		case types.KindSAMLIdPServiceProvider:
+			serviceProvider, ok := resource.(*types.SAMLIdPServiceProviderV1)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{SAMLIdPServiceProvider: serviceProvider}}
 		default:
 			return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
 		}
