@@ -51,7 +51,7 @@ import { NavTitle } from './types';
 import { AuditContainer as Audit } from './Audit';
 import { SessionsContainer as Sessions } from './Sessions';
 import { UnifiedResources } from './UnifiedResources';
-import { Account } from './Account';
+import { AccountPage } from './Account';
 import { Support } from './Support';
 import { Clusters } from './Clusters';
 import { Nodes } from './Nodes';
@@ -569,7 +569,7 @@ export class FeatureAccount implements TeleportFeature {
   route = {
     title: 'Account Settings',
     path: cfg.routes.account,
-    component: Account,
+    component: AccountPage,
   };
 
   hasAccess() {
