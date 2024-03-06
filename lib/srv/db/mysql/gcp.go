@@ -77,6 +77,7 @@ func (e *Engine) getGCPUserAndPassword(ctx context.Context, sessionCtx *common.S
 	switch {
 	// GetUser permission is new for IAM auth. If no permission, assume legacy password user.
 	case trace.IsAccessDenied(err):
+		e.Log.WithField("user", sessionCtx.DatabaseUser).Debug("Access denied to get GCP MySQL database user info. Continue with password auth.")
 		password, err := e.getGCPOneTimePassword(ctx, sessionCtx)
 		if err != nil {
 			return "", "", trace.Wrap(err)
