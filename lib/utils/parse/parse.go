@@ -72,20 +72,10 @@ type TraitsTemplateExpression struct {
 	expr traitsTemplateExpression
 }
 
-// SplitResult is the result of SplitExpression function.
-type SplitResult struct {
-	// Prefix is a Prefix of the expression
-	Prefix string
-	// Suffix is a Suffix of the expression
-	Suffix string
-	// ExprText is the expression text representation
-	ExprText string
-	// Literal is true if the ExprText is a Literal string
-	Literal bool
-}
-
-// SplitExpression splits the value into prefix, expression text, and suffix. If the expression text is a plain string literal, the Literal field indicates this fact.
-func SplitExpression(value string) (*SplitResult, error) {
+// NewTraitsTemplateExpression parses expressions like {{external.foo}} or {{internal.bar}},
+// or a literal value like "prod". Call Interpolate on the returned Expression
+// to get the final value based on user traits.
+func NewTraitsTemplateExpression(value string) (*TraitsTemplateExpression, error) {
 	match := reVariable.FindStringSubmatch(value)
 	if len(match) == 0 {
 		if strings.Contains(value, "{{") || strings.Contains(value, "}}") {
@@ -94,39 +84,22 @@ func SplitExpression(value string) (*SplitResult, error) {
 				value,
 			)
 		}
-		return &SplitResult{Literal: true, ExprText: value}, nil
-	}
-
-	return &SplitResult{
-		Prefix:   strings.TrimLeftFunc(match[1], unicode.IsSpace),
-		ExprText: match[2],
-		Suffix:   strings.TrimRightFunc(match[3], unicode.IsSpace),
-	}, nil
-}
-
-// NewTraitsTemplateExpression parses expressions like {{external.foo}} or {{internal.bar}},
-// or a literal value like "prod". Call Interpolate on the returned Expression
-// to get the final value based on user traits.
-func NewTraitsTemplateExpression(value string) (*TraitsTemplateExpression, error) {
-	result, err := SplitExpression(value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if result.Literal {
 		expr := typical.LiteralExpr[traitsTemplateEnv, []string]{
 			Value: []string{value},
 		}
 		return &TraitsTemplateExpression{expr: expr}, nil
 	}
 
-	expr, err := parseTraitsTemplateExpression(result.ExprText)
+	prefix, value, suffix := match[1], match[2], match[3]
+
+	expr, err := parseTraitsTemplateExpression(value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &TraitsTemplateExpression{
-		prefix: result.Prefix,
-		suffix: result.Suffix,
+		prefix: strings.TrimLeftFunc(prefix, unicode.IsSpace),
+		suffix: strings.TrimRightFunc(suffix, unicode.IsSpace),
 		expr:   expr,
 	}, nil
 }
