@@ -19,9 +19,6 @@ is published, since the PR will include an update to the plugins version as well
 
 - [ ] Update support matrix in docs FAQ page
   - Example: https://github.com/gravitational/teleport/pull/4602
-- [ ] Create PR to update default Teleport image referenced in docker/teleport-quickstart.yml
-  - Example: https://github.com/gravitational/teleport/pull/4655
-- [ ] Create PR to update default Teleport image referenced in docker/teleport-lab.yml
 - [ ] Update the list of OCI images to monitor and rebuild nightly in
   [`monitor-teleport-oci-distroless.yml` on `master`](https://github.com/gravitational/teleport.e/blob/master/.github/workflows/monitor-teleport-oci-distroless.yml) and
   [`rebuild-teleport-oci-distroless-cron.yml` on `master`](https://github.com/gravitational/teleport.e/blob/master/.github/workflows/rebuild-teleport-oci-distroless-cron.yml)
