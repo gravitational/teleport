@@ -144,7 +144,7 @@ func TestGetRemoteCluster(t *testing.T) {
 			},
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				// Opaque no permission presents as not found
-				require.True(t, trace.IsNotFound(err), "error should be not found")
+				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
 		{
@@ -154,7 +154,7 @@ func TestGetRemoteCluster(t *testing.T) {
 				Name: notMatchingRC.GetName(),
 			},
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
+				require.True(t, trace.IsNotFound(err), "error should be not found")
 			},
 		},
 		{
