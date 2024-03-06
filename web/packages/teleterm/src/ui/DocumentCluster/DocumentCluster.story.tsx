@@ -61,6 +61,75 @@ const leafClusterDoc = makeDocumentCluster({
   uri: '/docs/456',
 });
 
+export const OnlineLoadedResources = () => {
+  const state = createClusterServiceState();
+  state.clusters.set(
+    rootClusterDoc.clusterUri,
+    makeRootCluster({
+      uri: rootClusterDoc.clusterUri,
+    })
+  );
+
+  return renderState({
+    state,
+    doc: rootClusterDoc,
+    listUnifiedResources: () =>
+      Promise.resolve({
+        resources: [
+          {
+            kind: 'server',
+            resource: makeServer(),
+          },
+          {
+            kind: 'server',
+            resource: makeServer({
+              uri: `${rootClusterUri}/servers/1234`,
+              hostname: 'bar',
+              tunnel: true,
+            }),
+          },
+          { kind: 'database', resource: makeDatabase() },
+          { kind: 'kube', resource: makeKube() },
+          { kind: 'app', resource: { ...makeApp(), name: 'TCP app' } },
+          {
+            kind: 'app',
+            resource: {
+              ...makeApp(),
+              name: 'HTTP app',
+              endpointUri: 'http://localhost:8080',
+            },
+          },
+          {
+            kind: 'app',
+            resource: {
+              ...makeApp(),
+              name: 'AWS console',
+              endpointUri: 'https://localhost:8080',
+              awsConsole: true,
+              awsRoles: [
+                { arn: 'foo', display: 'foo', name: 'foo' },
+                { arn: 'bar', display: 'bar', name: 'bar' },
+              ],
+            },
+          },
+          {
+            kind: 'app',
+            resource: {
+              ...makeApp(),
+              name: 'SAML app',
+              desc: 'SAML Application',
+              publicAddr: '',
+              endpointUri: '',
+              samlApp: true,
+            },
+          },
+        ],
+        totalCount: 4,
+        nextKey: '',
+      }),
+  });
+};
+
 export const OnlineEmptyResourcesAndCanAddResourcesAndConnectComputer = () => {
   const state = createClusterServiceState();
   state.clusters.set(
@@ -189,75 +258,6 @@ export const OnlineLoadingResources = () => {
     state,
     doc: rootClusterDoc,
     listUnifiedResources: () => promiseRejectedOnUnmount,
-  });
-};
-
-export const OnlineLoadedResources = () => {
-  const state = createClusterServiceState();
-  state.clusters.set(
-    rootClusterDoc.clusterUri,
-    makeRootCluster({
-      uri: rootClusterDoc.clusterUri,
-    })
-  );
-
-  return renderState({
-    state,
-    doc: rootClusterDoc,
-    listUnifiedResources: () =>
-      Promise.resolve({
-        resources: [
-          {
-            kind: 'server',
-            resource: makeServer(),
-          },
-          {
-            kind: 'server',
-            resource: makeServer({
-              uri: `${rootClusterUri}/servers/1234`,
-              hostname: 'bar',
-              tunnel: true,
-            }),
-          },
-          { kind: 'database', resource: makeDatabase() },
-          { kind: 'kube', resource: makeKube() },
-          { kind: 'app', resource: { ...makeApp(), name: 'TCP app' } },
-          {
-            kind: 'app',
-            resource: {
-              ...makeApp(),
-              name: 'HTTP app',
-              endpointUri: 'http://localhost:8080',
-            },
-          },
-          {
-            kind: 'app',
-            resource: {
-              ...makeApp(),
-              name: 'AWS console',
-              endpointUri: 'https://localhost:8080',
-              awsConsole: true,
-              awsRoles: [
-                { arn: 'foo', display: 'foo', name: 'foo' },
-                { arn: 'bar', display: 'bar', name: 'bar' },
-              ],
-            },
-          },
-          {
-            kind: 'app',
-            resource: {
-              ...makeApp(),
-              name: 'SAML app',
-              desc: 'SAML Application',
-              publicAddr: '',
-              endpointUri: '',
-              samlApp: true,
-            },
-          },
-        ],
-        totalCount: 4,
-        nextKey: '',
-      }),
   });
 };
 
