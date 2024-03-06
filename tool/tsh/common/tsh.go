@@ -3193,7 +3193,9 @@ func onListSessions(cf *CLIConf) error {
 
 func sortAndFilterSessions(sessions []types.SessionTracker, kinds []types.SessionKind) []types.SessionTracker {
 	filtered := slices.DeleteFunc(sessions, func(st types.SessionTracker) bool {
-		return !slices.Contains(kinds, st.GetSessionKind())
+		return !slices.Contains(kinds, st.GetSessionKind()) ||
+			(st.GetState() != types.SessionState_SessionStateRunning &&
+				st.GetState() != types.SessionState_SessionStatePending)
 	})
 	sort.Slice(filtered, func(i, j int) bool {
 		return filtered[i].GetCreated().Before(filtered[j].GetCreated())
