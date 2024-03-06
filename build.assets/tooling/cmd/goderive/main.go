@@ -24,6 +24,7 @@ import (
 	"os"
 
 	"github.com/awalterschulze/goderive/derive"
+
 	"github.com/gravitational/teleport/build.assets/tooling/cmd/goderive/plugin/teleportequal"
 )
 
