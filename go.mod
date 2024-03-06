@@ -111,7 +111,7 @@ require (
 	github.com/gravitational/teleport/api v0.0.0
 	github.com/gravitational/trace v1.3.1
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
-	github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2 v2.0.0-rc.3
+	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.1
 	github.com/guptarohit/asciigraph v0.5.6
 	github.com/hashicorp/go-version v1.6.0
