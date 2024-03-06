@@ -32,7 +32,7 @@ with Cloud SQL MySQL instances.
 
 (!docs/pages/includes/database-access/cloudsql_enable_iam_auth.mdx type="MySQL" !)
 
-## Step 2/7. Create a service account to access the MySQL instance
+## Step 2/7. Create a service account for a database user
 
 Teleport uses service accounts to connect to Cloud SQL databases.
 
@@ -249,7 +249,7 @@ proxy_service:
 
 (!docs/pages/includes/database-access/cloudsql_service_credentials.mdx!)
 
-## Step 5/5. Connect
+## Step 7/7. Connect
 
 Once the Database Service has joined the cluster, log in to see the available
 databases:
@@ -327,3 +327,11 @@ ERROR 1105 (HY000): Could not update Cloud SQL user "<username>" password:
 Connecting as built-in database users with passwords are not supported for
 Cloud SQL replica instances. Please follow this guide to use IAM authentication
 instead.
+
+## Next steps
+
+(!docs/pages/includes/database-access/guides-next-steps.mdx!)
+
+- Learn more about [authenticating as a service
+  account](https://cloud.google.com/docs/authentication#service-accounts) in
+  Google Cloud.

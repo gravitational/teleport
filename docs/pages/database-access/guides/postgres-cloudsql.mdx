@@ -33,7 +33,7 @@ with Cloud SQL PostgreSQL instances.
 
 (!docs/pages/includes/database-access/cloudsql_enable_iam_auth.mdx type="PostgreSQL" !)
 
-## Step 2/7. Create a service account to access the PostgreSQL instance
+## Step 2/7. Create a service account for a database user
 
 Teleport uses service accounts to connect to Cloud SQL databases.
 
@@ -292,7 +292,7 @@ $ tsh db connect --db-user=teleport@<project-id>.iam --db-name=postgres cloudsql
 
   When connecting to the database, use the name of the database's service account
   that you added as an IAM database user
-  [above](#step-27-create-a-service-account-to-access-the-postgresql-instance),
+  [above](#step-27-create-a-service-account-for-a-database-user),
   minus the `.gserviceaccount.com` suffix. The database user name is shown on
   the Users page of your Cloud SQL instance.
 
@@ -310,3 +310,11 @@ $ tsh db logout
 ## Troubleshooting
 
 (!docs/pages/includes/database-access/pg-cancel-request-limitation.mdx!)
+
+## Next steps
+
+(!docs/pages/includes/database-access/guides-next-steps.mdx!)
+
+- Learn more about [authenticating as a service
+  account](https://cloud.google.com/docs/authentication#service-accounts) in
+  Google Cloud.
