@@ -1122,6 +1122,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// MFA subcommands.
 	mfa := newMFACommand(app)
 
+	flatten := app.Command("flatten", "Flattens an identity file into a profile stored in ~/.tsh or TELEPORT_HOME.")
+
 	config := app.Command("config", "Print OpenSSH configuration details.")
 	config.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 
@@ -1371,6 +1373,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onListSessions(&cf)
 	case login.FullCommand():
 		err = onLogin(&cf)
+	case flatten.FullCommand():
+		err = onFlatten(&cf)
 	case logout.FullCommand():
 		if err := refuseArgs(logout.FullCommand(), args); err != nil {
 			return trace.Wrap(err)
@@ -3112,9 +3116,7 @@ func onListSessions(cf *CLIConf) error {
 
 func sortAndFilterSessions(sessions []types.SessionTracker, kinds []types.SessionKind) []types.SessionTracker {
 	filtered := slices.DeleteFunc(sessions, func(st types.SessionTracker) bool {
-		return !slices.Contains(kinds, st.GetSessionKind()) ||
-			(st.GetState() != types.SessionState_SessionStateRunning &&
-				st.GetState() != types.SessionState_SessionStatePending)
+		return !slices.Contains(kinds, st.GetSessionKind())
 	})
 	sort.Slice(filtered, func(i, j int) bool {
 		return filtered[i].GetCreated().Before(filtered[j].GetCreated())
@@ -4144,6 +4146,51 @@ func refuseArgs(command string, args []string) error {
 			return trace.BadParameter("unexpected argument: %s", arg)
 		}
 	}
+	return nil
+}
+
+// onFlatten reads an identity file and flattens it into a tsh profile on disk.
+func onFlatten(cf *CLIConf) error {
+	// Save the identity file path for later
+	identityFile := cf.IdentityFileIn
+	if identityFile == "" {
+		return trace.BadParameter("-i must be specified")
+	}
+	if cf.Proxy == "" {
+		return trace.BadParameter("--proxy must be specified")
+	}
+
+	// Making a client validates the connection and builds a valid profile for us
+	tc, err := makeClientForProxy(cf, cf.Proxy)
+	if err != nil {
+		return trace.Wrap(err, "making client for proxy")
+	}
+	profile := tc.Profile()
+
+	// We clear the identity flag and create a new client store.
+	// Because the identity flag is unset, it will be backed by the filesystem (in ~/.tsh or TELEPORT_HOME).
+	cf.IdentityFileIn = ""
+	store, err := initClientStore(cf, cf.Proxy)
+	if err != nil {
+		return trace.Wrap(err, "initializing client store")
+	}
+
+	// Now we extract the key from the identity file and load it into our new store.
+	key, err := identityfile.KeyFromIdentityFile(identityFile, cf.Proxy, cf.SiteName)
+	if err != nil {
+		return trace.Wrap(err, "loading key from identity file")
+	}
+
+	if err = store.AddKey(key); err != nil {
+		return trace.Wrap(err, "adding key into the client store")
+	}
+
+	// Finally we also save the profile built by the client into our new store.
+	if err := store.SaveProfile(profile, true); err != nil {
+		return trace.Wrap(err, "saving profile")
+	}
+
+	fmt.Printf("Identity file %q flattented into a tsh profile.", identityFile)
 	return nil
 }
 
