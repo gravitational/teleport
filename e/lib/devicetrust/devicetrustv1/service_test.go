@@ -2447,6 +2447,8 @@ func TestService_EnrollDevice_issuesDevicesLimitEvent(t *testing.T) {
 }
 
 func TestService_CreateDeviceWebToken(t *testing.T) {
+	enableDeviceWebAuthn(t)
+
 	const userLlama = "llama"
 	const userAlpaca = "alpaca"
 	allUsers := []string{userLlama, userAlpaca}
@@ -2631,4 +2633,73 @@ func TestService_CreateDeviceWebToken(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDeviceWebAuthnFeatureGuard(t *testing.T) {
+	env := testenv.NewUsingT(t)
+	ctx := context.Background()
+
+	t.Run("CreateDeviceWebToken", func(t *testing.T) {
+		service := env.DevicesService
+		token, err := service.CreateDeviceWebToken(ctx, &devicepb.DeviceWebToken{
+			WebSessionId:     "my-session-id",
+			BrowserUserAgent: sampleUserAgentMacOS,
+			BrowserIp:        sampleIP,
+			User:             "idontexist", // User not checked, aborts first.
+		})
+		if err != nil {
+			t.Errorf("CreateDeviceWebToken returned err=%v, want nil", err)
+		}
+		if token != nil {
+			t.Errorf("CreateDeviceWebToken returned token=%v, want nil", token)
+		}
+	})
+
+	authenticateDevice := func() error {
+		devices := env.DevicesClient
+
+		stream, err := devices.AuthenticateDevice(ctx)
+		if err != nil {
+			return err
+		}
+
+		if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
+			Payload: &devicepb.AuthenticateDeviceRequest_Init{
+				// Just fill in all required fields. Any data will do.
+				Init: &devicepb.AuthenticateDeviceInit{
+					CredentialId: "my-device-credential-id",
+					DeviceData: &devicepb.DeviceCollectedData{
+						CollectTime:  timestamppb.Now(),
+						OsType:       devicepb.OSType_OS_TYPE_MACOS,
+						SerialNumber: "123456ABCDEF",
+					},
+					DeviceWebToken: &devicepb.DeviceWebToken{
+						Id:    "my-web-token-id",
+						Token: "my-web-token-token",
+					},
+				},
+			},
+		}); err != nil {
+			return err
+		}
+
+		// First receive should error.
+		_, err = stream.Recv()
+		return err
+	}
+
+	t.Run("AuthenticateDevice", func(t *testing.T) {
+		err := authenticateDevice()
+		if want := devicetrustv1.ErrDeviceWebAuthnDisabled; !errors.Is(err, want) {
+			t.Errorf("AuthenticateDevice returned err=%v, want %q", err, want)
+		}
+	})
+}
+
+func enableDeviceWebAuthn(t *testing.T) {
+	prev := *devicetrustv1.DeviceWebAuthnEnabled
+	t.Cleanup(func() {
+		*devicetrustv1.DeviceWebAuthnEnabled = prev
+	})
+	*devicetrustv1.DeviceWebAuthnEnabled = true
 }
