@@ -37,7 +37,7 @@ import EventList from './EventList';
 
 import useAuditEvents, { State } from './useAuditEvents';
 
-export function AuditContainer() {
+export default function Container() {
   const teleCtx = useTeleport();
   const { clusterId } = useStickyClusterId();
   const state = useAuditEvents(teleCtx, clusterId);

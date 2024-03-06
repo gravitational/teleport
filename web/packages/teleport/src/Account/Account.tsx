@@ -53,7 +53,7 @@ export interface AccountPageProps {
   enterpriseComponent?: React.ComponentType<EnterpriseComponentProps>;
 }
 
-export function AccountPage({ enterpriseComponent }: AccountPageProps) {
+export default function AccountPage({ enterpriseComponent }: AccountPageProps) {
   const ctx = useTeleport();
   const isSso = ctx.storeUser.isSso();
   const manageDevicesState = useManageDevices(ctx);

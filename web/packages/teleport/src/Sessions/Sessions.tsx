@@ -34,7 +34,7 @@ import { CtaEvent } from 'teleport/services/userEvent';
 import SessionList from './SessionList';
 import useSessions from './useSessions';
 
-export function SessionsContainer() {
+export default function Container() {
   const ctx = useTeleport();
   const { clusterId } = useStickerClusterId();
   const state = useSessions(ctx, clusterId);

@@ -29,7 +29,11 @@ import cfg from 'teleport/config';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { CtaEvent } from 'teleport/services/userEvent';
 
-export function SupportContainer({ children }: { children?: React.ReactNode }) {
+export default function Container({
+  children,
+}: {
+  children?: React.ReactNode;
+}) {
   const ctx = useTeleport();
   const cluster = ctx.storeUser.state.cluster;
 

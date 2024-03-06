@@ -40,7 +40,7 @@ import TopBar from './TopBar';
 import type { State, WebsocketAttempt } from './useDesktopSession';
 import type { WebAuthnState } from 'teleport/lib/useWebAuthn';
 
-export function DesktopSessionContainer() {
+export default function Container() {
   const state = useDesktopSession();
   return <DesktopSession {...state} />;
 }

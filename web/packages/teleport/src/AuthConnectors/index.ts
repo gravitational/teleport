@@ -16,4 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { AuthConnectors, AuthConnectorsContainer } from './AuthConnectors';
+import AuthConnectors from './AuthConnectors';
+export default AuthConnectors;

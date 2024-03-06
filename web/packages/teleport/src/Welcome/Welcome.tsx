@@ -37,7 +37,7 @@ type WelcomeProps = {
   NewCredentials: (props: NewCredentialsContainerProps) => JSX.Element;
 };
 
-export function Welcome({ NewCredentials }: WelcomeProps) {
+export default function Welcome({ NewCredentials }: WelcomeProps) {
   const { tokenId } = useParams<{ tokenId: string }>();
   const { search } = useLocation();
 

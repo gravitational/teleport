@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { lazy } from 'react';
 
 import cfg from 'teleport/config';
 import { Route } from 'teleport/components/Router';
 import { IntegrationKind } from 'teleport/services/integrations';
 
-import { AwsOidc } from './AwsOidc';
+const EnrollAwsOidc = lazy(() => import('./AwsOidc'));
 
 export function getRoutesToEnrollIntegrations() {
   return [
@@ -30,7 +30,7 @@ export function getRoutesToEnrollIntegrations() {
       key={IntegrationKind.AwsOidc}
       exact
       path={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc)}
-      component={AwsOidc}
+      component={EnrollAwsOidc}
     />,
   ];
 }

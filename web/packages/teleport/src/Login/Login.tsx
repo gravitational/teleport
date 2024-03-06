@@ -26,12 +26,12 @@ import Logo from 'teleport/components/LogoHero';
 import useLogin, { State } from './useLogin';
 import Motd from './Motd';
 
-export function Login() {
+export default function Container() {
   const state = useLogin();
-  return <LoginComponent {...state} />;
+  return <Login {...state} />;
 }
 
-export function LoginComponent({
+export function Login({
   attempt,
   onLogin,
   onLoginWithWebauthn,

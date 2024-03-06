@@ -16,4 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Welcome } from './Welcome';
+import Welcome from './Welcome';
+
+export default Welcome;

@@ -16,4 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Audit, AuditContainer } from './Audit';
+import Audit from './Audit';
+
+export default Audit;
