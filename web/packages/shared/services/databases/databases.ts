@@ -43,7 +43,9 @@ export type DbProtocol =
   | 'cassandra'
   | 'elasticsearch'
   | 'opensearch'
-  | 'dynamodb';
+  | 'dynamodb'
+  | 'clickhouse'
+  | 'clickhouse-http';
 
 const formatProtocol = (input: DbProtocol) => {
   switch (input) {
