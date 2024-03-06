@@ -75,13 +75,14 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		return nil, trace.CompareFailed("VNet service is already running")
 	}
 
-	tun, err := vnet.CreateAndSetupTUNDevice(ctx)
+	tun, cleanup, err := vnet.CreateAndSetupTUNDevice(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	_, client, err := s.cfg.DaemonService.ResolveCluster(req.RootClusterUri)
 	if err != nil {
+		cleanup()
 		return nil, trace.Wrap(err)
 	}
 
@@ -91,12 +92,14 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		TUNDevice: tun,
 	})
 	if err != nil {
+		cleanup()
 		return nil, trace.Wrap(err)
 	}
 
 	s.vnet = manager
 
 	go func() {
+		defer cleanup()
 		s.vnet.Run()
 		// TODO: Log error.
 	}()

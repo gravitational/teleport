@@ -62,10 +62,11 @@ var (
 
 // Run is a blocking call to create and start Teleport VNet.
 func Run(ctx context.Context, tc *client.TeleportClient) error {
-	tun, err := CreateAndSetupTUNDevice(ctx)
+	tun, cleanup, err := CreateAndSetupTUNDevice(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer cleanup()
 
 	manager, err := NewManager(ctx, &Config{
 		Client:    tc,
@@ -354,7 +355,7 @@ func (m *Manager) apiClient(ctx context.Context, profileName string) (*apiclient
 	if err != nil {
 		return nil, trace.Wrap(err, "loading user profile")
 	}
-	creds := apiclient.LoadProfile("" /*dir*/, profileName)
+	creds := apiclient.LoadProfile(os.Getenv("TELEPORT_HOME"), profileName)
 	return apiclient.New(ctx, apiclient.Config{
 		Addrs:       []string{profile.WebProxyAddr},
 		Credentials: []apiclient.Credentials{creds},

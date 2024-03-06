@@ -23,11 +23,12 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/trace"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/tun"
 )
@@ -36,32 +37,41 @@ const (
 	AdminSetupSubcommand = "vnet-admin-setup"
 )
 
-func CreateAndSetupTUNDevice(ctx context.Context) (tun.Device, error) {
-	var device tun.Device
-	var name string
-	var err error
+func CreateAndSetupTUNDevice(ctx context.Context) (tun.Device, func(), error) {
+	var (
+		device  tun.Device
+		name    string
+		cleanup func()
+		err     error
+	)
 	if os.Getuid() == 0 {
-		device, name, err = createAndSetupTUNDeviceAsRoot(ctx)
+		device, name, cleanup, err = createAndSetupTUNDeviceAsRoot(ctx)
 	} else {
 		device, name, err = createAndSetupTUNDeviceWithoutRoot(ctx)
+		cleanup = func() {}
 	}
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	slog.Info("Created TUN device.", "name", name)
-	return device, nil
+	return device, cleanup, nil
 }
 
-func createAndSetupTUNDeviceAsRoot(ctx context.Context) (tun.Device, string, error) {
+func createAndSetupTUNDeviceAsRoot(ctx context.Context) (tun.Device, string, func(), error) {
 	tun, tunName, err := createTUNDevice()
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, "", nil, trace.Wrap(err)
 	}
 
 	if err := setupHostIPRoutes(ctx, tunName); err != nil {
-		return nil, "", trace.Wrap(err, "setting up host IP routes")
+		return nil, "", nil, trace.Wrap(err, "setting up host IP routes")
 	}
-	return tun, tunName, nil
+
+	cleanup, err := setupHostDNS(ctx)
+	if err != nil {
+		return nil, "", nil, trace.Wrap(err, "setting up host DNS configuration")
+	}
+	return tun, tunName, cleanup, nil
 }
 
 func createAndSetupTUNDeviceWithoutRoot(ctx context.Context) (tun.Device, string, error) {
@@ -71,22 +81,13 @@ func createAndSetupTUNDeviceWithoutRoot(ctx context.Context) (tun.Device, string
 		return nil, "", trace.Wrap(err)
 	}
 
-	var tunName string
-	var tunFd uintptr
-	g, ctx := errgroup.WithContext(ctx)
+	go func() {
+		if err := runAdminSubcommand(ctx, socketPath); err != nil {
+			slog.Error("Error running admin subcommand.", "error", err)
+		}
+	}()
 
-	g.Go(func() error {
-		return trace.Wrap(runAdminSubcommand(ctx, socketPath))
-	})
-
-	g.Go(func() error {
-		tunName, tunFd, err = recvTUNNameAndFd(ctx, socket)
-		return trace.Wrap(err, "waiting for TUN device name")
-	})
-
-	if err := g.Wait(); err != nil {
-		return nil, "", trace.Wrap(err)
-	}
+	tunName, tunFd, err := recvTUNNameAndFd(ctx, socket)
 
 	tunDevice, err := tun.CreateTUNFromFile(os.NewFile(tunFd, ""), 0)
 	if err != nil {
@@ -194,6 +195,19 @@ func recvTUNNameAndFd(ctx context.Context, socket *net.UnixListener) (string, ui
 }
 
 func runAdminSubcommand(ctx context.Context, socketPath string) error {
+	pid := os.Getpid()
+	pidFile, err := os.CreateTemp("", "vnet*.pid")
+	if err != nil {
+		return trace.Wrap(err, "creating PID file")
+	}
+	if _, err := pidFile.Write([]byte(strconv.Itoa(pid))); err != nil {
+		pidFile.Close()
+		return trace.Wrap(err, "writing to PID file")
+	}
+	if err := pidFile.Close(); err != nil {
+		return trace.Wrap(err, "closing PID file")
+	}
+
 	executableName, err := os.Executable()
 	if err != nil {
 		return trace.Wrap(err, "getting executable path")
@@ -201,10 +215,11 @@ func runAdminSubcommand(ctx context.Context, socketPath string) error {
 
 	prompt := "VNet wants to set up a virtual network device."
 	appleScript := fmt.Sprintf(`
-  set executableName to "%s"
-	set socketPath to "%s"
-	do shell script quoted form of executableName & " %s --socket " & quoted form of socketPath with prompt "%s" with administrator privileges`,
-		executableName, socketPath, AdminSetupSubcommand, prompt)
+set executableName to "%s"
+set socketPath to "%s"
+set pidFile to "%s"
+do shell script quoted form of executableName & " %s --socket " & quoted form of socketPath & " --pidfile " & quoted form of pidFile with prompt "%s" with administrator privileges`,
+		executableName, socketPath, pidFile.Name(), AdminSetupSubcommand, prompt)
 	cmd := exec.CommandContext(ctx, "osascript", "-e", appleScript)
 	stderr := new(strings.Builder)
 	cmd.Stderr = stderr
@@ -227,15 +242,22 @@ func runAdminSubcommand(ctx context.Context, socketPath string) error {
 // AdminSubcommand is the tsh subcommand that should run as root that will
 // create and setup a TUN device and pass the file descriptor for that device
 // over the unix socket found at socketPath.
-func AdminSubcommand(ctx context.Context, socketPath string) error {
-	tun, tunName, err := createAndSetupTUNDeviceAsRoot(ctx)
+func AdminSubcommand(ctx context.Context, socketPath, pidFilePath string) error {
+	ctx, err := withPidfileCancellation(ctx, pidFilePath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tun, tunName, cleanup, err := createAndSetupTUNDeviceAsRoot(ctx)
 	if err != nil {
 		return trace.Wrap(err, "doing admin setup")
 	}
+	defer cleanup()
 	if err := sendTUNNameAndFd(socketPath, tunName, tun.File().Fd()); err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
+	// Defer cleanup until context is cancelled.
+	<-ctx.Done()
+	return trace.Wrap(ctx.Err())
 }
 
 func createTUNDevice() (tun.Device, string, error) {
@@ -251,7 +273,6 @@ func createTUNDevice() (tun.Device, string, error) {
 	return dev, name, nil
 }
 
-// TODO: something better than this.
 func setupHostIPRoutes(ctx context.Context, tunName string) error {
 	const (
 		ip   = "100.64.0.1"
@@ -271,4 +292,26 @@ func setupHostIPRoutes(ctx context.Context, tunName string) error {
 		return trace.Wrap(err, "running route add")
 	}
 	return nil
+}
+
+func setupHostDNS(ctx context.Context) (func(), error) {
+	// TODO: support multiple active profiles, custom DNS zones, and react to
+	// changes.
+	profileDir := profile.FullProfilePath(os.Getenv("TELEPORT_HOME"))
+	currentProfile, err := profile.GetCurrentProfileName(profileDir)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting current profile")
+	}
+	proxyAddress := currentProfile
+	fileName := "/etc/resolver/" + proxyAddress
+	contents := "nameserver " + defaultDNSAddress.String()
+	if err := os.WriteFile(fileName, []byte(contents), 0644); err != nil {
+		return nil, trace.Wrap(err, "writing DNS configuration file %s", fileName)
+	}
+	return func() {
+		if err := os.Remove(fileName); err != nil {
+			slog.Error("Failed to remove DNS configuration file.", "filename", fileName, "error", err)
+		}
+	}, nil
+
 }

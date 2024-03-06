@@ -518,6 +518,9 @@ type CLIConf struct {
 
 	// socketPath is a path to a socket.
 	socketPath string
+
+	// pidFilePath is a path to a PID file.
+	pidFilePath string
 }
 
 // Stdout returns the stdout writer.
@@ -1150,6 +1153,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	vnetAdminSetupCommand := app.Command(vnet.AdminSetupSubcommand, "helper to run the vnet setup as root").Hidden()
 	vnetAdminSetupCommand.Flag("socket", "unix socket path").StringVar(&cf.socketPath)
+	vnetAdminSetupCommand.Flag("pidfile", "pid file path").StringVar(&cf.pidFilePath)
 
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()

@@ -31,5 +31,5 @@ func onVNet(cf *CLIConf) error {
 }
 
 func onVNetAdminSetupCommand(cf *CLIConf) error {
-	return trace.Wrap(vnet.AdminSubcommand(cf.Context, cf.socketPath))
+	return trace.Wrap(vnet.AdminSubcommand(cf.Context, cf.socketPath, cf.pidFilePath))
 }
