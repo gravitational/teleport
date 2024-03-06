@@ -7,14 +7,16 @@ state: draft
 
 ## Required Approvals
 
-* Engineering: @r0mant && @greedy52
+* Engineering: @r0mant && (@greedy52 || @rosstimothy)
 * Security: @reedloden || @jentfoo
 
 ## What
+
 This RFD proposes a mechanism for Teleport administrators to switch log-level
 and enable profile consumption without restarting the instance.
 
 ## Why
+
 During incidents in production environments, debug logs and diagnostic profiles
 (such as CPU and Memory allocation) are often unavailable for timely
 troubleshooting. To enable those, administrators need to restart the instance,
@@ -41,7 +43,7 @@ integrations, such as the usage of
 ### New service
 
 Teleport will start listening using a Unix socket located at
-`/tmp/teleport-diag-<node-id>.sock`.
+`/var/run/teleport-diag-<node-id>.sock`.
 
 Having the Node ID on the socket name will also cover scenarios where multiple
 instances of running on the same machine exist. In this case, the consumers can
@@ -50,18 +52,13 @@ the ID.
 
 #### Endpoints
 
-In addition to the `pprof` endpoints, the service will also have an endpoint to
-change the applications's log level.
-
-`POST /set-log-level` will receive the new log level on its body as text. The
-the level will be parsed using `UnmarshalText` from `slog.Level`, meaning the
-the provided level must follow the `slog` format.
-
-Example of usage using `curl`:
-```bash
-$ curl -x POST -d 'DEBUG' <diag-addr>/set-log-level
-OK
-```
+In addition to the `pprof` endpoints, the service will also have endpoints that
+will be used to retrieve and set the applications's log level:
+- `PUT /log-level` will receive the new log level on its body as text. The
+  the level will be parsed using `UnmarshalText` from `slog.Level`, meaning the
+  the provided level must follow the `slog` format.
+- `GET /log-level` will retrieve the application's current log level. This will
+  be done by returning the value present on the `slog.LevelVar`.
 
 The log level change will consist on updating `slog` log level and `logrus`
 logger (legacy):
@@ -133,7 +130,7 @@ Changes the application log level.
 |Flag|Description|Default value|
 |----|-----------|-------------|
 |`-c,--config`|Teleport configuration path.|`/etc/teleport.yaml`|
-|`LEVEL`|Log level (case-insensitive). Any of: `DEBUG`, `INFO`, `WARN`, `ERROR`|``|
+|`LEVEL`|Log level (case-insensitive). Any of: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`|Required|
 
 Usage examples:
 ```bash
@@ -159,15 +156,24 @@ plus the profiles defined by `net/http/pprof`:
 - `threadcreate`: Stack traces that led to the creation of new OS threads
 - `trace`: A trace of execution of the current program. You can specify the duration in the seconds GET parameter. After you get the trace file, use the go tool trace command to investigate the trace.
 
-Note: `--seconds` argument has the same effect as [`seconds` query string](https://pkg.go.dev/net/http/pprof#hdr-Parameters).
+In addition to those profiles, the command will also support a `default` profile
+which will include `heap`, `profile` and `goroutine` profiles.
+
+Note: `--seconds` argument has the same effect as
+[`seconds` query string](https://pkg.go.dev/net/http/pprof#hdr-Parameters).
+This parameter max value will be set to the HTTP server write timeout value.
 
 |Flag|Description|Default value|
 |----|-----------|-------------|
 |`-c,--config`|Teleport configuration path.|`/etc/teleport.yaml`|
 |`-s,--seconds`|For CPU and trace profiles, profile for the given duration. For other profiles, return a delta profile.|None|
-|`PROFILE_NAME`|Profile to be exported. Any of: `allocs`, `block`, `cmdline`, `goroutine`, `heap`, `mutex`, `profile`, `threadcreate`, `trace`|Required|
+|`PROFILE_NAME`|Profile to be exported. Any of: `default`, `allocs`, `block`, `cmdline`, `goroutine`, `heap`, `mutex`, `profile`, `threadcreate`, `trace`|`default`|
 
 ### Security
+
+Items listed on this section are have their impact limited due to the fact that
+the service will not be exposed outsite the machine running the Teleport
+instance.
 
 #### CPU and Memory consumption during profiling
 
@@ -179,9 +185,11 @@ slowing down or crashing the Teleport instance.
 
 Given the ease of collecting profiles when using the new service, even regular
 usage can impact the instance. With that being said, we’re going to add rate
-limiting to the profiling endpoints. To maintain the current debug flow and not
-restrict the scenarios where this tooling can be used to solve issues, we have
-decided not to impose any limitations on the profiling duration (sampling).
+limiting to the profiling endpoints.
+
+In addition, the profiling duraition (sampling) will be limited to the same
+value of the HTTP server write timeout. We'll set this timeout value into fairly
+large value to avoid the ability to diagnose issues.
 
 #### Disk space consumption
 
@@ -192,3 +200,23 @@ level back to what is present on the configuration after the troubleshooting
 session. Adding a predefined timeout to return it automatically could affect the
 debug as there might not be a precise time necessary for the issue to present
 itself.
+
+### Future work
+
+#### Limit command execution to a configured list of users/groups
+
+To limit the access to the `teleport console` we can introduce a new section
+on the Teleport's configuration that enable users to set a list of permitted
+machine users/groups that can invoke the command.
+
+The service then would need to fetch the PID/UID/GID from the `net.UnixConn`,
+and check if it is on the allowed list.
+
+Here's an example of what the configuration could look like:
+
+```
+teleport:
+  console_service:
+    users: [root]
+    groups: [adminstrators]
+```
