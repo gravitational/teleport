@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/base32"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"testing"
@@ -31,6 +32,8 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 )
 
@@ -155,4 +158,81 @@ func rawLoginWebOTP(ctx context.Context, params loginWebOTPParams) (resp *Draine
 		StatusCode: httpResp.StatusCode,
 		cookies:    httpResp.Cookies(),
 	}, body, nil
+}
+
+type loginWebMFAParams struct {
+	webClient      *TestWebClient
+	rpID           string
+	user, password string
+	authenticator  *mocku2f.Key
+}
+
+// loginWebMFA logins the user using /webapi/mfa/login/begin and
+// /webapi/mfa/login/finishsession.
+//
+// This is a lower-level utility for tests that want access to the returned
+// CreateSessionResponse.
+func loginWebMFA(ctx context.Context, t *testing.T, params loginWebMFAParams) (*CreateSessionResponse, *DrainedHTTPResponse) {
+	httpResp, body, err := rawLoginWebMFA(ctx, params)
+	require.NoError(t, err, "Login via MFA failed")
+
+	// Sanity check.
+	require.Equal(t, http.StatusOK, httpResp.StatusCode, "Login via MFA failed (status mismatch)")
+
+	sessionResp := &CreateSessionResponse{}
+	require.NoError(t,
+		json.Unmarshal(body, sessionResp),
+		"Unmarshal failed")
+	return sessionResp, httpResp
+}
+
+// rawLoginWebMFA is the raw variant of [loginWebMFA].
+//
+// This is a lower-level utility for tests that want access to the response body
+// or error.
+//
+// Returns the acquired response, body and error from the last step, even when
+// errored. Failures in previous steps return simply an error.
+func rawLoginWebMFA(ctx context.Context, params loginWebMFAParams) (resp *DrainedHTTPResponse, body []byte, err error) {
+	webClient := params.webClient
+
+	beginResp, err := webClient.PostJSON(ctx, webClient.Endpoint("webapi", "mfa", "login", "begin"), &client.MFAChallengeRequest{
+		User: params.user,
+		Pass: params.password,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "begin step")
+	}
+
+	authChallenge := &client.MFAAuthenticateChallenge{}
+	if err := json.Unmarshal(beginResp.Bytes(), authChallenge); err != nil {
+		return nil, nil, trace.Wrap(err, "begin unmarshal")
+	}
+	if authChallenge.WebauthnChallenge == nil {
+		// Avoid trace here, so it doesn't "match" anything.
+		return nil, nil, errors.New("begin step returned nil WebauthnChallenge")
+	}
+
+	// Sign Webauthn challenge (requires user interaction in real-world
+	// scenarios).
+	key := params.authenticator
+	assertionResp, err := key.SignAssertion("https://"+params.rpID, authChallenge.WebauthnChallenge)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "sign challenge")
+	}
+
+	// 2nd login step: reply with signed challenge.
+	sessionResp, err := webClient.PostJSON(ctx, webClient.Endpoint("webapi", "mfa", "login", "finishsession"), &client.AuthenticateWebUserRequest{
+		User:                      params.user,
+		WebauthnAssertionResponse: assertionResp,
+	})
+	// Return everything we get from the last step, even if it errored.
+	if sessionResp != nil {
+		resp = &DrainedHTTPResponse{
+			StatusCode: sessionResp.Code(),
+			cookies:    sessionResp.Cookies(),
+		}
+		body = sessionResp.Bytes()
+	}
+	return resp, body, err
 }
