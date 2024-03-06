@@ -307,3 +307,86 @@ func TestListRemoteClusters(t *testing.T) {
 		})
 	}
 }
+
+// TestDeleteRemoteCluster is an integration test that uses a real gRPC client/server.
+func TestDeleteRemoteCluster(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	user, _, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"rc-deleter",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindRemoteCluster},
+				Verbs:     []string{types.VerbDelete},
+			},
+		})
+	require.NoError(t, err)
+
+	unprivilegedUser, _, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"no-perms",
+		[]string{},
+		[]types.Rule{},
+	)
+	require.NoError(t, err)
+
+	rc, err := types.NewRemoteCluster("matching")
+	require.NoError(t, err)
+	rc, err = srv.Auth().CreateRemoteCluster(ctx, rc)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name                  string
+		user                  string
+		req                   *presencev1pb.DeleteRemoteClusterRequest
+		assertError           require.ErrorAssertionFunc
+		checkResourcesDeleted bool
+	}{
+		{
+			name: "success",
+			user: user.GetName(),
+			req: &presencev1pb.DeleteRemoteClusterRequest{
+				Name: rc.GetName(),
+			},
+			assertError:           require.NoError,
+			checkResourcesDeleted: true,
+		},
+		{
+			name: "no permissions",
+			user: unprivilegedUser.GetName(),
+			req: &presencev1pb.DeleteRemoteClusterRequest{
+				Name: rc.GetName(),
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
+			},
+		},
+		{
+			name: "non existent",
+			user: user.GetName(),
+			req: &presencev1pb.DeleteRemoteClusterRequest{
+				Name: rc.GetName(),
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsNotFound(err), "error should be not found")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := srv.NewClient(auth.TestUser(tt.user))
+			require.NoError(t, err)
+
+			_, err = client.PresenceServiceClient().DeleteRemoteCluster(ctx, tt.req)
+			tt.assertError(t, err)
+			if tt.checkResourcesDeleted {
+				_, err := srv.Auth().GetRemoteCluster(ctx, tt.req.Name)
+				require.True(t, trace.IsNotFound(err), "rc should be deleted")
+			}
+		})
+	}
+}
