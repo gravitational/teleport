@@ -5,11 +5,11 @@
 set -eu
 
 # reload systemd configuration and start/restart units
+
 systemctl daemon-reload
-# only reload teleport if the unit is already active, mimicking what systemctl try-restart does
-# reloading when the unit is not already active (for example on a fresh install) generates an error
-if systemctl is-active --quiet teleport.service; then
-    systemctl reload teleport.service
-fi
+# we should restart Teleport here but doing so while the installation is
+# potentially being done through Teleport would result in everything getting
+# summarily killed, so the best we can do is let the unhealthy schedule detector
+# trigger a restart at a later, potentially inopportune time.
 systemctl enable teleport-upgrade.timer
 systemctl start teleport-upgrade.timer
