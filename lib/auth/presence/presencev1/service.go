@@ -34,9 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// Cache is the subset of the cached resources that the Service queries.
-type Cache interface{}
-
 // Backend is the subset of the backend resources that the Service modifies.
 type Backend interface {
 	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
@@ -57,7 +54,6 @@ type AuthServer interface {
 type ServiceConfig struct {
 	Authorizer authz.Authorizer
 	AuthServer AuthServer
-	Cache      Cache
 	Backend    Backend
 	Logger     logrus.FieldLogger
 	Emitter    apievents.Emitter
@@ -71,7 +67,6 @@ type Service struct {
 
 	authorizer authz.Authorizer
 	authServer AuthServer
-	cache      Cache
 	backend    Backend
 	logger     logrus.FieldLogger
 	emitter    apievents.Emitter
@@ -82,8 +77,6 @@ type Service struct {
 // NewService returns a new presence gRPC service.
 func NewService(cfg ServiceConfig) (*Service, error) {
 	switch {
-	case cfg.Cache == nil:
-		return nil, trace.BadParameter("cache service is required")
 	case cfg.Backend == nil:
 		return nil, trace.BadParameter("backend service is required")
 	case cfg.Authorizer == nil:
@@ -107,7 +100,6 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		logger:     cfg.Logger,
 		authorizer: cfg.Authorizer,
 		authServer: cfg.AuthServer,
-		cache:      cfg.Cache,
 		backend:    cfg.Backend,
 		emitter:    cfg.Emitter,
 		reporter:   cfg.Reporter,

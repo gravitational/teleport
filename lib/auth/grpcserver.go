@@ -5255,7 +5255,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	presenceService, err := presencev1.NewService(presencev1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		AuthServer: cfg.AuthServer,
-		Cache:      cfg.AuthServer.Cache,
 		Backend:    cfg.AuthServer.Services,
 		Emitter:    cfg.Emitter,
 		Reporter:   cfg.AuthServer.Services.UsageReporter,
