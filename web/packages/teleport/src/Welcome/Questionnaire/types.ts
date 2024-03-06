@@ -47,8 +47,8 @@ export enum EmployeeOption {
   FOUR = '200-499',
   FIVE = '500-999',
   SIX = '1000-4999',
-  SEVEN = '5000+',
-  EIGHT = '10,000+',
+  SEVEN = '5,000-9,999',
+  EIGHT = '10,000-19,999',
   NINE = '20,000+',
 }
 
