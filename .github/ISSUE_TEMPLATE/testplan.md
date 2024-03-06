@@ -1209,7 +1209,7 @@ tsh bench web sessions --max=5000 --web user ls
         - [ ] A folder from inside the shared directory can be copy-pasted to another folder inside shared directory (and its contents retained)
   - RBAC
     - [ ] Give the user one role that explicitly disables directory sharing (`desktop_directory_sharing: false`) and confirm that the option to share a directory doesn't appear in the menu
-- Per-Session MFA (try webauthn on each of Chrome, Safari, and Firefox; u2f only works with Firefox)
+- Per-Session MFA
   - [ ] Attempting to start a session no keys registered shows an error message
   - [ ] Attempting to start a session with a webauthn registered pops up the "Verify Your Identity" dialog
     - [ ] Hitting "Cancel" shows an error message
@@ -1253,6 +1253,10 @@ tsh bench web sessions --max=5000 --web user ls
   - Set up Teleport in a trusted cluster configuration where the root and leaf cluster has a w_d_s connected via tunnel (w_d_s running as a separate process)
     - [ ] Confirm that windows desktop sessions can be made on root cluster
     - [ ] Confirm that windows desktop sessions can be made on leaf cluster
+- Screen size
+    - [ ] Desktops that specify a fixed `screen_size` in their spec always use the same screen size.
+    - [ ] Desktops sessions for desktops which specify a fixed `screen_size` do not resize automatically.
+    - [ ] Attempting to register a desktop with a `screen_size` dimension larger than 8192 fails.
 - Non-AD setup
   - [ ] Installer in GUI mode finishes successfully on instance that is not part of domain
   - [ ] Installer works correctly invoked from command line
@@ -1377,6 +1381,29 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] Database
   - [ ] Windows Desktop
   - [ ] App Access
+
+## SSH Connection Resumption
+
+Verify that SSH works, and that resumable SSH is not interrupted across a Teleport Cloud tenant upgrade.
+|   | Standard node | Non-resuming node | Peered node | Agentless node |
+|---|---|---|---|---|
+| `tsh ssh` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh --no-resume` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| Teleport Connect | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| Web UI (not resuming) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| OpenSSH (standard `tsh config`) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| OpenSSH (changing `ProxyCommand` to `tsh proxy ssh --no-resume`) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+
+Verify that SSH works, and that resumable SSH is not interrupted across a control plane restart (of either the root or the leaf cluster).
+
+|   | Tunnel node | Direct dial node |
+|---|---|---|
+| `tsh ssh` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh --no-resume` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh` (from a root cluster) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh --no-resume` (from a root cluster) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| OpenSSH (without `ProxyCommand`) | n/a | <ul><li> [ ] </ul></li> |
+| OpenSSH's `ssh-keyscan` | n/a | <ul><li> [ ] </ul></li> |
 
 ## EC2 Discovery
 

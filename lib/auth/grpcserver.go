@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	dbobjectimportrulev12 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	discoveryconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -67,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
+	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule"
@@ -2279,6 +2281,32 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *emptypb.Empty) (*authpb.Ge
 	return &authpb.GetRolesResponse{
 		Roles: roles,
 	}, nil
+}
+
+// ListRoles is a paginated role getter.
+func (g *GRPCServer) ListRoles(ctx context.Context, req *authpb.ListRolesRequest) (*authpb.ListRolesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := auth.ServerWithRoles.ListRoles(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	downgradedRoles := rsp.Roles[:0]
+	for _, role := range rsp.Roles {
+		downgraded, err := maybeDowngradeRole(ctx, role)
+		if err != nil {
+			log.Warnf("Failed to downgrade role %q, this is a bug and may result in spurious access denied errors. err=%q", role.GetName(), err)
+			continue
+		}
+		downgradedRoles = append(downgradedRoles, downgraded)
+	}
+	rsp.Roles = downgradedRoles
+
+	return rsp, nil
 }
 
 // CreateRole creates a new role.
@@ -5678,6 +5706,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	machineidv1pb.RegisterBotServiceServer(server, botService)
 
+	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating database objectImportRule service")
+	}
+	dbobjectimportrulev12.RegisterDatabaseObjectImportRuleServiceServer(server, dbObjectImportRuleService)
+
 	workloadIdentityService, err := machineidv1.NewWorkloadIdentityService(machineidv1.WorkloadIdentityServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Cache:      cfg.AuthServer.Cache,
@@ -5760,9 +5797,11 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	integrationpb.RegisterIntegrationServiceServer(server, integrationServiceServer)
 
 	integrationAWSOIDCServiceServer, err := integrationService.NewAWSOIDCService(&integrationService.AWSOIDCServiceConfig{
-		Authorizer:         cfg.Authorizer,
-		IntegrationService: integrationServiceServer,
-		Cache:              cfg.AuthServer,
+		Authorizer:            cfg.Authorizer,
+		IntegrationService:    integrationServiceServer,
+		Cache:                 cfg.AuthServer,
+		ProxyPublicAddrGetter: cfg.AuthServer.getProxyPublicAddr,
+		Clock:                 cfg.AuthServer.clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

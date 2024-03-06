@@ -60,6 +60,10 @@ type Config struct {
 	// user-selected wallpaper vs a system-default, single-color wallpaper.
 	ShowDesktopWallpaper bool
 
+	// Width and Height optionally override the dimensions received from
+	// the browser and force the session to use a particular size.
+	Width, Height uint32
+
 	// Log is the logger for status messages.
 	Log logrus.FieldLogger
 }

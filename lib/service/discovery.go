@@ -66,12 +66,13 @@ func (process *TeleportProcess) initDiscoveryService() error {
 			GCP:        process.Config.Discovery.GCPMatchers,
 			Kubernetes: process.Config.Discovery.KubernetesMatchers,
 		},
-		DiscoveryGroup: process.Config.Discovery.DiscoveryGroup,
-		Emitter:        asyncEmitter,
-		AccessPoint:    accessPoint,
-		Log:            process.log,
-		ClusterName:    conn.ClientIdentity.ClusterName,
-		PollInterval:   process.Config.Discovery.PollInterval,
+		DiscoveryGroup:  process.Config.Discovery.DiscoveryGroup,
+		Emitter:         asyncEmitter,
+		AccessPoint:     accessPoint,
+		Log:             process.log,
+		ClusterName:     conn.ClientIdentity.ClusterName,
+		ClusterFeatures: process.getClusterFeatures,
+		PollInterval:    process.Config.Discovery.PollInterval,
 	})
 	if err != nil {
 		return trace.Wrap(err)

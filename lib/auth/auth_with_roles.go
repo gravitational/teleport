@@ -94,7 +94,7 @@ func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace, re
 	}
 	var errs []error
 	for _, verb := range verbs {
-		errs = append(errs, a.context.Checker.CheckAccessToRule(ctx, namespace, resource, verb, false))
+		errs = append(errs, a.context.Checker.CheckAccessToRule(ctx, namespace, resource, verb))
 	}
 	if err := trace.NewAggregate(errs...); err != nil {
 		return err
@@ -103,17 +103,10 @@ func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace, re
 }
 
 type actionConfig struct {
-	quiet   bool
 	context authz.Context
 }
 
 type actionOption func(*actionConfig)
-
-func quietAction(quiet bool) actionOption {
-	return func(cfg *actionConfig) {
-		cfg.quiet = quiet
-	}
-}
 
 func (a *ServerWithRoles) withOptions(opts ...actionOption) actionConfig {
 	cfg := actionConfig{context: a.context}
@@ -130,7 +123,7 @@ func (c actionConfig) action(namespace, resource string, verbs ...string) error 
 	}
 	var errs []error
 	for _, verb := range verbs {
-		errs = append(errs, c.context.Checker.CheckAccessToRule(&services.Context{User: c.context.User}, namespace, resource, verb, c.quiet))
+		errs = append(errs, c.context.Checker.CheckAccessToRule(&services.Context{User: c.context.User}, namespace, resource, verb))
 	}
 	if err := trace.NewAggregate(errs...); err != nil {
 		return err
@@ -150,7 +143,7 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 		return nil
 	}
 	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User},
-		apidefaults.Namespace, types.KindUser, types.VerbCreate, true)
+		apidefaults.Namespace, types.KindUser, types.VerbCreate)
 }
 
 // authConnectorAction is a special checker that grants access to auth
@@ -158,8 +151,8 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 // If not, it checks if the requester has the meta KindAuthConnector access
 // (which grants access to all connectors).
 func (a *ServerWithRoles) authConnectorAction(namespace string, resource string, verb string) error {
-	if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb, true); err != nil {
-		if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, types.KindAuthConnector, verb, false); err != nil {
+	if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb); err != nil {
+		if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, types.KindAuthConnector, verb); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -169,7 +162,7 @@ func (a *ServerWithRoles) authConnectorAction(namespace string, resource string,
 // actionForListWithCondition extracts a restrictive filter condition to be
 // added to a list query after a simple resource check fails.
 func (a *ServerWithRoles) actionForListWithCondition(namespace, resource, identifier string) (*types.WhereExpr, error) {
-	origErr := a.withOptions(quietAction(true)).action(namespace, resource, types.VerbList)
+	origErr := a.action(namespace, resource, types.VerbList)
 	if origErr == nil || !trace.IsAccessDenied(origErr) {
 		return nil, trace.Wrap(origErr)
 	}
@@ -186,7 +179,7 @@ func (a *ServerWithRoles) actionForListWithCondition(namespace, resource, identi
 // rule context after a simple resource check fails.
 func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string, extendContext func(*services.Context) error) error {
 	ruleCtx := &services.Context{User: a.context.User}
-	origErr := a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb, true)
+	origErr := a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb)
 	if origErr == nil || !trace.IsAccessDenied(origErr) {
 		return trace.Wrap(origErr)
 	}
@@ -195,7 +188,7 @@ func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string
 		// Return the original AccessDenied to avoid leaking information.
 		return trace.Wrap(origErr)
 	}
-	return trace.Wrap(a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb, false))
+	return trace.Wrap(a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb))
 }
 
 // actionForKindSession is a special checker that grants access to session
@@ -443,13 +436,13 @@ func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles 
 		}
 
 		// Skip past it if there's a deny rule in place blocking access.
-		if err := a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSSHSession, verb, true /* silent */); err != nil {
+		if err := a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSSHSession, verb); err != nil {
 			return false
 		}
 	}
 
 	ruleCtx := &services.Context{User: a.context.User, SessionTracker: tracker}
-	if a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSessionTracker, types.VerbList, true /* silent */) == nil {
+	if a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSessionTracker, types.VerbList) == nil {
 		return true
 	}
 
@@ -965,7 +958,7 @@ func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetC
 	// with permissions to view all resources of kind 'cluster_alert' can opt into viewing all alerts
 	// regardless of labels for management/debug purposes.
 	var resourceLevelPermit bool
-	if query.WithUntargeted && a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindClusterAlert, types.VerbRead, types.VerbList) == nil {
+	if query.WithUntargeted && a.action(apidefaults.Namespace, types.KindClusterAlert, types.VerbRead, types.VerbList) == nil {
 		resourceLevelPermit = true
 	}
 
@@ -1004,7 +997,7 @@ Outer:
 				continue Verbs
 			}
 
-			if a.withOptions(quietAction(true)).action(apidefaults.Namespace, rv[0], rv[1]) == nil {
+			if a.action(apidefaults.Namespace, rv[0], rv[1]) == nil {
 				// user holds at least one of the resource:verb pairs specified by
 				// the verb-permit label.
 				filtered = append(filtered, alert)
@@ -1380,7 +1373,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			actionVerbs = []string{types.VerbList}
 		}
 
-		resourceAccessMap[kind] = a.withOptions(quietAction(true)).action(apidefaults.Namespace, kind, actionVerbs...)
+		resourceAccessMap[kind] = a.action(apidefaults.Namespace, kind, actionVerbs...)
 	}
 
 	// Apply any requested additional search_as_roles and/or preview_as_roles
@@ -2320,7 +2313,7 @@ type accessChecker interface {
 }
 
 func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
-	if err := a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindAccessRequest, types.VerbList, types.VerbRead); err != nil {
+	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbList, types.VerbRead); err != nil {
 		// Users are allowed to read + list their own access requests and
 		// requests they are allowed to review, unless access was *explicitly*
 		// denied. This means deny rules block the action but allow rules are
@@ -2505,12 +2498,12 @@ func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter types.Plugin
 	case types.KindAccessRequest, types.KindAccessList:
 		// for backwards compatibility, we allow list/read against kinds to also grant list/read for
 		// access request related plugin data.
-		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, filter.Kind, types.VerbList) != nil {
+		if a.action(apidefaults.Namespace, filter.Kind, types.VerbList) != nil {
 			if err := a.action(apidefaults.Namespace, types.KindAccessPluginData, types.VerbList); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
-		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, filter.Kind, types.VerbRead) != nil {
+		if a.action(apidefaults.Namespace, filter.Kind, types.VerbRead) != nil {
 			if err := a.action(apidefaults.Namespace, types.KindAccessPluginData, types.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2527,7 +2520,7 @@ func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params types.Plu
 	case types.KindAccessRequest, types.KindAccessList:
 		// for backwards compatibility, we allow update against access requests to also grant update for
 		// access request related plugin data.
-		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, params.Kind, types.VerbUpdate) != nil {
+		if a.action(apidefaults.Namespace, params.Kind, types.VerbUpdate) != nil {
 			if err := a.action(apidefaults.Namespace, types.KindAccessPluginData, types.VerbUpdate); err != nil {
 				return trace.Wrap(err)
 			}
@@ -3994,31 +3987,55 @@ func (a *ServerWithRoles) DeleteNamespace(name string) error {
 
 // GetRoles returns a list of roles
 func (a *ServerWithRoles) GetRoles(ctx context.Context) ([]types.Role, error) {
-	authErr := a.action(apidefaults.Namespace, types.KindRole, types.VerbList, types.VerbRead)
-	if authErr == nil {
-		return a.authServer.GetRoles(ctx)
-	}
+	// delegate all access-control logic to ListRoles, which will eventually
+	// supplant GetRoles everywhere.
+	var roles []types.Role
+	var req proto.ListRolesRequest
+	for {
+		rsp, err := a.ListRoles(ctx, &req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	roles, err := a.authServer.GetRoles(ctx)
-	if err != nil {
-		// If we get an error here, let's return the previous auth error.
-		return nil, trace.Wrap(authErr)
-	}
-
-	var filteredRoles []types.Role
-	// See if the user has access to these roles through things like where clauses.
-	for _, role := range roles {
-		if err := a.actionForResource(role, types.KindRole, types.VerbList, types.VerbRead); err == nil {
-			filteredRoles = append(filteredRoles, role)
+		for _, r := range rsp.Roles {
+			roles = append(roles, r)
+		}
+		req.StartKey = rsp.NextKey
+		if req.StartKey == "" {
+			break
 		}
 	}
 
+	return roles, nil
+}
+
+// ListRoles is a paginated role getter.
+func (a *ServerWithRoles) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	authErr := a.action(apidefaults.Namespace, types.KindRole, types.VerbList, types.VerbRead)
+	if authErr == nil {
+		rsp, err := a.authServer.ListRoles(ctx, req)
+		return rsp, trace.Wrap(err)
+	}
+
+	firstPage := req.StartKey == ""
+
+	// most users are at least allowed to view *some* roles, so fallback to per-role access checks.
+	roles, nextKey, err := a.authServer.IterateRoles(ctx, req, func(role *types.RoleV6) (bool, error) {
+		return a.actionForResource(role, types.KindRole, types.VerbList, types.VerbRead) == nil, nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// If we found no roles, let's return the previous auth error.
-	if len(filteredRoles) == 0 {
+	if firstPage && len(roles) == 0 {
 		return nil, trace.Wrap(authErr)
 	}
 
-	return filteredRoles, nil
+	return &proto.ListRolesResponse{
+		Roles:   roles,
+		NextKey: nextKey,
+	}, nil
 }
 
 func (a *ServerWithRoles) validateRole(ctx context.Context, role types.Role) error {
@@ -4574,6 +4591,10 @@ func (a *ServerWithRoles) UpsertTrustedCluster(ctx context.Context, tc types.Tru
 		return nil, trace.Wrap(err)
 	}
 
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return a.authServer.UpsertTrustedCluster(ctx, tc)
 }
 
@@ -4590,6 +4611,10 @@ func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRe
 // DeleteTrustedCluster deletes a trusted cluster by name.
 func (a *ServerWithRoles) DeleteTrustedCluster(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindTrustedCluster, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6335,16 +6360,34 @@ func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *
 
 // CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
 func (a *ServerWithRoles) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
+	// Device trust: authorize device before issuing a privileged token without an MFA response.
+	//
+	// This is an exceptional case for that that results in a "privilege_exception" token, which can
+	// used to register a user's first MFA device thorugh the WebUI. Since a register challenge can
+	// be created on behalf of the user using this token (e.g. by the Proxy Service), we must enforce
+	// the device trust requirement seen in [CreatePrivilegeToken] here instead.
+	if mfaResp := req.GetExistingMFAResponse(); mfaResp.GetTOTP() == nil && mfaResp.GetWebauthn() == nil {
+		if err := a.enforceGlobalModeTrustedDevice(ctx); err != nil {
+			return nil, trace.Wrap(err, "device trust is required for users to create a privileged token without an MFA check")
+		}
+	}
+
 	return a.authServer.CreatePrivilegeToken(ctx, req)
 }
 
 // CreateRegisterChallenge is implemented by AuthService.CreateRegisterChallenge.
 func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
-	switch {
-	case req.TokenID != "":
-	case req.ExistingMFAResponse != nil:
+	if req.TokenID == "" {
 		if !authz.IsLocalOrRemoteUser(a.context) {
 			return nil, trace.BadParameter("only end users are allowed issue registration challenges without a privilege token")
+		}
+
+		// Device trust: authorize device before issuing a register challenge without an MFA response or privilege token.
+		// This is an exceptional case for users registering their first MFA challenge through `tsh`.
+		if mfaResp := req.GetExistingMFAResponse(); mfaResp.GetTOTP() == nil && mfaResp.GetWebauthn() == nil {
+			if err := a.enforceGlobalModeTrustedDevice(ctx); err != nil {
+				return nil, trace.Wrap(err, "device trust is required for users to register their first MFA device")
+			}
 		}
 	}
 
@@ -6352,6 +6395,18 @@ func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *prot
 	//   - privilege token (or equivalent)
 	//   - authenticated user using non-Proxy identity
 	return a.authServer.CreateRegisterChallenge(ctx, req)
+}
+
+// enforceGlobalModeTrustedDevice is used to enforce global device trust requirements
+// for key endpoints.
+func (a *ServerWithRoles) enforceGlobalModeTrustedDevice(ctx context.Context) error {
+	authPref, err := a.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
+	return trace.Wrap(err)
 }
 
 // GetAccountRecoveryCodes is implemented by AuthService.GetAccountRecoveryCodes.

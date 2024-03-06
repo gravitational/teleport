@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
@@ -1719,6 +1720,35 @@ func (c *Client) GetRole(ctx context.Context, name string) (types.Role, error) {
 
 // GetRoles returns a list of roles
 func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
+	var roles []types.Role
+	var req proto.ListRolesRequest
+	for {
+		rsp, err := c.ListRoles(ctx, &req)
+		if err != nil {
+			if trace.IsNotImplemented(err) {
+				// fallback to calling the old non-paginated role API.
+				roles, err = c.getRoles(ctx)
+				return roles, trace.Wrap(err)
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		for _, r := range rsp.Roles {
+			roles = append(roles, r)
+		}
+		req.StartKey = rsp.NextKey
+		if req.StartKey == "" {
+			break
+		}
+	}
+
+	return roles, nil
+}
+
+// getRoles calls the old non-paginated GetRoles method.
+//
+// DELETE IN 17.0
+func (c *Client) getRoles(ctx context.Context) ([]types.Role, error) {
 	resp, err := c.grpc.GetRoles(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1728,6 +1758,16 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 		roles = append(roles, role)
 	}
 	return roles, nil
+}
+
+// ListRoles is a paginated role getter.
+func (c *Client) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	rsp, err := c.grpc.ListRoles(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rsp, nil
 }
 
 // CreateRole creates a new role.
@@ -3148,6 +3188,27 @@ func (c *Client) DeleteAllDatabaseServices(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
+// GetDatabaseObjectImportRules retrieves all database object import rules.
+func (c *Client) GetDatabaseObjectImportRules(ctx context.Context) ([]*dbobjectimportrulev1.DatabaseObjectImportRule, error) {
+	var out []*dbobjectimportrulev1.DatabaseObjectImportRule
+	req := &dbobjectimportrulev1.ListDatabaseObjectImportRulesRequest{}
+	client := c.DatabaseObjectImportRuleClient()
+	for {
+		resp, err := client.ListDatabaseObjectImportRules(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, resp.Rules...)
+
+		if resp.NextPageToken == "" {
+			break
+		}
+		req.PageToken = resp.NextPageToken
+	}
+
+	return out, nil
+}
+
 // GetWindowsDesktopServices returns all registered windows desktop services.
 func (c *Client) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
 	resp, err := c.grpc.GetWindowsDesktopServices(ctx, &emptypb.Empty{})
@@ -4349,6 +4410,11 @@ func (c *Client) SCIMClient() *scim.Client {
 // (as per the default gRPC behavior).
 func (c *Client) AccessListClient() *accesslist.Client {
 	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(c.conn))
+}
+
+// DatabaseObjectImportRuleClient returns a client for managing database object import rules.
+func (c *Client) DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient {
+	return dbobjectimportrulev1.NewDatabaseObjectImportRuleServiceClient(c.conn)
 }
 
 // DiscoveryConfigClient returns a DiscoveryConfig client.

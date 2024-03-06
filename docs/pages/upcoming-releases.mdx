@@ -9,21 +9,9 @@ The Teleport team delivers a new major release roughly every 4 months.
 
 | Version | Date              |
 |---------|-------------------|
-| 15.1.0  | February 29, 2024 |
-| 15.1.1  | March 8, 2024     |
+| 15.1.2  | March 8, 2024     |
 
-### 15.1.0
-
-#### Standalone `tbot` Docker image
-
-We will ship a new container image that contains `tbot` but omits other
-Teleport binaries, providing a light-weight option for Machine ID users.
-
-#### Custom mouse pointers for remote desktop sessions
-
-Teleport remote desktop sessions will automatically change the mouse cursor
-depending on context (when hovering over a link, resizing a window, or editing
-text, for example).
+### 15.1.2
 
 #### New paginated APIs
 
@@ -31,18 +19,7 @@ Teleport's gRPC server will expose new paginated APIs for listing roles and
 access requests, which will improve performance on clusters with large numbers
 of these resources.
 
-#### Synchronization of Okta groups and apps
-
-Okta integration will support automatic synchronization of Okta groups and app
-assignments to Teleport as access lists giving users ability to request access
-to Okta apps without extra configuration.
-
-#### EKS auto-discovery in Access Management UI
-
-Users going through EKS enrollment flow in Access Management web UI will have
-an option to enable auto-discovery for EKS clusters.
-
-### 15.1.1
+*Delayed from Teleport 15.1.0*
 
 #### SSH remote port forwarding
 

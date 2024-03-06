@@ -17,7 +17,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Box } from 'design';
+import { Box, Text } from 'design';
 
 import {
   SelectCreatable,
@@ -41,6 +41,7 @@ export function SetupAccess(props: State) {
     initSelectedOptions,
     getFixedOptions,
     getSelectableOptions,
+    agentMeta,
     ...restOfProps
   } = props;
   const [groupInputValue, setGroupInputValue] = useState('');
@@ -49,6 +50,7 @@ export function SetupAccess(props: State) {
   const [userInputValue, setUserInputValue] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<Option[]>([]);
 
+  const wantAutoDiscover = !!agentMeta.autoDiscovery;
   useEffect(() => {
     if (props.attempt.status === 'success') {
       setSelectedGroups(initSelectedOptions('kubeGroups'));
@@ -85,7 +87,17 @@ export function SetupAccess(props: State) {
   }
 
   function handleOnProceed() {
-    onProceed({ kubeGroups: selectedGroups, kubeUsers: selectedUsers });
+    let numStepsToIncrement;
+    // Skip test connection since test connection currently
+    // only supports one resource testing and auto enrolling
+    // enrolls resources > 1.
+    if (wantAutoDiscover) {
+      numStepsToIncrement = 2;
+    }
+    onProceed(
+      { kubeGroups: selectedGroups, kubeUsers: selectedUsers },
+      numStepsToIncrement
+    );
   }
 
   const hasTraits = selectedGroups.length > 0 || selectedUsers.length > 0;
@@ -101,7 +113,15 @@ export function SetupAccess(props: State) {
       traitDescription="users and groups"
       hasTraits={hasTraits}
       onProceed={handleOnProceed}
+      wantAutoDiscover={wantAutoDiscover}
     >
+      {wantAutoDiscover && (
+        <Text mb={3}>
+          Since auto-discovery is enabled, make sure to include all Kubernetes
+          users and groups that will be used to connect to the discovered
+          clusters.
+        </Text>
+      )}
       <Box mb={4}>
         Kubernetes Groups
         <SelectCreatable
