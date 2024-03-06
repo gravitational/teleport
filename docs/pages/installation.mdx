@@ -61,7 +61,7 @@ archives containing Teleport binaries. All installations include `teleport`,
 ### Recommended installation steps
 
 If you are starting out with Teleport, we recommend beginning with a [Teleport
-Team](https://goteleport.com/signup/) account. From there, the only Teleport
+Cloud](https://goteleport.com/signup/) account. From there, the only Teleport
 components you need to deploy yourself are Teleport agents. You can deploy
 agents by:
 - Following the instructions in the Teleport Web UI at `/web/discover`, where
@@ -299,46 +299,38 @@ repositories.
    </TabItem>
    </Tabs>
 
-### TAR archives
+### TAR archives (self-hosted only)
 
 For self-hosted deployments, Teleport maintains TAR archives for
 Linux-compatible binaries at `https://cdn.teleport.dev`. This section explains
 the Teleport TAR archives and how to use them.
-
-<Notice type="warning">
 
 It is not possible to install the automatic agent updater using TAR archives.
 Teleport Cloud customers must use the [one-line installation
 script](#one-line-installation-script) or manually install Teleport from a
 [package repository](#package-repositories) in order to install the updater.
 
-</Notice>
+1. In your terminal, assign environment variables that you will use to download
+   your intended archive.
 
-1. Assign environment variables that you will use to download your intended
-   archive:
+   For Teleport Community Edition, the Teleport package is called `teleport`:
 
-   <Tabs>
-   <TabItem label="Teleport Community Edition">
-   
    ```code
-   $ export TELEPORT_PKG=teleport
-   $ export TELEPORT_VERSION=(=teleport.version=)
+   $ TELEPORT_PKG=teleport
    ```
 
-   </TabItem>
-   <TabItem label="Teleport Enterprise">
+   For self-hosted Teleport Enterprise deployments, the package is called
+   `teleport-ent`:
 
    ```code
-   $ export TELEPORT_PKG=teleport-ent
-   $ export TELEPORT_VERSION=(=teleport.version=)
+   $ TELEPORT_PKG=teleport-ent
    ```
 
-   </TabItem>
-   </Tabs>
-
-1. Specify your system architecture by assigning an environment variable:
+1. Specify your system Teleport version and system architecture by assigning an
+   environment variable:
 
    ```code
+   $ TELEPORT_VERSION=(=teleport.version=)
    $ SYSTEM_ARCH=""
    ```
 
@@ -383,7 +375,7 @@ For Teleport Community Edition, check the
 [Downloads](https://goteleport.com/download/) page for the most up-to-date
 information.
 
-For Teleport Team and Teleport Enterprise Cloud, check the [Cloud
+For Teleport Enterprise Cloud, check the [Cloud
 Downloads](./choose-an-edition/teleport-cloud/downloads.mdx) page for the most
 up-to-date information on obtaining Teleport binaries compatible with Teleport
 Cloud.
