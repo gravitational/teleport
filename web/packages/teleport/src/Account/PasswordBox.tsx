@@ -21,51 +21,31 @@ import { SingleRowBox } from 'design/MultiRowBox';
 import React, { useState } from 'react';
 
 import * as Icon from 'design/Icon';
-import Dialog, {
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from 'design/Dialog';
-import FormPassword from 'shared/components/FormPassword';
+
+import cfg from 'teleport/config';
+
+import { MfaDevice } from 'teleport/services/mfa';
 
 import { ActionButton, Header } from './Header';
-import useChangePassword from './ChangePassword/useChangePassword';
+import { ChangePasswordWizard } from './ChangePasswordWizard';
 
 export interface PasswordBoxProps {
   changeDisabled: boolean;
+  devices: MfaDevice[];
   onPasswordChange: () => void;
 }
 
 export function PasswordBox({
   changeDisabled,
+  devices,
   onPasswordChange,
 }: PasswordBoxProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const {
-    changePassword,
-    changePasswordWithWebauthn,
-    preferredMfaType,
-    auth2faType,
-  } = useChangePassword();
 
-  async function onChangePass(
-    oldPass: string,
-    newPass: string,
-    token: string
-  ): Promise<void> {
-    await changePassword(oldPass, newPass, token);
+  const onSuccess = () => {
     setDialogOpen(false);
     onPasswordChange();
-  }
-
-  async function onChangePassWithWebauthn(
-    oldPass: string,
-    newPass: string
-  ): Promise<void> {
-    await changePasswordWithWebauthn(oldPass, newPass);
-    setDialogOpen(false);
-    onPasswordChange();
-  }
+  };
 
   return (
     <Box>
@@ -83,25 +63,15 @@ export function PasswordBox({
           }
         />
       </SingleRowBox>
-      <Dialog
-        open={dialogOpen}
-        disableEscapeKeyDown={false}
-        onClose={() => setDialogOpen(false)}
-      >
-        <DialogHeader>
-          <DialogTitle>Change password</DialogTitle>
-        </DialogHeader>
-        <DialogContent mb={0}>
-          <FormPassword
-            showCancel
-            auth2faType={auth2faType}
-            preferredMfaType={preferredMfaType}
-            onChangePass={onChangePass}
-            onChangePassWithWebauthn={onChangePassWithWebauthn}
-            onCancel={() => setDialogOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
+      {dialogOpen && (
+        <ChangePasswordWizard
+          auth2faType={cfg.getAuth2faType()}
+          passwordlessEnabled={cfg.isPasswordlessEnabled()}
+          devices={devices}
+          onClose={() => setDialogOpen(false)}
+          onSuccess={onSuccess}
+        />
+      )}
     </Box>
   );
 }
