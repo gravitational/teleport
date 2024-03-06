@@ -72,6 +72,7 @@ import "C"
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"runtime/cgo"
 	"sync"
@@ -82,6 +83,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -122,9 +124,9 @@ func init() {
 type Client struct {
 	cfg Config
 
-	// Parameters read from the TDP stream.
-	clientWidth, clientHeight uint16
-	username                  string
+	// Parameters read from the TDP stream
+	requestedWidth, requestedHeight uint16
+	username                        string
 
 	// handle allows the rust code to call back into the client.
 	handle cgo.Handle
@@ -229,12 +231,6 @@ func (c *Client) readClientUsername() error {
 	}
 }
 
-const (
-	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/cbe1ed0a-d320-4ea5-be5a-f2eb6e032853#Appendix_A_45
-	maxRDPScreenWidth  = 8192
-	maxRDPScreenHeight = 8192
-)
-
 func (c *Client) readClientSize() error {
 	for {
 		s, err := c.cfg.Conn.ReadClientScreenSpec()
@@ -243,21 +239,37 @@ func (c *Client) readClientSize() error {
 			continue
 		}
 
-		c.cfg.Log.Debugf("Got RDP screen size %dx%d", s.Width, s.Height)
-
-		if s.Width > maxRDPScreenWidth || s.Height > maxRDPScreenHeight {
-			err := trace.BadParameter(
-				"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
-				s.Width, s.Height, maxRDPScreenWidth, maxRDPScreenHeight,
-			)
-			c.cfg.Log.Error(err)
-			c.cfg.Conn.WriteMessage(tdp.Notification{Message: err.Error(), Severity: tdp.SeverityError})
+		if c.cfg.Width != 0 && c.cfg.Height != 0 {
+			// Some desktops have a screen size in their resource definition.
+			// If non-zero then we always request this screen size.
+			c.cfg.Log.Debugf("Forcing a screen size of %dx%d", c.cfg.Width, c.cfg.Height)
+			c.requestedWidth = uint16(c.cfg.Width)
+			c.requestedHeight = uint16(c.cfg.Height)
+		} else {
+			// If not otherwise specified, we request the screen size based
+			// on what the client (browser) reports.
+			c.cfg.Log.Debugf("Got RDP screen size %dx%d", s.Width, s.Height)
+			c.requestedWidth = uint16(s.Width)
+			c.requestedHeight = uint16(s.Height)
 		}
 
-		c.clientWidth = uint16(s.Width)
-		c.clientHeight = uint16(s.Height)
+		if c.requestedWidth > types.MaxRDPScreenWidth || c.requestedHeight > types.MaxRDPScreenHeight {
+			err = trace.BadParameter(
+				"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
+				s.Width, s.Height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight,
+			)
+			if err := c.sendTDPNotification(err.Error(), tdp.SeverityError); err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(err)
+		}
+
 		return nil
 	}
+}
+
+func (c *Client) sendTDPNotification(message string, severity tdp.Severity) error {
+	return c.cfg.Conn.WriteMessage(tdp.Notification{Message: message, Severity: severity})
 }
 
 func (c *Client) startRustRDP(ctx context.Context) error {
@@ -289,7 +301,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		return trace.BadParameter("user key was nil")
 	}
 
-	if res := C.client_run(
+	res := C.client_run(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
 			go_addr: addr,
@@ -299,19 +311,42 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			// key length and bytes.
 			key_der_len:             C.uint32_t(len(userKeyDER)),
 			key_der:                 (*C.uint8_t)(key_der),
-			screen_width:            C.uint16_t(c.clientWidth),
-			screen_height:           C.uint16_t(c.clientHeight),
+			screen_width:            C.uint16_t(c.requestedWidth),
+			screen_height:           C.uint16_t(c.requestedHeight),
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
 		},
-	); res.err_code != C.ErrCodeSuccess {
-		if res.message == nil {
-			return trace.Errorf("unknown error: %v", res.err_code)
-		}
+	)
+
+	var message string
+	if res.message != nil {
+		message = C.GoString(res.message)
 		defer C.free_string(res.message)
-		return trace.Errorf("%s", C.GoString(res.message))
 	}
+
+	// If the client exited with an error, send a tdp error notification and return it.
+	if res.err_code != C.ErrCodeSuccess {
+		var err error
+
+		if message != "" {
+			err = trace.Errorf("RDP client exited with an error: %v", message)
+		} else {
+			err = trace.Errorf("RDP client exited with an unknown error")
+		}
+
+		c.sendTDPNotification(err.Error(), tdp.SeverityError)
+		return err
+	}
+
+	if message != "" {
+		message = fmt.Sprintf("RDP client exited gracefully with message: %v", message)
+	} else {
+		message = "RDP client exited gracefully"
+	}
+
+	c.cfg.Log.Info(message)
+	c.sendTDPNotification(message, tdp.SeverityInfo)
 
 	return nil
 }
@@ -666,6 +701,9 @@ func cgo_handle_rdp_connection_initialized(
 
 func (c *Client) handleRDPConnectionInitialized(ioChannelID, userChannelID, screenWidth, screenHeight C.uint16_t) C.CGOErrCode {
 	c.cfg.Log.Debugf("Received RDP channel IDs: io_channel_id=%d, user_channel_id=%d", ioChannelID, userChannelID)
+
+	// Note: RDP doesn't always use the resolution we asked for.
+	// This is especially true when we request dimensions that are not a multiple of 4.
 	c.cfg.Log.Debugf("RDP server provided resolution of %dx%d", screenWidth, screenHeight)
 
 	if err := c.cfg.Conn.WriteMessage(tdp.ConnectionInitialized{

@@ -30,9 +30,9 @@ export default function useManageDevices(ctx: Ctx) {
   const [deviceToRemove, setDeviceToRemove] = useState<DeviceToRemove>();
   const [token, setToken] = useState('');
   const fetchDevicesAttempt = useAttempt('');
-  const [restrictNewDeviceUsage, setRestrictNewDeviceUsage] = useState<
-    DeviceUsage | undefined
-  >(undefined);
+  const [newDeviceUsage, setNewDeviceUsage] =
+    useState<DeviceUsage>('passwordless');
+  const [addDeviceWizardVisible, setAddDeviceWizardVisible] = useState(false);
 
   // This is a restricted privilege token that can only be used to add a device, in case
   // the user has no devices yet and thus can't authenticate using the ReAuthenticate dialog
@@ -40,7 +40,7 @@ export default function useManageDevices(ctx: Ctx) {
 
   const isReAuthenticateVisible = !token && isDialogVisible;
   const isRemoveDeviceVisible = token && deviceToRemove && isDialogVisible;
-  const isAddDeviceVisible = token && !deviceToRemove && isDialogVisible;
+  const isReauthenticationRequired = !token;
 
   function fetchDevices() {
     fetchDevicesAttempt.run(() =>
@@ -55,22 +55,23 @@ export default function useManageDevices(ctx: Ctx) {
     });
   }
 
-  function onAddDevice(restrictUsage?: DeviceUsage) {
-    setRestrictNewDeviceUsage(restrictUsage);
+  function onAddDevice(usage: DeviceUsage) {
+    setNewDeviceUsage(usage);
     if (devices.length === 0) {
       createRestrictedTokenAttempt.run(() =>
         auth.createRestrictedPrivilegeToken().then(token => {
           setToken(token);
-          setIsDialogVisible(true);
+          setAddDeviceWizardVisible(true);
         })
       );
     } else {
-      setIsDialogVisible(true);
+      setAddDeviceWizardVisible(true);
     }
   }
 
-  function hideAddDevice() {
-    setIsDialogVisible(false);
+  function onDeviceAdded() {
+    fetchDevices();
+    setAddDeviceWizardVisible(false);
     setToken(null);
   }
 
@@ -89,6 +90,10 @@ export default function useManageDevices(ctx: Ctx) {
     setIsDialogVisible(false);
   }
 
+  function closeAddDeviceWizard() {
+    setAddDeviceWizardVisible(false);
+  }
+
   useEffect(() => fetchDevices(), []);
 
   return {
@@ -97,19 +102,20 @@ export default function useManageDevices(ctx: Ctx) {
     setToken,
     onAddDevice,
     onRemoveDevice,
+    onDeviceAdded,
     deviceToRemove,
-    fetchDevices,
     removeDevice,
     fetchDevicesAttempt: fetchDevicesAttempt.attempt,
     createRestrictedTokenAttempt: createRestrictedTokenAttempt.attempt,
     isReAuthenticateVisible,
-    isAddDeviceVisible,
     isRemoveDeviceVisible,
+    isReauthenticationRequired,
+    addDeviceWizardVisible,
     hideReAuthenticate,
-    hideAddDevice,
     hideRemoveDevice,
+    closeAddDeviceWizard,
     mfaDisabled: cfg.getAuth2faType() === 'off',
-    restrictNewDeviceUsage,
+    newDeviceUsage,
   };
 }
 

@@ -674,19 +674,42 @@ func WithBeforeLoginHook(fn func() error) RetryWithReloginOption {
 
 // IsErrorResolvableWithRelogin returns true if relogin is attempted on `err`.
 func IsErrorResolvableWithRelogin(err error) bool {
+	// Private key policy errors indicate that the user must login with an
+	// unexpected private key policy requirement satisfied. This can occur
+	// in the following cases:
+	// - User is logging in for the first time, and their strictest private
+	//   key policy requirement is specified in a role.
+	// - User is assuming a role with a stricter private key policy requirement
+	//   than the user's given roles.
+	// - The private key policy in the user's roles or the cluster auth
+	//   preference have been upgraded since the user last logged in, making
+	//   their current login session invalid.
+	if keys.IsPrivateKeyPolicyError(err) {
+		return true
+	}
+
 	// Ignore any failures resulting from RPCs.
 	// These were all materialized as status.Error here before
 	// https://github.com/gravitational/teleport/pull/30578.
 	var remoteErr *interceptors.RemoteError
 	if errors.As(err, &remoteErr) {
-		return false
+		// Exception for the two "retryable" errors that come from RPCs.
+		//
+		// Since Connect no longer checks the user cert before making an RPC,
+		// it has to be able to properly recognize "expired certs" errors
+		// that come from the server (to show a re-login dialog).
+		//
+		// TODO(gzdunek): These manual checks should be replaced with retryable
+		// errors returned explicitly, as described below by codingllama.
+		isClientCredentialsHaveExpired := errors.Is(err, client.ErrClientCredentialsHaveExpired)
+		isTLSExpiredCertificate := strings.Contains(err.Error(), "tls: expired certificate")
+		return isClientCredentialsHaveExpired || isTLSExpiredCertificate
 	}
 
-	return keys.IsPrivateKeyPolicyError(err) ||
-		// TODO(codingllama): Retrying BadParameter is a terrible idea.
-		//  We should fix this and remove the RemoteError condition above as well.
-		//  Any retriable error should be explicitly marked as such.
-		trace.IsBadParameter(err) ||
+	// TODO(codingllama): Retrying BadParameter is a terrible idea.
+	//  We should fix this and remove the RemoteError condition above as well.
+	//  Any retriable error should be explicitly marked as such.
+	return trace.IsBadParameter(err) ||
 		trace.IsTrustError(err) ||
 		utils.IsCertExpiredError(err) ||
 		// Assume that failed handshake is a result of expired credentials.

@@ -28,26 +28,19 @@ since it must execute these commands in order to create transient users:
 
 ## Step 1/3. Configure a role
 
-First, create a role with `create_host_user_mode` set to `drop`, `insecure-drop`, or `keep`.
-
-  - `insecure-drop` will create transient users that are deleted once the session ends.
-  - `drop` is the same as `insecure-drop` except it also creates a home directory for the user.
-    It exists only for backwards compatibility; newly configured services should use
-    `insecure-drop` instead.
-  - `keep` will create permanent users on the host at login time.
-
-Note that with the `drop` and `insecure-drop` modes, it is possible for a created
-user to get the same UID as a previously deleted user, which would give the new user
-access to all of the old user's files if they are not deleted.
-
-<Admonition type="note">
-  `drop` mode will be removed in Teleport 15.
-</Admonition>
-
+First, create a role with `create_host_user_mode` set to `keep`. 
 The following role specification will allow users to log in as `nginxrestarter` on
 any matching Node. The host user will be created and added to the groups listed in
 `host_groups`. They will also be given permission to restart the Nginx service as
 root.
+
+<Admonition type="note">
+  `create_host_user_mode` can also be set to `insecure_drop`, which deletes users
+  once the session ends. However, in this mode it is possible for a created user 
+  to get the same UID as a previously deleted user, which would give the new user access
+  to all of the old user's files if they are not deleted. Use `keep` mode
+  unless you really need users to be removed.
+</Admonition>
 
 Save the file below as `auto-users.yaml`
 
@@ -59,7 +52,7 @@ metadata:
 spec:
   options:
     # Allow automatic creation of users.
-    create_host_user_mode: drop
+    create_host_user_mode: keep
   allow:
     logins: [ "nginxrestarter" ]
     # List of host groups the created user will be added to. Any that don't already exist are created.
@@ -89,13 +82,8 @@ of the Linux distribution being used. See [User/Group Name Syntax](https://syste
 
 When a Teleport user accesses an SSH Service instance, Teleport checks each of the
 user's roles that match the instance. If at least one role matches the instance
-but does not specify `create_host_user_mode` to be either `keep`, `drop`, or `insecure-drop`,
-automatic user creation will be disabled. Roles that do not match the server will
-not be checked.
-
-If multiple roles match where one might specify `keep` and another `drop`,
-Teleport will default to `keep`, retaining the user on the server after the session
-ends.
+but does not set `create_host_user_mode`, automatic user creation will be disabled.
+Roles that do not match the server will not be checked.
 
 </Admonition>
 
@@ -117,7 +105,7 @@ metadata:
   name: auto-users
 spec:
   options:
-    create_host_user_mode: drop
+    create_host_user_mode: keep
   deny:
     host_sudoers: [
        "*" # ensure that users in this role never have sudoers files created on matching Nodes
@@ -204,8 +192,8 @@ field.
 
 The Teleport SSH Service executes `useradd` to create new users on the host, and
 returns an error if it cannot find the `useradd` binary. The `useradd` command
-creates a new home directory with the name of the new host user and adds the
-user to the groups specified in the Teleport user's roles.
+adds the user to the groups specified in the Teleport user's roles, and Teleport
+separately creates a new home directory with the name of the new host user.
 
 The SSH Service executes
 `useradd --no-create-home --home-dir <home> <username> --groups <groups> --uid <uid> --gid <gid>`

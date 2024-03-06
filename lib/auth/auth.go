@@ -272,6 +272,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.DatabaseObjectImportRules == nil {
+		cfg.DatabaseObjectImportRules, err = local.NewDatabaseObjectImportRuleService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.PluginData == nil {
 		cfg.PluginData = local.NewPluginData(cfg.Backend, cfg.DynamicAccessExt)
 	}
@@ -341,37 +347,38 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
-		Trust:                   cfg.Trust,
-		PresenceInternal:        cfg.Presence,
-		Provisioner:             cfg.Provisioner,
-		Identity:                cfg.Identity,
-		Access:                  cfg.Access,
-		DynamicAccessExt:        cfg.DynamicAccessExt,
-		ClusterConfiguration:    cfg.ClusterConfiguration,
-		Restrictions:            cfg.Restrictions,
-		Apps:                    cfg.Apps,
-		Kubernetes:              cfg.Kubernetes,
-		Databases:               cfg.Databases,
-		DatabaseServices:        cfg.DatabaseServices,
-		AuditLogSessionStreamer: cfg.AuditLog,
-		Events:                  cfg.Events,
-		WindowsDesktops:         cfg.WindowsDesktops,
-		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
-		UserGroups:              cfg.UserGroups,
-		SessionTrackerService:   cfg.SessionTrackerService,
-		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
-		Integrations:            cfg.Integrations,
-		DiscoveryConfigs:        cfg.DiscoveryConfigs,
-		Embeddings:              cfg.Embeddings,
-		Okta:                    cfg.Okta,
-		AccessLists:             cfg.AccessLists,
-		SecReports:              cfg.SecReports,
-		UserLoginStates:         cfg.UserLoginState,
-		StatusInternal:          cfg.Status,
-		UsageReporter:           cfg.UsageReporter,
-		Assistant:               cfg.Assist,
-		UserPreferences:         cfg.UserPreferences,
-		PluginData:              cfg.PluginData,
+		Trust:                     cfg.Trust,
+		PresenceInternal:          cfg.Presence,
+		Provisioner:               cfg.Provisioner,
+		Identity:                  cfg.Identity,
+		Access:                    cfg.Access,
+		DynamicAccessExt:          cfg.DynamicAccessExt,
+		ClusterConfiguration:      cfg.ClusterConfiguration,
+		Restrictions:              cfg.Restrictions,
+		Apps:                      cfg.Apps,
+		Kubernetes:                cfg.Kubernetes,
+		Databases:                 cfg.Databases,
+		DatabaseServices:          cfg.DatabaseServices,
+		AuditLogSessionStreamer:   cfg.AuditLog,
+		Events:                    cfg.Events,
+		WindowsDesktops:           cfg.WindowsDesktops,
+		SAMLIdPServiceProviders:   cfg.SAMLIdPServiceProviders,
+		UserGroups:                cfg.UserGroups,
+		SessionTrackerService:     cfg.SessionTrackerService,
+		ConnectionsDiagnostic:     cfg.ConnectionsDiagnostic,
+		Integrations:              cfg.Integrations,
+		DiscoveryConfigs:          cfg.DiscoveryConfigs,
+		Embeddings:                cfg.Embeddings,
+		Okta:                      cfg.Okta,
+		AccessLists:               cfg.AccessLists,
+		DatabaseObjectImportRules: cfg.DatabaseObjectImportRules,
+		SecReports:                cfg.SecReports,
+		UserLoginStates:           cfg.UserLoginState,
+		StatusInternal:            cfg.Status,
+		UsageReporter:             cfg.UsageReporter,
+		Assistant:                 cfg.Assist,
+		UserPreferences:           cfg.UserPreferences,
+		PluginData:                cfg.PluginData,
 	}
 
 	as := Server{
@@ -515,6 +522,7 @@ type Services struct {
 	services.DiscoveryConfigs
 	services.Okta
 	services.AccessLists
+	services.DatabaseObjectImportRules
 	services.UserLoginStates
 	services.Assistant
 	services.Embeddings
@@ -1226,7 +1234,6 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 	skipControlPlane := modules.GetModules().Features().Cloud
 
 	// set up aggregators for our periodics
-	imp := newInstanceMetricsPeriodic()
 	uep := newUpgradeEnrollPeriodic()
 
 	// stream all instances to all aggregators
@@ -1239,7 +1246,6 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 			}
 		}
 
-		imp.VisitInstance(instances.Item())
 		uep.VisitInstance(instances.Item())
 	}
 
@@ -1248,21 +1254,7 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 		return
 	}
 
-	// set instance metric values
-	totalInstancesMetric.Set(float64(imp.TotalInstances()))
-	enrolledInUpgradesMetric.Set(float64(imp.TotalEnrolledInUpgrades()))
-
-	// reset upgrader counts
-	upgraderCountsMetric.Reset()
-
-	for upgraderType, upgraderVersions := range imp.upgraderCounts {
-		for version, count := range upgraderVersions {
-			upgraderCountsMetric.With(prometheus.Labels{
-				teleport.TagUpgrader: upgraderType,
-				teleport.TagVersion:  version,
-			}).Set(float64(count))
-		}
-	}
+	a.updateUpdaterVersionMetrics()
 
 	// create/delete upgrade enroll prompt as appropriate
 	enrollMsg, shouldPrompt := uep.GenerateEnrollPrompt()
@@ -1445,6 +1437,32 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 		err := a.DeleteClusterAlert(ctx, secAlertID)
 		if err != nil && !trace.IsNotFound(err) {
 			log.Warnf("Failed to delete %s alert: %v", secAlertID, err)
+		}
+	}
+}
+
+// updateUpdaterVersionMetrics leverages the inventory control stream to report the
+// number of teleport updaters installed and their versions. To get an accurate representation
+// of versions in an entire cluster the metric must be aggregated with all auth instances.
+func (a *Server) updateUpdaterVersionMetrics() {
+	imp := newInstanceMetricsPeriodic()
+
+	// record versions for all connected resources
+	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+		imp.VisitInstance(handle.Hello())
+	})
+
+	totalInstancesMetric.Set(float64(imp.TotalInstances()))
+	enrolledInUpgradesMetric.Set(float64(imp.TotalEnrolledInUpgrades()))
+
+	// reset the gauges so that any versions that fall off are removed from exported metrics
+	upgraderCountsMetric.Reset()
+	for upgraderType, upgraderVersions := range imp.upgraderCounts {
+		for version, count := range upgraderVersions {
+			upgraderCountsMetric.With(prometheus.Labels{
+				teleport.TagUpgrader: upgraderType,
+				teleport.TagVersion:  version,
+			}).Set(float64(count))
 		}
 	}
 }
@@ -3093,7 +3111,7 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 		}
 		username = token.GetUser()
 
-	case req.ExistingMFAResponse != nil: // Authenticated user without token, tsh.
+	default: // Authenticated user without token, tsh.
 		var err error
 		username, err = authz.GetClientUsername(ctx)
 		if err != nil {
@@ -3116,9 +3134,6 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-	default:
-		return nil, trace.BadParameter("either a token or an MFA response are required")
 	}
 
 	regChal, err := a.createRegisterChallenge(ctx, &newRegisterChallengeRequest{
@@ -4484,6 +4499,68 @@ func (a *Server) DeleteNamespace(namespace string) error {
 		return trace.BadParameter("can't delete namespace %v that has %v registered nodes", namespace, len(nodes))
 	}
 	return a.Services.DeleteNamespace(namespace)
+}
+
+// IterateRoles is a helper used to read a page of roles with a custom matcher, used by access-control logic to handle
+// per-resource read permissions.
+func (a *Server) IterateRoles(ctx context.Context, req *proto.ListRolesRequest, match func(*types.RoleV6) (bool, error)) ([]*types.RoleV6, string, error) {
+	const maxIterations = 100_000
+
+	if req.Limit == 0 {
+		req.Limit = apidefaults.DefaultChunkSize
+	}
+
+	req.Limit++
+	defer func() {
+		req.Limit--
+	}()
+
+	var filtered []*types.RoleV6
+	var iterations int
+
+Outer:
+	for {
+		iterations++
+		if iterations > maxIterations {
+			return nil, "", trace.Errorf("too many role page iterations (%d), this is likely a bug", iterations)
+		}
+
+		rsp, err := a.Cache.ListRoles(ctx, req)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+	Inner:
+		for _, role := range rsp.Roles {
+			ok, err := match(role)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			if !ok {
+				continue Inner
+			}
+
+			filtered = append(filtered, role)
+			if len(filtered) == int(req.Limit) {
+				break Outer
+			}
+		}
+
+		req.StartKey = rsp.NextKey
+
+		if req.StartKey == "" {
+			break Outer
+		}
+	}
+
+	var nextKey string
+	if len(filtered) == int(req.Limit) {
+		nextKey = filtered[req.Limit-1].GetName()
+		filtered = filtered[:req.Limit-1]
+	}
+
+	return filtered, nextKey, nil
 }
 
 func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (types.AccessRequest, error) {
@@ -6239,6 +6316,19 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 			return keySet, trace.Wrap(err)
 		}
 		keySet.TLS = append(keySet.TLS, tlsKeyPair)
+	case types.SPIFFECA:
+		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.TLS = append(keySet.TLS, tlsKeyPair)
+		// Whilst we don't currently support JWT-SVIDs, we will eventually. So
+		// generate a JWT keypair.
+		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx)
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.JWT = append(keySet.JWT, jwtKeyPair)
 	default:
 		return keySet, trace.BadParameter("unknown ca type: %s", caID.Type)
 	}

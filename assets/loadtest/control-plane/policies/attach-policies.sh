@@ -16,6 +16,10 @@ esac
 
 source vars.env
 
+if [[ "$TELEPORT_BACKEND" == "firestore" ]]; then
+  exit 0
+fi
+
 dynamo_policy_arn="arn:aws:iam::${ACCOUNT_ID}:policy/${CLUSTER_NAME}-dynamo"
 
 s3_policy_arn="arn:aws:iam::${ACCOUNT_ID}:policy/${CLUSTER_NAME}-s3"

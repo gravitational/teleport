@@ -381,7 +381,7 @@ databaseResources: []
 # The Discovery Service is enabled when the agent `roles` contains "discovery".
 # The Discovery service automatically detects Kubernetes Services and configures
 # the agent to provide access to them. See [the Kubernetes App Discovery
-# documentation](../../../application-access/enroll-kubernetes-applications/architecture.mdx)
+# documentation](../../../auto-discovery/kubernetes-applications/architecture.mdx)
 # for more details.
 #
 # The default value will try to discover all apps running in Kubernetes.
@@ -783,7 +783,7 @@ adminClusterRoleBinding:
 #   to pull the image.
 #
 #   For this reason, it is strongly discouraged to set a custom image when
-#   using automatic updates. Teleport Cloud uses automatic upgrades by default.
+#   using automatic updates. Teleport Cloud uses automatic updates by default.
 # </Admonition>
 #
 # Since version 13, hardened distroless images are used by default.
@@ -808,7 +808,7 @@ image: public.ecr.aws/gravitational/teleport-distroless
 #   to pull the image.
 #
 #   For this reason, it is strongly discouraged to set a custom image when
-#   using automatic updates. Teleport Cloud uses automatic upgrades by default.
+#   using automatic updates. Teleport Cloud uses automatic updates by default.
 # </Admonition>
 #
 # Since version 13, hardened distroless images are used by default.

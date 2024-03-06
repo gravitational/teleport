@@ -121,6 +121,21 @@ func (s *Service[T]) WithPrefix(parts ...string) *Service[T] {
 	}
 }
 
+// CountResources will return a count of all resources in the prefix range.
+func (s *Service[T]) CountResources(ctx context.Context) (uint, error) {
+	rangeStart := backend.ExactKey(s.backendPrefix)
+	rangeEnd := backend.RangeEnd(rangeStart)
+
+	count := uint(0)
+	err := backend.IterateRange(ctx, s.backend, rangeStart, rangeEnd, int(s.pageLimit),
+		func(items []backend.Item) (stop bool, err error) {
+			count += uint(len(items))
+			return false, nil
+		})
+
+	return count, trace.Wrap(err)
+}
+
 // GetResources returns a list of all resources.
 func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
 	rangeStart := backend.ExactKey(s.backendPrefix)

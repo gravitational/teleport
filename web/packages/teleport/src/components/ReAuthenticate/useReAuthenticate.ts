@@ -105,7 +105,7 @@ export default function useReAuthenticate(props: Props) {
 const defaultActionText = 'performing this action';
 
 type BaseProps = {
-  onClose: () => void;
+  onClose?: () => void;
   /**
    * The text that will be appended to the text in the re-authentication dialog.
    *

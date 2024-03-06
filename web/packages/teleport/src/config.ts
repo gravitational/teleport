@@ -386,6 +386,10 @@ const cfg = {
     return cfg.auth.allowPasswordless;
   },
 
+  isMfaEnabled() {
+    return cfg.auth.second_factor !== 'off';
+  },
+
   isAdminActionMfaEnforced() {
     return cfg.auth.second_factor === 'webauthn';
   },

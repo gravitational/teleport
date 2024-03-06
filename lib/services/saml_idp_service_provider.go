@@ -106,24 +106,6 @@ func UnmarshalSAMLIdPServiceProvider(data []byte, opts ...MarshalOption) (types.
 	return nil, trace.BadParameter("unsupported SAML IdP service provider resource version %q", h.Version)
 }
 
-// GenerateIdPServiceProviderFromFields takes `name` and `entityDescriptor` fields and returns a SAMLIdPServiceProvider.
-func GenerateIdPServiceProviderFromFields(name string, entityDescriptor string) (types.SAMLIdPServiceProvider, error) {
-	if len(name) == 0 {
-		return nil, trace.BadParameter("missing name")
-	}
-	if len(entityDescriptor) == 0 {
-		return nil, trace.BadParameter("missing entity descriptor")
-	}
-
-	var s types.SAMLIdPServiceProviderV1
-	s.SetName(name)
-	s.SetEntityDescriptor(entityDescriptor)
-	if err := s.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &s, nil
-}
-
 // supportedACSBindings is the set of AssertionConsumerService bindings that teleport supports.
 var supportedACSBindings = map[string]struct{}{
 	saml.HTTPPostBinding:     {},
