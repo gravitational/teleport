@@ -1322,7 +1322,7 @@ derive:
 .PHONY: derive-up-to-date
 derive-up-to-date: must-start-clean/host derive
 	@if ! $(GIT) diff --quiet; then \
-		echo 'Please run make grpc.'; \
+		echo 'Please run make derive.'; \
 		exit 1; \
 	fi
 
