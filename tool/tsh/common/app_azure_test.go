@@ -59,10 +59,7 @@ func TestAzure(t *testing.T) {
 	// helper function
 	run := func(args []string, opts ...CliOption) {
 		opts = append(opts, setHomePath(tmpHomePath))
-		opts = append(opts, func(cf *CLIConf) error {
-			cf.MockSSOLogin = mockSSOLogin(t, authServer, user)
-			return nil
-		})
+		opts = append(opts, setMockSSOLogin(authServer, user, connector.GetName()))
 		err := Run(context.Background(), args, opts...)
 		require.NoError(t, err)
 	}
@@ -71,7 +68,7 @@ func TestAzure(t *testing.T) {
 	t.Setenv("MSI_ENDPOINT", "https://azure-msi.teleport.dev/very-secret")
 
 	// Log into Teleport cluster.
-	run([]string{"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String()})
+	run([]string{"login", "--insecure", "--debug", "--proxy", proxyAddr.String()})
 
 	// Log into the "azure-api" app.
 	// Verify `tsh az login ...` gets called.
@@ -131,7 +128,6 @@ func TestAzure(t *testing.T) {
 				require.NotZero(t, req.ExpiresOn)
 				require.NotZero(t, req.ExtExpiresIn)
 				require.NotZero(t, req.NotBefore)
-
 			},
 		},
 	}

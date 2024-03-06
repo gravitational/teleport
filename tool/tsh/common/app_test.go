@@ -140,7 +140,6 @@ func TestAppLoginLeaf(t *testing.T) {
 			return false
 		}
 		return len(servers) == 1 && servers[0].GetName() == "leafapp"
-
 	}, 10*time.Second, 100*time.Millisecond, "leaf cluster did not come online")
 
 	// helpers
@@ -164,14 +163,11 @@ func TestAppLoginLeaf(t *testing.T) {
 				"login",
 				"--insecure",
 				"--debug",
-				"--auth", connector.GetName(),
 				"--proxy", rootProxyAddr.String(),
-				cluster}
-
-			opt := func(cf *CLIConf) error {
-				cf.MockSSOLogin = mockSSOLogin(t, rootAuth.GetAuthServer(), alice)
-				return nil
+				cluster,
 			}
+
+			opt := setMockSSOLogin(rootAuth.GetAuthServer(), alice, connector.GetName())
 
 			return run(args, opt)
 		}

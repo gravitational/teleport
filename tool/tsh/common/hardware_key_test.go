@@ -66,15 +66,10 @@ func TestHardwareKeyLogin(t *testing.T) {
 
 	// mock SSO login and count the number of login attempts.
 	var lastLoginCount int
-	setMockSSOLogin := func(cf *CLIConf) error {
-		lastLoginCount = 0
-		mockSSOLogin := mockSSOLogin(t, authServer, alice)
-		cf.MockSSOLogin = func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
-			lastLoginCount++
-			return mockSSOLogin(ctx, connectorID, priv, protocol)
-		}
-		cf.AuthConnector = connector.GetName()
-		return nil
+	mockSSOLogin := mockSSOLogin(authServer, alice)
+	mockSSOLoginWithCount := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
+		lastLoginCount++
+		return mockSSOLogin(ctx, connectorID, priv, protocol)
 	}
 
 	t.Run("cap", func(t *testing.T) {
@@ -107,9 +102,10 @@ func TestHardwareKeyLogin(t *testing.T) {
 			"--debug",
 			"--insecure",
 			"--proxy", proxyAddr.String(),
-		}, setHomePath(tmpHomePath), setMockSSOLogin)
+		}, setHomePath(tmpHomePath), setMockSSOLoginCustom(mockSSOLoginWithCount, connector.GetName()))
 		require.NoError(t, err)
 		assert.Equal(t, 1, lastLoginCount, "expected one login attempt but got %v", lastLoginCount)
+		lastLoginCount = 0 // reset login count
 
 		// Upgrading the auth preference requireMFAType should trigger relogin
 		// on the next command run.
@@ -119,9 +115,10 @@ func TestHardwareKeyLogin(t *testing.T) {
 			"--debug",
 			"--insecure",
 			"--proxy", proxyAddr.String(),
-		}, setHomePath(tmpHomePath), setMockSSOLogin)
+		}, setHomePath(tmpHomePath), setMockSSOLoginCustom(mockSSOLoginWithCount, connector.GetName()))
 		require.NoError(t, err)
 		assert.Equal(t, 1, lastLoginCount, "expected one login attempt but got %v", lastLoginCount)
+		lastLoginCount = 0 // reset login count
 	})
 
 	t.Run("role", func(t *testing.T) {
@@ -153,9 +150,10 @@ func TestHardwareKeyLogin(t *testing.T) {
 			"--debug",
 			"--insecure",
 			"--proxy", proxyAddr.String(),
-		}, setHomePath(tmpHomePath), setMockSSOLogin)
+		}, setHomePath(tmpHomePath), setMockSSOLoginCustom(mockSSOLogin, connector.GetName()))
 		require.NoError(t, err)
 		assert.Equal(t, 2, lastLoginCount, "expected two login attempts but got %v", lastLoginCount)
+		lastLoginCount = 0 // reset login count
 
 		// Upgrading the auth preference requireMFAType should trigger relogin
 		// on the next command run.
@@ -165,8 +163,9 @@ func TestHardwareKeyLogin(t *testing.T) {
 			"--debug",
 			"--insecure",
 			"--proxy", proxyAddr.String(),
-		}, setHomePath(tmpHomePath), setMockSSOLogin)
+		}, setHomePath(tmpHomePath), setMockSSOLoginCustom(mockSSOLoginWithCount, connector.GetName()))
 		require.NoError(t, err)
 		assert.Equal(t, 1, lastLoginCount, "expected one login attempt but got %v", lastLoginCount)
+		lastLoginCount = 0 // reset login count
 	})
 }
