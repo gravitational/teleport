@@ -693,7 +693,17 @@ func IsErrorResolvableWithRelogin(err error) bool {
 	// https://github.com/gravitational/teleport/pull/30578.
 	var remoteErr *interceptors.RemoteError
 	if errors.As(err, &remoteErr) {
-		return false
+		// Exception for the two "retryable" errors that come from RPCs.
+		//
+		// Since Connect no longer checks the user cert before making an RPC,
+		// it has to be able to properly recognize "expired certs" errors
+		// that come from the server (to show a re-login dialog).
+		//
+		// TODO(gzdunek): These manual checks should be replaced with retryable
+		// errors returned explicitly, as described below by codingllama.
+		isClientCredentialsHaveExpired := errors.Is(err, client.ErrClientCredentialsHaveExpired)
+		isTLSExpiredCertificate := strings.Contains(err.Error(), "tls: expired certificate")
+		return isClientCredentialsHaveExpired || isTLSExpiredCertificate
 	}
 
 	// TODO(codingllama): Retrying BadParameter is a terrible idea.
