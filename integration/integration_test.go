@@ -3301,7 +3301,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.Len(t, servers, 2)
 
 	// check that remote cluster has been provisioned
-	remoteClusters, err := main.Process.GetAuthServer().GetRemoteClusters()
+	remoteClusters, err := main.Process.GetAuthServer().GetRemoteClusters(ctx)
 	require.NoError(t, err)
 	require.Len(t, remoteClusters, 1)
 	require.Equal(t, clusterAux, remoteClusters[0].GetName())
@@ -3323,7 +3323,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.NoError(t, err)
 
 	// check that remote cluster has been re-provisioned
-	remoteClusters, err = main.Process.GetAuthServer().GetRemoteClusters()
+	remoteClusters, err = main.Process.GetAuthServer().GetRemoteClusters(ctx)
 	require.NoError(t, err)
 	require.Len(t, remoteClusters, 1)
 	require.Equal(t, clusterAux, remoteClusters[0].GetName())

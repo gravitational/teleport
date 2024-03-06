@@ -31,7 +31,7 @@ import UserDelete from './UserDelete';
 import UserReset from './UserReset';
 import useUsers, { State, UsersContainerProps } from './useUsers';
 
-export default function Container(props: UsersContainerProps) {
+export function UsersContainer(props: UsersContainerProps) {
   const state = useUsers(props);
   return <Users {...state} />;
 }

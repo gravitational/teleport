@@ -41,6 +41,32 @@ export const WithTraits = () => (
   </MemoryRouter>
 );
 
+export const WithTraitsAutoDiscovery = () => (
+  <MemoryRouter>
+    <SetupAccess
+      {...props}
+      agentMeta={{
+        ...props.agentMeta,
+        autoDiscovery: {
+          config: {
+            name: 'some-name',
+            discoveryGroup: 'some-group',
+            aws: [
+              {
+                types: ['eks'],
+                regions: ['us-east-1'],
+                tags: {},
+                kubeAppDiscovery: true,
+                integration: 'some-integration',
+              },
+            ],
+          },
+        },
+      }}
+    />
+  </MemoryRouter>
+);
+
 export const NoAccess = () => (
   <MemoryRouter>
     <SetupAccess {...props} canEditUser={false} />

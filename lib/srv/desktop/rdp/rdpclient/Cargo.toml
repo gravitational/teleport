@@ -13,7 +13,7 @@ bitflags = "2.4.2"
 boring = { git = "https://github.com/gravitational/boring", rev="605253d99d5e363e178bcf97e1d4622e33844cd5", optional = true }
 byteorder = "1.5.0"
 bytes = "1.4.0"
-env_logger = "0.11.2"
+env_logger = "0.11.3"
 ironrdp-cliprdr.workspace = true
 ironrdp-connector.workspace = true
 ironrdp-pdu.workspace = true
@@ -25,7 +25,7 @@ ironrdp-tls.workspace = true
 ironrdp-tokio.workspace = true
 iso7816 = "0.1.2"
 iso7816-tlv = "0.4.4"
-log = "0.4.20"
+log = "0.4.21"
 parking_lot = "0.12.1"
 rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
@@ -39,7 +39,7 @@ uuid = { version = "1.7.0", features = ["v4"] }
 
 [build-dependencies]
 cbindgen = "0.26.0"
-tempfile = "3.10.0"
+tempfile = "3.10.1"
 
 [features]
 fips = ["tokio-boring/fips", "boring/fips"]

@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	ecatypes "github.com/gravitational/teleport/api/types/externalauditstorage"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/configurators"
@@ -68,9 +69,6 @@ type Options struct {
 	// InitOnly when set to true, initializes config and aux
 	// endpoints but does not start the process
 	InitOnly bool
-	// EnableCloudAWSCredCmd enables hidden cloud aws cred command when true.
-	// This command does nothing in OSS.
-	EnableCloudAWSCredCmd bool
 }
 
 // Run inits/starts the process according to the provided options
@@ -111,7 +109,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
 	sftp := app.Command(teleport.SFTPSubCommand, "Server-side implementation of SFTP.").Hidden()
 	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
-	forward := app.Command(teleport.ForwardSubCommand, "Used internally by Teleport to re-exec itself to port forward.").Hidden()
+	forward := app.Command(teleport.LocalForwardSubCommand, "Used internally by Teleport to re-exec itself to port forward.").Hidden()
+	remoteForward := app.Command(teleport.RemoteForwardSubCommand, "Used internally by Teleport to re-exec itself to remote port forward.").Hidden()
 	checkHomeDir := app.Command(teleport.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
 	park := app.Command(teleport.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing.").Hidden()
 	app.HelpFlag.Short('h')
@@ -489,6 +488,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		IntegrationConfAWSOIDCIdPArguments.Role)
 	integrationConfAWSOIDCIdPCmd.Flag("proxy-public-url", "Proxy Public URL (eg https://mytenant.teleport.sh).").Required().StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL)
+	integrationConfAWSOIDCIdPCmd.Flag("insecure", "Insecure mode disables certificate validation.").BoolVar(&ccf.InsecureMode)
 
 	integrationConfListDatabasesCmd := integrationConfigureCmd.Command("listdatabases-iam", "Adds required IAM permissions to List RDS Databases (Instances and Clusters).")
 	integrationConfListDatabasesCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfListDatabasesIAMArguments.Region)
@@ -506,13 +506,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfExternalAuditCmd.Flag("glue-database", "The name of the Glue database used.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.GlueDatabase)
 	integrationConfExternalAuditCmd.Flag("glue-table", "The name of the Glue table used.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.GlueTable)
 	integrationConfExternalAuditCmd.Flag("aws-partition", "AWS partition (default: aws).").Default("aws").StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Partition)
-
-	if options.EnableCloudAWSCredCmd {
-		cloudAWSCred := app.Command("cloud-aws-cred", "Helper command used by Teleport Cloud to produce credentials.").Hidden()
-		cloudAWSCred.Flag("config",
-			fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
-			Short('c').ExistingFileVar(&ccf.ConfigFile)
-	}
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
@@ -564,7 +557,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case exec.FullCommand():
 		srv.RunAndExit(teleport.ExecSubCommand)
 	case forward.FullCommand():
-		srv.RunAndExit(teleport.ForwardSubCommand)
+		srv.RunAndExit(teleport.LocalForwardSubCommand)
+	case remoteForward.FullCommand():
+		srv.RunAndExit(teleport.RemoteForwardSubCommand)
 	case checkHomeDir.FullCommand():
 		srv.RunAndExit(teleport.CheckHomeDirSubCommand)
 	case park.FullCommand():
@@ -606,7 +601,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case integrationConfEKSCmd.FullCommand():
 		err = onIntegrationConfEKSIAM(ccf.IntegrationConfEKSIAMArguments)
 	case integrationConfAWSOIDCIdPCmd.FullCommand():
-		err = onIntegrationConfAWSOIDCIdP(ccf.IntegrationConfAWSOIDCIdPArguments)
+		err = onIntegrationConfAWSOIDCIdP(ccf)
 	case integrationConfListDatabasesCmd.FullCommand():
 		err = onIntegrationConfListDatabasesIAM(ccf.IntegrationConfListDatabasesIAMArguments)
 	case integrationConfExternalAuditCmd.FullCommand():
@@ -616,12 +611,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	}
 	if err != nil {
 		utils.FatalError(err)
-	}
-
-	if options.EnableCloudAWSCredCmd && command == app.GetCommand("cloud-aws-cred").FullCommand() {
-		if err = config.Configure(&ccf, conf, false); err != nil {
-			utils.FatalError(err)
-		}
 	}
 
 	return app, command, conf
@@ -1023,8 +1012,11 @@ func onIntegrationConfEKSIAM(params config.IntegrationConfEKSIAM) error {
 	return nil
 }
 
-func onIntegrationConfAWSOIDCIdP(params config.IntegrationConfAWSOIDCIdP) error {
+func onIntegrationConfAWSOIDCIdP(clf config.CommandLineFlags) error {
 	ctx := context.Background()
+
+	// pass the value of --insecure flag to the runtime
+	lib.SetInsecureDevMode(clf.InsecureMode)
 
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
@@ -1035,10 +1027,10 @@ func onIntegrationConfAWSOIDCIdP(params config.IntegrationConfAWSOIDCIdP) error 
 	}
 
 	err = awsoidc.ConfigureIdPIAM(ctx, iamClient, awsoidc.IdPIAMConfigureRequest{
-		Cluster:            params.Cluster,
-		IntegrationName:    params.Name,
-		IntegrationRole:    params.Role,
-		ProxyPublicAddress: params.ProxyPublicURL,
+		Cluster:            clf.IntegrationConfAWSOIDCIdPArguments.Cluster,
+		IntegrationName:    clf.IntegrationConfAWSOIDCIdPArguments.Name,
+		IntegrationRole:    clf.IntegrationConfAWSOIDCIdPArguments.Role,
+		ProxyPublicAddress: clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -130,6 +130,12 @@ func (a *AccessListService) DeleteAllAccessLists(ctx context.Context) error {
 	return trace.Wrap(a.service.DeleteAllResources(ctx))
 }
 
+// CountAccessListMembers will count all access list members.
+func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error) {
+	count, err := a.memberService.WithPrefix(accessListName).CountResources(ctx)
+	return uint32(count), trace.Wrap(err)
+}
+
 // ListAccessListMembers returns a paginated list of all access list members.
 func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error) {
 	// We'll make a best effort to determine if the access list is implicit, but will proceed if we can't figure it out.

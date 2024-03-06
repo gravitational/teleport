@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -961,7 +962,7 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	if fc.Auth.AccessMonitoring != nil {
-		if fc.Auth.AccessMonitoring.CheckAndSetDefaults(); err != nil {
+		if err := fc.Auth.AccessMonitoring.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "failed to validate access monitoring config")
 		}
 		cfg.Auth.AccessMonitoring = fc.Auth.AccessMonitoring
@@ -1163,6 +1164,11 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.Proxy.AutomaticUpgradesChannels != nil {
 		cfg.Proxy.AutomaticUpgradesChannels = fc.Proxy.AutomaticUpgradesChannels
+	} else {
+		cfg.Proxy.AutomaticUpgradesChannels = make(automaticupgrades.Channels)
+	}
+	if err = cfg.Proxy.AutomaticUpgradesChannels.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating the automatic upgrades configuration")
 	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
@@ -2260,7 +2266,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 			log.SetLevel(log.DebugLevel)
 			cfg.Log.SetLevel(log.DebugLevel)
 		} else {
-			if fileConf.Logger.Severity != "trace" {
+			if strings.ToLower(fileConf.Logger.Severity) != "trace" {
 				fileConf.Logger.Severity = teleport.DebugLevel
 			}
 		}
