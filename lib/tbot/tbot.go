@@ -359,7 +359,7 @@ func clientForFacade(
 	cfg *config.BotConfig,
 	facade *identity.Facade,
 	resolver reversetunnelclient.Resolver,
-) (auth.ClientI, error) {
+) (*auth.Client, error) {
 	ctx, span := tracer.Start(ctx, "clientForFacade")
 	defer span.End()
 
