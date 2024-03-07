@@ -137,6 +137,7 @@ func newDisallowedErr(req *sftp.Request) error {
 // ensureReqIsAllowed returns an error if the SFTP request isn't
 // allowed based on the approved file transfer request for this session.
 func (s *sftpHandler) ensureReqIsAllowed(req *sftp.Request) error {
+	// no specifically allowed operations, all requests are allowed
 	if s.allowed == nil {
 		return nil
 	}
@@ -157,13 +158,6 @@ func (s *sftpHandler) ensureReqIsAllowed(req *sftp.Request) error {
 		// only allow writes for uploads
 		if !s.allowed.write {
 			return newDisallowedErr(req)
-		}
-	case methodOpen:
-		pflags := req.Pflags()
-		if !s.allowed.write && pflags.Write {
-			return fmt.Errorf("%s is not allowed to be written to", req.Filepath)
-		} else if s.allowed.write && pflags.Read {
-			return fmt.Errorf("%s is not allowed to be written to", req.Filepath)
 		}
 	case methodSetStat:
 		// only allow chmods for uploads
