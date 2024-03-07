@@ -44,7 +44,7 @@ message AccessMonitoringRuleSpec {
   // condition is a predicate expression that operates on the specified subject resources,
   // and determines whether the subject will be moved into desired state.
   string condition = 3;
-  // notification defines the plugin configuration for notifcations if rule is triggered.
+  // notification defines the plugin configuration for notifications if rule is triggered.
   Notification notification = 4;
 }
 
