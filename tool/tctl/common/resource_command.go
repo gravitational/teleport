@@ -1806,18 +1806,14 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *auth.Clien
 		}
 		return &githubCollection{connectors}, nil
 	case types.KindReverseTunnel:
-		if rc.ref.Name == "" {
-			tunnels, err := client.GetReverseTunnels(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &reverseTunnelCollection{tunnels: tunnels}, nil
+		if rc.ref.Name != "" {
+			return nil, trace.BadParameter("reverse tunnel cannot be searched by name")
 		}
-		tunnel, err := client.GetReverseTunnel(rc.ref.Name)
+		tunnels, err := client.GetReverseTunnels(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &reverseTunnelCollection{tunnels: []types.ReverseTunnel{tunnel}}, nil
+		return &reverseTunnelCollection{tunnels: tunnels}, nil
 	case types.KindCertAuthority:
 		getAll := rc.ref.SubKind == "" && rc.ref.Name == ""
 
@@ -2766,12 +2762,7 @@ func (rc *ResourceCommand) createAuditQuery(ctx context.Context, client *auth.Cl
 	}
 
 	if err = client.SecReportsClient().UpsertSecurityAuditQuery(ctx, in); err != nil {
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -2787,9 +2778,7 @@ func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client *aut
 	}
 
 	if err = client.SecReportsClient().UpsertSecurityReport(ctx, in); err != nil {
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		return trace.Wrap(err)
 	}
 	return nil
 }
