@@ -3482,6 +3482,16 @@
       "source": "/application-access/enroll-kubernetes-applications/reference/",
       "destination": "/auto-discovery/kubernetes-applications/reference/",
       "permanent": true
+    },
+    {
+      "source": "/server-access/guides/openssh/openssh-manual-install/",
+      "destination": "/server-access/openssh/openssh-manual-install/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/openssh/openssh/",
+      "destination": "/server-access/openssh/openssh/",
+      "permanent": true
     }
   ]
 }
