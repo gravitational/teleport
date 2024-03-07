@@ -412,7 +412,7 @@ jobs:
         # usage telemetry. This helps us shape the future development of
         # tbot. You can disable this by omitting this.
         TELEPORT_ANONYMOUS_TELEMETRY: 1
-      run: tbot -c ./tbot.yaml
+      run: tbot start -c ./tbot.yaml --oneshot
 ```
 
 Add, commit, and push these two files to the repository. Check the GitHub
