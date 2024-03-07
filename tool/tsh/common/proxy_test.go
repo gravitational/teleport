@@ -990,7 +990,7 @@ func mustLoginSetEnv(t *testing.T, s *suite, args ...string) (tshHome, kubeConfi
 	return
 }
 
-func mustLoginIdentity(t *testing.T, s *suite, opts ...CliOption) string {
+func mustLoginIdentity(t *testing.T, s *suite) string {
 	identityFile := path.Join(t.TempDir(), "identity.pem")
 	mustLogin(t, s, "--out", identityFile)
 	return identityFile

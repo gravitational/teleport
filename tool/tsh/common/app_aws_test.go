@@ -46,7 +46,7 @@ func TestAWS(t *testing.T) {
 	user, awsRole := makeUserWithAWSRole(t)
 
 	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, user, awsRole))
-	makeTestApplicationServer(t, authProcess, proxyProcess, servicecfg.App{
+	makeTestApplicationServer(t, proxyProcess, servicecfg.App{
 		Name: "aws-app",
 		URI:  constants.AWSConsoleURL,
 	})
@@ -199,7 +199,7 @@ func makeUserWithAWSRole(t *testing.T) (types.User, types.Role) {
 	return alice, awsRole
 }
 
-func makeTestApplicationServer(t *testing.T, auth *service.TeleportProcess, proxy *service.TeleportProcess, apps ...servicecfg.App) *service.TeleportProcess {
+func makeTestApplicationServer(t *testing.T, proxy *service.TeleportProcess, apps ...servicecfg.App) *service.TeleportProcess {
 	// Proxy uses self-signed certificates in tests.
 	lib.SetInsecureDevMode(true)
 

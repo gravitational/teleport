@@ -258,7 +258,7 @@ func (a *Server) CreateWebSessionFromReq(ctx context.Context, req types.NewWebSe
 		return nil, trace.Wrap(err)
 	}
 
-	err = a.upsertWebSession(ctx, req.User, session)
+	err = a.upsertWebSession(ctx, session)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
