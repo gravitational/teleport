@@ -1123,6 +1123,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	mfa := newMFACommand(app)
 
 	flatten := app.Command("flatten", "Flattens an identity file into a profile stored in ~/.tsh or TELEPORT_HOME.")
+	flatten.Arg("identity", "Identity file").StringVar(&cf.IdentityFileIn)
 
 	config := app.Command("config", "Print OpenSSH configuration details.")
 	config.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
@@ -4156,9 +4157,6 @@ func refuseArgs(command string, args []string) error {
 func onFlatten(cf *CLIConf) error {
 	// Save the identity file path for later
 	identityFile := cf.IdentityFileIn
-	if identityFile == "" {
-		return trace.BadParameter("-i must be specified")
-	}
 	if cf.Proxy == "" {
 		return trace.BadParameter("--proxy must be specified")
 	}
