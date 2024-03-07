@@ -53,7 +53,7 @@ func newWorkloadIdentityCommands(app *kingpin.Application) workloadIdentityComma
 
 const (
 	// Based on the default paths listed in
-	// https://github.com/spiffe/spiffe-helper/blob/main/README.md
+	// https://github.com/spiffe/spiffe-helper/blob/v0.7.0/README.md
 	svidPEMPath            = "svid.pem"
 	svidKeyPEMPath         = "svid_key.pem"
 	svidTrustBundlePEMPath = "svid_bundle.pem"
@@ -63,21 +63,21 @@ const (
 
 type workloadIdentityIssueCommand struct {
 	*kingpin.CmdClause
-	svidPath        string
-	svidType        string
-	svidDNSSANs     []string
-	svidIPSANs      []string
-	svidTTL         time.Duration
-	outputDirectory string
+	svidSPIFFEIDPath string
+	svidType         string
+	svidDNSSANs      []string
+	svidIPSANs       []string
+	svidTTL          time.Duration
+	outputDirectory  string
 }
 
 func newWorkloadIdentityIssueCommand(parent *kingpin.CmdClause) *workloadIdentityIssueCommand {
 	cmd := &workloadIdentityIssueCommand{
 		CmdClause: parent.Command("issue", "Issues a SPIFFE SVID using Teleport Workload Identity and writes it to a local directory."),
 	}
-	cmd.Arg("path", "Path use for the SVID SPIFFE ID. Must have a preceding '/'.").
+	cmd.Arg("path", "Path to use for the SVID SPIFFE ID. Must have a preceding '/'.").
 		Required().
-		StringVar(&cmd.svidPath)
+		StringVar(&cmd.svidSPIFFEIDPath)
 	cmd.Flag("type", "Type of the SVID to issue (x509). Defaults to x509.").
 		Default(svidTypeX509).
 		EnumVar(&cmd.svidType, svidTypeX509)
@@ -131,7 +131,7 @@ func (c *workloadIdentityIssueCommand) run(cf *CLIConf) error {
 				&machineidv1pb.SignX509SVIDsRequest{
 					Svids: []*machineidv1pb.SVIDRequest{
 						{
-							SpiffeIdPath: c.svidPath,
+							SpiffeIdPath: c.svidSPIFFEIDPath,
 							PublicKey:    pubBytes,
 							DnsSans:      c.svidDNSSANs,
 							IpSans:       c.svidIPSANs,
