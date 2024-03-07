@@ -164,27 +164,6 @@ The user will now be unblocked from login attempts and can attempt to authentica
 ## Authentication connectors
 
 <Tabs>
-<TabItem scope="team" label="Teleport Team">
-
-### GitHub
-
-This connector implements GitHub's OAuth 2.0 authentication flow. Please refer to GitHub's documentation on [Creating an OAuth App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
-to learn how to create and register an OAuth app.
-
-Here is an example of this setting in a `cluster_auth_preference` resource:
-
-```yaml
-kind: cluster_auth_preference
-metadata:
-  name: cluster-auth-preference
-spec:
-  type: github
-version: v2
-```
-
-See [GitHub OAuth 2.0](../access-controls/sso/github-sso.mdx) for details on how to configure it.
-
-</TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ### GitHub
