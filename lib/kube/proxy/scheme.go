@@ -115,7 +115,7 @@ func newClusterSchemaBuilder(log logrus.FieldLogger, client kubernetes.Interface
 	kubeScheme := runtime.NewScheme()
 	kubeCodecs := serializer.NewCodecFactory(kubeScheme)
 	supportedResources := maps.Clone(defaultRBACResources)
-	gvkSupportedRes := map[gvkSupportedResourcesKey]*schema.GroupVersionKind{}
+	gvkSupportedRes := make(gvkSupportedResources)
 	if err := registerDefaultKubeTypes(kubeScheme); err != nil {
 		return serializer.CodecFactory{}, nil, nil, trace.Wrap(err)
 	}
