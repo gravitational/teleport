@@ -72,6 +72,7 @@ on_gcp() {
     fi
     sudo apt-get update
 
+    # shellcheck disable=SC2050
     if [ "{{ .AutomaticUpgrades }}" = "true" ]; then
       # automatic upgrades
       if ! target_version="$(get_target_version)"; then
@@ -97,6 +98,7 @@ on_gcp() {
     sudo yum-config-manager --add-repo \
       "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo")"
 
+    # shellcheck disable=SC2050
     if [ "{{ .AutomaticUpgrades }}" = "true" ]; then
       # automatic upgrades
       if ! target_version="$(get_target_version)"; then
@@ -124,6 +126,8 @@ on_gcp() {
     sudo zypper --non-interactive addrepo "$(rpm --eval "https://zypper.releases.teleport.dev/sles/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo")"
     sudo zypper --gpg-auto-import-keys refresh
     sudo zypper --non-interactive install ${PACKAGE_LIST}
+
+    # shellcheck disable=SC2050
     if [ "{{ .AutomaticUpgrades }}" = "true" ]; then
       # automatic upgrades
       if ! target_version="$(get_target_version)"; then
