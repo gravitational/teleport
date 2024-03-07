@@ -20,6 +20,9 @@ package integrationv1
 
 import (
 	"context"
+	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -98,8 +101,16 @@ func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context, integrat
 	// TODO(marco) DELETE IN v17.0
 	// Checking for an empty issuer must be kept.
 	var issuer string
-	if integration != nil && integration.GetAWSOIDCIntegrationSpec().Issuer != "" {
-		issuer = integration.GetAWSOIDCIntegrationSpec().Issuer
+	if integration != nil {
+		issuerS3URI := integration.GetAWSOIDCIntegrationSpec().IssuerS3URI
+		if issuerS3URI != "" {
+			issuerS3URL, err := url.Parse(issuerS3URI)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			prefix := strings.TrimLeft(issuerS3URL.Path, "/")
+			issuer = fmt.Sprintf("https://%s.s3.amazonaws.com/%s", issuerS3URL.Host, prefix)
+		}
 	}
 	if issuer == "" {
 		issuer, err = oidc.IssuerForCluster(ctx, s.cache)

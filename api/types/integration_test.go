@@ -31,8 +31,8 @@ func TestIntegrationJSONMarshalCycle(t *testing.T) {
 	ig, err := NewIntegrationAWSOIDC(
 		Metadata{Name: "some-integration"},
 		&AWSOIDCIntegrationSpecV1{
-			RoleARN: "arn:aws:iam::123456789012:role/DevTeams",
-			Issuer:  "https://my-issuer.example.com",
+			RoleARN:     "arn:aws:iam::123456789012:role/DevTeams",
+			IssuerS3URI: "s3://my-bucket/my-prefix",
 		},
 	)
 	require.NoError(t, err)
@@ -66,8 +66,8 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 						Name: name,
 					},
 					&AWSOIDCIntegrationSpecV1{
-						RoleARN: "some arn role",
-						Issuer:  "https://proxy.example.com",
+						RoleARN:     "some arn role",
+						IssuerS3URI: "s3://my-issuer/my-prefix",
 					},
 				)
 			},
@@ -85,8 +85,8 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 					Spec: IntegrationSpecV1{
 						SubKindSpec: &IntegrationSpecV1_AWSOIDC{
 							AWSOIDC: &AWSOIDCIntegrationSpecV1{
-								RoleARN: "some arn role",
-								Issuer:  "https://proxy.example.com",
+								RoleARN:     "some arn role",
+								IssuerS3URI: "s3://my-issuer/my-prefix",
 							},
 						},
 					},
@@ -116,8 +116,8 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 						Name: name,
 					},
 					&AWSOIDCIntegrationSpecV1{
-						RoleARN: "some-role",
-						Issuer:  "not-a-url",
+						RoleARN:     "some-role",
+						IssuerS3URI: "not-a-url",
 					},
 				)
 			},
@@ -126,15 +126,15 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "aws-oidc: issuer is not an https url",
+			name: "aws-oidc: issuer is not an s3 url",
 			integration: func(name string) (*IntegrationV1, error) {
 				return NewIntegrationAWSOIDC(
 					Metadata{
 						Name: name,
 					},
 					&AWSOIDCIntegrationSpecV1{
-						RoleARN: "some-role",
-						Issuer:  "http://localhost:8080",
+						RoleARN:     "some-role",
+						IssuerS3URI: "http://localhost:8080",
 					},
 				)
 			},
