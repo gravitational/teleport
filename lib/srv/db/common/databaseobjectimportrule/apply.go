@@ -100,7 +100,7 @@ func ApplyDatabaseObjectImportRules(rules []*dbobjectimportrulev1.DatabaseObject
 
 // validateTemplate evaluates the template, checking for potential errors.
 func validateTemplate(template string) error {
-	_, err := evalTemplate(template, nil)
+	_, err := evalTemplate(template, &dbobjectv1.DatabaseObjectSpec{})
 	return trace.Wrap(err)
 }
 
