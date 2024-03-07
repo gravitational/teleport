@@ -119,8 +119,8 @@ type EngineConfig struct {
 	GetUserProvisioner func(AutoUsers) *UserProvisioner
 	// UpdateProxiedDatabase finds the proxied database by name and uses the
 	// provided function to update the database's status. Returns
-	// trace.NotFound if the name is not found or forwards the error from the
-	// provided callback function.
+	// trace.NotFound if the name is not found otherwise forwards the error
+	// from the provided callback function.
 	UpdateProxiedDatabase func(string, func(types.Database) error) error
 }
 
