@@ -44,8 +44,9 @@ var log = logrus.WithFields(logrus.Fields{
 })
 
 const (
-	authServerEnvVar = "TELEPORT_AUTH_SERVER"
-	tokenEnvVar      = "TELEPORT_BOT_TOKEN"
+	authServerEnvVar  = "TELEPORT_AUTH_SERVER"
+	tokenEnvVar       = "TELEPORT_BOT_TOKEN"
+	proxyServerEnvVar = "TELEPORT_PROXY"
 )
 
 func main() {
@@ -81,7 +82,7 @@ func Run(args []string, stdout io.Writer) error {
 
 	startCmd := app.Command("start", "Starts the renewal bot, writing certificates to the data dir at a set interval.")
 	startCmd.Flag("auth-server", "Address of the Teleport Auth Server. Prefer using --proxy-server where possible.").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
-	startCmd.Flag("proxy-server", "Address of the Teleport Proxy Server.").StringVar(&cf.ProxyServer)
+	startCmd.Flag("proxy-server", "Address of the Teleport Proxy Server.").Envar(proxyServerEnvVar).StringVar(&cf.ProxyServer)
 	startCmd.Flag("token", "A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&cf.Token)
 	startCmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&cf.CAPins)
 	startCmd.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&cf.DataDir)
@@ -109,7 +110,7 @@ func Run(args []string, stdout io.Writer) error {
 
 	configureCmd := app.Command("configure", "Creates a config file based on flags provided, and writes it to stdout or a file (-c <path>).")
 	configureCmd.Flag("auth-server", "Address of the Teleport Auth Server. Prefer using --proxy-server where possible.").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
-	configureCmd.Flag("proxy-server", "Address of the Teleport Proxy Server.").StringVar(&cf.ProxyServer)
+	configureCmd.Flag("proxy-server", "Address of the Teleport Proxy Server.").Envar(proxyServerEnvVar).StringVar(&cf.ProxyServer)
 	configureCmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&cf.CAPins)
 	configureCmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").Default("60m").DurationVar(&cf.CertificateTTL)
 	configureCmd.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&cf.DataDir)
@@ -133,7 +134,7 @@ func Run(args []string, stdout io.Writer) error {
 	// We're migrating from --proxy to --proxy-server so this flag is hidden
 	// but still supported.
 	// TODO(strideynet): DELETE IN 17.0.0
-	dbCmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Hidden().StringVar(&legacyProxyFlag)
+	dbCmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Hidden().Envar(proxyServerEnvVar).StringVar(&legacyProxyFlag)
 	dbCmd.Flag("destination-dir", "The destination directory with which to authenticate tsh").StringVar(&cf.DestinationDir)
 	dbCmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&cf.Cluster)
 	dbRemaining := config.RemainingArgs(dbCmd.Arg(
@@ -142,7 +143,7 @@ func Run(args []string, stdout io.Writer) error {
 	))
 
 	proxyCmd := app.Command("proxy", "Start a local TLS proxy via tsh to connect to Teleport in single-port mode.")
-	proxyCmd.Flag("proxy-server", "The Teleport proxy server to use, in host:port form.").StringVar(&cf.ProxyServer)
+	proxyCmd.Flag("proxy-server", "The Teleport proxy server to use, in host:port form.").Envar(proxyServerEnvVar).StringVar(&cf.ProxyServer)
 	// We're migrating from --proxy to --proxy-server so this flag is hidden
 	// but still supported.
 	// TODO(strideynet): DELETE IN 17.0.0
