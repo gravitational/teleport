@@ -1769,30 +1769,21 @@ func (o *output) String() string {
 	return o.buf.String()
 }
 
-func filterEmpty(s []string) []string {
-	out := make([]string, 0, len(s))
-	for _, item := range s {
-		if item != "" {
-			out = append(out, item)
-		}
-	}
-	return out
-}
-
 // TestSSHAccessRequest tests that a user can automatically request access to a
 // ssh server using a resource access request when "tsh ssh" fails with
 // AccessDenied.
 func TestSSHAccessRequest(t *testing.T) {
 	tests := []struct {
-		name      string
-		extraFlag string
+		name        string
+		requestMode string
 	}{
 		{
-			name: "resource-based",
+			name:        "resource-based",
+			requestMode: accessRequestModeResource,
 		},
 		{
-			name:      "role-based",
-			extraFlag: "--request-role",
+			name:        "role-based",
+			requestMode: accessRequestModeRole,
 		},
 	}
 	for _, tc := range tests {
@@ -1892,35 +1883,35 @@ func TestSSHAccessRequest(t *testing.T) {
 			require.NoError(t, err)
 
 			// won't request if can't list node
-			err = Run(ctx, filterEmpty([]string{
+			err = Run(ctx, []string{
 				"ssh",
 				"--insecure",
-				tc.extraFlag,
+				"--request-mode", tc.requestMode,
 				"--request-reason", "reason here to bypass prompt",
 				fmt.Sprintf("%s@%s", user.Username, sshHostnameNoAccess),
 				"echo", "test",
-			}), setHomePath(tmpHomePath))
+			}, setHomePath(tmpHomePath))
 			require.Error(t, err)
 
 			// won't request if can't login with username
-			err = Run(ctx, filterEmpty([]string{
+			err = Run(ctx, []string{
 				"ssh",
 				"--insecure",
-				tc.extraFlag,
+				"--request-mode", tc.requestMode,
 				"--request-reason", "reason here to bypass prompt",
 				fmt.Sprintf("%s@%s", "not-a-username", sshHostname),
 				"echo", "test",
-			}), setHomePath(tmpHomePath))
+			}, setHomePath(tmpHomePath))
 			require.Error(t, err)
 
 			// won't request to non-existent node
-			err = Run(ctx, filterEmpty([]string{
+			err = Run(ctx, []string{
 				"ssh",
 				"--insecure",
-				tc.extraFlag,
+				"--request-mode", tc.requestMode,
 				fmt.Sprintf("%s@unknown", user.Username),
 				"echo", "test",
-			}), setHomePath(tmpHomePath))
+			}, setHomePath(tmpHomePath))
 			require.Error(t, err)
 
 			// approve all requests as they're created
@@ -1936,30 +1927,30 @@ func TestSSHAccessRequest(t *testing.T) {
 			}()
 
 			// won't request if explicitly disabled
-			err = Run(ctx, filterEmpty([]string{
+			err = Run(ctx, []string{
 				"ssh",
 				"--insecure",
-				tc.extraFlag,
+				"--request-mode", tc.requestMode,
 				"--request-reason", "reason here to bypass prompt",
-				"--disable-access-request",
+				"--request-mode", accessRequestModeOff,
 				fmt.Sprintf("%s@%s", user.Username, sshHostname),
 				"echo", "test",
-			}), setHomePath(tmpHomePath))
+			}, setHomePath(tmpHomePath))
 			require.Error(t, err)
 
 			// the first ssh request can fail if the proxy node watcher doesn't know
 			// about the nodes yet, retry a few times until it works
 			require.Eventually(t, func() bool {
 				// ssh with request, by hostname
-				err := Run(ctx, filterEmpty([]string{
+				err := Run(ctx, []string{
 					"ssh",
 					"--debug",
 					"--insecure",
-					tc.extraFlag,
+					"--request-mode", tc.requestMode,
 					"--request-reason", "reason here to bypass prompt",
 					fmt.Sprintf("%s@%s", user.Username, sshHostname),
 					"echo", "test",
-				}), setHomePath(tmpHomePath))
+				}, setHomePath(tmpHomePath))
 				if err != nil {
 					t.Logf("Got error while trying to SSH to node, retrying. Error: %v", err)
 				}
@@ -1990,18 +1981,19 @@ func TestSSHAccessRequest(t *testing.T) {
 			require.NoError(t, err)
 
 			// ssh with request, by host ID
-			err = Run(ctx, filterEmpty([]string{
+			err = Run(ctx, []string{
 				"ssh",
 				"--insecure",
-				tc.extraFlag,
+				"--request-mode", tc.requestMode,
 				"--request-reason", "reason here to bypass prompt",
 				fmt.Sprintf("%s@%s", user.Username, sshHostID),
 				"echo", "test",
-			}), setHomePath(tmpHomePath))
+			}, setHomePath(tmpHomePath))
 			require.NoError(t, err)
 
 			// fail to ssh to other non-approved node, do not prompt for request
-			if tc.extraFlag == "" {
+			// (only applies to resource requests)
+			if tc.requestMode == accessRequestModeResource {
 				err = Run(ctx, []string{
 					"ssh",
 					"--insecure",
@@ -2023,21 +2015,21 @@ func TestSSHAccessRequest(t *testing.T) {
 			err = Run(ctx, []string{
 				"ssh",
 				"--insecure",
-				"--disable-access-request",
+				"--request-mode", accessRequestModeOff,
 				fmt.Sprintf("%s@%s", user.Username, sshHostname2),
 				"echo", "test",
 			}, setHomePath(tmpHomePath))
 			require.Error(t, err)
 
 			// successfully ssh to other node, with new request
-			err = Run(ctx, filterEmpty([]string{
+			err = Run(ctx, []string{
 				"ssh",
 				"--insecure",
-				tc.extraFlag,
+				"--request-mode", tc.requestMode,
 				"--request-reason", "reason here to bypass prompt",
 				fmt.Sprintf("%s@%s", user.Username, sshHostname2),
 				"echo", "test",
-			}), setHomePath(tmpHomePath))
+			}, setHomePath(tmpHomePath))
 			require.NoError(t, err)
 		})
 	}
