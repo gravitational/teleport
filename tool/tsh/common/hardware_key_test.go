@@ -67,26 +67,30 @@ func TestHardwareKeyLogin(t *testing.T) {
 	// mock SSO login and count the number of login attempts.
 	var lastLoginCount int
 	mockSSOLogin := mockSSOLogin(authServer, alice)
-	mockSSOLoginWithCount := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
+	mockSSOLoginWithCountAndAttestation := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
 		lastLoginCount++
+
+		// Set MockAttestationData to attest the expected key policy and reset it after login.
+		testModules.MockAttestationData = &keys.AttestationData{
+			PrivateKeyPolicy: priv.GetPrivateKeyPolicy(),
+		}
+		defer func() {
+			testModules.MockAttestationData = nil
+		}()
+
 		return mockSSOLogin(ctx, connectorID, priv, protocol)
 	}
+	setMockSSOLogin := setMockSSOLoginCustom(mockSSOLoginWithCountAndAttestation, connector.GetName())
 
 	t.Run("cap", func(t *testing.T) {
 		setRequireMFAType := func(t *testing.T, requireMFAType types.RequireMFAType) {
 			// Set require MFA type in the cluster auth preference.
-			authPref, err := authServer.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
+			_, err := authServer.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
 					RequireMFAType: requireMFAType,
 				},
 			})
 			require.NoError(t, err)
-
-			// Set MockAttestationData to attest the expected key policy. This will
-			// apply to the next (re)login.
-			testModules.MockAttestationData = &keys.AttestationData{
-				PrivateKeyPolicy: authPref.GetPrivateKeyPolicy(),
-			}
 		}
 
 		t.Cleanup(func() {
@@ -102,7 +106,7 @@ func TestHardwareKeyLogin(t *testing.T) {
 			"--debug",
 			"--insecure",
 			"--proxy", proxyAddr.String(),
-		}, setHomePath(tmpHomePath), setMockSSOLoginCustom(mockSSOLoginWithCount, connector.GetName()))
+		}, setHomePath(tmpHomePath), setMockSSOLogin)
 		require.NoError(t, err)
 		assert.Equal(t, 1, lastLoginCount, "expected one login attempt but got %v", lastLoginCount)
 		lastLoginCount = 0 // reset login count
@@ -115,7 +119,7 @@ func TestHardwareKeyLogin(t *testing.T) {
 			"--debug",
 			"--insecure",
 			"--proxy", proxyAddr.String(),
-		}, setHomePath(tmpHomePath), setMockSSOLoginCustom(mockSSOLoginWithCount, connector.GetName()))
+		}, setHomePath(tmpHomePath), setMockSSOLogin)
 		require.NoError(t, err)
 		assert.Equal(t, 1, lastLoginCount, "expected one login attempt but got %v", lastLoginCount)
 		lastLoginCount = 0 // reset login count
@@ -129,12 +133,6 @@ func TestHardwareKeyLogin(t *testing.T) {
 			})
 			_, err = authServer.UpsertRole(ctx, aliceRole)
 			require.NoError(t, err)
-
-			// Set MockAttestationData to attest the expected key policy. This will
-			// apply to the next (re)login.
-			testModules.MockAttestationData = &keys.AttestationData{
-				PrivateKeyPolicy: aliceRole.GetPrivateKeyPolicy(),
-			}
 		}
 
 		t.Cleanup(func() {
@@ -150,7 +148,7 @@ func TestHardwareKeyLogin(t *testing.T) {
 			"--debug",
 			"--insecure",
 			"--proxy", proxyAddr.String(),
-		}, setHomePath(tmpHomePath), setMockSSOLoginCustom(mockSSOLogin, connector.GetName()))
+		}, setHomePath(tmpHomePath), setMockSSOLogin)
 		require.NoError(t, err)
 		assert.Equal(t, 2, lastLoginCount, "expected two login attempts but got %v", lastLoginCount)
 		lastLoginCount = 0 // reset login count
@@ -163,7 +161,7 @@ func TestHardwareKeyLogin(t *testing.T) {
 			"--debug",
 			"--insecure",
 			"--proxy", proxyAddr.String(),
-		}, setHomePath(tmpHomePath), setMockSSOLoginCustom(mockSSOLoginWithCount, connector.GetName()))
+		}, setHomePath(tmpHomePath), setMockSSOLogin)
 		require.NoError(t, err)
 		assert.Equal(t, 1, lastLoginCount, "expected one login attempt but got %v", lastLoginCount)
 		lastLoginCount = 0 // reset login count
