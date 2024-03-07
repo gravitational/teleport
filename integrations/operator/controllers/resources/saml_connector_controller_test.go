@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -48,6 +49,7 @@ var samlSpec = &types.SAMLConnectorSpecV2{
 
 type samlTestingPrimitives struct {
 	setup *testSetup
+	reconcilers.ResourceWithoutLabelsAdapter[types.SAMLConnector]
 }
 
 func (g *samlTestingPrimitives) Init(setup *testSetup) {

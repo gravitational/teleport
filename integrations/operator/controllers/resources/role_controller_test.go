@@ -38,7 +38,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apiresources "github.com/gravitational/teleport/integrations/operator/apis/resources"
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 )
 
 var TeleportRoleGVKV5 = schema.GroupVersionKind{
@@ -198,7 +198,7 @@ allow:
 
 			roleName := validRandomResourceName("role-")
 
-			obj, err := resources.GetUnstructuredObjectFromGVK(TeleportRoleGVKV5)
+			obj, err := reconcilers.GetUnstructuredObjectFromGVK(TeleportRoleGVKV5)
 			require.NoError(t, err)
 			obj.Object["spec"] = roleManifest
 			obj.SetName(roleName)
