@@ -833,7 +833,12 @@ func LoadIdentityFileIntoClientStore(store *client.Store, identityFile, proxyAdd
 		return trace.Wrap(err)
 	}
 
-	// Load the client key from the agent.
+	// This key may already exist in a tsh profile, delete it before overwriting
+	// it with the identity key to avoid leaving app/db/kube certs from the old key.
+	if err := store.DeleteKey(key.KeyIndex); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
 	if err := store.AddKey(key); err != nil {
 		return trace.Wrap(err)
 	}

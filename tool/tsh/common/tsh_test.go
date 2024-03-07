@@ -5406,6 +5406,7 @@ func TestFlatten(t *testing.T) {
 	_, err = clt.Ping(context.Background())
 	require.NoError(t, err)
 
-	// Test execution: validate that flattening fails if a profile already exists.
-	require.Error(t, onFlatten(&conf), "expecting an error when overwriting an existing profile")
+	// Test execution: validate that flattening succeeds if a profile already exists.
+	conf.IdentityFileIn = identityPath
+	require.NoError(t, onFlatten(&conf), "unexpected error when overwriting a tsh profile with tsh flatten")
 }
