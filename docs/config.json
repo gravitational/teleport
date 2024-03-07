@@ -31,18 +31,12 @@
             {
               "title": "Teleport Cloud Agents (Linux)",
               "slug": "/upgrading/cloud-linux/",
-              "forScopes": [
-                "cloud",
-                "team"
-              ]
+              "forScopes": ["cloud"]
             },
             {
               "title": "Teleport Cloud Agents (Kubernetes)",
               "slug": "/upgrading/cloud-kubernetes/",
-              "forScopes": [
-                "cloud",
-                "team"
-              ]
+              "forScopes": ["cloud"]
             },
             {
               "title": "Self-Hosted Linux",
@@ -76,11 +70,7 @@
         {
           "title": "Usage Reporting and Billing",
           "slug": "/usage-billing/",
-          "forScopes": [
-            "cloud",
-            "team",
-            "enterprise"
-          ]
+          "forScopes": ["cloud", "enterprise"]
         },
         {
           "title": "Upcoming Releases",
@@ -109,19 +99,17 @@
           "slug": "/choose-an-edition/introduction/"
         },
         {
-          "title": "Teleport Team",
-          "slug": "/choose-an-edition/teleport-team/",
-          "forScopes": [
-            "team"
-          ]
-        },
-        {
           "title": "Teleport Enterprise Cloud",
           "slug": "/choose-an-edition/teleport-cloud/introduction/",
           "forScopes": [
             "cloud"
           ],
           "entries": [
+            {
+              "title": "Get Started",
+              "slug": "/choose-an-edition/teleport-cloud/get-started/",
+              "forScopes": ["cloud"]
+            },
             {
               "title": "Architecture",
               "slug": "/choose-an-edition/teleport-cloud/architecture/",
@@ -421,12 +409,7 @@
         {
           "title": "Single Sign-On (SSO)",
           "slug": "/access-controls/sso/",
-          "forScopes": [
-            "oss",
-            "team",
-            "enterprise",
-            "cloud"
-          ],
+          "forScopes": ["oss", "enterprise", "cloud"],
           "entries": [
             {
               "title": "Active Directory (ADFS)",
@@ -447,12 +430,7 @@
             {
               "title": "GitHub",
               "slug": "/access-controls/sso/github-sso/",
-              "forScopes": [
-                "oss",
-                "team",
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["oss", "enterprise", "cloud"]
             },
             {
               "title": "GitLab",
@@ -499,47 +477,27 @@
         {
           "title": "Teleport as an IdP",
           "slug": "/access-controls/idps/",
-          "forScopes": [
-            "enterprise",
-            "cloud",
-            "team"
-          ],
+          "forScopes": ["enterprise", "cloud"],
           "entries": [
             {
               "title": "SAML Identity Provider Guide",
               "slug": "/access-controls/idps/saml-guide/",
-              "forScopes": [
-                "enterprise",
-                "cloud",
-                "team"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "SAML Attribute Mapping",
               "slug": "/access-controls/idps/saml-attribute-mapping/",
-              "forScopes": [
-                "enterprise",
-                "cloud",
-                "team"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Authenticate to Grafana with Teleport SAML",
               "slug": "/access-controls/idps/saml-grafana/",
-              "forScopes": [
-                "enterprise",
-                "cloud",
-                "team"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "SAML Identity Provider Reference",
               "slug": "/access-controls/idps/saml-reference/",
-              "forScopes": [
-                "enterprise",
-                "cloud",
-                "team"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
@@ -589,8 +547,7 @@
           "slug": "/access-controls/device-trust/",
           "forScopes": [
             "enterprise",
-            "cloud",
-            "team"
+            "cloud"
           ],
           "entries": [
             {
@@ -598,8 +555,7 @@
               "slug": "/access-controls/device-trust/guide/",
               "forScopes": [
                 "enterprise",
-                "cloud",
-                "team"
+                "cloud"
               ]
             },
             {
@@ -607,8 +563,7 @@
               "slug": "/access-controls/device-trust/device-management/",
               "forScopes": [
                 "enterprise",
-                "cloud",
-                "team"
+                "cloud"
               ]
             },
             {
@@ -616,8 +571,7 @@
               "slug": "/access-controls/device-trust/enforcing-device-trust/",
               "forScopes": [
                 "enterprise",
-                "cloud",
-                "team"
+                "cloud"
               ]
             },
             {
@@ -660,7 +614,6 @@
           "title": "Access Graph",
           "slug": "/access-controls/access-graph/",
           "forScopes": [
-            "team",
             "enterprise"
           ],
           "entries": [
@@ -2720,7 +2673,7 @@
     },
     {
       "source": "/cloud/getting-started/",
-      "destination": "/choose-an-edition/teleport-team/",
+      "destination": "/choose-an-edition/teleport-cloud/get-started/",
       "permanent": true
     },
     {
@@ -2985,7 +2938,7 @@
     },
     {
       "source": "/deploy-a-cluster/teleport-cloud/getting-started/",
-      "destination": "/choose-an-edition/teleport-team/",
+      "destination": "/choose-an-edition/teleport-cloud/get-started/",
       "permanent": true
     },
     {
@@ -3085,7 +3038,7 @@
     },
     {
       "source": "/choose-an-edition/teleport-cloud/getting-started/",
-      "destination": "/choose-an-edition/teleport-team/",
+      "destination": "/choose-an-edition/teleport-cloud/get-started/",
       "permanent": true
     },
     {
@@ -3491,6 +3444,11 @@
     {
       "source": "/server-access/guides/openssh/openssh/",
       "destination": "/server-access/openssh/openssh/",
+      "permanent": true
+    },
+    {
+      "source": "/choose-an-edition/teleport-team/",
+      "destination": "/choose-an-edition/teleport-cloud/get-started/",
       "permanent": true
     }
   ]
