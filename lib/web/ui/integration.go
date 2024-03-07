@@ -19,6 +19,9 @@
 package ui
 
 import (
+	"net/url"
+	"strings"
+
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -29,8 +32,11 @@ import (
 type IntegrationAWSOIDCSpec struct {
 	// RoleARN is the role associated with the integration when SubKind is `aws-oidc`
 	RoleARN string `json:"roleArn,omitempty"`
-	// Issuer is the OIDC Issuer configured in AWS.
-	Issuer string `json:"issuer,omitempty"`
+
+	// IssuerS3Bucket is the Issuer configured in AWS using an S3 Bucket.
+	IssuerS3Bucket string `json:"issuerS3Bucket,omitempty"`
+	// IssuerS3Prefix is the prefix for the bucket above.
+	IssuerS3Prefix string `json:"issuerS3Prefix,omitempty"`
 }
 
 // Integration describes Integration fields
@@ -58,6 +64,10 @@ func (r *Integration) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing awsoidc.roleArn field")
 	}
 
+	if r.AWSOIDC.IssuerS3Bucket != "" && r.AWSOIDC.IssuerS3Prefix == "" {
+		return trace.BadParameter("prefix is required for using s3 buckets")
+	}
+
 	return nil
 }
 
@@ -81,32 +91,43 @@ func (r *UpdateIntegrationRequest) CheckAndSetDefaults() error {
 // a `nextToken` is provided and should be used to obtain the next page (as a query param `startKey`)
 type IntegrationsListResponse struct {
 	// Items is a list of resources retrieved.
-	Items []Integration `json:"items"`
+	Items []*Integration `json:"items"`
 	// NextKey is the position to resume listing events.
 	NextKey string `json:"nextKey"`
 }
 
 // MakeIntegrations creates a UI list of Integrations.
-func MakeIntegrations(igs []types.Integration) []Integration {
-	uiList := make([]Integration, 0, len(igs))
+func MakeIntegrations(igs []types.Integration) ([]*Integration, error) {
+	uiList := make([]*Integration, 0, len(igs))
 
 	for _, ig := range igs {
-		uiList = append(uiList, MakeIntegration(ig))
+		uiIg, err := MakeIntegration(ig)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		uiList = append(uiList, uiIg)
 	}
 
-	return uiList
+	return uiList, nil
 }
 
 // MakeIntegration creates a UI Integration representation.
-func MakeIntegration(ig types.Integration) Integration {
-	return Integration{
+func MakeIntegration(ig types.Integration) (*Integration, error) {
+	issuerS3BucketURL, err := url.Parse(ig.GetAWSOIDCIntegrationSpec().IssuerS3URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	prefix := strings.TrimLeft(issuerS3BucketURL.Path, "/")
+
+	return &Integration{
 		Name:    ig.GetName(),
 		SubKind: ig.GetSubKind(),
 		AWSOIDC: &IntegrationAWSOIDCSpec{
-			RoleARN: ig.GetAWSOIDCIntegrationSpec().RoleARN,
-			Issuer:  ig.GetAWSOIDCIntegrationSpec().Issuer,
+			RoleARN:        ig.GetAWSOIDCIntegrationSpec().RoleARN,
+			IssuerS3Bucket: issuerS3BucketURL.Host,
+			IssuerS3Prefix: prefix,
 		},
-	}
+	}, nil
 }
 
 // AWSOIDCListDatabasesRequest is a request to ListDatabases using the AWS OIDC Integration.

@@ -115,7 +115,9 @@ func TestIntegrationCRUD(t *testing.T) {
 	// Update the integration to another RoleARN
 	respStatusCode, respBody = webPack.DoRequest(t, http.MethodPut, integrationsEndpoint+"/MyAWSAccount", ui.UpdateIntegrationRequest{
 		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
-			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
+			RoleARN:        "arn:aws:iam::123456789012:role/OpsTeam",
+			IssuerS3Bucket: "my-bucket",
+			IssuerS3Prefix: "my-prefix",
 		},
 	})
 	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
@@ -127,7 +129,9 @@ func TestIntegrationCRUD(t *testing.T) {
 		Name:    "MyAWSAccount",
 		SubKind: types.IntegrationSubKindAWSOIDC,
 		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
-			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
+			RoleARN:        "arn:aws:iam::123456789012:role/OpsTeam",
+			IssuerS3Bucket: "my-bucket",
+			IssuerS3Prefix: "my-prefix",
 		},
 	}, integrationResp, string(respBody))
 
@@ -144,7 +148,9 @@ func TestIntegrationCRUD(t *testing.T) {
 			Name:    fmt.Sprintf("AWSIntegration%d", i),
 			SubKind: types.IntegrationSubKindAWSOIDC,
 			AWSOIDC: &ui.IntegrationAWSOIDCSpec{
-				RoleARN: "arn:aws:iam::123456789012:role/DevTeam",
+				RoleARN:        "arn:aws:iam::123456789012:role/DevTeam",
+				IssuerS3Bucket: "my-bucket",
+				IssuerS3Prefix: "my-prefix",
 			},
 		}
 
