@@ -335,9 +335,6 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 				}
 			}
 			g.Debugf("Completed stream for session %v", sessionID)
-			if err != nil {
-				return trace.Wrap(err)
-			}
 			return nil
 		} else if flushAndClose := request.GetFlushAndCloseStream(); flushAndClose != nil {
 			if eventStream == nil {
@@ -5677,9 +5674,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		),
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	usersService, err := usersv1.NewService(usersv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,

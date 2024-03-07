@@ -47,7 +47,7 @@ func TestAzure(t *testing.T) {
 	user, azureRole := makeUserWithAzureRole(t)
 
 	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, user, azureRole))
-	makeTestApplicationServer(t, authProcess, proxyProcess, servicecfg.App{
+	makeTestApplicationServer(t, proxyProcess, servicecfg.App{
 		Name:  "azure-api",
 		Cloud: types.CloudAzure,
 	})
