@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -47,6 +46,29 @@ import (
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot")
 
 const componentTBot = "tbot"
+
+// Service is a long-running sub-component of tbot.
+type Service interface {
+	// String returns a human-readable name for the service that can be used
+	// in logging. It should identify the type of the service and any top
+	// level configuration that could distinguish it from a same-type service.
+	String() string
+	// Run starts the service and blocks until the service exits. It should
+	// return a nil error if the service exits successfully and an error
+	// if it is unable to proceed. It should exit gracefully if the context
+	// is canceled.
+	Run(ctx context.Context) error
+}
+
+// OneShotService is a [Service] that offers a mode in which it runs a single
+// time and then exits. This aligns with the `--oneshot` mode of tbot.
+type OneShotService interface {
+	Service
+	// OneShot runs the service once and then exits. It should return a nil
+	// error if the service exits successfully and an error if it is unable
+	// to proceed. It should exit gracefully if the context is canceled.
+	OneShot(ctx context.Context) error
+}
 
 type Bot struct {
 	cfg     *config.BotConfig
@@ -124,7 +146,7 @@ func (b *Bot) Run(ctx context.Context) error {
 
 	// Create an error group to manage all the services lifetimes.
 	eg, egCtx := errgroup.WithContext(ctx)
-	var services []bot.Service
+	var services []Service
 
 	// ReloadBroadcaster allows multiple entities to trigger a reload of
 	// all services. This allows os signals and other events such as CA
@@ -196,8 +218,40 @@ func (b *Bot) Run(ctx context.Context) error {
 		),
 		reloadBroadcaster: reloadBroadcaster,
 	})
+
 	// Append any services configured by the user
-	services = append(services, b.cfg.Services...)
+	for _, svcCfg := range b.cfg.Services {
+		// Convert the service config into the actual service type.
+		switch svcCfg := svcCfg.(type) {
+		case *config.SPIFFEWorkloadAPIService:
+			// Create a credential output for the SPIFFE Workload API service to
+			// use as a source of an impersonated identity.
+			svcIdentity := &config.UnstableClientCredentialOutput{}
+			b.cfg.Outputs = append(b.cfg.Outputs, svcIdentity)
+
+			svc := &SPIFFEWorkloadAPIService{
+				botClient:             b.botIdentitySvc.GetClient(),
+				svcIdentity:           svcIdentity,
+				botCfg:                b.cfg,
+				cfg:                   svcCfg,
+				resolver:              resolver,
+				rootReloadBroadcaster: reloadBroadcaster,
+				trustBundleBroadcast: &channelBroadcaster{
+					chanSet: map[chan struct{}]struct{}{},
+				},
+			}
+			svc.log = b.log.WithField(
+				trace.Component, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		case *config.ExampleService:
+			services = append(services, &ExampleService{
+				cfg: svcCfg,
+			})
+		default:
+			return trace.BadParameter("unknown service type: %T", svcCfg)
+		}
+	}
 
 	b.log.Info("Initialization complete. Starting services.")
 	// Start services
@@ -206,7 +260,7 @@ func (b *Bot) Run(ctx context.Context) error {
 		log := b.log.WithField("service", svc.String())
 
 		if b.cfg.Oneshot {
-			svc, ok := svc.(bot.OneShotService)
+			svc, ok := svc.(OneShotService)
 			// We ignore services with no one-shot implementation
 			if !ok {
 				log.Debug("Service does not support oneshot mode, ignoring.")
@@ -360,8 +414,7 @@ func clientForFacade(
 	log logrus.FieldLogger,
 	cfg *config.BotConfig,
 	facade *identity.Facade,
-	resolver reversetunnelclient.Resolver,
-) (auth.ClientI, error) {
+	resolver reversetunnelclient.Resolver) (auth.ClientI, error) {
 	ctx, span := tracer.Start(ctx, "clientForFacade")
 	defer span.End()
 
