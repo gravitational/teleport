@@ -376,7 +376,7 @@ func (p *pingSrv) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 }
 
 type mockClient struct {
-	auth.ClientI
+	*auth.Client
 
 	clusterName    types.ClusterName
 	userCerts      *proto.Certs
