@@ -126,7 +126,7 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *serv
 }
 
 // TryRun takes the CLI command as an argument (like "access-request list") and executes it.
-func (c *AccessRequestCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
+func (c *AccessRequestCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
 	switch cmd {
 	case c.requestList.FullCommand():
 		err = c.List(ctx, client)
@@ -150,7 +150,7 @@ func (c *AccessRequestCommand) TryRun(ctx context.Context, cmd string, client au
 	return true, trace.Wrap(err)
 }
 
-func (c *AccessRequestCommand) List(ctx context.Context, client auth.ClientI) error {
+func (c *AccessRequestCommand) List(ctx context.Context, client *auth.Client) error {
 	var index proto.AccessRequestSort
 	switch c.sortIndex {
 	case "created":
@@ -193,7 +193,7 @@ func (c *AccessRequestCommand) List(ctx context.Context, client auth.ClientI) er
 	return nil
 }
 
-func (c *AccessRequestCommand) Get(ctx context.Context, client auth.ClientI) error {
+func (c *AccessRequestCommand) Get(ctx context.Context, client *auth.Client) error {
 	reqs := []types.AccessRequest{}
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		req, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{
@@ -248,7 +248,7 @@ func (c *AccessRequestCommand) splitRoles() []string {
 	return roles
 }
 
-func (c *AccessRequestCommand) Approve(ctx context.Context, client auth.ClientI) error {
+func (c *AccessRequestCommand) Approve(ctx context.Context, client *auth.Client) error {
 	if c.delegator != "" {
 		ctx = authz.WithDelegator(ctx, c.delegator)
 	}
@@ -283,7 +283,7 @@ func (c *AccessRequestCommand) Approve(ctx context.Context, client auth.ClientI)
 	return nil
 }
 
-func (c *AccessRequestCommand) Deny(ctx context.Context, client auth.ClientI) error {
+func (c *AccessRequestCommand) Deny(ctx context.Context, client *auth.Client) error {
 	if c.delegator != "" {
 		ctx = authz.WithDelegator(ctx, c.delegator)
 	}
@@ -304,7 +304,7 @@ func (c *AccessRequestCommand) Deny(ctx context.Context, client auth.ClientI) er
 	return nil
 }
 
-func (c *AccessRequestCommand) Create(ctx context.Context, client auth.ClientI) error {
+func (c *AccessRequestCommand) Create(ctx context.Context, client *auth.Client) error {
 	if len(c.roles) == 0 && len(c.requestedResourceIDs) == 0 {
 		c.roles = "*"
 	}
@@ -320,10 +320,10 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client auth.ClientI) 
 
 	if c.dryRun {
 		users := &struct {
-			auth.ClientI
+			*auth.Client
 			services.UserLoginStatesGetter
 		}{
-			ClientI:               client,
+			Client:                client,
 			UserLoginStatesGetter: client.UserLoginStateClient(),
 		}
 		err = services.ValidateAccessRequestForUser(ctx, clockwork.NewRealClock(), users, req, tlsca.Identity{}, services.ExpandVars(true))
@@ -340,7 +340,7 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client auth.ClientI) 
 	return nil
 }
 
-func (c *AccessRequestCommand) Delete(ctx context.Context, client auth.ClientI) error {
+func (c *AccessRequestCommand) Delete(ctx context.Context, client *auth.Client) error {
 	var approvedTokens []string
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		// Fetch the requests first to see if they were approved to provide the
@@ -380,7 +380,7 @@ func (c *AccessRequestCommand) Delete(ctx context.Context, client auth.ClientI) 
 	return nil
 }
 
-func (c *AccessRequestCommand) Caps(ctx context.Context, client auth.ClientI) error {
+func (c *AccessRequestCommand) Caps(ctx context.Context, client *auth.Client) error {
 	caps, err := client.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
 		User:               c.user,
 		RequestableRoles:   true,
@@ -416,7 +416,7 @@ func (c *AccessRequestCommand) Caps(ctx context.Context, client auth.ClientI) er
 	}
 }
 
-func (c *AccessRequestCommand) Review(ctx context.Context, client auth.ClientI) error {
+func (c *AccessRequestCommand) Review(ctx context.Context, client *auth.Client) error {
 	if c.approve == c.deny {
 		return trace.BadParameter("must supply exactly one of '--approve' or '--deny'")
 	}
