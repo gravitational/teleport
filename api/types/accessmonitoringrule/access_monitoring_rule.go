@@ -16,10 +16,6 @@ limitations under the License.
 
 package accessmonitoringrule
 
-import (
-	"time"
-)
-
 // AccessMonitoringRuleSubkind represents the type of the AccessMonitoringRule, e.g., access request, MDM etc.
 type AccessMonitoringRuleSubkind string
 
