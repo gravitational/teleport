@@ -55,7 +55,7 @@ on_gcp() {
   . /etc/os-release
 
   TELEPORT_PACKAGE="{{ .TeleportPackage }}"
-  TELEPORT_UPDATER_PACKAGE="{{ .TeleportPackage }}"
+  TELEPORT_UPDATER_PACKAGE="{{ .TeleportPackage }}-updater"
 
   if [ "$ID" = "debian" ] || [ "$ID" = "ubuntu" ]; then
     # old versions of ubuntu require that keys get added by `apt-key add`, without
