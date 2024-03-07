@@ -257,17 +257,7 @@ func TestAccessPostgres(t *testing.T) {
 // on the configured RBAC rules.
 func TestAccessMySQL(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(
-		ctx,
-		t,
-		withSelfHostedMySQL("mysql"),
-		withSelfHostedMySQL("version-update-test",
-			// Set an older version in DB spec.
-			withMySQLServerVersionInDBSpec("6.6.6-before"),
-			// Set a newer version in TestServer.
-			withMySQLServerVersion("8.8.8-after"),
-		),
-	)
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
 	go testCtx.startHandlingConnections()
 
 	tests := []struct {
@@ -341,26 +331,39 @@ func TestAccessMySQL(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
 
-	t.Run("server version update on connection", func(t *testing.T) {
-		// Confirm the server version configured in the spec.
-		db, err := testCtx.server.getProxiedDatabase("version-update-test")
-		require.NoError(t, err)
-		require.Equal(t, "6.6.6-before", db.GetMySQLServerVersion())
+func TestMySQLServerVersionUpdateOnConnection(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(
+		ctx,
+		t,
+		withSelfHostedMySQL("mysql",
+			// Set an older version in DB spec.
+			withMySQLServerVersionInDBSpec("6.6.6-before"),
+			// Set a newer version in TestServer.
+			withMySQLServerVersion("8.8.8-after"),
+		),
+	)
+	go testCtx.startHandlingConnections()
 
-		// Connect.
-		testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"alice"}, []string{types.Wildcard})
-		mysqlConn, err := testCtx.mysqlClient("alice", "version-update-test", "alice")
-		require.NoError(t, err)
-		defer mysqlConn.Close()
-		_, err = mysqlConn.Execute("select 1")
-		require.NoError(t, err)
+	// Confirm the server version configured in the spec.
+	db, err := testCtx.server.getProxiedDatabase("mysql")
+	require.NoError(t, err)
+	require.Equal(t, "6.6.6-before", db.GetMySQLServerVersion())
 
-		// Check if proxied database is updated.
-		updatedDB, err := testCtx.server.getProxiedDatabase("version-update-test")
-		require.NoError(t, err)
-		require.Equal(t, "8.8.8-after", updatedDB.GetMySQLServerVersion())
-	})
+	// Connect.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"alice"}, []string{types.Wildcard})
+	mysqlConn, err := testCtx.mysqlClient("alice", "mysql", "alice")
+	require.NoError(t, err)
+	defer mysqlConn.Close()
+	_, err = mysqlConn.Execute("select 1")
+	require.NoError(t, err)
+
+	// Check if proxied database is updated.
+	updatedDB, err := testCtx.server.getProxiedDatabase("mysql")
+	require.NoError(t, err)
+	require.Equal(t, "8.8.8-after", updatedDB.GetMySQLServerVersion())
 }
 
 // TestAccessRedis verifies access scenarios to a Redis database based
