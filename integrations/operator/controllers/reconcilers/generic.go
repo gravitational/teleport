@@ -21,6 +21,7 @@ package reconcilers
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/gravitational/trace"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -99,7 +100,7 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 		return fmt.Errorf("failed to convert Object into Resource object: %T", obj)
 	}
 	k8sResource := newKubeResource[K]()
-	debugLog.Info(fmt.Sprintf("Converting resource from unstructured to %T", k8sResource))
+	debugLog.Info("Converting resource from unstructured", "crType", reflect.TypeOf(k8sResource))
 
 	// If an error happen we want to put it in status.conditions before returning.
 	err := runtime.DefaultUnstructuredConverter.FromUnstructuredWithValidation(
