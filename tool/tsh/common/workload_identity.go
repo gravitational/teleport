@@ -105,9 +105,7 @@ func (c *workloadIdentityIssueCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if cf.Headless {
-		tc.AllowHeadless = true
-	}
+	tc.AllowHeadless = true
 
 	return client.RetryWithRelogin(ctx, tc, func() error {
 		clusterClient, err := tc.ConnectToCluster(ctx)
