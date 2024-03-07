@@ -243,6 +243,11 @@ func TestAccessListCreate_UpsertAccessListWithMembers_WithLimit(t *testing.T) {
 	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1})
 	require.NoError(t, err)
 
+	// Check the count
+	count, err := service.CountAccessListMembers(ctx, accessList1.GetName())
+	require.NoError(t, err)
+	require.Equal(t, uint32(1), count)
+
 	// Second create should return an error.
 	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList2, []*accesslist.AccessListMember{accessListMember2})
 	require.True(t, trace.IsAccessDenied(err), "expected access denied / license limit error, got %v", err)

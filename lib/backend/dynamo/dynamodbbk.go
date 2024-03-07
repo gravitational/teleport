@@ -467,6 +467,14 @@ func (b *Backend) getAllRecords(ctx context.Context, startKey []byte, endKey []b
 	return nil, trace.BadParameter("backend entered endless loop")
 }
 
+const (
+	// batchOperationItemsLimit is the maximum number of items that can be put or deleted in a single batch operation.
+	// From https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Limits.html:
+	// A single call to BatchWriteItem can transmit up to 16MB of data over the network,
+	// consisting of up to 25 item put or delete operations.
+	batchOperationItemsLimit = 25
+)
+
 // DeleteRange deletes range of items with keys between startKey and endKey
 func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
 	if len(startKey) == 0 {
@@ -479,7 +487,7 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) erro
 	// keep the very large limit, just in case if someone else
 	// keeps adding records
 	for i := 0; i < backend.DefaultRangeLimit/100; i++ {
-		result, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), 100, nil)
+		result, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), batchOperationItemsLimit, nil)
 		if err != nil {
 			return trace.Wrap(err)
 		}

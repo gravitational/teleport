@@ -418,6 +418,7 @@ func ForDiscovery(cfg Config) Config {
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNode},
 		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindKubeServer},
 		{Kind: types.KindDatabase},
 		{Kind: types.KindApp},
 		{Kind: types.KindDiscoveryConfig},
@@ -1887,6 +1888,19 @@ func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return rg.reader.GetRoles(ctx)
 }
 
+// ListRoles is a paginated role getter.
+func (c *Cache) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListRoles")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.roles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListRoles(ctx, req)
+}
+
 // GetRole is a part of auth.Cache implementation
 func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetRole")
@@ -2040,8 +2054,8 @@ type remoteClustersCacheKey struct {
 var _ map[remoteClustersCacheKey]struct{} // compile-time hashability check
 
 // GetRemoteClusters returns a list of remote clusters
-func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
-	ctx, span := c.Tracer.Start(context.TODO(), "cache/GetRemoteClusters")
+func (c *Cache) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetRemoteClusters")
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.remoteClusters)
@@ -2051,7 +2065,7 @@ func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remot
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		cachedRemotes, err := utils.FnCacheGet(ctx, c.fnCache, remoteClustersCacheKey{}, func(ctx context.Context) ([]types.RemoteCluster, error) {
-			remotes, err := rg.reader.GetRemoteClusters(opts...)
+			remotes, err := rg.reader.GetRemoteClusters(ctx)
 			return remotes, err
 		})
 		if err != nil || cachedRemotes == nil {
@@ -2064,12 +2078,12 @@ func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remot
 		}
 		return remotes, nil
 	}
-	return rg.reader.GetRemoteClusters(opts...)
+	return rg.reader.GetRemoteClusters(ctx)
 }
 
 // GetRemoteCluster returns a remote cluster by name
-func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
-	ctx, span := c.Tracer.Start(context.TODO(), "cache/GetRemoteCluster")
+func (c *Cache) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetRemoteCluster")
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.remoteClusters)
@@ -2079,7 +2093,7 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		cachedRemote, err := utils.FnCacheGet(ctx, c.fnCache, remoteClustersCacheKey{clusterName}, func(ctx context.Context) (types.RemoteCluster, error) {
-			remote, err := rg.reader.GetRemoteCluster(clusterName)
+			remote, err := rg.reader.GetRemoteCluster(ctx, clusterName)
 			return remote, err
 		})
 		if err != nil {
@@ -2088,17 +2102,31 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 
 		return cachedRemote.Clone(), nil
 	}
-	rc, err := rg.reader.GetRemoteCluster(clusterName)
+	rc, err := rg.reader.GetRemoteCluster(ctx, clusterName)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
 		// fallback is sane because this method is never used
 		// in construction of derivative caches.
-		if rc, err := c.Config.Presence.GetRemoteCluster(clusterName); err == nil {
+		if rc, err := c.Config.Presence.GetRemoteCluster(ctx, clusterName); err == nil {
 			return rc, nil
 		}
 	}
 	return rc, trace.Wrap(err)
+}
+
+// ListRemoteClusters returns a page of remote clusters.
+func (c *Cache) ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error) {
+	_, span := c.Tracer.Start(ctx, "cache/ListRemoteClusters")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.remoteClusters)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	remoteClusters, token, err := rg.reader.ListRemoteClusters(ctx, pageSize, nextToken)
+	return remoteClusters, token, trace.Wrap(err)
 }
 
 // GetUser is a part of auth.Cache implementation.
@@ -2924,6 +2952,19 @@ func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.Acc
 	}
 	defer rg.Release()
 	return rg.reader.GetAccessList(ctx, name)
+}
+
+// CountAccessListMembers will count all access list members.
+func (c *Cache) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/CountAccessListMembers")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.CountAccessListMembers(ctx, accessListName)
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.

@@ -143,6 +143,9 @@ type AccessList struct {
 
 	// Spec is the specification for the access list.
 	Spec Spec `json:"spec" yaml:"spec"`
+
+	// Status contains dynamically calculated fields.
+	Status Status `json:"-" yaml:"-"`
 }
 
 // Spec is the specification for an access list.
@@ -256,6 +259,12 @@ type Grants struct {
 
 	// Traits are the traits that are granted to users who are members of the access list.
 	Traits trait.Traits `json:"traits" yaml:"traits"`
+}
+
+// Status contains dynamic fields calculated during retrieval.
+type Status struct {
+	// MemberCount is the number of members in the access list.
+	MemberCount *uint32
 }
 
 // NewAccessList will create a new access list.

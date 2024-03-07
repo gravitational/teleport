@@ -650,7 +650,7 @@ func TestPresets(t *testing.T) {
 				defer mu.Unlock()
 				require.Contains(t, expectedPresetRoles, r.GetName())
 				require.NotContains(t, createdPresets, r.GetName())
-				require.False(t, types.IsSystemResource(r))
+				require.False(t, types.IsSystemResource(r) && r.GetName() != teleport.SystemOktaRequesterRoleName)
 				createdPresets[r.GetName()] = r
 			}).
 			Return(func(_ context.Context, r types.Role) (types.Role, error) {
@@ -793,12 +793,12 @@ func TestPresets(t *testing.T) {
 			teleport.PresetDeviceAdminRoleName,
 			teleport.PresetDeviceEnrollRoleName,
 			teleport.PresetRequireTrustedDeviceRoleName,
+			teleport.SystemOktaRequesterRoleName, // This is treated as a preset
 		}, presetRoleNames...)
 
 		enterpriseSystemRoleNames := []string{
 			teleport.SystemAutomaticAccessApprovalRoleName,
 			teleport.SystemOktaAccessRoleName,
-			teleport.SystemOktaRequesterRoleName,
 		}
 
 		enterpriseUsers := []types.User{

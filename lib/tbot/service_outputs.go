@@ -30,12 +30,14 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -59,7 +61,8 @@ const renewalRetryLimit = 5
 type outputsService struct {
 	log               logrus.FieldLogger
 	reloadBroadcaster *channelBroadcaster
-	botIdentitySrc    botIdentitySrc
+	botClient         auth.ClientI
+	getBotIdentity    getBotIdentityFn
 	cfg               *config.BotConfig
 	resolver          reversetunnelclient.Resolver
 }
@@ -85,25 +88,17 @@ func (s *outputsService) renewOutputs(
 	ctx, span := tracer.Start(ctx, "outputsService/renewOutputs")
 	defer span.End()
 
-	botIdentity := s.botIdentitySrc.BotIdentity()
-	client, err := clientForIdentity(ctx, s.log, s.cfg, botIdentity, s.resolver)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer client.Close()
-
 	// create a cache shared across outputs so they don't hammer the auth
 	// server with similar requests
 	drc := &outputRenewalCache{
-		client: client,
+		client: s.botClient,
 		cfg:    s.cfg,
 	}
 
 	// Determine the default role list based on the bot role. The role's
 	// name should match the certificate's Key ID (user and role names
 	// should all match bot-$name)
-	botResourceName := botIdentity.X509Cert.Subject.CommonName
-	defaultRoles, err := fetchDefaultRoles(ctx, client, botResourceName)
+	defaultRoles, err := fetchDefaultRoles(ctx, s.botClient, s.getBotIdentity())
 	if err != nil {
 		s.log.WithError(err).Warnf("Unable to determine default roles, no roles will be requested if unspecified")
 		defaultRoles = []string{}
@@ -132,7 +127,7 @@ func (s *outputsService) renewOutputs(
 		}
 
 		impersonatedIdentity, impersonatedClient, err := s.generateImpersonatedIdentity(
-			ctx, client, botIdentity, output, defaultRoles,
+			ctx, s.botClient, s.getBotIdentity(), output, defaultRoles,
 		)
 		if err != nil {
 			return trace.Wrap(err, "generating impersonated certs for output: %s", output)
@@ -551,7 +546,8 @@ func (s *outputsService) generateImpersonatedIdentity(
 
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
-	impersonatedClient, err = clientForIdentity(ctx, s.log, s.cfg, impersonatedIdentity, s.resolver)
+	facade := identity.NewFacade(s.cfg.FIPS, s.cfg.Insecure, impersonatedIdentity)
+	impersonatedClient, err = clientForFacade(ctx, s.log, s.cfg, facade, s.resolver)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -640,6 +636,8 @@ func (s *outputsService) generateImpersonatedIdentity(
 		return impersonatedIdentity, impersonatedClient, nil
 	case *config.UnstableClientCredentialOutput:
 		return impersonatedIdentity, impersonatedClient, nil
+	case *config.SPIFFESVIDOutput:
+		return impersonatedIdentity, impersonatedClient, nil
 	default:
 		return nil, nil, trace.BadParameter("generateImpersonatedIdentity does not support output type (%T)", output)
 	}
@@ -647,8 +645,8 @@ func (s *outputsService) generateImpersonatedIdentity(
 
 // fetchDefaultRoles requests the bot's own role from the auth server and
 // extracts its full list of allowed roles.
-func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, botRole string) ([]string, error) {
-	role, err := roleGetter.GetRole(ctx, botRole)
+func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, identity *identity.Identity) ([]string, error) {
+	role, err := roleGetter.GetRole(ctx, identity.X509Cert.Subject.CommonName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -787,8 +785,8 @@ type outputProvider struct {
 }
 
 // GetRemoteClusters uses the impersonatedClient to call GetRemoteClusters.
-func (op *outputProvider) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
-	return op.impersonatedClient.GetRemoteClusters(opts...)
+func (op *outputProvider) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
+	return op.impersonatedClient.GetRemoteClusters(ctx)
 }
 
 // GenerateHostCert uses the impersonatedClient to call GenerateHostCert.
@@ -801,6 +799,13 @@ func (op *outputProvider) GenerateHostCert(
 // GetCertAuthority uses the impersonatedClient to call GetCertAuthority.
 func (op *outputProvider) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	return op.impersonatedClient.GetCertAuthority(ctx, id, loadKeys)
+}
+
+// SignX509SVIDs uses the impersonatedClient to call SignX509SVIDs.
+func (op *outputProvider) SignX509SVIDs(
+	ctx context.Context, in *machineidv1pb.SignX509SVIDsRequest, opts ...grpc.CallOption,
+) (*machineidv1pb.SignX509SVIDsResponse, error) {
+	return op.impersonatedClient.WorkloadIdentityServiceClient().SignX509SVIDs(ctx, in, opts...)
 }
 
 // chooseOneDatabase chooses one matched database by name, or tries to choose

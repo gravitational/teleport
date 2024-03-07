@@ -19,6 +19,7 @@ package types
 import (
 	"encoding/xml"
 	"fmt"
+	"sort"
 
 	"github.com/gravitational/trace"
 
@@ -291,6 +292,25 @@ func (s SAMLIdPServiceProviders) Less(i, j int) bool { return s[i].GetName() < s
 
 // Swap swaps two service providers.
 func (s SAMLIdPServiceProviders) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// SortByCustom sorts SAMLIdPServiceProviders as per the sortBy value.
+// Only ResourceMetadataName field is supported.
+func (s SAMLIdPServiceProviders) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetName(), s[j].GetName(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindSAMLIdPServiceProvider)
+	}
+
+	return nil
+}
 
 // CheckAndSetDefaults check and sets SAMLAttributeMapping default values
 func (am *SAMLAttributeMapping) CheckAndSetDefaults() error {

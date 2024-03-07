@@ -491,7 +491,7 @@ type BaseMeta = {
     // requiredVpcsAndSubnets is a map of required vpcs for auto discovery.
     // If this is empty, then a user can skip deploying db agents.
     // If >0, auto discovery requires deploying db agents.
-    requiredVpcsAndSubnets: Record<string, string[]>;
+    requiredVpcsAndSubnets?: Record<string, string[]>;
   };
 };
 

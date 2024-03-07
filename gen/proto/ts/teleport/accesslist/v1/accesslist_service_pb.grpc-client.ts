@@ -44,6 +44,8 @@ import type { ListAllAccessListMembersResponse } from "./accesslist_service_pb";
 import type { ListAllAccessListMembersRequest } from "./accesslist_service_pb";
 import type { ListAccessListMembersResponse } from "./accesslist_service_pb";
 import type { ListAccessListMembersRequest } from "./accesslist_service_pb";
+import type { CountAccessListMembersResponse } from "./accesslist_service_pb";
+import type { CountAccessListMembersRequest } from "./accesslist_service_pb";
 import type { GetAccessListsToReviewResponse } from "./accesslist_service_pb";
 import type { GetAccessListsToReviewRequest } from "./accesslist_service_pb";
 import type { DeleteAllAccessListsRequest } from "./accesslist_service_pb";
@@ -118,7 +120,8 @@ export interface IAccessListServiceClient {
     deleteAllAccessLists(input: DeleteAllAccessListsRequest, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: Empty) => void): grpc.ClientUnaryCall;
     deleteAllAccessLists(input: DeleteAllAccessListsRequest, callback: (err: grpc.ServiceError | null, value?: Empty) => void): grpc.ClientUnaryCall;
     /**
-     * GetAccessListsToReview will return access lists that need to be reviewed by the current user.
+     * GetAccessListsToReview will return access lists that need to be reviewed by
+     * the current user.
      *
      * @generated from protobuf rpc: GetAccessListsToReview(teleport.accesslist.v1.GetAccessListsToReviewRequest) returns (teleport.accesslist.v1.GetAccessListsToReviewResponse);
      */
@@ -126,6 +129,16 @@ export interface IAccessListServiceClient {
     getAccessListsToReview(input: GetAccessListsToReviewRequest, metadata: grpc.Metadata, callback: (err: grpc.ServiceError | null, value?: GetAccessListsToReviewResponse) => void): grpc.ClientUnaryCall;
     getAccessListsToReview(input: GetAccessListsToReviewRequest, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: GetAccessListsToReviewResponse) => void): grpc.ClientUnaryCall;
     getAccessListsToReview(input: GetAccessListsToReviewRequest, callback: (err: grpc.ServiceError | null, value?: GetAccessListsToReviewResponse) => void): grpc.ClientUnaryCall;
+    /**
+     * CountAccessListMembers returns the count of access list members in an
+     * access list.
+     *
+     * @generated from protobuf rpc: CountAccessListMembers(teleport.accesslist.v1.CountAccessListMembersRequest) returns (teleport.accesslist.v1.CountAccessListMembersResponse);
+     */
+    countAccessListMembers(input: CountAccessListMembersRequest, metadata: grpc.Metadata, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: CountAccessListMembersResponse) => void): grpc.ClientUnaryCall;
+    countAccessListMembers(input: CountAccessListMembersRequest, metadata: grpc.Metadata, callback: (err: grpc.ServiceError | null, value?: CountAccessListMembersResponse) => void): grpc.ClientUnaryCall;
+    countAccessListMembers(input: CountAccessListMembersRequest, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: CountAccessListMembersResponse) => void): grpc.ClientUnaryCall;
+    countAccessListMembers(input: CountAccessListMembersRequest, callback: (err: grpc.ServiceError | null, value?: CountAccessListMembersResponse) => void): grpc.ClientUnaryCall;
     /**
      * ListAccessListMembers returns a paginated list of all access list members.
      *
@@ -136,7 +149,8 @@ export interface IAccessListServiceClient {
     listAccessListMembers(input: ListAccessListMembersRequest, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: ListAccessListMembersResponse) => void): grpc.ClientUnaryCall;
     listAccessListMembers(input: ListAccessListMembersRequest, callback: (err: grpc.ServiceError | null, value?: ListAccessListMembersResponse) => void): grpc.ClientUnaryCall;
     /**
-     * ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+     * ListAllAccessListMembers returns a paginated list of all access list
+     * members for all access lists.
      *
      * @generated from protobuf rpc: ListAllAccessListMembers(teleport.accesslist.v1.ListAllAccessListMembersRequest) returns (teleport.accesslist.v1.ListAllAccessListMembersResponse);
      */
@@ -163,7 +177,8 @@ export interface IAccessListServiceClient {
     upsertAccessListMember(input: UpsertAccessListMemberRequest, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: Member) => void): grpc.ClientUnaryCall;
     upsertAccessListMember(input: UpsertAccessListMemberRequest, callback: (err: grpc.ServiceError | null, value?: Member) => void): grpc.ClientUnaryCall;
     /**
-     * DeleteAccessListMember hard deletes the specified access list member resource.
+     * DeleteAccessListMember hard deletes the specified access list member
+     * resource.
      *
      * @generated from protobuf rpc: DeleteAccessListMember(teleport.accesslist.v1.DeleteAccessListMemberRequest) returns (google.protobuf.Empty);
      */
@@ -172,7 +187,8 @@ export interface IAccessListServiceClient {
     deleteAccessListMember(input: DeleteAccessListMemberRequest, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: Empty) => void): grpc.ClientUnaryCall;
     deleteAccessListMember(input: DeleteAccessListMemberRequest, callback: (err: grpc.ServiceError | null, value?: Empty) => void): grpc.ClientUnaryCall;
     /**
-     * DeleteAllAccessListMembers hard deletes all access list members for an access list.
+     * DeleteAllAccessListMembers hard deletes all access list members for an
+     * access list.
      *
      * @generated from protobuf rpc: DeleteAllAccessListMembersForAccessList(teleport.accesslist.v1.DeleteAllAccessListMembersForAccessListRequest) returns (google.protobuf.Empty);
      */
@@ -181,7 +197,8 @@ export interface IAccessListServiceClient {
     deleteAllAccessListMembersForAccessList(input: DeleteAllAccessListMembersForAccessListRequest, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: Empty) => void): grpc.ClientUnaryCall;
     deleteAllAccessListMembersForAccessList(input: DeleteAllAccessListMembersForAccessListRequest, callback: (err: grpc.ServiceError | null, value?: Empty) => void): grpc.ClientUnaryCall;
     /**
-     * DeleteAllAccessListMembers hard deletes all access list members for an access list.
+     * DeleteAllAccessListMembers hard deletes all access list members for an
+     * access list.
      *
      * @generated from protobuf rpc: DeleteAllAccessListMembers(teleport.accesslist.v1.DeleteAllAccessListMembersRequest) returns (google.protobuf.Empty);
      */
@@ -199,7 +216,8 @@ export interface IAccessListServiceClient {
     upsertAccessListWithMembers(input: UpsertAccessListWithMembersRequest, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: UpsertAccessListWithMembersResponse) => void): grpc.ClientUnaryCall;
     upsertAccessListWithMembers(input: UpsertAccessListWithMembersRequest, callback: (err: grpc.ServiceError | null, value?: UpsertAccessListWithMembersResponse) => void): grpc.ClientUnaryCall;
     /**
-     * ListAccessListReviews will list access list reviews for a particular access list.
+     * ListAccessListReviews will list access list reviews for a particular access
+     * list.
      *
      * @generated from protobuf rpc: ListAccessListReviews(teleport.accesslist.v1.ListAccessListReviewsRequest) returns (teleport.accesslist.v1.ListAccessListReviewsResponse);
      */
@@ -208,7 +226,8 @@ export interface IAccessListServiceClient {
     listAccessListReviews(input: ListAccessListReviewsRequest, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: ListAccessListReviewsResponse) => void): grpc.ClientUnaryCall;
     listAccessListReviews(input: ListAccessListReviewsRequest, callback: (err: grpc.ServiceError | null, value?: ListAccessListReviewsResponse) => void): grpc.ClientUnaryCall;
     /**
-     * ListAllAccessListReviews will list access list reviews for all access lists.
+     * ListAllAccessListReviews will list access list reviews for all access
+     * lists.
      *
      * @generated from protobuf rpc: ListAllAccessListReviews(teleport.accesslist.v1.ListAllAccessListReviewsRequest) returns (teleport.accesslist.v1.ListAllAccessListReviewsResponse);
      */
@@ -217,8 +236,9 @@ export interface IAccessListServiceClient {
     listAllAccessListReviews(input: ListAllAccessListReviewsRequest, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: ListAllAccessListReviewsResponse) => void): grpc.ClientUnaryCall;
     listAllAccessListReviews(input: ListAllAccessListReviewsRequest, callback: (err: grpc.ServiceError | null, value?: ListAllAccessListReviewsResponse) => void): grpc.ClientUnaryCall;
     /**
-     * CreateAccessListReview will create a new review for an access list. It will also modify the original access list
-     * and its members depending on the details of the review.
+     * CreateAccessListReview will create a new review for an access list. It will
+     * also modify the original access list and its members depending on the
+     * details of the review.
      *
      * @generated from protobuf rpc: CreateAccessListReview(teleport.accesslist.v1.CreateAccessListReviewRequest) returns (teleport.accesslist.v1.CreateAccessListReviewResponse);
      */
@@ -245,7 +265,8 @@ export interface IAccessListServiceClient {
     accessRequestPromote(input: AccessRequestPromoteRequest, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: AccessRequestPromoteResponse) => void): grpc.ClientUnaryCall;
     accessRequestPromote(input: AccessRequestPromoteRequest, callback: (err: grpc.ServiceError | null, value?: AccessRequestPromoteResponse) => void): grpc.ClientUnaryCall;
     /**
-     * GetSuggestedAccessLists returns suggested access lists for an access request.
+     * GetSuggestedAccessLists returns suggested access lists for an access
+     * request.
      *
      * @generated from protobuf rpc: GetSuggestedAccessLists(teleport.accesslist.v1.GetSuggestedAccessListsRequest) returns (teleport.accesslist.v1.GetSuggestedAccessListsResponse);
      */
@@ -320,7 +341,8 @@ export class AccessListServiceClient extends grpc.Client implements IAccessListS
         return this.makeUnaryRequest<DeleteAllAccessListsRequest, Empty>(`/${AccessListService.typeName}/${method.name}`, (value: DeleteAllAccessListsRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): Empty => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
-     * GetAccessListsToReview will return access lists that need to be reviewed by the current user.
+     * GetAccessListsToReview will return access lists that need to be reviewed by
+     * the current user.
      *
      * @generated from protobuf rpc: GetAccessListsToReview(teleport.accesslist.v1.GetAccessListsToReviewRequest) returns (teleport.accesslist.v1.GetAccessListsToReviewResponse);
      */
@@ -329,21 +351,32 @@ export class AccessListServiceClient extends grpc.Client implements IAccessListS
         return this.makeUnaryRequest<GetAccessListsToReviewRequest, GetAccessListsToReviewResponse>(`/${AccessListService.typeName}/${method.name}`, (value: GetAccessListsToReviewRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): GetAccessListsToReviewResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
+     * CountAccessListMembers returns the count of access list members in an
+     * access list.
+     *
+     * @generated from protobuf rpc: CountAccessListMembers(teleport.accesslist.v1.CountAccessListMembersRequest) returns (teleport.accesslist.v1.CountAccessListMembersResponse);
+     */
+    countAccessListMembers(input: CountAccessListMembersRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: CountAccessListMembersResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: CountAccessListMembersResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: CountAccessListMembersResponse) => void)): grpc.ClientUnaryCall {
+        const method = AccessListService.methods[7];
+        return this.makeUnaryRequest<CountAccessListMembersRequest, CountAccessListMembersResponse>(`/${AccessListService.typeName}/${method.name}`, (value: CountAccessListMembersRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): CountAccessListMembersResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
+    }
+    /**
      * ListAccessListMembers returns a paginated list of all access list members.
      *
      * @generated from protobuf rpc: ListAccessListMembers(teleport.accesslist.v1.ListAccessListMembersRequest) returns (teleport.accesslist.v1.ListAccessListMembersResponse);
      */
     listAccessListMembers(input: ListAccessListMembersRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: ListAccessListMembersResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: ListAccessListMembersResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: ListAccessListMembersResponse) => void)): grpc.ClientUnaryCall {
-        const method = AccessListService.methods[7];
+        const method = AccessListService.methods[8];
         return this.makeUnaryRequest<ListAccessListMembersRequest, ListAccessListMembersResponse>(`/${AccessListService.typeName}/${method.name}`, (value: ListAccessListMembersRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): ListAccessListMembersResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
-     * ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+     * ListAllAccessListMembers returns a paginated list of all access list
+     * members for all access lists.
      *
      * @generated from protobuf rpc: ListAllAccessListMembers(teleport.accesslist.v1.ListAllAccessListMembersRequest) returns (teleport.accesslist.v1.ListAllAccessListMembersResponse);
      */
     listAllAccessListMembers(input: ListAllAccessListMembersRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: ListAllAccessListMembersResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: ListAllAccessListMembersResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: ListAllAccessListMembersResponse) => void)): grpc.ClientUnaryCall {
-        const method = AccessListService.methods[8];
+        const method = AccessListService.methods[9];
         return this.makeUnaryRequest<ListAllAccessListMembersRequest, ListAllAccessListMembersResponse>(`/${AccessListService.typeName}/${method.name}`, (value: ListAllAccessListMembersRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): ListAllAccessListMembersResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
@@ -352,7 +385,7 @@ export class AccessListServiceClient extends grpc.Client implements IAccessListS
      * @generated from protobuf rpc: GetAccessListMember(teleport.accesslist.v1.GetAccessListMemberRequest) returns (teleport.accesslist.v1.Member);
      */
     getAccessListMember(input: GetAccessListMemberRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: Member) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: Member) => void), callback?: ((err: grpc.ServiceError | null, value?: Member) => void)): grpc.ClientUnaryCall {
-        const method = AccessListService.methods[9];
+        const method = AccessListService.methods[10];
         return this.makeUnaryRequest<GetAccessListMemberRequest, Member>(`/${AccessListService.typeName}/${method.name}`, (value: GetAccessListMemberRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): Member => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
@@ -361,34 +394,37 @@ export class AccessListServiceClient extends grpc.Client implements IAccessListS
      * @generated from protobuf rpc: UpsertAccessListMember(teleport.accesslist.v1.UpsertAccessListMemberRequest) returns (teleport.accesslist.v1.Member);
      */
     upsertAccessListMember(input: UpsertAccessListMemberRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: Member) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: Member) => void), callback?: ((err: grpc.ServiceError | null, value?: Member) => void)): grpc.ClientUnaryCall {
-        const method = AccessListService.methods[10];
+        const method = AccessListService.methods[11];
         return this.makeUnaryRequest<UpsertAccessListMemberRequest, Member>(`/${AccessListService.typeName}/${method.name}`, (value: UpsertAccessListMemberRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): Member => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
-     * DeleteAccessListMember hard deletes the specified access list member resource.
+     * DeleteAccessListMember hard deletes the specified access list member
+     * resource.
      *
      * @generated from protobuf rpc: DeleteAccessListMember(teleport.accesslist.v1.DeleteAccessListMemberRequest) returns (google.protobuf.Empty);
      */
     deleteAccessListMember(input: DeleteAccessListMemberRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: Empty) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: Empty) => void), callback?: ((err: grpc.ServiceError | null, value?: Empty) => void)): grpc.ClientUnaryCall {
-        const method = AccessListService.methods[11];
+        const method = AccessListService.methods[12];
         return this.makeUnaryRequest<DeleteAccessListMemberRequest, Empty>(`/${AccessListService.typeName}/${method.name}`, (value: DeleteAccessListMemberRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): Empty => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
-     * DeleteAllAccessListMembers hard deletes all access list members for an access list.
+     * DeleteAllAccessListMembers hard deletes all access list members for an
+     * access list.
      *
      * @generated from protobuf rpc: DeleteAllAccessListMembersForAccessList(teleport.accesslist.v1.DeleteAllAccessListMembersForAccessListRequest) returns (google.protobuf.Empty);
      */
     deleteAllAccessListMembersForAccessList(input: DeleteAllAccessListMembersForAccessListRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: Empty) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: Empty) => void), callback?: ((err: grpc.ServiceError | null, value?: Empty) => void)): grpc.ClientUnaryCall {
-        const method = AccessListService.methods[12];
+        const method = AccessListService.methods[13];
         return this.makeUnaryRequest<DeleteAllAccessListMembersForAccessListRequest, Empty>(`/${AccessListService.typeName}/${method.name}`, (value: DeleteAllAccessListMembersForAccessListRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): Empty => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
-     * DeleteAllAccessListMembers hard deletes all access list members for an access list.
+     * DeleteAllAccessListMembers hard deletes all access list members for an
+     * access list.
      *
      * @generated from protobuf rpc: DeleteAllAccessListMembers(teleport.accesslist.v1.DeleteAllAccessListMembersRequest) returns (google.protobuf.Empty);
      */
     deleteAllAccessListMembers(input: DeleteAllAccessListMembersRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: Empty) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: Empty) => void), callback?: ((err: grpc.ServiceError | null, value?: Empty) => void)): grpc.ClientUnaryCall {
-        const method = AccessListService.methods[13];
+        const method = AccessListService.methods[14];
         return this.makeUnaryRequest<DeleteAllAccessListMembersRequest, Empty>(`/${AccessListService.typeName}/${method.name}`, (value: DeleteAllAccessListMembersRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): Empty => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
@@ -397,35 +433,38 @@ export class AccessListServiceClient extends grpc.Client implements IAccessListS
      * @generated from protobuf rpc: UpsertAccessListWithMembers(teleport.accesslist.v1.UpsertAccessListWithMembersRequest) returns (teleport.accesslist.v1.UpsertAccessListWithMembersResponse);
      */
     upsertAccessListWithMembers(input: UpsertAccessListWithMembersRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: UpsertAccessListWithMembersResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: UpsertAccessListWithMembersResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: UpsertAccessListWithMembersResponse) => void)): grpc.ClientUnaryCall {
-        const method = AccessListService.methods[14];
+        const method = AccessListService.methods[15];
         return this.makeUnaryRequest<UpsertAccessListWithMembersRequest, UpsertAccessListWithMembersResponse>(`/${AccessListService.typeName}/${method.name}`, (value: UpsertAccessListWithMembersRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): UpsertAccessListWithMembersResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
-     * ListAccessListReviews will list access list reviews for a particular access list.
+     * ListAccessListReviews will list access list reviews for a particular access
+     * list.
      *
      * @generated from protobuf rpc: ListAccessListReviews(teleport.accesslist.v1.ListAccessListReviewsRequest) returns (teleport.accesslist.v1.ListAccessListReviewsResponse);
      */
     listAccessListReviews(input: ListAccessListReviewsRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: ListAccessListReviewsResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: ListAccessListReviewsResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: ListAccessListReviewsResponse) => void)): grpc.ClientUnaryCall {
-        const method = AccessListService.methods[15];
+        const method = AccessListService.methods[16];
         return this.makeUnaryRequest<ListAccessListReviewsRequest, ListAccessListReviewsResponse>(`/${AccessListService.typeName}/${method.name}`, (value: ListAccessListReviewsRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): ListAccessListReviewsResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
-     * ListAllAccessListReviews will list access list reviews for all access lists.
+     * ListAllAccessListReviews will list access list reviews for all access
+     * lists.
      *
      * @generated from protobuf rpc: ListAllAccessListReviews(teleport.accesslist.v1.ListAllAccessListReviewsRequest) returns (teleport.accesslist.v1.ListAllAccessListReviewsResponse);
      */
     listAllAccessListReviews(input: ListAllAccessListReviewsRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: ListAllAccessListReviewsResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: ListAllAccessListReviewsResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: ListAllAccessListReviewsResponse) => void)): grpc.ClientUnaryCall {
-        const method = AccessListService.methods[16];
+        const method = AccessListService.methods[17];
         return this.makeUnaryRequest<ListAllAccessListReviewsRequest, ListAllAccessListReviewsResponse>(`/${AccessListService.typeName}/${method.name}`, (value: ListAllAccessListReviewsRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): ListAllAccessListReviewsResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
-     * CreateAccessListReview will create a new review for an access list. It will also modify the original access list
-     * and its members depending on the details of the review.
+     * CreateAccessListReview will create a new review for an access list. It will
+     * also modify the original access list and its members depending on the
+     * details of the review.
      *
      * @generated from protobuf rpc: CreateAccessListReview(teleport.accesslist.v1.CreateAccessListReviewRequest) returns (teleport.accesslist.v1.CreateAccessListReviewResponse);
      */
     createAccessListReview(input: CreateAccessListReviewRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: CreateAccessListReviewResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: CreateAccessListReviewResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: CreateAccessListReviewResponse) => void)): grpc.ClientUnaryCall {
-        const method = AccessListService.methods[17];
+        const method = AccessListService.methods[18];
         return this.makeUnaryRequest<CreateAccessListReviewRequest, CreateAccessListReviewResponse>(`/${AccessListService.typeName}/${method.name}`, (value: CreateAccessListReviewRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): CreateAccessListReviewResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
@@ -434,7 +473,7 @@ export class AccessListServiceClient extends grpc.Client implements IAccessListS
      * @generated from protobuf rpc: DeleteAccessListReview(teleport.accesslist.v1.DeleteAccessListReviewRequest) returns (google.protobuf.Empty);
      */
     deleteAccessListReview(input: DeleteAccessListReviewRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: Empty) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: Empty) => void), callback?: ((err: grpc.ServiceError | null, value?: Empty) => void)): grpc.ClientUnaryCall {
-        const method = AccessListService.methods[18];
+        const method = AccessListService.methods[19];
         return this.makeUnaryRequest<DeleteAccessListReviewRequest, Empty>(`/${AccessListService.typeName}/${method.name}`, (value: DeleteAccessListReviewRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): Empty => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
@@ -443,16 +482,17 @@ export class AccessListServiceClient extends grpc.Client implements IAccessListS
      * @generated from protobuf rpc: AccessRequestPromote(teleport.accesslist.v1.AccessRequestPromoteRequest) returns (teleport.accesslist.v1.AccessRequestPromoteResponse);
      */
     accessRequestPromote(input: AccessRequestPromoteRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: AccessRequestPromoteResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: AccessRequestPromoteResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: AccessRequestPromoteResponse) => void)): grpc.ClientUnaryCall {
-        const method = AccessListService.methods[19];
+        const method = AccessListService.methods[20];
         return this.makeUnaryRequest<AccessRequestPromoteRequest, AccessRequestPromoteResponse>(`/${AccessListService.typeName}/${method.name}`, (value: AccessRequestPromoteRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): AccessRequestPromoteResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
-     * GetSuggestedAccessLists returns suggested access lists for an access request.
+     * GetSuggestedAccessLists returns suggested access lists for an access
+     * request.
      *
      * @generated from protobuf rpc: GetSuggestedAccessLists(teleport.accesslist.v1.GetSuggestedAccessListsRequest) returns (teleport.accesslist.v1.GetSuggestedAccessListsResponse);
      */
     getSuggestedAccessLists(input: GetSuggestedAccessListsRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: GetSuggestedAccessListsResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: GetSuggestedAccessListsResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: GetSuggestedAccessListsResponse) => void)): grpc.ClientUnaryCall {
-        const method = AccessListService.methods[20];
+        const method = AccessListService.methods[21];
         return this.makeUnaryRequest<GetSuggestedAccessListsRequest, GetSuggestedAccessListsResponse>(`/${AccessListService.typeName}/${method.name}`, (value: GetSuggestedAccessListsRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): GetSuggestedAccessListsResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
 }

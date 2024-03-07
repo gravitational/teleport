@@ -98,6 +98,12 @@ type WebSession interface {
 	SetSAMLSession(*SAMLSessionData)
 	// GetSAMLSession gets the SAML session data. Is considered secret.
 	GetSAMLSession() *SAMLSessionData
+	// SetDeviceWebToken sets the session's DeviceWebToken.
+	// The token is considered a secret.
+	SetDeviceWebToken(*DeviceWebToken)
+	// GetDeviceWebToken returns the session's DeviceWebToken, if any.
+	// The token is considered a secret.
+	GetDeviceWebToken() *DeviceWebToken
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
@@ -191,6 +197,7 @@ func (ws *WebSessionV2) WithoutSecrets() WebSession {
 	cp := proto.Clone(ws).(*WebSessionV2)
 	cp.Spec.Priv = nil
 	cp.Spec.SAMLSession = nil
+	cp.Spec.DeviceWebToken = nil
 	return cp
 }
 
@@ -212,6 +219,18 @@ func (ws *WebSessionV2) SetSAMLSession(samlSession *SAMLSessionData) {
 // GetSAMLSession gets the SAML session data. Is considered secret.
 func (ws *WebSessionV2) GetSAMLSession() *SAMLSessionData {
 	return ws.Spec.SAMLSession
+}
+
+// SetDeviceWebToken sets the session's DeviceWebToken.
+// The token is considered a secret.
+func (ws *WebSessionV2) SetDeviceWebToken(webToken *DeviceWebToken) {
+	ws.Spec.DeviceWebToken = webToken
+}
+
+// GetDeviceWebToken returns the session's DeviceWebToken, if any.
+// The token is considered a secret.
+func (ws *WebSessionV2) GetDeviceWebToken() *DeviceWebToken {
+	return ws.Spec.DeviceWebToken
 }
 
 // setStaticFields sets static resource header and metadata fields.

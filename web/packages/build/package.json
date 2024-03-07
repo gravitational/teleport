@@ -63,7 +63,7 @@
     "core-js": "^3",
     "cross-env": "5.0.5",
     "cross-spawn": "6.0.5",
-    "electron-builder": "^24.9.4",
+    "electron-builder": "^24.13.3",
     "eslint": "^8.50.0",
     "eslint-import-resolver-typescript": "^3.6.1",
     "eslint-import-resolver-webpack": "^0.13.7",

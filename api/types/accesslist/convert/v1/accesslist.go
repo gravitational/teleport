@@ -93,6 +93,12 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		nextAuditDate = msg.Spec.Audit.NextAuditDate.AsTime()
 	}
 
+	var memberCount *uint32
+	if msg.Status != nil && msg.Status.MemberCount != nil {
+		memberCount = new(uint32)
+		*memberCount = *msg.Status.MemberCount
+	}
+
 	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.Spec{
 		Title:       msg.Spec.Title,
 		Description: msg.Spec.Description,
@@ -120,6 +126,9 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	accessList.Status = accesslist.Status{
+		MemberCount: memberCount,
 	}
 
 	for _, opt := range opts {
@@ -165,6 +174,12 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 		nextAuditDate = timestamppb.New(accessList.Spec.Audit.NextAuditDate)
 	}
 
+	var memberCount *uint32
+	if accessList.Status.MemberCount != nil {
+		memberCount = new(uint32)
+		*memberCount = *accessList.Status.MemberCount
+	}
+
 	return &accesslistv1.AccessList{
 		Header: headerv1.ToResourceHeaderProto(accessList.ResourceHeader),
 		Spec: &accesslistv1.AccessListSpec{
@@ -196,6 +211,9 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 				Traits: traitv1.ToProto(accessList.Spec.Grants.Traits),
 			},
 			OwnerGrants: ownerGrants,
+		},
+		Status: &accesslistv1.AccessListStatus{
+			MemberCount: memberCount,
 		},
 	}
 }

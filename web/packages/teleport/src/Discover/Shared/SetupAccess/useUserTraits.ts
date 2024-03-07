@@ -61,15 +61,17 @@ export function useUserTraits() {
   let staticTraits = initUserTraits();
   switch (resourceSpec.kind) {
     case ResourceKind.Kubernetes:
-      const kube = (agentMeta as KubeMeta).kube;
-      staticTraits.kubeUsers = arrayStrDiff(
-        kube.users,
-        dynamicTraits.kubeUsers
-      );
-      staticTraits.kubeGroups = arrayStrDiff(
-        kube.groups,
-        dynamicTraits.kubeGroups
-      );
+      if (!wantAutoDiscover) {
+        const kube = (agentMeta as KubeMeta).kube;
+        staticTraits.kubeUsers = arrayStrDiff(
+          kube.users,
+          dynamicTraits.kubeUsers
+        );
+        staticTraits.kubeGroups = arrayStrDiff(
+          kube.groups,
+          dynamicTraits.kubeGroups
+        );
+      }
       break;
 
     case ResourceKind.Server:
@@ -135,10 +137,13 @@ export function useUserTraits() {
           }
         });
 
-        nextStep({
-          kubeUsers: [...newDynamicKubeUsers],
-          kubeGroups: [...newDynamicKubeGroups],
-        });
+        nextStep(
+          {
+            kubeUsers: [...newDynamicKubeUsers],
+            kubeGroups: [...newDynamicKubeGroups],
+          },
+          numStepsToIncrement
+        );
         break;
 
       case ResourceKind.Server:

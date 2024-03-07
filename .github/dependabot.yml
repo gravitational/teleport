@@ -7,11 +7,6 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     ignore:
-      # AWS, otel and k8s have their own groups.
-      - dependency-name: github.com/aws/*
-      - dependency-name: go.opentelemetry.io/*
-      - dependency-name: k8s.io/*
-      - dependency-name: sigs.k8s.io/*
       # Breaks backwards compatibility
       - dependency-name: github.com/gravitational/ttlmap
       # Must be kept in-sync with libbpf
@@ -29,9 +24,26 @@ updates:
     open-pull-requests-limit: 10
     groups:
       go:
-        update-types:
-          - "minor"
-          - "patch"
+        update-types: ["minor", "patch"]
+        # AWS, k8s and otel have their own groups.
+        exclude-patterns:
+          - github.com/aws/*
+          - go.opentelemetry.io/*
+          - k8s.io/*
+          - sigs.k8s.io/*
+      aws:
+        update-types: ["minor", "patch"]
+        patterns:
+          - github.com/aws/*
+      k8s:
+        update-types: ["minor", "patch"]
+        patterns:
+          - k8s.io/*
+          - sigs.k8s.io/*
+      otel:
+        update-types: ["minor", "patch"]
+        patterns:
+          - go.opentelemetry.io/*
     reviewers:
       - codingllama
       - jentfoo
@@ -51,86 +63,14 @@ updates:
     open-pull-requests-limit: 10
     groups:
       go:
-        update-types:
-          - "minor"
-          - "patch"
-    reviewers:
-      - codingllama
-      - jentfoo
-      - rosstimothy
-      - zmb3
-    labels:
-      - "dependencies"
-      - "go"
-      - "no-changelog"
-
-  # Group certain dependencies together.
-  # These contain numerous packages and are either frequently updated (AWS) or
-  # better updated in lockstep (k8s, otel).
-  # AWS group.
-  - package-ecosystem: gomod
-    directory: "/"
-    schedule:
-      interval: weekly
-      day: "sunday"
-      time: "09:00" # 9am UTC
-    allow:
-      - dependency-name: github.com/aws/*
-    open-pull-requests-limit: 10
-    groups:
-      go:
-        update-types:
-          - "minor"
-          - "patch"
-    reviewers:
-      - codingllama
-      - jentfoo
-      - rosstimothy
-      - zmb3
-    labels:
-      - "dependencies"
-      - "go"
-      - "no-changelog"
-  # otel group.
-  - package-ecosystem: gomod
-    directory: "/"
-    schedule:
-      interval: weekly
-      day: "sunday"
-      time: "09:00" # 9am UTC
-    allow:
-      - dependency-name: go.opentelemetry.io/*
-    open-pull-requests-limit: 10
-    groups:
-      go:
-        update-types:
-          - "minor"
-          - "patch"
-    reviewers:
-      - codingllama
-      - jentfoo
-      - rosstimothy
-      - zmb3
-    labels:
-      - "dependencies"
-      - "go"
-      - "no-changelog"
-  # k8s group.
-  - package-ecosystem: gomod
-    directory: "/"
-    schedule:
-      interval: weekly
-      day: "sunday"
-      time: "09:00" # 9am UTC
-    allow:
-      - dependency-name: k8s.io/*
-      - dependency-name: sigs.k8s.io/*
-    open-pull-requests-limit: 10
-    groups:
-      go:
-        update-types:
-          - "minor"
-          - "patch"
+        update-types: ["minor", "patch"]
+        # otel has its own group.
+        exclude-patterns:
+          - go.opentelemetry.io/*
+      otel:
+        update-types: ["minor", "patch"]
+        patterns:
+          - go.opentelemetry.io/*
     reviewers:
       - codingllama
       - jentfoo

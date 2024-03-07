@@ -44,6 +44,12 @@ exports[`render with URL loc state set to "server" 1`] = `
   box-sizing: border-box;
 }
 
+.c11 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c1 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -96,12 +102,6 @@ exports[`render with URL loc state set to "server" 1`] = `
   font-size: 12px;
   margin: 0px;
   margin-top: 40px;
-}
-
-.c11 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c23 {

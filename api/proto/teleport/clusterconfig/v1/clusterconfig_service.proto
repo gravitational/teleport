@@ -38,7 +38,7 @@ service ClusterConfigService {
   // UpsertSessionRecordingConfig overwrites the active session recording configuration.
   rpc UpsertSessionRecordingConfig(UpsertSessionRecordingConfigRequest) returns (types.SessionRecordingConfigV2);
   // ResetSessionRecordingConfig restores the active session recording configuration to default settings.
-  rpc ResetSessionRecordingConfig(ResetSessionRecordingConfigRequest) returns (types.ClusterNetworkingConfigV2);
+  rpc ResetSessionRecordingConfig(ResetSessionRecordingConfigRequest) returns (types.SessionRecordingConfigV2);
 
   // GetAuthPreference retrieves the active auth preference.
   rpc GetAuthPreference(GetAuthPreferenceRequest) returns (types.AuthPreferenceV2);

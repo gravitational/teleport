@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 )
@@ -104,10 +106,12 @@ func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context) (*integr
 
 // AWSOIDCServiceConfig holds configuration options for the AWSOIDC Integration gRPC service.
 type AWSOIDCServiceConfig struct {
-	IntegrationService *Service
-	Authorizer         authz.Authorizer
-	Cache              CacheAWSOIDC
-	Logger             *logrus.Entry
+	IntegrationService    *Service
+	Authorizer            authz.Authorizer
+	Cache                 CacheAWSOIDC
+	Clock                 clockwork.Clock
+	ProxyPublicAddrGetter func() string
+	Logger                *logrus.Entry
 }
 
 // CheckAndSetDefaults checks the AWSOIDCServiceConfig fields and returns an error if a required param is not provided.
@@ -125,6 +129,14 @@ func (s *AWSOIDCServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("cache is required")
 	}
 
+	if s.Clock == nil {
+		s.Clock = clockwork.NewRealClock()
+	}
+
+	if s.ProxyPublicAddrGetter == nil {
+		return trace.BadParameter("proxyPublicAddrGetter is required")
+	}
+
 	if s.Logger == nil {
 		s.Logger = logrus.WithField(trace.Component, "integrations.awsoidc.service")
 	}
@@ -136,10 +148,12 @@ func (s *AWSOIDCServiceConfig) CheckAndSetDefaults() error {
 type AWSOIDCService struct {
 	integrationpb.UnimplementedAWSOIDCServiceServer
 
-	integrationService *Service
-	authorizer         authz.Authorizer
-	logger             *logrus.Entry
-	cache              CacheAWSOIDC
+	integrationService    *Service
+	authorizer            authz.Authorizer
+	logger                *logrus.Entry
+	clock                 clockwork.Clock
+	proxyPublicAddrGetter func() string
+	cache                 CacheAWSOIDC
 }
 
 // CacheAWSOIDC is the subset of the cached resources that the Service queries.
@@ -161,10 +175,12 @@ func NewAWSOIDCService(cfg *AWSOIDCServiceConfig) (*AWSOIDCService, error) {
 	}
 
 	return &AWSOIDCService{
-		integrationService: cfg.IntegrationService,
-		logger:             cfg.Logger,
-		authorizer:         cfg.Authorizer,
-		cache:              cfg.Cache,
+		integrationService:    cfg.IntegrationService,
+		logger:                cfg.Logger,
+		authorizer:            cfg.Authorizer,
+		proxyPublicAddrGetter: cfg.ProxyPublicAddrGetter,
+		clock:                 cfg.Clock,
+		cache:                 cfg.Cache,
 	}, nil
 }
 
@@ -246,6 +262,65 @@ func (s *AWSOIDCService) ListEICE(ctx context.Context, req *integrationpb.ListEI
 		NextToken:     listResp.NextToken,
 		Ec2Ices:       eiceList,
 		DashboardLink: listResp.DashboardLink,
+	}, nil
+}
+
+// CreateEICE creates multiple EC2 Instance Connect Endpoint using the provided Subnets and Security Group IDs.
+func (s *AWSOIDCService) CreateEICE(ctx context.Context, req *integrationpb.CreateEICERequest) (*integrationpb.CreateEICEResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	createClient, err := awsoidc.NewCreateEC2ICEClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterName, err := s.cache.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	endpoints := make([]awsoidc.EC2ICEEndpoint, 0, len(req.Endpoints))
+	for _, endpoint := range req.Endpoints {
+		endpoints = append(endpoints, awsoidc.EC2ICEEndpoint{
+			Name:             endpoint.Name,
+			SubnetID:         endpoint.SubnetId,
+			SecurityGroupIDs: endpoint.SecurityGroupIds,
+		})
+	}
+
+	createResp, err := awsoidc.CreateEC2ICE(ctx, createClient, awsoidc.CreateEC2ICERequest{
+		Cluster:         clusterName.GetClusterName(),
+		IntegrationName: req.Integration,
+		Endpoints:       endpoints,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	eiceList := make([]*integrationpb.EC2ICEndpoint, 0, len(createResp.CreatedEndpoints))
+	for _, e := range createResp.CreatedEndpoints {
+		eiceList = append(eiceList, &integrationpb.EC2ICEndpoint{
+			Name:             e.Name,
+			SubnetId:         e.SubnetID,
+			SecurityGroupIds: e.SecurityGroupIDs,
+		})
+	}
+
+	return &integrationpb.CreateEICEResponse{
+		Name:             createResp.Name,
+		CreatedEndpoints: eiceList,
 	}, nil
 }
 
@@ -414,6 +489,65 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 	return &integrationpb.DeployDatabaseServiceResponse{
 		ClusterArn:          deployDBResp.ClusterARN,
 		ClusterDashboardUrl: deployDBResp.ClusterDashboardURL,
+	}, nil
+}
+
+// EnrollEKSClusters enrolls EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.
+func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integrationpb.EnrollEKSClustersRequest) (*integrationpb.EnrollEKSClustersResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	publicProxyAddr := s.proxyPublicAddrGetter()
+	if publicProxyAddr == "" {
+		return nil, trace.BadParameter("could not get public proxy address.")
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	credsProvider, err := awsoidc.NewAWSCredentialsProvider(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, s.cache.UpsertToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	features := modules.GetModules().Features()
+
+	enrollmentResponse, err := awsoidc.EnrollEKSClusters(ctx, s.logger, s.clock, publicProxyAddr, credsProvider, enrollEKSClient, awsoidc.EnrollEKSClustersRequest{
+		Region:             req.Region,
+		ClusterNames:       req.GetEksClusterNames(),
+		EnableAppDiscovery: req.EnableAppDiscovery,
+		EnableAutoUpgrades: features.AutomaticUpgrades,
+		IsCloud:            features.Cloud,
+		AgentVersion:       req.AgentVersion,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	results := make([]*integrationpb.EnrollEKSClusterResult, 0, len(enrollmentResponse.Results))
+	for _, r := range enrollmentResponse.Results {
+		results = append(results, &integrationpb.EnrollEKSClusterResult{
+			EksClusterName: r.ClusterName,
+			ResourceId:     r.ResourceId,
+			Error:          trace.UserMessage(r.Error),
+		})
+	}
+
+	return &integrationpb.EnrollEKSClustersResponse{
+		Results: results,
 	}, nil
 }
 

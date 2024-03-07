@@ -51,6 +51,12 @@ export interface AccessList {
      * @generated from protobuf field: teleport.accesslist.v1.AccessListSpec spec = 2;
      */
     spec?: AccessListSpec;
+    /**
+     * status contains dynamically calculated fields.
+     *
+     * @generated from protobuf field: teleport.accesslist.v1.AccessListStatus status = 3;
+     */
+    status?: AccessListStatus;
 }
 /**
  * AccessListSpec is the specification for an access list.
@@ -77,17 +83,19 @@ export interface AccessListSpec {
      */
     audit?: AccessListAudit;
     /**
-     * membership_requires describes the requirements for a user to be a member of the access list.
-     * For a membership to an access list to be effective, the user must meet the requirements of
-     * Membership_requires and must be in the members list.
+     * membership_requires describes the requirements for a user to be a member of
+     * the access list. For a membership to an access list to be effective, the
+     * user must meet the requirements of Membership_requires and must be in the
+     * members list.
      *
      * @generated from protobuf field: teleport.accesslist.v1.AccessListRequires membership_requires = 4;
      */
     membershipRequires?: AccessListRequires;
     /**
-     * ownership_requires describes the requirements for a user to be an owner of the access list.
-     * For ownership of an access list to be effective, the user must meet the requirements of
-     * ownership_requires and must be in the owners list.
+     * ownership_requires describes the requirements for a user to be an owner of
+     * the access list. For ownership of an access list to be effective, the user
+     * must meet the requirements of ownership_requires and must be in the owners
+     * list.
      *
      * @generated from protobuf field: teleport.accesslist.v1.AccessListRequires ownership_requires = 5;
      */
@@ -110,7 +118,8 @@ export interface AccessListSpec {
      *   `explicit` (default): To be considered ag member of the access list, a
      *                         user must both meet the `membership_requires`
      *                         conditions AND be explicitly added to the list.
-     *   `implicit`: Any user meeting the `membership_requires` conditions will automatically
+     *   `implicit`: Any user meeting the `membership_requires` conditions will
+     *   automatically
      *             be considered a member of this list.
      *
      * @generated from protobuf field: string membership = 9;
@@ -119,10 +128,12 @@ export interface AccessListSpec {
     /**
      * ownership defines how list ownership of this list is determined. There are
      * two possible values:
-     *   `explicit` (default): To be considered an owner of the access list, a user
-     *                         must both meet the `ownership_requires` conditions AND be
-     *                         explicitly added to the list.
-     *   `implicit`: Any user meeting the `ownership_requires` conditions will automatically
+     *   `explicit` (default): To be considered an owner of the access list, a
+     *   user
+     *                         must both meet the `ownership_requires` conditions
+     *                         AND be explicitly added to the list.
+     *   `implicit`: Any user meeting the `ownership_requires` conditions will
+     *   automatically
      *             be considered an owner of this list.
      *
      * @generated from protobuf field: string ownership = 10;
@@ -148,7 +159,8 @@ export interface AccessListOwner {
      */
     name: string;
     /**
-     * description is the plaintext description of the owner and why they are an owner.
+     * description is the plaintext description of the owner and why they are an
+     * owner.
      *
      * @generated from protobuf field: string description = 2;
      */
@@ -206,27 +218,30 @@ export interface Recurrence {
     dayOfMonth: ReviewDayOfMonth;
 }
 /**
- * Notifications contains the configuration for notifying users of a nearing next audit date.
+ * Notifications contains the configuration for notifying users of a nearing
+ * next audit date.
  *
  * @generated from protobuf message teleport.accesslist.v1.Notifications
  */
 export interface Notifications {
     /**
-     * start specifies when to start notifying users that the next audit date is coming up.
+     * start specifies when to start notifying users that the next audit date is
+     * coming up.
      *
      * @generated from protobuf field: google.protobuf.Duration start = 1;
      */
     start?: Duration;
 }
 /**
- * AccessListRequires describes a requirement section for an access list. A user must
- * meet the following criteria to obtain the specific access to the list.
+ * AccessListRequires describes a requirement section for an access list. A user
+ * must meet the following criteria to obtain the specific access to the list.
  *
  * @generated from protobuf message teleport.accesslist.v1.AccessListRequires
  */
 export interface AccessListRequires {
     /**
-     * roles are the user roles that must be present for the user to obtain access.
+     * roles are the user roles that must be present for the user to obtain
+     * access.
      *
      * @generated from protobuf field: repeated string roles = 1;
      */
@@ -239,19 +254,22 @@ export interface AccessListRequires {
     traits: Trait[];
 }
 /**
- * AccessListGrants describes what access is granted by membership to the access list.
+ * AccessListGrants describes what access is granted by membership to the access
+ * list.
  *
  * @generated from protobuf message teleport.accesslist.v1.AccessListGrants
  */
 export interface AccessListGrants {
     /**
-     * roles are the roles that are granted to users who are members of the access list.
+     * roles are the roles that are granted to users who are members of the access
+     * list.
      *
      * @generated from protobuf field: repeated string roles = 1;
      */
     roles: string[];
     /**
-     * traits are the traits that are granted to users who are members of the access list.
+     * traits are the traits that are granted to users who are members of the
+     * access list.
      *
      * @generated from protobuf field: repeated teleport.trait.v1.Trait traits = 2;
      */
@@ -377,8 +395,8 @@ export interface ReviewSpec {
      */
     reviewDate?: Timestamp;
     /**
-     * notes is an optional plaintext attached to the review that can be used by the review for arbitrary
-     * note taking on the review.
+     * notes is an optional plaintext attached to the review that can be used by
+     * the review for arbitrary note taking on the review.
      *
      * @generated from protobuf field: string notes = 4;
      */
@@ -397,13 +415,15 @@ export interface ReviewSpec {
  */
 export interface ReviewChanges {
     /**
-     * membership_requirements_changed is populated if the requirements were changed as part of this review.
+     * membership_requirements_changed is populated if the requirements were
+     * changed as part of this review.
      *
      * @generated from protobuf field: teleport.accesslist.v1.AccessListRequires membership_requirements_changed = 2;
      */
     membershipRequirementsChanged?: AccessListRequires;
     /**
-     * removed_members contains the members that were removed as part of this review.
+     * removed_members contains the members that were removed as part of this
+     * review.
      *
      * @generated from protobuf field: repeated string removed_members = 3;
      */
@@ -415,11 +435,25 @@ export interface ReviewChanges {
      */
     reviewFrequencyChanged: ReviewFrequency;
     /**
-     * review_day_of_month_changed is populated if the review day of month has changed.
+     * review_day_of_month_changed is populated if the review day of month has
+     * changed.
      *
      * @generated from protobuf field: teleport.accesslist.v1.ReviewDayOfMonth review_day_of_month_changed = 5;
      */
     reviewDayOfMonthChanged: ReviewDayOfMonth;
+}
+/**
+ * AccessListStatus contains dynamic fields calculated during retrieval.
+ *
+ * @generated from protobuf message teleport.accesslist.v1.AccessListStatus
+ */
+export interface AccessListStatus {
+    /**
+     * member_count is the number of members in the in the access list.
+     *
+     * @generated from protobuf field: optional uint32 member_count = 1;
+     */
+    memberCount?: number;
 }
 /**
  * ReviewFrequency is the frequency of reviews.
@@ -484,7 +518,8 @@ export enum IneligibleStatus {
      */
     UNSPECIFIED = 0,
     /**
-     * INELIGIBLE_STATUS_ELIGIBLE means checks were done and user met all requirements.
+     * INELIGIBLE_STATUS_ELIGIBLE means checks were done and user met all
+     * requirements.
      *
      * @generated from protobuf enum value: INELIGIBLE_STATUS_ELIGIBLE = 1;
      */
@@ -496,9 +531,9 @@ export enum IneligibleStatus {
      */
     USER_NOT_EXIST = 2,
     /**
-     * INELIGIBLE_STATUS_MISSING_REQUIREMENTS means user is missing some requirements
-     * defined by AccessListRequires (fields can be either ownership_requires
-     * or membership_requires)
+     * INELIGIBLE_STATUS_MISSING_REQUIREMENTS means user is missing some
+     * requirements defined by AccessListRequires (fields can be either
+     * ownership_requires or membership_requires)
      *
      * @generated from protobuf enum value: INELIGIBLE_STATUS_MISSING_REQUIREMENTS = 3;
      */
@@ -516,7 +551,8 @@ class AccessList$Type extends MessageType<AccessList> {
     constructor() {
         super("teleport.accesslist.v1.AccessList", [
             { no: 1, name: "header", kind: "message", T: () => ResourceHeader },
-            { no: 2, name: "spec", kind: "message", T: () => AccessListSpec }
+            { no: 2, name: "spec", kind: "message", T: () => AccessListSpec },
+            { no: 3, name: "status", kind: "message", T: () => AccessListStatus }
         ]);
     }
     create(value?: PartialMessage<AccessList>): AccessList {
@@ -536,6 +572,9 @@ class AccessList$Type extends MessageType<AccessList> {
                 case /* teleport.accesslist.v1.AccessListSpec spec */ 2:
                     message.spec = AccessListSpec.internalBinaryRead(reader, reader.uint32(), options, message.spec);
                     break;
+                case /* teleport.accesslist.v1.AccessListStatus status */ 3:
+                    message.status = AccessListStatus.internalBinaryRead(reader, reader.uint32(), options, message.status);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -554,6 +593,9 @@ class AccessList$Type extends MessageType<AccessList> {
         /* teleport.accesslist.v1.AccessListSpec spec = 2; */
         if (message.spec)
             AccessListSpec.internalBinaryWrite(message.spec, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.accesslist.v1.AccessListStatus status = 3; */
+        if (message.status)
+            AccessListStatus.internalBinaryWrite(message.status, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1366,3 +1408,49 @@ class ReviewChanges$Type extends MessageType<ReviewChanges> {
  * @generated MessageType for protobuf message teleport.accesslist.v1.ReviewChanges
  */
 export const ReviewChanges = new ReviewChanges$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AccessListStatus$Type extends MessageType<AccessListStatus> {
+    constructor() {
+        super("teleport.accesslist.v1.AccessListStatus", [
+            { no: 1, name: "member_count", kind: "scalar", opt: true, T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AccessListStatus>): AccessListStatus {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<AccessListStatus>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessListStatus): AccessListStatus {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* optional uint32 member_count */ 1:
+                    message.memberCount = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessListStatus, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* optional uint32 member_count = 1; */
+        if (message.memberCount !== undefined)
+            writer.tag(1, WireType.Varint).uint32(message.memberCount);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.AccessListStatus
+ */
+export const AccessListStatus = new AccessListStatus$Type();

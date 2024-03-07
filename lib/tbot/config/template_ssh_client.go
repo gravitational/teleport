@@ -76,11 +76,11 @@ func (c *templateSSHClient) describe() []FileDescription {
 }
 
 func getClusterNames(
-	bot provider, connectedClusterName string,
+	ctx context.Context, bot provider, connectedClusterName string,
 ) ([]string, error) {
 	allClusterNames := []string{connectedClusterName}
 
-	leafClusters, err := bot.GetRemoteClusters()
+	leafClusters, err := bot.GetRemoteClusters(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -113,7 +113,7 @@ func (c *templateSSHClient) render(
 		return trace.BadParameter("proxy %+v has no usable public address: %v", ping.Proxy.SSH.PublicAddr, err)
 	}
 
-	clusterNames, err := getClusterNames(bot, ping.ClusterName)
+	clusterNames, err := getClusterNames(ctx, bot, ping.ClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}

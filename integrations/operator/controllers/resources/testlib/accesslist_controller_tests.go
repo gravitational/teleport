@@ -153,6 +153,7 @@ func (g *accessListTestingPrimitives) CompareTeleportAndKubernetesResource(tReso
 	} else {
 		opts = append(opts, cmpopts.IgnoreFields(accesslist.Audit{}, "Notifications"))
 	}
+	opts = append(opts, cmpopts.IgnoreFields(accesslist.AccessList{}, "Status"))
 
 	diff := cmp.Diff(
 		tResource,
