@@ -43,11 +43,11 @@ func TestEditResources(t *testing.T) {
 	log := utils.NewLoggerForTests()
 	fc, fds := testhelpers.DefaultConfig(t)
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc).(*auth.Client) // TODO: Once https://github.com/gravitational/teleport/pull/39058 is merged we can remove this cast
 
 	tests := []struct {
 		kind string
-		edit func(t *testing.T, fc *config.FileConfig, clt auth.ClientI)
+		edit func(t *testing.T, fc *config.FileConfig, clt *auth.Client)
 	}{
 		{
 			kind: types.KindGithubConnector,
@@ -70,7 +70,7 @@ func TestEditResources(t *testing.T) {
 	}
 }
 
-func testEditGithubConnector(t *testing.T, fc *config.FileConfig, clt auth.ClientI) {
+func testEditGithubConnector(t *testing.T, fc *config.FileConfig, clt *auth.Client) {
 	ctx := context.Background()
 
 	expected, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
@@ -120,7 +120,7 @@ func testEditGithubConnector(t *testing.T, fc *config.FileConfig, clt auth.Clien
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
 
-func testEditRole(t *testing.T, fc *config.FileConfig, clt auth.ClientI) {
+func testEditRole(t *testing.T, fc *config.FileConfig, clt *auth.Client) {
 	ctx := context.Background()
 
 	expected, err := types.NewRole("test-role", types.RoleSpecV6{})
@@ -158,7 +158,7 @@ func testEditRole(t *testing.T, fc *config.FileConfig, clt auth.ClientI) {
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
 
-func testEditUser(t *testing.T, fc *config.FileConfig, clt auth.ClientI) {
+func testEditUser(t *testing.T, fc *config.FileConfig, clt *auth.Client) {
 	ctx := context.Background()
 
 	expected, err := types.NewUser("llama")
@@ -213,11 +213,11 @@ func TestEditEnterpriseResources(t *testing.T) {
 	log := utils.NewLoggerForTests()
 	fc, fds := testhelpers.DefaultConfig(t)
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc).(*auth.Client) // TODO: Once https://github.com/gravitational/teleport/pull/39058 is merged we can remove this cast
 
 	tests := []struct {
 		kind string
-		edit func(t *testing.T, fc *config.FileConfig, clt auth.ClientI)
+		edit func(t *testing.T, fc *config.FileConfig, clt *auth.Client)
 	}{
 		{
 			kind: types.KindOIDCConnector,
@@ -236,7 +236,7 @@ func TestEditEnterpriseResources(t *testing.T) {
 	}
 }
 
-func testEditOIDCConnector(t *testing.T, fc *config.FileConfig, clt auth.ClientI) {
+func testEditOIDCConnector(t *testing.T, fc *config.FileConfig, clt *auth.Client) {
 	ctx := context.Background()
 	expected, err := types.NewOIDCConnector("oidc", types.OIDCConnectorSpecV3{
 		ClientID:     "12345",
@@ -288,7 +288,7 @@ func testEditOIDCConnector(t *testing.T, fc *config.FileConfig, clt auth.ClientI
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
 
-func testEditSAMLConnector(t *testing.T, fc *config.FileConfig, clt auth.ClientI) {
+func testEditSAMLConnector(t *testing.T, fc *config.FileConfig, clt *auth.Client) {
 	ctx := context.Background()
 
 	expected, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
