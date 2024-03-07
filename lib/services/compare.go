@@ -36,8 +36,7 @@ type IsEqual[T any] interface {
 // CompareResources compares two resources by all significant fields.
 func CompareResources[T any](resA, resB T) int {
 	var equal bool
-	hasEqual, ok := any(resA).(IsEqual[T])
-	if ok {
+	if hasEqual, ok := any(resA).(IsEqual[T]); ok {
 		equal = hasEqual.IsEqual(resB)
 	} else {
 		equal = cmp.Equal(resA, resB,
