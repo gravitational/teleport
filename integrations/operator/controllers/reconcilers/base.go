@@ -32,7 +32,7 @@ import (
 
 // TODO(hugoShaka) : merge the base reconciler with the generic reocnciler.
 // This was a separate struct for backward compatibility but we removed the last
-// controller relying directly on the abse reconciler.
+// controller relying directly on the base reconciler.
 
 const (
 	// DeletionFinalizer is a name of finalizer added to Resource's 'finalizers' field
