@@ -84,7 +84,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 }
 
 // TryRun attempts to run subcommands.
-func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
+func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
 	switch cmd {
 	case c.botsList.FullCommand():
 		err = c.ListBots(ctx, client)
@@ -103,7 +103,7 @@ func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 
 // ListBots writes a listing of the cluster's certificate renewal bots
 // to standard out.
-func (c *BotsCommand) ListBots(ctx context.Context, client auth.ClientI) error {
+func (c *BotsCommand) ListBots(ctx context.Context, client *auth.Client) error {
 	// TODO: consider adding a custom column for impersonator roles, locks, ??
 	users, err := client.GetBotUsers(ctx)
 	if err != nil {
@@ -179,7 +179,7 @@ Please note:
 `))
 
 // AddBot adds a new certificate renewal bot to the cluster.
-func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
+func (c *BotsCommand) AddBot(ctx context.Context, client *auth.Client) error {
 	roles := splitRoles(c.botRoles)
 	if len(roles) == 0 {
 		return trace.BadParameter("at least one role must be specified with --roles")
@@ -239,7 +239,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 	})
 }
 
-func (c *BotsCommand) RemoveBot(ctx context.Context, client auth.ClientI) error {
+func (c *BotsCommand) RemoveBot(ctx context.Context, client *auth.Client) error {
 	if err := client.DeleteBot(ctx, c.botName); err != nil {
 		return trace.WrapWithMessage(err, "error deleting bot")
 	}
@@ -249,7 +249,7 @@ func (c *BotsCommand) RemoveBot(ctx context.Context, client auth.ClientI) error 
 	return nil
 }
 
-func (c *BotsCommand) LockBot(ctx context.Context, client auth.ClientI) error {
+func (c *BotsCommand) LockBot(ctx context.Context, client *auth.Client) error {
 	lockExpiry, err := computeLockExpiry(c.lockExpires, c.lockTTL)
 	if err != nil {
 		return trace.Wrap(err)
