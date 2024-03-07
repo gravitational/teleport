@@ -14,7 +14,7 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/sso/tester"
 )
 
-func handleOIDCConnector(c auth.ClientI, connBytes []byte) (*tester.AuthRequestInfo, error) {
+func handleOIDCConnector(c *auth.Client, connBytes []byte) (*tester.AuthRequestInfo, error) {
 	conn, err := services.UnmarshalOIDCConnector(connBytes)
 	if err != nil {
 		return nil, trace.Wrap(err, "Unable to load OIDC connector. Correct the definition and try again.")
@@ -27,7 +27,7 @@ func handleOIDCConnector(c auth.ClientI, connBytes []byte) (*tester.AuthRequestI
 	return requestInfo, nil
 }
 
-func oidcTest(c auth.ClientI, connector types.OIDCConnector) (*tester.AuthRequestInfo, error) {
+func oidcTest(c *auth.Client, connector types.OIDCConnector) (*tester.AuthRequestInfo, error) {
 	ctx := context.Background()
 	// get connector spec
 	var spec types.OIDCConnectorSpecV3

@@ -14,7 +14,7 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/sso/tester"
 )
 
-func handleSAMLConnector(c auth.ClientI, connBytes []byte) (*tester.AuthRequestInfo, error) {
+func handleSAMLConnector(c *auth.Client, connBytes []byte) (*tester.AuthRequestInfo, error) {
 	conn, err := services.UnmarshalSAMLConnector(connBytes)
 	if err != nil {
 		return nil, trace.Wrap(err, "Unable to load SAML connector. Correct the definition and try again.")
@@ -27,7 +27,7 @@ func handleSAMLConnector(c auth.ClientI, connBytes []byte) (*tester.AuthRequestI
 	return requestInfo, nil
 }
 
-func samlTest(c auth.ClientI, samlConnector types.SAMLConnector) (*tester.AuthRequestInfo, error) {
+func samlTest(c *auth.Client, samlConnector types.SAMLConnector) (*tester.AuthRequestInfo, error) {
 	ctx := context.Background()
 	// get connector spec
 	var spec types.SAMLConnectorSpecV2

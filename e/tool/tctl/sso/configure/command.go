@@ -26,6 +26,6 @@ func (cmd *SSOConfigureCommandE) Initialize(app *kingpin.Application, cfg *servi
 
 // TryRun is executed after the CLI parsing is done. The command must
 // determine if selectedCommand belongs to it and return match=true
-func (cmd *SSOConfigureCommandE) TryRun(ctx context.Context, selectedCommand string, clt auth.ClientI) (match bool, err error) {
+func (cmd *SSOConfigureCommandE) TryRun(ctx context.Context, selectedCommand string, clt *auth.Client) (match bool, err error) {
 	return cmd.base.TryRun(ctx, selectedCommand, clt)
 }
