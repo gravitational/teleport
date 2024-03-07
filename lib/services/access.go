@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -34,6 +35,8 @@ type LockGetter interface {
 type Access interface {
 	// GetRoles returns a list of roles.
 	GetRoles(ctx context.Context) ([]types.Role, error)
+	// ListRoles is a paginated role getter.
+	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
 	// CreateRole creates a role.
 	CreateRole(ctx context.Context, role types.Role) error
 	// UpsertRole creates or updates role.

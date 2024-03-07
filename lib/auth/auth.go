@@ -4183,6 +4183,68 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	return trace.Wrap(err)
 }
 
+// IterateRoles is a helper used to read a page of roles with a custom matcher, used by access-control logic to handle
+// per-resource read permissions.
+func (a *Server) IterateRoles(ctx context.Context, req *proto.ListRolesRequest, match func(*types.RoleV6) (bool, error)) ([]*types.RoleV6, string, error) {
+	const maxIterations = 100_000
+
+	if req.Limit == 0 {
+		req.Limit = apidefaults.DefaultChunkSize
+	}
+
+	req.Limit++
+	defer func() {
+		req.Limit--
+	}()
+
+	var filtered []*types.RoleV6
+	var iterations int
+
+Outer:
+	for {
+		iterations++
+		if iterations > maxIterations {
+			return nil, "", trace.Errorf("too many role page iterations (%d), this is likely a bug", iterations)
+		}
+
+		rsp, err := a.Cache.ListRoles(ctx, req)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+	Inner:
+		for _, role := range rsp.Roles {
+			ok, err := match(role)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			if !ok {
+				continue Inner
+			}
+
+			filtered = append(filtered, role)
+			if len(filtered) == int(req.Limit) {
+				break Outer
+			}
+		}
+
+		req.StartKey = rsp.NextKey
+
+		if req.StartKey == "" {
+			break Outer
+		}
+	}
+
+	var nextKey string
+	if len(filtered) == int(req.Limit) {
+		nextKey = filtered[req.Limit-1].GetName()
+		filtered = filtered[:req.Limit-1]
+	}
+
+	return filtered, nextKey, nil
+}
+
 func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (types.AccessRequest, error) {
 	now := a.clock.Now().UTC()
 

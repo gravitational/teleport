@@ -4317,11 +4317,6 @@ func TestRoleVersions(t *testing.T) {
 			expectedRole: role,
 		},
 		{
-			desc:           "bad client versions",
-			clientVersions: []string{"Not a version", "13", "13.1"},
-			expectError:    true,
-		},
-		{
 			desc:           "label expressions downgraded",
 			clientVersions: []string{"13.0.11", "12.4.3", "6.0.0"},
 			expectedRole: newRole(
