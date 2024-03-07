@@ -36,7 +36,7 @@ import {
 } from './ActionButtons';
 
 export default {
-  title: 'Teleterm/DocumentCluster',
+  title: 'Teleterm/DocumentCluster/ActionButtons',
 };
 
 export function ActionButtons() {

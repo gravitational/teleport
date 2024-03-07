@@ -328,14 +328,6 @@ exports[`connected settings false 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  padding-left: 16px;
-  padding-right: 16px;
-}
-
 .c8 {
   display: inline-flex;
   align-items: center;
@@ -354,6 +346,14 @@ exports[`connected settings false 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 .c1 {
@@ -649,14 +649,6 @@ exports[`connected settings true 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  padding-left: 16px;
-  padding-right: 16px;
-}
-
 .c8 {
   display: inline-flex;
   align-items: center;
@@ -675,6 +667,14 @@ exports[`connected settings true 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 .c1 {
@@ -1173,14 +1173,6 @@ exports[`disconnected 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  padding-left: 16px;
-  padding-right: 16px;
-}
-
 .c8 {
   display: inline-flex;
   align-items: center;
@@ -1199,6 +1191,14 @@ exports[`disconnected 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 .c1 {
@@ -1703,14 +1703,6 @@ exports[`fetch processing 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  padding-left: 16px;
-  padding-right: 16px;
-}
-
 .c8 {
   display: inline-flex;
   align-items: center;
@@ -1729,6 +1721,14 @@ exports[`fetch processing 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 .c1 {
@@ -2033,14 +2033,6 @@ exports[`processing 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  padding-left: 16px;
-  padding-right: 16px;
-}
-
 .c8 {
   display: inline-flex;
   align-items: center;
@@ -2059,6 +2051,14 @@ exports[`processing 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 .c1 {
@@ -2363,14 +2363,6 @@ exports[`tdp processing 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  padding-left: 16px;
-  padding-right: 16px;
-}
-
 .c8 {
   display: inline-flex;
   align-items: center;
@@ -2389,6 +2381,14 @@ exports[`tdp processing 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 .c1 {

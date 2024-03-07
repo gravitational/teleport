@@ -190,7 +190,7 @@ certificates:
 > tbot start \
    --destination-dir=./tbot-user \
    --token={{.token}} \
-   --auth-server={{.addr}}{{if .join_method}} \
+   --proxy-server={{.addr}}{{if .join_method}} \
    --join-method={{.join_method}}{{end}}
 
 Please note:
