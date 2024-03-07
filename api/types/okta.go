@@ -396,6 +396,14 @@ func (o *OktaAssignmentV1) CheckAndSetDefaults() error {
 	return nil
 }
 
+// IsEqual determines if two okta assignment resources are equivalent to one another.
+func (o *OktaAssignmentV1) IsEqual(i OktaAssignment) bool {
+	if other, ok := i.(*OktaAssignmentV1); ok {
+		return deriveTeleportEqualOktaAssignmentV1(o, other)
+	}
+	return false
+}
+
 // OktaAssignmentTarget is an target for an Okta assignment.
 type OktaAssignmentTarget interface {
 	// GetTargetType returns the target type.
