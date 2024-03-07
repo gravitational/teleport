@@ -20,10 +20,13 @@ import (
 	"maps"
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/defaults"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	databaseobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
@@ -60,12 +63,27 @@ func TestApplyDatabaseObjectImportRules(t *testing.T) {
 		require.NoError(t, err)
 		return out
 	}
+
+	mkImportRuleNoValidation := func(name string, spec *databaseobjectimportrulev1.DatabaseObjectImportRuleSpec) *databaseobjectimportrulev1.DatabaseObjectImportRule {
+		out := &databaseobjectimportrulev1.DatabaseObjectImportRule{
+			Kind:    types.KindDatabaseObjectImportRule,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name:      name,
+				Namespace: defaults.Namespace,
+			},
+			Spec: spec,
+		}
+		return out
+	}
+
 	tests := []struct {
 		name     string
 		rules    []*databaseobjectimportrulev1.DatabaseObjectImportRule
 		database types.Database
 		objs     []*dbobjectv1.DatabaseObject
 		want     []*dbobjectv1.DatabaseObject
+		errCount int
 	}{
 		{
 			name:     "empty inputs",
@@ -173,16 +191,73 @@ func TestApplyDatabaseObjectImportRules(t *testing.T) {
 				}),
 			},
 		},
+		{
+			name: "errors are counted",
+			rules: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
+				mkImportRule("foo", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+					Priority:       10,
+					DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
+					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
+						{
+							Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+								TableNames: []string{"*"},
+							},
+							AddLabels: map[string]string{
+								"dev_access":    "rw",
+								"flag_from_dev": "dummy",
+							},
+						},
+					},
+				}),
+
+				mkImportRuleNoValidation("bar", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+					Priority:       20,
+					DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
+					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
+						{
+							Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+								TableNames: []string{"*"},
+							},
+							AddLabels: map[string]string{
+								"dev_access":     "ro",
+								"flag_from_prod": "dummy",
+							},
+						},
+						{
+							Match:     &databaseobjectimportrulev1.DatabaseObjectImportMatch{TableNames: []string{"bar", "baz"}},
+							AddLabels: map[string]string{"error label": "{{foo()}}"},
+						},
+					},
+				}),
+			},
+			database: mkDatabase("dummy", map[string]string{}),
+			objs: []*dbobjectv1.DatabaseObject{
+				mkDatabaseObject("foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
+				mkDatabaseObject("bar", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
+				mkDatabaseObject("baz", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
+			},
+			want: []*dbobjectv1.DatabaseObject{
+				mkDatabaseObject("foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}, func(db *dbobjectv1.DatabaseObject) error {
+					db.Metadata.Labels = map[string]string{
+						"dev_access":     "ro",
+						"flag_from_dev":  "dummy",
+						"flag_from_prod": "dummy",
+					}
+					return nil
+				}),
+			},
+			errCount: 2,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out, errors := ApplyDatabaseObjectImportRules(tt.rules, tt.database, tt.objs)
+			out, errCount := ApplyDatabaseObjectImportRules(logrus.StandardLogger(), tt.rules, tt.database, tt.objs)
 			require.Len(t, out, len(tt.want))
 			for i, obj := range out {
 				require.Equal(t, tt.want[i].String(), obj.String())
 			}
-			require.Empty(t, errors)
+			require.Equal(t, tt.errCount, errCount)
 		})
 	}
 }

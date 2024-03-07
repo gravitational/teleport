@@ -23,6 +23,7 @@ import (
 	"unicode"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
@@ -39,7 +40,8 @@ import (
 // For the object to be returned, it must match at least one rule.
 // The modification consists of application of extra labels, per matching mappings.
 // If there are any errors due to invalid label template, the corresponding objects will be dropped.
-func ApplyDatabaseObjectImportRules(rules []*dbobjectimportrulev1.DatabaseObjectImportRule, database types.Database, objs []*dbobjectv1.DatabaseObject) ([]*dbobjectv1.DatabaseObject, map[string]error) {
+// Final error count is returned.
+func ApplyDatabaseObjectImportRules(logger logrus.FieldLogger, rules []*dbobjectimportrulev1.DatabaseObjectImportRule, database types.Database, objs []*dbobjectv1.DatabaseObject) ([]*dbobjectv1.DatabaseObject, int) {
 	// sort: rules with higher priorities are applied last.
 	sort.Slice(rules, func(i, j int) bool {
 		return rules[i].Spec.Priority < rules[j].Spec.Priority
@@ -60,11 +62,10 @@ func ApplyDatabaseObjectImportRules(rules []*dbobjectimportrulev1.DatabaseObject
 	}
 
 	var objects []*dbobjectv1.DatabaseObject
-	errors := map[string]error{}
-
+	var errCount int
 	// anything to do?
 	if len(mappings) == 0 {
-		return objects, errors
+		return objects, errCount
 	}
 
 	// find all objects that match any of the rules
@@ -81,7 +82,8 @@ func ApplyDatabaseObjectImportRules(rules []*dbobjectimportrulev1.DatabaseObject
 		for _, mapping := range mappings {
 			match, err := applyMappingToObject(mapping, objClone.GetSpec(), objClone.Metadata.Labels)
 			if err != nil {
-				errors[obj.GetMetadata().GetName()] = trace.Wrap(err)
+				logger.WithField("name", obj.GetMetadata().GetName()).WithError(err).Debug("failed to apply label due to template error")
+				errCount++
 				hadError = true
 				break
 			}
@@ -95,7 +97,7 @@ func ApplyDatabaseObjectImportRules(rules []*dbobjectimportrulev1.DatabaseObject
 		}
 	}
 
-	return objects, errors
+	return objects, errCount
 }
 
 // validateTemplate evaluates the template, checking for potential errors.

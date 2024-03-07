@@ -209,14 +209,11 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 	counts, countMap := permissions.CountObjectKinds(objsFetched)
-	e.Log.WithField("kind_counts", countMap).WithField("total", len(objsFetched)).Infof("Fetched %v objects from the database (%v).", len(objsFetched), counts)
+	e.Log.WithField("counts", countMap).WithField("total", len(objsFetched)).Infof("Database objects fetched from the database (%v).", counts)
 
-	objsTagged, errs := databaseobjectimportrule.ApplyDatabaseObjectImportRules(rules, sessionCtx.Database, objsFetched)
+	objsTagged, errCount := databaseobjectimportrule.ApplyDatabaseObjectImportRules(e.Log, rules, sessionCtx.Database, objsFetched)
 	counts, countMap = permissions.CountObjectKinds(objsTagged)
-	e.Log.WithField("kind_counts", countMap).WithField("total", len(objsFetched)).Infof("Tagged %v database objects (%v), errors: %v.", len(objsTagged), counts, len(errs))
-	for objName, err := range errs {
-		e.Log.WithField("name", objName).WithError(err).Debug("failed to apply label due to template error")
-	}
+	e.Log.WithField("counts", countMap).WithField("err_count", errCount).WithField("total", len(objsFetched)).Infof("Database objects tagged (%v).", counts)
 
 	permissionSet, err := permissions.CalculatePermissions(sessionCtx.Checker, sessionCtx.Database, objsTagged)
 	if err != nil {
