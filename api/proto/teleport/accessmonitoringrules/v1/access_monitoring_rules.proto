@@ -59,7 +59,7 @@ message Notification {
 // CreateAccessMonitoringRuleRequest is the request for CreateAccessMonitoringRule.
 message CreateAccessMonitoringRuleRequest {
   // access_monitoring_rule is the specification of the rule to be created.
-  AccessMonitoringRule access_monitoring_rule = 1;
+  AccessMonitoringRule rule = 1;
 }
 
 // UpdateAccessMonitoringRuleRequest is the request for UpdateAccessMonitoringRule.
