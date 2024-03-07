@@ -98,7 +98,7 @@ message ListAccessMonitoringRulesRequest {
 // ListAccessMonitoringRulesResponse is the response from ListAccessMonitoringRules.
 message ListAccessMonitoringRulesResponse {
   // The page of AccessMonitoringRule that matched the request.
-  repeated AccessMonitoringRule access_monitoring_rules = 1;
+  repeated AccessMonitoringRule rules = 1;
   // Token to retrieve the next page of results, or empty if there are no
   // more results in the list.
   string next_page_token = 2;
