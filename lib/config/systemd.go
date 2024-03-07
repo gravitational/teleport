@@ -47,7 +47,7 @@ Type=simple
 Restart=on-failure
 EnvironmentFile=-{{ .EnvironmentFile }}
 ExecStart={{ .TeleportInstallationFile }} start --config {{ .TeleportConfigPath }} --pid-file={{ .PIDFile }}
-ExecReload=pkill -HUP -L -F "{{ .PIDFile }}"
+ExecReload=/bin/sh -c "exec pkill -HUP -L -F \"{{ .PIDFile }}\""
 PIDFile={{ .PIDFile }}
 LimitNOFILE={{ .FileDescriptorLimit }}
 

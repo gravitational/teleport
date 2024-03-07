@@ -7,7 +7,7 @@ Type=simple
 Restart=on-failure
 EnvironmentFile=-/etc/default/teleport
 ExecStart=/usr/local/bin/teleport start --config /etc/teleport.yaml --fips --pid-file=/run/teleport.pid
-ExecReload=pkill -HUP -L -F /run/teleport.pid
+ExecReload=/bin/sh -c "exec pkill -HUP -L -F /run/teleport.pid"
 PIDFile=/run/teleport.pid
 LimitNOFILE=524288
 
