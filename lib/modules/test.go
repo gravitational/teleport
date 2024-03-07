@@ -43,7 +43,8 @@ type TestModules struct {
 	defaultModules
 
 	// MockAttestationData is fake attestation data to return
-	// during tests when hardware key support is enabled.
+	// during tests when hardware key support is enabled. This
+	// attestation data is shared by all logins when set.
 	MockAttestationData *keys.AttestationData
 }
 
@@ -92,9 +93,7 @@ func (m *TestModules) BuildType() string {
 
 // AttestHardwareKey attests a hardware key.
 func (m *TestModules) AttestHardwareKey(ctx context.Context, obj interface{}, as *keys.AttestationStatement, pk crypto.PublicKey, d time.Duration) (*keys.AttestationData, error) {
-	// If the given attestation statement is non-nil, that means the client passed it to the
-	// server to attest the key. If MockAttestationData is set, return that to attest the key.
-	if as != nil && m.MockAttestationData != nil {
+	if m.MockAttestationData != nil {
 		return m.MockAttestationData, nil
 	}
 	return nil, trace.NotFound("no attestation data for the given key")
