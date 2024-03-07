@@ -156,6 +156,11 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 		return trace.Wrap(err)
 	}
 
+	// No need to make assignments for non-SSO users.
+	if userState.GetUserType() != types.UserTypeSSO {
+		return nil
+	}
+
 	var groups []string
 	var apps []string
 

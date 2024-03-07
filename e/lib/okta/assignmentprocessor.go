@@ -37,15 +37,25 @@ const (
 	// maxNumWorkers is the maximum number of works that can concurrently use the
 	// Okta client.
 	maxNumWorkers = 5
+
+	// maxAssignmentAge is the maximum age of a cleaned up assignment before it's
+	// pruned.
+	maxAssignmentAge = time.Hour
 )
 
 type assignmentProcessorAccessPoint interface {
+	// GetUser returns a user by name
+	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
+
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
 
 	// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
 	// since the last transition.
 	UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error
+
+	// DeleteOktaAssignment removes the specified Okta assignment resource.
+	DeleteOktaAssignment(ctx context.Context, name string) error
 
 	// GetUserGroup returns the specified user group resources.
 	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
@@ -204,13 +214,21 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 	ctx, cancel := context.WithTimeout(ctx, processAssignmentTimeout)
 	defer cancel()
 
+	// If the user has disappeared or is not an SSO user, we should cleanup this assignment.
+	// TODO(mdwn): DELETE IN v18.
+	user, err := a.accessPoint.GetUser(ctx, assignment.GetUser(), false)
+	if trace.IsNotFound(err) || (user != nil && user.GetUserType() != types.UserTypeSSO) {
+		assignment.SetCleanupTime(a.clock.Now())
+	}
+
 	cleanupTime := assignment.GetCleanupTime()
 	needsCleanup := !cleanupTime.IsZero() && !a.clock.Now().Before(cleanupTime)
 	needsReprovision := assignment.IsFinalized() && !needsCleanup
 
-	// Skip a finalized assignment, as it's already been cleaned up.
+	// We don't need to process a finalized assignment. However, we should prune it
+	// if it's old enough.
 	if assignment.IsFinalized() && needsCleanup {
-		return nil
+		return trace.Wrap(a.pruneFinalizedAssignment(ctx, assignment))
 	}
 
 	// We only process non-pending assignments if reconcile is set or if the assignment needs to be cleaned up.
@@ -297,6 +315,17 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 	a.emitAuditEvent(ctx, assignment, startStatus, nextStatus, needsCleanup, err)
 
 	return trace.Wrap(err)
+}
+
+// pruneFinalizedAssignment will prune a finalized assignment if it's old enough.
+func (a *assignmentProcessor) pruneFinalizedAssignment(ctx context.Context, assignment types.OktaAssignment) error {
+	if a.clock.Since(assignment.GetLastTransition()) < maxAssignmentAge {
+		return nil
+	}
+
+	a.log.Debugf("Pruning cleaned up assignment %s from backend", assignment.GetName())
+
+	return trace.Wrap(a.accessPoint.DeleteOktaAssignment(ctx, assignment.GetName()))
 }
 
 func (a *assignmentProcessor) shouldProcess(assignment types.OktaAssignment, needsCleanup bool) (bool, error) {
@@ -400,8 +429,12 @@ func (a *assignmentProcessor) cleanupTargets(ctx context.Context, assignment typ
 
 	a.log.Infof("Cleaning up assignment %s for user %s", assignment.GetName(), assignment.GetUser())
 
-	// If we can't find the user in Okta, skip trying to process any of the targets.
 	if _, err := assignmentClient.userID(ctx, assignment.GetUser()); err != nil {
+		// If we can't find the user in Okta, we'll mark this as successful. Otherwise, error.
+		if trace.IsNotFound(err) {
+			a.log.Debugf("User %s not found in Okta, marking assignment cleaned up.", assignment.GetUser())
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 

@@ -44,6 +44,9 @@ func TestProcessAssignments(t *testing.T) {
 
 	tests := []struct {
 		name                   string
+		userDeleted            bool
+		userLocal              bool
+		userNotInOkta          bool
 		groups                 types.UserGroups
 		groupsSkipAddToOkta    bool
 		apps                   types.AppServers
@@ -400,6 +403,120 @@ func TestProcessAssignments(t *testing.T) {
 			errAssertionFunc: require.NoError,
 		},
 		{
+			name:        "cleanup due to user deleted",
+			userDeleted: true,
+			groups: types.UserGroups{
+				group(t, "group1", types.OriginOkta, testOrgURL),
+			},
+			apps: types.AppServers{
+				application(t, hash, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+			},
+			// There's no reason this assignment should be cleaned up other than the user.
+			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusPending, startTime.Add(-time.Hour), false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
+			)},
+			// The expected last transition time is 5 minutes past the start time.
+			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime.Add(5*time.Minute), constants.OktaAssignmentStatusSuccessful, startTime.Add(5*time.Minute), true,
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
+			)},
+			oktaClientGroupMapping: map[string]map[string]bool{
+				"group1": {},
+			},
+			oktaClientAppMapping: map[string]map[string]bool{
+				"app1": {},
+			},
+			// 5 minutes pass from the start time, which should trigger an immediate cleanup.
+			incrementTimeDuration: 5 * time.Minute,
+			expectedAuditEvents: []auditEventInfo{
+				{
+					name:           "assignment1",
+					event:          events.OktaAssignmentCleanupEvent,
+					code:           events.OktaAssignmentCleanupSuccessCode,
+					startingStatus: constants.OktaAssignmentStatusPending,
+					endingStatus:   constants.OktaAssignmentStatusSuccessful,
+				},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name:      "cleanup due to user is not SSO",
+			userLocal: true,
+			groups: types.UserGroups{
+				group(t, "group1", types.OriginOkta, testOrgURL),
+			},
+			apps: types.AppServers{
+				application(t, hash, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+			},
+			// There's no reason this assignment should be cleaned up other than the user.
+			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusPending, startTime.Add(-time.Hour), false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
+			)},
+			// The expected last transition time is 5 minutes past the start time.
+			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime.Add(5*time.Minute), constants.OktaAssignmentStatusSuccessful, startTime.Add(5*time.Minute), true,
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
+			)},
+			oktaClientGroupMapping: map[string]map[string]bool{
+				"group1": {},
+			},
+			oktaClientAppMapping: map[string]map[string]bool{
+				"app1": {},
+			},
+			// 5 minutes pass from the start time, which should trigger an immediate cleanup.
+			incrementTimeDuration: 5 * time.Minute,
+			expectedAuditEvents: []auditEventInfo{
+				{
+					name:           "assignment1",
+					event:          events.OktaAssignmentCleanupEvent,
+					code:           events.OktaAssignmentCleanupSuccessCode,
+					startingStatus: constants.OktaAssignmentStatusPending,
+					endingStatus:   constants.OktaAssignmentStatusSuccessful,
+				},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name:          "cleanup attempt succeeds if user is not in Okta",
+			userNotInOkta: true,
+			groups: types.UserGroups{
+				group(t, "group1", types.OriginOkta, testOrgURL),
+			},
+			apps: types.AppServers{
+				application(t, hash, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+			},
+			// This assignment should be cleaned up.
+			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime, constants.OktaAssignmentStatusPending, startTime.Add(-time.Hour), false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
+			)},
+			// The expected last transition time is 5 minutes past the start time.
+			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime, constants.OktaAssignmentStatusSuccessful, startTime.Add(5*time.Minute), true,
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
+			)},
+			oktaClientGroupMapping: map[string]map[string]bool{
+				"group1": {},
+			},
+			oktaClientAppMapping: map[string]map[string]bool{
+				"app1": {},
+			},
+			// 5 minutes pass from the start time, which should trigger an immediate cleanup.
+			incrementTimeDuration: 5 * time.Minute,
+			expectedAuditEvents: []auditEventInfo{
+				{
+					name:           "assignment1",
+					event:          events.OktaAssignmentCleanupEvent,
+					code:           events.OktaAssignmentCleanupSuccessCode,
+					startingStatus: constants.OktaAssignmentStatusPending,
+					endingStatus:   constants.OktaAssignmentStatusSuccessful,
+				},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
 			name: "cleanup retry",
 			groups: types.UserGroups{
 				group(t, "group1", types.OriginOkta, testOrgURL),
@@ -522,11 +639,26 @@ func TestProcessAssignments(t *testing.T) {
 			svc, oktaClient, emitter := newTestService(t, ap)
 			svc.SetLeader(true)
 			svc.clock = clock
+
+			// Create a user if we can.
+			if !test.userDeleted {
+				user, err := types.NewUser(testUser)
+				require.NoError(t, err)
+				if !test.userLocal {
+					user.SetCreatedBy(types.CreatedBy{Connector: &types.ConnectorRef{}})
+				}
+
+				_, err = ap.CreateUser(ctx, user)
+				require.NoError(t, err)
+			}
+
 			a := newAssignmentProcessor(svc, func() types.OktaAssignments {
 				return test.assignments
 			})
 
-			oktaClient.addUserID(testUser, oktaUserID)
+			if !test.userNotInOkta {
+				oktaClient.addUserID(testUser, oktaUserID)
+			}
 
 			// Make sure the rate limit is not in effect here.
 			a.rateLimiter = rate.NewLimiter(rate.Inf, 1)
@@ -588,4 +720,73 @@ func TestProcessAssignments(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Test assignments of various ages and verify that they should or should not be pruned by the
+// new age detection logic. Assignments younger than 1 hour should be fine, assignments older than
+// 1 hour should be pruned.
+func TestProcessAssignments_PruneAssignments(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Date(2024, 1, 1, 0, 00, 0, 0, time.UTC))
+	ctx := context.Background()
+	ap := newTestAccessPoint(t, clock)
+	svc, oktaClient, _ := newTestService(t, ap)
+	svc.SetLeader(true)
+	svc.clock = clock
+
+	const link = "link"
+	hash := crypto.SHA256
+	appName := func(name string) string {
+		return mustAppName(t, hash, name, link)
+	}
+	testUser := "test-user@test.user"
+	oktaUserID := "okta-user-id"
+
+	oktaClient.addUserID(testUser, oktaUserID)
+
+	cleanedUpAssignment := func(name string, lastTransitionTime time.Time) types.OktaAssignment {
+		return assignment(t, name, testUser, clock.Now().Add(-24*time.Hour), constants.OktaAssignmentStatusSuccessful, lastTransitionTime, true,
+			target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
+			target(types.OktaAssignmentTargetV1_APPLICATION, appName("app2")),
+			target(types.OktaAssignmentTargetV1_GROUP, "group1"),
+		)
+	}
+
+	expectedAssignments := types.OktaAssignments{
+		cleanedUpAssignment("assignment1", clock.Now().Add(-5*time.Minute)),
+		cleanedUpAssignment("assignment2", clock.Now().Add(-30*time.Minute)),
+		cleanedUpAssignment("assignment3", clock.Now().Add(-45*time.Minute)),
+		cleanedUpAssignment("assignment4", clock.Now().Add(-time.Hour)),
+		cleanedUpAssignment("assignment5", clock.Now().Add(-3*time.Hour)),
+		cleanedUpAssignment("assignment6", clock.Now().Add(-24*time.Hour)),
+		assignment(t, "valid-assignment", testUser, time.Time{}, constants.OktaAssignmentStatusSuccessful, clock.Now().Add(-24*time.Hour), false,
+			target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
+			target(types.OktaAssignmentTargetV1_APPLICATION, appName("app2")),
+			target(types.OktaAssignmentTargetV1_GROUP, "group1"),
+		),
+	}
+
+	for _, assignment := range expectedAssignments {
+		_, err := ap.CreateOktaAssignment(ctx, assignment)
+		require.NoError(t, err)
+	}
+
+	a := newAssignmentProcessor(svc, func() types.OktaAssignments {
+		return expectedAssignments
+	})
+
+	// Make sure the rate limit is not in effect here.
+	a.rateLimiter = rate.NewLimiter(rate.Inf, 1)
+
+	err := a.processAssignments(ctx, true)
+	require.NoError(t, err)
+
+	assignments, _, err := ap.ListOktaAssignments(ctx, 0 /* pageSize */, "")
+	require.NoError(t, err)
+
+	assignmentNames := []string{}
+	for _, assignment := range assignments {
+		assignmentNames = append(assignmentNames, assignment.GetName())
+	}
+
+	require.Equal(t, []string{"assignment1", "assignment2", "assignment3", "valid-assignment"}, assignmentNames)
 }

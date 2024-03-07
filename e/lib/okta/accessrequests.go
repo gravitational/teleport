@@ -36,6 +36,8 @@ const (
 type AccessRequestReconcilerAccessPoint interface {
 	services.UserGroups
 	types.Events
+	services.UserGetter
+	services.UserLoginStatesGetter
 
 	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
@@ -408,6 +410,15 @@ func (a *AccessRequestReconciler) startResourceWatcher(ctx context.Context) (*se
 	return watcher, nil
 }
 
+// isUserSSO will return true if the given user is an SSO user.
+func (a *AccessRequestReconciler) isUserSSO(ctx context.Context, username string) (bool, error) {
+	user, err := services.GetUserOrLoginState(ctx, a.accessPoint, username)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return user.GetUserType() == types.UserTypeSSO, nil
+}
+
 // onCreate will create Okta assignments from access requests.
 func (a *AccessRequestReconciler) onCreate(ctx context.Context, newAccessRequest types.AccessRequest) error {
 	// Only create an assignment if the access state is approved.
@@ -419,6 +430,16 @@ func (a *AccessRequestReconciler) onCreate(ctx context.Context, newAccessRequest
 				return nil
 			}
 			return trace.Wrap(err)
+		}
+
+		isUserSSO, err := a.isUserSSO(ctx, newAccessRequest.GetUser())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !isUserSSO {
+			a.log.Debugf("Okta assignment cannot be created for user %s as the user is not an SSO user.", newAccessRequest.GetUser())
+			return nil
 		}
 
 		// If the assignment already exists, register it locally and move on.

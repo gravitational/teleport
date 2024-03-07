@@ -32,6 +32,13 @@ func TestAssignmentReconciler(t *testing.T) {
 
 	oktaClient.addUserID(testUser, testOktaUserID)
 
+	// Create SSO user
+	user, err := types.NewUser(testUser)
+	require.NoError(t, err)
+	user.SetCreatedBy(types.CreatedBy{Connector: &types.ConnectorRef{}})
+	_, err = ap.CreateUser(ctx, user)
+	require.NoError(t, err)
+
 	const link = "link"
 	appName := func(name string) string {
 		return mustAppName(t, hash, name, link)
@@ -53,7 +60,7 @@ func TestAssignmentReconciler(t *testing.T) {
 
 	// Create the cleaned up resources in the backend.
 	require.NoError(t, ap.CreateUserGroup(ctx, group(t, "cleanedUpGroup1", types.OriginOkta, testOrgURL)))
-	_, err := ap.UpsertApplicationServer(ctx,
+	_, err = ap.UpsertApplicationServer(ctx,
 		application(t, hash, "cleanedUpApp1", link, types.OriginOkta, testOrgURL, testHostID))
 	require.NoError(t, err)
 	oktaClient.addGroupToMapping("cleanedUpGroup1")

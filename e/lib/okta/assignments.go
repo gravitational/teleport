@@ -43,6 +43,7 @@ type assignmentReconciler struct {
 	oktaClient          OktaClient
 	watcher             *services.OktaAssignmentWatcher
 	assignmentProcessor *assignmentProcessor
+	waitIfNotLeader     func(context.Context) bool
 
 	reconcileCh chan struct{}
 
@@ -64,15 +65,16 @@ type assignmentReconciler struct {
 func newAssignmentReconciler(ctx context.Context, clusterName string, svc *Service) *assignmentReconciler {
 	log := logrus.WithField(trace.Component, teleport.ComponentOktaAssignmentReconciler)
 	a := &assignmentReconciler{
-		log:            log,
-		clock:          svc.clock,
-		clusterName:    clusterName,
-		accessPoint:    svc.accessPoint,
-		oktaClient:     svc.client,
-		reconcileCh:    make(chan struct{}),
-		stopCh:         make(chan struct{}, 1),
-		assignments:    make(map[string]types.OktaAssignment),
-		newAssignments: make(map[string]types.OktaAssignment),
+		log:             log,
+		clock:           svc.clock,
+		clusterName:     clusterName,
+		accessPoint:     svc.accessPoint,
+		oktaClient:      svc.client,
+		waitIfNotLeader: svc.waitIfNotLeader,
+		reconcileCh:     make(chan struct{}),
+		stopCh:          make(chan struct{}, 1),
+		assignments:     make(map[string]types.OktaAssignment),
+		newAssignments:  make(map[string]types.OktaAssignment),
 	}
 
 	a.assignmentProcessor = newAssignmentProcessor(svc, a.getAssignments)
@@ -82,6 +84,11 @@ func newAssignmentReconciler(ctx context.Context, clusterName string, svc *Servi
 
 // Start will start the reconciler.
 func (a *assignmentReconciler) start(ctx context.Context) error {
+	// Don't reconcile anything until this service has become the leader.
+	if shouldStop := a.waitIfNotLeader(ctx); shouldStop {
+		return trace.BadParameter("assignment reconciler was instructed to stop before it could start")
+	}
+
 	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.OktaAssignment]{
 		Matcher: func(assignment types.OktaAssignment) bool {
 			return a.matcher(ctx, assignment)
@@ -247,13 +254,8 @@ func (a *assignmentReconciler) onUpdate(ctx context.Context, updatedAssignment, 
 }
 
 // onDelete will perform necessary Okta assignment operations based on deleted Okta assignments.
-// NOTE: This should never actually be run as users shouldn't be deleting OktaAssignment objects.
 func (a *assignmentReconciler) onDelete(ctx context.Context, deletedAssignment types.OktaAssignment) error {
-	deletedAssignment.SetCleanupTime(a.clock.Now())
-	if err := a.assignmentProcessor.processAssignment(ctx, deletedAssignment, false); err != nil {
-		return trace.Wrap(err)
-	}
-
+	// Deletion will happen when pruning, so just remove it locally.
 	a.assignmentsMu.Lock()
 	delete(a.assignments, deletedAssignment.GetName())
 	a.assignmentsMu.Unlock()

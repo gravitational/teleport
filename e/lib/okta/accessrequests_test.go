@@ -53,11 +53,21 @@ func TestAccessRequestReconciler(t *testing.T) {
 	require.Empty(t, reconciler.getAccessRequests())
 	require.Empty(t, reconciler.getNewAccessRequests())
 
-	user := "test-user"
 	roles := []string{"test-role"}
 
+	user, err := types.NewUser("test-user")
+	require.NoError(t, err)
+	user.SetCreatedBy(types.CreatedBy{Connector: &types.ConnectorRef{}})
+	_, err = ap.CreateUser(ctx, user)
+	require.NoError(t, err)
+
+	nonSSOUser, err := types.NewUser("test-user-non-sso")
+	require.NoError(t, err)
+	_, err = ap.CreateUser(ctx, nonSSOUser)
+	require.NoError(t, err)
+
 	// This access request should be ignored.
-	accessRequest, err := types.NewAccessRequestWithResources(uuid.NewString(), user, roles,
+	accessRequest, err := types.NewAccessRequestWithResources(uuid.NewString(), user.GetName(), roles,
 		[]types.ResourceID{{ClusterName: testClusterName, Kind: types.KindRole, Name: "role-request"}})
 	require.NoError(t, err)
 
@@ -80,7 +90,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	require.NoError(t, err)
 
 	// This access request should not be registered by the reconciler
-	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), user, roles,
+	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), user.GetName(), roles,
 		[]types.ResourceID{{ClusterName: testClusterName, Kind: types.KindApp, Name: appServer.GetApp().GetName()}})
 	require.NoError(t, err)
 	accessRequest.SetState(types.RequestState_DENIED)
@@ -97,7 +107,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	// This access request should also not be registered by the reconciler
-	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), user, roles,
+	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), user.GetName(), roles,
 		[]types.ResourceID{{ClusterName: "other-cluster-name", Kind: types.KindApp, Name: appServer.GetApp().GetName()}})
 	require.NoError(t, err)
 	accessRequest.SetState(types.RequestState_APPROVED)
@@ -113,7 +123,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	require.NoError(t, ap.DeleteAccessRequest(ctx, accessRequest.GetName()))
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
-	// This access request should create an Okta assignment, but the Okta service is not connected.
+	// This access request should create an Okta assignment if the user is an SSO user, but the Okta service is not connected.
 	ap.setServiceCounts(map[types.SystemRole]uint64{})
 
 	// This will stop the reconciler.
@@ -122,7 +132,28 @@ func TestAccessRequestReconciler(t *testing.T) {
 		waitForResult(t, onServiceDisconnectedCh, struct{}{}, 1)
 	}
 
-	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), user, roles,
+	noopAccessRequest, err := types.NewAccessRequestWithResources(uuid.NewString(), nonSSOUser.GetName(), roles,
+		[]types.ResourceID{{ClusterName: testClusterName, Kind: types.KindApp, Name: appServer.GetApp().GetName()}})
+	require.NoError(t, err)
+	noopAccessRequest.SetState(types.RequestState_APPROVED)
+
+	noopAccessRequest, err = ap.CreateAccessRequestV2(ctx, noopAccessRequest)
+	require.NoError(t, err)
+
+	// No reconcile will be triggered because the reconciler will be stopped.
+	require.Empty(t, reconciler.getAccessRequests())
+	require.Empty(t, reconciler.getNewAccessRequests())
+
+	// We'll reconnect the Okta service and the assignment would have been created if the user was an SSO user.
+	ap.setServiceCounts(map[types.SystemRole]uint64{types.RoleOkta: 1})
+	clock.Advance(10 * time.Minute) // This will restart the reconciler.
+	waitForResult(t, onReconcileCh, struct{}{}, 1)
+
+	require.Empty(t, reconciler.getAccessRequests())
+	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{noopAccessRequest.GetName(): noopAccessRequest}, reconciler.getNewAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	// Let's create a new access request with an SSO user.
+	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), user.GetName(), roles,
 		[]types.ResourceID{{ClusterName: testClusterName, Kind: types.KindApp, Name: appServer.GetApp().GetName()}})
 	require.NoError(t, err)
 	accessRequest.SetState(types.RequestState_APPROVED)
@@ -130,20 +161,14 @@ func TestAccessRequestReconciler(t *testing.T) {
 	accessRequest, err = ap.CreateAccessRequestV2(ctx, accessRequest)
 	require.NoError(t, err)
 
-	// No reconcile will be triggered because the reconciler will be stopped.
-	require.Empty(t, reconciler.getAccessRequests())
-	require.Empty(t, reconciler.getNewAccessRequests())
-
-	// We'll reconnect the Okta service and the assignment should be created.
-	ap.setServiceCounts(map[types.SystemRole]uint64{types.RoleOkta: 1})
-	clock.Advance(10 * time.Minute) // This will restart the reconciler.
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
+
 	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.getAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
-	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.getNewAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{noopAccessRequest.GetName(): noopAccessRequest, accessRequest.GetName(): accessRequest}, reconciler.getNewAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	foundAssignment := getOktaAssignment(t, ap, accessRequest.GetName())
 	expires := accessRequest.GetAccessExpiry()
-	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, expires, constants.OktaAssignmentStatusPending, clock.Now(), false,
+	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user.GetName(), expires, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1"))),
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
@@ -158,7 +183,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 
 	cleanupTimeNow := clock.Now()
 	foundAssignment = getOktaAssignment(t, ap, accessRequest.GetName())
-	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(), false,
+	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user.GetName(), cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1"))),
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
@@ -168,7 +193,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	foundAssignment = getOktaAssignment(t, ap, accessRequest.GetName())
-	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(), false,
+	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user.GetName(), cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1"))),
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
@@ -177,7 +202,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	userGroup := group(t, "group1", types.OriginOkta, testOrgURL)
 	require.NoError(t, ap.CreateUserGroup(ctx, userGroup))
 
-	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), user, roles,
+	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), user.GetName(), roles,
 		[]types.ResourceID{{ClusterName: testClusterName, Kind: types.KindUserGroup, Name: userGroup.GetName()}})
 	accessRequest.SetState(types.RequestState_APPROVED)
 	require.NoError(t, err)
@@ -189,7 +214,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 
 	foundAssignment = getOktaAssignment(t, ap, accessRequest.GetName())
 	expires = accessRequest.GetAccessExpiry()
-	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, expires, constants.OktaAssignmentStatusPending, clock.Now(), false,
+	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user.GetName(), expires, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_GROUP, userGroup.GetName())),
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
@@ -198,7 +223,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	foundAssignment = getOktaAssignment(t, ap, accessRequest.GetName())
-	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(), false,
+	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user.GetName(), cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_GROUP, userGroup.GetName())),
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
@@ -346,8 +371,10 @@ func TestOnLogin(t *testing.T) {
 	now := time.Now()
 	user1, err := types.NewUser("user1")
 	require.NoError(t, err)
+	user1.SetCreatedBy(types.CreatedBy{Connector: &types.ConnectorRef{}})
 	user2, err := types.NewUser("user2")
 	require.NoError(t, err)
+	user2.SetCreatedBy(types.CreatedBy{Connector: &types.ConnectorRef{}})
 
 	// Access requests must be UUIDs, so we'll pre-define them here
 	// for later referencing.
@@ -513,6 +540,12 @@ func TestOnLogin(t *testing.T) {
 			ap := newTestAccessPoint(t, clock)
 			onReconcileCh := make(chan struct{}, 1)
 			lockWatcher := newLockWatcher(t, ap)
+
+			// Create the users
+			user1, err := ap.CreateUser(ctx, user1)
+			require.NoError(t, err)
+			user2, err := ap.CreateUser(ctx, user2)
+			require.NoError(t, err)
 
 			// Create basic roles and user groups for use by the access requests.
 			role, err := types.NewRole("role1", types.RoleSpecV6{})
