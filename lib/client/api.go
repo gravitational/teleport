@@ -1500,28 +1500,6 @@ func (tc *TeleportClient) GetRole(ctx context.Context, name string) (types.Role,
 	return role, trace.Wrap(err)
 }
 
-// GetSelfUser gets the User resource for the current user.
-func (tc *TeleportClient) GetSelfUser(ctx context.Context) (types.User, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/GetSelfUser",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(
-			attribute.String("user", tc.Username),
-		),
-	)
-	defer span.End()
-
-	clusterClient, err := tc.ConnectToCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer clusterClient.Close()
-
-	u, err := clusterClient.AuthClient.GetUser(ctx, tc.Username, false)
-	return u, trace.Wrap(err)
-}
-
 // watchCloser is a wrapper around a services.Watcher
 // which holds a closer that must be called after the watcher
 // is closed.

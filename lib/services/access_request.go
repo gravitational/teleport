@@ -215,14 +215,14 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 	}
 
 	if len(req.ResourceIDs) != 0 {
-		caps.ApplicableRolesForResources, err = v.applicableSearchAsRoles(ctx, req.ResourceIDs, "")
+		caps.ApplicableRolesForResources, err = v.applicableSearchAsRoles(ctx, req.ResourceIDs, req.Login)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	if req.RequestableRoles {
-		caps.RequestableRoles, err = v.GetRequestableRoles()
+		caps.RequestableRoles, err = v.GetRequestableRoles(ctx, req.RequestableResourceIDs, req.Login)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1123,7 +1123,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 			return trace.BadParameter("unexpected wildcard request (this is a bug)")
 		}
 
-		requestable, err := m.GetRequestableRoles()
+		requestable, err := m.GetRequestableRoles(ctx, nil, "")
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1387,19 +1387,40 @@ func (m *RequestValidator) truncateTTL(ctx context.Context, identity tlsca.Ident
 // GetRequestableRoles gets the list of all existent roles which the user is
 // able to request.  This operation is expensive since it loads all existent
 // roles in order to determine the role list.  Prefer calling CanRequestRole
-// when checking against a known role list.
-func (m *RequestValidator) GetRequestableRoles() ([]string, error) {
-	allRoles, err := m.getter.GetRoles(context.TODO())
+// when checking against a known role list. If resource IDs or a login hint
+// are provided, roles will be filtered to only include those that would
+// allow access to the given resource with the given login.
+func (m *RequestValidator) GetRequestableRoles(ctx context.Context, resourceIDs []types.ResourceID, loginHint string) ([]string, error) {
+	allRoles, err := m.getter.GetRoles(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resources, err := m.getUnderlyingResourcesByResourceIDs(ctx, resourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var expanded []string
+outer:
 	for _, role := range allRoles {
-		if n := role.GetName(); !slices.Contains(m.userState.GetRoles(), n) && m.CanRequestRole(n) {
-			// user does not currently hold this role, and is allowed to request it.
-			expanded = append(expanded, n)
+		n := role.GetName()
+		if slices.Contains(m.userState.GetRoles(), n) || !m.CanRequestRole(n) {
+			continue
 		}
+
+		for _, resource := range resources {
+			roleAllowsAccess, err := m.roleAllowsResource(ctx, role, resource, loginHint)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if !roleAllowsAccess {
+				continue outer
+			}
+		}
+
+		// user does not currently hold this role, and is allowed to request it.
+		expanded = append(expanded, n)
 	}
 	return expanded, nil
 }
@@ -1921,6 +1942,9 @@ func resourceMatcherToMatcherSlice(resourceMatcher *KubeResourcesMatcher) []Role
 // the underlying resources are the same as requested. If the resource requested
 // is a Kubernetes resource, we return the underlying Kubernetes cluster.
 func (m *RequestValidator) getUnderlyingResourcesByResourceIDs(ctx context.Context, resourceIDs []types.ResourceID) ([]types.ResourceWithLabels, error) {
+	if len(resourceIDs) == 0 {
+		return []types.ResourceWithLabels{}, nil
+	}
 	// When searching for Kube Resources, we change the resource Kind to the Kubernetes
 	// Cluster in order to load the roles that grant access to it and to verify
 	// if the access to it is allowed. We later verify if every Kubernetes Resource

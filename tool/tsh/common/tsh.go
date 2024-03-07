@@ -3196,53 +3196,6 @@ func serializeClusters(rootCluster clusterInfo, leafClusters []clusterInfo, form
 	return string(out), trace.Wrap(err)
 }
 
-// getRoleRequestsForResource gets a list of roles a user can request that
-// would allow them to access a given resource.
-func getRoleRequestsForResource(ctx context.Context, cf *CLIConf, tc *client.TeleportClient, resource types.ResourceWithLabels) ([]string, error) {
-	// Get all of the roles the user is allowed to request.
-	profile, err := cf.ProfileStatus()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	requestableRoles := make(map[string]struct{})
-	for _, roleName := range profile.Roles {
-		role, err := tc.GetRole(ctx, roleName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		for _, requestableRoleName := range role.GetAccessRequestConditions(types.Allow).Roles {
-			requestableRoles[requestableRoleName] = struct{}{}
-		}
-		for _, notRequestableRoleName := range role.GetAccessRequestConditions(types.Deny).Roles {
-			delete(requestableRoles, notRequestableRoleName)
-		}
-	}
-
-	u, err := tc.GetSelfUser(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	accessInfo := services.AccessInfoFromUserState(u)
-	var rolesForRequest []string
-	matchLogin := services.RoleMatcherFunc(func(r types.Role, cond types.RoleConditionType) (bool, error) {
-		return slices.Contains(r.GetLogins(cond), tc.HostLogin), nil
-	})
-
-	// For each role the user can request, check if it allows access to the resource.
-	for roleName := range requestableRoles {
-		accessInfo.Roles = []string{roleName}
-		checker, err := services.NewAccessChecker(accessInfo, profile.Cluster, tc)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := checker.CheckAccess(resource, services.AccessState{MFAVerified: true}, matchLogin); err == nil {
-			rolesForRequest = append(rolesForRequest, roleName)
-		}
-	}
-
-	return rolesForRequest, nil
-}
-
 // accessRequestForSSH attempts to create a resource access request for the case
 // where "tsh ssh" was attempted and access was denied
 func accessRequestForSSH(ctx context.Context, cf *CLIConf, tc *client.TeleportClient) (types.AccessRequest, error) {
@@ -3277,22 +3230,32 @@ func accessRequestForSSH(ctx context.Context, cf *CLIConf, tc *client.TeleportCl
 	// At this point we have exactly 1 node.
 	node := rsp.Servers[0]
 	var req types.AccessRequest
+	requestResourceIDs := []types.ResourceID{{
+		ClusterName: tc.SiteName,
+		Kind:        types.KindNode,
+		Name:        node.GetName(),
+	}}
 	if cf.RequestRole {
-		candidateRoles, err := getRoleRequestsForResource(ctx, cf, tc, node)
+		resp, err := clt.AuthClient.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
+			RequestableRoles:       true,
+			RequestableResourceIDs: requestResourceIDs,
+			Login:                  tc.HostLogin,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		var selectedRole string
-		switch len(candidateRoles) {
+		switch len(resp.RequestableRoles) {
 		case 0:
 			return nil, trace.AccessDenied("no roles to request that would grant access")
 		case 1:
-			selectedRole = candidateRoles[0]
+			selectedRole = resp.RequestableRoles[0]
 		default:
 			selectedRole, err = prompt.PickOne(
 				ctx, os.Stdout, prompt.NewContextReader(os.Stdin),
 				"Choose role to request",
-				candidateRoles)
+				resp.RequestableRoles)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3303,12 +3266,6 @@ func accessRequestForSSH(ctx context.Context, cf *CLIConf, tc *client.TeleportCl
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		requestResourceIDs := []types.ResourceID{{
-			ClusterName: tc.SiteName,
-			Kind:        types.KindNode,
-			Name:        node.GetName(),
-		}}
-
 		// Roles to request will be automatically determined on the backend.
 		req, err = services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
 		if err != nil {

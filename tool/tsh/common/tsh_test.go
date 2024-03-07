@@ -1819,12 +1819,14 @@ func TestSSHAccessRequest(t *testing.T) {
 			})
 			require.NoError(t, err)
 
+			user, err := user.Current()
+			require.NoError(t, err)
 			nodeAccessRole, err := types.NewRole("node-access", types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					NodeLabels: types.Labels{
 						"access": {"true"},
 					},
-					Logins: []string{"{{internal.logins}}"},
+					Logins: []string{user.Username},
 				},
 			})
 			require.NoError(t, err)
@@ -1834,8 +1836,6 @@ func TestSSHAccessRequest(t *testing.T) {
 			alice, err := types.NewUser("alice@example.com")
 			require.NoError(t, err)
 			alice.SetRoles([]string{"requester"})
-			user, err := user.Current()
-			require.NoError(t, err)
 			traits := map[string][]string{
 				constants.TraitLogins: {user.Username},
 			}
