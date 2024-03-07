@@ -19,6 +19,8 @@ import styled from 'styled-components';
 
 import PropTypes from 'prop-types';
 
+import { rotate360 } from '../keyframes';
+
 import { Spinner as SpinnerIcon } from './../Icon';
 
 const DelayValueMap = {
@@ -74,20 +76,11 @@ const StyledSpinner = styled(SpinnerIcon)`
     width: ${fontSize};
   `}
 
-  animation: anim-rotate 2s infinite linear;
+  animation: ${rotate360} 2s infinite linear;
   color: ${props => props.theme.colors.spotBackground[0]}
   display: inline-block;
   margin: 16px;
   opacity: 0.24;
-
-  @keyframes anim-rotate {
-    0% {
-      transform: rotate(0);
-    }
-    100% {
-      transform: rotate(360deg);
-    }
-  }
 `;
 
 export default Indicator;
