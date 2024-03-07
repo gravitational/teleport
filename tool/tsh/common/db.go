@@ -44,6 +44,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/prompt"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
@@ -816,6 +818,62 @@ func onDatabaseConnect(cf *CLIConf) error {
 	return nil
 }
 
+func accessRequestForDB(cf *CLIConf, tc *client.TeleportClient, db types.Database) error {
+	requestResourceIDs := []types.ResourceID{{
+		ClusterName: tc.SiteName,
+		Kind:        types.KindDatabase,
+		Name:        db.GetName(),
+	}}
+
+	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cf.RequestID = req.GetName()
+
+	fmt.Fprintf(cf.Stdout(), "You do not currently have access to %q, attempting to request access.\n\n", db.GetName())
+
+	// Prompt for a request reason.
+	requestReason, err := prompt.Input(cf.Context, cf.Stdout(), prompt.Stdin(), "Enter request reason")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	req.SetRequestReason(requestReason)
+
+	fmt.Fprint(os.Stdout, "Creating request...\n")
+	// Always create access request against the root cluster.
+	if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+		req, err = clt.CreateAccessRequestV2(cf.Context, req)
+		return trace.Wrap(err)
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if cf.Username == "" {
+		cf.Username = tc.Username
+	}
+	// re-fetch the request to display it with roles populated.
+	onRequestShow(cf)
+	fmt.Println("")
+
+	// Wait for the request to be resolved.
+	fmt.Fprintf(os.Stdout, "Waiting for request approval...\n")
+	var resolvedReq types.AccessRequest
+	if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+		resolvedReq, err = awaitRequestResolution(cf.Context, clt, req)
+		return trace.Wrap(err)
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Handle resolution and update client certs if approved.
+	if err := onRequestResolution(cf, tc, resolvedReq); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // getDatabaseInfo fetches information about the database from tsh profile if DB
 // is active in profile and no labels or predicate query are given.
 // Otherwise, the ListDatabases endpoint is called.
@@ -831,7 +889,23 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, routes []tlsca.Rout
 	}
 
 	db, err := getDatabaseByNameOrDiscoveredName(cf, tc, routes)
-	if err != nil {
+	switch {
+	case trace.IsNotFound(err) && !cf.disableAccessRequest && !tc.UseSearchAsRoles:
+		// Try again with SearchAsRoles. TODO optimize to not do
+		// UseSearchAsRoles for "regular" users.
+		tc.UseSearchAsRoles = true
+		searchAsRolesDB, searchAsRolesErr := getDatabaseByNameOrDiscoveredName(cf, tc, nil)
+		if searchAsRolesErr != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := accessRequestForDB(cf, tc, searchAsRolesDB); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		db = searchAsRolesDB
+
+	case err != nil:
 		return nil, trace.Wrap(err)
 	}
 
@@ -1068,6 +1142,7 @@ func listDatabasesWithPredicate(ctx context.Context, tc *client.TeleportClient, 
 			ResourceType:        types.KindDatabaseServer,
 			PredicateExpression: predicate,
 			Labels:              tc.Labels,
+			UseSearchAsRoles:    tc.UseSearchAsRoles,
 		})
 		return trace.Wrap(err)
 	})
