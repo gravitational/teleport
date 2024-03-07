@@ -97,6 +97,23 @@ user groups and direct application assignments as Access Lists. This will ensure
 that permissions in Okta are modeled properly in Teleport, allowing Teleport users
 to see the same Okta applications that they would when viewing the Okta dashboard.
 
+<Admonition type="note">
+If you already have an SSO setup on Teleport that utilizes Okta, take this time to update the role mapping in the
+connector from `requester` to `okta-requester`. This role is dynamically managed by the Okta Integration
+to be able to request the resources imported from Okta.
+
+To update this, navigate to Access Management -> Auth Connectors and select the Okta integration connector.
+Please make sure that the `attributes_to_roles` field in the Okta SSO definition looks like this:
+
+```yaml
+  attributes_to_roles:
+  - name: groups
+    roles:
+    - okta-requester
+    value: Everyone
+```
+</Admonition>
+
 ### Configuring Default Owners
 
 The first step of setting up Okta Access List synchronization is defining default Access List owners. You can select
