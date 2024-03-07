@@ -70,7 +70,7 @@ message UpdateAccessMonitoringRuleRequest {
 
 // UpsertAccessMonitoringRuleRequest is the request for UpsertAccessMonitoringRule.
 message UpsertAccessMonitoringRuleRequest {
-  // access_monitoring_rule is the specification of the rule to be upsertd.
+  // access_monitoring_rule is the specification of the rule to be upserted.
   AccessMonitoringRule access_monitoring_rule = 1;
 }
 
