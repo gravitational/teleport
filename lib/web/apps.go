@@ -44,7 +44,10 @@ import (
 )
 
 // clusterAppsGet returns a list of applications in a form the UI can present.
-// This includes Application Servers as well as SAML IdP Service providers.
+// Not in use since v15+.
+// Pre v15 (v14 and below), clusterAppsGet returned both App and SAML service providers.
+//
+//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	identity, err := sctx.GetIdentity()
 	if err != nil {
@@ -429,6 +432,8 @@ func (h *Handler) proxyDNSNames() (dnsNames []string) {
 
 // appServerOrSPPageFromAppServerPage converts a ResourcePage containing AppServers to a ResourcePage containing AppServerOrSAMLIdPServiceProviders.
 // DELETE IN 15.0
+//
+//nolint:staticcheck // SA1019. To be deleted along with the API in 16.0.
 func appServerOrSPPageFromAppServerPage(appServerPage apiclient.ResourcePage[types.AppServer]) apiclient.ResourcePage[types.AppServerOrSAMLIdPServiceProvider] {
 	resources := make([]types.AppServerOrSAMLIdPServiceProvider, len(appServerPage.Resources))
 

@@ -335,6 +335,39 @@ func TestAccessMySQL(t *testing.T) {
 	}
 }
 
+func TestMySQLServerVersionUpdateOnConnection(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(
+		ctx,
+		t,
+		withSelfHostedMySQL("mysql",
+			// Set an older version in DB spec.
+			withMySQLServerVersionInDBSpec("6.6.6-before"),
+			// Set a newer version in TestServer.
+			withMySQLServerVersion("8.8.8-after"),
+		),
+	)
+	go testCtx.startHandlingConnections()
+
+	// Confirm the server version configured in the spec.
+	db, err := testCtx.server.getProxiedDatabase("mysql")
+	require.NoError(t, err)
+	require.Equal(t, "6.6.6-before", db.GetMySQLServerVersion())
+
+	// Connect.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"alice"}, []string{types.Wildcard})
+	mysqlConn, err := testCtx.mysqlClient("alice", "mysql", "alice")
+	require.NoError(t, err)
+	defer mysqlConn.Close()
+	_, err = mysqlConn.Execute("select 1")
+	require.NoError(t, err)
+
+	// Check if proxied database is updated.
+	updatedDB, err := testCtx.server.getProxiedDatabase("mysql")
+	require.NoError(t, err)
+	require.Equal(t, "8.8.8-after", updatedDB.GetMySQLServerVersion())
+}
+
 // TestAccessRedis verifies access scenarios to a Redis database based
 // on the configured RBAC rules.
 func TestAccessRedis(t *testing.T) {
@@ -2750,6 +2783,14 @@ type selfHostedMySQLOption func(*selfHostedMySQLOptions)
 func withMySQLServerVersion(version string) selfHostedMySQLOption {
 	return func(opts *selfHostedMySQLOptions) {
 		opts.serverOptions = append(opts.serverOptions, mysql.WithServerVersion(version))
+	}
+}
+
+func withMySQLServerVersionInDBSpec(version string) selfHostedMySQLOption {
+	return func(opts *selfHostedMySQLOptions) {
+		opts.databaseOptions = append(opts.databaseOptions, func(db *types.DatabaseV3) {
+			db.Spec.MySQL.ServerVersion = version
+		})
 	}
 }
 

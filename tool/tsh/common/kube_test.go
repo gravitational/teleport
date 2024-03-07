@@ -556,7 +556,7 @@ func TestKubeSelection(t *testing.T) {
 					cmdRunner = func(cmd *exec.Cmd) error {
 						config := kubeConfigFromCmdEnv(t, cmd)
 						for _, kube := range test.wantProxied {
-							checkKubeLocalProxyConfig(t, s, config, rootClusterName, kube)
+							checkKubeLocalProxyConfig(t, config, rootClusterName, kube)
 						}
 						return nil
 					}

@@ -1783,7 +1783,11 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 			require.NoError(t, ApplyFileConfig(&tt.fc, cfg))
 			require.NoError(t, Configure(&CommandLineFlags{}, cfg, false))
 
-			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, cmpopts.EquateEmpty()))
+			opts := cmp.Options{
+				cmpopts.EquateEmpty(),
+				cmpopts.IgnoreFields(servicecfg.ProxyConfig{}, "AutomaticUpgradesChannels"),
+			}
+			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, opts...))
 		})
 	}
 }
@@ -2113,7 +2117,11 @@ func TestProxyConfigurationVersion(t *testing.T) {
 			cfg := servicecfg.MakeDefaultConfig()
 			err := ApplyFileConfig(&tt.fc, cfg)
 			tt.checkErr(t, err)
-			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, cmpopts.EquateEmpty()))
+			opts := cmp.Options{
+				cmpopts.EquateEmpty(),
+				cmpopts.IgnoreFields(servicecfg.ProxyConfig{}, "AutomaticUpgradesChannels"),
+			}
+			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, opts...))
 		})
 	}
 }

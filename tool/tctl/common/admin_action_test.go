@@ -934,9 +934,9 @@ func (s *adminActionTestSuite) testEditCommand(t *testing.T, ctx context.Context
 type adminActionTestSuite struct {
 	authServer *auth.Server
 	// userClientWithMFA supports MFA prompt for admin actions.
-	userClientWithMFA auth.ClientI
+	userClientWithMFA *auth.Client
 	// userClientWithMFA does not support MFA prompt for admin actions.
-	userClientNoMFA  auth.ClientI
+	userClientNoMFA  *auth.Client
 	localAdminClient *auth.Client
 }
 
@@ -1117,7 +1117,7 @@ func (s *adminActionTestSuite) testCommand(t *testing.T, ctx context.Context, tc
 	})
 }
 
-func runTestCase(t *testing.T, ctx context.Context, client auth.ClientI, tc adminActionTestCase) error {
+func runTestCase(t *testing.T, ctx context.Context, client *auth.Client, tc adminActionTestCase) error {
 	t.Helper()
 
 	if tc.setup != nil {
