@@ -24,26 +24,9 @@ updates:
     open-pull-requests-limit: 10
     groups:
       go:
-        update-types: ["minor", "patch"]
-        # AWS, k8s and otel have their own groups.
-        exclude-patterns:
-          - github.com/aws/*
-          - go.opentelemetry.io/*
-          - k8s.io/*
-          - sigs.k8s.io/*
-      aws:
-        update-types: ["minor", "patch"]
-        patterns:
-          - github.com/aws/*
-      k8s:
-        update-types: ["minor", "patch"]
-        patterns:
-          - k8s.io/*
-          - sigs.k8s.io/*
-      otel:
-        update-types: ["minor", "patch"]
-        patterns:
-          - go.opentelemetry.io/*
+        update-types:
+          - "minor"
+          - "patch"
     reviewers:
       - codingllama
       - jentfoo
@@ -63,14 +46,9 @@ updates:
     open-pull-requests-limit: 10
     groups:
       go:
-        update-types: ["minor", "patch"]
-        # otel has its own group.
-        exclude-patterns:
-          - go.opentelemetry.io/*
-      otel:
-        update-types: ["minor", "patch"]
-        patterns:
-          - go.opentelemetry.io/*
+        update-types:
+          - "minor"
+          - "patch"
     reviewers:
       - codingllama
       - jentfoo

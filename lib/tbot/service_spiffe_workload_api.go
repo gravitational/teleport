@@ -68,7 +68,7 @@ type SPIFFEWorkloadAPIService struct {
 	botCfg      *config.BotConfig
 	cfg         *config.SPIFFEWorkloadAPIService
 	log         logrus.FieldLogger
-	botClient   auth.ClientI
+	botClient   *auth.Client
 	resolver    reversetunnelclient.Resolver
 	// rootReloadBroadcaster allows the service to listen for CA rotations and
 	// update the trust bundle cache.
@@ -78,7 +78,7 @@ type SPIFFEWorkloadAPIService struct {
 	trustBundleBroadcast *channelBroadcaster
 
 	// client holds the impersonated client for the service
-	client auth.ClientI
+	client *auth.Client
 
 	trustDomain string
 
