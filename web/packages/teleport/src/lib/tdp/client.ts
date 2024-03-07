@@ -611,12 +611,7 @@ export default class Client extends EventEmitterWebAuthnSender {
   }
 
   sendKeyboardInput(code: string, state: ButtonState) {
-    const msgs = this.codec.encodeKeyboardInput(code, state);
-    if (msgs) {
-      msgs.forEach(msg => this.send(msg));
-    } else {
-      this.logger.warn(`Unrecognized key: ${code}`);
-    }
+    this.codec.encodeKeyboardInput(code, state).forEach(msg => this.send(msg));
   }
 
   sendSyncKeys(syncKeys: SyncKeys) {

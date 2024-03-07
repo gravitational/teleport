@@ -367,23 +367,20 @@ export default class Codec {
   }
 
   // encodeKeyboardInput encodes a keyboard action.
-  // Returns null if an unsupported code is passed.
+  // Returns an empty array if an unsupported code is passed.
   // | message type (5) | key_code uint32 | state byte |
-  encodeKeyboardInput(code: string, state: ButtonState): Message[] | null {
+  encodeKeyboardInput(code: string, state: ButtonState): Message[] {
     const scancodes = KEY_SCANCODES[code];
     if (!scancodes) {
-      return null;
+      // eslint-disable-next-line no-console
+      console.warn(`unsupported key code: ${code}`);
+      return [];
     }
 
-    return scancodes.map(scancode =>
-      this.encodeKeyboardInputSingle(scancode, state)
-    );
+    return scancodes.map(scancode => this.encodeScancode(scancode, state));
   }
 
-  private encodeKeyboardInputSingle(
-    scancode: number,
-    state: ButtonState
-  ): Message {
+  private encodeScancode(scancode: number, state: ButtonState): Message {
     const buffer = new ArrayBuffer(6);
     const view = new DataView(buffer);
     view.setUint8(0, MessageType.KEYBOARD_BUTTON);
