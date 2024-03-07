@@ -51,6 +51,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -2848,8 +2849,9 @@ func TestTargetMetadata(t *testing.T) {
 
 func TestValidateListenerSocket(t *testing.T) {
 	t.Parallel()
+
 	newSocketFiles := func(t *testing.T) (*uds.Conn, *os.File) {
-		left, right, err := uds.NewSocketpair(uds.SocketTypeStream)
+		left, right, err := uds.NewSocketpair(uds.SocketTypeDatagram)
 		require.NoError(t, err)
 		listenerFD, err := right.File()
 		require.NoError(t, err)
@@ -2867,7 +2869,8 @@ func TestValidateListenerSocket(t *testing.T) {
 	tests := []struct {
 		name        string
 		user        string
-		mutateFiles func(*uds.Conn, *os.File) (*uds.Conn, *os.File)
+		mutateFiles func(*testing.T, *uds.Conn, *os.File) (*uds.Conn, *os.File)
+		mutateConn  func(*testing.T, *os.File)
 		assert      require.ErrorAssertionFunc
 	}{
 		{
@@ -2883,7 +2886,7 @@ func TestValidateListenerSocket(t *testing.T) {
 		{
 			name: "not a socket",
 			user: u.Username,
-			mutateFiles: func(conn *uds.Conn, file *os.File) (*uds.Conn, *os.File) {
+			mutateFiles: func(t *testing.T, conn *uds.Conn, file *os.File) (*uds.Conn, *os.File) {
 				regularFile, err := os.Create(filepath.Join(t.TempDir(), "test.txt"))
 				require.NoError(t, err)
 				t.Cleanup(func() {
@@ -2893,7 +2896,45 @@ func TestValidateListenerSocket(t *testing.T) {
 			},
 			assert: require.Error,
 		},
+		{
+			name: "socket type not DGRAM",
+			user: u.Username,
+			mutateFiles: func(t *testing.T, conn *uds.Conn, file *os.File) (*uds.Conn, *os.File) {
+				left, right, err := uds.NewSocketpair(uds.SocketTypeStream)
+				require.NoError(t, err)
+				listenerFD, err := right.File()
+				require.NoError(t, err)
+				require.NoError(t, right.Close())
+				t.Cleanup(func() {
+					require.NoError(t, left.Close())
+					require.NoError(t, listenerFD.Close())
+				})
+				return left, listenerFD
+			},
+			assert: require.Error,
+		},
+		{
+			name: "socket not set to close on exec",
+			user: u.Username,
+			mutateConn: func(t *testing.T, file *os.File) {
+				fd := file.Fd()
+				_, err := unix.FcntlInt(fd, unix.F_SETFD, 0)
+				require.NoError(t, err)
+			},
+			assert: require.Error,
+		},
+		{
+			name: "SO_REUSEADDR enabled",
+			user: u.Username,
+			mutateConn: func(t *testing.T, file *os.File) {
+				fd := file.Fd()
+				err := unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEADDR, 1)
+				require.NoError(t, err)
+			},
+			assert: require.Error,
+		},
 	}
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			scx := &srv.ServerContext{
@@ -2903,7 +2944,10 @@ func TestValidateListenerSocket(t *testing.T) {
 			}
 			conn, listenerFD := newSocketFiles(t)
 			if tc.mutateFiles != nil {
-				conn, listenerFD = tc.mutateFiles(conn, listenerFD)
+				conn, listenerFD = tc.mutateFiles(t, conn, listenerFD)
+			}
+			if tc.mutateConn != nil {
+				tc.mutateConn(t, listenerFD)
 			}
 			err := validateListenerSocket(scx, conn.UnixConn, listenerFD)
 			tc.assert(t, err)
