@@ -77,7 +77,7 @@ message UpsertAccessMonitoringRuleRequest {
 // GetAccessMonitoringRuleRequest is the request for GetAccessMonitoringRule.
 message GetAccessMonitoringRuleRequest {
   // resource_name is the name of the rule to be returned.
-  string resource_name = 1;
+  string name = 1;
 }
 
 // DeleteAccessMonitoringRuleRequest is the request for DeleteAccessMonitoringRule.
