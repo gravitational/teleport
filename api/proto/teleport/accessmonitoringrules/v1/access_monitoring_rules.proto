@@ -65,7 +65,7 @@ message CreateAccessMonitoringRuleRequest {
 // UpdateAccessMonitoringRuleRequest is the request for UpdateAccessMonitoringRule.
 message UpdateAccessMonitoringRuleRequest {
   // access_monitoring_rule is the specification of the rule to be updated.
-  AccessMonitoringRule access_monitoring_rule = 1;
+  AccessMonitoringRule rule = 1;
 }
 
 // UpsertAccessMonitoringRuleRequest is the request for UpsertAccessMonitoringRule.
