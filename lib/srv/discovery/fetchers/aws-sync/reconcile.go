@@ -52,6 +52,7 @@ func ReconcileResults(old *Resources, new *Resources) (upsert, delete *accessgra
 		reconcileEKSClusters(old.EKSClusters, new.EKSClusters),
 		reconcileAssociatedAccessPolicy(old.AssociatedAccessPolicies, new.AssociatedAccessPolicies),
 		reconcileAccessEntry(old.AccessEntries, new.AccessEntries),
+		reconcileAWSRDS(old.RDSDatabases, new.RDSDatabases),
 	} {
 		upsert.Resources = append(upsert.Resources, results.upsert.Resources...)
 		delete.Resources = append(delete.Resources, results.delete.Resources...)
@@ -523,6 +524,32 @@ func reconcileAccessEntry(
 		delete.Resources = append(delete.Resources, &accessgraphv1alpha.AWSResource{
 			Resource: &accessgraphv1alpha.AWSResource_EksClusterAccessEntry{
 				EksClusterAccessEntry: profile,
+			},
+		})
+	}
+	return &reconcileIntermeditateResult{upsert, delete}
+}
+
+func reconcileAWSRDS(
+	old []*accessgraphv1alpha.AWSRDSDatabaseV1,
+	new []*accessgraphv1alpha.AWSRDSDatabaseV1,
+) *reconcileIntermeditateResult {
+	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
+	toAdd, toRemove := reconcile(old, new, func(profile *accessgraphv1alpha.AWSRDSDatabaseV1) string {
+		return fmt.Sprintf("%s;%s", profile.AccountId, profile.Arn)
+	})
+
+	for _, profile := range toAdd {
+		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_Rds{
+				Rds: profile,
+			},
+		})
+	}
+	for _, profile := range toRemove {
+		delete.Resources = append(delete.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_Rds{
+				Rds: profile,
 			},
 		})
 	}
