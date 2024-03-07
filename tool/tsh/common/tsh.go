@@ -4146,9 +4146,6 @@ func refuseArgs(command string, args []string) error {
 func onFlatten(cf *CLIConf) error {
 	// Save the identity file path for later
 	identityFile := cf.IdentityFileIn
-	if cf.Proxy == "" {
-		return trace.BadParameter("--proxy must be specified")
-	}
 
 	// We clear the identity flag so that the client store will be backed
 	// by the filesystem instead (in ~/.tsh or TELEPORT_HOME).
@@ -4158,6 +4155,11 @@ func onFlatten(cf *CLIConf) error {
 	c, err := loadClientConfigFromCLIConf(cf, cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// Proxy address may be loaded from existing tsh profile or from --proxy flag.
+	if c.WebProxyAddr == "" {
+		return trace.BadParameter("No proxy address specified, missed --proxy flag?")
 	}
 
 	// Load the identity file key and partial profile into the client store.
