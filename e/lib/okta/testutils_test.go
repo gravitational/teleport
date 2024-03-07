@@ -403,6 +403,11 @@ func (t *testOktaClient) addGroupToMapping(groupId string) {
 	t.groupsToUsersMu.Lock()
 	defer t.groupsToUsersMu.Unlock()
 
+	// Don't overwrite the existing mapping if it exists.
+	if _, ok := t.groupsToUsers[groupId]; ok {
+		return
+	}
+
 	t.oktaGroups = append(t.oktaGroups, &okta.Group{
 		Id: groupId,
 	})

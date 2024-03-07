@@ -48,6 +48,7 @@ func (a *accessListSyncTestContext) addApp(app types.Application) {
 
 func (a *accessListSyncTestContext) addGroup(group types.UserGroup) {
 	a.groups[group.GetName()] = group
+	a.client.addGroupToMapping(group.GetName())
 }
 
 func (a *accessListSyncTestContext) advanceAndWaitForSync() {
@@ -169,12 +170,20 @@ func TestAccessListSync(t *testing.T) {
 
 		c.advanceAndWaitForSync()
 
-		require.Empty(t, c.svc.getImportAccessLists())
-		require.Empty(t, c.svc.getNewImportAccessLists())
+		require.Empty(t, cmp.Diff(map[string]*accesslist.AccessList{
+			"group1": newAccessList(t, "group1", "group label", []string{"group1-reviewer"}, []string{"group1"}, owners),
+			"group2": newAccessList(t, "group2", "group label", []string{"group2-reviewer"}, []string{"group2"}, owners),
+		}, c.svc.getImportAccessLists(), cmpOpts...))
+		require.Empty(t, cmp.Diff(c.svc.getImportAccessLists(), c.svc.getNewImportAccessLists(), cmpOpts...))
 		require.Empty(t, c.svc.getImportAccessListMembers())
 		require.Empty(t, c.svc.getNewImportAccessListMembers())
-		require.Empty(t, c.svc.getImportRoles())
-		require.Empty(t, c.svc.getNewImportRoles())
+		require.Empty(t, cmp.Diff(map[string]types.Role{
+			"group1":          newRole(t, "group1", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"group1"}}),
+			"group1-reviewer": newReviewerRole(t, "group1"),
+			"group2":          newRole(t, "group2", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"group2"}}),
+			"group2-reviewer": newReviewerRole(t, "group2"),
+		}, c.svc.getImportRoles(), cmpOpts...))
+		require.Empty(t, cmp.Diff(c.svc.getImportRoles(), c.svc.getNewImportRoles(), cmpOpts...))
 
 		expectAuditEvent(t, c.emitter, func(event *apievents.OktaAccessListSync) {
 			require.True(t, event.Success)
@@ -183,13 +192,13 @@ func TestAccessListSync(t *testing.T) {
 			require.Zero(t, event.NumAppFilters)
 			require.Zero(t, event.NumGroupFilters)
 			require.Zero(t, event.NumApps)
-			require.Zero(t, event.NumGroups)
-			require.Zero(t, event.NumRoles)
-			require.Zero(t, event.NumAccessLists)
+			require.Equal(t, int32(2), event.NumGroups)
+			require.Equal(t, int32(4), event.NumRoles)
+			require.Equal(t, int32(2), event.NumAccessLists)
 			require.Zero(t, event.NumAccessListMembers)
 		})
 
-		expectOktaAccessRequesterSearchAsRoles(t, ctx, c.ap)
+		expectOktaAccessRequesterSearchAsRoles(t, ctx, c.ap, "group1", "group2")
 	})
 
 	t.Run("Okta apps have assignments, groups have no assignments", func(t *testing.T) {
@@ -209,8 +218,10 @@ func TestAccessListSync(t *testing.T) {
 		c.advanceAndWaitForSync()
 
 		require.Empty(t, cmp.Diff(map[string]*accesslist.AccessList{
-			"app1": newAccessList(t, "app1", "app label", []string{"app1-reviewer"}, []string{"app1"}, owners),
-			"app2": newAccessList(t, "app2", "app label", []string{"app2-reviewer"}, []string{"app2"}, owners),
+			"app1":   newAccessList(t, "app1", "app label", []string{"app1-reviewer"}, []string{"app1"}, owners),
+			"app2":   newAccessList(t, "app2", "app label", []string{"app2-reviewer"}, []string{"app2"}, owners),
+			"group1": newAccessList(t, "group1", "group label", []string{"group1-reviewer"}, []string{"group1"}, owners),
+			"group2": newAccessList(t, "group2", "group label", []string{"group2-reviewer"}, []string{"group2"}, owners),
 		}, c.svc.getImportAccessLists(), cmpOpts...))
 		require.Empty(t, cmp.Diff(c.svc.getImportAccessLists(), c.svc.getNewImportAccessLists(), cmpOpts...))
 		require.Empty(t, cmp.Diff(map[string]*accesslist.AccessListMember{
@@ -223,10 +234,14 @@ func TestAccessListSync(t *testing.T) {
 		}, c.svc.getImportAccessListMembers(), cmpOpts...))
 		require.Empty(t, cmp.Diff(c.svc.getImportAccessListMembers(), c.svc.getNewImportAccessListMembers(), cmpOpts...))
 		require.Empty(t, cmp.Diff(map[string]types.Role{
-			"app1":          newRole(t, "app1", types.Labels{eteleport.OktaAppIDLabel: []string{"app1"}}, nil),
-			"app1-reviewer": newReviewerRole(t, "app1"),
-			"app2":          newRole(t, "app2", types.Labels{eteleport.OktaAppIDLabel: []string{"app2"}}, nil),
-			"app2-reviewer": newReviewerRole(t, "app2"),
+			"app1":            newRole(t, "app1", types.Labels{eteleport.OktaAppIDLabel: []string{"app1"}}, nil),
+			"app1-reviewer":   newReviewerRole(t, "app1"),
+			"app2":            newRole(t, "app2", types.Labels{eteleport.OktaAppIDLabel: []string{"app2"}}, nil),
+			"app2-reviewer":   newReviewerRole(t, "app2"),
+			"group1":          newRole(t, "group1", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"group1"}}),
+			"group1-reviewer": newReviewerRole(t, "group1"),
+			"group2":          newRole(t, "group2", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"group2"}}),
+			"group2-reviewer": newReviewerRole(t, "group2"),
 		}, c.svc.getImportRoles(), cmpOpts...))
 		require.Empty(t, cmp.Diff(c.svc.getImportRoles(), c.svc.getNewImportRoles(), cmpOpts...))
 
@@ -239,13 +254,13 @@ func TestAccessListSync(t *testing.T) {
 			require.Zero(t, event.NumAppFilters)
 			require.Zero(t, event.NumGroupFilters)
 			require.Equal(t, int32(2), event.NumApps)
-			require.Zero(t, event.NumGroups)
-			require.Equal(t, int32(4), event.NumRoles)
-			require.Equal(t, int32(2), event.NumAccessLists)
+			require.Equal(t, int32(2), event.NumGroups)
+			require.Equal(t, int32(8), event.NumRoles)
+			require.Equal(t, int32(4), event.NumAccessLists)
 			require.Equal(t, int32(6), event.NumAccessListMembers)
 		})
 
-		expectOktaAccessRequesterSearchAsRoles(t, ctx, c.ap, "app1", "app2")
+		expectOktaAccessRequesterSearchAsRoles(t, ctx, c.ap, "app1", "app2", "group1", "group2")
 	})
 
 	t.Run("Okta apps have assignments, groups have assignments", func(t *testing.T) {
@@ -268,6 +283,7 @@ func TestAccessListSync(t *testing.T) {
 			"app1":   newAccessList(t, "app1", "app label", []string{"app1-reviewer"}, []string{"app1"}, owners),
 			"app2":   newAccessList(t, "app2", "app label", []string{"app2-reviewer"}, []string{"app2"}, owners),
 			"group1": newAccessList(t, "group1", "group label", []string{"group1-reviewer"}, []string{"group1"}, owners),
+			"group2": newAccessList(t, "group2", "group label", []string{"group2-reviewer"}, []string{"group2"}, owners),
 		}, c.svc.getImportAccessLists(), cmpOpts...))
 		require.Empty(t, cmp.Diff(c.svc.getImportAccessLists(), c.svc.getNewImportAccessLists(), cmpOpts...))
 		require.Empty(t, cmp.Diff(map[string]*accesslist.AccessListMember{
@@ -285,6 +301,8 @@ func TestAccessListSync(t *testing.T) {
 			"app2-reviewer":   newReviewerRole(t, "app2"),
 			"group1":          newRole(t, "group1", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"group1"}}),
 			"group1-reviewer": newReviewerRole(t, "group1"),
+			"group2":          newRole(t, "group2", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"group2"}}),
+			"group2-reviewer": newReviewerRole(t, "group2"),
 		}, c.svc.getImportRoles(), cmpOpts...))
 		require.Empty(t, cmp.Diff(c.svc.getImportRoles(), c.svc.getNewImportRoles(), cmpOpts...))
 
@@ -297,13 +315,13 @@ func TestAccessListSync(t *testing.T) {
 			require.Zero(t, event.NumAppFilters)
 			require.Zero(t, event.NumGroupFilters)
 			require.Equal(t, int32(2), event.NumApps)
-			require.Equal(t, int32(1), event.NumGroups)
-			require.Equal(t, int32(6), event.NumRoles)
-			require.Equal(t, int32(3), event.NumAccessLists)
+			require.Equal(t, int32(2), event.NumGroups)
+			require.Equal(t, int32(8), event.NumRoles)
+			require.Equal(t, int32(4), event.NumAccessLists)
 			require.Equal(t, int32(5), event.NumAccessListMembers)
 		})
 
-		expectOktaAccessRequesterSearchAsRoles(t, ctx, c.ap, "app1", "app2", "group1")
+		expectOktaAccessRequesterSearchAsRoles(t, ctx, c.ap, "app1", "app2", "group1", "group2")
 	})
 
 	t.Run("Okta apps have assignments, groups have assignments, apps and group filters added.", func(t *testing.T) {
@@ -444,6 +462,7 @@ func TestAccessListSync(t *testing.T) {
 			"app1":   preserved,
 			"app2":   newAccessList(t, "app2", "app label", []string{"app2-reviewer"}, []string{"app2"}, owners),
 			"group1": newAccessList(t, "group1", "group label", []string{"group1-reviewer"}, []string{"group1"}, owners),
+			"group2": newAccessList(t, "group2", "group label", []string{"group2-reviewer"}, []string{"group2"}, owners),
 		}, c.svc.getImportAccessLists(), cmpOpts...))
 		require.Empty(t, cmp.Diff(c.svc.getImportAccessLists(), c.svc.getNewImportAccessLists(), cmpOpts...))
 		require.Empty(t, cmp.Diff(map[string]*accesslist.AccessListMember{
@@ -461,6 +480,8 @@ func TestAccessListSync(t *testing.T) {
 			"app2-reviewer":   newReviewerRole(t, "app2"),
 			"group1":          newRole(t, "group1", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"group1"}}),
 			"group1-reviewer": newReviewerRole(t, "group1"),
+			"group2":          newRole(t, "group2", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"group2"}}),
+			"group2-reviewer": newReviewerRole(t, "group2"),
 		}, c.svc.getImportRoles(), cmpOpts...))
 		require.Empty(t, cmp.Diff(c.svc.getImportRoles(), c.svc.getNewImportRoles(), cmpOpts...))
 
@@ -473,13 +494,13 @@ func TestAccessListSync(t *testing.T) {
 			require.Zero(t, event.NumAppFilters)
 			require.Zero(t, event.NumGroupFilters)
 			require.Equal(t, int32(2), event.NumApps)
-			require.Equal(t, int32(1), event.NumGroups)
-			require.Equal(t, int32(6), event.NumRoles)
-			require.Equal(t, int32(3), event.NumAccessLists)
+			require.Equal(t, int32(2), event.NumGroups)
+			require.Equal(t, int32(8), event.NumRoles)
+			require.Equal(t, int32(4), event.NumAccessLists)
 			require.Equal(t, int32(5), event.NumAccessListMembers)
 		})
 
-		expectOktaAccessRequesterSearchAsRoles(t, ctx, c.ap, "app1", "app2", "group1")
+		expectOktaAccessRequesterSearchAsRoles(t, ctx, c.ap, "app1", "app2", "group1", "group2")
 	})
 }
 

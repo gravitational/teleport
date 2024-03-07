@@ -500,7 +500,7 @@ func (a *accessListSync) importOktaNativeAssignmentsAsAccessLists(ctx context.Co
 	}
 	a.clearNewImports()
 
-	importCh := make(chan *importResourceMetadata, 100)
+	importCh := make(chan importResourceMetadata, 100)
 
 	convertContext, cancel := context.WithCancel(ctx)
 
@@ -557,7 +557,7 @@ func (a *accessListSync) importOktaNativeAssignmentsAsAccessLists(ctx context.Co
 
 // convertAccessListMetadata will take access list metadata and turn it into import resources. On return, it will
 // close the processDone channel.
-func (a *accessListSync) convertAccessListMetadata(ctx context.Context, importCh chan *importResourceMetadata) {
+func (a *accessListSync) convertAccessListMetadata(ctx context.Context, importCh chan importResourceMetadata) {
 	for {
 		select {
 		case alMetadata, ok := <-importCh:
@@ -653,7 +653,7 @@ type importResourceMetadata struct {
 
 var errNoAssignments = errors.New("no assignments")
 
-func (a *accessListSync) importApps(ctx context.Context, apps map[string]types.Application, userMapping map[string]string, importCh chan *importResourceMetadata) {
+func (a *accessListSync) importApps(ctx context.Context, apps map[string]types.Application, userMapping map[string]string, importCh chan importResourceMetadata) {
 	appIDProcessed := map[string]struct{}{}
 	for _, app := range apps {
 		log := a.log.WithFields(logrus.Fields{
@@ -704,7 +704,7 @@ func (a *accessListSync) importApps(ctx context.Context, apps map[string]types.A
 
 		appIDProcessed[appID] = struct{}{}
 
-		if irMetadata != nil {
+		if len(irMetadata.members) > 0 {
 			log.Info("Processing application")
 			importCh <- irMetadata
 			a.appsImported.Add(1)
@@ -714,7 +714,7 @@ func (a *accessListSync) importApps(ctx context.Context, apps map[string]types.A
 	}
 }
 
-func (a *accessListSync) appToImportResources(ctx context.Context, appID string, app types.Application, userMapping map[string]string) (*importResourceMetadata, error) {
+func (a *accessListSync) appToImportResources(ctx context.Context, appID string, app types.Application, userMapping map[string]string) (importResourceMetadata, error) {
 	title, ok := app.GetLabel(types.OktaAppNameLabel)
 	if !ok {
 		a.log.WithField("app_id", appID).Debug("application ID has no app name to use as a title")
@@ -722,13 +722,13 @@ func (a *accessListSync) appToImportResources(ctx context.Context, appID string,
 
 	assignments, err := a.client.getAppAssignments(ctx, appID)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return importResourceMetadata{}, trace.Wrap(err)
 	}
 
 	// If there are no assignments, it's not an error, but return a nil labelsAndMembers object.
 	numAssignments := len(assignments)
 	if numAssignments == 0 {
-		return nil, trace.Wrap(errNoAssignments)
+		return importResourceMetadata{}, trace.Wrap(errNoAssignments)
 	}
 
 	members := make([]string, 0, numAssignments)
@@ -738,7 +738,7 @@ func (a *accessListSync) appToImportResources(ctx context.Context, appID string,
 		}
 	}
 
-	return &importResourceMetadata{
+	return importResourceMetadata{
 		name:        appID,
 		title:       title,
 		description: "imported access list for Okta application",
@@ -749,7 +749,7 @@ func (a *accessListSync) appToImportResources(ctx context.Context, appID string,
 	}, nil
 }
 
-func (a *accessListSync) importGroups(ctx context.Context, groups map[string]types.UserGroup, userMapping map[string]string, importCh chan *importResourceMetadata) {
+func (a *accessListSync) importGroups(ctx context.Context, groups map[string]types.UserGroup, userMapping map[string]string, importCh chan importResourceMetadata) {
 	groupIDProcessed := map[string]struct{}{}
 	for _, group := range groups {
 		log := a.log.WithField("group_name", group.GetName())
@@ -789,49 +789,39 @@ func (a *accessListSync) importGroups(ctx context.Context, groups map[string]typ
 		}
 
 		irMetadata, err := a.groupToImportResources(ctx, groupID, group, userMapping)
-		if err != nil && !errors.Is(err, errNoAssignments) {
+		if err != nil {
 			log.Error("error importing group")
 			continue
 		}
 
 		groupIDProcessed[groupID] = struct{}{}
 
-		if irMetadata != nil {
-			log.Info("Processing group")
-			importCh <- irMetadata
-			a.groupsImported.Add(1)
-		} else {
-			log.Info("Group has no assignments, skipping")
-		}
+		importCh <- irMetadata
+		a.groupsImported.Add(1)
 	}
 }
 
-func (a *accessListSync) groupToImportResources(ctx context.Context, groupID string, group types.ResourceWithLabels, userMapping map[string]string) (*importResourceMetadata, error) {
+func (a *accessListSync) groupToImportResources(ctx context.Context, groupID string, group types.ResourceWithLabels, userMapping map[string]string) (importResourceMetadata, error) {
 	title, ok := group.GetLabel(types.OktaGroupNameLabel)
 	if !ok {
-		return nil, trace.BadParameter("group ID %s has no group name to use as a title", groupID)
+		return importResourceMetadata{}, trace.BadParameter("group ID %s has no group name to use as a title", groupID)
 	}
 
 	description, _ := group.GetLabel(types.OktaGroupDescriptionLabel)
 
 	assignments, err := a.client.getGroupAssignments(ctx, groupID)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return importResourceMetadata{}, trace.Wrap(err)
 	}
 
-	numAssignments := len(assignments)
-	if numAssignments == 0 {
-		return nil, trace.Wrap(errNoAssignments)
-	}
-
-	members := make([]string, 0, numAssignments)
+	members := make([]string, 0, len(assignments))
 	for _, assignment := range assignments {
 		if user, ok := userMapping[assignment]; ok {
 			members = append(members, user)
 		}
 	}
 
-	return &importResourceMetadata{
+	return importResourceMetadata{
 		name:        groupID,
 		title:       title,
 		description: description,
@@ -897,7 +887,7 @@ func (a *accessListSync) getNewImportRoles() map[string]types.Role {
 }
 
 // metadataToImportResources will convert import resource metadata from Okta and convert it into import resources.
-func (a *accessListSync) metadataToImportResources(irMetadata *importResourceMetadata) (*accesslist.AccessList, []*accesslist.AccessListMember, []types.Role, error) {
+func (a *accessListSync) metadataToImportResources(irMetadata importResourceMetadata) (*accesslist.AccessList, []*accesslist.AccessListMember, []types.Role, error) {
 	labels := map[string]string{
 		types.OriginLabel:                  types.OriginOkta,
 		types.TeleportInternalResourceType: types.SystemResource,
