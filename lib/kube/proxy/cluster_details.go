@@ -54,7 +54,7 @@ type kubeDetails struct {
 	// kubeCluster is the dynamic kube_cluster or a static generated from kubeconfig and that only has the name populated.
 	kubeCluster types.KubeCluster
 
-	// rwMu is the mutex to protect the kubeCodecs and rbacSupportedTypes.
+	// rwMu is the mutex to protect the kubeCodecs, gvkSupportedResources, and rbacSupportedTypes.
 	rwMu sync.RWMutex
 	// kubeCodecs is the codec factory for the cluster resources.
 	// The codec factory includes the default resources and the namespaced resources
