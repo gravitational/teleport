@@ -22,7 +22,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
 
@@ -43,8 +42,15 @@ type Bot interface {
 
 	// AuthenticatedUserClientFromIdentity returns a client backed by a specific
 	// identity.
-	AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (*auth.Client, error)
+	AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (AuthClient, error)
 
 	// Config returns the current bot config
 	Config() *BotConfig
+}
+
+type AuthClient interface {
+	Close() error
+	GetDomainName(ctx context.Context) (string, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+	Ping(ctx context.Context) (proto.PingResponse, error)
 }

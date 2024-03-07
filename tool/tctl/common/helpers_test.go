@@ -87,9 +87,7 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		if closer, ok := client.(io.Closer); ok {
-			closer.Close()
-		}
+		client.Close()
 	})
 
 	return client

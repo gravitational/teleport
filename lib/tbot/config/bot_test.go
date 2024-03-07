@@ -153,7 +153,7 @@ func (m *mockAuth) Close() error {
 // mockBot is a minimal Bot impl that can be used in tests
 type mockBot struct {
 	cfg  *BotConfig
-	auth *auth.Client
+	auth AuthClient
 }
 
 func (b *mockBot) AuthPing(ctx context.Context) (*proto.PingResponse, error) {
@@ -173,7 +173,7 @@ func (b *mockBot) GetCertAuthorities(ctx context.Context, caType types.CertAuthT
 	return b.auth.GetCertAuthorities(ctx, caType, false)
 }
 
-func (b *mockBot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (*auth.Client, error) {
+func (b *mockBot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (AuthClient, error) {
 	return b.auth, nil
 }
 
@@ -181,7 +181,7 @@ func (b *mockBot) Config() *BotConfig {
 	return b.cfg
 }
 
-func newMockBot(cfg *BotConfig, auth *auth.Client) *mockBot {
+func newMockBot(cfg *BotConfig, auth AuthClient) *mockBot {
 	return &mockBot{
 		cfg:  cfg,
 		auth: auth,
