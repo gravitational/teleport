@@ -52,7 +52,7 @@ type Bot struct {
 
 	// These are protected by getter/setters with mutex locks
 	mu         sync.Mutex
-	_client    auth.ClientI
+	_client    *auth.Client
 	_ident     *identity.Identity
 	_authPong  *proto.PingResponse
 	_proxyPong *webclient.PingResponse
@@ -81,14 +81,14 @@ func (b *Bot) Config() *config.BotConfig {
 }
 
 // Client retrieves the current auth client.
-func (b *Bot) Client() auth.ClientI {
+func (b *Bot) Client() *auth.Client {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	return b._client
 }
 
-func (b *Bot) setClient(client auth.ClientI) {
+func (b *Bot) setClient(client *auth.Client) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -342,7 +342,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 		return unlock, trace.Wrap(err)
 	}
 
-	var authClient auth.ClientI
+	var authClient *auth.Client
 
 	b.resolver, err = reversetunnelclient.CachingResolver(
 		ctx,

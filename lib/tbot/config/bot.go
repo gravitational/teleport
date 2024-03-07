@@ -43,7 +43,7 @@ type Bot interface {
 
 	// AuthenticatedUserClientFromIdentity returns a client backed by a specific
 	// identity.
-	AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (auth.ClientI, error)
+	AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (*auth.Client, error)
 
 	// Config returns the current bot config
 	Config() *BotConfig
