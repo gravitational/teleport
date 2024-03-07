@@ -2978,7 +2978,7 @@ func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.upsertWebSession(ctx, user, sess); err != nil {
+	if err := a.upsertWebSession(ctx, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess.WithoutSecrets(), nil
@@ -3633,7 +3633,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 
 	sess.SetConsumedAccessRequestID(req.AccessRequestID)
 
-	if err := a.upsertWebSession(ctx, req.User, sess); err != nil {
+	if err := a.upsertWebSession(ctx, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -5936,7 +5936,7 @@ func (a *Server) validateMFAAuthResponse(
 	}
 }
 
-func (a *Server) upsertWebSession(ctx context.Context, user string, session types.WebSession) error {
+func (a *Server) upsertWebSession(ctx context.Context, session types.WebSession) error {
 	if err := a.WebSessions().Upsert(ctx, session); err != nil {
 		return trace.Wrap(err)
 	}
