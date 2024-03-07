@@ -16,15 +16,14 @@ syntax = "proto3";
 
 package teleport.accessmonitoringrules.v1;
 
-import "teleport/header/v1/resourceheader.proto";
+import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1;accessmonitoringrulesv1";
 
 // AccessMonitoringRule represents an access monitoring rule resources.
 message AccessMonitoringRule {
-  // header is the header for the resource.
-  teleport.header.v1.ResourceHeader header = 1;
-
+  // metadata is the rules's metadata.
+  teleport.header.v1.Metadata metadata = 1;
   // kind is a resource kind
   string kind = 2;
   // sub_kind is an optional resource sub kind, used in some resources
