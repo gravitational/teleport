@@ -152,7 +152,8 @@ func testDatabaseLogin(t *testing.T) {
 						ExternalID: "123123123",
 						Region:     "us-west-1",
 					},
-				}}
+				},
+			}
 		}),
 	)
 	s.user = alice
@@ -429,11 +430,8 @@ func TestLocalProxyRequirement(t *testing.T) {
 
 	// Log into Teleport cluster.
 	err = Run(context.Background(), []string{
-		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), CliOption(func(cf *CLIConf) error {
-		cf.MockSSOLogin = mockSSOLogin(t, authServer, alice)
-		return nil
-	}))
+		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
 	require.NoError(t, err)
 
 	defaultAuthPref, err := authServer.GetAuthPreference(ctx)
