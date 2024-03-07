@@ -157,6 +157,7 @@ type CLIConf struct {
 
 	// ProxyServer is the teleport proxy address. Unlike `AuthServer` this must
 	// explicitly point to a Teleport proxy.
+	// Example: "example.teleport.sh:443"
 	ProxyServer string
 
 	// Cluster is the name of the Teleport cluster on which resources should
@@ -268,8 +269,11 @@ type BotConfig struct {
 	Outputs    Outputs          `yaml:"outputs,omitempty"`
 	Services   ServiceConfigs   `yaml:"services,omitempty"`
 
-	Debug           bool          `yaml:"debug"`
-	AuthServer      string        `yaml:"auth_server,omitempty"`
+	Debug      bool   `yaml:"debug"`
+	AuthServer string `yaml:"auth_server,omitempty"`
+	// ProxyServer is the teleport proxy address. Unlike `AuthServer` this must
+	// explicitly point to a Teleport proxy.
+	// Example: "example.teleport.sh:443"
 	ProxyServer     string        `yaml:"proxy_server,omitempty"`
 	CertificateTTL  time.Duration `yaml:"certificate_ttl"`
 	RenewalInterval time.Duration `yaml:"renewal_interval"`
