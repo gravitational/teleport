@@ -47,7 +47,8 @@ Type=simple
 Restart=on-failure
 EnvironmentFile=-{{ .EnvironmentFile }}
 ExecStart={{ .TeleportInstallationFile }} start --config {{ .TeleportConfigPath }} --pid-file={{ .PIDFile }}
-ExecReload=/bin/sh -c "exec pkill -HUP -L -F \"{{ .PIDFile }}\""
+# systemd before 239 needs an absolute path
+ExecReload=/bin/sh -c "exec pkill -HUP -L -F {{ .PIDFile }}"
 PIDFile={{ .PIDFile }}
 LimitNOFILE={{ .FileDescriptorLimit }}
 
