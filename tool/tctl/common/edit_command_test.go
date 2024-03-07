@@ -43,7 +43,7 @@ func TestEditResources(t *testing.T) {
 	log := utils.NewLoggerForTests()
 	fc, fds := testhelpers.DefaultConfig(t)
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc).(*auth.Client) // TODO: Once https://github.com/gravitational/teleport/pull/39058 is merged we can remove this cast
+	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
 
 	tests := []struct {
 		kind string
@@ -213,7 +213,7 @@ func TestEditEnterpriseResources(t *testing.T) {
 	log := utils.NewLoggerForTests()
 	fc, fds := testhelpers.DefaultConfig(t)
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc).(*auth.Client) // TODO: Once https://github.com/gravitational/teleport/pull/39058 is merged we can remove this cast
+	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
 
 	tests := []struct {
 		kind string
