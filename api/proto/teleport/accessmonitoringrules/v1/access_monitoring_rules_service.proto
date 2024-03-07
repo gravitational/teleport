@@ -21,7 +21,7 @@ import "teleport/accessmonitoringrules/v1/access_monitoring_rules.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1;accessmonitoringrulesv1";
 
-// AccessMonitoringRulesService provieds CRUD methods for Access Monitoring Rules resources.
+// AccessMonitoringRulesService provides CRUD methods for Access Monitoring Rules resources.
 service AccessMonitoringRulesService {
   // CreateAccessMonitoringRule creates the specified access monitoring rule.
   rpc CreateAccessMonitoringRule(CreateAccessMonitoringRuleRequest) returns (AccessMonitoringRule);
