@@ -656,7 +656,11 @@ func (p *Plugin) getLicenseCheckResult(w http.ResponseWriter, r *http.Request, p
 // getUpgradeWindowStartHour is passed to the oss auth server to let it pull the start
 // hour when trying to generate a 'MaintenanceWindow' resource.
 func (p *Plugin) getAccountUpgradeWindowStartHour(ctx context.Context) (int64, error) {
-	rsp, err := p.cloudClient.GetAccountUpgradeWindowStartHour(ctx, &cloudapi.EmptyRequest{})
+	clt := p.GetCloudClient()
+	if clt == nil {
+		return 0, trace.Errorf("cannot get cloud upgrade window start hour, cloud API client not yet registered")
+	}
+	rsp, err := clt.GetAccountUpgradeWindowStartHour(ctx, &cloudapi.EmptyRequest{})
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
