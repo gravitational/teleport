@@ -11,7 +11,7 @@ Restart=on-failure
 # --roles='proxy,auth,node' is the default value
 # if none is set
 ExecStart=/usr/local/bin/teleport start --roles=node --config=/etc/teleport.yaml --pid-file=/run/teleport.pid
-ExecReload=pkill -HUP -L -F /run/teleport.pid
+ExecReload=/bin/sh -c "exec pkill -HUP -L -F /run/teleport.pid"
 PIDFile=/run/teleport.pid
 LimitNOFILE=524288
 
