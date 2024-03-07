@@ -65,12 +65,10 @@ type AppOrSAMLIdPServiceProvider struct {
 }
 
 // GetApps returns a paginated apps list
-func (c *Cluster) GetApps(ctx context.Context, r *api.GetAppsRequest) (*GetAppsResponse, error) {
+func (c *Cluster) GetApps(ctx context.Context, authClient auth.ClientI, r *api.GetAppsRequest) (*GetAppsResponse, error) {
 	var (
-		page        apiclient.ResourcePage[types.AppServerOrSAMLIdPServiceProvider]
-		authClient  auth.ClientI
-		proxyClient *client.ProxyClient
-		err         error
+		page apiclient.ResourcePage[types.AppServerOrSAMLIdPServiceProvider]
+		err  error
 	)
 
 	req := &proto.ListResourcesRequest{
@@ -85,24 +83,8 @@ func (c *Cluster) GetApps(ctx context.Context, r *api.GetAppsRequest) (*GetAppsR
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
 		page, err = apiclient.GetResourcePage[types.AppServerOrSAMLIdPServiceProvider](ctx, authClient, req)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
+		return trace.Wrap(err)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -142,10 +124,10 @@ type GetAppsResponse struct {
 	TotalCount int
 }
 
-func (c *Cluster) getApp(ctx context.Context, appName string) (types.Application, error) {
+func (c *Cluster) getApp(ctx context.Context, authClient auth.ClientI, appName string) (types.Application, error) {
 	var app types.Application
 	err := AddMetadataToRetryableError(ctx, func() error {
-		apps, err := c.clusterClient.ListApps(ctx, &proto.ListResourcesRequest{
+		apps, err := apiclient.GetAllResources[types.AppServer](ctx, authClient, &proto.ListResourcesRequest{
 			Namespace:           c.clusterClient.Namespace,
 			ResourceType:        types.KindAppServer,
 			PredicateExpression: fmt.Sprintf(`name == "%s"`, appName),
@@ -158,7 +140,7 @@ func (c *Cluster) getApp(ctx context.Context, appName string) (types.Application
 			return trace.NotFound("app %q not found", appName)
 		}
 
-		app = apps[0]
+		app = apps[0].GetApp()
 		return nil
 	})
 
@@ -166,24 +148,18 @@ func (c *Cluster) getApp(ctx context.Context, appName string) (types.Application
 }
 
 // reissueAppCert issue new certificates for the app and saves them to disk.
-func (c *Cluster) reissueAppCert(ctx context.Context, app types.Application) (tls.Certificate, error) {
+func (c *Cluster) reissueAppCert(ctx context.Context, proxyClient *client.ProxyClient, app types.Application) (tls.Certificate, error) {
 	if app.IsAWSConsole() || app.IsGCP() || app.IsAzureCloud() {
 		return tls.Certificate{}, trace.BadParameter("cloud applications are not supported")
 	}
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
-	err := c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+	err := proxyClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
 	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-
-	proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	defer proxyClient.Close()
 
 	request := types.CreateAppSessionRequest{
 		Username:          c.status.Username,

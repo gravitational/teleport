@@ -34,7 +34,12 @@ func (s *Handler) GetApps(ctx context.Context, req *api.GetAppsRequest) (*api.Ge
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := cluster.GetApps(ctx, req)
+	proxyClient, err := s.DaemonService.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := cluster.GetApps(ctx, proxyClient.CurrentCluster(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
