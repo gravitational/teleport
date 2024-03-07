@@ -1455,6 +1455,12 @@ exports[`render Roles 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c17 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c13 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1464,12 +1470,6 @@ exports[`render Roles 1`] = `
   margin: 0px;
   margin-right: 4px;
   color: #FFFFFF;
-}
-
-.c17 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c10 {

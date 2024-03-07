@@ -69,6 +69,12 @@ exports[`render screen for first timer recovery tab in account settings 1`] = `
   cursor: auto;
 }
 
+.c5 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c7 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -86,12 +92,6 @@ exports[`render screen for first timer recovery tab in account settings 1`] = `
   line-height: 24px;
   margin: 0px;
   color: rgba(255,255,255,0.72);
-}
-
-.c5 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c3 {
@@ -204,6 +204,12 @@ exports[`render screen for recovery tab for users without a valid email as usern
   flex: 0 0 auto;
 }
 
+.c5 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c7 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -221,12 +227,6 @@ exports[`render screen for recovery tab for users without a valid email as usern
   line-height: 24px;
   margin: 0px;
   color: rgba(255,255,255,0.72);
-}
-
-.c5 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c3 {
@@ -373,6 +373,12 @@ exports[`render screen for recovery tab in account settings 1`] = `
   cursor: auto;
 }
 
+.c5 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c7 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -407,12 +413,6 @@ exports[`render screen for recovery tab in account settings 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
-}
-
-.c5 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c3 {

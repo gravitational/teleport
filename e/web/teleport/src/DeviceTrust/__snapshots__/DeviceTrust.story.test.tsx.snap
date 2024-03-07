@@ -82,6 +82,13 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   cursor: auto;
 }
 
+.c15 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.18);
+}
+
 .c13 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
@@ -142,13 +149,6 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   line-height: 32px;
   margin: 0px;
   margin-bottom: 8px;
-}
-
-.c15 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255,255,255,0.18);
 }
 
 .c18 {
@@ -438,6 +438,13 @@ exports[`test DeviceTrust.tsx empty team cta 1`] = `
   cursor: auto;
 }
 
+.c15 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.18);
+}
+
 .c13 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
@@ -498,13 +505,6 @@ exports[`test DeviceTrust.tsx empty team cta 1`] = `
   line-height: 32px;
   margin: 0px;
   margin-bottom: 8px;
-}
-
-.c15 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255,255,255,0.18);
 }
 
 .c18 {
@@ -831,6 +831,19 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c24 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c27 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 4px;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -870,19 +883,6 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   line-height: 24px;
   margin: 0px;
   margin-bottom: 16px;
-}
-
-.c24 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c27 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 4px;
 }
 
 .c31 {
@@ -1502,6 +1502,19 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c24 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c27 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 4px;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1558,19 +1571,6 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   line-height: 24px;
   margin: 0px;
   margin-bottom: 16px;
-}
-
-.c24 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c27 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 4px;
 }
 
 .c36 {
@@ -2180,6 +2180,19 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c24 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c27 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 4px;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2219,19 +2232,6 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   line-height: 24px;
   margin: 0px;
   margin-bottom: 16px;
-}
-
-.c24 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c27 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 4px;
 }
 
 .c31 {
@@ -2851,6 +2851,19 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c24 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c27 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 4px;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2907,19 +2920,6 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
   line-height: 24px;
   margin: 0px;
   margin-bottom: 16px;
-}
-
-.c24 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c27 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 4px;
 }
 
 .c36 {

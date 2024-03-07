@@ -152,6 +152,27 @@ exports[`failed state 1`] = `
   cursor: auto;
 }
 
+.c6 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 16px;
+}
+
+.c27 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c11 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 4px;
+}
+
 .c7 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -175,27 +196,6 @@ exports[`failed state 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-right: 4px;
-}
-
-.c6 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16px;
-}
-
-.c27 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c11 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  border-radius: 4px;
 }
 
 .c24 {
@@ -1544,6 +1544,35 @@ exports[`loaded state 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c6 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 16px;
+}
+
+.c16 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #00BFA6;
+  margin-right: 8px;
+}
+
+.c18 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 4px;
+}
+
 .c7 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1582,35 +1611,6 @@ exports[`loaded state 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-right: 4px;
-}
-
-.c6 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16px;
-}
-
-.c16 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #00BFA6;
-  margin-right: 8px;
-}
-
-.c18 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  border-radius: 4px;
 }
 
 .c32 {

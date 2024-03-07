@@ -101,6 +101,12 @@ exports[`renders loaded linux 1`] = `
   cursor: auto;
 }
 
+.c26 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -139,12 +145,6 @@ exports[`renders loaded linux 1`] = `
   margin: 0px;
   margin-top: 16px;
   margin-bottom: 16px;
-}
-
-.c26 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c11 {
@@ -1118,6 +1118,12 @@ exports[`renders loaded macOS 1`] = `
   cursor: auto;
 }
 
+.c26 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1156,12 +1162,6 @@ exports[`renders loaded macOS 1`] = `
   margin: 0px;
   margin-top: 16px;
   margin-bottom: 16px;
-}
-
-.c26 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c11 {
@@ -2035,6 +2035,19 @@ exports[`renders loaded windows 1`] = `
   cursor: auto;
 }
 
+.c26 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c34 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2084,19 +2097,6 @@ exports[`renders loaded windows 1`] = `
   margin: 0;
   color: #FFFFFF;
   text-align: center;
-}
-
-.c26 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c34 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFFFFF;
 }
 
 .c11 {
@@ -2994,6 +2994,12 @@ exports[`renders when generating license 1`] = `
   cursor: auto;
 }
 
+.c26 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3032,12 +3038,6 @@ exports[`renders when generating license 1`] = `
   margin: 0px;
   margin-top: 16px;
   margin-bottom: 16px;
-}
-
-.c26 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c11 {
@@ -4034,6 +4034,12 @@ exports[`renders when license failed 1`] = `
   cursor: auto;
 }
 
+.c27 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4072,12 +4078,6 @@ exports[`renders when license failed 1`] = `
   margin: 0px;
   margin-top: 16px;
   margin-bottom: 16px;
-}
-
-.c27 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c12 {
@@ -5057,6 +5057,12 @@ exports[`renders when license generated 1`] = `
   cursor: auto;
 }
 
+.c26 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5095,12 +5101,6 @@ exports[`renders when license generated 1`] = `
   margin: 0px;
   margin-top: 16px;
   margin-bottom: 16px;
-}
-
-.c26 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c11 {

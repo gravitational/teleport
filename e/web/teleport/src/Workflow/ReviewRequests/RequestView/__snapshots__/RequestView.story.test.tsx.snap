@@ -188,6 +188,20 @@ exports[`loaded approved role based request state 1`] = `
   cursor: auto;
 }
 
+.c20 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.54);
+}
+
+.c22 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+}
+
 .c9 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -264,20 +278,6 @@ exports[`loaded approved role based request state 1`] = `
   line-height: 16px;
   margin: 0px;
   color: rgba(255,255,255,0.72);
-}
-
-.c20 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255,255,255,0.54);
-}
-
-.c22 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFFFFF;
 }
 
 .c11 {
@@ -910,6 +910,20 @@ exports[`loaded denied role based request state 1`] = `
   cursor: auto;
 }
 
+.c20 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.54);
+}
+
+.c28 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+}
+
 .c9 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -986,20 +1000,6 @@ exports[`loaded denied role based request state 1`] = `
   line-height: 16px;
   margin: 0px;
   color: rgba(255,255,255,0.72);
-}
-
-.c20 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255,255,255,0.54);
-}
-
-.c28 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFFFFF;
 }
 
 .c11 {
@@ -1632,6 +1632,13 @@ exports[`loaded pending role based request state 1`] = `
   cursor: auto;
 }
 
+.c22 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.54);
+}
+
 .c9 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1732,13 +1739,6 @@ exports[`loaded pending role based request state 1`] = `
   line-height: 16px;
   margin: 0px;
   color: rgba(255,255,255,0.72);
-}
-
-.c22 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255,255,255,0.54);
 }
 
 .c11 {
@@ -2484,6 +2484,13 @@ exports[`loaded pending search based request state 1`] = `
   cursor: auto;
 }
 
+.c22 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.54);
+}
+
 .c9 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2584,13 +2591,6 @@ exports[`loaded pending search based request state 1`] = `
   line-height: 16px;
   margin: 0px;
   color: rgba(255,255,255,0.72);
-}
-
-.c22 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255,255,255,0.54);
 }
 
 .c11 {
