@@ -61,7 +61,7 @@ const renewalRetryLimit = 5
 type outputsService struct {
 	log               logrus.FieldLogger
 	reloadBroadcaster *channelBroadcaster
-	botClient         auth.ClientI
+	botClient         *auth.Client
 	getBotIdentity    getBotIdentityFn
 	cfg               *config.BotConfig
 	resolver          reversetunnelclient.Resolver
@@ -291,7 +291,7 @@ type identityConfigurator = func(req *proto.UserCertsRequest)
 // certs.
 func (s *outputsService) generateIdentity(
 	ctx context.Context,
-	client auth.ClientI,
+	client *auth.Client,
 	currentIdentity *identity.Identity,
 	output config.Output,
 	defaultRoles []string,
@@ -383,7 +383,7 @@ func (s *outputsService) generateIdentity(
 	return newIdentity, nil
 }
 
-func getDatabase(ctx context.Context, clt auth.ClientI, name string) (types.Database, error) {
+func getDatabase(ctx context.Context, clt *auth.Client, name string) (types.Database, error) {
 	ctx, span := tracer.Start(ctx, "getDatabase")
 	defer span.End()
 
@@ -407,7 +407,7 @@ func getDatabase(ctx context.Context, clt auth.ClientI, name string) (types.Data
 	return db, trace.Wrap(err)
 }
 
-func (s *outputsService) getRouteToDatabase(ctx context.Context, client auth.ClientI, output *config.DatabaseOutput) (proto.RouteToDatabase, error) {
+func (s *outputsService) getRouteToDatabase(ctx context.Context, client *auth.Client, output *config.DatabaseOutput) (proto.RouteToDatabase, error) {
 	ctx, span := tracer.Start(ctx, "outputsService/getRouteToDatabase")
 	defer span.End()
 
@@ -441,7 +441,7 @@ func (s *outputsService) getRouteToDatabase(ctx context.Context, client auth.Cli
 	}, nil
 }
 
-func getKubeCluster(ctx context.Context, clt auth.ClientI, name string) (types.KubeCluster, error) {
+func getKubeCluster(ctx context.Context, clt *auth.Client, name string) (types.KubeCluster, error) {
 	ctx, span := tracer.Start(ctx, "getKubeCluster")
 	defer span.End()
 
@@ -465,7 +465,7 @@ func getKubeCluster(ctx context.Context, clt auth.ClientI, name string) (types.K
 	return cluster, trace.Wrap(err)
 }
 
-func getApp(ctx context.Context, clt auth.ClientI, appName string) (types.Application, error) {
+func getApp(ctx context.Context, clt *auth.Client, appName string) (types.Application, error) {
 	ctx, span := tracer.Start(ctx, "getApp")
 	defer span.End()
 
@@ -492,7 +492,7 @@ func getApp(ctx context.Context, clt auth.ClientI, appName string) (types.Applic
 	return apps[0], nil
 }
 
-func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client auth.ClientI, output *config.ApplicationOutput) (proto.RouteToApp, error) {
+func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client *auth.Client, output *config.ApplicationOutput) (proto.RouteToApp, error) {
 	ctx, span := tracer.Start(ctx, "outputsService/getRouteToApp")
 	defer span.End()
 
@@ -529,11 +529,11 @@ func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identit
 // impersonated identity.
 func (s *outputsService) generateImpersonatedIdentity(
 	ctx context.Context,
-	botClient auth.ClientI,
+	botClient *auth.Client,
 	botIdentity *identity.Identity,
 	output config.Output,
 	defaultRoles []string,
-) (impersonatedIdentity *identity.Identity, impersonatedClient auth.ClientI, err error) {
+) (impersonatedIdentity *identity.Identity, impersonatedClient *auth.Client, err error) {
 	ctx, span := tracer.Start(ctx, "outputsService/generateImpersonatedIdentity")
 	defer span.End()
 
@@ -660,7 +660,7 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, iden
 // requests for the same information. This is shared between all of the
 // outputs.
 type outputRenewalCache struct {
-	client auth.ClientI
+	client *auth.Client
 
 	cfg *config.BotConfig
 	mu  sync.Mutex
@@ -781,7 +781,7 @@ type outputProvider struct {
 	*outputRenewalCache
 	// impersonatedClient is a client using the impersonated identity configured
 	// for that output.
-	impersonatedClient auth.ClientI
+	impersonatedClient *auth.Client
 }
 
 // GetRemoteClusters uses the impersonatedClient to call GetRemoteClusters.

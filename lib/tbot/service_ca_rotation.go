@@ -129,7 +129,7 @@ const caRotationRetryBackoff = time.Second * 2
 type caRotationService struct {
 	log               logrus.FieldLogger
 	reloadBroadcaster *channelBroadcaster
-	botClient         auth.ClientI
+	botClient         *auth.Client
 	getBotIdentity    getBotIdentityFn
 }
 
