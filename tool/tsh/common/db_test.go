@@ -62,6 +62,7 @@ func TestTshDB(t *testing.T) {
 	t.Run("Login", testDatabaseLogin)
 	t.Run("List", testListDatabase)
 	t.Run("DatabaseSelection", testDatabaseSelection)
+	t.Run("access request", testDatabaseAccessRequest)
 }
 
 // testDatabaseLogin tests "tsh db login" command and verifies "tsh db
@@ -1757,4 +1758,8 @@ func testDatabaseSelection(t *testing.T) {
 			})
 		}
 	})
+}
+
+func testDatabaseAccessRequest(t *testing.T) {
+	// TODO
 }
