@@ -2539,38 +2539,42 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	require.Empty(t, resp.Resources)
 }
 
-// TestGetAndList_SAMLIdPServiceProviders verifies RBAC when fetching SAML IdP service providers.
-// TODO(sshah): update test with ListResources() instead of directly using listResourcesWithSort()
-// once SAMLIdPServiceProvider supports label matcher.
-func TestGetAndList_SAMLIdPServiceProviders(t *testing.T) {
+// TestListResources_SAMLIdPServiceProviders verifies RBAC when fetching SAML IdP service providers.
+func TestListResources_SAMLIdPServiceProviders(t *testing.T) {
 	ctx := context.Background()
-	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
+	srv := newTestTLSServer(t)
 
-	// Set license to enterprise in order to be able to list SAML IdP Service Providers.
+	// Set license to enterprise in order to be able to list SAML IdP service providers.
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 
-	// Create SAML IdP service providers.
+	// Create three SAML service provider resources where one of the service provider
+	// is configured with "env": "prod" labels.
+	samlLabel := func(count int) map[string]string {
+		if count == 2 {
+			return map[string]string{"env": "prod"}
+		} else {
+			return nil
+		}
+	}
 	for i := 0; i < 3; i++ {
 		name := fmt.Sprintf("saml-app-%v", i)
 		sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
 			Name:      name,
 			Namespace: apidefaults.Namespace,
+			Labels:    samlLabel(i),
 		}, types.SAMLIdPServiceProviderSpecV1{
-			ACSURL:   fmt.Sprintf("entity-id-%v", i),
+			ACSURL:   fmt.Sprintf("acs-url-%v", i),
 			EntityID: fmt.Sprintf("entity-id-%v", i),
 		})
 		require.NoError(t, err)
-		err = srv.AuthServer.CreateSAMLIdPServiceProvider(ctx, sp)
+		err = srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp)
 		require.NoError(t, err)
-
 	}
 
-	testServiceProviders, _, err := srv.AuthServer.ListSAMLIdPServiceProviders(ctx, 0, "")
+	testServiceProviders, _, err := srv.Auth().ListSAMLIdPServiceProviders(ctx, 0, "")
 	require.NoError(t, err)
-
 	numResources := len(testServiceProviders)
 
 	testResources := make([]types.ResourceWithLabels, numResources)
@@ -2580,19 +2584,11 @@ func TestGetAndList_SAMLIdPServiceProviders(t *testing.T) {
 
 	// create user, role, and client
 	username := "user"
-	user, role, err := CreateUserAndRole(srv.AuthServer, username, nil, nil)
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil, nil)
 	require.NoError(t, err)
 	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
-
-	ctxWithUser := authz.ContextWithUser(ctx, identity.I)
-	authContext, err := srv.Authorizer.Authorize(ctxWithUser)
-	require.NoError(t, err)
-	s := &ServerWithRoles{
-		authServer: srv.AuthServer,
-		alog:       srv.AuditLog,
-		context:    *authContext,
-	}
 
 	listSAMLIdPSPRequest := proto.ListResourcesRequest{
 		Namespace: apidefaults.Namespace,
@@ -2602,34 +2598,57 @@ func TestGetAndList_SAMLIdPServiceProviders(t *testing.T) {
 	}
 
 	// Test getting all SAML IdP service providers.
-	resp, err := s.listResourcesWithSort(ctxWithUser, listSAMLIdPSPRequest)
+	resp, err := clt.ListResources(ctx, listSAMLIdPSPRequest)
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, len(testResources))
 	require.Empty(t, cmp.Diff(testResources, resp.Resources))
 
-	// deny user to get all service providers
+	// Test label matching Allow
+	role.SetSAMLIdPServiceProviderLabels(types.Allow, types.Labels{"env": {"prod"}})
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+	resp, err = clt.ListResources(ctx, listSAMLIdPSPRequest)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+
+	// Test label matching Deny to one resource
+	role.SetSAMLIdPServiceProviderLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	role.SetSAMLIdPServiceProviderLabels(types.Deny, types.Labels{"env": {"prod"}})
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+	resp, err = clt.ListResources(ctx, listSAMLIdPSPRequest)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 2)
+
+	// Test Deny rule to KindSAMLIdPServiceProvider
 	role.SetRules(types.Deny, []types.Rule{
 		{
 			Resources: []string{types.KindSAMLIdPServiceProvider},
-			Verbs:     []string{types.VerbList},
+			Verbs:     []string{types.VerbList, types.VerbRead},
 		},
 	})
-	_, err = srv.AuthServer.UpsertRole(ctxWithUser, role)
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+	_, err = clt.ListResources(ctx, listSAMLIdPSPRequest)
+	require.ErrorIs(t, err, trace.AccessDenied("access denied"))
+
+	// Clear Deny rule and add Allow rule to test list all
+	// SAML IdP service providers again.
+	role.SetRules(types.Allow, []types.Rule{
+		{
+			Resources: []string{types.KindSAMLIdPServiceProvider},
+			Verbs:     []string{types.VerbList, types.VerbRead},
+		},
+	})
+	role.SetRules(types.Deny, []types.Rule{})
+	role.SetSAMLIdPServiceProviderLabels(types.Deny, nil)
+	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	// setup new context and ServerWithRoles env
-	ctxWithUser = authz.ContextWithUser(ctx, identity.I)
-	authContext, err = srv.Authorizer.Authorize(ctxWithUser)
+	resp, err = clt.ListResources(ctx, listSAMLIdPSPRequest)
 	require.NoError(t, err)
-	s = &ServerWithRoles{
-		authServer: srv.AuthServer,
-		alog:       srv.AuditLog,
-		context:    *authContext,
-	}
-
-	resp2, err := s.listResourcesWithSort(ctxWithUser, listSAMLIdPSPRequest)
-	require.NoError(t, err)
-	require.Empty(t, resp2.Resources)
+	require.Len(t, resp.Resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resp.Resources))
 }
 
 // TestApps verifies RBAC is applied to app resources.

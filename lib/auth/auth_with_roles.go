@@ -1324,14 +1324,11 @@ func (a *ServerWithRoles) checkUnifiedAccess(resource types.ResourceWithLabels, 
 		return false, trace.Wrap(canAccessErr)
 	}
 
-	if resourceKind != types.KindSAMLIdPServiceProvider {
-		if err := checker.CanAccess(resource); err != nil {
-
-			if trace.IsAccessDenied(err) {
-				return false, nil
-			}
-			return false, trace.Wrap(err)
+	if err := checker.CanAccess(resource); err != nil {
+		if trace.IsAccessDenied(err) {
+			return false, nil
 		}
+		return false, trace.Wrap(err)
 	}
 
 	match, err := services.MatchResourceByFilters(resource, filter, nil)
@@ -1835,30 +1832,16 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		resources = appsOrSPs.AsResources()
 
 	case types.KindSAMLIdPServiceProvider:
-		// Only add SAMLIdPServiceProviders to the list if the caller has an enterprise license.
-		if modules.GetModules().BuildType() == modules.BuildEnterprise {
-			// Only attempt to list SAMLIdPServiceProviders if the caller has the permission to.
-			if err := a.action(req.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList); err == nil {
-				var serviceProviders []types.SAMLIdPServiceProvider
-				var startKey string
-				for {
-					sps, nextKey, err := a.authServer.ListSAMLIdPServiceProviders(ctx, int(req.Limit), startKey)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-					serviceProviders = append(serviceProviders, sps...)
-					if nextKey == "" {
-						break
-					}
-					startKey = nextKey
-				}
-				sps := types.SAMLIdPServiceProviders(serviceProviders)
-				if err := sps.SortByCustom(req.SortBy); err != nil {
-					return nil, trace.Wrap(err)
-				}
-				resources = sps.AsResources()
-			}
+		serviceProviders, err := a.GetSAMLIdPServiceProviders(ctx, req.Namespace, req.Limit, req.SortBy)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+		sps := types.SAMLIdPServiceProviders(serviceProviders)
+		if err := sps.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = sps.AsResources()
 
 	case types.KindDatabaseServer:
 		dbservers, err := a.GetDatabaseServers(ctx, req.Namespace)
@@ -5067,6 +5050,49 @@ func (a *ServerWithRoles) GetAppServersAndSAMLIdPServiceProviders(ctx context.Co
 	}
 
 	return appsAndSPs, nil
+}
+
+func (a *ServerWithRoles) checkAccessToSAMLIdPServiceProvider(samlSP types.SAMLIdPServiceProvider) error {
+	return a.context.Checker.CheckAccess(
+		samlSP,
+		// MFA is not required for operations on SAML IdP service provider resources but
+		// will be enforced at the connection time.
+		services.AccessState{MFAVerified: true})
+}
+
+// GetSAMLIdPServiceProviders returns all registered SAMLIdPServiceProviders resources.
+// Results are filtered with RBAC.
+func (a *ServerWithRoles) GetSAMLIdPServiceProviders(ctx context.Context, namespace string, pageSize int32, sortBy types.SortBy) ([]types.SAMLIdPServiceProvider, error) {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil, trace.NotImplemented("SAML IdP requires enterprise subscription.")
+	}
+	if err := a.action(namespace, types.KindSAMLIdPServiceProvider, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	var serviceProviders []types.SAMLIdPServiceProvider
+	var startKey string
+	for {
+		sps, nextKey, err := a.authServer.ListSAMLIdPServiceProviders(ctx, int(pageSize), startKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, sp := range sps {
+			if err := a.checkAccessToSAMLIdPServiceProvider(sp); err != nil && !trace.IsAccessDenied(err) {
+				return nil, trace.Wrap(err)
+			} else if err == nil {
+				serviceProviders = append(serviceProviders, sp)
+			}
+		}
+
+		if nextKey == "" {
+			break
+		}
+		startKey = nextKey
+	}
+
+	return serviceProviders, nil
 }
 
 // UpsertApplicationServer registers an application server.
