@@ -43,8 +43,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/api/utils/prompt"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
@@ -814,7 +812,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	return nil
 }
 
-func accessRequestForDB(cf *CLIConf, tc *client.TeleportClient, db types.Database) error {
+func makeAccessRequestForDatabase(tc *client.TeleportClient, db types.Database) (types.AccessRequest, error) {
 	requestResourceIDs := []types.ResourceID{{
 		ClusterName: tc.SiteName,
 		Kind:        types.KindDatabase,
@@ -822,52 +820,42 @@ func accessRequestForDB(cf *CLIConf, tc *client.TeleportClient, db types.Databas
 	}}
 
 	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
+	return req, trace.Wrap(err)
+}
+
+func makeDatabaseAccessRequestAndWaitForApproval(cf *CLIConf, tc *client.TeleportClient, db types.Database) error {
+	req, err := makeAccessRequestForDatabase(tc, db)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	cf.RequestID = req.GetName()
 
 	fmt.Fprintf(cf.Stdout(), "You do not currently have access to %q, attempting to request access.\n\n", db.GetName())
-
-	// Prompt for a request reason.
-	requestReason, err := prompt.Input(cf.Context, cf.Stdout(), prompt.Stdin(), "Enter request reason")
-	if err != nil {
+	if err := setAccessRequestReason(cf, req); err != nil {
 		return trace.Wrap(err)
 	}
-	req.SetRequestReason(requestReason)
-
-	fmt.Fprint(os.Stdout, "Creating request...\n")
-	// Always create access request against the root cluster.
-	if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-		req, err = clt.CreateAccessRequestV2(cf.Context, req)
-		return trace.Wrap(err)
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if cf.Username == "" {
-		cf.Username = tc.Username
-	}
-	// re-fetch the request to display it with roles populated.
-	onRequestShow(cf)
-	fmt.Println("")
-
-	// Wait for the request to be resolved.
-	fmt.Fprintf(os.Stdout, "Waiting for request approval...\n")
-	var resolvedReq types.AccessRequest
-	if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-		resolvedReq, err = awaitRequestResolution(cf.Context, clt, req)
-		return trace.Wrap(err)
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Handle resolution and update client certs if approved.
-	if err := onRequestResolution(cf, tc, resolvedReq); err != nil {
+	if err := sendAccessRequestAndWaitForApproval(cf, tc, req); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+var dbCommandsWithAccessRequestSupport = []string{
+	"db login",
+	"proxy db",
+	"db connect",
+}
+
+func shouldRetryGetDatabaseUsingSearchAsRoles(cf *CLIConf, tc *client.TeleportClient, getDatabaseError error) bool {
+	// Only retry when the database cannot be found without UseSearchAsRoles.
+	if !trace.IsNotFound(getDatabaseError) || tc.UseSearchAsRoles {
+		return false
+	}
+	// Check if auto access request is disabled.
+	if cf.disableAccessRequest {
+		return false
+	}
+	// Check if the `tsh` command supports auto access request.
+	return slices.Contains(dbCommandsWithAccessRequestSupport, cf.command)
 }
 
 // getDatabaseInfo fetches information about the database from tsh profile if DB
@@ -886,20 +874,32 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, routes []tlsca.Rout
 
 	db, err := getDatabaseByNameOrDiscoveredName(cf, tc, routes)
 	switch {
-	case trace.IsNotFound(err) && !cf.disableAccessRequest && !tc.UseSearchAsRoles:
-		// Try again with SearchAsRoles. TODO optimize to not do
-		// UseSearchAsRoles for "regular" users.
-		tc.UseSearchAsRoles = true
-		searchAsRolesDB, searchAsRolesErr := getDatabaseByNameOrDiscoveredName(cf, tc, nil)
-		if searchAsRolesErr != nil {
+	// If the database cannot be found, try again with UseSearchAsRoles. If
+	// the database is then found with UseSearchAsRoles, make an access request
+	// for it and elevate the user with the request ID upon approval.
+	//
+	// Note that the access request must be made before the database connection
+	// is made to avoid mangling the request with the database client tools.
+	// Thus the flow for auto database access request is different from SSH.
+	//
+	// Performance considerations:
+	// - For common scenarios where UseSearchAsRoles is not desired, it would
+	//   be rare that cf.DatabaseName would be not found in the first API call
+	//   so there won't be a second call usually.
+	// - accessChecker.GetAllowedSearchAsRoles can be checked to avoid the
+	//   second API call but creating the access checker requires more calls.
+	// - The db commands do provide "--disable-access-request" to bypass the
+	//   second call. If needed, we can add it to `tsh login` and profile yaml
+	//   in the future.
+	case shouldRetryGetDatabaseUsingSearchAsRoles(cf, tc, err):
+		orgErr := err
+		if db, err = getDatabaseByNameOrDiscoveredNameUsingSearchAsRoles(cf, tc); err != nil {
+			return nil, trace.Wrap(orgErr) // Returns the original not found error.
+		}
+		if err := makeDatabaseAccessRequestAndWaitForApproval(cf, tc, db); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		if err := accessRequestForDB(cf, tc, searchAsRolesDB); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		db = searchAsRolesDB
+		routes = nil // reset routes after reissueWithRequests.
 
 	case err != nil:
 		return nil, trace.Wrap(err)
@@ -1110,6 +1110,15 @@ func getDatabaseByNameOrDiscoveredName(cf *CLIConf, tc *client.TeleportClient, a
 		return chooseOneDatabase(cf, activeDBs)
 	}
 	return chooseOneDatabase(cf, databases)
+}
+
+func getDatabaseByNameOrDiscoveredNameUsingSearchAsRoles(cf *CLIConf, tc *client.TeleportClient) (types.Database, error) {
+	tc.UseSearchAsRoles = true
+	defer func() {
+		tc.UseSearchAsRoles = false
+	}()
+	db, err := getDatabaseByNameOrDiscoveredName(cf, tc, nil)
+	return db, trace.Wrap(err)
 }
 
 func filterActiveDatabases(routes []tlsca.RouteToDatabase, databases types.Databases) types.Databases {
