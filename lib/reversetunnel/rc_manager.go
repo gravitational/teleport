@@ -62,7 +62,7 @@ type remoteClusterKey struct {
 // RemoteClusterTunnelManager.
 type RemoteClusterTunnelManagerConfig struct {
 	// AuthClient is client to the auth server.
-	AuthClient auth.ClientI
+	AuthClient *auth.Client
 	// AccessPoint is a lightweight access point that can optionally cache some
 	// values.
 	AccessPoint auth.ProxyAccessPoint

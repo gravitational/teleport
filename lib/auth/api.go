@@ -1460,7 +1460,7 @@ func (w *OktaWrapper) Close() error {
 
 // NewRemoteProxyCachingAccessPoint returns new caching access point using
 // access point policy
-type NewRemoteProxyCachingAccessPoint func(clt ClientI, cacheName []string) (RemoteProxyAccessPoint, error)
+type NewRemoteProxyCachingAccessPoint func(clt *Client, cacheName []string) (RemoteProxyAccessPoint, error)
 
 // notImplementedMessage is the message to return for endpoints that are not
 // implemented. This is due to how service interfaces are used with Teleport.

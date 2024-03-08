@@ -98,7 +98,7 @@ func (p *clusterPeers) NodeWatcher() (*services.NodeWatcher, error) {
 	return peer.NodeWatcher()
 }
 
-func (p *clusterPeers) GetClient() (auth.ClientI, error) {
+func (p *clusterPeers) GetClient() (*auth.Client, error) {
 	peer, err := p.pickPeer()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -206,7 +206,7 @@ func (s *clusterPeer) NodeWatcher() (*services.NodeWatcher, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to fetch node watcher, this proxy %v has not been discovered yet, try again later", s)
 }
 
-func (s *clusterPeer) GetClient() (auth.ClientI, error) {
+func (s *clusterPeer) GetClient() (*auth.Client, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to fetch client, this proxy %v has not been discovered yet, try again later", s)
 }
 

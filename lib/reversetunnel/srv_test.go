@@ -216,7 +216,7 @@ func TestCreateRemoteAccessPoint(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			newProxyFn := func(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+			newProxyFn := func(clt *auth.Client, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
 				if tt.oldRemoteProxy {
 					return nil, errors.New("expected to create an old remote proxy")
 				}
@@ -224,7 +224,7 @@ func TestCreateRemoteAccessPoint(t *testing.T) {
 				return nil, nil
 			}
 
-			oldProxyFn := func(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+			oldProxyFn := func(clt *auth.Client, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
 				if !tt.oldRemoteProxy {
 					return nil, errors.New("expected to create an new remote proxy")
 				}
@@ -232,7 +232,6 @@ func TestCreateRemoteAccessPoint(t *testing.T) {
 				return nil, nil
 			}
 
-			clt := &mockAuthClient{}
 			srv := &server{
 				log: utils.NewLoggerForTests(),
 				Config: Config{
@@ -240,7 +239,7 @@ func TestCreateRemoteAccessPoint(t *testing.T) {
 					NewCachingAccessPointOldProxy: oldProxyFn,
 				},
 			}
-			_, err := createRemoteAccessPoint(srv, clt, tt.version, "test")
+			_, err := createRemoteAccessPoint(srv, &auth.Client{}, tt.version, "test")
 			tt.assertion(t, err)
 		})
 	}

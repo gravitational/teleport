@@ -59,7 +59,7 @@ func (m *mockAgent) GetProxyID() (string, bool) {
 }
 
 type mockClient struct {
-	auth.ClientI
+	*auth.Client
 	ssh.Signer
 	mockGetClusterNetworkingConfig func(context.Context) (types.ClusterNetworkingConfig, error)
 }

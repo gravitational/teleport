@@ -41,12 +41,12 @@ type certificateCache struct {
 	mu sync.Mutex
 
 	cache      *ttlmap.TTLMap
-	authClient auth.ClientI
+	authClient *auth.Client
 }
 
 // newHostCertificateCache creates a shared host certificate cache that is
 // used by the forwarding server.
-func newHostCertificateCache(authClient auth.ClientI) (*certificateCache, error) {
+func newHostCertificateCache(authClient *auth.Client) (*certificateCache, error) {
 	native.PrecomputeKeys() // ensure native package is set to precompute keys
 	cache, err := ttlmap.New(defaults.HostCertCacheSize)
 	if err != nil {

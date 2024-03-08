@@ -118,7 +118,7 @@ type RemoteSite interface {
 	// GetStatus returns status of this site (either offline or connected)
 	GetStatus() string
 	// GetClient returns client connected to remote auth server
-	GetClient() (auth.ClientI, error)
+	GetClient() (*auth.Client, error)
 	// CachingAccessPoint returns access point that is lightweight
 	// but is resilient to auth server crashes
 	CachingAccessPoint() (auth.RemoteProxyAccessPoint, error)

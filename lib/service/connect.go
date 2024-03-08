@@ -599,7 +599,7 @@ func (process *TeleportProcess) syncOpenSSHRotationState() error {
 	return nil
 }
 
-func registerServer(a *servicecfg.Config, ctx context.Context, client auth.ClientI, lastRotation time.Time) error {
+func registerServer(a *servicecfg.Config, ctx context.Context, client *auth.Client, lastRotation time.Time) error {
 	server, err := types.NewServerWithLabels(
 		a.HostUUID,
 		types.KindNode,

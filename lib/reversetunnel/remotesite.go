@@ -71,10 +71,10 @@ type remoteSite struct {
 
 	// localClient provides access to the Auth Server API of the cluster
 	// within which reversetunnelclient.Server is running.
-	localClient auth.ClientI
+	localClient *auth.Client
 	// remoteClient provides access to the Auth Server API of the remote cluster that
 	// this site belongs to.
-	remoteClient auth.ClientI
+	remoteClient *auth.Client
 	// localAccessPoint provides access to a cached subset of the Auth Server API of
 	// the local cluster.
 	localAccessPoint auth.ProxyAccessPoint
@@ -100,7 +100,7 @@ type remoteSite struct {
 	proxySyncInterval time.Duration
 }
 
-func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
+func (s *remoteSite) getRemoteClient() (*auth.Client, bool, error) {
 	// check if all cert authorities are initiated and if everything is OK
 	ca, err := s.srv.localAccessPoint.GetCertAuthority(s.ctx, types.CertAuthID{Type: types.HostCA, DomainName: s.domainName}, false)
 	if err != nil {
@@ -157,7 +157,7 @@ func (s *remoteSite) NodeWatcher() (*services.NodeWatcher, error) {
 	return s.nodeWatcher, nil
 }
 
-func (s *remoteSite) GetClient() (auth.ClientI, error) {
+func (s *remoteSite) GetClient() (*auth.Client, error) {
 	return s.remoteClient, nil
 }
 

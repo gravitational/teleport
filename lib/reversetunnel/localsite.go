@@ -147,7 +147,7 @@ type localSite struct {
 	srv         *server
 
 	// client provides access to the Auth Server API of the local cluster.
-	client auth.ClientI
+	client *auth.Client
 	// accessPoint provides access to a cached subset of the Auth Server API of
 	// the local cluster.
 	accessPoint auth.RemoteProxyAccessPoint
@@ -198,7 +198,7 @@ func (s *localSite) NodeWatcher() (*services.NodeWatcher, error) {
 }
 
 // GetClient returns a client to the full Auth Server API.
-func (s *localSite) GetClient() (auth.ClientI, error) {
+func (s *localSite) GetClient() (*auth.Client, error) {
 	return s.client, nil
 }
 

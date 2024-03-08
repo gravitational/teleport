@@ -183,7 +183,7 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 }
 
 type mockAuthClient struct {
-	auth.ClientI
+	*auth.Client
 
 	reverseTunnels    []types.ReverseTunnel
 	reverseTunnelsErr error
