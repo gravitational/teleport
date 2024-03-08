@@ -51,6 +51,7 @@ type Services interface {
 
 	OktaClient() Okta
 	AccessListClient() AccessLists
+	AccessMonitoringRuleClient() AccessMonitoringRules
 	UserLoginStateClient() UserLoginStates
 	DiscoveryConfigClient() DiscoveryConfigs
 	SecReportsClient() *secreport.Client
