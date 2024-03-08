@@ -360,6 +360,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 
+	if cfg.AccessMonitoringRules == nil {
+		cfg.AccessMonitoringRules, err = local.NewAccessMonitoringRulesService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		Trust:                     cfg.Trust,
@@ -396,6 +403,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		PluginData:                cfg.PluginData,
 		KubeWaitingContainer:      cfg.KubeWaitingContainers,
 		Notifications:             cfg.Notifications,
+		AccessMonitoringRules:     cfg.AccessMonitoringRules,
 	}
 
 	as := Server{
@@ -552,6 +560,7 @@ type Services struct {
 	events.AuditLogSessionStreamer
 	services.SecReports
 	services.KubeWaitingContainer
+	services.AccessMonitoringRules
 }
 
 // SecReportsClient returns the security reports client.
@@ -590,6 +599,11 @@ func (r *Services) SCIMClient() services.SCIM {
 
 // AccessListClient returns the access list client.
 func (r *Services) AccessListClient() services.AccessLists {
+	return r
+}
+
+// AccessMonitoringRuleClient returns the access monitoring rules client.
+func (r *Services) AccessMonitoringRuleClient() services.AccessMonitoringRules {
 	return r
 }
 

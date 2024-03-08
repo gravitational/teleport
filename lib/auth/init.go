@@ -284,6 +284,9 @@ type InitConfig struct {
 	// AccessMonitoringEnabled is true if access monitoring is enabled.
 	AccessMonitoringEnabled bool
 
+	// AccessMonitoringRules is a service that manages access monitoring rules.
+	AccessMonitoringRules services.AccessMonitoringRules
+
 	// CloudClients provides clients for various cloud providers.
 	CloudClients cloud.Clients
 
