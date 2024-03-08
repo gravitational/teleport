@@ -5468,7 +5468,7 @@ func TestFlatten(t *testing.T) {
 		HomePath:           freshHome,
 		Context:            context.Background(),
 	}
-	require.NoError(t, onFlatten(&conf))
+	require.NoError(t, flattenIdentity(&conf))
 
 	// Test execution: validate that the newly created profile can be used to build a valid client.
 	clt, err := makeClient(&conf)
@@ -5479,5 +5479,5 @@ func TestFlatten(t *testing.T) {
 
 	// Test execution: validate that flattening succeeds if a profile already exists.
 	conf.IdentityFileIn = identityPath
-	require.NoError(t, onFlatten(&conf), "unexpected error when overwriting a tsh profile with tsh flatten")
+	require.NoError(t, flattenIdentity(&conf), "unexpected error when overwriting a tsh profile")
 }
