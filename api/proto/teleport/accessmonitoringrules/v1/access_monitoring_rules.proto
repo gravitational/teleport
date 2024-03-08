@@ -82,7 +82,7 @@ message GetAccessMonitoringRuleRequest {
 // DeleteAccessMonitoringRuleRequest is the request for DeleteAccessMonitoringRule.
 message DeleteAccessMonitoringRuleRequest {
   // resource_name is the name of the rule to be removed.
-  string resource_name = 1;
+  string name = 1;
 }
 
 // ListAccessMonitoringRulesResponse is the request for ListAccessMonitoringRules.
