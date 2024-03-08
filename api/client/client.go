@@ -4784,7 +4784,7 @@ func (c *Client) ListRemoteClusters(ctx context.Context, pageSize int, nextToken
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	var rcs []types.RemoteCluster
+	rcs := make([]types.RemoteCluster, 0, len(res.RemoteClusters))
 	for _, rc := range res.RemoteClusters {
 		rcs = append(rcs, rc)
 	}
