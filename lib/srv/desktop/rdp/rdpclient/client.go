@@ -393,6 +393,10 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		c.UpdateClientActivity()
 
 		switch m := msg.(type) {
+		case tdp.ClientScreenSpec:
+			// The client has changed its screen size.
+			c.cfg.Log.Debugf("Client changed screen size to %dx%d", m.Width, m.Height)
+			// TODO: send a message to the Rust client to resize the window.
 		case tdp.MouseMove:
 			mouseX, mouseY = m.X, m.Y
 			if errCode := C.client_write_rdp_pointer(
