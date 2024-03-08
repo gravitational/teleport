@@ -105,10 +105,10 @@ func (c *DevicesCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Co
 
 // runner is used as a simple interface for subcommands.
 type runner interface {
-	Run(context.Context, auth.ClientI) error
+	Run(context.Context, *auth.Client) error
 }
 
-func (c *DevicesCommand) TryRun(ctx context.Context, selectedCommand string, authClient auth.ClientI) (match bool, err error) {
+func (c *DevicesCommand) TryRun(ctx context.Context, selectedCommand string, authClient *auth.Client) (match bool, err error) {
 	innerCmd, ok := map[string]runner{
 		"devices add":    &c.add,
 		"devices ls":     &c.ls,
@@ -136,7 +136,7 @@ type deviceAddCommand struct {
 	enrollTTL time.Duration
 }
 
-func (c *deviceAddCommand) Run(ctx context.Context, authClient auth.ClientI) error {
+func (c *deviceAddCommand) Run(ctx context.Context, authClient *auth.Client) error {
 	if _, err := c.setCurrentDevice(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -204,7 +204,7 @@ tsh device enroll --token=%v
 
 type deviceListCommand struct{}
 
-func (c *deviceListCommand) Run(ctx context.Context, authClient auth.ClientI) error {
+func (c *deviceListCommand) Run(ctx context.Context, authClient *auth.Client) error {
 	devices := authClient.DevicesClient()
 
 	// List all devices.
@@ -263,7 +263,7 @@ type deviceRemoveCommand struct {
 	deviceID string
 }
 
-func (c *deviceRemoveCommand) Run(ctx context.Context, authClient auth.ClientI) error {
+func (c *deviceRemoveCommand) Run(ctx context.Context, authClient *auth.Client) error {
 	switch ok, err := c.setCurrentDevice(); {
 	case err != nil:
 		return trace.Wrap(err)
@@ -303,7 +303,7 @@ type deviceEnrollCommand struct {
 	ttl      time.Duration
 }
 
-func (c *deviceEnrollCommand) Run(ctx context.Context, authClient auth.ClientI) error {
+func (c *deviceEnrollCommand) Run(ctx context.Context, authClient *auth.Client) error {
 	switch ok, err := c.setCurrentDevice(); {
 	case err != nil:
 		return trace.Wrap(err)
@@ -351,7 +351,7 @@ type deviceLockCommand struct {
 	ttl      time.Duration
 }
 
-func (c *deviceLockCommand) Run(ctx context.Context, authClient auth.ClientI) error {
+func (c *deviceLockCommand) Run(ctx context.Context, authClient *auth.Client) error {
 	switch ok, err := c.setCurrentDevice(); {
 	case err != nil:
 		return trace.Wrap(err)

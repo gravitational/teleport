@@ -65,7 +65,7 @@ func (c *LockCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 }
 
 // TryRun attempts to run subcommands.
-func (c *LockCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
+func (c *LockCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
 	switch cmd {
 	case c.mainCmd.FullCommand():
 		err = c.CreateLock(ctx, client)
@@ -76,7 +76,7 @@ func (c *LockCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 }
 
 // CreateLock creates a lock for the main `tctl lock` command.
-func (c *LockCommand) CreateLock(ctx context.Context, client auth.ClientI) error {
+func (c *LockCommand) CreateLock(ctx context.Context, client *auth.Client) error {
 	// Locking a node is now deprecated, but we still support it for backwards compatibility.
 	// Previously, locking a node would lock only the `ssh_service` from that node to
 	// access Teleport but didn't prevent any other roles that the same instance could run.
