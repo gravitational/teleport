@@ -864,11 +864,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 	if s3Bucket == "" || s3Prefix == "" {
 		return nil, trace.BadParameter("s3Bucket and s3Prefix query params are required")
 	}
-	s3Location := fmt.Sprintf("s3://%s/%s", s3Bucket, s3Prefix)
-	s3URI, err := url.Parse(s3Location)
-	if err != nil {
-		return nil, trace.BadParameter("invalid s3 location %q: %v", s3Location, err)
-	}
+	s3URI := url.URL{Scheme: "s3", Host: s3Bucket, Path: s3Prefix}
 
 	jwksContents, err := h.jwks(r.Context())
 	if err != nil {
@@ -886,7 +882,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		fmt.Sprintf("--cluster=%s", clusterName),
 		fmt.Sprintf("--name=%s", integrationName),
 		fmt.Sprintf("--role=%s", role),
-		fmt.Sprintf("--s3-bucket-uri=%s", s3URI.String()),
+		fmt.Sprintf(`--s3-bucket-uri="%s"`, s3URI.String()),
 		fmt.Sprintf("--s3-jwks-base64=%s", base64.StdEncoding.EncodeToString(jwksJSON)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{

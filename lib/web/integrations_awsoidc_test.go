@@ -382,7 +382,7 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 				"--cluster=localhost " +
 				"--name=myintegration " +
 				"--role=myRole " +
-				"--s3-bucket-uri=s3://my-bucket/prefix " +
+				`--s3-bucket-uri="s3://my-bucket/prefix" ` +
 				"--s3-jwks-base64=" + jwksBase64,
 		},
 		{
@@ -399,7 +399,7 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 				"--cluster=localhost " +
 				"--name=myintegration " +
 				"--role=Test+1=2,3.4@5-6_7 " +
-				"--s3-bucket-uri=s3://my-bucket/prefix " +
+				`--s3-bucket-uri="s3://my-bucket/prefix" ` +
 				"--s3-jwks-base64=" + jwksBase64,
 		},
 		{
