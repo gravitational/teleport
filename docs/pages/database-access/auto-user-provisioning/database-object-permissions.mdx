@@ -1,0 +1,191 @@
+---
+title: Database object permissions
+description: Understand the concepts behind database object permissions managed by Teleport.
+---
+
+## Overview
+
+Database object permissions is a Teleport that enables the configuration of access levels for individual users to specific database objects based on their required level of access.
+
+Database objects are labeled based on import rules, and these labels correspond to specific permissions configured within user roles.
+
+Permissions are granted for the duration of a connection and are automatically revoked upon its closure.
+
+## Database object import rules
+
+A database object import rule in Teleport is a resource that defines the labels to be applied to database objects imported into Teleport. If a specific object does not match any of the rules, it will not be imported.
+
+By default, if no import rules are present, Teleport will automatically create the `import_all_objects` rule on startup:
+
+```yaml
+kind: db_object_import_rule
+metadata:
+  name: import_all_objects
+spec:
+  # Priority determines how important the rule is.
+  # In case of conflicts, when the same label is applied by two rules, 
+  # the label applied by rule with higher priority wins.
+  priority: 0
+  # database_labels is a filter specifiying which databases are in scope of this rule.
+  database_labels:
+  - name: '*'
+    values:
+    - '*'
+  # Each mapping, if matched, introduces a set of labels applied to database object.
+  # Database objects without labels are not imported.
+  mappings:
+  - add_labels:
+      database: '{{obj.database}}'
+      object_kind: '{{obj.object_kind}}'
+      name: '{{obj.name}}'
+      protocol: '{{obj.protocol}}'
+      schema: '{{obj.schema}}'
+      database_service_name: '{{obj.database_service_name}}'
+    match:
+      procedure_names:
+      - '*'
+      table_names:
+      - '*'
+      view_names:
+      - '*'
+  # Additional mappings can be added here.
+  # - add_labels: ...
+version: v1
+```
+
+This rule will import all objects and label them by their inherent properties using the template syntax.
+
+Feel free to customize this rule to meet your specific requirements or add more rules. For instance, consider the following rule designed to designate particular tables as accessible to developers, either in a read-only or read-write capacity.
+
+```yaml
+kind: db_object_import_rule
+metadata:
+  name: developer_read_write
+spec:
+  priority: 100
+  database_labels:
+  # Affect only `staging` and `dev` environments.
+  - name: 'env'
+    values:
+    - 'staging'
+    - 'dev'
+  mappings:
+  # Apply `read_write` to all tables in given schemas.
+  - add_labels:
+      developer_permissions: read_write
+    match:
+      table_names:
+      - '*'
+    scope:
+      schema_names:
+      - 'application'
+      - 'data_import'
+  # Apply `read_only` to all tables in `accounting` schema.
+  - add_labels:
+      developer_permissions: read_only
+    match:
+      table_names:
+      - '*'
+    scope:
+      schema_names:
+      - 'accounting'
+version: v1
+```
+
+Save the rule to a file and execute `tctl create -f developer_read_write.yaml` to create it in Teleport.
+
+## Database permissions in roles
+
+To grant user permissions during a database connection, the user must be associated with a role that meets specific criteria:
+- `spec.allow.db_labels` must match the database labels of particular database
+- Database user auto-provisioning should be enabled (`spec.options.create_db_user_mode` not set to `off` or `spec.options.create_db_user: true`).
+- The label key/value pairs in `spec.allow.db_permissions.match` should correspond to the labels on the specific database object.
+
+The labeling of a specific database table as `developer_permissions: read_write` alone is insufficient to grant actual permissions on that object. The labels on the table must be matched with an appropriate role. Here's an example of a role that utilizes the `developer_permissions` label, applied by the `developer_read_write` rule, to grant specific permissions to matching tables.
+
+```yaml
+kind: role
+metadata:
+  name: developer_auto_permissions
+spec:
+  allow:
+    db_labels:
+      '*': '*'
+    db_names:
+    - '*'
+    db_permissions:
+    # grant `SELECT` for `read_only` tables.
+    - match:
+        object_kind: table
+        developer_permissions: read_only
+      permissions:
+      - SELECT
+    # grant `SELECT/INSERT/UPDATE/DELETE` for `read_write` tables.
+    - match:
+        object_kind: table
+        developer_permissions: read_write
+      permissions:
+      - SELECT
+      - INSERT
+      - UPDATE
+      - DELETE
+  options:
+    create_db_user_mode: keep
+version: v7
+```
+
+## Permissions lifecycle and consistency
+
+A user can maintain multiple simultaneous connections to the same database. All connections must possess identical permissions; otherwise, a new connection will be rejected. Upon the termination of the last active connection, all user permissions are automatically revoked.
+
+## Troubleshooting
+
+
+### Checking the logs
+
+To diagnose the import process, refer to the database service logs to find details such as the number of objects fetched from the database, the number of imported objects (the difference comprising objects not matched by any import rule), and finally, the number of objects for which the user has been granted permissions.
+
+```code
+INFO [DB:SERVIC] Database objects fetched from the database (table:75). db:my-postgres id:b4a33740-1d82-4a8d-b2be-2aa90ae9d2eb total:75 postgres/users.go:212
+INFO [DB:SERVIC] Database objects imported (table:75). db:my-postgres err_count:0 id:b4a33740-1d82-4a8d-b2be-2aa90ae9d2eb total:75 postgres/users.go:216
+INFO [DB:SERVIC] Calculated database permissions: "INSERT": 75 objects (table:75), "SELECT": 75 objects (table:75), "UPDATE": 75 objects (table:75). db:my-postgres id:b4a33740-1d82-4a8d-b2be-2aa90ae9d2eb user:teleport-user postgres/users.go:223
+```
+
+### Invalid database admin user permissions
+
+The database admin user, referred to as `teleport-admin` in this documentation, is responsible for granting permissions to end users. Ensure that the admin user possesses the necessary permissions; otherwise, this action might fail.
+
+```bash
+tsh db connect postgres-db --db-name postgres --db-user teleport-user
+psql: error: connection to server at "localhost" (::1), port 50800 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+connection to server at "localhost" (127.0.0.1), port 50800 failed: your Teleport role requires automatic database user provisioning but an attempt to activate database user "teleport-user" failed due to the following error: ERROR: permission denied for table pg_subscription (SQLSTATE 42501)
+ERROR: exit status 2
+```
+
+### Invalid import rules
+
+Import rules undergo validation upon creation. An invalid rule will trigger an error during tctl create. For instance:
+
+```yaml
+... 
+  mappings:
+  - add_labels:
+      invalid_label: '{{'
+...
+```
+
+Will cause error:
+
+```shell
+> tctl create -f import_all_objects_invalid.yaml
+ERROR: validating rule
+	mapping value failed to parse as template
+		"{{" is using template brackets '{{' or '}}', however expression does not parse, make sure the format is {{expression}}
+```
+
+## Next steps
+
+- Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).
+- Read database permission management [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0151-database-permission-management.md)
+
