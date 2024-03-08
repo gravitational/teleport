@@ -752,6 +752,10 @@ message CreateAppSessionRequest {
   string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity"];
   // GCPServiceAccount is the GCP service account the user wants to assume.
   string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account"];
+  // MFAResponse is a response to a challenge from a user's MFA device.
+  // An optional field, that when provided, the response will be validated and
+  // the ID of the validated MFA device will be stored in session's certificate.
+  MFAAuthenticateResponse MFAResponse = 8 [(gogoproto.jsontag) = "mfa_response,omitempty"];
 }
 
 // CreateAppSessionResponse contains the requested application web session.
