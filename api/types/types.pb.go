@@ -16800,7 +16800,7 @@ type AWSOIDCIntegrationSpecV1 struct {
 	// IssuerS3URI is the Identity Provider that was configured in AWS.
 	// This bucket/prefix/* files must be publicly accessible and contain the following:
 	// > .well-known/openid-configuration
-	// > .well-knwon/jwks
+	// > .well-known/jwks
 	// Format: s3://<bucket>/<prefix>
 	// Optional. The proxy's endpoint is used if it is not specified.
 	IssuerS3URI          string   `protobuf:"bytes,2,opt,name=IssuerS3URI,proto3" json:"issuer_s3_uri,omitempty"`
