@@ -80,20 +80,16 @@ func ResourceIDToString(id ResourceID) string {
 // ResourceIDFromString parses a ResourceID from a string. The string should
 // have been obtained from ResourceIDToString.
 func ResourceIDFromString(raw string) (ResourceID, error) {
-	if len(raw) < 1 || raw[0] != '/' {
-		return ResourceID{}, trace.BadParameter("%s is not a valid ResourceID string. Expected /cluster/type/resource format", raw)
-	}
-	raw = raw[1:]
 	// Should be safe for any Name as long as the ClusterName and Kind don't
 	// contain slashes, which should never happen.
-	parts := strings.SplitN(raw, "/", 3)
-	if len(parts) != 3 {
-		return ResourceID{}, trace.BadParameter("/%s is not a valid ResourceID string. Expected /cluster/type/resource format", raw)
+	parts := strings.SplitN(raw, "/", 4)
+	if len(raw) < 1 || raw[0] != '/' || len(parts) != 4 {
+		return ResourceID{}, trace.BadParameter("%s is not a valid ResourceID string. Expected /cluster/type/resource format", raw)
 	}
 	resourceID := ResourceID{
-		ClusterName: parts[0],
-		Kind:        parts[1],
-		Name:        parts[2],
+		ClusterName: parts[1],
+		Kind:        parts[2],
+		Name:        parts[3],
 	}
 	switch {
 	case slices.Contains(KubernetesResourcesKinds, resourceID.Kind):
