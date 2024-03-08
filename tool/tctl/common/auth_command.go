@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
@@ -264,16 +265,25 @@ type certificateSigner interface {
 	kubeutils.KubeServicesPresence
 	CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error)
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
+	GenerateHostCert(
+		ctx context.Context,
+		key []byte,
+		hostID, nodeName string,
+		principals []string,
+		clusterName string,
+		role types.SystemRole,
+		ttl time.Duration,
+	) ([]byte, error)
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
-	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 	GetProxies() ([]types.Server, error)
-	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
+	GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error)
 	TrustClient() trustpb.TrustServiceClient
 }
 
