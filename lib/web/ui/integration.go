@@ -39,6 +39,21 @@ type IntegrationAWSOIDCSpec struct {
 	IssuerS3Prefix string `json:"issuerS3Prefix,omitempty"`
 }
 
+// CheckAndSetDefaults for the aws oidc integration spec.
+func (r *IntegrationAWSOIDCSpec) CheckAndSetDefaults() error {
+	if r.RoleARN == "" {
+		return trace.BadParameter("missing awsoidc.roleArn field")
+	}
+	if r.IssuerS3Bucket == "" {
+		return trace.BadParameter("missing awsoidc.issuerS3Bucket field")
+	}
+	if r.IssuerS3Prefix == "" {
+		return trace.BadParameter("missing awsoidc.issuerS3Prefix field")
+	}
+
+	return nil
+}
+
 // Integration describes Integration fields
 type Integration struct {
 	// Name is the Integration name.
@@ -60,12 +75,10 @@ func (r *Integration) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing subKind")
 	}
 
-	if r.AWSOIDC != nil && r.AWSOIDC.RoleARN == "" {
-		return trace.BadParameter("missing awsoidc.roleArn field")
-	}
-
-	if r.AWSOIDC.IssuerS3Bucket != "" && r.AWSOIDC.IssuerS3Prefix == "" {
-		return trace.BadParameter("prefix is required for using s3 buckets")
+	if r.AWSOIDC != nil {
+		if err := r.AWSOIDC.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -79,8 +92,10 @@ type UpdateIntegrationRequest struct {
 
 // CheckAndSetDefaults checks if the provided values are valid.
 func (r *UpdateIntegrationRequest) CheckAndSetDefaults() error {
-	if r.AWSOIDC != nil && r.AWSOIDC.RoleARN == "" {
-		return trace.BadParameter("missing awsoidc.roleArn field")
+	if r.AWSOIDC != nil {
+		if err := r.AWSOIDC.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
