@@ -20,10 +20,14 @@ syntax = "proto3";
 
 package accessgraph.v1alpha;
 
+import "google/protobuf/struct.proto";
+
 option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
 
 // Node is a node in the access graph.
 message Node {
+  reserved "properties", "hostname";
+  reserved 7, 6;
   // ID is the unique ID of the node.
   string id = 1;
   // Kind is the kind of the node, ex: "user", "user_group", "resource", etc.
@@ -34,10 +38,10 @@ message Node {
   string name = 4;
   // Labels is a set of labels for the resource.
   map<string, string> labels = 5;
-  // Hostname is the hostname of the node.
-  string hostname = 6;
-  // Properties is a set of properties for the resource.
-  map<string, string> properties = 7;
+  // props is a set of properties for the resource.
+  google.protobuf.Struct props = 8;
+  // traits is a set of traits for the resource.
+  google.protobuf.Struct traits = 9;
 }
 
 // Edge is an edge in the access graph.
