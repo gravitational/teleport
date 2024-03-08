@@ -1303,6 +1303,19 @@ buf/installed:
 		exit 1; \
 	fi
 
+# derive will generate derived functions for our API.
+.PHONY: derive
+derive:
+	cd $(TOOLINGDIR) && go run ./cmd/goderive/main.go ../../api/types
+
+# derive-up-to-date checks if the generated derived functions are up to date.
+.PHONY: derive-up-to-date
+derive-up-to-date: must-start-clean/host derive
+	@if ! $(GIT) diff --quiet; then \
+		echo 'Please run make derive.'; \
+		exit 1; \
+	fi
+
 # grpc generates gRPC stubs from service definitions.
 # This target runs in the buildbox container.
 .PHONY: grpc

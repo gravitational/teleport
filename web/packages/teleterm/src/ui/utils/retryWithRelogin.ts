@@ -97,7 +97,9 @@ export function isRetryable(error: unknown): boolean {
   return (
     error instanceof Error &&
     (error.message.includes('ssh: handshake failed') ||
-      error.message.includes('ssh: cert has expired'))
+      error.message.includes('ssh: cert has expired') ||
+      error.message.includes('tls: expired certificate') ||
+      error.message.includes('client credentials have expired'))
   );
 }
 
