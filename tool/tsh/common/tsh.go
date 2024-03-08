@@ -1122,9 +1122,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// MFA subcommands.
 	mfa := newMFACommand(app)
 
-	flatten := app.Command("flatten", "Flattens an identity file into a profile stored in ~/.tsh or TELEPORT_HOME.")
-	flatten.Arg("identity", "Identity file").StringVar(&cf.IdentityFileIn)
-
 	config := app.Command("config", "Print OpenSSH configuration details.")
 	config.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 
@@ -1374,8 +1371,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onListSessions(&cf)
 	case login.FullCommand():
 		err = onLogin(&cf)
-	case flatten.FullCommand():
-		err = onFlatten(&cf)
 	case logout.FullCommand():
 		if err := refuseArgs(logout.FullCommand(), args); err != nil {
 			return trace.Wrap(err)
@@ -1758,7 +1753,7 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	if cf.IdentityFileIn != "" {
-		return trace.BadParameter("-i flag cannot be used here")
+		return trace.Wrap(flattenIdentity(cf), "converting identity file into a local profile")
 	}
 
 	switch cf.IdentityFormat {
@@ -4153,8 +4148,8 @@ func refuseArgs(command string, args []string) error {
 	return nil
 }
 
-// onFlatten reads an identity file and flattens it into a tsh profile on disk.
-func onFlatten(cf *CLIConf) error {
+// flattenIdentity reads an identity file and flattens it into a tsh profile on disk.
+func flattenIdentity(cf *CLIConf) error {
 	// Save the identity file path for later
 	identityFile := cf.IdentityFileIn
 
