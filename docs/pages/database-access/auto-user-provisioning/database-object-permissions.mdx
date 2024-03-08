@@ -5,7 +5,7 @@ description: Understand the concepts behind database object permissions managed 
 
 ## Overview
 
-Database object permissions is a Teleport that enables the configuration of access levels for individual users to specific database objects based on their required level of access.
+Database object permissions is a Teleport feature that enables the configuration of access levels for individual users to specific database objects based on their required level of access.
 
 Database objects are labeled based on import rules, and these labels correspond to specific permissions configured within user roles.
 
@@ -22,11 +22,11 @@ kind: db_object_import_rule
 metadata:
   name: import_all_objects
 spec:
-  # Priority determines how important the rule is.
+  # Priority determines how important the rule is, with lower number indicating lower priority.
   # In case of conflicts, when the same label is applied by two rules, 
   # the label applied by rule with higher priority wins.
   priority: 0
-  # database_labels is a filter specifiying which databases are in scope of this rule.
+  # database_labels is a filter specifiying which database resources are in scope of this rule.
   database_labels:
   - name: '*'
     values:
@@ -42,11 +42,7 @@ spec:
       schema: '{{obj.schema}}'
       database_service_name: '{{obj.database_service_name}}'
     match:
-      procedure_names:
-      - '*'
       table_names:
-      - '*'
-      view_names:
       - '*'
   # Additional mappings can be added here.
   # - add_labels: ...
@@ -60,39 +56,49 @@ Feel free to customize this rule to meet your specific requirements or add more 
 ```yaml
 kind: db_object_import_rule
 metadata:
-  name: developer_read_write
+  name: ownership_nonprod
 spec:
   priority: 100
   database_labels:
-  # Affect only `staging` and `dev` environments.
+  # Affect `dev` and `staging` environments. 
+  # Prod environment may have a different rule.
   - name: 'env'
     values:
     - 'staging'
     - 'dev'
+    - 'prod'
   mappings:
-  # Apply `read_write` to all tables in given schemas.
+  # Apply project label
   - add_labels:
-      developer_permissions: read_write
+      project: horizon
+    # match section is mandatory and must contain at least one non-empty subsection
     match:
       table_names:
       - '*'
+    # scope is the optional section which enables further filtering of objects by database and schema names. When omitted, this filtering is disabled.
     scope:
+      database_names:
+      - 'horizon'
+      - 'horizon_v2'
       schema_names:
       - 'application'
       - 'data_import'
-  # Apply `read_only` to all tables in `accounting` schema.
+  # Add `dept: hr` label for respective tables.
   - add_labels:
-      developer_permissions: read_only
+      dept: hr
     match:
       table_names:
       - '*'
     scope:
       schema_names:
-      - 'accounting'
+      - 'recruitment'
+      - 'salaries'
+      - 'pto'
+      - 'hr_scratchpad'
 version: v1
 ```
 
-Save the rule to a file and execute `tctl create -f developer_read_write.yaml` to create it in Teleport.
+Save the rule to a file and execute `tctl create -f ownership_nonprod.yaml` to create it in Teleport.
 
 ## Database permissions in roles
 
@@ -101,12 +107,12 @@ To grant user permissions during a database connection, the user must be associa
 - Database user auto-provisioning should be enabled (`spec.options.create_db_user_mode` not set to `off` or `spec.options.create_db_user: true`).
 - The label key/value pairs in `spec.allow.db_permissions.match` should correspond to the labels on the specific database object.
 
-The labeling of a specific database table as `developer_permissions: read_write` alone is insufficient to grant actual permissions on that object. The labels on the table must be matched with an appropriate role. Here's an example of a role that utilizes the `developer_permissions` label, applied by the `developer_read_write` rule, to grant specific permissions to matching tables.
+The labels on the table must be matched with an appropriate role. Here's an example of a role that utilizes the `dept` label, applied by the `ownership_nonprod` rule, granting read-only access to HR records in the database. The `hr_scratchpad` table is further made editable. On the other hand, any objects labeled `dept: sales` are made unavailable by removing all permissions a user may have received for them. The wildcard permissions are only allowed in the `deny` part of the spec (`spec.deny.db_permissions`).
 
 ```yaml
 kind: role
 metadata:
-  name: developer_auto_permissions
+  name: dept_hr_permissions
 spec:
   allow:
     db_labels:
@@ -114,21 +120,29 @@ spec:
     db_names:
     - '*'
     db_permissions:
-    # grant `SELECT` for `read_only` tables.
+    # defult permission: read-only
     - match:
         object_kind: table
-        developer_permissions: read_only
+        dept: hr
       permissions:
       - SELECT
-    # grant `SELECT/INSERT/UPDATE/DELETE` for `read_write` tables.
+    # extra permissions for select tables
     - match:
         object_kind: table
-        developer_permissions: read_write
+        dept: hr
+        name: hr_scratchpad
       permissions:
       - SELECT
-      - INSERT
       - UPDATE
       - DELETE
+      - INSERT
+  deny:
+    db_permissions:
+    # explicitly disallow any interaction with `dept: sales` tables.
+    - match:
+        dept: sales
+      permissions:
+      - '*'
   options:
     create_db_user_mode: keep
 version: v7
