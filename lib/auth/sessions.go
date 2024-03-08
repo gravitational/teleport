@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -66,6 +67,16 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		return nil, trace.Wrap(err)
 	}
 
+	var verifiedMFADeviceID string
+	if req.MFAResponse != nil {
+		requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
+		mfaData, err := a.ValidateMFAAuthResponse(ctx, req.GetMFAResponse(), req.Username, requiredExt)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		verifiedMFADeviceID = mfaData.Device.Id
+	}
+
 	// Create certificate for this session.
 	privateKey, publicKey, err := native.GenerateKeyPair()
 	if err != nil {
@@ -93,6 +104,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		skipAttestation: true,
 		// Pass along device extensions from the user.
 		deviceExtensions: DeviceExtensions(identity.DeviceExtensions),
+		mfaVerified:      verifiedMFADeviceID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
