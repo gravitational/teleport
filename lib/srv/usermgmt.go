@@ -40,6 +40,7 @@ import (
 
 // NewHostUsers initialize a new HostUsers object
 func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid string) HostUsers {
+	//nolint:staticcheck // SA4023. False positive on macOS.
 	backend, err := newHostUsersBackend()
 	switch {
 	case trace.IsNotImplemented(err):
@@ -60,6 +61,7 @@ func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid stri
 }
 
 func NewHostSudoers(uuid string) HostSudoers {
+	//nolint:staticcheck // SA4023. False positive on macOS.
 	backend, err := newHostSudoersBackend(uuid)
 	switch {
 	case trace.IsNotImplemented(err):
