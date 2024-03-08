@@ -31,12 +31,16 @@
             {
               "title": "Teleport Cloud Agents (Linux)",
               "slug": "/upgrading/cloud-linux/",
-              "forScopes": ["cloud"]
+              "forScopes": [
+                "cloud"
+              ]
             },
             {
               "title": "Teleport Cloud Agents (Kubernetes)",
               "slug": "/upgrading/cloud-kubernetes/",
-              "forScopes": ["cloud"]
+              "forScopes": [
+                "cloud"
+              ]
             },
             {
               "title": "Self-Hosted Linux",
@@ -70,7 +74,10 @@
         {
           "title": "Usage Reporting and Billing",
           "slug": "/usage-billing/",
-          "forScopes": ["cloud", "enterprise"]
+          "forScopes": [
+            "cloud",
+            "enterprise"
+          ]
         },
         {
           "title": "Upcoming Releases",
@@ -108,7 +115,9 @@
             {
               "title": "Get Started",
               "slug": "/choose-an-edition/teleport-cloud/get-started/",
-              "forScopes": ["cloud"]
+              "forScopes": [
+                "cloud"
+              ]
             },
             {
               "title": "Architecture",
@@ -409,7 +418,11 @@
         {
           "title": "Single Sign-On (SSO)",
           "slug": "/access-controls/sso/",
-          "forScopes": ["oss", "enterprise", "cloud"],
+          "forScopes": [
+            "oss",
+            "enterprise",
+            "cloud"
+          ],
           "entries": [
             {
               "title": "Active Directory (ADFS)",
@@ -430,7 +443,11 @@
             {
               "title": "GitHub",
               "slug": "/access-controls/sso/github-sso/",
-              "forScopes": ["oss", "enterprise", "cloud"]
+              "forScopes": [
+                "oss",
+                "enterprise",
+                "cloud"
+              ]
             },
             {
               "title": "GitLab",
@@ -477,27 +494,42 @@
         {
           "title": "Teleport as an IdP",
           "slug": "/access-controls/idps/",
-          "forScopes": ["enterprise", "cloud"],
+          "forScopes": [
+            "enterprise",
+            "cloud"
+          ],
           "entries": [
             {
               "title": "SAML Identity Provider Guide",
               "slug": "/access-controls/idps/saml-guide/",
-              "forScopes": ["enterprise", "cloud"]
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
             },
             {
               "title": "SAML Attribute Mapping",
               "slug": "/access-controls/idps/saml-attribute-mapping/",
-              "forScopes": ["enterprise", "cloud"]
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
             },
             {
               "title": "Authenticate to Grafana with Teleport SAML",
               "slug": "/access-controls/idps/saml-grafana/",
-              "forScopes": ["enterprise", "cloud"]
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
             },
             {
               "title": "SAML Identity Provider Reference",
               "slug": "/access-controls/idps/saml-reference/",
-              "forScopes": ["enterprise", "cloud"]
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
             }
           ]
         },
@@ -2144,17 +2176,17 @@
     "teleport": {
       "git": "api/14.0.0-gd1e081e",
       "major_version": "15",
-      "version": "15.1.1",
+      "version": "15.1.3",
       "url": "teleport.example.com",
       "golang": "1.21",
       "plugin": {
-        "version": "15.1.1"
+        "version": "15.1.3"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:15.1.1",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:15.1.1",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:15.1.1",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:15.1.1"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:15.1.3",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:15.1.3",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:15.1.3",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:15.1.3"
     },
     "terraform": {
       "version": "1.0.0"
