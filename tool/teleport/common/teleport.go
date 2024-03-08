@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Options combines init/start teleport options
@@ -511,6 +512,15 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfExternalAuditCmd.Flag("glue-table", "The name of the Glue table used.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.GlueTable)
 	integrationConfExternalAuditCmd.Flag("aws-partition", "AWS partition (default: aws).").Default("aws").StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Partition)
 
+	debugCmd := app.Command("debug", "Debug commands")
+	debugCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
+	setLogLevelCmd := debugCmd.Command("set-log-level", "Changes the log level.")
+	setLogLevelCmd.Arg("LEVEL", fmt.Sprintf("Log level (case-insensitive). Any of: %s", strings.Join(logutils.SupportedLogLevelsString, ","))).Required().StringVar(&ccf.LogLevel)
+	getLogLevelCmd := debugCmd.Command("get-log-level", "Fetches current log level.")
+	collectProfilesCmd := debugCmd.Command("profile", "Export the application profiles (pprof format).")
+	collectProfilesCmd.Arg("PROFILES", fmt.Sprintf("Comma-separated profile names to be exported. Supported profiles: %s. Default: %s", strings.Join(utils.MapKeysToSlice(supportedProfiles), ","), strings.Join(defaultCollectProfiles, ","))).StringVar(&ccf.Profiles)
+	collectProfilesCmd.Flag("seconds", "For CPU and trace profiles, profile for the given duration. For other profiles, return a delta profile.").Short('s').Default("29").IntVar(&ccf.ProfileSeconds)
+
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
 	command, err := app.Parse(options.Args)
@@ -612,6 +622,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onIntegrationConfExternalAuditCmd(ccf.IntegrationConfExternalAuditStorageArguments)
 	case integrationConfTAGSyncCmd.FullCommand():
 		err = onIntegrationConfAccessGraphAWSSync(ccf.IntegrationConfAccessGraphAWSSyncArguments)
+	case setLogLevelCmd.FullCommand():
+		err = onSetLogLevel(ccf.ConfigFile, ccf.LogLevel)
+	case getLogLevelCmd.FullCommand():
+		err = onGetLogLevel(ccf.ConfigFile)
+	case collectProfilesCmd.FullCommand():
+		err = onCollectProfile(ccf.ConfigFile, ccf.Profiles, ccf.ProfileSeconds, os.Stdout)
 	}
 	if err != nil {
 		utils.FatalError(err)

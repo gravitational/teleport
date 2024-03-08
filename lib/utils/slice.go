@@ -142,3 +142,12 @@ func FromSlice[T any](r []T, key func(T) string) map[string]T {
 
 	return out
 }
+
+// MapKeysToSlice extracts keys of a map as a slice.
+func MapKeysToSlice[K comparable, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}

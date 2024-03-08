@@ -41,3 +41,30 @@ func TestSlice(t *testing.T) {
 		pool.Put(slice)
 	}
 }
+
+func TestMapKeysToSlice(t *testing.T) {
+	type testCase[K comparable, V any] struct {
+		desc   string
+		input  map[K]V
+		result []K
+	}
+
+	for _, test := range []testCase[any, any]{
+		{
+			desc:   "map of strings",
+			input:  map[any]any{"a": "", "b": ""},
+			result: []any{"a", "b"},
+		},
+		{
+			desc:   "map of integers",
+			input:  map[any]any{1: "", 2: ""},
+			result: []any{1, 2},
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			r := MapKeysToSlice(test.input)
+			require.Len(t, r, len(test.input))
+			require.ElementsMatch(t, test.result, r)
+		})
+	}
+}

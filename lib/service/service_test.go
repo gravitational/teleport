@@ -19,10 +19,12 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -48,6 +50,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -66,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestMain(m *testing.M) {
@@ -1561,4 +1565,91 @@ func TestSingleProcessModeResolver(t *testing.T) {
 			require.Equal(t, test.wantAddr, addr.FullAddress())
 		})
 	}
+}
+
+func TestDebugService(t *testing.T) {
+	t.Parallel()
+	fakeClock := clockwork.NewFakeClock()
+
+	cfg := servicecfg.MakeDefaultConfig()
+	cfg.Clock = fakeClock
+	var err error
+	cfg.DataDir = t.TempDir()
+	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+	cfg.Auth.Enabled = true
+	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.Proxy.Enabled = true
+	cfg.Proxy.DisableWebInterface = true
+	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
+	cfg.SSH.Enabled = false
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.DebugService.Enabled = true
+
+	// Define the logger to avoid modifying global loggers.
+	cfg.Log = logrus.New()
+	cfg.Logger = slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{}))
+
+	process, err := NewTeleport(cfg)
+	require.NoError(t, err)
+
+	require.NoError(t, process.Start())
+	t.Cleanup(func() { require.NoError(t, process.Close()) })
+
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", filepath.Join(process.Config.DataDir, constants.DebugServiceSocketName))
+			},
+		},
+	}
+
+	t.Run("LogLevel", func(t *testing.T) {
+		require.Equal(t, cfg.LoggerLevel.Level().String(), retrieveLogLevel(t, httpClient))
+
+		// Invalid log level
+		resp, err := httpClient.Do(makeDebugSocketRequest(t, http.MethodPut, constants.DebugServiceLogLevelEndpoint, "RANDOM"))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
+
+		updatedLogLevelString := slog.LevelDebug.String()
+		resp, err = httpClient.Do(makeDebugSocketRequest(t, http.MethodPut, constants.DebugServiceLogLevelEndpoint, updatedLogLevelString))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		require.Equal(t, updatedLogLevelString, retrieveLogLevel(t, httpClient))
+	})
+
+	t.Run("CollectProfiles", func(t *testing.T) {
+		resp, err := httpClient.Do(makeDebugSocketRequest(t, http.MethodGet, "/debug/pprof/heap", ""))
+		require.NoError(t, err)
+
+		respBody, err := io.ReadAll(resp.Body)
+		defer resp.Body.Close()
+		require.NoError(t, err)
+		require.NotEmpty(t, respBody)
+	})
+}
+
+func retrieveLogLevel(t *testing.T, httpClient *http.Client) string {
+	t.Helper()
+
+	resp, err := httpClient.Do(makeDebugSocketRequest(t, constants.DebugServiceGetLogLevelMethod, constants.DebugServiceLogLevelEndpoint, ""))
+	require.NoError(t, err)
+
+	respBody, err := io.ReadAll(resp.Body)
+	defer resp.Body.Close()
+	require.NoError(t, err)
+
+	return string(respBody)
+}
+
+func makeDebugSocketRequest(t *testing.T, method, path, body string) *http.Request {
+	t.Helper()
+	req, err := http.NewRequest(method, "http://debug"+path, bytes.NewBufferString(body))
+	require.NoError(t, err)
+	return req
 }

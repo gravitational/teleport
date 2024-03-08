@@ -19,6 +19,7 @@ package constants
 
 import (
 	"encoding/json"
+	"net/http"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -450,4 +451,21 @@ const (
 	// FileTransferDecision is a request that will approve or deny an active file transfer.
 	// Multiple decisions can be sent for the same request if the policy requires it.
 	FileTransferDecision string = "file-transfer-decision@goteleport.com"
+)
+
+const (
+	// DebugServiceSocketName represents the Unix domain socket name of the
+	// Debug service.
+	DebugServiceSocketName = "debug.sock"
+	// DebugServiceLogLevelEndpoint is the HTTP endpoint used for retrieving
+	// and changing log level.
+	DebugServiceLogLevelEndpoint = "/log-level"
+	// DebugServiceGetLogLevelMethod is the HTTP method used to retrieve the
+	// current log level.
+	DebugServiceGetLogLevelMethod = http.MethodGet
+	// DebugServiceSetLogLevelMethod is the HTTP method used to change the log
+	// level.
+	DebugServiceSetLogLevelMethod = http.MethodPut
+	// PProfEndpointsPrefix PProf endpoints path prefix.
+	PProfEndpointsPrefix = "/debug/pprof/"
 )
