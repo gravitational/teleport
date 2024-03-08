@@ -733,6 +733,8 @@ func (s *Server) existingEICENodes() []types.Server {
 		labels := n.GetAllLabels()
 		_, accountOK := labels[types.AWSAccountIDLabel]
 		_, instanceOK := labels[types.AWSInstanceIDLabel]
+		// Checking only for the subkind is not enough because users can manually remove labels from agentless nodes.
+		// Account/Instance IDs are required for comparing against new nodes, nodes without those labels are discarded.
 		return accountOK && instanceOK && n.GetSubKind() == types.SubKindOpenSSHEICENode
 	})
 }
