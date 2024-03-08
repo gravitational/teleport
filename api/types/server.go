@@ -390,6 +390,16 @@ func IsOpenSSHNodeSubKind(subkind string) bool {
 // openSSHNodeCheckAndSetDefaults are common validations for OpenSSH nodes.
 // They include SubKindOpenSSHNode and SubKindOpenSSHEICENode.
 func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
+	// The resource name must be an UUID because SSH dialing relies on the name
+	// being an UUID (if uuid.Parse() returns no error, lookup the resource name,
+	// else consider it's a hostname).
+	// The server.CheckAndSetDefaults() generates a random UUID if no name is set.
+	// If you need to reconcile an openssh server, you can hash its name and
+	// consistently generate the same UUID.
+	_, err := uuid.Parse(s.GetName())
+	if err != nil {
+		return trace.BadParameter("name must be an UUID when server SubKind is %q", s.GetSubKind())
+	}
 	if s.Spec.Addr == "" {
 		return trace.BadParameter("addr must be set when server SubKind is %q", s.GetSubKind())
 	}
@@ -400,7 +410,7 @@ func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
 		return trace.BadParameter("hostname must be set when server SubKind is %q", s.GetSubKind())
 	}
 
-	_, _, err := net.SplitHostPort(s.Spec.Addr)
+	_, _, err = net.SplitHostPort(s.Spec.Addr)
 	if err != nil {
 		return trace.BadParameter("invalid Addr %q: %v", s.Spec.Addr, err)
 	}

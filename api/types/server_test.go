@@ -295,6 +295,25 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
+			name: "OpenSSH node with non-UUID name",
+			server: &ServerV2{
+				Kind:    KindNode,
+				SubKind: SubKindOpenSSHNode,
+				Version: V2,
+				Metadata: Metadata{
+					Name:      "foobar.example.com",
+					Namespace: defaults.Namespace,
+				},
+				Spec: ServerSpecV2{
+					Addr:     "1.2.3.4:22",
+					Hostname: "openssh-node",
+				},
+			},
+			assertion: func(t *testing.T, s *ServerV2, err error) {
+				require.ErrorContains(t, err, "name must be an UUID")
+			},
+		},
+		{
 			name: "OpenSSH node with unset addr",
 			server: &ServerV2{
 				Kind:    KindNode,
@@ -386,6 +405,15 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
 				require.EqualError(t, err, `invalid SubKind "invalid-subkind"`)
+			},
+		},
+		{
+			name: "OpenSSHEC2InstanceConnectEndpoint node with a nonUUID nae",
+			server: makeOpenSSHEC2InstanceConnectEndpointNode(func(s *ServerV2) {
+				s.Metadata.Name = "foobar.example.com"
+			}),
+			assertion: func(t *testing.T, s *ServerV2, err error) {
+				require.ErrorContains(t, err, "name must be an UUID")
 			},
 		},
 		{
