@@ -3,7 +3,7 @@ authors: Gabriel Corado (gabriel.oliveira@goteleport.com)
 state: draft
 ---
 
-# RFD 0167 - Console service
+# RFD 0167 - Debug service
 
 ## Required Approvals
 
@@ -22,6 +22,9 @@ During incidents in production environments, debug logs and diagnostic profiles
 troubleshooting. To enable those, administrators need to restart the instance,
 potentially disrupting the application state and obscuring the issue they're
 trying to solve.
+
+In addition, the addition will make collecting profiles with a single command
+even on distroless environments where `curl` is not present.
 
 ## Details
 
@@ -172,8 +175,8 @@ This parameter max value will be set to the HTTP server write timeout value.
 ### Security
 
 Items listed on this section are have their impact limited due to the fact that
-the service will not be exposed outsite the machine running the Teleport
-instance.
+the service will not be exposed outsite the machine/container running the
+Teleport instance.
 
 #### CPU and Memory consumption during profiling
 
