@@ -132,7 +132,10 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	}
 	execRequest.Continue()
 
-	// Send the file transfer request if applicable
+	// Send the file transfer request if applicable. The SFTP process
+	// expects the file transfer request data will end with a null byte,
+	// so if there is no request to send just send a null byte so the
+	// SFTP process can detect that no request was sent.
 	encodedReq := []byte{0x0}
 	if s.fileTransferReq != nil {
 		encodedReq, err = json.Marshal(s.fileTransferReq)

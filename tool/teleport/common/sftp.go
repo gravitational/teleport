@@ -79,6 +79,7 @@ func (c compositeCh) Close() error {
 	return trace.NewAggregate(c.r.Close(), c.w.Close())
 }
 
+// byteReader is used to read one byte at a time without buffering.
 type byteReader struct {
 	buf []byte
 	io.Reader
@@ -92,9 +93,12 @@ func newByteReader(r io.Reader) *byteReader {
 }
 
 func (r *byteReader) ReadByte() (byte, error) {
-	_, err := r.Reader.Read(r.buf)
+	n, err := r.Reader.Read(r.buf)
 	if err != nil {
 		return 0, err
+	}
+	if n > 1 {
+		return 0, fmt.Errorf("expected to read 1 byte, read %d bytes", n)
 	}
 
 	return r.buf[0], nil
@@ -154,13 +158,8 @@ func (s *sftpHandler) ensureReqIsAllowed(req *sftp.Request) error {
 		if s.allowed.write {
 			return newDisallowedErr(req)
 		}
-	case methodPut:
-		// only allow writes for uploads
-		if !s.allowed.write {
-			return newDisallowedErr(req)
-		}
-	case methodSetStat:
-		// only allow chmods for uploads
+	case methodPut, methodSetStat:
+		// only allow writes and chmods for uploads
 		if !s.allowed.write {
 			return newDisallowedErr(req)
 		}

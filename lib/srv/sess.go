@@ -28,7 +28,6 @@ import (
 	"os/user"
 	"path"
 	"slices"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -441,10 +440,10 @@ func (s *SessionRegistry) GetTerminalSize(sessionID string) (*term.Winsize, erro
 }
 
 func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, error) {
-	// If the sessID environment variable was not set, return not
-	// approved and no error. This means the file transfer came from
-	// a non-moderated session. sessionID will be passed after a
-	// moderated session approval process has completed.
+	// If the TELEPORT_MODERATED_SESSION_ID environment variable was not
+	// set, return not approved and no error. This means the file
+	// transfer came from a non-moderated session. sessionID will be
+	// passed after a moderated session approval process has completed.
 	sessID, _ := scx.GetEnv(string(sftp.ModeratedSessionID))
 	if sessID == "" {
 		return false, nil
@@ -459,6 +458,8 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 		return false, trace.NotFound("Session not found")
 	}
 
+	// aquire the session mutex lock so sess.fileTransferReq doesn't get
+	// written while we're reading it
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
 
@@ -1706,12 +1707,13 @@ func (s *session) newFileTransferRequest(params *rsession.FileTransferRequestPar
 
 func (s *session) expandFileTransferRequestPath(p string) (string, error) {
 	expanded := path.Clean(p)
+	dir := path.Dir(expanded)
 
 	var tildePrefixed bool
 	var noBaseDir bool
-	if strings.HasPrefix(expanded, "~/") {
+	if dir == "~" {
 		tildePrefixed = true
-	} else if !strings.Contains(expanded, "/") {
+	} else if dir == "." {
 		noBaseDir = true
 	}
 

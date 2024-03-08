@@ -8047,6 +8047,14 @@ func getRemoteAddrString(sshClientString string) string {
 	return fmt.Sprintf("%s:%s", parts[0], parts[1])
 }
 
+func isNilOrEOFErr(t *testing.T, err error) {
+	t.Helper()
+
+	if err != nil {
+		require.ErrorIs(t, err, io.EOF)
+	}
+}
+
 func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
@@ -8059,7 +8067,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	})
 
 	ctx := context.Background()
-	aSrv := instance.Process.GetAuthServer()
+	authServer := instance.Process.GetAuthServer()
 
 	// Create peer and moderator users and roles
 	username := suite.Me.Username
@@ -8073,7 +8081,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 		},
 	})
 	require.NoError(t, err)
-	_, err = aSrv.CreateRole(ctx, sshAccessRole)
+	_, err = authServer.CreateRole(ctx, sshAccessRole)
 	require.NoError(t, err)
 
 	peerRole, err := types.NewRole("peer", types.RoleSpecV6{
@@ -8095,14 +8103,14 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 		},
 	})
 	require.NoError(t, err)
-	_, err = aSrv.CreateRole(ctx, peerRole)
+	_, err = authServer.CreateRole(ctx, peerRole)
 	require.NoError(t, err)
 
 	peerUser, err := types.NewUser(peerUsername)
 	require.NoError(t, err)
 	peerUser.SetLogins([]string{username})
 	peerUser.SetRoles([]string{sshAccessRole.GetName(), peerRole.GetName()})
-	_, err = aSrv.CreateUser(ctx, peerUser)
+	_, err = authServer.CreateUser(ctx, peerUser)
 	require.NoError(t, err)
 
 	modUsername := username + "-moderator"
@@ -8117,14 +8125,14 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 		},
 	})
 	require.NoError(t, err)
-	_, err = aSrv.CreateRole(ctx, modRole)
+	_, err = authServer.CreateRole(ctx, modRole)
 	require.NoError(t, err)
 
 	modUser, err := types.NewUser(modUsername)
 	require.NoError(t, err)
 	modUser.SetLogins([]string{username})
 	modUser.SetRoles([]string{sshAccessRole.GetName(), modRole.GetName()})
-	_, err = aSrv.CreateUser(ctx, modUser)
+	_, err = authServer.CreateUser(ctx, modUser)
 	require.NoError(t, err)
 
 	waitForNodesToRegister(t, instance, helpers.Site)
@@ -8138,10 +8146,10 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	peerClusterCli, err := peerTC.ConnectToCluster(ctx)
+	peerClusterClient, err := peerTC.ConnectToCluster(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_ = peerClusterCli.Close()
+		require.NoError(t, peerClusterClient.Close())
 	})
 
 	nodeDetails := client.NodeDetails{
@@ -8149,40 +8157,38 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 		Namespace: peerTC.Namespace,
 		Cluster:   helpers.Site,
 	}
-	peerNodeCli, err := peerTC.ConnectToNode(
+	peerNodeClient, err := peerTC.ConnectToNode(
 		ctx,
-		peerClusterCli,
+		peerClusterClient,
 		nodeDetails,
 		username,
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, peerNodeCli.Close())
+		require.NoError(t, peerNodeClient.Close())
 	})
 
-	peerSSH := peerNodeCli.Client
-	cmdSess, err := peerSSH.NewSession(ctx)
+	peerSSH := peerNodeClient.Client
+	peerSess, err := peerSSH.NewSession(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, cmdSess.Close())
+		require.NoError(t, peerSess.Close())
 	})
 
 	peerTerm := NewTerminal(250)
-	cmdSess.Stdin = peerTerm
-	cmdSess.Stdout = peerTerm
-	cmdSess.Stderr = peerTerm
-	err = cmdSess.Shell(ctx)
+	peerSess.Stdin = peerTerm
+	peerSess.Stdout = peerTerm
+	peerSess.Stderr = peerTerm
+	err = peerSess.Shell(ctx)
 	require.NoError(t, err)
 
 	var sessTracker types.SessionTracker
-	require.Eventually(t, func() bool {
-		trackers, err := peerClusterCli.AuthClient.GetActiveSessionTrackers(ctx)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		trackers, err := peerClusterClient.AuthClient.GetActiveSessionTrackers(ctx)
 		require.NoError(t, err)
-		if len(trackers) == 1 {
+		if assert.Len(t, trackers, 1) {
 			sessTracker = trackers[0]
-			return true
 		}
-		return false
 	}, 5*time.Second, 100*time.Millisecond)
 
 	// Join the waiting session so it is approved
@@ -8194,15 +8200,15 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	modClusterCli, err := modTC.ConnectToCluster(ctx)
+	modClusterClient, err := modTC.ConnectToCluster(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_ = modClusterCli.Close()
+		require.NoError(t, modClusterClient.Close())
 	})
 
-	conn, details, err := modClusterCli.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, modTC.LocalAgent().ExtendedAgent)
+	conn, details, err := modClusterClient.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, modTC.LocalAgent().ExtendedAgent)
 	require.NoError(t, err)
-	sshConfig := modClusterCli.ProxyClient.SSHConfig(username)
+	sshConfig := modClusterClient.ProxyClient.SSHConfig(username)
 	modSSHConn, modSSHChans, modSSHReqs, err := tracessh.NewClientConn(ctx, conn, nodeDetails.ProxyFormat(), sshConfig)
 	require.NoError(t, err)
 
@@ -8239,16 +8245,18 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	err = os.WriteFile(reqFile, []byte("contents"), 0o666)
 	require.NoError(t, err)
 
-	err = cmdSess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
+	err = peerSess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
 		Download: true,
 		Location: reqFile,
 	})
 	require.NoError(t, err)
 
-	// Ignore session join event
-	<-modSSHReqs
-
 	sshReq := <-modSSHReqs
+	var joinEvent apievents.SessionJoin
+	err = json.Unmarshal(sshReq.Payload, &joinEvent)
+	require.NoError(t, err)
+
+	sshReq = <-modSSHReqs
 	var fileReq apievents.FileTransferRequestEvent
 	err = json.Unmarshal(sshReq.Payload, &fileReq)
 	require.NoError(t, err)
@@ -8264,13 +8272,13 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	transferSess, err := peerSSH.NewSession(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_ = transferSess.Close()
+		isNilOrEOFErr(t, transferSess.Close())
 	})
 
 	err = transferSess.Setenv(ctx, string(telesftp.ModeratedSessionID), sessTracker.GetSessionID())
 	require.NoError(t, err)
 
-	err = transferSess.RequestSubsystem(ctx, "sftp")
+	err = transferSess.RequestSubsystem(ctx, teleport.SFTPSubsystem)
 	require.NoError(t, err)
 	w, err := transferSess.StdinPipe()
 	require.NoError(t, err)
@@ -8305,7 +8313,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, sftpClient.Close())
 
 	// Create and approve a file upload request
-	err = cmdSess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
+	err = peerSess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
 		Download: false,
 		Filename: "upload-file",
 		Location: reqFile,
@@ -8322,12 +8330,11 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	// Ignore file transfer request approve event
 	<-modSSHReqs
 
-	// Ignore EOF error
-	_ = transferSess.Close()
+	isNilOrEOFErr(t, transferSess.Close())
 	transferSess, err = peerSSH.NewSession(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_ = transferSess.Close()
+		require.NoError(t, transferSess.Close())
 	})
 
 	err = transferSess.Setenv(ctx, string(telesftp.ModeratedSessionID), sessTracker.GetSessionID())
@@ -8335,7 +8342,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 
 	// Test that only operations needed to complete the download
 	// are allowed
-	err = transferSess.RequestSubsystem(ctx, "sftp")
+	err = transferSess.RequestSubsystem(ctx, teleport.SFTPSubsystem)
 	require.NoError(t, err)
 	w, err = transferSess.StdinPipe()
 	require.NoError(t, err)
