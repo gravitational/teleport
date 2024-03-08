@@ -949,15 +949,11 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
+
 	_, err = clt.CreateIntegration(ctx, ig)
 	require.NoError(t, err)
 
-	user1, _, err := CreateUserAndRole(clt, "user1", nil, []types.Rule{
-		types.NewRule(types.KindIntegration, []string{types.VerbUse}),
-	})
-	require.NoError(t, err)
-
-	client, err := testSrv.NewClient(TestUser(user1.GetName()))
+	client, err := testSrv.NewClient(TestBuiltin(types.RoleDiscovery))
 	require.NoError(t, err)
 
 	// Create a JWT using the current CA, this will become the "old" CA during
