@@ -92,13 +92,13 @@ func (c *Client) getRemoteClustersLegacy(ctx context.Context) ([]types.RemoteClu
 	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	conns := make([]types.RemoteCluster, len(items))
-	for i, raw := range items {
+	conns := make([]types.RemoteCluster, 0, len(items))
+	for _, raw := range items {
 		conn, err := services.UnmarshalRemoteCluster(raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		conns[i] = conn
+		conns = append(conns, conn)
 	}
 	return conns, nil
 }
