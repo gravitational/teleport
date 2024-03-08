@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,23 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import authService from 'teleport/services/auth';
-import cfg from 'teleport/config';
-
-export default function useChangePassword() {
-  function changePassword(oldPass: string, newPass: string, otpToken: string) {
-    return authService.changePassword(oldPass, newPass, otpToken);
-  }
-
-  function changePasswordWithWebauthn(oldPass: string, newPass: string) {
-    return authService.changePasswordWithWebauthn(oldPass, newPass);
-  }
-  return {
-    changePassword,
-    changePasswordWithWebauthn,
-    preferredMfaType: cfg.getPreferredMfaType(),
-    auth2faType: cfg.getAuth2faType(),
-  };
-}
-
-export type State = ReturnType<typeof useChangePassword>;
+export { ButtonWithMenu } from './ButtonWithMenu';

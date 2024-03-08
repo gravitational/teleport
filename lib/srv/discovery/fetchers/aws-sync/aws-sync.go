@@ -102,6 +102,14 @@ type Resources struct {
 	RoleAttachedPolicies []*accessgraphv1alpha.AWSRoleAttachedPolicies
 	// InstanceProfiles is the list of AWS IAM instance profiles.
 	InstanceProfiles []*accessgraphv1alpha.AWSInstanceProfileV1
+	// EKSClusters is the list of EKS clusters
+	EKSClusters []*accessgraphv1alpha.AWSEKSClusterV1
+	// AssociatedAccessPolicies is the list of Associated Access policies
+	AssociatedAccessPolicies []*accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1
+	// AccessEntries is the list of Access Entries.
+	AccessEntries []*accessgraphv1alpha.AWSEKSClusterAccessEntryV1
+	// RDSDatabases is a list of RDS instances and clusters.
+	RDSDatabases []*accessgraphv1alpha.AWSRDSDatabaseV1
 }
 
 // NewAWSFetcher creates a new AWS fetcher.
@@ -171,6 +179,12 @@ func (a *awsFetcher) poll(ctx context.Context) (*Resources, error) {
 
 	// fetch AWS S3 buckets.
 	eGroup.Go(a.pollAWSS3Buckets(ctx, result, collectErr))
+
+	// fetch AWS EKS clusters
+	eGroup.Go(a.pollAWSEKSClusters(ctx, result, collectErr))
+
+	// fetch AWS RDS instances and clusters
+	eGroup.Go(a.pollAWSRDSDatabases(ctx, result, collectErr))
 
 	if err := eGroup.Wait(); err != nil {
 		return nil, trace.Wrap(err)

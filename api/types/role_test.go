@@ -443,7 +443,7 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 			require.ErrorContains(t, err, contains)
 		}
 	}
-	newRole := func(t *testing.T, spec RoleSpecV6) *RoleV6 {
+	newRole := func(spec RoleSpecV6) *RoleV6 {
 		return &RoleV6{
 			Metadata: Metadata{
 				Name: "test",
@@ -453,13 +453,14 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
-		role         *RoleV6
-		requireError require.ErrorAssertionFunc
+		name                string
+		role                *RoleV6
+		requireError        require.ErrorAssertionFunc
+		compareDefaultValue RoleConditions
 	}{
 		{
 			name: "spiffe: valid",
-			role: newRole(t, RoleSpecV6{
+			role: newRole(RoleSpecV6{
 				Allow: RoleConditions{
 					SPIFFE: []*SPIFFERoleCondition{{Path: "/test"}},
 				},
@@ -468,7 +469,7 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "spiffe: valid regex path",
-			role: newRole(t, RoleSpecV6{
+			role: newRole(RoleSpecV6{
 				Allow: RoleConditions{
 					SPIFFE: []*SPIFFERoleCondition{{Path: `^\/svc\/foo\/.*\/bar$`}},
 				},
@@ -477,7 +478,7 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "spiffe: missing path",
-			role: newRole(t, RoleSpecV6{
+			role: newRole(RoleSpecV6{
 				Allow: RoleConditions{
 					SPIFFE: []*SPIFFERoleCondition{{Path: ""}},
 				},
@@ -486,7 +487,7 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "spiffe: path not prepended",
-			role: newRole(t, RoleSpecV6{
+			role: newRole(RoleSpecV6{
 				Allow: RoleConditions{
 					SPIFFE: []*SPIFFERoleCondition{{Path: "foo"}},
 				},
@@ -495,7 +496,7 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "spiffe: invalid ip cidr",
-			role: newRole(t, RoleSpecV6{
+			role: newRole(RoleSpecV6{
 				Allow: RoleConditions{
 					SPIFFE: []*SPIFFERoleCondition{
 						{
@@ -509,6 +510,28 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 				},
 			}),
 			requireError: requireBadParameterContains("validating ip_sans[1]: invalid CIDR address: llama"),
+		},
+		{
+			name: "SAMLIdpServiceProviderLabels: valid wildcard labels",
+			role: newRole(RoleSpecV6{
+				Allow: RoleConditions{
+					SAMLIdPServiceProviderLabels: Labels{
+						Wildcard: {Wildcard},
+					},
+				},
+			}),
+			requireError: require.NoError,
+		},
+		{
+			name: "SAMLIdpServiceProviderLabels: invalid labels",
+			role: newRole(RoleSpecV6{
+				Allow: RoleConditions{
+					SAMLIdPServiceProviderLabels: Labels{
+						Wildcard: {"val"},
+					},
+				},
+			}),
+			requireError: requireBadParameterContains("not supported"),
 		},
 	}
 

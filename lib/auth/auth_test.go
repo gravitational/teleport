@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
@@ -394,7 +395,8 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Register the leaf cluster.
 	leaf, err := types.NewRemoteCluster("leaf.localhost")
 	require.NoError(t, err)
-	require.NoError(t, s.a.CreateRemoteCluster(leaf))
+	_, err = s.a.CreateRemoteCluster(ctx, leaf)
+	require.NoError(t, err)
 
 	user := "user1"
 	pass := []byte("abcdef123456")
@@ -755,7 +757,12 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 
 	t.Run("locked device password change", func(t *testing.T) {
 		chal, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{},
+			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+				ContextUser: &proto.ContextUser{},
+			},
+			ChallengeExtensions: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD,
+			},
 		})
 		require.NoError(t, err, "CreateAuthenticateChallenge")
 

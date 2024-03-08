@@ -30,13 +30,20 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+type CertificateSigner interface {
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
+}
 
 // GenerateDatabaseCertificatesRequest contains the required fields used to generate database certificates
 // Those certificates will be used by databases to set up mTLS authentication against Teleport
 type GenerateDatabaseCertificatesRequest struct {
-	ClusterAPI         auth.ClientI
+	ClusterAPI         CertificateSigner
 	Principals         []string
 	OutputFormat       identityfile.Format
 	OutputCanOverwrite bool
