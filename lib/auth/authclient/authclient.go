@@ -60,7 +60,7 @@ type Config struct {
 
 // Connect creates a valid client connection to the auth service.  It may
 // connect directly to the auth server, or tunnel through the proxy.
-func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
+func Connect(ctx context.Context, cfg *Config) (*auth.Client, error) {
 	cfg.Log.Debugf("Connecting to: %v.", cfg.AuthServers)
 
 	directClient, err := connectViaAuthDirect(cfg)
@@ -86,7 +86,7 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 	)
 }
 
-func connectViaAuthDirect(cfg *Config) (auth.ClientI, error) {
+func connectViaAuthDirect(cfg *Config) (*auth.Client, error) {
 	// Try connecting to the auth server directly over TLS.
 	directDialClient, err := auth.NewClient(apiclient.Config{
 		Addrs: utils.NetAddrsToStrings(cfg.AuthServers),
@@ -112,7 +112,7 @@ func connectViaAuthDirect(cfg *Config) (auth.ClientI, error) {
 	return directDialClient, nil
 }
 
-func connectViaProxyTunnel(ctx context.Context, cfg *Config) (auth.ClientI, error) {
+func connectViaProxyTunnel(ctx context.Context, cfg *Config) (*auth.Client, error) {
 	// If direct dial failed, we may have a proxy address in
 	// cfg.AuthServers. Try connecting to the reverse tunnel
 	// endpoint and make a client over that.
