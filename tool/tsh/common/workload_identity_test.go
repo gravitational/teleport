@@ -69,7 +69,7 @@ func TestWorkloadIdentityIssue(t *testing.T) {
 	err = Run(
 		ctx,
 		[]string{
-			"workloadid",
+			"svid",
 			"issue",
 			"--output", temp,
 			"--svid-ttl", "10m",
