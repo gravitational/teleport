@@ -50,6 +50,7 @@ type E struct {
 	// DevicesService is the underlying devicetrustv1.Service.
 	// Most callers should test through DevicesClient instead.
 	DevicesService  *devicetrustv1.Service
+	AccessService   *local.AccessService
 	IdentityService *local.IdentityService
 
 	augmentCertsFunc       AugmentContextCertsFunc
@@ -170,6 +171,7 @@ func New(opts ...Opt) (*E, error) {
 	}
 	e.closers = append(e.closers, mem.Close)
 
+	e.AccessService = local.NewAccessService(mem)
 	e.IdentityService = local.NewIdentityService(mem)
 	dtStorage, err := storage.New(storage.Params{
 		Backend:            mem,
@@ -191,11 +193,12 @@ func New(opts ...Opt) (*E, error) {
 			authSpec:               e.authSpec,
 			anonymizeAndSubmitFunc: e.anonymizeAndSubmitFunc,
 		},
-		Authorizer:         e.authorizer,
-		CachedUsersService: e.IdentityService,
-		Emitter:            e.emitter,
-		Limiter:            e.limiter,
-		Storage:            dtStorage,
+		Authorizer:          e.authorizer,
+		CachedAccessService: e.AccessService,
+		CachedUsersService:  e.IdentityService,
+		Emitter:             e.emitter,
+		Limiter:             e.limiter,
+		Storage:             dtStorage,
 	})
 	if err != nil {
 		return nil, err

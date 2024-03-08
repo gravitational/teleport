@@ -104,6 +104,11 @@ type AuthServer interface {
 	AnonymizeAndSubmit(event ...usagereporter.Anonymizable)
 }
 
+// AccessService represents the [local.AccessService] methods used by [Service].
+type AccessService interface {
+	GetRole(ctx context.Context, name string) (types.Role, error)
+}
+
 // UsersService represents the [local.IdentityService] methods used by
 // [Service].
 type UsersService interface {
@@ -124,6 +129,7 @@ type Service struct {
 
 	authServer  AuthServer
 	authorizer  authz.Authorizer
+	cachedRoles AccessService
 	cachedUsers UsersService
 	emitter     apievents.Emitter
 	limiter     RateLimiter
@@ -132,12 +138,13 @@ type Service struct {
 
 // ServiceParams holds creation parameters for Service.
 type ServiceParams struct {
-	Logger             log.FieldLogger
-	AuthServer         AuthServer
-	Authorizer         authz.Authorizer
-	CachedUsersService UsersService
-	Emitter            apievents.Emitter
-	Storage            *storage.S
+	Logger              log.FieldLogger
+	AuthServer          AuthServer
+	Authorizer          authz.Authorizer
+	CachedAccessService AccessService
+	CachedUsersService  UsersService
+	Emitter             apievents.Emitter
+	Storage             *storage.S
 
 	// Limiter is the rate limiter for loosely-authorized requests, like
 	// auto-enrollment token creation or device authentication.
@@ -158,6 +165,8 @@ func New(params ServiceParams) (*Service, error) {
 		return nil, trace.BadParameter("parameter AuthServer required")
 	case params.Authorizer == nil:
 		return nil, trace.BadParameter("parameter Authorizer required")
+	case params.CachedAccessService == nil:
+		return nil, trace.BadParameter("parameter CachedAccessService required")
 	case params.CachedUsersService == nil:
 		return nil, trace.BadParameter("parameter CachedUsersService required")
 	case params.Emitter == nil:
@@ -194,6 +203,7 @@ func New(params ServiceParams) (*Service, error) {
 		logger:      baseLogger.WithField(trace.Component, "devicetrust.service"),
 		authServer:  params.AuthServer,
 		authorizer:  params.Authorizer,
+		cachedRoles: params.CachedAccessService,
 		cachedUsers: params.CachedUsersService,
 		emitter:     params.Emitter,
 		limiter:     rateLimiter,
@@ -759,30 +769,16 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 		return trace.Wrap(err)
 	}
 
+	// Is device authentication allowed?
 	authPref, err := s.authServer.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Is device authn allowed by the cluster mode?
-	authnAllowed := dtconfig.GetEffectiveMode(authPref.GetDeviceTrust()) != constants.DeviceTrustModeOff
-
-	// If not, is device authn required by the user's roles?
-	if !authnAllowed {
-		roles := authCtx.Checker.Roles()
-		for _, role := range roles {
-			deviceMode := role.GetOptions().DeviceTrustMode
-			if deviceMode != "" && deviceMode != constants.DeviceTrustModeOff {
-				authnAllowed = true
-				break
-			}
-		}
-	}
-	if !authnAllowed {
+	if err := s.isDeviceAuthnAllowed(authPref.GetDeviceTrust(), authCtx.Checker.Roles()); err != nil {
 		authnDisabledLogOnce.Do(func() {
 			s.logger.Warn("Device authentication attempted, but device trust is disabled by cluster settings")
 		})
-		return trace.BadParameter("device trust disabled by cluster settings")
+		return trace.Wrap(err)
 	}
 
 	// Rate limit device authn.
@@ -826,6 +822,21 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 	}
 	dev, err = c.AuthenticateDevice(stream, user)
 	return trace.Wrap(err)
+}
+
+func (s *Service) isDeviceAuthnAllowed(dt *types.DeviceTrust, userRoles []types.Role) error {
+	if dtconfig.GetEffectiveMode(dt) != constants.DeviceTrustModeOff {
+		return nil // OK, allowed by cluster.
+	}
+
+	for _, role := range userRoles {
+		deviceMode := role.GetOptions().DeviceTrustMode
+		if deviceMode != "" && deviceMode != constants.DeviceTrustModeOff {
+			return nil // OK, allowed by roles.
+		}
+	}
+
+	return trace.BadParameter("device trust disabled by cluster settings")
 }
 
 func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventoryServer) error {
@@ -960,6 +971,22 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 	// Fields we don't use directly in this method are validated by the storage
 	// write.
 
+	authPref, err := s.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user, roles, err := s.getUserAndRoles(ctx, token.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Is device authentication allowed? Don't continue otherwise.
+	if err := s.isDeviceAuthnAllowed(authPref.GetDeviceTrust(), roles); err != nil {
+		// Device authn not allowed, simply return a nil token.
+		// err swallowed on purpose.
+		return nil, nil
+	}
+
 	// Parse user agent, determine OS.
 	expectedOS := loggedGetOSFromUserAgent(s.logger, token.BrowserUserAgent)
 	if expectedOS == devicepb.OSType_OS_TYPE_UNSPECIFIED {
@@ -967,7 +994,7 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 	}
 
 	// Fetch user devices.
-	userDevices, _, err := s.getUserTrustedDevices(ctx, token.User)
+	userDevices, err := s.getDevicesByID(ctx, user.GetTrustedDeviceIDs())
 	switch {
 	case err != nil && len(userDevices) == 0:
 		// All reads failed.
@@ -1039,31 +1066,46 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 	return created, nil
 }
 
-// getUserTrustedDevices reads a user and its trusted devices from storage.
-//
-// Returns empty if the user has no trusted devices.
-//
-// Returns both the devices and an error if at least one device could be read
-// from storage.
-func (s *Service) getUserTrustedDevices(ctx context.Context, username string) ([]*devicepb.Device, types.User, error) {
+func (s *Service) getUserAndRoles(ctx context.Context, username string) (types.User, []types.Role, error) {
 	user, err := s.cachedUsers.GetUser(ctx, username, false /* withSecrets */)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "read user")
 	}
 
-	ids := user.GetTrustedDeviceIDs()
-	if len(ids) == 0 {
-		return nil, user, nil // No trusted devices.
+	g, gCtx := errgroup.WithContext(ctx)
+	// We are hoping for cache hits here, so no need to go high on the concurrency.
+	const maxGoroutines = 4
+	g.SetLimit(maxGoroutines)
+
+	roleNames := user.GetRoles()
+	roles := make([]types.Role, len(roleNames))
+	for i, roleName := range roleNames {
+		i := i
+		roleName := roleName
+		g.Go(func() error {
+			role, err := s.cachedRoles.GetRole(gCtx, roleName)
+			if err == nil {
+				roles[i] = role
+			}
+			return trace.Wrap(err, "read role %s", roleName)
+		})
 	}
 
-	userDevices, err := s.getDevicesByID(ctx, ids)
-	return userDevices, user, trace.Wrap(err)
+	if err := g.Wait(); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return user, roles, nil
 }
 
 // getDevicesByID reads devices from storage concurrently.
 //
 // Returns the devices read and the aggregated errors.
 func (s *Service) getDevicesByID(ctx context.Context, ids []string) ([]*devicepb.Device, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
 	var g errgroup.Group
 	const maxGoroutines = 4 // Arbitrary. Should be just fine for most users.
 	g.SetLimit(maxGoroutines)

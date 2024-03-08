@@ -507,11 +507,12 @@ func registerDeviceTrustService(s *grpc.Server, authGRPC *auth.GRPCServer) (*dev
 	}
 
 	deviceService, err := devicetrustv1.New(devicetrustv1.ServiceParams{
-		AuthServer:         authServer,
-		Authorizer:         authGRPC.Authorizer,
-		CachedUsersService: authServer.Cache,
-		Emitter:            authGRPC.Emitter,
-		Storage:            deviceStorage,
+		AuthServer:          authServer,
+		Authorizer:          authGRPC.Authorizer,
+		CachedAccessService: authServer.Cache,
+		CachedUsersService:  authServer.Cache,
+		Emitter:             authGRPC.Emitter,
+		Storage:             deviceStorage,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
