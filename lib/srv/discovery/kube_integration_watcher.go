@@ -48,7 +48,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 	clt := s.AccessPoint
 
 	releaseChannels := automaticupgrades.Channels{}
-	if err := releaseChannels.CheckAndSetDefaults(s.ClusterFeatures()); err != nil {
+	if err := releaseChannels.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 

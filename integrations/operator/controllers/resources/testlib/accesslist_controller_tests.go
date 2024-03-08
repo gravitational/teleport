@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 )
 
@@ -70,6 +71,7 @@ func newAccessListSpec(nextAudit time.Time) accesslist.Spec {
 
 type accessListTestingPrimitives struct {
 	setup *TestSetup
+	reconcilers.ResourceWithLabelsAdapter[*accesslist.AccessList]
 }
 
 func (g *accessListTestingPrimitives) Init(setup *TestSetup) {

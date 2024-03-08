@@ -105,7 +105,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 }
 
 // TryRun attempts to run subcommands.
-func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
+func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
 	switch cmd {
 	case c.botsList.FullCommand():
 		err = c.ListBots(ctx, client)
@@ -126,7 +126,7 @@ func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 
 // ListBots writes a listing of the cluster's certificate renewal bots
 // to standard out.
-func (c *BotsCommand) ListBots(ctx context.Context, client auth.ClientI) error {
+func (c *BotsCommand) ListBots(ctx context.Context, client *auth.Client) error {
 	var bots []*machineidv1pb.Bot
 	req := &machineidv1pb.ListBotsRequest{}
 	for {
@@ -190,7 +190,7 @@ certificates:
 > tbot start \
    --destination-dir=./tbot-user \
    --token={{.token}} \
-   --auth-server={{.addr}}{{if .join_method}} \
+   --proxy-server={{.addr}}{{if .join_method}} \
    --join-method={{.join_method}}{{end}}
 
 Please note:
@@ -203,7 +203,7 @@ Please note:
 `))
 
 // AddBot adds a new certificate renewal bot to the cluster.
-func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
+func (c *BotsCommand) AddBot(ctx context.Context, client *auth.Client) error {
 	// Prompt for admin action MFA if required, allowing reuse for UpsertToken and CreateBot.
 	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
 	if err == nil {
@@ -337,7 +337,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 	return startMessageTemplate.Execute(os.Stdout, templateData)
 }
 
-func (c *BotsCommand) RemoveBot(ctx context.Context, client auth.ClientI) error {
+func (c *BotsCommand) RemoveBot(ctx context.Context, client *auth.Client) error {
 	_, err := client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
 		BotName: c.botName,
 	})
@@ -350,7 +350,7 @@ func (c *BotsCommand) RemoveBot(ctx context.Context, client auth.ClientI) error 
 	return nil
 }
 
-func (c *BotsCommand) LockBot(ctx context.Context, client auth.ClientI) error {
+func (c *BotsCommand) LockBot(ctx context.Context, client *auth.Client) error {
 	lockExpiry, err := computeLockExpiry(c.lockExpires, c.lockTTL)
 	if err != nil {
 		return trace.Wrap(err)
@@ -503,7 +503,7 @@ func (c *BotsCommand) updateBotRoles(ctx context.Context, client clientRoleGette
 }
 
 // UpdateBot performs various updates to existing bot users and roles.
-func (c *BotsCommand) UpdateBot(ctx context.Context, client auth.ClientI) error {
+func (c *BotsCommand) UpdateBot(ctx context.Context, client *auth.Client) error {
 	bot, err := client.BotServiceClient().GetBot(ctx, &machineidv1pb.GetBotRequest{
 		BotName: c.botName,
 	})

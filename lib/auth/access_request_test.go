@@ -508,7 +508,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 		{
 			desc: "all allowed",
 			roles: map[string]types.RoleSpecV6{
-				"allow": types.RoleSpecV6{
+				"allow": {
 					Allow: types.RoleConditions{
 						Request: &types.AccessRequestConditions{
 							Roles: []string{"admins"},
@@ -523,7 +523,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 		{
 			desc: "all denied",
 			roles: map[string]types.RoleSpecV6{
-				"allow": types.RoleSpecV6{
+				"allow": {
 					Allow: types.RoleConditions{
 						Request: &types.AccessRequestConditions{
 							Roles: []string{"admins"},
@@ -533,7 +533,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 						},
 					},
 				},
-				"deny": types.RoleSpecV6{
+				"deny": {
 					Deny: types.RoleConditions{
 						Rules: []types.Rule{
 							{
@@ -550,7 +550,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 		{
 			desc: "create denied",
 			roles: map[string]types.RoleSpecV6{
-				"allow": types.RoleSpecV6{
+				"allow": {
 					Allow: types.RoleConditions{
 						Request: &types.AccessRequestConditions{
 							Roles: []string{"admins"},
@@ -560,7 +560,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 						},
 					},
 				},
-				"deny": types.RoleSpecV6{
+				"deny": {
 					Deny: types.RoleConditions{
 						Rules: []types.Rule{
 							{
@@ -576,7 +576,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 		{
 			desc: "get denied",
 			roles: map[string]types.RoleSpecV6{
-				"allow": types.RoleSpecV6{
+				"allow": {
 					Allow: types.RoleConditions{
 						Request: &types.AccessRequestConditions{
 							Roles: []string{"admins"},
@@ -586,7 +586,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 						},
 					},
 				},
-				"deny": types.RoleSpecV6{
+				"deny": {
 					Deny: types.RoleConditions{
 						Rules: []types.Rule{
 							{
@@ -602,7 +602,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 		{
 			desc: "list denied",
 			roles: map[string]types.RoleSpecV6{
-				"allow": types.RoleSpecV6{
+				"allow": {
 					Allow: types.RoleConditions{
 						Request: &types.AccessRequestConditions{
 							Roles: []string{"admins"},
@@ -612,7 +612,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 						},
 					},
 				},
-				"deny": types.RoleSpecV6{
+				"deny": {
 					Deny: types.RoleConditions{
 						Rules: []types.Rule{
 							{
