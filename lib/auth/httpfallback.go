@@ -110,9 +110,7 @@ func (c *Client) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, 
 	var rcs []types.RemoteCluster
 	pageToken := ""
 	for {
-		var err error
-		var page []types.RemoteCluster
-		page, pageToken, err = c.APIClient.ListRemoteClusters(ctx, 0, pageToken)
+		page, nextToken, err := c.APIClient.ListRemoteClusters(ctx, 0, pageToken)
 		if err != nil {
 			if trace.IsNotImplemented(err) {
 				return c.getRemoteClustersLegacy(ctx)
@@ -120,9 +118,10 @@ func (c *Client) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, 
 			return nil, trace.Wrap(err)
 		}
 		rcs = append(rcs, page...)
-		if pageToken == "" {
+		if nextToken == "" {
 			return rcs, nil
 		}
+		pageToken = nextToken
 	}
 }
 
