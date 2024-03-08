@@ -2600,10 +2600,9 @@ func TestListResources_SAMLIdPServiceProviders(t *testing.T) {
 	// Test getting all SAML IdP service providers.
 	resp, err := clt.ListResources(ctx, listSAMLIdPSPRequest)
 	require.NoError(t, err)
-	require.Len(t, resp.Resources, len(testResources))
 	require.Empty(t, cmp.Diff(testResources, resp.Resources))
 
-	// Test label matching Allow
+	// Test "env": "prod" label matching Allow rule.
 	role.SetSAMLIdPServiceProviderLabels(types.Allow, types.Labels{"env": {"prod"}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
@@ -2611,7 +2610,7 @@ func TestListResources_SAMLIdPServiceProviders(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, 1)
 
-	// Test label matching Deny to one resource
+	// Test "env": "prod" label matching Deny rule.
 	role.SetSAMLIdPServiceProviderLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 	role.SetSAMLIdPServiceProviderLabels(types.Deny, types.Labels{"env": {"prod"}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
@@ -2644,10 +2643,8 @@ func TestListResources_SAMLIdPServiceProviders(t *testing.T) {
 	role.SetSAMLIdPServiceProviderLabels(types.Deny, nil)
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
-
 	resp, err = clt.ListResources(ctx, listSAMLIdPSPRequest)
 	require.NoError(t, err)
-	require.Len(t, resp.Resources, len(testResources))
 	require.Empty(t, cmp.Diff(testResources, resp.Resources))
 }
 

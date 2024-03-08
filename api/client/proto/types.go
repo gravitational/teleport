@@ -87,7 +87,7 @@ func (req *ListResourcesRequest) RequiresFakePagination() bool {
 		req.ResourceType == types.KindKubernetesCluster ||
 		req.ResourceType == types.KindAppOrSAMLIdPServiceProvider ||
 		// KindSAMLIdPServiceProvider supports paginated List, but it is not
-		// available in the Presense service, hence defined here under
+		// available in the Presence service, hence defined here under
 		// RequiresFakePagination.
 		req.ResourceType == types.KindSAMLIdPServiceProvider
 }
