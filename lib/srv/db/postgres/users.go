@@ -208,14 +208,14 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	counts, countMap := permissions.CountObjectKinds(objsFetched)
-	e.Log.WithField("counts", countMap).WithField("total", len(objsFetched)).Infof("Database objects fetched from the database (%v).", counts)
+	counts, _ := permissions.CountObjectKinds(objsFetched)
+	e.Log.WithField("total", len(objsFetched)).Infof("Database objects fetched from the database (%v).", counts)
 
-	objsTagged, errCount := databaseobjectimportrule.ApplyDatabaseObjectImportRules(e.Log, rules, sessionCtx.Database, objsFetched)
-	counts, countMap = permissions.CountObjectKinds(objsTagged)
-	e.Log.WithField("counts", countMap).WithField("err_count", errCount).WithField("total", len(objsFetched)).Infof("Database objects tagged (%v).", counts)
+	objsImported, errCount := databaseobjectimportrule.ApplyDatabaseObjectImportRules(e.Log, rules, sessionCtx.Database, objsFetched)
+	counts, _ = permissions.CountObjectKinds(objsImported)
+	e.Log.WithField("err_count", errCount).WithField("total", len(objsFetched)).Infof("Database objects imported (%v).", counts)
 
-	permissionSet, err := permissions.CalculatePermissions(sessionCtx.Checker, sessionCtx.Database, objsTagged)
+	permissionSet, err := permissions.CalculatePermissions(sessionCtx.Checker, sessionCtx.Database, objsImported)
 	if err != nil {
 		return trace.Wrap(err)
 	}
