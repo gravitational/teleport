@@ -39,14 +39,14 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-type workloadIdentityCommands struct {
-	issue *workloadIdentityIssueCommand
+type svidCommands struct {
+	issue *svidIssueCommand
 }
 
-func newWorkloadIdentityCommands(app *kingpin.Application) workloadIdentityCommands {
-	cmd := app.Command("workloadid", "Manage Teleport Workload Identity.")
-	cmds := workloadIdentityCommands{
-		issue: newWorkloadIdentityIssueCommand(cmd),
+func newSVIDCommands(app *kingpin.Application) svidCommands {
+	cmd := app.Command("svid", "Manage Teleport Workload Identity SVIDs.")
+	cmds := svidCommands{
+		issue: newSVIDIssueCommand(cmd),
 	}
 	return cmds
 }
@@ -61,7 +61,7 @@ const (
 	svidTypeX509 = "x509"
 )
 
-type workloadIdentityIssueCommand struct {
+type svidIssueCommand struct {
 	*kingpin.CmdClause
 	svidSPIFFEIDPath string
 	svidType         string
@@ -71,8 +71,8 @@ type workloadIdentityIssueCommand struct {
 	outputDirectory  string
 }
 
-func newWorkloadIdentityIssueCommand(parent *kingpin.CmdClause) *workloadIdentityIssueCommand {
-	cmd := &workloadIdentityIssueCommand{
+func newSVIDIssueCommand(parent *kingpin.CmdClause) *svidIssueCommand {
+	cmd := &svidIssueCommand{
 		CmdClause: parent.Command("issue", "Issues a SPIFFE SVID using Teleport Workload Identity and writes it to a local directory."),
 	}
 	cmd.Arg("path", "Path to use for the SVID SPIFFE ID. Must have a preceding '/'.").
@@ -94,7 +94,7 @@ func newWorkloadIdentityIssueCommand(parent *kingpin.CmdClause) *workloadIdentit
 	return cmd
 }
 
-func (c *workloadIdentityIssueCommand) run(cf *CLIConf) error {
+func (c *svidIssueCommand) run(cf *CLIConf) error {
 	ctx := cf.Context
 	// Validate flags
 	if c.svidType != svidTypeX509 {

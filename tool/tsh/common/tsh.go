@@ -1142,7 +1142,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Device Trust commands.
 	deviceCmd := newDeviceCommand(app)
 
-	workloadIdentityCmd := newWorkloadIdentityCommands(app)
+	workloadIdentityCmd := newSVIDCommands(app)
 
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
