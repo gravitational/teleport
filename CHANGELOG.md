@@ -1,6 +1,6 @@
 # Changelog
 
-## 15.1.2 (03/08/24)
+## 15.1.3 (03/08/24)
 
 * Fix a bug when using automatic updates and the discovery service. The default install script now installs the correct teleport version by querying the version server. [#39099](https://github.com/gravitational/teleport/pull/39099)
 * Fix a regression where `tsh kube credentials` fails to re-login when credentials expire. [#39075](https://github.com/gravitational/teleport/pull/39075)
