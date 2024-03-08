@@ -30,10 +30,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/experiment"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 func TestWorkloadIdentityIssue(t *testing.T) {
+	experiment.SetEnabled(true)
+	t.Cleanup(func() {
+		experiment.SetEnabled(false)
+	})
 	ctx := context.Background()
 
 	role, err := types.NewRole("spiffe-issuer", types.RoleSpecV6{
