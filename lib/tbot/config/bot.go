@@ -21,11 +21,13 @@ package config
 import (
 	"context"
 
+	"google.golang.org/grpc"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // provider is an interface that allows Templates to fetch information they
@@ -52,8 +54,11 @@ type provider interface {
 	) (*trustpb.GenerateHostCertResponse, error)
 
 	// GetRemoteClusters uses the impersonatedClient to call GetRemoteClusters.
-	GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error)
+	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
 
 	// GetCertAuthority uses the impersonatedClient to call GetCertAuthority.
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+
+	// SignX509SVIDs uses the impersonatedClient to call SignX509SVIDs.
+	SignX509SVIDs(ctx context.Context, in *machineidv1pb.SignX509SVIDsRequest, opts ...grpc.CallOption) (*machineidv1pb.SignX509SVIDsResponse, error)
 }

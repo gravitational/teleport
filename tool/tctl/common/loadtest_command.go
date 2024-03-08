@@ -79,7 +79,7 @@ func (c *LoadtestCommand) Initialize(app *kingpin.Application, config *servicecf
 }
 
 // TryRun takes the CLI command as an argument (like "loadtest node-heartbeats") and executes it.
-func (c *LoadtestCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
+func (c *LoadtestCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
 	switch cmd {
 	case c.nodeHeartbeats.FullCommand():
 		err = c.NodeHeartbeats(ctx, client)
@@ -91,7 +91,7 @@ func (c *LoadtestCommand) TryRun(ctx context.Context, cmd string, client auth.Cl
 	return true, trace.Wrap(err)
 }
 
-func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client auth.ClientI) error {
+func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *auth.Client) error {
 	infof := func(format string, args ...any) {
 		fmt.Fprintf(os.Stderr, "[i] "+format+"\n", args...)
 	}
@@ -211,7 +211,7 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client auth.Client
 	}
 }
 
-func (c *LoadtestCommand) Watch(ctx context.Context, client auth.ClientI) error {
+func (c *LoadtestCommand) Watch(ctx context.Context, client *auth.Client) error {
 	var kinds []types.WatchKind
 	for _, kind := range strings.Split(c.kind, ",") {
 		kind = strings.TrimSpace(kind)

@@ -1647,7 +1647,14 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		//   https://github.com/gravitational/teleport/pull/1224
 		actionVerbs = []string{types.VerbList}
 
-	case types.KindDatabaseServer, types.KindDatabaseService, types.KindAppServer, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindUserGroup:
+	case types.KindDatabaseServer,
+		types.KindDatabaseService,
+		types.KindAppServer,
+		types.KindKubeServer,
+		types.KindWindowsDesktop,
+		types.KindWindowsDesktopService,
+		types.KindUserGroup,
+		types.KindSAMLIdPServiceProvider:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1753,6 +1760,8 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		if rr.GetKind() == types.KindUserGroup {
 			return r.CheckAccess(rr, state)
 		}
+	case types.SAMLIdPServiceProvider:
+		return r.CheckAccess(rr, state)
 	}
 
 	return trace.BadParameter("could not check access to resource type %T", r)
@@ -1761,7 +1770,16 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
-	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode, types.KindKubeServer, types.KindUserGroup, types.KindUnifiedResource:
+	case types.KindAppServer,
+		types.KindDatabaseServer,
+		types.KindDatabaseService,
+		types.KindWindowsDesktop,
+		types.KindWindowsDesktopService,
+		types.KindNode,
+		types.KindKubeServer,
+		types.KindUserGroup,
+		types.KindUnifiedResource,
+		types.KindSAMLIdPServiceProvider:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
@@ -1801,6 +1819,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		}
 		resources = servers.AsResources()
 
+	// TODO(sshah) DELETE IN 17.0
 	case types.KindAppOrSAMLIdPServiceProvider:
 		appsAndServiceProviders, err := a.GetAppServersAndSAMLIdPServiceProviders(ctx, req.Namespace)
 		if err != nil {
@@ -1814,6 +1833,32 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		}
 
 		resources = appsOrSPs.AsResources()
+
+	case types.KindSAMLIdPServiceProvider:
+		// Only add SAMLIdPServiceProviders to the list if the caller has an enterprise license.
+		if modules.GetModules().BuildType() == modules.BuildEnterprise {
+			// Only attempt to list SAMLIdPServiceProviders if the caller has the permission to.
+			if err := a.action(req.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList); err == nil {
+				var serviceProviders []types.SAMLIdPServiceProvider
+				var startKey string
+				for {
+					sps, nextKey, err := a.authServer.ListSAMLIdPServiceProviders(ctx, int(req.Limit), startKey)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					serviceProviders = append(serviceProviders, sps...)
+					if nextKey == "" {
+						break
+					}
+					startKey = nextKey
+				}
+				sps := types.SAMLIdPServiceProviders(serviceProviders)
+				if err := sps.SortByCustom(req.SortBy); err != nil {
+					return nil, trace.Wrap(err)
+				}
+				resources = sps.AsResources()
+			}
+		}
 
 	case types.KindDatabaseServer:
 		dbservers, err := a.GetDatabaseServers(ctx, req.Namespace)
@@ -2642,7 +2687,7 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 			log.WithError(err).Warn()
 			return nil, err
 		}
-		return a.desiredAccessInfoForImpersonation(req, user)
+		return a.desiredAccessInfoForImpersonation(user)
 	}
 	if isRoleImpersonation(*req) {
 		if len(req.AccessRequests) > 0 {
@@ -2657,7 +2702,7 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 
 // desiredAccessInfoForImpersonation returns the desired AccessInfo for an
 // impersonation request.
-func (a *ServerWithRoles) desiredAccessInfoForImpersonation(req *proto.UserCertsRequest, user types.User) (*services.AccessInfo, error) {
+func (a *ServerWithRoles) desiredAccessInfoForImpersonation(user types.User) (*services.AccessInfo, error) {
 	return &services.AccessInfo{
 		Roles:  user.GetRoles(),
 		Traits: user.GetTraits(),
@@ -4648,25 +4693,19 @@ func (a *ServerWithRoles) DeleteAllTunnelConnections() error {
 	return a.authServer.DeleteAllTunnelConnections()
 }
 
-func (a *ServerWithRoles) CreateRemoteCluster(conn types.RemoteCluster) error {
-	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.CreateRemoteCluster(conn)
-}
-
 func (a *ServerWithRoles) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error {
 	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpdateRemoteCluster(ctx, rc)
+	_, err := a.authServer.UpdateRemoteCluster(ctx, rc)
+	return trace.Wrap(err)
 }
 
-func (a *ServerWithRoles) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
+func (a *ServerWithRoles) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
 	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cluster, err := a.authServer.GetRemoteCluster(clusterName)
+	cluster, err := a.authServer.GetRemoteCluster(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4676,11 +4715,11 @@ func (a *ServerWithRoles) GetRemoteCluster(clusterName string) (types.RemoteClus
 	return cluster, nil
 }
 
-func (a *ServerWithRoles) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+func (a *ServerWithRoles) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
 	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	remoteClusters, err := a.authServer.GetRemoteClusters(opts...)
+	remoteClusters, err := a.authServer.GetRemoteClusters(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4707,13 +4746,6 @@ func (a *ServerWithRoles) DeleteRemoteCluster(ctx context.Context, clusterName s
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteRemoteCluster(ctx, clusterName)
-}
-
-func (a *ServerWithRoles) DeleteAllRemoteClusters() error {
-	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbList, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteAllRemoteClusters()
 }
 
 // AcquireSemaphore acquires lease with requested resources from semaphore.
@@ -4994,6 +5026,8 @@ func (a *ServerWithRoles) GetApplicationServers(ctx context.Context, namespace s
 }
 
 // GetAppServersAndSAMLIdPServiceProviders returns a list containing all registered AppServers and SAMLIdPServiceProviders.
+//
+//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 func (a *ServerWithRoles) GetAppServersAndSAMLIdPServiceProviders(ctx context.Context, namespace string) ([]types.AppServerOrSAMLIdPServiceProvider, error) {
 	appservers, err := a.GetApplicationServers(ctx, namespace)
 	if err != nil {

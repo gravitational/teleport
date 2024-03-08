@@ -16,25 +16,38 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package experiment
+package main
 
 import (
+	"flag"
+	"fmt"
 	"os"
-	"sync/atomic"
+
+	"github.com/awalterschulze/goderive/derive"
+
+	"github.com/gravitational/teleport/build.assets/tooling/cmd/goderive/plugin/teleportequal"
 )
 
-var enabled = atomic.Bool{}
+func main() {
+	// Establish Teleport derive plugins of interest.
+	plugins := []derive.Plugin{
+		teleportequal.NewPlugin(),
+	}
 
-func init() {
-	enabled.Store(os.Getenv("WORKLOAD_IDENTITY_EXPERIMENT") == "1")
-}
+	// Parse args, which are just paths at the moment..
+	flag.Parse()
+	paths := derive.ImportPaths(flag.Args())
 
-// Enabled returns true if the workload identity experiment is enabled.
-func Enabled() bool {
-	return enabled.Load()
-}
+	// Load the given paths into the generator.
+	g, err := derive.NewPlugins(plugins, false, false).Load(paths)
+	if err != nil {
+		fmt.Printf("Error creating new plugins: %v\n", err)
+		os.Exit(1)
+	}
 
-// SetEnabled sets the workload identity experiment to the given value.
-func SetEnabled(value bool) {
-	enabled.Store(value)
+	// Generate the derived code.
+	if err := g.Generate(); err != nil {
+		fmt.Printf("Error generating code: %v\n", err)
+		os.Exit(1)
+	}
 }

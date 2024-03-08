@@ -90,15 +90,15 @@ guide](https://goteleport.com/docs/get-started). You can then register your
 servers, Kubernetes clusters, and other infrastructure with your Teleport
 cluster.
 
-You can also get started with Teleport Team, a managed Teleport deployment that
-makes it easier for small organizations to enable secure access to their
-infrastructure.
+You can also get started with Teleport Enterprise Cloud, a managed Teleport
+deployment that makes it easier to enable secure access to your infrastructure.
 
-[Sign up for a free trial](https://goteleport.com/signup) of Teleport Team.
+[Sign up for a free trial](https://goteleport.com/signup) of Teleport Enterprise
+Cloud.
 
 Follow our guide to [registering your first
-server](https://goteleport.com/docs/choose-an-edition/teleport-team/) with
-Teleport Team
+server](https://goteleport.com/docs/choose-an-edition/teleport-cloud/get-started/)
+with Teleport Enterprise Cloud.
 
 ## Docker
 

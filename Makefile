@@ -162,12 +162,12 @@ TOUCHID_MESSAGE := with-Touch-ID
 TOUCHID_TAG := touchid
 endif
 
-# Enable PIV for testing?
-# Eagerly enable if we detect the dynamic libpcsclite library, we want to test as much as possible.
-ifeq ("$(shell pkg-config libpcsclite 2>/dev/null; echo $$?)", "0")
-# This test tag should not be used for builds/releases, only tests.
-PIV_TEST_TAG := piv
-endif
+# Enable PIV test packages for testing.
+# This test tag should never be used for builds/releases, only tests.
+PIV_TEST_TAG := pivtest
+
+# enable PIV package for linting.
+PIV_LINT_TAG := piv
 
 # Build teleport/api with PIV? This requires the libpcsclite library for linux.
 #
@@ -998,7 +998,7 @@ endif
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
-	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)' $(GO_LINT_FLAGS)
+	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_LINT_TAG)' $(GO_LINT_FLAGS)
 
 .PHONY: fix-imports
 fix-imports:
@@ -1310,6 +1310,19 @@ lint-breaking: protos/breaking
 buf/installed:
 	@if ! type -p $(BUF) >/dev/null; then \
 		echo 'Buf is required to build/format/lint protos. Follow https://docs.buf.build/installation.'; \
+		exit 1; \
+	fi
+
+# derive will generate derived functions for our API.
+.PHONY: derive
+derive:
+	cd $(TOOLINGDIR) && go run ./cmd/goderive/main.go ../../api/types
+
+# derive-up-to-date checks if the generated derived functions are up to date.
+.PHONY: derive-up-to-date
+derive-up-to-date: must-start-clean/host derive
+	@if ! $(GIT) diff --quiet; then \
+		echo 'Please run make derive.'; \
 		exit 1; \
 	fi
 
