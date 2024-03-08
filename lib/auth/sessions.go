@@ -27,6 +27,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -43,7 +44,7 @@ import (
 // backend with the identity of the caller used to generate the certificate.
 // The certificate is used for all access requests, which is where access
 // control is enforced.
-func (a *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest, user services.UserState, identity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
+func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest, user services.UserState, identity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
 	if !modules.GetModules().Features().App {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")

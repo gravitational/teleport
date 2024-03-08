@@ -649,7 +649,7 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 			userClient, err := testServer.NewClient(u)
 			require.NoError(t, err, "NewClient failed")
 
-			session, err := userClient.CreateAppSession(ctx, types.CreateAppSessionRequest{
+			session, err := userClient.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
 				Username:    user.GetName(),
 				PublicAddr:  app.GetPublicAddr(),
 				ClusterName: testServer.ClusterName(),

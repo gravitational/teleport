@@ -899,7 +899,7 @@ type ClientI interface {
 
 	// CreateAppSession creates an application web session. Application web
 	// sessions represent a browser session the client holds.
-	CreateAppSession(context.Context, types.CreateAppSessionRequest) (types.WebSession, error)
+	CreateAppSession(context.Context, *proto.CreateAppSessionRequest) (types.WebSession, error)
 
 	// CreateSnowflakeSession creates a Snowflake web session. Snowflake web
 	// sessions represent Database Access Snowflake session the client holds.

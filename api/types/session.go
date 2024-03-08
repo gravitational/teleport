@@ -371,38 +371,6 @@ func (r *GetSAMLIdPSessionRequest) Check() error {
 	return nil
 }
 
-// CreateAppSessionRequest contains the parameters needed to request
-// creating an application web session.
-type CreateAppSessionRequest struct {
-	// Username is the identity of the user requesting the session.
-	Username string `json:"username"`
-	// PublicAddr is the public address of the application.
-	PublicAddr string `json:"public_addr"`
-	// ClusterName is the name of the cluster within which the application is running.
-	ClusterName string `json:"cluster_name"`
-	// AWSRoleARN is AWS role this the user wants to assume.
-	AWSRoleARN string `json:"aws_role_arn"`
-	// AzureIdentity is Azure identity this the user wants to assume.
-	AzureIdentity string `json:"azure_identity"`
-	// GCPServiceAccount is GCP service account this the user wants to assume.
-	GCPServiceAccount string `json:"gcp_service_account"`
-}
-
-// Check validates the request.
-func (r CreateAppSessionRequest) Check() error {
-	if r.Username == "" {
-		return trace.BadParameter("username missing")
-	}
-	if r.PublicAddr == "" {
-		return trace.BadParameter("public address missing")
-	}
-	if r.ClusterName == "" {
-		return trace.BadParameter("cluster name missing")
-	}
-
-	return nil
-}
-
 // CreateSnowflakeSessionRequest contains the parameters needed to request
 // creating a Snowflake web session.
 type CreateSnowflakeSessionRequest struct {
