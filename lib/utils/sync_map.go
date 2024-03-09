@@ -102,8 +102,9 @@ func (s *SyncMap[K, V]) Clear() {
 	}
 }
 
-// Set takes ownership of a map, replacing the existing managed map with the
-// supplied value
+// Set sets the underlying managed map to the supplied value. Note that directly reading
+// from or writing to `m` outside of the SyncMap after calling `Set()` may result in a
+// data race .
 func (s *SyncMap[K, V]) Set(m map[K]V) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
