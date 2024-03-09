@@ -82,22 +82,39 @@
             "$id": "#/properties/apps",
             "type": "array",
             "default": [],
-            "required": [
-                "name",
-                "uri"
-            ],
-            "properties": {
-                "name": {
-                    "$id": "#/properties/apps/name",
-                    "type": "string",
-                    "default": ""
-                },
-                "uri": {
-                    "$id": "#/properties/apps/uri",
-                    "type": "string",
-                    "default": ""
-                },
-                "additionalProperties": true
+            "items": {
+                "type": "object",
+                "default": {},
+                "required": [
+                    "name"
+                ],
+                "anyOf": [
+                    {
+                        "required": ["uri"]
+                    },
+                    {
+                        "required": ["cloud"]
+                    }
+                ],
+                "properties": {
+                    "name": {
+                        "$id": "#/properties/apps/name",
+                        "type": "string",
+                        "default": ""
+                    },
+                    "uri": {
+                        "$id": "#/properties/apps/uri",
+                        "type": "string",
+                        "default": ""
+                    },
+                    "cloud": {
+                        "$id": "#/properties/apps/cloud",
+                        "type": "string",
+                        "enum": ["GCP", "AWS", "Aure"],
+                        "default": ""
+                    },
+                    "additionalProperties": true
+                }
             }
         },
         "appResources": {

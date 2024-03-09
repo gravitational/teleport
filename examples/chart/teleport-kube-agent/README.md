@@ -136,11 +136,16 @@ These are the supported values for the `apps` map:
 | Key | Description | Example | Default | Required |
 | --- | --- | --- | --- | --- |
 | `name` | Name of the app to be accessed | `apps[0].name=grafana` | | Yes |
-| `uri` | URI of the app to be accessed | `apps[0].uri=http://localhost:3000` | | Yes |
+| `uri` | URI of the app to be accessed | `apps[0].uri=http://localhost:3000` | | Unless `cloud` present |
+| `cloud` | identifies the cloud instance the app represents. Possible values: `GCP`, `AWS`, `Azure` | `apps[0].cloud=GCP` | | No |
+| `aws.external_id` | AWS External ID used when assuming roles in an AWS cloud app. | `apps[0].aws.external_id="example-external-id"`| | No |
 | `public_addr` | Public address used to access the app | `apps[0].public_addr=grafana.teleport.example.com` | | No |
 | `labels.[name]` | Key-value pairs to set against the app for grouping/RBAC | `apps[0].labels.env=local,apps[0].labels.region=us-west-1` | | No |
 | `insecure_skip_verify` | Whether to skip validation of TLS certificates presented by backend apps | `apps[0].insecure_skip_verify=true` | `false` | No |
 | `rewrite.redirect` | A list of URLs to rewrite to the public address of the app service | `apps[0].rewrite.redirect[0]=https://192.168.1.1` | | No
+| `rewrite.headers` | Headers passthrough configuration | `apps[0].rewrite.headers[0].name=Origin` `apps[0].rewrite.headers[0].value=example.com` | | No
+
+Note that the `apps` map is passed verbatim to the rendered `teleport.yaml`. Refer to the [Application Access Reference](https://goteleport.com/docs/application-access/reference/) for a more complete `apps` reference.
 
 You can add multiple apps using `apps[1].name`, `apps[1].uri`, `apps[2].name`, `apps[2].uri` etc.
 
