@@ -19,6 +19,7 @@
 package common
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -79,29 +80,22 @@ func (c compositeCh) Close() error {
 	return trace.NewAggregate(c.r.Close(), c.w.Close())
 }
 
-// byteReader is used to read one byte at a time without buffering.
-type byteReader struct {
-	buf []byte
-	io.Reader
+// bufferedReaderCloser wraps a [bufio.Reader] to make it an [io.ReadCloser].
+type bufferedReaderCloser struct {
+	bufio.Reader
+
+	inner io.ReadCloser
 }
 
-func newByteReader(r io.Reader) *byteReader {
-	return &byteReader{
-		Reader: r,
-		buf:    make([]byte, 1),
+func newBufferedReaderCloser(r io.ReadCloser) *bufferedReaderCloser {
+	return &bufferedReaderCloser{
+		Reader: *bufio.NewReader(r),
+		inner:  r,
 	}
 }
 
-func (r *byteReader) ReadByte() (byte, error) {
-	n, err := r.Reader.Read(r.buf)
-	if err != nil {
-		return 0, err
-	}
-	if n > 1 {
-		return 0, fmt.Errorf("expected to read 1 byte, read %d bytes", n)
-	}
-
-	return r.buf[0], nil
+func (b *bufferedReaderCloser) Close() error {
+	return b.inner.Close()
 }
 
 type allowedOps struct {
@@ -589,7 +583,6 @@ func onSFTP() error {
 		return trace.Wrap(err)
 	}
 	defer chw.Close()
-	ch := compositeCh{chr, chw}
 	auditFile, err := openFD(5, "audit")
 	if err != nil {
 		return trace.Wrap(err)
@@ -609,14 +602,12 @@ func onSFTP() error {
 		return trace.Wrap(err)
 	}
 
-	// Read the file transfer request for this session without buffering
-	// so that this file can be used to read from an SFTP connection
-	// below
-	reqReader := newByteReader(chr)
+	// Read the file transfer request for this session if one exists
+	bufferedReader := newBufferedReaderCloser(chr)
 	var encodedReq []byte
 	var fileTransferReq *srv.FileTransferRequest
 	for {
-		b, err := reqReader.ReadByte()
+		b, err := bufferedReader.ReadByte()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -632,6 +623,7 @@ func onSFTP() error {
 			return trace.Wrap(err)
 		}
 	}
+	ch := compositeCh{bufferedReader, chw}
 
 	sftpEvents := make(chan *apievents.SFTP, 1)
 	h, err := newSFTPHandler(logger, fileTransferReq, sftpEvents)

@@ -458,7 +458,7 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 		return false, trace.NotFound("Session not found")
 	}
 
-	// aquire the session mutex lock so sess.fileTransferReq doesn't get
+	// acquire the session mutex lock so sess.fileTransferReq doesn't get
 	// written while we're reading it
 	sess.mu.Lock()
 	defer sess.mu.Unlock()

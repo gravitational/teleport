@@ -8128,17 +8128,17 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	_, err = authServer.CreateRole(ctx, modRole)
 	require.NoError(t, err)
 
-	modUser, err := types.NewUser(modUsername)
+	moderatorUser, err := types.NewUser(modUsername)
 	require.NoError(t, err)
-	modUser.SetLogins([]string{username})
-	modUser.SetRoles([]string{sshAccessRole.GetName(), modRole.GetName()})
-	_, err = authServer.CreateUser(ctx, modUser)
+	moderatorUser.SetLogins([]string{username})
+	moderatorUser.SetRoles([]string{sshAccessRole.GetName(), modRole.GetName()})
+	_, err = authServer.CreateUser(ctx, moderatorUser)
 	require.NoError(t, err)
 
 	waitForNodesToRegister(t, instance, helpers.Site)
 
 	// Start a shell so a moderated session is created
-	peerTC, err := instance.NewClient(helpers.ClientConfig{
+	peerClient, err := instance.NewClient(helpers.ClientConfig{
 		TeleportUser: peerUsername,
 		Login:        username,
 		Cluster:      helpers.Site,
@@ -8146,7 +8146,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	peerClusterClient, err := peerTC.ConnectToCluster(ctx)
+	peerClusterClient, err := peerClient.ConnectToCluster(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, peerClusterClient.Close())
@@ -8154,10 +8154,10 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 
 	nodeDetails := client.NodeDetails{
 		Addr:      instance.Config.SSH.Addr.Addr,
-		Namespace: peerTC.Namespace,
+		Namespace: peerClient.Namespace,
 		Cluster:   helpers.Site,
 	}
-	peerNodeClient, err := peerTC.ConnectToNode(
+	peerNodeClient, err := peerClient.ConnectToNode(
 		ctx,
 		peerClusterClient,
 		nodeDetails,
@@ -8185,7 +8185,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	var sessTracker types.SessionTracker
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		trackers, err := peerClusterClient.AuthClient.GetActiveSessionTrackers(ctx)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		if assert.Len(t, trackers, 1) {
 			sessTracker = trackers[0]
 		}
