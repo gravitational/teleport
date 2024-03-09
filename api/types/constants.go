@@ -81,6 +81,9 @@ const (
 	// KindAccessRequest is an AccessRequest resource
 	KindAccessRequest = "access_request"
 
+	// KindAccessMonitoringRule is an access monitoring rule resource
+	KindAccessMonitoringRule = "access_monitoring_rule"
+
 	// KindPluginData is a PluginData resource
 	KindPluginData = "plugin_data"
 
