@@ -4602,6 +4602,9 @@ func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.Acces
 		if reason := req.GetResolveReason(); reason != "" {
 			msg = fmt.Sprintf("%s, reason=%q", msg, reason)
 		}
+		if req.GetState().IsDenied() {
+			return trace.AccessDenied(msg)
+		}
 		return trace.Errorf(msg)
 	}
 
