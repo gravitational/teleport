@@ -43,9 +43,6 @@ type AccessMonitoringRules interface {
 
 // MarshalAccessMonitoringRule marshals AccessMonitoringRule resource to JSON.
 func MarshalAccessMonitoringRule(accessMonitoringRule *accessmonitoringrule.AccessMonitoringRule, opts ...MarshalOption) ([]byte, error) {
-	if err := accessMonitoringRule.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -53,8 +50,8 @@ func MarshalAccessMonitoringRule(accessMonitoringRule *accessmonitoringrule.Acce
 
 	if !cfg.PreserveResourceID {
 		copy := *accessMonitoringRule
-		copy.SetResourceID(0)
-		copy.SetRevision("")
+		copy.Metadata.ID = 0
+		copy.Metadata.Revision = ""
 		accessMonitoringRule = &copy
 	}
 	return utils.FastMarshal(accessMonitoringRule)
@@ -73,17 +70,14 @@ func UnmarshalAccessMonitoringRule(data []byte, opts ...MarshalOption) (*accessm
 	if err := utils.FastUnmarshal(data, &accessMonitoringRule); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
-	if err := accessMonitoringRule.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if cfg.ID != 0 {
-		accessMonitoringRule.SetResourceID(cfg.ID)
+		accessMonitoringRule.Metadata.ID = cfg.ID
 	}
 	if cfg.Revision != "" {
-		accessMonitoringRule.SetRevision(cfg.Revision)
+		accessMonitoringRule.Metadata.Revision =  cfg.Revision
 	}
 	if !cfg.Expires.IsZero() {
-		accessMonitoringRule.SetExpiry(cfg.Expires)
+		accessMonitoringRule.Metadata.Expires = cfg.Expires
 	}
 	return &accessMonitoringRule, nil
 }

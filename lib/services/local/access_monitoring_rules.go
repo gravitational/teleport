@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accessmonitoringrule"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -39,25 +38,21 @@ var _ services.AccessMonitoringRules = (*AccessMonitoringRulesService)(nil)
 
 // AccessMonitoringRulesService manages AccessMonitoringRules in the Backend.
 type AccessMonitoringRulesService struct {
-	svc generic.Service[*accessmonitoringrule.AccessMonitoringRule]
+	svc *generic.ServiceWrapper[*accessmonitoringrule.AccessMonitoringRule]
 }
 
 // NewAccessMonitoringRulesService creates a new AccessMonitoringRulesService.
 func NewAccessMonitoringRulesService(backend backend.Backend) (*AccessMonitoringRulesService, error) {
-	svc, err := generic.NewService(&generic.ServiceConfig[*accessmonitoringrule.AccessMonitoringRule]{
-		Backend:       backend,
-		PageLimit:     defaults.MaxIterationLimit,
-		ResourceKind:  types.KindAccessMonitoringRule,
-		BackendPrefix: accessMonitoringRulesPrefix,
-		MarshalFunc:   services.MarshalAccessMonitoringRule,
-		UnmarshalFunc: services.UnmarshalAccessMonitoringRule,
-	})
+	service, err := generic.NewServiceWrapper(backend,
+		types.KindAccessMonitoringRule,
+		accessMonitoringRulesPrefix,
+		services.MarshalAccessMonitoringRule,
+		services.UnmarshalAccessMonitoringRule)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return &AccessMonitoringRulesService{
-		svc: *svc,
+		svc: service,
 	}, nil
 }
 
