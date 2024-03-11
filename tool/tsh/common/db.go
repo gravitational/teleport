@@ -812,52 +812,6 @@ func onDatabaseConnect(cf *CLIConf) error {
 	return nil
 }
 
-func makeAccessRequestForDatabase(tc *client.TeleportClient, db types.Database) (types.AccessRequest, error) {
-	requestResourceIDs := []types.ResourceID{{
-		ClusterName: tc.SiteName,
-		Kind:        types.KindDatabase,
-		Name:        db.GetName(),
-	}}
-
-	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
-	return req, trace.Wrap(err)
-}
-
-func makeDatabaseAccessRequestAndWaitForApproval(cf *CLIConf, tc *client.TeleportClient, db types.Database) error {
-	req, err := makeAccessRequestForDatabase(tc, db)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Fprintf(cf.Stdout(), "You do not currently have access to %q, attempting to request access.\n\n", db.GetName())
-	if err := setAccessRequestReason(cf, req); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := sendAccessRequestAndWaitForApproval(cf, tc, req); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-var dbCommandsWithAccessRequestSupport = []string{
-	"db login",
-	"proxy db",
-	"db connect",
-}
-
-func shouldRetryGetDatabaseUsingSearchAsRoles(cf *CLIConf, tc *client.TeleportClient, getDatabaseError error) bool {
-	// Only retry when the database cannot be found without UseSearchAsRoles.
-	if !trace.IsNotFound(getDatabaseError) || tc.UseSearchAsRoles {
-		return false
-	}
-	// Check if auto access request is disabled.
-	if cf.disableAccessRequest {
-		return false
-	}
-	// Check if the `tsh` command supports auto access request.
-	return slices.Contains(dbCommandsWithAccessRequestSupport, cf.command)
-}
-
 // getDatabaseInfo fetches information about the database from tsh profile if DB
 // is active in profile and no labels or predicate query are given.
 // Otherwise, the ListDatabases endpoint is called.
@@ -921,6 +875,52 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, routes []tlsca.Rout
 		return nil, trace.Wrap(err)
 	}
 	return info, nil
+}
+
+var dbCommandsWithAccessRequestSupport = []string{
+	"db login",
+	"proxy db",
+	"db connect",
+}
+
+func shouldRetryGetDatabaseUsingSearchAsRoles(cf *CLIConf, tc *client.TeleportClient, getDatabaseError error) bool {
+	// Only retry when the database cannot be found without UseSearchAsRoles.
+	if !trace.IsNotFound(getDatabaseError) || tc.UseSearchAsRoles {
+		return false
+	}
+	// Check if auto access request is disabled.
+	if cf.disableAccessRequest {
+		return false
+	}
+	// Check if the `tsh` command supports auto access request.
+	return slices.Contains(dbCommandsWithAccessRequestSupport, cf.command)
+}
+
+func makeAccessRequestForDatabase(tc *client.TeleportClient, db types.Database) (types.AccessRequest, error) {
+	requestResourceIDs := []types.ResourceID{{
+		ClusterName: tc.SiteName,
+		Kind:        types.KindDatabase,
+		Name:        db.GetName(),
+	}}
+
+	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
+	return req, trace.Wrap(err)
+}
+
+func makeDatabaseAccessRequestAndWaitForApproval(cf *CLIConf, tc *client.TeleportClient, db types.Database) error {
+	req, err := makeAccessRequestForDatabase(tc, db)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintf(cf.Stdout(), "You do not currently have access to %q, attempting to request access.\n\n", db.GetName())
+	if err := setAccessRequestReason(cf, req); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := sendAccessRequestAndWaitForApproval(cf, tc, req); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func requestedDatabaseRoles(cf *CLIConf) []string {
