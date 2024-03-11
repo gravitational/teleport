@@ -19,8 +19,9 @@ package jira
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gravitational/trace"
 	"strings"
+
+	"github.com/gravitational/trace"
 )
 
 // Jira REST API resources
