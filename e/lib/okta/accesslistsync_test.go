@@ -215,12 +215,12 @@ func TestAccessListSync(t *testing.T) {
 		c.client.addUserID("user1", "1")
 		c.client.addUserID("user2", "2")
 		c.client.addUserID("user3", "3")
-		c.client.addAppAssignments("app1", "1", "2", "3")
-		c.client.addAppAssignments("app2", "1", "2", "3")
+		c.client.addAppAssignments("app1-okta", "1", "2", "3")
+		c.client.addAppAssignments("app2-okta", "1", "2", "3")
 
 		c.addApp(newAccessListSyncApp(t, "app1"))
 		c.addApp(newAccessListSyncApp(t, "app2"))
-		c.addGroup(newAccessListSyncGroup(t, "group1"))
+		c.addGroup(newAccessListSyncGroup(t, "group1", "app1", "app2"))
 		c.addGroup(newAccessListSyncGroup(t, "group2"))
 
 		c.advanceAndWaitForSync()
@@ -242,11 +242,11 @@ func TestAccessListSync(t *testing.T) {
 		}, c.svc.getImportAccessListMembers(), cmpOpts...))
 		require.Empty(t, cmp.Diff(c.svc.getImportAccessListMembers(), c.svc.getNewImportAccessListMembers(), cmpOpts...))
 		require.Empty(t, cmp.Diff(map[string]types.Role{
-			"app1":            newRole(t, "app1", types.Labels{eteleport.OktaAppIDLabel: []string{"app1"}}, nil),
+			"app1":            newRole(t, "app1", types.Labels{eteleport.OktaAppIDLabel: []string{"app1-okta"}}, nil),
 			"app1-reviewer":   newReviewerRole(t, "app1"),
-			"app2":            newRole(t, "app2", types.Labels{eteleport.OktaAppIDLabel: []string{"app2"}}, nil),
+			"app2":            newRole(t, "app2", types.Labels{eteleport.OktaAppIDLabel: []string{"app2-okta"}}, nil),
 			"app2-reviewer":   newReviewerRole(t, "app2"),
-			"group1":          newRole(t, "group1", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"group1"}}),
+			"group1":          newRole(t, "group1", types.Labels{eteleport.OktaAppIDLabel: []string{"app1-okta", "app2-okta"}}, types.Labels{eteleport.OktaGroupIDLabel: []string{"group1"}}),
 			"group1-reviewer": newReviewerRole(t, "group1"),
 			"group2":          newRole(t, "group2", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"group2"}}),
 			"group2-reviewer": newReviewerRole(t, "group2"),
@@ -276,13 +276,13 @@ func TestAccessListSync(t *testing.T) {
 
 		c.client.addUserID("user1", "1")
 		c.client.addUserID("user2", "2")
-		c.client.addAppAssignments("app1", "1")
-		c.client.addAppAssignments("app2", "1", "2")
+		c.client.addAppAssignments("app1-okta", "1")
+		c.client.addAppAssignments("app2-okta", "1", "2")
 		c.client.addGroupAssignments("group1", "1", "2")
 
 		c.addApp(newAccessListSyncApp(t, "app1"))
 		c.addApp(newAccessListSyncApp(t, "app2"))
-		c.addGroup(newAccessListSyncGroup(t, "group1"))
+		c.addGroup(newAccessListSyncGroup(t, "group1", "app1", "app2"))
 		c.addGroup(newAccessListSyncGroup(t, "group2"))
 
 		c.advanceAndWaitForSync()
@@ -303,11 +303,11 @@ func TestAccessListSync(t *testing.T) {
 		}, c.svc.getImportAccessListMembers(), cmpOpts...))
 		require.Empty(t, cmp.Diff(c.svc.getImportAccessListMembers(), c.svc.getNewImportAccessListMembers(), cmpOpts...))
 		require.Empty(t, cmp.Diff(map[string]types.Role{
-			"app1":            newRole(t, "app1", types.Labels{eteleport.OktaAppIDLabel: []string{"app1"}}, nil),
+			"app1":            newRole(t, "app1", types.Labels{eteleport.OktaAppIDLabel: []string{"app1-okta"}}, nil),
 			"app1-reviewer":   newReviewerRole(t, "app1"),
-			"app2":            newRole(t, "app2", types.Labels{eteleport.OktaAppIDLabel: []string{"app2"}}, nil),
+			"app2":            newRole(t, "app2", types.Labels{eteleport.OktaAppIDLabel: []string{"app2-okta"}}, nil),
 			"app2-reviewer":   newReviewerRole(t, "app2"),
-			"group1":          newRole(t, "group1", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"group1"}}),
+			"group1":          newRole(t, "group1", types.Labels{eteleport.OktaAppIDLabel: []string{"app1-okta", "app2-okta"}}, types.Labels{eteleport.OktaGroupIDLabel: []string{"group1"}}),
 			"group1-reviewer": newReviewerRole(t, "group1"),
 			"group2":          newRole(t, "group2", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"group2"}}),
 			"group2-reviewer": newReviewerRole(t, "group2"),
@@ -344,9 +344,9 @@ func TestAccessListSync(t *testing.T) {
 
 		c.client.addUserID("user1", "1")
 		c.client.addUserID("user2", "2")
-		c.client.addAppAssignments("admin-app1", "1")
-		c.client.addAppAssignments("dev-app2", "1", "2")
-		c.client.addAppAssignments("dev-app3", "1", "2")
+		c.client.addAppAssignments("admin-app1-okta", "1")
+		c.client.addAppAssignments("dev-app2-okta", "1", "2")
+		c.client.addAppAssignments("dev-app3-okta", "1", "2")
 		c.client.addGroupAssignments("admin-group1", "1", "2")
 		c.client.addGroupAssignments("dev-group2", "1", "2")
 		c.client.addGroupAssignments("dev-group3", "1", "2")
@@ -379,9 +379,9 @@ func TestAccessListSync(t *testing.T) {
 		}, c.svc.getImportAccessListMembers(), cmpOpts...))
 		require.Empty(t, cmp.Diff(c.svc.getImportAccessListMembers(), c.svc.getNewImportAccessListMembers(), cmpOpts...))
 		require.Empty(t, cmp.Diff(map[string]types.Role{
-			"dev-app2":            newRole(t, "dev-app2", types.Labels{eteleport.OktaAppIDLabel: []string{"dev-app2"}}, nil),
+			"dev-app2":            newRole(t, "dev-app2", types.Labels{eteleport.OktaAppIDLabel: []string{"dev-app2-okta"}}, nil),
 			"dev-app2-reviewer":   newReviewerRole(t, "dev-app2"),
-			"dev-app3":            newRole(t, "dev-app3", types.Labels{eteleport.OktaAppIDLabel: []string{"dev-app3"}}, nil),
+			"dev-app3":            newRole(t, "dev-app3", types.Labels{eteleport.OktaAppIDLabel: []string{"dev-app3-okta"}}, nil),
 			"dev-app3-reviewer":   newReviewerRole(t, "dev-app3"),
 			"dev-group2":          newRole(t, "dev-group2", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"dev-group2"}}),
 			"dev-group2-reviewer": newReviewerRole(t, "dev-group2"),
@@ -452,8 +452,8 @@ func TestAccessListSync(t *testing.T) {
 		c.client.addUserID("user1", "1")
 		c.client.addUserID("user2", "2")
 		c.client.addUserID("user-to-remove", "remove")
-		c.client.addAppAssignments("app1", "1")
-		c.client.addAppAssignments("app2", "1", "2")
+		c.client.addAppAssignments("app1-okta", "1")
+		c.client.addAppAssignments("app2-okta", "1", "2")
 		c.client.addGroupAssignments("group1", "1", "2")
 
 		c.addApp(newAccessListSyncApp(t, "app1"))
@@ -482,9 +482,9 @@ func TestAccessListSync(t *testing.T) {
 		}, c.svc.getImportAccessListMembers(), cmpOpts...))
 		require.Empty(t, cmp.Diff(c.svc.getImportAccessListMembers(), c.svc.getNewImportAccessListMembers(), cmpOpts...))
 		require.Empty(t, cmp.Diff(map[string]types.Role{
-			"app1":            newRole(t, "app1", types.Labels{eteleport.OktaAppIDLabel: []string{"app1"}}, nil),
+			"app1":            newRole(t, "app1", types.Labels{eteleport.OktaAppIDLabel: []string{"app1-okta"}}, nil),
 			"app1-reviewer":   newReviewerRole(t, "app1"),
-			"app2":            newRole(t, "app2", types.Labels{eteleport.OktaAppIDLabel: []string{"app2"}}, nil),
+			"app2":            newRole(t, "app2", types.Labels{eteleport.OktaAppIDLabel: []string{"app2-okta"}}, nil),
 			"app2-reviewer":   newReviewerRole(t, "app2"),
 			"group1":          newRole(t, "group1", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"group1"}}),
 			"group1-reviewer": newReviewerRole(t, "group1"),
@@ -538,7 +538,7 @@ func newAccessListSyncApp(t *testing.T, name string) types.Application {
 		types.OktaAppNameLabel:        "app label",
 		types.OktaAppDescriptionLabel: "applink-name1",
 		eteleport.OktaOrgURLLabel:     testOrgURL,
-		eteleport.OktaAppIDLabel:      name,
+		eteleport.OktaAppIDLabel:      name + "-okta",
 	})
 }
 
@@ -550,22 +550,24 @@ func newAccessListSyncAppLabelAppName(t *testing.T, name string) types.Applicati
 		types.OktaAppNameLabel:        name,
 		types.OktaAppDescriptionLabel: "applink-name1",
 		eteleport.OktaOrgURLLabel:     testOrgURL,
-		eteleport.OktaAppIDLabel:      name,
+		eteleport.OktaAppIDLabel:      name + "-okta",
 	})
 }
 
-func newAccessListSyncGroupWithLabels(t *testing.T, name string, labels map[string]string) types.UserGroup {
+func newAccessListSyncGroupWithLabels(t *testing.T, name string, labels map[string]string, apps ...string) types.UserGroup {
 	t.Helper()
 
 	group, err := types.NewUserGroup(types.Metadata{
 		Name:   name,
 		Labels: labels,
-	}, types.UserGroupSpecV1{})
+	}, types.UserGroupSpecV1{
+		Applications: apps,
+	})
 	require.NoError(t, err)
 	return group
 }
 
-func newAccessListSyncGroup(t *testing.T, name string) types.UserGroup {
+func newAccessListSyncGroup(t *testing.T, name string, apps ...string) types.UserGroup {
 	t.Helper()
 
 	return newAccessListSyncGroupWithLabels(t, name, map[string]string{
@@ -574,7 +576,7 @@ func newAccessListSyncGroup(t *testing.T, name string) types.UserGroup {
 		types.OktaGroupDescriptionLabel: "group description",
 		eteleport.OktaOrgURLLabel:       testOrgURL,
 		eteleport.OktaGroupIDLabel:      name,
-	})
+	}, apps...)
 }
 
 func newAccessListSyncGroupLabelGroupName(t *testing.T, name string) types.UserGroup {
@@ -659,8 +661,14 @@ func newReviewerRole(t *testing.T, grantRoleName string) types.Role {
 func newRole(t *testing.T, name string, appLabels, groupLabels types.Labels) types.Role {
 	t.Helper()
 
+	var rules []types.Rule
+	if len(groupLabels) > 0 {
+		rules = append(rules, types.NewRule(types.KindUserGroup, services.RO()))
+	}
+
 	role, err := types.NewRole(name, types.RoleSpecV6{
 		Allow: types.RoleConditions{
+			Rules:       rules,
 			AppLabels:   appLabels,
 			GroupLabels: groupLabels,
 		},

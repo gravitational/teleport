@@ -16,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -522,19 +523,33 @@ func (a *accessListSync) importOktaNativeAssignmentsAsAccessLists(ctx context.Co
 		userMapping[v] = k
 	}
 
+	appMapping := map[string]types.Application{}
+	for _, app := range apps {
+		appMapping[app.GetName()] = app
+	}
+
 	var wg sync.WaitGroup
 	wg.Add(2)
 
 	// Import all apps.
 	go func() {
 		defer wg.Done()
-		a.importApps(ctx, apps, userMapping, importCh)
+		a.importApps(ctx, importAppsParams{
+			apps:        apps,
+			userMapping: userMapping,
+			importCh:    importCh,
+		})
 	}()
 
 	// Import all groups.
 	go func() {
 		defer wg.Done()
-		a.importGroups(ctx, groups, userMapping, importCh)
+		a.importGroups(ctx, importGroupsParams{
+			groups:      groups,
+			appMapping:  appMapping,
+			userMapping: userMapping,
+			importCh:    importCh,
+		})
 	}()
 
 	// Wait for the importing to finish and for all the existing metadata to be processed.
@@ -648,16 +663,22 @@ type importResourceMetadata struct {
 	name            string
 	title           string
 	description     string
-	roleAppLabels   map[string]string
-	roleGroupLabels map[string]string
+	roleAppLabels   map[string][]string
+	roleGroupLabels map[string][]string
 	members         []string
 }
 
 var errNoAssignments = errors.New("no assignments")
 
-func (a *accessListSync) importApps(ctx context.Context, apps map[string]types.Application, userMapping map[string]string, importCh chan importResourceMetadata) {
+type importAppsParams struct {
+	apps        map[string]types.Application
+	userMapping map[string]string
+	importCh    chan importResourceMetadata
+}
+
+func (a *accessListSync) importApps(ctx context.Context, params importAppsParams) {
 	appIDProcessed := map[string]struct{}{}
-	for _, app := range apps {
+	for _, app := range params.apps {
 		log := a.log.WithFields(logrus.Fields{
 			"app_name": app.GetName(),
 		})
@@ -698,7 +719,7 @@ func (a *accessListSync) importApps(ctx context.Context, apps map[string]types.A
 			continue
 		}
 
-		irMetadata, err := a.appToImportResources(ctx, appID, app, userMapping)
+		irMetadata, err := a.appToImportResources(ctx, appID, app, params.userMapping)
 		if err != nil && !errors.Is(err, errNoAssignments) {
 			log.WithError(err).Error("error importing application")
 			continue
@@ -708,7 +729,7 @@ func (a *accessListSync) importApps(ctx context.Context, apps map[string]types.A
 
 		if len(irMetadata.members) > 0 {
 			log.Info("Processing application")
-			importCh <- irMetadata
+			params.importCh <- irMetadata
 			a.appsImported.Add(1)
 		} else {
 			log.Info("Application has no assignments, skipping")
@@ -741,19 +762,26 @@ func (a *accessListSync) appToImportResources(ctx context.Context, appID string,
 	}
 
 	return importResourceMetadata{
-		name:        appID,
+		name:        app.GetName(),
 		title:       title,
 		description: "imported access list for Okta application",
-		roleAppLabels: map[string]string{
-			eteleport.OktaAppIDLabel: appID,
+		roleAppLabels: map[string][]string{
+			eteleport.OktaAppIDLabel: {appID},
 		},
 		members: members,
 	}, nil
 }
 
-func (a *accessListSync) importGroups(ctx context.Context, groups map[string]types.UserGroup, userMapping map[string]string, importCh chan importResourceMetadata) {
+type importGroupsParams struct {
+	groups      map[string]types.UserGroup
+	appMapping  map[string]types.Application
+	userMapping map[string]string
+	importCh    chan importResourceMetadata
+}
+
+func (a *accessListSync) importGroups(ctx context.Context, params importGroupsParams) {
 	groupIDProcessed := map[string]struct{}{}
-	for _, group := range groups {
+	for _, group := range params.groups {
 		log := a.log.WithField("group_name", group.GetName())
 
 		groupID, ok := group.GetLabel(eteleport.OktaGroupIDLabel)
@@ -790,7 +818,7 @@ func (a *accessListSync) importGroups(ctx context.Context, groups map[string]typ
 			}
 		}
 
-		irMetadata, err := a.groupToImportResources(ctx, groupID, group, userMapping)
+		irMetadata, err := a.groupToImportResources(ctx, groupID, group, params.appMapping, params.userMapping)
 		if err != nil {
 			log.Error("error importing group")
 			continue
@@ -798,12 +826,12 @@ func (a *accessListSync) importGroups(ctx context.Context, groups map[string]typ
 
 		groupIDProcessed[groupID] = struct{}{}
 
-		importCh <- irMetadata
+		params.importCh <- irMetadata
 		a.groupsImported.Add(1)
 	}
 }
 
-func (a *accessListSync) groupToImportResources(ctx context.Context, groupID string, group types.ResourceWithLabels, userMapping map[string]string) (importResourceMetadata, error) {
+func (a *accessListSync) groupToImportResources(ctx context.Context, groupID string, group types.UserGroup, appMapping map[string]types.Application, userMapping map[string]string) (importResourceMetadata, error) {
 	title, ok := group.GetLabel(types.OktaGroupNameLabel)
 	if !ok {
 		return importResourceMetadata{}, trace.BadParameter("group ID %s has no group name to use as a title", groupID)
@@ -823,12 +851,30 @@ func (a *accessListSync) groupToImportResources(ctx context.Context, groupID str
 		}
 	}
 
+	appLabels := map[string][]string{}
+	for _, appName := range group.GetApplications() {
+		app, ok := appMapping[appName]
+		if !ok {
+			a.log.Errorf("Unable to find app %s as part of group %s", appName, group.GetName())
+			continue
+		}
+
+		oktaAppID, ok := app.GetLabel(eteleport.OktaAppIDLabel)
+		if !ok {
+			a.log.Errorf("Unable to find Okta App ID for app %s", appName)
+			continue
+		}
+
+		appLabels[eteleport.OktaAppIDLabel] = append(appLabels[eteleport.OktaAppIDLabel], oktaAppID)
+	}
+
 	return importResourceMetadata{
-		name:        groupID,
-		title:       title,
-		description: description,
-		roleGroupLabels: map[string]string{
-			eteleport.OktaGroupIDLabel: groupID,
+		name:          groupID,
+		title:         title,
+		description:   description,
+		roleAppLabels: appLabels,
+		roleGroupLabels: map[string][]string{
+			eteleport.OktaGroupIDLabel: {groupID},
 		},
 		members: members,
 	}, nil
@@ -935,8 +981,15 @@ func (a *accessListSync) metadataToImportResources(irMetadata importResourceMeta
 		members = append(members, member)
 	}
 
+	var rules []types.Rule
+	if len(irMetadata.roleGroupLabels) > 0 {
+		rules = append(rules, types.NewRule(types.KindUserGroup, services.RO()))
+	}
+
 	role, err := types.NewRole(irMetadata.name, types.RoleSpecV6{
 		Allow: types.RoleConditions{
+			Namespaces:  []string{apidefaults.Namespace},
+			Rules:       rules,
 			AppLabels:   toLabels(irMetadata.roleAppLabels),
 			GroupLabels: toLabels(irMetadata.roleGroupLabels),
 		},
@@ -1054,12 +1107,12 @@ func (a *accessListSync) addRolesToOktaRequester(ctx context.Context) error {
 }
 
 // toLabels converts a map of strings to a types.Labels resource.
-func toLabels(m map[string]string) types.Labels {
+func toLabels(m map[string][]string) types.Labels {
 	var labels types.Labels
-	if m != nil {
+	if len(m) > 0 {
 		labels = types.Labels{}
 		for k, v := range m {
-			labels[k] = []string{v}
+			labels[k] = v
 		}
 	}
 	return labels
