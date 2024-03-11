@@ -17,6 +17,8 @@ limitations under the License.
 package v1
 
 import (
+	"slices"
+
 	"github.com/gravitational/trace"
 
 	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
@@ -32,22 +34,16 @@ func FromProto(amr *accessmonitoringrulev1.AccessMonitoringRule) (*accessmonitor
 	if amr.Spec == nil {
 		return nil, trace.BadParameter("access monitoring rule spec is nil")
 	}
-	subjects := make([]string, 0, len(amr.Spec.Subjects))
-	subjects = append(subjects, amr.Spec.Subjects...)
-	states := make([]string, 0, len(amr.Spec.States))
-	states = append(states, amr.Spec.States...)
 	var notification *accessmonitoringrule.Notification
 	if amr.Spec.Notification != nil {
-		recipients := make([]string, 0, len(amr.Spec.Notification.Recipients))
-		recipients = append(recipients, amr.Spec.Notification.Recipients...)
 		notification = &accessmonitoringrule.Notification{
 			Name:       amr.Spec.Notification.Name,
-			Recipients: recipients,
+			Recipients: slices.Clone(amr.Spec.Notification.Recipients),
 		}
 	}
 	spec := accessmonitoringrule.Spec{
-		Subjects:  subjects,
-		States:    states,
+		Subjects:  slices.Clone(amr.Spec.Subjects),
+		States:    slices.Clone(amr.Spec.States),
 		Condition: amr.Spec.Condition,
 	}
 	if notification != nil {
@@ -64,24 +60,18 @@ func FromProto(amr *accessmonitoringrulev1.AccessMonitoringRule) (*accessmonitor
 
 // ToProto converts an internal access monitoring rule into a v1 access monitoring rule object.
 func ToProto(amr *accessmonitoringrule.AccessMonitoringRule) *accessmonitoringrulev1.AccessMonitoringRule {
-	subjects := make([]string, 0, len(amr.Spec.Subjects))
-	subjects = append(subjects, amr.Spec.Subjects...)
-	states := make([]string, 0, len(amr.Spec.States))
-	states = append(states, amr.Spec.States...)
-	recipients := make([]string, 0, len(amr.Spec.Notification.Recipients))
-	recipients = append(recipients, amr.Spec.Notification.Recipients...)
 	return &accessmonitoringrulev1.AccessMonitoringRule{
 		Metadata: headerv1.ToMetadataProto(amr.Metadata),
 		Kind:     amr.Kind,
 		SubKind:  amr.SubKind,
 		Version:  amr.Version,
 		Spec: &accessmonitoringrulev1.AccessMonitoringRuleSpec{
-			Subjects:  subjects,
-			States:    states,
+			Subjects:  slices.Clone(amr.Spec.Subjects),
+			States:    slices.Clone(amr.Spec.States),
 			Condition: amr.Spec.Condition,
 			Notification: &accessmonitoringrulev1.Notification{
 				Name:       amr.Spec.Notification.Name,
-				Recipients: recipients,
+				Recipients: slices.Clone(amr.Spec.Notification.Recipients),
 			},
 		},
 	}
