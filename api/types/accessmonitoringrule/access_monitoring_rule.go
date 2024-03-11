@@ -17,13 +17,10 @@ limitations under the License.
 package accessmonitoringrule
 
 import (
-	"time"
-
-	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types/header"
-	"github.com/gravitational/teleport/api/types/header/convert/legacy"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // AccessMonitoringRuleSubkind represents the type of the AccessMonitoringRule, e.g., access request, MDM etc.
@@ -77,75 +74,23 @@ func NewAccessMonitoringRule(metadata header.Metadata, spec Spec) *AccessMonitor
 	}
 }
 
-// CheckAndSetDefaults checks validity of all parameters and sets defaults.
-func (p *AccessMonitoringRule) CheckAndSetDefaults() error {
-	if err := p.Metadata.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+// GetMetadata returns metadata. This is specifically for conforming to the Resource interface,
+// and should be removed when possible.
+func (amr *AccessMonitoringRule) GetMetadata() *headerv1.Metadata {
+	md := amr.Metadata
+
+	var expires *timestamppb.Timestamp
+	if md.Expires.IsZero() {
+		expires = timestamppb.New(md.Expires)
 	}
-	return nil
-}
 
-// GetVersion returns resource version
-func (p *AccessMonitoringRule) GetVersion() string {
-	return p.Version
-}
-
-// GetKind returns resource kind
-func (p *AccessMonitoringRule) GetKind() string {
-	return p.Kind
-}
-
-// GetSubKind returns resource sub kind
-func (p *AccessMonitoringRule) GetSubKind() string {
-	return p.SubKind
-}
-
-// SetSubKind sets resource subkind
-func (p *AccessMonitoringRule) SetSubKind(s string) {
-	p.SubKind = s
-}
-
-// GetResourceID returns resource ID
-func (p *AccessMonitoringRule) GetResourceID() int64 {
-	return p.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (p *AccessMonitoringRule) SetResourceID(id int64) {
-	p.Metadata.ID = id
-}
-
-// GetRevision returns the revision
-func (p *AccessMonitoringRule) GetRevision() string {
-	return p.Metadata.GetRevision()
-}
-
-// SetRevision sets the revision
-func (p *AccessMonitoringRule) SetRevision(rev string) {
-	p.Metadata.SetRevision(rev)
-}
-
-// GetMetadata returns object metadata
-func (p *AccessMonitoringRule) GetMetadata() types.Metadata {
-	return legacy.FromHeaderMetadata(p.Metadata)
-}
-
-// Expiry returns expiry time for the object
-func (p *AccessMonitoringRule) Expiry() time.Time {
-	return p.Metadata.Expiry()
-}
-
-// SetExpiry sets expiry time for the object
-func (p *AccessMonitoringRule) SetExpiry(expires time.Time) {
-	p.Metadata.SetExpiry(expires)
-}
-
-// GetName returns the name of the User
-func (p *AccessMonitoringRule) GetName() string {
-	return p.Metadata.Name
-}
-
-// SetName sets the name of the User
-func (p *AccessMonitoringRule) SetName(e string) {
-	p.Metadata.Name = e
+	return &headerv1.Metadata{
+		Name:        md.Name,
+		Namespace:   defaults.Namespace,
+		Description: md.Description,
+		Labels:      md.Labels,
+		Expires:     expires,
+		Id:          md.ID,
+		Revision:    md.Revision,
+	}
 }
