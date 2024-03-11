@@ -285,7 +285,7 @@ func getStartKey(req *proto.ListUnifiedResourcesRequest) []byte {
 	if req.StartKey != "" {
 		return []byte(req.StartKey)
 	}
-	// if startkey doesnt exist, we check the the sort direction.
+	// if startkey doesnt exist, we check the sort direction.
 	// If sort is descending, startkey is end of the list
 	if req.SortBy.IsDesc {
 		return backend.RangeEnd(backend.Key(prefix))

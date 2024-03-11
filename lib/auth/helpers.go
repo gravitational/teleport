@@ -1292,7 +1292,7 @@ func (n noopEmbedder) ComputeEmbeddings(_ context.Context, _ []string) ([]embedd
 	return []embedding.Vector64{}, nil
 }
 
-// flushClt is the set of methods expected by the the flushCache helper.
+// flushClt is the set of methods expected by the flushCache helper.
 type flushClt interface {
 	// GetNamespace returns namespace by name
 	GetNamespace(name string) (*types.Namespace, error)

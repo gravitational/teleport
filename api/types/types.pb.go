@@ -3788,7 +3788,7 @@ type TokenRule struct {
 	// AWSRegions is used for the EC2 join method and is a list of AWS regions a
 	// node is allowed to join from.
 	AWSRegions []string `protobuf:"bytes,2,rep,name=AWSRegions,proto3" json:"aws_regions,omitempty"`
-	// AWSRole is used for the EC2 join method and is the the ARN of the AWS
+	// AWSRole is used for the EC2 join method and is the ARN of the AWS
 	// role that the auth server will assume in order to call the ec2 API.
 	AWSRole string `protobuf:"bytes,3,opt,name=AWSRole,proto3" json:"aws_role,omitempty"`
 	// AWSARN is used for the IAM join method, the AWS identity of joining nodes

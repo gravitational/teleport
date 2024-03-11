@@ -1180,7 +1180,7 @@ message TokenRule {
   // AWSRegions is used for the EC2 join method and is a list of AWS regions a
   // node is allowed to join from.
   repeated string AWSRegions = 2 [(gogoproto.jsontag) = "aws_regions,omitempty"];
-  // AWSRole is used for the EC2 join method and is the the ARN of the AWS
+  // AWSRole is used for the EC2 join method and is the ARN of the AWS
   // role that the auth server will assume in order to call the ec2 API.
   string AWSRole = 3 [(gogoproto.jsontag) = "aws_role,omitempty"];
   // AWSARN is used for the IAM join method, the AWS identity of joining nodes
