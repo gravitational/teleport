@@ -747,8 +747,8 @@ func (m *mockIdPIAMConfigClient) HeadBucket(ctx context.Context, params *s3.Head
 	}, nil
 }
 
-// CreateBucketRegion returns the default aws region to use when creating a bucket.
-func (m *mockIdPIAMConfigClient) CreateBucketRegion() string {
+// RegionForCreateBucket returns the default aws region to use when creating a bucket.
+func (m *mockIdPIAMConfigClient) RegionForCreateBucket() string {
 	return m.clientRegion
 }
 

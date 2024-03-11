@@ -88,10 +88,10 @@ type IdPIAMConfigureRequest struct {
 	jwksFileContents  []byte
 
 	// issuer is the above value but only contains the host.
-	// Eg, <tenant>.teleport.sh, proxy.example.org, teleport.ec2.aws:3080
+	// Eg, <tenant>.teleport.sh, proxy.example.org, my-bucket.s3.amazonaws.com/my-prefix
 	issuer string
 	// issuerURL is the full url for the issuer
-	// Eg, https://<tenant>.teleport.sh, https://proxy.example.org, https://teleport.ec2.aws:3080
+	// Eg, https://<tenant>.teleport.sh, https://proxy.example.org, https://my-bucket.s3.amazonaws.com/my-prefix
 	issuerURL string
 
 	// IntegrationRole is the Integration's AWS Role used to set up Teleport as an OIDC IdP.
@@ -156,14 +156,15 @@ func (r *IdPIAMConfigureRequest) CheckAndSetDefaults() error {
 }
 
 // IdPIAMConfigureClient describes the required methods to create the AWS OIDC IdP and a Role that trusts that identity provider.
+// There is no guarantee that the client is thread safe.
 type IdPIAMConfigureClient interface {
 	// SetAWSRegion sets the aws region that must be used.
 	// This is particularly relevant for API calls that must target a specific region's endpoint.
 	// Eg calling S3 APIs for buckets that are in another region.
 	SetAWSRegion(string)
 
-	// CreateBucketRegion is the AWS Region that should be used to create buckets.
-	CreateBucketRegion() string
+	// RegionForCreateBucket is the AWS Region that should be used to create buckets.
+	RegionForCreateBucket() string
 
 	// HTTPHead performs an HTTP request for the URL using the HEAD verb.
 	HTTPHead(ctx context.Context, url string) (resp *http.Response, err error)
@@ -249,13 +250,17 @@ func (d *defaultIdPIAMConfigureClient) GetBucketPolicy(ctx context.Context, para
 	return d.s3Client.GetBucketPolicy(ctx, params, optFns...)
 }
 
-// CreateBucketRegion returns the region where the bucket should be created.
-func (d *defaultIdPIAMConfigureClient) CreateBucketRegion() string {
+// RegionForCreateBucket returns the region where the bucket should be created.
+func (d *defaultIdPIAMConfigureClient) RegionForCreateBucket() string {
 	return d.awsConfig.Region
 }
 
 // SetAWSRegion sets the aws region for next api calls.
 func (d *defaultIdPIAMConfigureClient) SetAWSRegion(awsRegion string) {
+	if d.awsConfig.Region == awsRegion {
+		return
+	}
+
 	d.awsConfig.Region = awsRegion
 
 	// S3 Client is the only client that depends on the region.
@@ -273,6 +278,7 @@ func (d *defaultIdPIAMConfigureClient) HTTPHead(ctx context.Context, url string)
 }
 
 // NewIdPIAMConfigureClient creates a new IdPIAMConfigureClient.
+// The client is not thread safe.
 func NewIdPIAMConfigureClient(ctx context.Context) (IdPIAMConfigureClient, error) {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
@@ -348,12 +354,9 @@ func ConfigureIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMC
 		"bucket-prefix": req.s3BucketPrefix,
 	})
 
-	log.Infof("Creating bucket in region %q", clt.CreateBucketRegion())
-	if region, err := ensureBucketIdPIAM(ctx, clt, req); err != nil {
-		if !trace.IsAlreadyExists(err) {
-			return trace.Wrap(err)
-		}
-		log.Infof("Bucket already exists in %q", region)
+	log.Infof("Creating bucket in region %q", clt.RegionForCreateBucket())
+	if err := ensureBucketIdPIAM(ctx, clt, req, log); err != nil {
+		return trace.Wrap(err)
 	}
 
 	log.Info("Setting public access.")
@@ -371,7 +374,7 @@ func ConfigureIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMC
 
 func ensureOIDCIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) error {
 	var err error
-	// For S3 bucket set ups the thumbprint is ignored, but the API still requires a parseable one.
+	// For S3 bucket setups the thumbprint is ignored, but the API still requires a parseable one.
 	// https://github.com/aws-actions/configure-aws-credentials/issues/357#issuecomment-1626357333
 	// We pass this dummy one for those scenarios.
 	thumbprint := "afafafafafafafafafafafafafafafafafafafaf"
@@ -402,14 +405,14 @@ func ensureOIDCIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAM
 	return nil
 }
 
-func ensureBucketIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) (string, error) {
+func ensureBucketIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest, log *logrus.Entry) error {
 	// According to https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketLocation.html
 	// s3:GetBucketLocation is not recommended, and should be replaced by s3:HeadBucket according to AWS docs.
 	// The issue with using s3:HeadBucket is that it returns an error if the SDK client's region is not the same as the bucket.
 	// Doing a HEAD HTTP request seems to be the best option
 	resp, err := clt.HTTPHead(ctx, fmt.Sprintf("https://s3.amazonaws.com/%s", req.s3Bucket))
 	if err != nil {
-		return "", trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	defer resp.Body.Close()
 
@@ -428,18 +431,19 @@ func ensureBucketIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPI
 		ExpectedBucketOwner: &req.AccountID,
 	})
 	if err == nil {
-		return aws.ToString(headBucketResp.BucketRegion), trace.AlreadyExists("")
+		log.Infof("Bucket already exists in %q", aws.ToString(headBucketResp.BucketRegion))
+		return nil
 	}
 	awsErr := awslib.ConvertIAMv2Error(err)
 	if trace.IsNotFound(awsErr) {
 		_, err := clt.CreateBucket(ctx, &s3.CreateBucketInput{
 			Bucket:                    &req.s3Bucket,
-			CreateBucketConfiguration: awsutil.CreateBucketConfiguration(clt.CreateBucketRegion()),
+			CreateBucketConfiguration: awsutil.CreateBucketConfiguration(clt.RegionForCreateBucket()),
 		})
-		return "", trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	return "", trace.Wrap(awsErr)
+	return trace.Wrap(awsErr)
 }
 
 func ensureBucketPoliciesIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) error {
@@ -518,11 +522,7 @@ func uploadOpenIDPublicFiles(ctx context.Context, clt IdPIAMConfigureClient, req
 		Key:    &jwksBucketPath,
 		Body:   bytes.NewReader(req.jwksFileContents),
 	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.Wrap(err)
 }
 
 func createIdPIAMRole(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) error {
@@ -539,11 +539,7 @@ func createIdPIAMRole(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAM
 		AssumeRolePolicyDocument: &integrationRoleAssumeRoleDocument,
 		Tags:                     req.ownershipTags.ToIAMTags(),
 	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.Wrap(err)
 }
 
 func upsertIdPIAMRole(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) error {
@@ -586,9 +582,5 @@ func upsertIdPIAMRole(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAM
 		RoleName:       &req.IntegrationRole,
 		PolicyDocument: &trustRelationshipDocString,
 	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.Wrap(err)
 }

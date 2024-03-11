@@ -91,6 +91,7 @@ func TestSliceOrString(t *testing.T) {
 func TestStringOrMap(t *testing.T) {
 	t.Run("marshal", func(t *testing.T) {
 		t.Run("nil input", func(t *testing.T) {
+			// todo here
 			var empty StringOrMap
 			bytes, err := json.Marshal(empty)
 			require.NoError(t, err)

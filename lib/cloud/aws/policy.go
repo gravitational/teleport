@@ -371,19 +371,17 @@ func (s *StringOrMap) UnmarshalJSON(bytes []byte) error {
 // (See examples here // https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_principal.html#principal-anonymous)
 // The regular Marshal method is used otherwise.
 func (s StringOrMap) MarshalJSON() ([]byte, error) {
-	if len(s) == 1 {
+	switch len(s) {
+	case 0:
+		return json.Marshal(map[string]SliceOrString{})
+	case 1:
 		if values, isWildcard := s[wildcard]; isWildcard && len(values) == 0 {
 			return json.Marshal(wildcard)
 		}
+		fallthrough
+	default:
+		return json.Marshal(map[string]SliceOrString(s))
 	}
-
-	// Calling json.Marshal against "s", will recursively call this method.
-	// Copying the map and calling json.Marshal, ensures it uses the default map marshaler.
-	newMap := make(map[string]SliceOrString, len(s))
-	for k, v := range s {
-		newMap[k] = v
-	}
-	return json.Marshal(newMap)
 }
 
 // Policies set of IAM Policy helper functions defined as an interface to make
