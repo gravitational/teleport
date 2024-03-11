@@ -18,11 +18,75 @@
 
 package jira
 
+import (
+	"encoding/json"
+	"fmt"
+	"github.com/gravitational/trace"
+	"strings"
+)
+
 // Jira REST API resources
 
+// ErrorResult is used to parse the errors from Jira.
+// The JSON Schema is specified here:
+// https://docs.atlassian.com/software/jira/docs/api/REST/1000.1223.0/#error-responses
+// However JIRA does not consistently respect the schema (especially for old instances).
+// We need to support legacy errors as well (array of strings).
 type ErrorResult struct {
 	ErrorMessages []string `url:"errorMessages"`
-	Errors        []string `url:"errors"`
+	Errors        Errors   `url:"errors"`
+}
+
+func (e ErrorResult) String() string {
+	sb := strings.Builder{}
+	if len(e.ErrorMessages) > 0 {
+		sb.WriteString(fmt.Sprintf("error messages: %s ", e.ErrorMessages))
+	}
+	if details := e.Errors.String(); details != "" {
+		sb.WriteString(fmt.Sprintf("error details: %s", details))
+	}
+	result := sb.String()
+	if result == "" {
+		return "Unknown error"
+	}
+	return result
+}
+
+// Errors are used to unmarshall inconsistently formatted Jira errors.
+type Errors struct {
+	Errors       map[string]string
+	LegacyErrors []string
+}
+
+func (e *Errors) UnmarshalJSON(data []byte) error {
+	// Try to parse as a new error
+	var errors map[string]string
+	if err := json.Unmarshal(data, &errors); err == nil {
+		e.Errors = errors
+		return nil
+	}
+
+	// Try to parse as a legacy error
+	var legacyErrors []string
+	if err := json.Unmarshal(data, &legacyErrors); err == nil {
+		e.LegacyErrors = legacyErrors
+		return nil
+	}
+
+	// Everything failed, we return an unrmarshalling error that contains the data.
+	// This way, even if everything failed, the user still has the original response in the logs.
+	return trace.Errorf("Failed to unmarshall Jira error: %q", string(data))
+}
+
+func (e Errors) String() string {
+	switch {
+	case len(e.Errors) > 0:
+		return fmt.Sprintf("%s", e.Errors)
+	case len(e.LegacyErrors) > 0:
+		return fmt.Sprintf("%s", e.LegacyErrors)
+	default:
+		return ""
+	}
 }
 
 type GetMyPermissionsQueryOptions struct {
