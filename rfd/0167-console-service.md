@@ -31,9 +31,9 @@ even on distroless environments where `curl` is not present.
 A separate service will be introduced specifically for troubleshooting
 purposes. This will ensure the current diagnosis service is kept as is, not
 breaking current integrations or introducing behavior changes. The new service
-will also always be available (contrasting with the diagnosis service, which
-is optional and disabled by default), so in scenarios where users need to use
-it, they don't need to restart Teleport.
+will also always be enabled by default (contrasting with the diagnosis service,
+which is optional and disabled by default), so in scenarios where users need to
+use it, they don't need to restart Teleport.
 
 In addition, the new service will listen into a Unix socket instead of TCP. This
 will make discoverability easier and discourage external usage, as the API is
@@ -52,6 +52,16 @@ Having the Node ID on the socket name will also cover scenarios where multiple
 instances of running on the same machine exist. In this case, the consumers can
 rely on the Teleport configuration to locate the data directory and retrieve
 the ID.
+
+### Disabling
+
+The service is enabled by default. If users require to disable the service they
+can do it by changing their configuration:
+
+```yaml
+teleport:
+  disable_debug_service: true
+```
 
 #### Endpoints
 
@@ -74,10 +84,6 @@ logger (legacy):
 
 A new set of commands will be introduced to `teleport` to consume the new
 service.
-
-Those commands will have the instance configuration as a common argument. This
-is so they can load the configuration to locate the data directory and later
-read the Node ID (used for generating the socket name).
 
 Commands will have a common argument for receiving the instance configuration.
 This allows loading the configuration to locate the data directory, and later
@@ -145,9 +151,9 @@ $ teleport -c /random/teleport.yaml console set-log-level INFO
 
 Export the application profile (`pprof` format).
 
-`teleport [-c config-path] console profile [--seconds=] [PROFILE_NAME]`
+`teleport [-c config-path] console profile [--tar] [--seconds=] [PROFILES]`
 
-The `PROFILE_NAME` values follow the Golang's definition on `runtime.Profile`
+The `PROFILES` values follow the Golang's definition on `runtime.Profile`
 plus the profiles defined by `net/http/pprof`:
 - `allocs`: A sampling of all past memory allocations
 - `block`: Stack traces that led to blocking on synchronization primitives
@@ -159,8 +165,9 @@ plus the profiles defined by `net/http/pprof`:
 - `threadcreate`: Stack traces that led to the creation of new OS threads
 - `trace`: A trace of execution of the current program. You can specify the duration in the seconds GET parameter. After you get the trace file, use the go tool trace command to investigate the trace.
 
-In addition to those profiles, the command will also support a `default` profile
-which will include `heap`, `profile` and `goroutine` profiles.
+Users can profile can collect multiple profiles on a single command call. The
+profile names need to be comma-separated. The command outputs all selected
+profiles into a single compressed tarball.
 
 Note: `--seconds` argument has the same effect as
 [`seconds` query string](https://pkg.go.dev/net/http/pprof#hdr-Parameters).
@@ -170,7 +177,23 @@ This parameter max value will be set to the HTTP server write timeout value.
 |----|-----------|-------------|
 |`-c,--config`|Teleport configuration path.|`/etc/teleport.yaml`|
 |`-s,--seconds`|For CPU and trace profiles, profile for the given duration. For other profiles, return a delta profile.|None|
-|`PROFILE_NAME`|Profile to be exported. Any of: `default`, `allocs`, `block`, `cmdline`, `goroutine`, `heap`, `mutex`, `profile`, `threadcreate`, `trace`|`default`|
+|`PROFILES`|Comma-separated profile names to be exported. Supported profiles: `allocs`, `block`, `cmdline`, `goroutine`, `heap`, `mutex`, `profile`, `threadcreate`, `trace`|`heap,profile,goroutine`|
+
+Usage examples:
+```bash
+# Output to a file.
+$ teleport console profile > debug.tar.gz
+
+# Directly extract it to a directory.
+$ teleport console profile | tar xv -C pprof
+$ ls pprof/
+heap.pprof
+profile.pprof
+goroutine.pprof
+
+# Multiple profiles get merged into a single file.
+$ teleport console profile heap,goroutine > profile.tar.gz
+```
 
 ### Security
 
@@ -203,6 +226,13 @@ level back to what is present on the configuration after the troubleshooting
 session. Adding a predefined timeout to return it automatically could affect the
 debug as there might not be a precise time necessary for the issue to present
 itself.
+
+#### information disclosure
+
+Private keys, tokens, and sensitive ones are unavailable in the result archive.
+However, the information on the profiles might be used to determine the cluster
+state and environment information. It is recommended that users review and
+sanitize the resulting contents.
 
 ### Future work
 
