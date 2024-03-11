@@ -128,6 +128,14 @@ func initAccessListSync(t *testing.T, ctx context.Context) *accessListSyncTestCo
 	return alsCtx
 }
 
+func (a *accessListSync) getImportAccessListMembers() map[string]*accesslist.AccessListMember {
+	return lockedMapCopy(&a.importAccessListMembersMu, a.importAccessListMembers)
+}
+
+func (a *accessListSync) getNewImportAccessListMembers() map[string]*accesslist.AccessListMember {
+	return lockedMapCopy(&a.newImportAccessListMembersMu, a.newImportAccessListMembers)
+}
+
 func TestAccessListSync(t *testing.T) {
 	ctx := context.Background()
 

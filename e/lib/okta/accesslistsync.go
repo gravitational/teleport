@@ -21,6 +21,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	accesslistsvc "github.com/gravitational/teleport/e/lib/accesslist"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -202,7 +203,7 @@ type accessListSync struct {
 	newImportAccessLists   map[string]*accesslist.AccessList
 
 	// accessListMemberReconciler will sync imported access list members to the backend.
-	accessListMemberReconciler *services.Reconciler[*accesslist.AccessListMember]
+	accessListMemberReconciler *accesslistsvc.MemberReconciler
 
 	// importAccessListMembers is the current mapping of imported access list members.
 	importAccessListMembersMu sync.Mutex
@@ -291,17 +292,14 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	a.accessListMemberReconciler, err = services.NewReconciler(services.ReconcilerConfig[*accesslist.AccessListMember]{
-		Matcher:             matchByLabels[*accesslist.AccessListMember](a.orgURL),
-		GetCurrentResources: a.getImportAccessListMembers,
-		GetNewResources:     a.getNewImportAccessListMembers,
-		OnCreate:            a.onUpsertAccessListMember,
-		OnUpdate: func(ctx context.Context, member, _ *accesslist.AccessListMember) error {
-			return a.onUpsertAccessListMember(ctx, member)
-		},
-		OnDelete: a.onDeleteAccessListMember,
-		Log:      a.log,
-	})
+	a.accessListMemberReconciler, err = accesslistsvc.NewMemberReconciler(
+		accesslistsvc.MemberReconcilerConfig{
+			AccessListMembers: a.accessLists,
+			Matcher:           matchByLabels[*accesslist.AccessListMember](a.orgURL),
+			Log:               a.log,
+			OnUpsert:          a.onUpsertAccessListMember,
+			OnDelete:          a.onDeleteAccessListMember,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -327,7 +325,11 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 // reconcileAll will run reconcile on all reconcilers and return the aggregated error.
 func (a *accessListSync) reconcileAll(ctx context.Context) error {
 	alErr := a.accessListReconciler.Reconcile(ctx)
-	memberErr := a.accessListMemberReconciler.Reconcile(ctx)
+
+	existingMembers := lockedMapCopy(&a.importAccessListMembersMu, a.importAccessListMembers)
+	newMembers := lockedMapCopy(&a.newImportAccessListMembersMu, a.newImportAccessListMembers)
+	memberErr := a.accessListMemberReconciler.Reconcile(ctx, newMembers, existingMembers)
+
 	roleErr := a.roleReconciler.Reconcile(ctx)
 
 	return trace.NewAggregate(alErr, memberErr, roleErr)
@@ -850,24 +852,6 @@ func (a *accessListSync) getNewImportAccessLists() map[string]*accesslist.Access
 	return copyMap
 }
 
-func (a *accessListSync) getImportAccessListMembers() map[string]*accesslist.AccessListMember {
-	a.importAccessListMembersMu.Lock()
-	defer a.importAccessListMembersMu.Unlock()
-
-	copyMap := map[string]*accesslist.AccessListMember{}
-	maps.Copy(copyMap, a.importAccessListMembers)
-	return copyMap
-}
-
-func (a *accessListSync) getNewImportAccessListMembers() map[string]*accesslist.AccessListMember {
-	a.newImportAccessListMembersMu.Lock()
-	defer a.newImportAccessListMembersMu.Unlock()
-
-	copyMap := map[string]*accesslist.AccessListMember{}
-	maps.Copy(copyMap, a.newImportAccessListMembers)
-	return copyMap
-}
-
 func (a *accessListSync) getImportRoles() map[string]types.Role {
 	a.importRolesMu.Lock()
 	defer a.importRolesMu.Unlock()
@@ -983,9 +967,11 @@ func (a *accessListSync) onUpsertAccessList(ctx context.Context, accessList *acc
 		return trace.Wrap(err)
 	}
 
-	a.importAccessListsMu.Lock()
-	a.importAccessLists[accessList.GetName()] = accessList
-	a.importAccessListsMu.Unlock()
+	lockedMapSet(
+		&a.importAccessListsMu,
+		a.importAccessLists,
+		accessList.GetName(),
+		accessList)
 	return nil
 }
 
@@ -996,35 +982,26 @@ func (a *accessListSync) onDeleteAccessList(ctx context.Context, accessList *acc
 		return trace.Wrap(err)
 	}
 
-	a.importAccessListsMu.Lock()
-	delete(a.importAccessLists, accessList.GetName())
-	a.importAccessListsMu.Unlock()
+	lockedMapDelete(&a.importAccessListsMu, a.importAccessLists, accessList.GetName())
 	return nil
 }
 
 // onUpsertAccessListMember will create or modify an access list member.
 func (a *accessListSync) onUpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) error {
-	if _, err := a.accessLists.UpsertAccessListMember(ctx, member); err != nil {
-		return trace.Wrap(err)
-	}
-
-	a.importAccessListMembersMu.Lock()
-	a.importAccessListMembers[memberMapKey(member)] = member
-	a.importAccessListMembersMu.Unlock()
+	lockedMapSet(
+		&a.importAccessListMembersMu,
+		a.importAccessListMembers,
+		memberMapKey(member),
+		member)
 	return nil
 }
 
 // onDeleteAccessListMember will delete an access list member.
 func (a *accessListSync) onDeleteAccessListMember(ctx context.Context, member *accesslist.AccessListMember) error {
-	// If an access list is deleted in the access list reconciler, it can remove all of the associated access list members.
-	// If we're attempting to delete something that can't be found, then we'll consider that a success.
-	if err := a.accessLists.DeleteAccessListMember(ctx, member.Spec.AccessList, member.GetName()); err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-
-	a.importAccessListMembersMu.Lock()
-	delete(a.importAccessListMembers, memberMapKey(member))
-	a.importAccessListMembersMu.Unlock()
+	lockedMapDelete(
+		&a.importAccessListMembersMu,
+		a.importAccessListMembers,
+		memberMapKey(member))
 	return nil
 }
 
@@ -1108,4 +1085,33 @@ func matchByLabels[T types.Resource](expectedOrgURL string) func(T) bool {
 // memberMapKey returns an identifier for members that will be unique in the reconciler.
 func memberMapKey(member *accesslist.AccessListMember) string {
 	return fmt.Sprintf("%s/%s", member.Spec.AccessList, member.GetName())
+}
+
+// lockedMapCopy creates a shallow copy of the supplied resource map,
+// serializing access to the source map using the supplied mutex
+func lockedMapCopy[T services.Reconciled](mu *sync.Mutex, src map[string]T) map[string]T {
+	mu.Lock()
+	defer mu.Unlock()
+
+	dst := make(map[string]T, len(src))
+	maps.Copy(dst, src)
+	return dst
+}
+
+// lockedMapSet sets a value in the resource map `m`, serializing access to the
+// map using the supplied mutex
+func lockedMapSet[T services.Reconciled](mu *sync.Mutex, m map[string]T, key string, value T) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	m[key] = value
+}
+
+// lockedMapDelete deletes a value in the resource map `m`, serializing access
+// to the map using the supplied mutex
+func lockedMapDelete[T services.Reconciled](mu *sync.Mutex, m map[string]T, key string) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	delete(m, key)
 }

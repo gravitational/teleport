@@ -44,6 +44,8 @@ const (
 
 	// oktaErrorMsg is the message to display when the modification of an Okta access list is attempted.
 	oktaErrorMsg = "Okta sourced access lists cannot be modified"
+
+	componentAccessListService = "access_list_crud_service"
 )
 
 var (
@@ -149,7 +151,7 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = logrus.New().WithField(trace.Component, "access_list_crud_service")
+		c.Logger = logrus.New().WithField(trace.Component, componentAccessListService)
 	}
 
 	if c.Clock == nil {
