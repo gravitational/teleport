@@ -24,6 +24,7 @@ use crate::{
 use boring::error::ErrorStack;
 use bytes::BytesMut;
 use ironrdp_cliprdr::{Cliprdr, CliprdrClient, CliprdrSvcMessages};
+use ironrdp_connector::connection_activation::ConnectionActivationState;
 use ironrdp_connector::{Config, ConnectorError, Credentials};
 use ironrdp_dvc::DrdynvcClient;
 use ironrdp_pdu::dvc::display::{ClientPdu, Monitor, MonitorFlags, MonitorLayoutPdu, Orientation};
@@ -45,7 +46,7 @@ use ironrdp_session::x224::{self, ProcessorOutput};
 use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
-use ironrdp_tokio::{Framed, TokioStream};
+use ironrdp_tokio::{single_connect_step_read, Framed, TokioStream};
 use log::debug;
 use rand::{Rng, SeedableRng};
 use std::fmt::{Debug, Display, Formatter};
@@ -213,6 +214,7 @@ impl Client {
             connection_result.io_channel_id,
             None,
             None,
+            connection_result.connection_activation,
         );
 
         Ok(Self {
@@ -316,8 +318,7 @@ impl Client {
                     ironrdp_pdu::Action::X224 => {
                         // X224 PDU, process it and send any immediate response frames to the write loop
                         // for writing to the RDP server.
-                        let res = Client::x224_process(x224_processor.clone(), frame).await?;
-                        for output in res {
+                        for output in Client::x224_process(x224_processor.clone(), frame).await? {
                             match output {
                                 ProcessorOutput::ResponseFrame(frame) => {
                                     // Send response frames to write loop for writing to RDP server.
@@ -325,6 +326,27 @@ impl Client {
                                 }
                                 ProcessorOutput::Disconnect(reason) => {
                                     return Ok(Some(reason));
+                                }
+                                ProcessorOutput::DeactivateAll(mut sequence) => {
+                                    let mut buf = WriteBuf::new();
+                                    loop {
+                                        let written = single_connect_step_read(
+                                            &mut read_stream,
+                                            &mut sequence,
+                                            &mut buf,
+                                        )
+                                        .await?;
+                                        if let Some(_) = written.size() {
+                                            write_requester
+                                                .write_raw_pdu_async(buf.filled().to_vec())
+                                                .await?;
+                                        }
+                                        if let ConnectionActivationState::Finalized { .. } =
+                                            sequence.state
+                                        {
+                                            break;
+                                        }
+                                    }
                                 }
                             }
                         }

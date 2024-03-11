@@ -258,6 +258,7 @@ export default class Client extends EventEmitterWebAuthnSender {
           this.logger.warn(`received unsupported message type ${messageType}`);
       }
     } catch (err) {
+      console.error('Error in processMessage', err);
       this.handleError(err, TdpClientEvent.CLIENT_ERROR);
     }
   }
@@ -364,6 +365,7 @@ export default class Client extends EventEmitterWebAuthnSender {
         }
       );
     } catch (e) {
+      console.error('Error in handleRDPFastPathPDU', e);
       this.handleError(e, TdpClientEvent.CLIENT_ERROR);
     }
   }
@@ -580,6 +582,7 @@ export default class Client extends EventEmitterWebAuthnSender {
       try {
         this.socket.send(data);
       } catch (e) {
+        console.error('Error in send', e);
         this.handleError(e, TdpClientEvent.CLIENT_ERROR);
       }
       return;
