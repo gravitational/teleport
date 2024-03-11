@@ -37,13 +37,13 @@ const (
 // AccessMonitoringRule represents a AccessMonitoringRule instance
 type AccessMonitoringRule struct {
 	// Metadata is the rules's metadata.
-	Metadata header.Metadata
+	Metadata header.Metadata `json:"metadata" yaml:"metadata"`
 	// Kind is a resource kind
-	Kind string
+	Kind string `json:"kind" yaml:"kind"`
 	// SubKind is an optional resource sub kind, used in some resources
-	SubKind string
+	SubKind string `json:"sub_kind" yaml:"sub_kind"`
 	// Version is the resource version
-	Version string
+	Version string `json:"version" yaml:"version"`
 	// Spec is the specification for the access monitoring rule.
 	Spec Spec `json:"spec" yaml:"spec"`
 }
