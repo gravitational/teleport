@@ -52,40 +52,34 @@ Create the Database Service configuration:
 <Tabs>
   <TabItem label="ElastiCache">
 
-  Assign `ELASTICACHE_ID` to the the identifier of your ElastiCache replication
-  group, and change `example.teleport.sh:443` to the host and port of your
-  Teleport Proxy Service. Set `ELASTICACHE_URI` to the domain name and port of
-  your ElastiCache database:
+  Change `example.teleport.sh:443` to the host and port of your Teleport Proxy
+  Service. Set `ELASTICACHE_URI` to the domain name and port of your ElastiCache
+  database:
 
   ```code
-  $ ELASTICACHE_ID=""
   $ ELASTICACHE_URI=""
   $ sudo teleport db configure create \
      -o file \
      --proxy=example.teleport.sh:443 \
      --protocol="redis" \
      --uri=${ELASTICACHE_URI?} \
-     --token=/tmp/token \
-     --aws-elasticache-group-id=${ELASTICACHE_ID?}
+     --token=/tmp/token
   ```
   </TabItem>
   <TabItem label="MemoryDB">
 
-  Assign `MEMORYDB_CLUSTER` to the name of your MemoryDB cluster, and change
-  `example.teleport.sh:443` to the host and port of your Teleport Proxy Service.
-  Set `MEMORYDB_URI` to the domain name and port of your ElastiCache
+  Change `example.teleport.sh:443` to the host and port of your Teleport Proxy
+  Service. Set `MEMORYDB_URI` to the domain name and port of your ElastiCache
   database:
 
   ```code
-  $ MEMORYDB_CLUSTER=""
   $ MEMORYDB_URI=""
   $ sudo teleport db configure create \
      -o file \
      --proxy=example.teleport.sh:443 \
      --protocol="redis" \ \
      --uri=${MEMORYDB_URI} \
-     --token=/tmp/token \
-     --aws-memorydb-cluster-name=${MEMORYDB_CLUSTER}
+     --token=/tmp/token
   ```
   </TabItem>
 </Tabs>
@@ -265,10 +259,10 @@ $ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
 # Name                        Description                                               Labels
 # --------------------------- --------------------------------------------------------- --------
-# my-cluster-mode-elasticache ElastiCache cluster in us-west-1 (configuration endpoint) ...
-# my-elasticache              ElastiCache cluster in us-west-1 (primary endpoint)       ...
-# my-elasticache-reader       ElastiCache cluster in us-west-1 (reader endpoint)        ...
-# my-memorydb                 MemoryDB cluster in us-west-1                             ...
+# my-cluster-mode-elasticache                                                           ...
+# my-elasticache                                                                        ...
+# my-elasticache-reader                                                                 ...
+# my-memorydb                                                                           ...
 ```
 
 </TabItem>
@@ -279,10 +273,10 @@ $ tsh login --proxy=mytenant.teleport.sh --user=alice
 $ tsh db ls
 # Name                        Description                                               Labels
 # --------------------------- --------------------------------------------------------- --------
-# my-cluster-mode-elasticache ElastiCache cluster in us-west-1 (configuration endpoint) ...
-# my-elasticache              ElastiCache cluster in us-west-1 (primary endpoint)       ...
-# my-elasticache-reader       ElastiCache cluster in us-west-1 (reader endpoint)        ...
-# my-memorydb                 MemoryDB cluster in us-west-1                             ...
+# my-cluster-mode-elasticache                                                           ...
+# my-elasticache                                                                        ...
+# my-elasticache-reader                                                                 ...
+# my-memorydb                                                                           ...
 ```
 
 </TabItem>
