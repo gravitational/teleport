@@ -770,7 +770,8 @@ func (s *adminActionTestSuite) testNetworkingConfig(t *testing.T) {
 	netConfig.SetOrigin(types.OriginDynamic)
 
 	createNetConfig := func() error {
-		return s.authServer.SetClusterNetworkingConfig(ctx, netConfig)
+		_, err := s.authServer.UpsertClusterNetworkingConfig(ctx, netConfig)
+		return err
 	}
 
 	getNetConfig := func() (types.Resource, error) {
@@ -778,7 +779,8 @@ func (s *adminActionTestSuite) testNetworkingConfig(t *testing.T) {
 	}
 
 	resetNetConfig := func() error {
-		return s.authServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+		_, err := s.authServer.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+		return err
 	}
 
 	t.Run("ResourceCommands", func(t *testing.T) {

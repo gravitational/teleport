@@ -484,7 +484,7 @@ func setConfigClientIdleTimoutAndDisconnectExpiredCert(ctx context.Context, t *t
 	netConfig, err := auth.GetClusterNetworkingConfig(ctx)
 	require.NoError(t, err)
 	netConfig.SetClientIdleTimeout(timeout)
-	err = auth.SetClusterNetworkingConfig(ctx, netConfig)
+	_, err = auth.UpsertClusterNetworkingConfig(ctx, netConfig)
 	require.NoError(t, err)
 }
 
