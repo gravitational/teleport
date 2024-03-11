@@ -5379,7 +5379,7 @@ func TestFlatten(t *testing.T) {
 		IdentityFormat:     identityfile.FormatFile,
 		HomePath:           home,
 		AuthConnector:      connector.GetName(),
-		MockSSOLogin:       mockSSOLogin(t, authServer, alice),
+		MockSSOLogin:       mockSSOLogin(authServer, alice),
 		Context:            context.Background(),
 	}
 	require.NoError(t, onLogin(&conf))
