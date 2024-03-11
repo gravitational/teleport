@@ -30,8 +30,10 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/gravitational/teleport/api/types"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 )
 
@@ -41,7 +43,7 @@ const (
 	batchSize = 500
 )
 
-func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *aws_sync.Resources, stream accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient) {
+func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *aws_sync.Resources, stream accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient, features aws_sync.Features) {
 	type fetcherResult struct {
 		result *aws_sync.Resources
 		err    error
@@ -59,7 +61,7 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 			defer func() {
 				<-tokens
 			}()
-			result, err := fetcher.Poll(ctx)
+			result, err := fetcher.Poll(ctx, features)
 			resultsC <- fetcherResult{result, trace.Wrap(err)}
 		}()
 	}
@@ -84,8 +86,8 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	}
 	result := aws_sync.MergeResources(results...)
 	// Merge all results into a single result
-	upsert, delete := aws_sync.ReconcileResults(currentTAGResources, result)
-	err = push(stream, upsert, delete)
+	upsert, toDel := aws_sync.ReconcileResults(currentTAGResources, result)
+	err = push(stream, upsert, toDel)
 	if err != nil {
 		s.Log.WithError(err).Error("Error pushing TAGs")
 		return
@@ -136,18 +138,18 @@ func pushUpsertInBatches(
 
 func pushDeleteInBatches(
 	client accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient,
-	delete *accessgraphv1alpha.AWSResourceList,
+	toDel *accessgraphv1alpha.AWSResourceList,
 ) error {
-	for i := 0; i < len(delete.Resources); i += batchSize {
+	for i := 0; i < len(toDel.Resources); i += batchSize {
 		end := i + batchSize
-		if end > len(delete.Resources) {
-			end = len(delete.Resources)
+		if end > len(toDel.Resources) {
+			end = len(toDel.Resources)
 		}
 		err := client.Send(
 			&accessgraphv1alpha.AWSEventsStreamRequest{
 				Operation: &accessgraphv1alpha.AWSEventsStreamRequest_Delete{
 					Delete: &accessgraphv1alpha.AWSResourceList{
-						Resources: delete.Resources[i:end],
+						Resources: toDel.Resources[i:end],
 					},
 				},
 			},
@@ -162,13 +164,13 @@ func pushDeleteInBatches(
 func push(
 	client accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient,
 	upsert *accessgraphv1alpha.AWSResourceList,
-	delete *accessgraphv1alpha.AWSResourceList,
+	toDel *accessgraphv1alpha.AWSResourceList,
 ) error {
 	err := pushUpsertInBatches(client, upsert)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = pushDeleteInBatches(client, delete)
+	err = pushDeleteInBatches(client, toDel)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -195,15 +197,49 @@ func newAccessGraphClient(ctx context.Context, certs []tls.Certificate, config s
 // watches the connection state. If the connection is closed, it will
 // automatically try to reconnect.
 func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-chan struct{}) error {
-	// Configure health check service to monitor access graph service and
-	// automatically reconnect if the connection is lost without
-	// relying on new events from the auth server to trigger a reconnect.
-	const serviceConfig = `{
+	const (
+		// aws discovery semaphore lock.
+		semaphoreName = "aws_discovery"
+		// Configure health check service to monitor access graph service and
+		// automatically reconnect if the connection is lost without
+		// relying on new events from the auth server to trigger a reconnect.
+		serviceConfig = `{
 		 "loadBalancingPolicy": "round_robin",
 		 "healthCheckConfig": {
 			 "serviceName": ""
 		 }
 	 }`
+	)
+	// AcquireSemaphoreWithRetry will retry until the semaphore is acquired.
+	// This prevents multiple discovery services to push AWS resources in parallel.
+	const (
+		semaphoreExpiration = time.Minute
+	)
+
+	lease, err := services.AcquireSemaphoreLock(
+		ctx,
+		services.SemaphoreLockConfig{
+			Service: s.AccessPoint,
+			Params: types.AcquireSemaphoreRequest{
+				SemaphoreKind: types.KindAccessGraph,
+				SemaphoreName: semaphoreName,
+				MaxLeases:     1,
+				Expires:       s.clock.Now().Add(semaphoreExpiration),
+				Holder:        s.Config.ServerID,
+			},
+			Expiry: semaphoreExpiration,
+			Clock:  s.clock,
+		},
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		lease.Stop()
+		if err := lease.Wait(); err != nil {
+			s.Log.WithError(err).Warn("error cleaning up semaphore")
+		}
+	}()
 
 	config := s.Config.AccessGraphConfig
 
@@ -225,6 +261,19 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 		s.Log.WithError(err).Error("Failed to get access graph service stream")
 		return trace.Wrap(err)
 	}
+	header, err := stream.Header()
+	if err != nil {
+		s.Log.WithError(err).Error("Failed to get access graph service stream header")
+		return trace.Wrap(err)
+	}
+	const (
+		supportedResourcesKey = "supported-kinds"
+	)
+	supportedKinds := header.Get(supportedResourcesKey)
+	if len(supportedKinds) == 0 {
+		return trace.BadParameter("access graph service did not return supported kinds")
+	}
+	features := aws_sync.BuildFeatures(supportedKinds...)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -242,7 +291,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	ticker := time.NewTicker(15 * time.Minute)
 	defer ticker.Stop()
 	for {
-		s.reconcileAccessGraph(ctx, currentTAGResources, stream)
+		s.reconcileAccessGraph(ctx, currentTAGResources, stream, features)
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
