@@ -155,9 +155,9 @@ Teleport Proxy Service or Enterprise Cloud site. Assign <Var name="us-west-1" />
 to the region associated with the RDS database.
 
 Run the following command to proxy an AWS Aurora cluster, assigning <Var
-name="RDS_CLUSTER_ID" /> to the ID of your cluster, <Var name="RDS_URI" /> to
-your cluster's domain name and port, and <Var name="protocol" /> to either
-`postgres` or `mysql`, depending on the database you want to proxy:
+name="RDS_URI" /> to your cluster's domain name and port and <Var
+name="protocol" /> to either `postgres` or `mysql`, depending on the database
+you want to proxy:
 
 ```code
 $ sudo teleport db configure create \
@@ -165,14 +165,13 @@ $ sudo teleport db configure create \
    --proxy=<Var name="example.teleport.sh:443" />  \
    --protocol=<Var name="protocol" /> \
    --uri=<Var name="RDS_URI" /> \
-   --token=/tmp/token \
-   --aws-rds-cluster-id=<Var name="RDS_CLUSTER_ID" />
+   --token=/tmp/token
 ```
 
 Run the following command to proxy an AWS RDS instance, assigning <Var
-name="RDS_CLUSTER_ID" /> to the ID of your instance, <Var name="RDS_URI" /> to
-your instance's domain name and port, and <Var name="protocol" /> to either
-`postgres` or `mysql`, depending on the database you want to proxy:
+name="RDS_URI" /> to your instance's domain name and port and <Var
+name="protocol" /> to either `postgres` or `mysql`, depending on the database
+you want to proxy:
 
 ```code
 $ sudo teleport db configure create \
@@ -180,8 +179,7 @@ $ sudo teleport db configure create \
    --proxy=<Var name="example.teleport.sh:443" />  \
    --protocol=<Var name="protocol" /> \
    --uri=<Var name="RDS_URI" /> \
-   --token=/tmp/token \
-   --aws-rds-instance-id=<Var name="RDS_INSTANCE_ID" />
+   --token=/tmp/token
 ```
 
 The command will generate a Teleport Database Service configuration file and
@@ -431,10 +429,10 @@ $ tsh login --proxy=<Var name="example.teleport.sh:443" /> --user=alice
 $ tsh db ls
 # Name                           Description                                   Labels
 # ------------------------------ --------------------------------------------- --------
-# postgres-rds                   RDS instance in us-west-1                     ...
-# aurora-mysql                   Aurora cluster in us-west-1                   ...
-# aurora-mysql-custom-myendpoint Aurora cluster in us-west-1 (custom endpoint) ...
-# aurora-mysql-reader            Aurora cluster in us-west-1 (reader endpoint) ...
+# postgres-rds                                                                 ...
+# aurora-mysql                                                                 ...
+# aurora-mysql-custom-myendpoint                                               ...
+# aurora-mysql-reader                                                          ...
 ```
 
 Retrieve credentials for a database and connect to it as the `alice` user,

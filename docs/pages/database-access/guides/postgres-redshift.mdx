@@ -47,20 +47,17 @@ Install Teleport on the host where you will run the Teleport Database Service:
 (!docs/pages/includes/install-linux.mdx!)
 
 On the node that is running the Database Service, create a configuration file.
-Assign `CLUSTER_ID` to the ID of your Amazon Redshift cluster and `CLUSTER_URI`
-to the domain name and port of the cluster:
+Assign `CLUSTER_URI` to the domain name and port of the cluster:
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
-$ CLUSTER_ID=""
 $ sudo teleport db configure create \
    -o file \
    --proxy=teleport.example.com:3080 \
    --protocol=postgres \
    --token=/tmp/token \
-   --aws-redshift-cluster-id=${CLUSTER_ID?} \
    --uri=${CLUSTER_URI?}
 ```
 
@@ -68,13 +65,11 @@ $ sudo teleport db configure create \
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
-$ CLUSTER_ID=""
 $ sudo teleport db configure create \
    -o file \
    --proxy=mytenant.teleport.sh:443 \
    --protocol=postgres \
    --token=/tmp/token \
-   --aws-redshift-cluster-id=${CLUSTER_ID?} \
    --uri=${CLUSTER_URI?}
 ```
 
@@ -164,7 +159,7 @@ $ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
 # Name        Description                    Labels
 # ----------- ------------------------------ --------
-# my-redshift Redshift cluster in us-east-1  ...
+# my-redshift                                ...
 ```
 
 </TabItem>
@@ -179,7 +174,7 @@ $ tsh login --proxy=mytenant.teleport.sh --user=alice
 $ tsh db ls
 # Name        Description                    Labels
 # ----------- ------------------------------ --------
-# my-redshift Redshift cluster in us-east-1  ...
+# my-redshift                                ...
 ```
 
 </TabItem>
