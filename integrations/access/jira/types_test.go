@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestErrorsUnmarshall(t *testing.T) {
+func TestErrorResultUnmarshall(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name           string
@@ -39,7 +39,7 @@ func TestErrorsUnmarshall(t *testing.T) {
 			name:  "new error",
 			input: `{"errorMessages":[], "errors": {"project": "project is required"}}`,
 			expectedOutput: ErrorResult{
-				Errors: Errors{Errors: map[string]string{"project": "project is required"}},
+				Details: ErrorDetails{Errors: map[string]string{"project": "project is required"}},
 			},
 			assertErr: require.NoError,
 		},
@@ -48,7 +48,7 @@ func TestErrorsUnmarshall(t *testing.T) {
 			input: `{"errorMessages":["foo"],"errors":["bar", "baz"]}`,
 			expectedOutput: ErrorResult{
 				ErrorMessages: []string{"foo"},
-				Errors:        Errors{LegacyErrors: []string{"bar", "baz"}},
+				Details:       ErrorDetails{LegacyErrors: []string{"bar", "baz"}},
 			},
 			assertErr: require.NoError,
 		},
