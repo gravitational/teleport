@@ -23,7 +23,7 @@ Automatic user provisioning is not compatible with RDS Aurora reader endpoints.
 Teleport will use the same authentication mechanism when connecting as an admin
 user as for regular user connections: X.509 for self-hosted databases and AWS
 IAM for RDS. The admin user must have privileges within the database to create
-users and grant them privileges.
+users and grant them privileges, either for roles or concrete database objects.
 
 <Tabs>
 <TabItem label="RDS PostgreSQL">
