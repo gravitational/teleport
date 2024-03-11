@@ -36,6 +36,16 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	// fastShutdownTimeout is how long we're going to wait before connections
+	// are forcibly terminated during a fast shutdown.
+	fastShutdownTimeout = time.Second * 3
+
+	// fastShutdownGrace is how long we're going to wait for the shutdown
+	// procedure to complete after the fastShutdownTimeout is hit.
+	fastShutdownGrace = time.Second * 2
+)
+
 // printShutdownStatus prints running services until shut down
 func (process *TeleportProcess) printShutdownStatus(ctx context.Context) {
 	t := time.NewTicker(defaults.HighResReportingPeriod)
@@ -82,9 +92,26 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				process.Shutdown(ctx)
 				process.log.Infof("All services stopped, exiting.")
 				return nil
-			case syscall.SIGTERM, syscall.SIGKILL, syscall.SIGINT:
-				process.log.Infof("Got signal %q, exiting immediately.", signal)
-				process.Close()
+			case syscall.SIGTERM, syscall.SIGINT:
+				process.log.Infof("Got signal %q, exiting within %s.", signal, fastShutdownTimeout)
+				// we run the shutdown in a goroutine so we can return and exit
+				// the process even if Shutdown takes longer to return than we
+				// expected (due to bugs, for example)
+				shutdownDone := make(chan struct{})
+				go func() {
+					defer close(shutdownDone)
+					timeoutCtx, cancel := context.WithTimeout(ctx, fastShutdownTimeout)
+					defer cancel()
+					process.Shutdown(timeoutCtx)
+				}()
+				graceTimer := time.NewTimer(fastShutdownTimeout + fastShutdownGrace)
+				defer graceTimer.Stop()
+				select {
+				case <-graceTimer.C:
+					process.log.Warn("Shutdown still hasn't completed, exiting anyway.")
+				case <-shutdownDone:
+					process.log.Info("All services stopped, exiting.")
+				}
 				return nil
 			case syscall.SIGUSR1:
 				// All programs placed diagnostics on the standard output.
