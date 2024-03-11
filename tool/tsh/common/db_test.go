@@ -125,6 +125,7 @@ func testDatabaseLogin(t *testing.T) {
 			},
 		},
 	})
+	require.NoError(t, err)
 
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
