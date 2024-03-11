@@ -185,6 +185,14 @@ func TestFromProtoNils(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("status", func(t *testing.T) {
+		msg := ToProto(newAccessList(t, "access-list"))
+		msg.Status = nil
+
+		_, err := FromProto(msg)
+		require.NoError(t, err)
+	})
+
 	t.Run("member_count", func(t *testing.T) {
 		msg := ToProto(newAccessList(t, "access-list"))
 		msg.Status.MemberCount = nil

@@ -19,8 +19,10 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -63,7 +65,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir: t.TempDir(),
 	})
-	require.NoError(t, err)
+	require.NoError(t, err, "%s", trace.DebugReport(err))
 	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
 
 	tlsServer, err := testAuthServer.NewTestTLSServer()
@@ -194,6 +196,298 @@ func TestAccessRequest(t *testing.T) {
 	t.Run("deny", func(t *testing.T) { testAccessRequestDenyRules(t, testPack) })
 }
 
+// waitForAccessRequests is a helper for writing access request tests that need to wait for access request CRUD. the supplied condition is
+// repeatedly called with the contents of the access request cache until it returns true or a reasonably long timeout is exceeded. this is
+// similar to require.Eventually except that it is safe to use normal (test-failing) assertions within the supplied condition closure.
+func waitForAccessRequests(t *testing.T, ctx context.Context, getter services.AccessRequestGetter, condition func([]*types.AccessRequestV3) bool) {
+	t.Helper()
+
+	timeout := time.After(time.Second * 30)
+	for {
+		var reqs []*types.AccessRequestV3
+		var nextKey string
+	Paginate:
+		for {
+			rsp, err := getter.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+				Limit:    1_000,
+				StartKey: nextKey,
+			})
+			require.NoError(t, err, "ListAccessRequests API call should succeed")
+
+			reqs = append(reqs, rsp.AccessRequests...)
+			nextKey = rsp.NextKey
+			if nextKey == "" {
+				break Paginate
+			}
+		}
+
+		if condition(reqs) {
+			return
+		}
+
+		select {
+		case <-time.After(time.Millisecond * 150):
+		case <-timeout:
+			require.FailNow(t, "timeout waiting for access request condition to pass")
+		}
+	}
+}
+
+// TestListAccessRequests tests some basic functionality of the ListAccessRequests API, including access-control,
+// filtering, sort, and pagination.
+func TestListAccessRequests(t *testing.T) {
+	const (
+		requestsPerUser = 200
+		pageSize        = 7
+	)
+
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+
+	authServer, err := NewTestAuthServer(TestAuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	defer authServer.Close()
+
+	tlsServer, err := authServer.NewTestTLSServer()
+	require.NoError(t, err)
+	defer tlsServer.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	userA, userB := "lister-a", "lister-b"
+	roleA, roleB := userA+"-role", userB+"-role"
+	rroleA, rroleB := userA+"-rrole", userB+"-rrole"
+
+	roles := map[string]types.RoleSpecV6{
+		roleA: {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{rroleA},
+				},
+			},
+		},
+		roleB: {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{rroleB},
+				},
+			},
+		},
+		rroleA: {},
+		rroleB: {},
+	}
+
+	for roleName, roleSpec := range roles {
+		role, err := types.NewRole(roleName, roleSpec)
+		require.NoError(t, err)
+		_, err = tlsServer.Auth().UpsertRole(ctx, role)
+		require.NoError(t, err)
+	}
+
+	for userName, roleName := range map[string]string{userA: roleA, userB: roleB} {
+		user, err := types.NewUser(userName)
+		require.NoError(t, err)
+		user.SetRoles([]string{roleName})
+		_, err = tlsServer.Auth().UpsertUser(ctx, user)
+		require.NoError(t, err)
+	}
+
+	clientA, err := tlsServer.NewClient(TestUser(userA))
+	require.NoError(t, err)
+	defer clientA.Close()
+
+	clientB, err := tlsServer.NewClient(TestUser(userB))
+	require.NoError(t, err)
+	defer clientB.Close()
+
+	// orderedIDs is a list of all access request IDs in order of creation (used to
+	// verify sort order).
+	var orderedIDs []string
+
+	for i := 0; i < requestsPerUser; i++ {
+		clock.Advance(time.Second)
+		reqA, err := services.NewAccessRequest(userA, rroleA)
+		require.NoError(t, err)
+		rr, err := clientA.CreateAccessRequestV2(ctx, reqA)
+		require.NoError(t, err)
+		orderedIDs = append(orderedIDs, rr.GetName())
+	}
+
+	for i := 0; i < requestsPerUser; i++ {
+		clock.Advance(time.Second)
+		reqB, err := services.NewAccessRequest(userB, rroleB)
+		require.NoError(t, err)
+		rr, err := clientB.CreateAccessRequestV2(ctx, reqB)
+		require.NoError(t, err)
+		orderedIDs = append(orderedIDs, rr.GetName())
+	}
+
+	// wait for all written requests to propagate to cache
+	waitForAccessRequests(t, ctx, tlsServer.Auth(), func(reqs []*types.AccessRequestV3) bool {
+		return len(reqs) == len(orderedIDs)
+	})
+
+	var reqs []*types.AccessRequestV3
+	var observedIDs []string
+	var nextKey string
+	for {
+		rsp, err := tlsServer.Auth().ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+			Limit:    pageSize,
+			StartKey: nextKey,
+			Sort:     proto.AccessRequestSort_CREATED,
+		})
+		require.NoError(t, err)
+
+		for _, r := range rsp.AccessRequests {
+			observedIDs = append(observedIDs, r.GetName())
+		}
+
+		reqs = append(reqs, rsp.AccessRequests...)
+
+		nextKey = rsp.NextKey
+		if nextKey == "" {
+			break
+		}
+
+		require.Len(t, rsp.AccessRequests, pageSize)
+	}
+
+	// verify that we observed the requests in the same order that they were created (i.e. that the
+	// default sort order is ascending and time-based).
+	require.Equal(t, orderedIDs, observedIDs)
+
+	// verify that time-based sorting can be checked via creation time field as expected (relied upon later)
+	require.True(t, slices.IsSortedFunc(reqs, func(a, b *types.AccessRequestV3) int {
+		return a.GetCreationTime().Compare(b.GetCreationTime())
+	}))
+
+	reqs = nil
+	nextKey = ""
+	for {
+		rsp, err := tlsServer.Auth().ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+			Filter: &types.AccessRequestFilter{
+				User: userB,
+			},
+			Limit:    pageSize,
+			StartKey: nextKey,
+		})
+		require.NoError(t, err)
+
+		reqs = append(reqs, rsp.AccessRequests...)
+
+		nextKey = rsp.NextKey
+		if nextKey == "" {
+			break
+		}
+
+		require.Len(t, rsp.AccessRequests, pageSize)
+	}
+	require.Len(t, reqs, requestsPerUser)
+
+	// verify that access-control filtering is applied and exercise a different combination of sort params
+	for _, clt := range []ClientI{clientA, clientB} {
+		reqs = nil
+		nextKey = ""
+		for {
+			rsp, err := clt.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+				Limit:      pageSize,
+				StartKey:   nextKey,
+				Sort:       proto.AccessRequestSort_CREATED,
+				Descending: true,
+			})
+			require.NoError(t, err)
+
+			reqs = append(reqs, rsp.AccessRequests...)
+
+			nextKey = rsp.NextKey
+			if nextKey == "" {
+				break
+			}
+
+			require.Len(t, rsp.AccessRequests, pageSize)
+		}
+
+		require.Len(t, reqs, requestsPerUser)
+		require.True(t, slices.IsSortedFunc(reqs, func(a, b *types.AccessRequestV3) int {
+			// note that we flip `a` and `b` to assert Descending ordering.
+			return b.GetCreationTime().Compare(a.GetCreationTime())
+		}))
+	}
+
+	// set requests to a variety of states so that state-based ordering
+	// is distinctly different from time-based ordering.
+	var deny bool
+	expectStates := make(map[string]types.RequestState)
+	for i, id := range observedIDs {
+		if i%2 == 0 {
+			// leave half the requests as pending
+			continue
+		}
+		state := types.RequestState_APPROVED
+		if deny {
+			state = types.RequestState_DENIED
+		}
+		deny = !deny // toggle next target state
+
+		require.NoError(t, tlsServer.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{
+			RequestID: id,
+			State:     state,
+		}))
+		expectStates[id] = state
+	}
+
+	// wait until all requests in cache to present the expected state
+	waitForAccessRequests(t, ctx, tlsServer.Auth(), func(reqs []*types.AccessRequestV3) bool {
+		for _, r := range reqs {
+			if expected, ok := expectStates[r.GetName()]; ok && r.GetState() != expected {
+				return false
+			}
+		}
+		return true
+	})
+
+	// aggregate requests by descending state ordering
+	reqs = nil
+	nextKey = ""
+	for {
+		rsp, err := clientA.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+			Sort:       proto.AccessRequestSort_STATE,
+			Descending: true,
+			Limit:      pageSize,
+			StartKey:   nextKey,
+		})
+		require.NoError(t, err)
+
+		reqs = append(reqs, rsp.AccessRequests...)
+
+		nextKey = rsp.NextKey
+		if nextKey == "" {
+			break
+		}
+
+		require.Len(t, rsp.AccessRequests, pageSize)
+	}
+
+	require.Len(t, reqs, requestsPerUser)
+
+	// verify that requests are sorted by state
+	require.True(t, slices.IsSortedFunc(reqs, func(a, b *types.AccessRequestV3) int {
+		// state sort index sorts by the string representation of state. note that we
+		// flip `a` and `b` to assert Descending ordering.
+		return cmp.Compare(b.GetState().String(), a.GetState().String())
+	}))
+
+	// sanity-check to ensure that we did force a custom state ordering
+	require.False(t, slices.IsSortedFunc(reqs, func(a, b *types.AccessRequestV3) int {
+		return b.GetCreationTime().Compare(a.GetCreationTime())
+	}))
+}
+
 func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 	t.Parallel()
 
@@ -214,7 +508,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 		{
 			desc: "all allowed",
 			roles: map[string]types.RoleSpecV6{
-				"allow": types.RoleSpecV6{
+				"allow": {
 					Allow: types.RoleConditions{
 						Request: &types.AccessRequestConditions{
 							Roles: []string{"admins"},
@@ -229,7 +523,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 		{
 			desc: "all denied",
 			roles: map[string]types.RoleSpecV6{
-				"allow": types.RoleSpecV6{
+				"allow": {
 					Allow: types.RoleConditions{
 						Request: &types.AccessRequestConditions{
 							Roles: []string{"admins"},
@@ -239,7 +533,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 						},
 					},
 				},
-				"deny": types.RoleSpecV6{
+				"deny": {
 					Deny: types.RoleConditions{
 						Rules: []types.Rule{
 							{
@@ -256,7 +550,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 		{
 			desc: "create denied",
 			roles: map[string]types.RoleSpecV6{
-				"allow": types.RoleSpecV6{
+				"allow": {
 					Allow: types.RoleConditions{
 						Request: &types.AccessRequestConditions{
 							Roles: []string{"admins"},
@@ -266,7 +560,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 						},
 					},
 				},
-				"deny": types.RoleSpecV6{
+				"deny": {
 					Deny: types.RoleConditions{
 						Rules: []types.Rule{
 							{
@@ -282,7 +576,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 		{
 			desc: "get denied",
 			roles: map[string]types.RoleSpecV6{
-				"allow": types.RoleSpecV6{
+				"allow": {
 					Allow: types.RoleConditions{
 						Request: &types.AccessRequestConditions{
 							Roles: []string{"admins"},
@@ -292,7 +586,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 						},
 					},
 				},
-				"deny": types.RoleSpecV6{
+				"deny": {
 					Deny: types.RoleConditions{
 						Rules: []types.Rule{
 							{
@@ -308,7 +602,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 		{
 			desc: "list denied",
 			roles: map[string]types.RoleSpecV6{
-				"allow": types.RoleSpecV6{
+				"allow": {
 					Allow: types.RoleConditions{
 						Request: &types.AccessRequestConditions{
 							Roles: []string{"admins"},
@@ -318,7 +612,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 						},
 					},
 				},
-				"deny": types.RoleSpecV6{
+				"deny": {
 					Deny: types.RoleConditions{
 						Rules: []types.Rule{
 							{

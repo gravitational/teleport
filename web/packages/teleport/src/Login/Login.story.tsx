@@ -18,9 +18,9 @@
 
 import React from 'react';
 
-import LoginSuccess from './LoginSuccess';
-import { LoginFailed } from './LoginFailed';
-import { Login } from './Login';
+import { LoginSuccess } from './LoginSuccess';
+import { LoginFailedComponent as LoginFailed } from './LoginFailed';
+import { LoginComponent as Login } from './Login';
 import { State } from './useLogin';
 
 export default {

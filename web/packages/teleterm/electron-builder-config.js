@@ -132,6 +132,9 @@ module.exports = {
   },
   dmg: {
     artifactName: '${productName}-${version}-${arch}.${ext}',
+    // Turn off blockmaps since we don't support automatic updates.
+    // https://github.com/electron-userland/electron-builder/issues/2900#issuecomment-730571696
+    writeUpdateInfo: false,
     contents: [
       {
         x: 130,
@@ -155,6 +158,11 @@ module.exports = {
         to: './bin/tsh.exe',
       },
     ].filter(Boolean),
+  },
+  nsis: {
+    // Turn off blockmaps since we don't support automatic updates.
+    // https://github.com/electron-userland/electron-builder/issues/2900#issuecomment-730571696
+    differentialPackage: false,
   },
   rpm: {
     artifactName: '${name}-${version}.${arch}.${ext}',

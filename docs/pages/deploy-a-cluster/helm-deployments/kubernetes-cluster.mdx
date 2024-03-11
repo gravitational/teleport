@@ -284,9 +284,9 @@ While we encourage Teleport users to authenticate via their single sign-on
 provider, local users are a reliable fallback for cases when the SSO provider is
 down. 
 
-To demonstrate how to create a local user and authenticate to Teleport in order
-to access your Kubernetes cluster, let's create a local user who has access to
-Kubernetes group `system:masters` via the Teleport role `member`.
+In this section, we will  create a local user who has access to Kubernetes group
+`system:masters` via the Teleport role `member`. This user also has the built-in
+`access` and `editor` roles for administrative privileges.
 
 Paste the following role specification into a file called `member.yaml`:
 
@@ -304,7 +304,7 @@ Paste the following role specification into a file called `member.yaml`:
    with the name of the local Teleport user you want to create:
 
    ```code
-   $ kubectl exec -ti deployment/teleport-cluster-auth -- tctl users add <Var name="myuser" /> --roles=member
+   $ kubectl exec -ti deployment/teleport-cluster-auth -- tctl users add <Var name="myuser" /> --roles=member,access,editor
    User "myuser" has been created but requires a password. Share this URL with the user to
    complete user setup, link is valid for 1h:
    
@@ -378,7 +378,7 @@ cluster.
   [reference guide](../../reference/helm-reference/teleport-cluster.mdx).
 - **Register resources:** You can register all of the Kubernetes clusters in
   your infrastructure with Teleport. To start, read our [Auto-Discovery
-  guides](../../kubernetes-access/discovery.mdx) to see how to automatically
+  guides](../../auto-discovery/kubernetes.mdx) to see how to automatically
   register every cluster in your cloud. You can also register servers,
   databases, applications, and Windows desktops.
 - **Fine-tune your Kubernetes RBAC:** While the user you created in this guide

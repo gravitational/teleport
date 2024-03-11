@@ -550,9 +550,6 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	installCmd := action.NewInstall(cfg.actionConfig)
 	installCmd.RepoURL = agentRepoURL.String()
 	installCmd.Version = cfg.req.AgentVersion
-	if strings.Contains(installCmd.Version, "dev") {
-		installCmd.Version = "" // For testing during development.
-	}
 
 	agentChart, err := getChartData(installCmd.Version)
 	if err != nil {
@@ -587,6 +584,7 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	for k, v := range cfg.eksCluster.Tags {
 		eksTags[k] = aws.String(v)
 	}
+	eksTags[types.OriginLabel] = aws.String(types.OriginCloud)
 	kubeCluster, err := services.NewKubeClusterFromAWSEKS(aws.ToString(cfg.eksCluster.Name), aws.ToString(cfg.eksCluster.Arn), eksTags)
 	if err != nil {
 		return trace.Wrap(err)

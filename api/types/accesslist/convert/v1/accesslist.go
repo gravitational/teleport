@@ -94,7 +94,7 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 	}
 
 	var memberCount *uint32
-	if msg.Status.MemberCount != nil {
+	if msg.Status != nil && msg.Status.MemberCount != nil {
 		memberCount = new(uint32)
 		*memberCount = *msg.Status.MemberCount
 	}

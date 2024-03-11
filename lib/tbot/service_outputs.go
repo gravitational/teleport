@@ -30,12 +30,14 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -59,7 +61,8 @@ const renewalRetryLimit = 5
 type outputsService struct {
 	log               logrus.FieldLogger
 	reloadBroadcaster *channelBroadcaster
-	botIdentitySrc    botIdentitySrc
+	botClient         *auth.Client
+	getBotIdentity    getBotIdentityFn
 	cfg               *config.BotConfig
 	resolver          reversetunnelclient.Resolver
 }
@@ -85,25 +88,17 @@ func (s *outputsService) renewOutputs(
 	ctx, span := tracer.Start(ctx, "outputsService/renewOutputs")
 	defer span.End()
 
-	botIdentity := s.botIdentitySrc.BotIdentity()
-	client, err := clientForIdentity(ctx, s.log, s.cfg, botIdentity, s.resolver)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer client.Close()
-
 	// create a cache shared across outputs so they don't hammer the auth
 	// server with similar requests
 	drc := &outputRenewalCache{
-		client: client,
+		client: s.botClient,
 		cfg:    s.cfg,
 	}
 
 	// Determine the default role list based on the bot role. The role's
 	// name should match the certificate's Key ID (user and role names
 	// should all match bot-$name)
-	botResourceName := botIdentity.X509Cert.Subject.CommonName
-	defaultRoles, err := fetchDefaultRoles(ctx, client, botResourceName)
+	defaultRoles, err := fetchDefaultRoles(ctx, s.botClient, s.getBotIdentity())
 	if err != nil {
 		s.log.WithError(err).Warnf("Unable to determine default roles, no roles will be requested if unspecified")
 		defaultRoles = []string{}
@@ -132,7 +127,7 @@ func (s *outputsService) renewOutputs(
 		}
 
 		impersonatedIdentity, impersonatedClient, err := s.generateImpersonatedIdentity(
-			ctx, client, botIdentity, output, defaultRoles,
+			ctx, s.botClient, s.getBotIdentity(), output, defaultRoles,
 		)
 		if err != nil {
 			return trace.Wrap(err, "generating impersonated certs for output: %s", output)
@@ -296,7 +291,7 @@ type identityConfigurator = func(req *proto.UserCertsRequest)
 // certs.
 func (s *outputsService) generateIdentity(
 	ctx context.Context,
-	client auth.ClientI,
+	client *auth.Client,
 	currentIdentity *identity.Identity,
 	output config.Output,
 	defaultRoles []string,
@@ -388,7 +383,7 @@ func (s *outputsService) generateIdentity(
 	return newIdentity, nil
 }
 
-func getDatabase(ctx context.Context, clt auth.ClientI, name string) (types.Database, error) {
+func getDatabase(ctx context.Context, clt *auth.Client, name string) (types.Database, error) {
 	ctx, span := tracer.Start(ctx, "getDatabase")
 	defer span.End()
 
@@ -412,7 +407,7 @@ func getDatabase(ctx context.Context, clt auth.ClientI, name string) (types.Data
 	return db, trace.Wrap(err)
 }
 
-func (s *outputsService) getRouteToDatabase(ctx context.Context, client auth.ClientI, output *config.DatabaseOutput) (proto.RouteToDatabase, error) {
+func (s *outputsService) getRouteToDatabase(ctx context.Context, client *auth.Client, output *config.DatabaseOutput) (proto.RouteToDatabase, error) {
 	ctx, span := tracer.Start(ctx, "outputsService/getRouteToDatabase")
 	defer span.End()
 
@@ -446,7 +441,7 @@ func (s *outputsService) getRouteToDatabase(ctx context.Context, client auth.Cli
 	}, nil
 }
 
-func getKubeCluster(ctx context.Context, clt auth.ClientI, name string) (types.KubeCluster, error) {
+func getKubeCluster(ctx context.Context, clt *auth.Client, name string) (types.KubeCluster, error) {
 	ctx, span := tracer.Start(ctx, "getKubeCluster")
 	defer span.End()
 
@@ -470,7 +465,7 @@ func getKubeCluster(ctx context.Context, clt auth.ClientI, name string) (types.K
 	return cluster, trace.Wrap(err)
 }
 
-func getApp(ctx context.Context, clt auth.ClientI, appName string) (types.Application, error) {
+func getApp(ctx context.Context, clt *auth.Client, appName string) (types.Application, error) {
 	ctx, span := tracer.Start(ctx, "getApp")
 	defer span.End()
 
@@ -497,7 +492,7 @@ func getApp(ctx context.Context, clt auth.ClientI, appName string) (types.Applic
 	return apps[0], nil
 }
 
-func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client auth.ClientI, output *config.ApplicationOutput) (proto.RouteToApp, error) {
+func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client *auth.Client, output *config.ApplicationOutput) (proto.RouteToApp, error) {
 	ctx, span := tracer.Start(ctx, "outputsService/getRouteToApp")
 	defer span.End()
 
@@ -534,11 +529,11 @@ func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identit
 // impersonated identity.
 func (s *outputsService) generateImpersonatedIdentity(
 	ctx context.Context,
-	botClient auth.ClientI,
+	botClient *auth.Client,
 	botIdentity *identity.Identity,
 	output config.Output,
 	defaultRoles []string,
-) (impersonatedIdentity *identity.Identity, impersonatedClient auth.ClientI, err error) {
+) (impersonatedIdentity *identity.Identity, impersonatedClient *auth.Client, err error) {
 	ctx, span := tracer.Start(ctx, "outputsService/generateImpersonatedIdentity")
 	defer span.End()
 
@@ -551,7 +546,8 @@ func (s *outputsService) generateImpersonatedIdentity(
 
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
-	impersonatedClient, err = clientForIdentity(ctx, s.log, s.cfg, impersonatedIdentity, s.resolver)
+	facade := identity.NewFacade(s.cfg.FIPS, s.cfg.Insecure, impersonatedIdentity)
+	impersonatedClient, err = clientForFacade(ctx, s.log, s.cfg, facade, s.resolver)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -640,6 +636,8 @@ func (s *outputsService) generateImpersonatedIdentity(
 		return impersonatedIdentity, impersonatedClient, nil
 	case *config.UnstableClientCredentialOutput:
 		return impersonatedIdentity, impersonatedClient, nil
+	case *config.SPIFFESVIDOutput:
+		return impersonatedIdentity, impersonatedClient, nil
 	default:
 		return nil, nil, trace.BadParameter("generateImpersonatedIdentity does not support output type (%T)", output)
 	}
@@ -647,8 +645,8 @@ func (s *outputsService) generateImpersonatedIdentity(
 
 // fetchDefaultRoles requests the bot's own role from the auth server and
 // extracts its full list of allowed roles.
-func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, botRole string) ([]string, error) {
-	role, err := roleGetter.GetRole(ctx, botRole)
+func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, identity *identity.Identity) ([]string, error) {
+	role, err := roleGetter.GetRole(ctx, identity.X509Cert.Subject.CommonName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -662,7 +660,7 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, botR
 // requests for the same information. This is shared between all of the
 // outputs.
 type outputRenewalCache struct {
-	client auth.ClientI
+	client *auth.Client
 
 	cfg *config.BotConfig
 	mu  sync.Mutex
@@ -727,18 +725,27 @@ func (orc *outputRenewalCache) proxyPing(ctx context.Context) (*webclient.PingRe
 		return orc._proxyPong, nil
 	}
 
-	// Note: this relies on the auth server's proxy address. We could
-	// potentially support some manual parameter here in the future if desired.
-	authPong, err := orc.authPing(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Determine the Proxy address to use.
+	addr, addrKind := orc.cfg.Address()
+	switch addrKind {
+	case config.AddressKindAuth:
+		// If the address is an auth address, ping auth to determine proxy addr.
+		authPong, err := orc.authPing(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		addr = authPong.ProxyPublicAddr
+	case config.AddressKindProxy:
+		// If the address is a proxy address, use it directly.
+	default:
+		return nil, trace.BadParameter("unsupported address kind: %v", addrKind)
 	}
 
 	// We use find instead of Ping as it's less resource intense and we can
 	// ping the AuthServer directly for its configuration if necessary.
 	proxyPong, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
-		ProxyAddr: authPong.ProxyPublicAddr,
+		ProxyAddr: addr,
 		Insecure:  orc.cfg.Insecure,
 	})
 	if err != nil {
@@ -774,12 +781,12 @@ type outputProvider struct {
 	*outputRenewalCache
 	// impersonatedClient is a client using the impersonated identity configured
 	// for that output.
-	impersonatedClient auth.ClientI
+	impersonatedClient *auth.Client
 }
 
 // GetRemoteClusters uses the impersonatedClient to call GetRemoteClusters.
-func (op *outputProvider) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
-	return op.impersonatedClient.GetRemoteClusters(opts...)
+func (op *outputProvider) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
+	return op.impersonatedClient.GetRemoteClusters(ctx)
 }
 
 // GenerateHostCert uses the impersonatedClient to call GenerateHostCert.
@@ -792,6 +799,13 @@ func (op *outputProvider) GenerateHostCert(
 // GetCertAuthority uses the impersonatedClient to call GetCertAuthority.
 func (op *outputProvider) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	return op.impersonatedClient.GetCertAuthority(ctx, id, loadKeys)
+}
+
+// SignX509SVIDs uses the impersonatedClient to call SignX509SVIDs.
+func (op *outputProvider) SignX509SVIDs(
+	ctx context.Context, in *machineidv1pb.SignX509SVIDsRequest, opts ...grpc.CallOption,
+) (*machineidv1pb.SignX509SVIDsResponse, error) {
+	return op.impersonatedClient.WorkloadIdentityServiceClient().SignX509SVIDs(ctx, in, opts...)
 }
 
 // chooseOneDatabase chooses one matched database by name, or tries to choose

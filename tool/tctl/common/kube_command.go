@@ -68,7 +68,7 @@ func (c *KubeCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 }
 
 // TryRun attempts to run subcommands like "kube ls".
-func (c *KubeCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
+func (c *KubeCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
 	switch cmd {
 	case c.kubeList.FullCommand():
 		err = c.ListKube(ctx, client)
@@ -80,7 +80,7 @@ func (c *KubeCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 
 // ListKube prints the list of kube clusters that have recently sent heartbeats
 // to the cluster.
-func (c *KubeCommand) ListKube(ctx context.Context, clt auth.ClientI) error {
+func (c *KubeCommand) ListKube(ctx context.Context, clt *auth.Client) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)

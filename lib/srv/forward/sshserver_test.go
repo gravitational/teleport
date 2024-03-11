@@ -196,3 +196,46 @@ func TestDirectTCPIP(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckTCPIPForward(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name   string
+		login  string
+		assert require.ErrorAssertionFunc
+	}{
+		{
+			name:   "join principal rejected",
+			login:  teleport.SSHSessionJoinPrincipal,
+			assert: require.Error,
+		},
+		{
+			name:   "user accepted",
+			login:  "test-user",
+			assert: require.NoError,
+		},
+	}
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := Server{
+				log:             utils.NewLoggerForTests().WithField(trace.Component, "test"),
+				identityContext: srv.IdentityContext{Login: tt.login},
+			}
+			err := s.checkTCPIPForwardRequest(&ssh.Request{
+				Type:      teleport.TCPIPForwardRequest,
+				WantReply: false,
+				Payload: ssh.Marshal(sshutils.TCPIPForwardReq{
+					Addr: "localhost",
+					Port: 0,
+				}),
+			})
+			tt.assert(t, err)
+		})
+	}
+}
+
+// TODO(atburke): Add test for handleForwardedTCPIPRequest once we have
+// infrastructure for higher-level tests here.

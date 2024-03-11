@@ -1015,6 +1015,26 @@ message GetRolesResponse {
   repeated types.RoleV6 Roles = 1;
 }
 
+// ListRolesRequest encodes parameters for paginated role lookup.
+message ListRolesRequest {
+  // Limit is the maximum amount of roles per page.
+  int32 Limit = 1;
+
+  // StartKey is used to resume a query in order to enable pagination.
+  // If the previous response had LastKey set then this should be
+  // set to its value. Otherwise leave empty.
+  string StartKey = 2;
+}
+
+// ListRolesResponse is a page of roles.
+message ListRolesResponse {
+  // Roles is a page of roles.
+  repeated types.RoleV6 Roles = 1;
+
+  // NextKey will serve as the StartKey for the next page of roles.
+  string NextKey = 2;
+}
+
 // Request for CreateRole.
 message CreateRoleRequest {
   // Role to be created.
@@ -1807,7 +1827,11 @@ message PaginatedResource {
     // UserGroup represents a UserGroup resource.
     types.UserGroupV1 UserGroup = 10 [(gogoproto.jsontag) = "user_group,omitempty"];
     // AppServerOrSAMLIdPServiceProvider represents either an AppServer or a SAML IdP Service Provider resource.
-    types.AppServerOrSAMLIdPServiceProviderV1 AppServerOrSAMLIdPServiceProvider = 11;
+    //
+    // DEPRECATED: Use AppServer and SAMLIdPServiceProvider type individually.
+    types.AppServerOrSAMLIdPServiceProviderV1 AppServerOrSAMLIdPServiceProvider = 11 [deprecated = true];
+    // SAMLIdPServiceProvider represents a SAML IdP service provider resource.
+    types.SAMLIdPServiceProviderV1 SAMLIdPServiceProvider = 12 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
   }
 
   reserved 4;
@@ -2422,6 +2446,51 @@ message ExportUpgradeWindowsResponse {
   string SystemdUnitSchedule = 3;
 }
 
+// AccessRequestSort determines access request sort index.
+enum AccessRequestSort {
+  // DEFAULT sorts access requests by their native backend index. this is currently equivalent
+  // to sorting by request ID, but that is subject to change.
+  DEFAULT = 0;
+
+  // CREATED sorts access requests by creation time (this is the sort index typically used in
+  // user interfaces since most users are looking for recently-created requests).
+  CREATED = 1;
+
+  // STATE sorts access requests by their state (PENDING, APPROVED, etc).
+  STATE = 2;
+}
+
+// ListAccessRequestsRequest encodes the parameters for a paginated access request lookup.
+message ListAccessRequestsRequest {
+  // Filter matches access requests.
+  types.AccessRequestFilter Filter = 1;
+
+  // Sort determines the sort order of returned access requests.
+  AccessRequestSort Sort = 2;
+
+  // Descending requests descending sort order if true (teleport APIs generally always
+  // defaults to ascending sort order since that is the native sort order used in the
+  // teleport backend).
+  bool Descending = 3;
+
+  // Limit is the maximum amount of requests per page.
+  int32 Limit = 4;
+
+  // StartKey is used to resume a query in order to enable pagination.
+  // If the previous response had NextKey set then this should be
+  // set to its value. Otherwise leave empty.
+  string StartKey = 5;
+}
+
+// ListAccessRequestsResponse is a page of access requests.
+message ListAccessRequestsResponse {
+  // AccessRequests is a page of access requests.
+  repeated types.AccessRequestV3 AccessRequests = 1;
+
+  // NextKey will serve as the StartKey for the next page of requests.
+  string NextKey = 2;
+}
+
 // AccessRequestAllowedPromotionRequest is the request to AccessRequestAllowedPromotion RPC call.
 message AccessRequestAllowedPromotionRequest {
   // AccessRequest is the access request to get promotions for.
@@ -2520,6 +2589,10 @@ service AuthService {
 
   // GetAccessRequestsV2 gets all pending access requests.
   rpc GetAccessRequestsV2(types.AccessRequestFilter) returns (stream types.AccessRequestV3);
+
+  // ListAccessRequests gets access requests with pagination and sorting.
+  rpc ListAccessRequests(ListAccessRequestsRequest) returns (ListAccessRequestsResponse);
+
   // CreateAccessRequest creates a new access request.
   // Deprecated: use CreateAccessRequestV2 instead.
   // DELETE IN v15.0.0.
@@ -2716,7 +2789,11 @@ service AuthService {
   // GetRole retrieves a role described by the given request.
   rpc GetRole(GetRoleRequest) returns (types.RoleV6);
   // GetRole retrieves all roles.
+  //
+  // DELETE IN 17.0
   rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
+  // ListRoles is a paginated role getter.
+  rpc ListRoles(ListRolesRequest) returns (ListRolesResponse);
   // CreateRole creates a new role.
   rpc CreateRole(CreateRoleRequest) returns (types.RoleV6);
   // UpdateRole updates an existing role.
