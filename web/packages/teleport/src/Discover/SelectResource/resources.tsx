@@ -204,6 +204,8 @@ export function getResourcePretitle(r: ResourceSpec) {
         return 'Amazon Web Services (AWS)';
       }
       return 'Server';
+    case ResourceKind.SamlApplication:
+      return 'SAML Application';
   }
 
   return '';
