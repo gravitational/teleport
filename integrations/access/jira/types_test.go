@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestErrorResultUnmarshall(t *testing.T) {
+func TestErrorResultUnmarshal(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name           string
