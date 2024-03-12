@@ -1862,20 +1862,29 @@ func TestMergingCAPinConfig(t *testing.T) {
 
 func TestLicenseFile(t *testing.T) {
 	testCases := []struct {
-		path   string
-		result string
+		path    string
+		datadir string
+		result  string
 	}{
-		// 0 - no license
+		// 0 - no license, no data dir
 		{
-			path:   "",
-			result: filepath.Join(defaults.DataDir, defaults.LicenseFile),
+			path:    "",
+			datadir: "",
+			result:  filepath.Join(defaults.DataDir, defaults.LicenseFile),
 		},
-		// 1 - relative path
+		// 1 - relative path, default data dir
 		{
-			path:   "lic.pem",
-			result: filepath.Join(defaults.DataDir, "lic.pem"),
+			path:    "lic.pem",
+			datadir: "",
+			result:  filepath.Join(defaults.DataDir, "lic.pem"),
 		},
-		// 2 - absolute path
+		// 2 - relative path, custom data dir
+		{
+			path:    "baz.pem",
+			datadir: filepath.Join("foo", "bar"),
+			result:  filepath.Join("foo", "bar", "baz.pem"),
+		},
+		// 3 - absolute path
 		{
 			path:   "/etc/teleport/license",
 			result: "/etc/teleport/license",
@@ -1883,15 +1892,22 @@ func TestLicenseFile(t *testing.T) {
 	}
 
 	cfg := servicecfg.MakeDefaultConfig()
-	require.Equal(t, filepath.Join(defaults.DataDir, defaults.LicenseFile), cfg.Auth.LicenseFile)
 
-	for _, tc := range testCases {
-		fc := new(FileConfig)
-		require.NoError(t, fc.CheckAndSetDefaults())
-		fc.Auth.LicenseFile = tc.path
-		err := ApplyFileConfig(fc, cfg)
-		require.NoError(t, err)
-		require.Equal(t, tc.result, cfg.Auth.LicenseFile)
+	// the license file should be empty by default, as we can only fill
+	// in the default (<datadir>/license.pem) after we know what the
+	// data dir is supposed to be
+	require.Empty(t, cfg.Auth.LicenseFile)
+
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("test%d", i), func(t *testing.T) {
+			fc := new(FileConfig)
+			require.NoError(t, fc.CheckAndSetDefaults())
+			fc.Auth.LicenseFile = tc.path
+			fc.DataDir = tc.datadir
+			err := ApplyFileConfig(fc, cfg)
+			require.NoError(t, err)
+			require.Equal(t, tc.result, cfg.Auth.LicenseFile)
+		})
 	}
 }
 
