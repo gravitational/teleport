@@ -138,25 +138,11 @@ func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessLi
 
 // ListAccessListMembers returns a paginated list of all access list members.
 func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error) {
-	// We'll make a best effort to determine if the access list is implicit, but will proceed if we can't figure it out.
-	al, err := a.GetAccessList(ctx, accessListName)
-	if err == nil {
-		if al.HasImplicitMembership() {
-			return nil, "", trace.Wrap(services.ImplicitAccessListError{})
-		}
-	}
 	return a.memberService.WithPrefix(accessListName).ListResources(ctx, pageSize, nextToken)
 }
 
 // GetAccessListMember returns the specified access list member resource.
 func (a *AccessListService) GetAccessListMember(ctx context.Context, accessListName string, memberName string) (*accesslist.AccessListMember, error) {
-	// We'll make a best effort to determine if the access list is implicit, but will proceed if we can't figure it out.
-	al, err := a.GetAccessList(ctx, accessListName)
-	if err == nil {
-		if al.HasImplicitMembership() {
-			return nil, trace.Wrap(services.ImplicitAccessListError{})
-		}
-	}
 	return a.memberService.WithPrefix(accessListName).GetResource(ctx, memberName)
 }
 
