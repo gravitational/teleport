@@ -38,7 +38,7 @@ func WithMFAUnaryInterceptor(mfaCeremony mfa.MFACeremony) grpc.UnaryClientInterc
 			// If we find an MFA response passed through the context, attach it to the
 			// request. Note: this may still fail if the MFA response allows reuse and
 			// the specified endpoint doesn't allow reuse. In this case, the client
-			// prompt for MFA again below.
+			// prompts for MFA again below.
 			opts = append(opts, mfa.WithCredentials(mfaResp))
 		} else if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
