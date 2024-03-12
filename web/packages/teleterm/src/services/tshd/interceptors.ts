@@ -22,7 +22,7 @@ import { isObject } from 'shared/utils/highbar';
 
 import Logger from 'teleterm/logger';
 
-const SENSITIVE_PROPERTIES = ['passw', 'authClusterId'];
+const SENSITIVE_PROPERTIES = ['passw', 'authClusterId', 'pin'];
 
 export function loggingInterceptor(logger: Logger): RpcInterceptor {
   return {
