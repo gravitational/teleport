@@ -50,7 +50,7 @@ func (e ErrorResult) Error() string {
 	}
 	result := sb.String()
 	if result == "" {
-		return "Unknown jira error"
+		return "Unknown Jira error"
 	}
 	return result
 }
@@ -79,7 +79,7 @@ func (e *ErrorDetails) UnmarshalJSON(data []byte) error {
 
 	// Everything failed, we return an unrmarshalling error that contains the data.
 	// This way, even if everything failed, the user still has the original response in the logs.
-	return trace.Errorf("Failed to unmarshall Jira error: %q", string(data))
+	return trace.Errorf("Failed to unmarshal Jira error: %q", string(data))
 }
 
 func (e ErrorDetails) String() string {
