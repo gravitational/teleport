@@ -19,6 +19,7 @@
 module.exports = {
   parser: '@typescript-eslint/parser',
   parserOptions: {
+    project: ['tsconfig.json', 'tsconfig.node.json'],
     ecmaVersion: 6,
     ecmaFeatures: {
       jsx: true,
@@ -48,7 +49,7 @@ module.exports = {
       files: ['**/*.test.{ts,tsx,js,jsx}'],
       plugins: ['jest'],
       extends: [
-        'plugin:jest/all',
+        'plugin:jest/recommended',
         'plugin:testing-library/react',
         'plugin:jest-dom/recommended',
       ],
