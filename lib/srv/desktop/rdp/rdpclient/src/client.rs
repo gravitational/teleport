@@ -648,7 +648,12 @@ impl Client {
         height: u32,
     ) -> ClientResult<()> {
         let monitor_layout_buf = {
-            let mut monitor_layout_buf = WriteBuf::new();
+            let mut monitor_layout_buf = WriteBuf::new(); // TODO(isaiah): re-use this?
+            let orientation = if width > height {
+                Orientation::Landscape
+            } else {
+                Orientation::Portrait
+            };
             let monitor_layout_pdu = ClientPdu::DisplayControlMonitorLayout(MonitorLayoutPdu {
                 monitors: vec![Monitor {
                     flags: MonitorFlags::PRIMARY,
@@ -658,7 +663,7 @@ impl Client {
                     height,
                     physical_width: 0,
                     physical_height: 0,
-                    orientation: Orientation::Landscape,
+                    orientation,
                     desktop_scale_factor: 100, // percent; todo: can this be zero?
                     device_scale_factor: 100,  // percent; todo: can this be zero?
                 }],
