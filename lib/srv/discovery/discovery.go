@@ -1233,7 +1233,7 @@ func (s *Server) startDynamicWatcherUpdater() {
 				continue
 			}
 
-			if err := s.upsertDynamicMatchers(dc); err != nil {
+			if err := s.upsertDynamicMatchers(s.ctx, dc); err != nil {
 				s.Log.WithError(err).Warnf("failed to update dynamic matchers for discovery config %q", dc.GetName())
 				continue
 			}
@@ -1265,7 +1265,7 @@ func (s *Server) startDynamicWatcherUpdater() {
 					continue
 				}
 
-				if err := s.upsertDynamicMatchers(dc); err != nil {
+				if err := s.upsertDynamicMatchers(s.ctx, dc); err != nil {
 					s.Log.WithError(err).Warnf("failed to update dynamic matchers for discovery config %q", dc.GetName())
 					continue
 				}
@@ -1324,15 +1324,20 @@ func (s *Server) deleteDynamicFetchers(name string) {
 	s.muDynamicServerGCPFetchers.Lock()
 	delete(s.dynamicServerGCPFetchers, name)
 	s.muDynamicServerGCPFetchers.Unlock()
+
+	s.muDynamicTAGSyncFetchers.Lock()
+	delete(s.dynamicTAGSyncFetchers, name)
+	s.muDynamicTAGSyncFetchers.Unlock()
 }
 
 // upsertDynamicMatchers upserts the internal set of dynamic matchers given a particular discovery config.
-func (s *Server) upsertDynamicMatchers(dc *discoveryconfig.DiscoveryConfig) error {
+func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) error {
 	matchers := Matchers{
-		AWS:        dc.Spec.AWS,
-		Azure:      dc.Spec.Azure,
-		GCP:        dc.Spec.GCP,
-		Kubernetes: dc.Spec.Kube,
+		AWS:         dc.Spec.AWS,
+		Azure:       dc.Spec.Azure,
+		GCP:         dc.Spec.GCP,
+		Kubernetes:  dc.Spec.Kube,
+		AccessGraph: dc.Spec.AccessGraph,
 	}
 	s.discardUnsupportedMatchers(&matchers)
 
@@ -1365,6 +1370,16 @@ func (s *Server) upsertDynamicMatchers(dc *discoveryconfig.DiscoveryConfig) erro
 	s.muDynamicDatabaseFetchers.Lock()
 	s.dynamicDatabaseFetchers[dc.GetName()] = databaseFetchers
 	s.muDynamicDatabaseFetchers.Unlock()
+
+	awsSyncMatchers, err := s.accessGraphFetchersFromMatchers(
+		ctx, matchers,
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.muDynamicTAGSyncFetchers.Lock()
+	s.dynamicTAGSyncFetchers[dc.GetName()] = awsSyncMatchers
+	s.muDynamicTAGSyncFetchers.Unlock()
 
 	// TODO(marco): add other fetchers: Kube Clusters and Kube Resources (Apps)
 	return nil
