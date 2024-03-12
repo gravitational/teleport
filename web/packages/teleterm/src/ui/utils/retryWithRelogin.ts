@@ -19,6 +19,7 @@
 import { ClusterOrResourceUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 import { IAppContext } from 'teleterm/ui/types';
 import Logger from 'teleterm/logger';
+import { isTshdRpcError } from 'teleterm/services/tshd/cloneableClient';
 
 const logger = new Logger('retryWithRelogin');
 
@@ -93,14 +94,10 @@ export async function retryWithRelogin<T>(
 }
 
 export function isRetryable(error: unknown): boolean {
-  // TODO(ravicious): Replace this with actual check on metadata.
-  return (
-    error instanceof Error &&
-    (error.message.includes('ssh: handshake failed') ||
-      error.message.includes('ssh: cert has expired') ||
-      error.message.includes('tls: expired certificate') ||
-      error.message.includes('client credentials have expired'))
-  );
+  if (isTshdRpcError(error)) {
+    return error.isResolvableWithRelogin;
+  }
+  return false;
 }
 
 // Notice that we don't differentiate between onSuccess and onCancel. In both cases, we're going to
