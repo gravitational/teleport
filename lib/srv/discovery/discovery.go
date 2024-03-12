@@ -114,6 +114,8 @@ type Config struct {
 	AccessPoint auth.DiscoveryAccessPoint
 	// Log is the logger.
 	Log logrus.FieldLogger
+	// ServerID identifies the Teleport instance where this service runs.
+	ServerID string
 	// onDatabaseReconcile is called after each database resource reconciliation.
 	onDatabaseReconcile func()
 	// protocolChecker is used by Kubernetes fetchers to check port's protocol if needed.
