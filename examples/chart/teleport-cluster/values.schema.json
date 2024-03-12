@@ -46,7 +46,8 @@
         "auth": {
             "$id": "#/properties/auth",
             "type": "object"
-        },"proxy": {
+        },
+        "proxy": {
             "$id": "#/properties/proxy",
             "type": "object",
             "properties": {
