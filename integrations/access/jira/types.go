@@ -56,22 +56,29 @@ func (e ErrorResult) Error() string {
 // ErrorDetails are used to unmarshall inconsistently formatted Jira errors
 // details.
 type ErrorDetails struct {
-	Errors       map[string]string
-	LegacyErrors []string
+	// errors contain object-formatted Jira errors. Usually Jira returns
+	// errors in an object where keys are single word representing what is
+	// broken, and values containing text descrption of the issue.
+	// This is the official return format, according to Jira's docs.
+	errors map[string]string
+	// legacyErrors ensures backward compatibility with Jira errors returned as
+	// a list. It's unclear wich Jira version and which part of jira can return
+	// such errors, but they existed at some point, and we might still get them.
+	legacyErrors []string
 }
 
 func (e *ErrorDetails) UnmarshalJSON(data []byte) error {
 	// Try to parse as a new error
 	var errors map[string]string
 	if err := json.Unmarshal(data, &errors); err == nil {
-		e.Errors = errors
+		e.errors = errors
 		return nil
 	}
 
 	// Try to parse as a legacy error
 	var legacyErrors []string
 	if err := json.Unmarshal(data, &legacyErrors); err == nil {
-		e.LegacyErrors = legacyErrors
+		e.legacyErrors = legacyErrors
 		return nil
 	}
 
@@ -82,10 +89,10 @@ func (e *ErrorDetails) UnmarshalJSON(data []byte) error {
 
 func (e ErrorDetails) String() string {
 	switch {
-	case len(e.Errors) > 0:
-		return fmt.Sprintf("%s", e.Errors)
-	case len(e.LegacyErrors) > 0:
-		return fmt.Sprintf("%s", e.LegacyErrors)
+	case len(e.errors) > 0:
+		return fmt.Sprintf("%s", e.errors)
+	case len(e.legacyErrors) > 0:
+		return fmt.Sprintf("%s", e.legacyErrors)
 	default:
 		return ""
 	}
