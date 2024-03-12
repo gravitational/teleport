@@ -39,18 +39,18 @@ func (p *Plugin) getLicense(w http.ResponseWriter, r *http.Request, params httpr
 	// This anonymization key is never retained by Teleport,
 	// which prevents us from being able to deanonymize any
 	// data.
-	appendedPem, err := generate.AppendAnonymizationKey([]byte(pem))
+	withAnonymizatonKey, err := generate.AppendAnonymizationKey([]byte(pem))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	licensefile, err := licensefile.FromPEM(appendedPem)
+	licensefile, err := licensefile.FromPEM(withAnonymizatonKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return ui.GetLicenseResponse{
-		PEM:    pem,
+		PEM:    string(withAnonymizatonKey),
 		Expiry: licensefile.License.Expiry(),
-	}, err
+	}, nil
 }
