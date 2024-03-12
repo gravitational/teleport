@@ -21,3 +21,8 @@ const (
 	// Workforce Identity Federation.
 	GCPWorkforce = "gcp-workforce"
 )
+
+const (
+	// DefaultRelayStateGCPWorkforce is a default relay state for GCPWorkforce preset.
+	DefaultRelayStateGCPWorkforce = "https://console.cloud.google.com"
+)
