@@ -73,10 +73,10 @@ func TestValidateSessionRecordingConfigOnCloud(t *testing.T) {
 	})
 
 	recConfig := types.DefaultSessionRecordingConfig()
-	err = testServer.AuthServer.SetSessionRecordingConfig(ctx, recConfig)
+	_, err = testServer.AuthServer.UpsertSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	recConfig.SetMode(types.RecordAtProxy)
-	err = testServer.AuthServer.SetSessionRecordingConfig(ctx, recConfig)
+	_, err = testServer.AuthServer.UpsertSessionRecordingConfig(ctx, recConfig)
 	require.EqualError(t, err, "cannot set proxy recording mode on Cloud")
 }
