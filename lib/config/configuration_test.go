@@ -3768,6 +3768,34 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "tag matchers",
+			discoveryConfig: Discovery{
+				AccessGraph: &AccessGraphSync{
+					AWS: []AccessGraphAWSSync{
+						{
+							Regions:       []string{"us-west-2", "us-east-1"},
+							AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+							ExternalID:    "externalID123",
+						},
+					},
+				},
+			},
+			expectedDiscovery: servicecfg.DiscoveryConfig{
+				Enabled: true,
+				AccessGraph: &types.AccessGraphSync{
+					AWS: []*types.AccessGraphAWSSync{
+						{
+							Regions: []string{"us-west-2", "us-east-1"},
+							AssumeRole: &types.AssumeRole{
+								RoleARN:    "arn:aws:iam::123456789012:role/DBDiscoverer",
+								ExternalID: "externalID123",
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -4755,7 +4783,8 @@ func TestDiscoveryConfig(t *testing.T) {
 			mutate: func(cfg cfgMap) {
 				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
 				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
-					{"types": []string{"vm"},
+					{
+						"types":           []string{"vm"},
 						"regions":         []string{"westcentralus"},
 						"resource_groups": []string{"rg1"},
 						"subscriptions":   []string{"88888888-8888-8888-8888-888888888888"},
@@ -4797,7 +4826,8 @@ func TestDiscoveryConfig(t *testing.T) {
 			mutate: func(cfg cfgMap) {
 				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
 				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
-					{"types": []string{"vm"},
+					{
+						"types":           []string{"vm"},
 						"regions":         []string{"westcentralus"},
 						"resource_groups": []string{"rg1"},
 						"subscriptions":   []string{"88888888-8888-8888-8888-888888888888"},
