@@ -199,7 +199,7 @@ func newAccessGraphClient(ctx context.Context, certs []tls.Certificate, config s
 func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-chan struct{}) error {
 	const (
 		// aws discovery semaphore lock.
-		semaphoreName = "aws_discovery"
+		semaphoreName = "access_graph_aws_sync"
 		// Configure health check service to monitor access graph service and
 		// automatically reconnect if the connection is lost without
 		// relying on new events from the auth server to trigger a reconnect.
@@ -210,12 +210,13 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 		 }
 	 }`
 	)
-	// AcquireSemaphoreWithRetry will retry until the semaphore is acquired.
-	// This prevents multiple discovery services to push AWS resources in parallel.
+
 	const (
 		semaphoreExpiration = time.Minute
 	)
-
+	// AcquireSemaphoreLock will retry until the semaphore is acquired.
+	// This prevents multiple discovery services to push AWS resources in parallel.
+	// lease must be released to cleanup the resource in auth server.
 	lease, err := services.AcquireSemaphoreLock(
 		ctx,
 		services.SemaphoreLockConfig{
