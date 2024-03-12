@@ -73,7 +73,7 @@ You will need to repeat these steps if you rotate Teleport's database certificat
 1. Get the Teleport database CRL by running:
 
    ```code
-   $ tctl auth crl --type=db_client > db-ca.crl
+   $ tctl auth crl --type=db-client > db-ca.crl
    ```
 
 1. Transfer the `db-ca.cer` and `db-ca.crl` files to a Windows machine where you can manage your group policy.

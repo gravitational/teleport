@@ -4,7 +4,7 @@ description: How to configure Teleport database access with self-hosted MongoDB.
 videoBanner: 6lgVObxoLkc
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="MongoDB cluster" dbConfigure="MongoDB cluster with mutual TLS authentication" dbName="MongoDB" !)
+(!docs/pages/includes/database-access/self-hosted-introduction.mdx  dbType="MongoDB cluster" dbConfigure="MongoDB cluster with mutual TLS authentication" dbName="MongoDB" !)
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -31,7 +31,8 @@ videoBanner: 6lgVObxoLkc
 
 - (!docs/pages/includes/tctl.mdx!)
 - A certificate authority for MongoDB Replica Set, and the public certificate
-  for that CA, in PEM format: `<Var name="/path/to/your/ca.crt" />`.
+  for that CA, in PEM format: `<Var name="/path/to/your/ca.crt" />`. You can
+  also configure Teleport to trust this CA for standalone MongoDB instances. 
 
   (!docs/pages/includes/database-access/split-db-ca-details.mdx db="MongoDB Replica Set"!)
 
@@ -134,13 +135,35 @@ accordingly to grant the user appropriate database permissions.
   The command will create two files: `mongo.cas` with Teleport's certificate
   authority and `mongo.crt` with the generated certificate and key pair. You will
   need these files to enable mutual TLS on your MongoDB server.
-  </TabItem>
-  <TabItem label="Replica Set">
-  Export the Teleport Database Client CA from Teleport, and then add it as an 
+
+  If your MongoDB instance already has a CA that it uses to sign certificates ,
+  you only need to export a Teleport CA certificate for MongoDB to authenticate
+  traffic from the Teleport Database Service.
+  
+  1. Replace <Var name="example.teleport.sh:443" /> with the host and web port
+     of the Teleport Proxy Service in your cluster. Run the following command on
+     your workstation:
+  
+     ```code 
+     $ tctl auth export --type=db-client --auth-server=<Var name="example.teleport.sh:443" /> > server.cas
+     ```
+  
+     The command creates 1 file, `server.cas`.
+  
+  1. Generate a certificate and key pair for MongoDB to present to Teleport by
+     retrieving them from the CA you use for MongoDB. Append them to a single
+     file, `mongo.crt`.
+  
+  1. (!docs/pages/includes/database-access/custom-db-ca.mdx db="MongoDB" protocol="mongodb" port="27017"!)
+
+  </TabItem> 
+  <TabItem label="Replica Set"> 
+
+  Export the Teleport Database Client CA from Teleport, and then add it as an
   additional trusted CA by concatenating it with your CA's certificate:
   
-  ```code
-  $ tctl auth export --type=db_client > db-client-ca.crt
+  ```code 
+  $ tctl auth export --type=db-client > db-client-ca.crt 
   $ cat <Var name="/path/to/your/ca.crt" /> db-client-ca.crt > /etc/certs/mongo.cas
   ```
 
