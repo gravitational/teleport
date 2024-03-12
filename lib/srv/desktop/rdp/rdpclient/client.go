@@ -693,8 +693,8 @@ func (c *Client) handleRDPFastPathPDU(data []byte) C.CGOErrCode {
 	return C.ErrCodeSuccess
 }
 
-//export cgo_handle_rdp_connection_initialized
-func cgo_handle_rdp_connection_initialized(
+//export cgo_handle_rdp_connection_activated
+func cgo_handle_rdp_connection_activated(
 	handle C.uintptr_t,
 	io_channel_id C.uint16_t,
 	user_channel_id C.uint16_t,
@@ -705,17 +705,17 @@ func cgo_handle_rdp_connection_initialized(
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return client.handleRDPConnectionInitialized(io_channel_id, user_channel_id, screen_width, screen_height)
+	return client.handleRDPConnectionActivated(io_channel_id, user_channel_id, screen_width, screen_height)
 }
 
-func (c *Client) handleRDPConnectionInitialized(ioChannelID, userChannelID, screenWidth, screenHeight C.uint16_t) C.CGOErrCode {
+func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screenWidth, screenHeight C.uint16_t) C.CGOErrCode {
 	c.cfg.Log.Debugf("Received RDP channel IDs: io_channel_id=%d, user_channel_id=%d", ioChannelID, userChannelID)
 
 	// Note: RDP doesn't always use the resolution we asked for.
 	// This is especially true when we request dimensions that are not a multiple of 4.
 	c.cfg.Log.Debugf("RDP server provided resolution of %dx%d", screenWidth, screenHeight)
 
-	if err := c.cfg.Conn.WriteMessage(tdp.ConnectionInitialized{
+	if err := c.cfg.Conn.WriteMessage(tdp.ConnectionActivated{
 		IOChannelID:   uint16(ioChannelID),
 		UserChannelID: uint16(userChannelID),
 		ScreenWidth:   uint16(screenWidth),

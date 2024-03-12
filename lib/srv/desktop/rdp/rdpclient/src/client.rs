@@ -16,7 +16,7 @@ pub mod global;
 
 use crate::rdpdr::tdp;
 use crate::{
-    cgo_handle_fastpath_pdu, cgo_handle_rdp_connection_initialized, cgo_handle_remote_copy, ssl,
+    cgo_handle_fastpath_pdu, cgo_handle_rdp_connection_activated, cgo_handle_remote_copy, ssl,
     CGOErrCode, CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel,
     CGOSyncKeys, CgoHandle,
 };
@@ -25,7 +25,7 @@ use boring::error::ErrorStack;
 use bytes::BytesMut;
 use ironrdp_cliprdr::{Cliprdr, CliprdrClient, CliprdrSvcMessages};
 use ironrdp_connector::connection_activation::ConnectionActivationState;
-use ironrdp_connector::{Config, ConnectorError, Credentials};
+use ironrdp_connector::{Config, ConnectorError, Credentials, DesktopSize};
 use ironrdp_dvc::DrdynvcClient;
 use ironrdp_pdu::dvc::display::{
     ClientPdu, DisplayPipelineError, Monitor, MonitorFlags, MonitorLayoutPdu, Orientation,
@@ -194,15 +194,12 @@ impl Client {
         debug!("connection_result: {:?}", connection_result);
 
         // Register the RDP channels with the browser client.
-        unsafe {
-            ClientResult::from(cgo_handle_rdp_connection_initialized(
-                cgo_handle,
-                connection_result.io_channel_id,
-                connection_result.user_channel_id,
-                connection_result.desktop_size.width,
-                connection_result.desktop_size.height,
-            ))
-        }?;
+        Self::send_connection_activated(
+            cgo_handle,
+            connection_result.io_channel_id,
+            connection_result.user_channel_id,
+            connection_result.desktop_size,
+        )?;
 
         // Take the stream back out of the framed object for splitting.
         let rdp_stream = rdp_stream.into_inner_no_leftover();
@@ -330,6 +327,9 @@ impl Client {
                                     return Ok(Some(reason));
                                 }
                                 ProcessorOutput::DeactivateAll(mut sequence) => {
+                                    // Execute the Deactivation-Reactivation Sequence:
+                                    // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/dfc234ce-481a-4674-9a5d-2a7bafb14432
+                                    debug!("Received Server Deactivate All PDU, executing Deactivation-Reactivation Sequence");
                                     let mut buf = WriteBuf::new();
                                     loop {
                                         let written = single_connect_step_read(
@@ -338,14 +338,28 @@ impl Client {
                                             &mut buf,
                                         )
                                         .await?;
-                                        if let Some(_) = written.size() {
+
+                                        if written.size().is_some() {
                                             write_requester
                                                 .write_raw_pdu_async(buf.filled().to_vec())
                                                 .await?;
                                         }
-                                        if let ConnectionActivationState::Finalized { .. } =
-                                            sequence.state
+
+                                        if let ConnectionActivationState::Finalized {
+                                            io_channel_id,
+                                            user_channel_id,
+                                            desktop_size,
+                                        } = sequence.state
                                         {
+                                            // Upon completing the activation sequence, register the io/user channels
+                                            // and desktop size with the client, just like we do upon receiving the
+                                            // connection result in [`Self::connect`].
+                                            Self::send_connection_activated(
+                                                cgo_handle,
+                                                io_channel_id,
+                                                user_channel_id,
+                                                desktop_size,
+                                            )?;
                                             break;
                                         }
                                     }
@@ -450,6 +464,23 @@ impl Client {
                 }
             }
         })
+    }
+
+    fn send_connection_activated(
+        cgo_handle: CgoHandle,
+        io_channel_id: u16,
+        user_channel_id: u16,
+        desktop_size: DesktopSize,
+    ) -> ClientResult<()> {
+        unsafe {
+            ClientResult::from(cgo_handle_rdp_connection_activated(
+                cgo_handle,
+                io_channel_id,
+                user_channel_id,
+                desktop_size.width,
+                desktop_size.height,
+            ))
+        }
     }
 
     async fn update_clipboard(
@@ -649,7 +680,6 @@ impl Client {
                 Ok::<_, ClientError>(full_dvc_buf)
             })
             .await??;
-
         write_stream.write_all(full_dvc_buf.filled()).await?;
         Ok(())
     }

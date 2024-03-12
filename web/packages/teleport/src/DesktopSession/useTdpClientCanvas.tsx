@@ -277,7 +277,7 @@ export default function useTdpClientCanvas(props: Props) {
       // TODO: probably need to clear the canvas
       const spec = getDisplaySize();
       syncCanvas(canvas, spec);
-      cli.sendClientScreenSpec(spec);
+      cli.resize(spec);
     },
     250
   );

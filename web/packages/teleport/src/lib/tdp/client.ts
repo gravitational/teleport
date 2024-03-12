@@ -195,8 +195,8 @@ export default class Client extends EventEmitterWebAuthnSender {
         case MessageType.PNG2_FRAME:
           this.handlePng2Frame(buffer);
           break;
-        case MessageType.RDP_CONNECTION_INITIALIZED:
-          this.handleRDPConnectionInitialized(buffer);
+        case MessageType.RDP_CONNECTION_ACTIVATED:
+          this.handleRDPConnectionActivated(buffer);
           break;
         case MessageType.RDP_FASTPATH_PDU:
           this.handleRDPFastPathPDU(buffer);
@@ -258,7 +258,6 @@ export default class Client extends EventEmitterWebAuthnSender {
           this.logger.warn(`received unsupported message type ${messageType}`);
       }
     } catch (err) {
-      console.error('Error in processMessage', err);
       this.handleError(err, TdpClientEvent.CLIENT_ERROR);
     }
   }
@@ -322,9 +321,9 @@ export default class Client extends EventEmitterWebAuthnSender {
     );
   }
 
-  handleRDPConnectionInitialized(buffer: ArrayBuffer) {
+  handleRDPConnectionActivated(buffer: ArrayBuffer) {
     const { ioChannelId, userChannelId, screenWidth, screenHeight } =
-      this.codec.decodeRDPConnectionInitialied(buffer);
+      this.codec.decodeRDPConnectionActivated(buffer);
     const spec = { width: screenWidth, height: screenHeight };
     this.logger.info(
       `setting screen spec received from server ${spec.width} x ${spec.height}`
@@ -365,7 +364,6 @@ export default class Client extends EventEmitterWebAuthnSender {
         }
       );
     } catch (e) {
-      console.error('Error in handleRDPFastPathPDU', e);
       this.handleError(e, TdpClientEvent.CLIENT_ERROR);
     }
   }
@@ -582,7 +580,6 @@ export default class Client extends EventEmitterWebAuthnSender {
       try {
         this.socket.send(data);
       } catch (e) {
-        console.error('Error in send', e);
         this.handleError(e, TdpClientEvent.CLIENT_ERROR);
       }
       return;
@@ -688,7 +685,7 @@ export default class Client extends EventEmitterWebAuthnSender {
   }
 
   resize(spec: ClientScreenSpec) {
-    this.send(this.codec.encodeClientScreenSpec(spec));
+    this.sendClientScreenSpec(spec);
   }
 
   sendRDPResponsePDU(responseFrame: ArrayBuffer) {
