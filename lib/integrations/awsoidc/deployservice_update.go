@@ -293,28 +293,34 @@ func generateTaskDefinitionWithImage(taskDefinition *ecsTypes.TaskDefinition, te
 // ensureUpgraderEnvironmentVariables modifies the taskDefinition and ensures that
 // the TELEPORT_EXT_UPGRADER environment variables are set.
 func ensureUpgraderEnvironmentVariables(taskDefinition *ecs.RegisterTaskDefinitionInput) error {
-	if len(taskDefinition.ContainerDefinitions) != 1 {
-		return trace.BadParameter("expected 1 task container definition, but got %d", len(taskDefinition.ContainerDefinitions))
-	}
-	environment := []ecsTypes.KeyValuePair{}
-	for _, env := range taskDefinition.ContainerDefinitions[0].Environment {
-		if aws.ToString(env.Name) == automaticupgrades.EnvUpgrader ||
-			aws.ToString(env.Name) == automaticupgrades.EnvUpgraderVersion {
-			continue
+	containerDefinitions := []ecsTypes.ContainerDefinition{}
+	for _, containerDefinition := range taskDefinition.ContainerDefinitions {
+		environment := []ecsTypes.KeyValuePair{}
+
+		// Copy non-updater specific environemt variables as is
+		for _, env := range containerDefinition.Environment {
+			if aws.ToString(env.Name) == automaticupgrades.EnvUpgrader ||
+				aws.ToString(env.Name) == automaticupgrades.EnvUpgraderVersion {
+				continue
+			}
+			environment = append(environment, env)
 		}
-		environment = append(environment, env)
+
+		// Ensure updater specific environment variables are set
+		environment = append(environment,
+			ecsTypes.KeyValuePair{
+				Name:  aws.String(automaticupgrades.EnvUpgrader),
+				Value: aws.String(types.OriginIntegrationAWSOIDC),
+			},
+			ecsTypes.KeyValuePair{
+				Name:  aws.String(automaticupgrades.EnvUpgraderVersion),
+				Value: aws.String(teleport.Version),
+			},
+		)
+		containerDefinition.Environment = environment
+		containerDefinitions = append(containerDefinitions, containerDefinition)
 	}
-	environment = append(environment,
-		ecsTypes.KeyValuePair{
-			Name:  aws.String(automaticupgrades.EnvUpgrader),
-			Value: aws.String(types.OriginIntegrationAWSOIDC),
-		},
-		ecsTypes.KeyValuePair{
-			Name:  aws.String(automaticupgrades.EnvUpgraderVersion),
-			Value: aws.String(teleport.Version),
-		},
-	)
-	taskDefinition.ContainerDefinitions[0].Environment = environment
+	taskDefinition.ContainerDefinitions = containerDefinitions
 	return nil
 }
 
