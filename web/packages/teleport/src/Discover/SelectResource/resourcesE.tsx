@@ -20,13 +20,13 @@ import { DiscoverEventResource } from 'teleport/services/userEvent';
 
 import { ResourceKind } from '../Shared';
 
-import { ResourceSpec, SAMLServiceProviderPresets } from './types';
+import { ResourceSpec, SamlServiceProviderPreset } from './types';
 
 export const SAML_APPLICATIONS: ResourceSpec[] = [
   {
     name: 'SAML Application',
     kind: ResourceKind.SamlApplication,
-    samlMeta: { preset: SAMLServiceProviderPresets.Unspecified },
+    samlMeta: { preset: SamlServiceProviderPreset.Unspecified },
     keywords: 'saml sso application idp',
     icon: 'Application',
     event: DiscoverEventResource.SamlApplication,
@@ -34,7 +34,7 @@ export const SAML_APPLICATIONS: ResourceSpec[] = [
   {
     name: 'Grafana',
     kind: ResourceKind.SamlApplication,
-    samlMeta: { preset: SAMLServiceProviderPresets.Grafana },
+    samlMeta: { preset: SamlServiceProviderPreset.Grafana },
     keywords: 'saml sso application idp grafana',
     icon: 'Grafana',
     event: DiscoverEventResource.SamlApplication,
