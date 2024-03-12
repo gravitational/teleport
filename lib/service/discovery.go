@@ -57,6 +57,13 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// tlsConfig is the DiscoveryService's TLS certificate signed by the cluster's
+	// Host certificate authority.
+	// It is used to authenticate the DiscoveryService to the Access Graph service.
+	tlsConfig, err := conn.ServerIdentity.TLSConfig(process.Config.CipherSuites)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	discoveryService, err := discovery.New(process.ExitContext(), &discovery.Config{
 		IntegrationOnlyCredentials: process.integrationOnlyCredentials(),
@@ -67,13 +74,15 @@ func (process *TeleportProcess) initDiscoveryService() error {
 			Kubernetes:  process.Config.Discovery.KubernetesMatchers,
 			AccessGraph: process.Config.Discovery.AccessGraph,
 		},
-		DiscoveryGroup:  process.Config.Discovery.DiscoveryGroup,
-		Emitter:         asyncEmitter,
-		AccessPoint:     accessPoint,
-		Log:             process.log,
-		ClusterName:     conn.ClientIdentity.ClusterName,
-		ClusterFeatures: process.getClusterFeatures,
-		PollInterval:    process.Config.Discovery.PollInterval,
+		DiscoveryGroup:    process.Config.Discovery.DiscoveryGroup,
+		Emitter:           asyncEmitter,
+		AccessPoint:       accessPoint,
+		Log:               process.log,
+		ClusterName:       conn.ClientIdentity.ClusterName,
+		ClusterFeatures:   process.getClusterFeatures,
+		PollInterval:      process.Config.Discovery.PollInterval,
+		ServerCredentials: tlsConfig,
+		AccessGraphConfig: process.Config.AccessGraph,
 	})
 	if err != nil {
 		return trace.Wrap(err)
