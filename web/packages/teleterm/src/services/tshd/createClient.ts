@@ -20,16 +20,6 @@ import grpc from '@grpc/grpc-js';
 import { GrpcTransport } from '@protobuf-ts/grpc-transport';
 import * as api from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import { TerminalServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
-import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
-import {
-  ClusterUserPreferences,
-  PinnedResourcesUserPreferences,
-} from 'gen-proto-ts/teleport/userpreferences/v1/cluster_preferences_pb';
-import { UnifiedResourcePreferences } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-import {
-  AccessRequest,
-  ResourceID,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 
 import Logger from 'teleterm/logger';
 import * as uri from 'teleterm/ui/uri';
@@ -41,16 +31,18 @@ import {
   resourceOneOfIsServer,
 } from 'teleterm/helpers';
 
-import { createFileTransferStream } from './createFileTransferStream';
-import { loggingInterceptor } from './interceptors';
+import {
+  CloneableAbortSignal,
+  cloneUnaryCall,
+  cloneDuplexStreamingCall,
+  cloneServerStreamingCall,
+} from './cloneableClient';
 import * as types from './types';
 import {
-  ReportUsageEventRequest,
-  UnifiedResourceResponse,
   UpdateHeadlessAuthenticationStateParams,
+  UnifiedResourceResponse,
 } from './types';
-import createAbortController from './createAbortController';
-import { mapUsageEvent } from './mapUsageEvent';
+import { loggingInterceptor } from './interceptors';
 
 export function createTshdClient(
   addr: string,
@@ -66,19 +58,8 @@ export function createTshdClient(
 
   // Create a client instance that could be shared with the  renderer (UI) via Electron contextBridge
   const client = {
-    createAbortController,
-
     async logout(clusterUri: uri.RootClusterUri) {
-      const req = api.LogoutRequest.create({ clusterUri });
-      return new Promise<void>((resolve, reject) => {
-        tshd.logout(req, err => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        });
-      });
+      await tshd.logout({ clusterUri });
     },
 
     async getKubes({
@@ -90,28 +71,18 @@ export function createTshdClient(
       startKey,
       limit,
     }: types.GetResourcesParams) {
-      const req = api.GetKubesRequest.create({
+      const getKubes = cloneUnaryCall(tshd.getKubes.bind(tshd));
+      const { response } = await getKubes({
         clusterUri,
         searchAsRoles,
         startKey,
         search,
         query,
         limit,
+        sortBy: sort ? `${sort.fieldName}:${sort.dir.toLowerCase()}` : '',
       });
 
-      if (sort) {
-        req.sortBy = `${sort.fieldName}:${sort.dir.toLowerCase()}`;
-      }
-
-      return new Promise<types.GetKubesResponse>((resolve, reject) => {
-        tshd.getKubes(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response as types.GetKubesResponse);
-          }
-        });
-      });
+      return response as types.GetKubesResponse;
     },
 
     async getApps({
@@ -123,71 +94,44 @@ export function createTshdClient(
       startKey,
       limit,
     }: types.GetResourcesParams) {
-      const req = api.GetAppsRequest.create({
+      const getApps = cloneUnaryCall(tshd.getApps.bind(tshd));
+      const { response } = await getApps({
         clusterUri,
         searchAsRoles,
         startKey,
         search,
         query,
         limit,
+        sortBy: sort ? `${sort.fieldName}:${sort.dir.toLowerCase()}` : '',
       });
 
-      if (sort) {
-        req.sortBy = `${sort.fieldName}:${sort.dir.toLowerCase()}`;
-      }
-
-      return new Promise<types.GetAppsResponse>((resolve, reject) => {
-        tshd.getApps(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response as types.GetAppsResponse);
-          }
-        });
-      });
+      return response as types.GetAppsResponse;
     },
 
     async listGateways() {
-      const req = api.ListGatewaysRequest.create();
-      return new Promise<types.Gateway[]>((resolve, reject) => {
-        tshd.listGateways(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response.gateways as types.Gateway[]);
-          }
-        });
-      });
+      const listGateways = cloneUnaryCall(tshd.listGateways.bind(tshd));
+      const { response } = await listGateways({});
+
+      return response.gateways as types.Gateway[];
     },
 
     async listLeafClusters(clusterUri: uri.RootClusterUri) {
-      const req = api.ListLeafClustersRequest.create({ clusterUri });
-      return new Promise<types.Cluster[]>((resolve, reject) => {
-        tshd.listLeafClusters(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response.clusters as types.Cluster[]);
-          }
-        });
-      });
+      const listLeafClusters = cloneUnaryCall(tshd.listLeafClusters.bind(tshd));
+      const { response } = await listLeafClusters({ clusterUri });
+
+      return response.clusters as types.Cluster[];
     },
 
-    async listRootClusters(abortSignal?: types.TshAbortSignal) {
-      return withAbort(abortSignal, callRef => {
-        return new Promise<types.Cluster[]>((resolve, reject) => {
-          callRef.current = tshd.listRootClusters(
-            api.ListClustersRequest.create(),
-            (err, response) => {
-              if (err) {
-                reject(err);
-              } else {
-                resolve(response.clusters as types.Cluster[]);
-              }
-            }
-          );
-        });
-      });
+    async listRootClusters(abortSignal?: CloneableAbortSignal) {
+      const listRootClusters = cloneUnaryCall(tshd.listRootClusters.bind(tshd));
+      const { response } = await listRootClusters(
+        {},
+        {
+          abort: abortSignal,
+        }
+      );
+
+      return response.clusters as types.Cluster[];
     },
 
     async getDatabases({
@@ -199,70 +143,46 @@ export function createTshdClient(
       startKey,
       limit,
     }: types.GetResourcesParams) {
-      const req = api.GetDatabasesRequest.create({
+      const getDatabases = cloneUnaryCall(tshd.getDatabases.bind(tshd));
+      const { response } = await getDatabases({
         clusterUri,
         searchAsRoles,
         startKey,
         search,
         query,
         limit,
+        sortBy: sort ? `${sort.fieldName}:${sort.dir.toLowerCase()}` : '',
       });
 
-      if (sort) {
-        req.sortBy = `${sort.fieldName}:${sort.dir.toLowerCase()}`;
-      }
-
-      return new Promise<types.GetDatabasesResponse>((resolve, reject) => {
-        tshd.getDatabases(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response as types.GetDatabasesResponse);
-          }
-        });
-      });
+      return response as types.GetDatabasesResponse;
     },
 
     async listDatabaseUsers(dbUri: uri.DatabaseUri) {
-      const req = api.ListDatabaseUsersRequest.create({ dbUri });
-      return new Promise<string[]>((resolve, reject) => {
-        tshd.listDatabaseUsers(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response.users);
-          }
-        });
-      });
+      const listDatabaseUsers = cloneUnaryCall(
+        tshd.listDatabaseUsers.bind(tshd)
+      );
+      const { response } = await listDatabaseUsers({ dbUri });
+
+      return response.users;
     },
 
     async getAccessRequest(clusterUri: uri.RootClusterUri, requestId: string) {
-      const req = api.GetAccessRequestRequest.create({
+      const getAccessRequest = cloneUnaryCall(tshd.getAccessRequest.bind(tshd));
+      const { response } = await getAccessRequest({
         clusterUri,
         accessRequestId: requestId,
       });
-      return new Promise<types.AccessRequest>((resolve, reject) => {
-        tshd.getAccessRequest(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response.request);
-          }
-        });
-      });
+
+      return response.request;
     },
 
     async getAccessRequests(clusterUri: uri.RootClusterUri) {
-      const req = api.GetAccessRequestsRequest.create({ clusterUri });
-      return new Promise<types.AccessRequest[]>((resolve, reject) => {
-        tshd.getAccessRequests(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response.requests);
-          }
-        });
-      });
+      const getAccessRequests = cloneUnaryCall(
+        tshd.getAccessRequests.bind(tshd)
+      );
+      const { response } = await getAccessRequests({ clusterUri });
+
+      return response.requests;
     },
 
     async getServers({
@@ -274,71 +194,49 @@ export function createTshdClient(
       startKey,
       limit,
     }: types.GetResourcesParams) {
-      const req = api.GetServersRequest.create({
+      const getServers = cloneUnaryCall(tshd.getServers.bind(tshd));
+      const { response } = await getServers({
         clusterUri,
         searchAsRoles,
         startKey,
         search,
         query,
         limit,
+        sortBy: sort ? `${sort.fieldName}:${sort.dir.toLowerCase()}` : '',
       });
-
-      if (sort) {
-        req.sortBy = `${sort.fieldName}:${sort.dir.toLowerCase()}`;
-      }
-
-      return new Promise<types.GetServersResponse>((resolve, reject) => {
-        tshd.getServers(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response as types.GetServersResponse);
-          }
-        });
-      });
+      return response as types.GetServersResponse;
     },
 
     async createAccessRequest(params: types.CreateAccessRequestParams) {
-      const req = api.CreateAccessRequestRequest.create({
+      const createAccessRequest = cloneUnaryCall(
+        tshd.createAccessRequest.bind(tshd)
+      );
+      const { response } = await createAccessRequest({
         rootClusterUri: params.rootClusterUri,
         suggestedReviewers: params.suggestedReviewers,
         roles: params.roles,
         reason: params.reason,
-        resourceIds: params.resourceIds.map(({ id, clusterName, kind }) =>
-          ResourceID.create({
-            name: id,
-            clusterName,
-            kind,
-          })
-        ),
+        resourceIds: params.resourceIds.map(({ id, clusterName, kind }) => ({
+          name: id,
+          clusterName,
+          kind,
+          subResourceName: '',
+        })),
       });
-      return new Promise<AccessRequest>((resolve, reject) => {
-        tshd.createAccessRequest(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response.request);
-          }
-        });
-      });
+
+      return response.request;
     },
 
     async deleteAccessRequest(
       clusterUri: uri.RootClusterUri,
       requestId: string
     ) {
-      const req = api.DeleteAccessRequestRequest.create({
+      const deleteAccessRequest = cloneUnaryCall(
+        tshd.deleteAccessRequest.bind(tshd)
+      );
+      await deleteAccessRequest({
         rootClusterUri: clusterUri,
         accessRequestId: requestId,
-      });
-      return new Promise<void>((resolve, reject) => {
-        tshd.deleteAccessRequest(req, err => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        });
       });
     },
 
@@ -347,19 +245,11 @@ export function createTshdClient(
       requestIds: string[],
       dropIds: string[]
     ) {
-      const req = api.AssumeRoleRequest.create({
+      const assumeRole = cloneUnaryCall(tshd.assumeRole.bind(tshd));
+      await assumeRole({
         rootClusterUri: clusterUri,
         accessRequestIds: requestIds,
         dropRequestIds: dropIds,
-      });
-      return new Promise<void>((resolve, reject) => {
-        tshd.assumeRole(req, err => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        });
       });
     },
 
@@ -367,708 +257,483 @@ export function createTshdClient(
       clusterUri: uri.RootClusterUri,
       params: types.ReviewAccessRequestParams
     ) {
-      const req = api.ReviewAccessRequestRequest.create({
+      const reviewAccessRequest = cloneUnaryCall(
+        tshd.reviewAccessRequest.bind(tshd)
+      );
+      const { response } = await reviewAccessRequest({
         rootClusterUri: clusterUri,
         accessRequestId: params.id,
         state: params.state,
         reason: params.reason,
         roles: params.roles,
       });
-      return new Promise<types.AccessRequest>((resolve, reject) => {
-        tshd.reviewAccessRequest(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response.request);
-          }
-        });
-      });
+
+      return response.request;
     },
 
     async getRequestableRoles(params: types.GetRequestableRolesParams) {
-      const req = api.GetRequestableRolesRequest.create({
-        clusterUri: params.rootClusterUri,
-        resourceIds: params.resourceIds!.map(({ id, clusterName, kind }) =>
-          ResourceID.create({
-            name: id,
-            clusterName,
-            kind,
-          })
-        ),
-      });
-      return new Promise<types.GetRequestableRolesResponse>(
-        (resolve, reject) => {
-          tshd.getRequestableRoles(req, (err, response) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(response);
-            }
-          });
-        }
+      const getRequestableRoles = cloneUnaryCall(
+        tshd.getRequestableRoles.bind(tshd)
       );
+      const { response } = await getRequestableRoles({
+        clusterUri: params.rootClusterUri,
+        resourceIds: params.resourceIds!.map(({ id, clusterName, kind }) => ({
+          name: id,
+          clusterName,
+          kind,
+          subResourceName: '',
+        })),
+      });
+
+      return response;
     },
 
     async addRootCluster(addr: string) {
-      const req = api.AddClusterRequest.create({ name: addr });
-      return new Promise<types.Cluster>((resolve, reject) => {
-        tshd.addCluster(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response as types.Cluster);
-          }
-        });
-      });
+      const addCluster = cloneUnaryCall(tshd.addCluster.bind(tshd));
+      const { response } = await addCluster({ name: addr });
+      return response as types.Cluster;
     },
 
     async getCluster(uri: uri.RootClusterUri) {
-      const req = api.GetClusterRequest.create({ clusterUri: uri });
-      return new Promise<types.Cluster>((resolve, reject) => {
-        tshd.getCluster(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response as types.Cluster);
-          }
-        });
-      });
+      const getCluster = cloneUnaryCall(tshd.getCluster.bind(tshd));
+      const { response } = await getCluster({ clusterUri: uri });
+      return response as types.Cluster;
     },
 
     async loginLocal(
       params: types.LoginLocalParams,
-      abortSignal?: types.TshAbortSignal
+      abortSignal?: CloneableAbortSignal
     ) {
-      const localParams = api.LoginRequest_LocalParams.create({
-        token: params.token,
-        user: params.username,
-        password: params.password,
-      });
-      return withAbort(abortSignal, callRef => {
-        const req = api.LoginRequest.create({
+      const login = cloneUnaryCall(tshd.login.bind(tshd));
+      await login(
+        {
           clusterUri: params.clusterUri,
           params: {
             oneofKind: 'local',
-            local: localParams,
+            local: {
+              token: params.token,
+              user: params.username,
+              password: params.password,
+            },
           },
-        });
-        return new Promise<void>((resolve, reject) => {
-          callRef.current = tshd.login(req, err => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve();
-            }
-          });
-        });
-      });
+        },
+        {
+          abort: abortSignal,
+        }
+      );
     },
 
     async loginSso(
       params: types.LoginSsoParams,
-      abortSignal?: types.TshAbortSignal
+      abortSignal?: CloneableAbortSignal
     ) {
-      const ssoParams = api.LoginRequest_SsoParams.create({
-        providerName: params.providerName,
-        providerType: params.providerType,
-      });
-      return withAbort(abortSignal, callRef => {
-        const req = api.LoginRequest.create({
+      const login = cloneUnaryCall(tshd.login.bind(tshd));
+      await login(
+        {
           clusterUri: params.clusterUri,
           params: {
             oneofKind: 'sso',
-            sso: ssoParams,
+            sso: {
+              providerName: params.providerName,
+              providerType: params.providerType,
+            },
           },
-        });
-        return new Promise<void>((resolve, reject) => {
-          callRef.current = tshd.login(req, err => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve();
-            }
-          });
-        });
-      });
+        },
+        { abort: abortSignal }
+      );
     },
 
     async loginPasswordless(
       params: types.LoginPasswordlessParams,
-      abortSignal?: types.TshAbortSignal
+      abortSignal?: CloneableAbortSignal
     ) {
-      return withAbort(abortSignal, callRef => {
-        const streamInitReq =
-          api.LoginPasswordlessRequest_LoginPasswordlessRequestInit.create({
-            clusterUri: params.clusterUri,
-          });
-        const streamReq = api.LoginPasswordlessRequest.create({
+      const loginPasswordless = cloneDuplexStreamingCall(
+        tshd.loginPasswordless.bind(tshd)
+      );
+      return new Promise<void>((resolve, reject) => {
+        const stream = loginPasswordless({
+          abort: abortSignal,
+        });
+
+        let hasDeviceBeenTapped = false;
+
+        // Init the stream.
+        stream.requests.send({
           request: {
             oneofKind: 'init',
-            init: streamInitReq,
+            init: {
+              clusterUri: params.clusterUri,
+            },
           },
         });
-        return new Promise<void>((resolve, reject) => {
-          callRef.current = tshd.loginPasswordless();
-          const stream = callRef.current as grpc.ClientDuplexStream<
-            api.LoginPasswordlessRequest,
-            api.LoginPasswordlessResponse
-          >;
 
-          let hasDeviceBeenTapped = false;
-
-          // Init the stream.
-          stream.write(streamReq);
-
-          stream.on('data', function (response: api.LoginPasswordlessResponse) {
-            switch (response.prompt) {
-              case api.PasswordlessPrompt.PIN:
-                const pinResponse = pin => {
-                  const pinRes =
-                    api.LoginPasswordlessRequest_LoginPasswordlessPINResponse.create(
-                      { pin }
-                    );
-                  stream.write(
-                    api.LoginPasswordlessRequest.create({
-                      request: {
-                        oneofKind: 'pin',
-                        pin: pinRes,
-                      },
-                    })
-                  );
-                };
-
-                params.onPromptCallback({
-                  type: 'pin',
-                  onUserResponse: pinResponse,
+        stream.responses.onMessage(function (response) {
+          switch (response.prompt) {
+            case api.PasswordlessPrompt.PIN:
+              const pinResponse = (pin: string) => {
+                stream.requests.send({
+                  request: {
+                    oneofKind: 'pin',
+                    pin: { pin },
+                  },
                 });
-                return;
+              };
 
-              case api.PasswordlessPrompt.CREDENTIAL:
-                const credResponse = index => {
-                  const credRes =
-                    api.LoginPasswordlessRequest_LoginPasswordlessCredentialResponse.create(
-                      { index }
-                    );
-                  stream.write(
-                    api.LoginPasswordlessRequest.create({
-                      request: {
-                        oneofKind: 'credential',
-                        credential: credRes,
-                      },
-                    })
-                  );
-                };
+              params.onPromptCallback({
+                type: 'pin',
+                onUserResponse: pinResponse,
+              });
+              return;
 
-                params.onPromptCallback({
-                  type: 'credential',
-                  onUserResponse: credResponse,
-                  data: { credentials: response.credentials || [] },
+            case api.PasswordlessPrompt.CREDENTIAL:
+              const credResponse = (index: number) => {
+                stream.requests.send({
+                  request: {
+                    oneofKind: 'credential',
+                    credential: { index },
+                  },
                 });
-                return;
+              };
 
-              case api.PasswordlessPrompt.TAP:
-                if (hasDeviceBeenTapped) {
-                  params.onPromptCallback({ type: 'retap' });
-                } else {
-                  hasDeviceBeenTapped = true;
-                  params.onPromptCallback({ type: 'tap' });
-                }
-                return;
+              params.onPromptCallback({
+                type: 'credential',
+                onUserResponse: credResponse,
+                data: { credentials: response.credentials || [] },
+              });
+              return;
 
-              // Following cases should never happen but just in case?
-              case api.PasswordlessPrompt.UNSPECIFIED:
-                stream.cancel();
-                return reject(
-                  new Error('no passwordless prompt was specified')
-                );
+            case api.PasswordlessPrompt.TAP:
+              if (hasDeviceBeenTapped) {
+                params.onPromptCallback({ type: 'retap' });
+              } else {
+                hasDeviceBeenTapped = true;
+                params.onPromptCallback({ type: 'tap' });
+              }
+              return;
 
-              default:
-                stream.cancel();
-                return reject(
-                  new Error(
-                    `passwordless prompt '${response.prompt}' not supported`
-                  )
-                );
-            }
-          });
+            // Following cases should never happen but just in case?
+            case api.PasswordlessPrompt.UNSPECIFIED:
+              stream.requests.complete();
+              return reject(new Error('no passwordless prompt was specified'));
 
-          stream.on('end', function () {
-            resolve();
-          });
+            default:
+              stream.requests.complete();
+              return reject(
+                new Error(
+                  `passwordless prompt '${response.prompt}' not supported`
+                )
+              );
+          }
+        });
 
-          stream.on('error', function (err: Error) {
-            reject(err);
-          });
+        stream.responses.onComplete(function () {
+          resolve();
+        });
+
+        stream.responses.onError(function (err: Error) {
+          reject(err);
         });
       });
     },
 
     async getAuthSettings(clusterUri: uri.RootClusterUri) {
-      const req = api.GetAuthSettingsRequest.create({ clusterUri });
-      return new Promise<types.AuthSettings>((resolve, reject) => {
-        tshd.getAuthSettings(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response);
-          }
-        });
-      });
+      const getAuthSettings = cloneUnaryCall(tshd.getAuthSettings.bind(tshd));
+      const { response } = await getAuthSettings({ clusterUri });
+      return response;
     },
 
     async createGateway(params: types.CreateGatewayParams) {
-      const req = api.CreateGatewayRequest.create({
+      const createGateway = cloneUnaryCall(tshd.createGateway.bind(tshd));
+      const { response } = await createGateway({
         targetUri: params.targetUri,
         targetUser: params.user,
         localPort: params.port,
         targetSubresourceName: params.subresource_name,
       });
-      return new Promise<types.Gateway>((resolve, reject) => {
-        tshd.createGateway(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response as types.Gateway);
-          }
-        });
-      });
+
+      return response as types.Gateway;
     },
 
     async removeCluster(clusterUri: uri.RootClusterUri) {
-      const req = api.RemoveClusterRequest.create({ clusterUri });
-      return new Promise<void>((resolve, reject) => {
-        tshd.removeCluster(req, err => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        });
-      });
+      const removeCluster = cloneUnaryCall(tshd.removeCluster.bind(tshd));
+      await removeCluster({ clusterUri });
     },
 
     async removeGateway(gatewayUri: uri.GatewayUri) {
-      const req = api.RemoveGatewayRequest.create({ gatewayUri });
-      return new Promise<void>((resolve, reject) => {
-        tshd.removeGateway(req, err => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        });
-      });
+      const removeGateway = cloneUnaryCall(tshd.removeGateway.bind(tshd));
+      await removeGateway({ gatewayUri });
     },
 
     async setGatewayTargetSubresourceName(
       gatewayUri: uri.GatewayUri,
       targetSubresourceName = ''
     ) {
-      const req = api.SetGatewayTargetSubresourceNameRequest.create({
+      const setGatewayTargetSubresourceName = cloneUnaryCall(
+        tshd.setGatewayTargetSubresourceName.bind(tshd)
+      );
+      const { response } = await setGatewayTargetSubresourceName({
         gatewayUri,
         targetSubresourceName,
       });
-      return new Promise<types.Gateway>((resolve, reject) => {
-        tshd.setGatewayTargetSubresourceName(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response as types.Gateway);
-          }
-        });
-      });
+
+      return response as types.Gateway;
     },
 
     async setGatewayLocalPort(gatewayUri: uri.GatewayUri, localPort: string) {
-      const req = api.SetGatewayLocalPortRequest.create({
+      const setGatewayLocalPort = cloneUnaryCall(
+        tshd.setGatewayLocalPort.bind(tshd)
+      );
+      const { response } = await setGatewayLocalPort({
         gatewayUri,
         localPort,
       });
-      return new Promise<types.Gateway>((resolve, reject) => {
-        tshd.setGatewayLocalPort(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response as types.Gateway);
-          }
-        });
-      });
+
+      return response as types.Gateway;
     },
 
     transferFile(
-      options: types.FileTransferRequest,
-      abortSignal: types.TshAbortSignal
+      req: types.FileTransferRequest,
+      abortSignal: CloneableAbortSignal
     ) {
-      const req = api.FileTransferRequest.create({
-        serverUri: options.serverUri,
-        login: options.login,
-        source: options.source,
-        destination: options.destination,
-        direction: options.direction,
+      const transferFile = cloneServerStreamingCall(
+        tshd.transferFile.bind(tshd)
+      );
+
+      const stream = transferFile(req, {
+        abort: abortSignal,
       });
 
-      return createFileTransferStream(tshd.transferFile(req), abortSignal);
+      return {
+        onProgress(callback: (progress: number) => void) {
+          stream.responses.onMessage(data => callback(data.percentage));
+        },
+        onComplete: stream.responses.onComplete,
+        onError: stream.responses.onError,
+      };
     },
 
-    updateTshdEventsServerAddress(address: string) {
-      const req = api.UpdateTshdEventsServerAddressRequest.create({ address });
-      return new Promise<void>((resolve, reject) => {
-        tshd.updateTshdEventsServerAddress(req, err => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        });
-      });
+    async updateTshdEventsServerAddress(address: string) {
+      const updateTshdEventsServerAddress = cloneUnaryCall(
+        tshd.updateTshdEventsServerAddress.bind(tshd)
+      );
+      await updateTshdEventsServerAddress({ address });
     },
 
-    reportUsageEvent(event: ReportUsageEventRequest) {
-      const req = mapUsageEvent(event);
-      return new Promise<void>((resolve, reject) => {
-        tshd.reportUsageEvent(req, err => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        });
-      });
-    },
+    reportUsageEvent: cloneUnaryCall(tshd.reportUsageEvent.bind(tshd)),
 
-    createConnectMyComputerRole(rootClusterUri: uri.RootClusterUri) {
-      const req = api.CreateConnectMyComputerRoleRequest.create({
+    async createConnectMyComputerRole(rootClusterUri: uri.RootClusterUri) {
+      const createConnectMyComputerRole = cloneUnaryCall(
+        tshd.createConnectMyComputerRole.bind(tshd)
+      );
+      const { response } = await createConnectMyComputerRole({
         rootClusterUri,
       });
 
-      return new Promise<types.CreateConnectMyComputerRoleResponse>(
-        (resolve, reject) => {
-          tshd.createConnectMyComputerRole(req, (err, response) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(response);
-            }
-          });
-        }
-      );
+      return response;
     },
 
-    createConnectMyComputerNodeToken(uri: uri.RootClusterUri) {
-      return new Promise<types.CreateConnectMyComputerNodeTokenResponse>(
-        (resolve, reject) => {
-          tshd.createConnectMyComputerNodeToken(
-            api.CreateConnectMyComputerNodeTokenRequest.create({
-              rootClusterUri: uri,
-            }),
-            (err, response) => {
-              if (err) {
-                reject(err);
-              } else {
-                resolve(response);
-              }
-            }
-          );
-        }
+    async createConnectMyComputerNodeToken(uri: uri.RootClusterUri) {
+      const createConnectMyComputerNodeToken = cloneUnaryCall(
+        tshd.createConnectMyComputerNodeToken.bind(tshd)
       );
-    },
-
-    waitForConnectMyComputerNodeJoin(
-      uri: uri.RootClusterUri,
-      abortSignal: types.TshAbortSignal
-    ) {
-      const req = api.WaitForConnectMyComputerNodeJoinRequest.create({
+      const { response } = await createConnectMyComputerNodeToken({
         rootClusterUri: uri,
       });
 
-      return withAbort(
-        abortSignal,
-        callRef =>
-          new Promise<types.WaitForConnectMyComputerNodeJoinResponse>(
-            (resolve, reject) => {
-              callRef.current = tshd.waitForConnectMyComputerNodeJoin(
-                req,
-                (err, response) => {
-                  if (err) {
-                    reject(err);
-                  } else {
-                    resolve(
-                      response as types.WaitForConnectMyComputerNodeJoinResponse
-                    );
-                  }
-                }
-              );
-            }
-          )
+      return response;
+    },
+
+    async waitForConnectMyComputerNodeJoin(
+      uri: uri.RootClusterUri,
+      abortSignal: CloneableAbortSignal
+    ) {
+      const waitForConnectMyComputerNodeJoin = cloneUnaryCall(
+        tshd.waitForConnectMyComputerNodeJoin.bind(tshd)
       );
+      const { response } = await waitForConnectMyComputerNodeJoin(
+        {
+          rootClusterUri: uri,
+        },
+        {
+          abort: abortSignal,
+        }
+      );
+
+      return response as types.WaitForConnectMyComputerNodeJoinResponse;
     },
 
-    deleteConnectMyComputerNode(uri: uri.RootClusterUri) {
-      return new Promise<void>((resolve, reject) => {
-        tshd.deleteConnectMyComputerNode(
-          api.DeleteConnectMyComputerNodeRequest.create({
-            rootClusterUri: uri,
-          }),
-          err => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve();
-            }
-          }
-        );
+    async deleteConnectMyComputerNode(uri: uri.RootClusterUri) {
+      const deleteConnectMyComputerNode = cloneUnaryCall(
+        tshd.deleteConnectMyComputerNode.bind(tshd)
+      );
+      await deleteConnectMyComputerNode({
+        rootClusterUri: uri,
       });
     },
 
-    getConnectMyComputerNodeName(uri: uri.RootClusterUri) {
-      return new Promise<string>((resolve, reject) => {
-        tshd.getConnectMyComputerNodeName(
-          api.GetConnectMyComputerNodeNameRequest.create({
-            rootClusterUri: uri,
-          }),
-          (err, response) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(response.name as uri.ServerUri);
-            }
-          }
-        );
+    async getConnectMyComputerNodeName(uri: uri.RootClusterUri) {
+      const getConnectMyComputerNodeName = cloneUnaryCall(
+        tshd.getConnectMyComputerNodeName.bind(tshd)
+      );
+      const { response } = await getConnectMyComputerNodeName({
+        rootClusterUri: uri,
       });
+
+      return response.name as uri.ServerUri;
     },
 
-    updateHeadlessAuthenticationState(
+    async updateHeadlessAuthenticationState(
       params: UpdateHeadlessAuthenticationStateParams,
-      abortSignal?: types.TshAbortSignal
+      abortSignal?: CloneableAbortSignal
     ) {
-      return withAbort(abortSignal, callRef => {
-        const req = api.UpdateHeadlessAuthenticationStateRequest.create({
-          rootClusterUri: params.rootClusterUri,
-          headlessAuthenticationId: params.headlessAuthenticationId,
-          state: params.state,
-        });
-
-        return new Promise<void>((resolve, reject) => {
-          callRef.current = tshd.updateHeadlessAuthenticationState(req, err => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve();
-            }
-          });
-        });
+      const updateHeadlessAuthenticationState = cloneUnaryCall(
+        tshd.updateHeadlessAuthenticationState.bind(tshd)
+      );
+      await updateHeadlessAuthenticationState(params, {
+        abort: abortSignal,
       });
     },
 
-    listUnifiedResources(
+    async listUnifiedResources(
       params: types.ListUnifiedResourcesRequest,
-      abortSignal?: types.TshAbortSignal
+      abortSignal?: CloneableAbortSignal
     ) {
-      return withAbort(abortSignal, callRef => {
-        const req = api.ListUnifiedResourcesRequest.create({
+      const listUnifiedResources = cloneUnaryCall(
+        tshd.listUnifiedResources.bind(tshd)
+      );
+      const { response } = await listUnifiedResources(
+        {
           clusterUri: params.clusterUri,
           limit: params.limit,
           kinds: params.kinds,
-          startKey: params.startKey,
+          startKey: params.startKey || '',
           search: params.search,
           query: params.query,
           pinnedOnly: params.pinnedOnly,
           searchAsRoles: params.searchAsRoles,
-        });
-        if (params.sortBy) {
-          req.sortBy = api.SortBy.create({
-            field: params.sortBy.field,
-            isDesc: params.sortBy.isDesc,
-          });
+          sortBy: params.sortBy || { field: 'name', isDesc: false },
+        },
+        {
+          abort: abortSignal,
         }
-
-        return new Promise<types.ListUnifiedResourcesResponse>(
-          (resolve, reject) => {
-            callRef.current = tshd.listUnifiedResources(req, (err, res) => {
-              if (err) {
-                reject(err);
-              } else {
-                resolve({
-                  nextKey: res.nextKey,
-                  resources: res.resources
-                    .map(p => {
-                      if (resourceOneOfIsServer(p.resource)) {
-                        return {
-                          kind: 'server',
-                          resource: p.resource.server,
-                        };
-                      }
-
-                      if (resourceOneOfIsDatabase(p.resource)) {
-                        return {
-                          kind: 'database',
-                          resource: p.resource.database,
-                        };
-                      }
-
-                      if (resourceOneOfIsApp(p.resource)) {
-                        return {
-                          kind: 'app',
-                          resource: p.resource.app,
-                        };
-                      }
-
-                      if (resourceOneOfIsKube(p.resource)) {
-                        return {
-                          kind: 'kube',
-                          resource: p.resource.kube,
-                        };
-                      }
-
-                      logger.info(
-                        `Ignoring unsupported resource ${JSON.stringify(p)}.`
-                      );
-                    })
-                    .filter(Boolean) as UnifiedResourceResponse[],
-                });
-              }
-            });
-          }
-        );
-      });
-    },
-    getUserPreferences(
-      params: api.GetUserPreferencesRequest,
-      abortSignal?: types.TshAbortSignal
-    ): Promise<api.UserPreferences> {
-      return withAbort(abortSignal, callRef => {
-        const req = api.GetUserPreferencesRequest.create({
-          clusterUri: params.clusterUri,
-        });
-
-        return new Promise((resolve, reject) => {
-          callRef.current = tshd.getUserPreferences(req, (err, response) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(response.userPreferences);
+      );
+      return {
+        nextKey: response.nextKey,
+        resources: response.resources
+          .map(p => {
+            if (resourceOneOfIsServer(p.resource)) {
+              return {
+                kind: 'server',
+                resource: p.resource.server,
+              };
             }
-          });
-        });
-      });
+
+            if (resourceOneOfIsDatabase(p.resource)) {
+              return {
+                kind: 'database',
+                resource: p.resource.database,
+              };
+            }
+
+            if (resourceOneOfIsApp(p.resource)) {
+              return {
+                kind: 'app',
+                resource: p.resource.app,
+              };
+            }
+
+            if (resourceOneOfIsKube(p.resource)) {
+              return {
+                kind: 'kube',
+                resource: p.resource.kube,
+              };
+            }
+
+            logger.info(`Ignoring unsupported resource ${JSON.stringify(p)}.`);
+          })
+          .filter(Boolean) as UnifiedResourceResponse[],
+      };
     },
-    updateUserPreferences(
-      params: api.UpdateUserPreferencesRequest,
-      abortSignal?: types.TshAbortSignal
+    async getUserPreferences(
+      params: api.GetUserPreferencesRequest,
+      abortSignal?: CloneableAbortSignal
     ): Promise<api.UserPreferences> {
-      const userPreferences = UserPreferences.create();
+      const getUserPreferences = cloneUnaryCall(
+        tshd.getUserPreferences.bind(tshd)
+      );
+      const { response } = await getUserPreferences(params, {
+        abort: abortSignal,
+      });
+
+      return response.userPreferences;
+    },
+    async updateUserPreferences(
+      params: api.UpdateUserPreferencesRequest,
+      abortSignal?: CloneableAbortSignal
+    ): Promise<api.UserPreferences> {
+      const updateUserPreferences = cloneUnaryCall(
+        tshd.updateUserPreferences.bind(tshd)
+      );
+      const userPreferences: api.UserPreferences = {};
       if (params.userPreferences.clusterPreferences) {
-        userPreferences.clusterPreferences = ClusterUserPreferences.create({
-          pinnedResources: PinnedResourcesUserPreferences.create({
+        userPreferences.clusterPreferences = {
+          pinnedResources: {
             resourceIds:
               params.userPreferences.clusterPreferences.pinnedResources
                 ?.resourceIds,
-          }),
-        });
+          },
+        };
       }
 
       if (params.userPreferences.unifiedResourcePreferences) {
-        userPreferences.unifiedResourcePreferences =
-          UnifiedResourcePreferences.create({
-            defaultTab:
-              params.userPreferences.unifiedResourcePreferences.defaultTab,
-            viewMode:
-              params.userPreferences.unifiedResourcePreferences.viewMode,
-            labelsViewMode:
-              params.userPreferences.unifiedResourcePreferences.labelsViewMode,
-          });
+        userPreferences.unifiedResourcePreferences = {
+          defaultTab:
+            params.userPreferences.unifiedResourcePreferences.defaultTab,
+          viewMode: params.userPreferences.unifiedResourcePreferences.viewMode,
+          labelsViewMode:
+            params.userPreferences.unifiedResourcePreferences.labelsViewMode,
+        };
       }
 
-      return withAbort(abortSignal, callRef => {
-        const req = api.UpdateUserPreferencesRequest.create({
+      const { response } = await updateUserPreferences(
+        {
           clusterUri: params.clusterUri,
           userPreferences,
-        });
+        },
+        {
+          abort: abortSignal,
+        }
+      );
 
-        return new Promise((resolve, reject) => {
-          callRef.current = tshd.updateUserPreferences(req, (err, response) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(response.userPreferences);
-            }
-          });
-        });
-      });
+      return response.userPreferences;
     },
-    promoteAccessRequest(
+    async promoteAccessRequest(
       params: api.PromoteAccessRequestRequest,
-      abortSignal?: types.TshAbortSignal
+      abortSignal?: CloneableAbortSignal
     ): Promise<types.AccessRequest> {
-      return withAbort(abortSignal, callRef => {
-        const req = api.PromoteAccessRequestRequest.create({
-          rootClusterUri: params.rootClusterUri,
-          accessRequestId: params.accessRequestId,
-          accessListId: params.accessListId,
-          reason: params.reason,
-        });
-
-        return new Promise((resolve, reject) => {
-          callRef.current = tshd.promoteAccessRequest(req, (err, response) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(response.request);
-            }
-          });
-        });
+      const promoteAccessRequest = cloneUnaryCall(
+        tshd.promoteAccessRequest.bind(tshd)
+      );
+      const { response } = await promoteAccessRequest(params, {
+        abort: abortSignal,
       });
+      return response.request;
     },
-    getSuggestedAccessLists(
-      params: api.GetSuggestedAccessListsRequest,
-      abortSignal?: types.TshAbortSignal
-    ): Promise<types.AccessList[]> {
-      return withAbort(abortSignal, callRef => {
-        const req = api.GetSuggestedAccessListsRequest.create({
-          rootClusterUri: params.rootClusterUri,
-          accessRequestId: params.accessRequestId,
-        });
 
-        return new Promise((resolve, reject) => {
-          callRef.current = tshd.getSuggestedAccessLists(
-            req,
-            (err, response) => {
-              if (err) {
-                reject(err);
-              } else {
-                resolve(response.accessLists);
-              }
-            }
-          );
-        });
+    async getSuggestedAccessLists(
+      params: api.GetSuggestedAccessListsRequest,
+      abortSignal?: CloneableAbortSignal
+    ): Promise<types.AccessList[]> {
+      const getSuggestedAccessLists = cloneUnaryCall(
+        tshd.getSuggestedAccessLists.bind(tshd)
+      );
+      const { response } = await getSuggestedAccessLists(params, {
+        abort: abortSignal,
       });
+
+      return response.accessLists;
     },
   };
 
   return client;
-}
-
-type CallRef = {
-  current: {
-    cancel(): void;
-  } | null;
-};
-
-async function withAbort<T>(
-  sig: types.TshAbortSignal | undefined,
-  cb: (ref: CallRef) => Promise<T>
-) {
-  const ref: CallRef = {
-    current: null,
-  };
-
-  const abort = () => {
-    ref?.current?.cancel();
-  };
-
-  sig?.addEventListener(abort);
-
-  return cb(ref).finally(() => {
-    sig?.removeEventListener(abort);
-  });
 }

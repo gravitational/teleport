@@ -226,7 +226,7 @@ export type LoginPasswordlessRequest =
   Partial<apiService.LoginPasswordlessRequest>;
 
 export type TshdClient = {
-  listRootClusters: (abortSignal?: TshAbortSignal) => Promise<Cluster[]>;
+  listRootClusters: (abortSignal?: CloneableAbortSignal) => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: uri.RootClusterUri) => Promise<Cluster[]>;
   getKubes: (params: GetResourcesParams) => Promise<GetKubesResponse>;
   getApps: (params: GetResourcesParams) => Promise<GetAppsResponse>;
@@ -259,7 +259,6 @@ export type TshdClient = {
     clusterUri: uri.RootClusterUri,
     requestId: string
   ) => Promise<void>;
-  createAbortController: () => TshAbortController;
   addRootCluster: (addr: string) => Promise<Cluster>;
 
   listGateways: () => Promise<Gateway[]>;
@@ -279,23 +278,25 @@ export type TshdClient = {
   removeCluster: (clusterUri: uri.RootClusterUri) => Promise<void>;
   loginLocal: (
     params: LoginLocalParams,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => Promise<void>;
   loginSso: (
     params: LoginSsoParams,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => Promise<void>;
   loginPasswordless: (
     params: LoginPasswordlessParams,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => Promise<void>;
   logout: (clusterUri: uri.RootClusterUri) => Promise<void>;
   transferFile: (
     options: FileTransferRequest,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => FileTransferListeners;
-  reportUsageEvent: (event: ReportUsageEventRequest) => Promise<void>;
-
+  reportUsageEvent: (
+    input: ReportUsageEventRequest,
+    options?: CloneableRpcOptions
+  ) => CloneableUnaryCall<ReportUsageEventRequest, apiService.EmptyResponse>;
   createConnectMyComputerRole: (
     rootClusterUri: uri.RootClusterUri
   ) => Promise<CreateConnectMyComputerRoleResponse>;
@@ -304,7 +305,7 @@ export type TshdClient = {
   ) => Promise<CreateConnectMyComputerNodeTokenResponse>;
   waitForConnectMyComputerNodeJoin: (
     rootClusterUri: uri.RootClusterUri,
-    abortSignal: TshAbortSignal
+    abortSignal: CloneableAbortSignal
   ) => Promise<WaitForConnectMyComputerNodeJoinResponse>;
   deleteConnectMyComputerNode: (
     clusterUri: uri.RootClusterUri
@@ -313,43 +314,32 @@ export type TshdClient = {
 
   updateHeadlessAuthenticationState: (
     params: UpdateHeadlessAuthenticationStateParams,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => Promise<void>;
 
   listUnifiedResources: (
     params: apiService.ListUnifiedResourcesRequest,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => Promise<ListUnifiedResourcesResponse>;
 
   getUserPreferences: (
     params: apiService.GetUserPreferencesRequest,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => Promise<UserPreferences>;
   updateUserPreferences: (
     params: apiService.UpdateUserPreferencesRequest,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => Promise<UserPreferences>;
   getSuggestedAccessLists: (
     params: apiService.GetSuggestedAccessListsRequest,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => Promise<AccessList[]>;
   promoteAccessRequest: (
     params: PromoteAccessRequestParams,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => Promise<AccessRequest>;
 
   updateTshdEventsServerAddress: (address: string) => Promise<void>;
-};
-
-export type TshAbortController = {
-  signal: TshAbortSignal;
-  abort(): void;
-};
-
-export type TshAbortSignal = {
-  readonly aborted: boolean;
-  addEventListener(cb: (...args: any[]) => void): void;
-  removeEventListener(cb: (...args: any[]) => void): void;
 };
 
 interface LoginParamsBase {
