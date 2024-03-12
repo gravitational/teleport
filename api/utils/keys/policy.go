@@ -116,6 +116,10 @@ func (p PrivateKeyPolicy) IsHardwareKeyPolicy() bool {
 
 // MFAVerified checks that private keys with this key policy count as MFA verified.
 // Both Hardware key touch and pin are count as MFA verification.
+//
+// Note: MFA checks with private key policies are only performed during the establishment
+// of the connection, during the TLS/SSH handshake. For long term connections, MFA should
+// be re-verified through other methods (e.g. webauthn).
 func (p PrivateKeyPolicy) MFAVerified() bool {
 	return p.isHardwareKeyTouchVerified() || p.isHardwareKeyPINVerified()
 }
