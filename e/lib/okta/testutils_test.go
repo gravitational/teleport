@@ -60,7 +60,6 @@ type testAccessPoint struct {
 	services.Presence
 	services.Trust
 	services.UserGroups
-	services.UserLoginStates
 	services.WindowsDesktops
 	types.Events
 
@@ -118,8 +117,6 @@ func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
 	presence := local.NewPresenceService(backend)
 	userGroups, err := local.NewUserGroupService(backend)
 	require.NoError(t, err)
-	uls, err := local.NewUserLoginStateService(backend)
-	require.NoError(t, err)
 	windowsDesktops := local.NewWindowsDesktopService(backend)
 	events := local.NewEventsService(backend)
 
@@ -147,7 +144,6 @@ func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
 		Presence:              presence,
 		Trust:                 ca,
 		UserGroups:            userGroups,
-		UserLoginStates:       uls,
 		WindowsDesktops:       windowsDesktops,
 		Events:                events,
 	}

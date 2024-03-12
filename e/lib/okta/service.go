@@ -672,11 +672,9 @@ func (s *Service) Start(ctx context.Context) error {
 
 	go s.synchronizeLoop(ctx)
 
-	go func() {
-		if err := s.assignmentReconciler.start(ctx); err != nil {
-			s.log.Errorf("Error while starting assignment reconciler: %v", err)
-		}
-	}()
+	if err := s.assignmentReconciler.start(ctx); err != nil {
+		return trace.Wrap(err)
+	}
 
 	if s.accessListSync != nil {
 		go s.accessListSync.startSync(ctx)
