@@ -46,10 +46,41 @@
         "auth": {
             "$id": "#/properties/auth",
             "type": "object"
-        },
-        "proxy": {
+        },"proxy": {
             "$id": "#/properties/proxy",
-            "type": "object"
+            "type": "object",
+            "properties": {
+                "teleportConfig": {
+                    "type": "object"
+                },
+                "hpa": {
+                    "$id": "#/properties/proxy/hpa",
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "$id": "#/properties/proxy/hpa/enabled",
+                            "type": "boolean",
+                            "default": false
+                        },
+                        "minReplicas": {
+                            "$id": "#/properties/proxy/hpa/minReplicas",
+                            "type": "integer",
+                            "default": 2
+                        },
+                        "maxReplicas": {
+                            "$id": "#/properties/proxy/hpa/maxReplicas",
+                            "type": "integer",
+                            "default": 5
+                        },
+                        "targetCPUUtilizationPercentage": {
+                            "$id": "#/properties/proxy/hpa/targetCPUUtilizationPercentage",
+                            "type": "integer",
+                            "default": 80
+                        }
+                    },
+                    "required": ["enabled", "minReplicas", "maxReplicas", "targetCPUUtilizationPercentage"]
+                }
+            }
         },
         "createProxyToken": {
             "$id": "#/properties/createProxyToken",

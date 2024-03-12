@@ -1,0 +1,35 @@
+suite: Proxy Horizontal Pod Autoscaler
+templates:
+  - proxy/hpa.yaml
+tests:
+  - it: should not create an HPA when disabled in values
+    set:
+      proxy:
+        hpa:
+          enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create an HPA when enabled in values
+    set:
+      proxy:
+        hpa:
+          enabled: true
+          minReplicas: 2
+          maxReplicas: 5
+          targetCPUUtilizationPercentage: 80
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: HorizontalPodAutoscaler
+      - equal:
+          path: spec.minReplicas
+          value: 2
+      - equal:
+          path: spec.maxReplicas
+          value: 5
+      - equal:
+          path: spec.metrics[0].resource.target.averageUtilization
+          value: 80
