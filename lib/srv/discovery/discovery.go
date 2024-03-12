@@ -57,6 +57,7 @@ import (
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
+	"github.com/gravitational/teleport/lib/utils/spreadwork"
 )
 
 var errNoInstances = errors.New("all fetched nodes already enrolled")
@@ -727,18 +728,6 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 	return nil
 }
 
-// existingEICENodes returns all the EICE Nodes
-func (s *Server) existingEICENodes() []types.Server {
-	return s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
-		labels := n.GetAllLabels()
-		_, accountOK := labels[types.AWSAccountIDLabel]
-		_, instanceOK := labels[types.AWSInstanceIDLabel]
-		// Checking only for the subkind is not enough because users can manually remove labels from agentless nodes.
-		// Account/Instance IDs are required for comparing against new nodes, nodes without those labels are discarded.
-		return accountOK && instanceOK && n.GetSubKind() == types.SubKindOpenSSHEICENode
-	})
-}
-
 func (s *Server) filterExistingEC2Nodes(instances *server.EC2Instances) {
 	nodes := s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
 		labels := n.GetAllLabels()
@@ -843,8 +832,13 @@ func (s *Server) handleEC2UsingEICE(instances *server.EC2Instances) {
 		Integration: instances.Integration,
 	}
 
-	existingEICENodes := s.existingEICENodes()
+	fetchedEC2Instances := make(map[string]string, len(instances.Instances))
+	for _, ec2Instance := range instances.Instances {
+		fetchedEC2Instances[types.ServerInfoNameFromAWS(instances.AccountID, ec2Instance.InstanceID)] = ""
+	}
+	s.nodeWatcher.FillNamesFromEC2Instances(s.ctx, fetchedEC2Instances)
 
+	nodesToUpsert := make([]types.Server, 0, len(instances.Instances))
 	// Add EC2 Instances using EICE method
 	for _, ec2Instance := range instances.Instances {
 		eiceNode, err := services.NewAWSNodeFromEC2v1Instance(ec2Instance.OriginalInstance, awsInfo)
@@ -855,23 +849,29 @@ func (s *Server) handleEC2UsingEICE(instances *server.EC2Instances) {
 		eiceNodeExpiration := s.clock.Now().Add(s.jitter(serverExpirationDuration))
 		eiceNode.SetExpiry(eiceNodeExpiration)
 
-		// Does the node exist already?
-		for _, existingEICENode := range existingEICENodes {
-			match := types.MatchLabels(existingEICENode, map[string]string{
-				types.AWSAccountIDLabel:  instances.AccountID,
-				types.AWSInstanceIDLabel: ec2Instance.InstanceID,
-			})
-			if match {
-				// Re-use the same Name so that `UpsertNode` replaces the node.
-				eiceNode.SetName(existingEICENode.GetName())
-				break
-			}
+		ec2InstanceServerInforName := types.ServerInfoNameFromAWS(instances.AccountID, ec2Instance.InstanceID)
+		// Re-use the same Name so that `UpsertNode` replaces the node.
+		if existingNodeName := fetchedEC2Instances[ec2InstanceServerInforName]; existingNodeName != "" {
+			eiceNode.SetName(existingNodeName)
 		}
 
+		nodesToUpsert = append(nodesToUpsert, eiceNode)
+	}
+
+	applyOverTimeConfig := spreadwork.ApplyOverTimeConfig{
+		MaxDuration: s.PollInterval,
+	}
+	err := spreadwork.ApplyOverTime(s.ctx, applyOverTimeConfig, nodesToUpsert, func(eiceNode types.Server) {
 		if _, err := s.AccessPoint.UpsertNode(s.ctx, eiceNode); err != nil {
-			s.Log.WithError(err).WithField("instance_id", ec2Instance.InstanceID).Warn("Error upserting as Node")
-			continue
+			var instanceID string
+			if awsInfo := eiceNode.GetAWSInfo(); awsInfo != nil {
+				instanceID = awsInfo.InstanceID
+			}
+			s.Log.WithError(err).WithField("instance_id", instanceID).Warn("Error upserting as Node")
 		}
+	})
+	if err != nil {
+		s.Log.WithError(err).Warn("Failed to upsert nodes.")
 	}
 }
 
