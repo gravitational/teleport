@@ -18,6 +18,7 @@ package discovery
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"slices"
@@ -46,9 +47,11 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
+	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
 )
@@ -65,10 +68,16 @@ type Matchers struct {
 	GCP []types.GCPMatcher
 	// Kubernetes is a list of Kubernetes matchers to discovery resources.
 	Kubernetes []types.KubernetesMatcher
+	// AccessGraph is the configuration for the Access Graph Cloud sync.
+	AccessGraph *types.AccessGraphSync
 }
 
 func (m Matchers) IsEmpty() bool {
-	return len(m.GCP) == 0 && len(m.AWS) == 0 && len(m.Azure) == 0 && len(m.Kubernetes) == 0
+	return len(m.GCP) == 0 &&
+		len(m.AWS) == 0 &&
+		len(m.Azure) == 0 &&
+		len(m.Kubernetes) == 0 &&
+		(m.AccessGraph == nil || len(m.AccessGraph.AWS) == 0)
 }
 
 // ssmInstaller handles running SSM commands that install Teleport on EC2 instances.
@@ -122,6 +131,12 @@ type Config struct {
 	// PollInterval is the cadence at which the discovery server will run each of its
 	// discovery cycles.
 	PollInterval time.Duration
+
+	// ServerCredentials are the credentials used to identify the discovery service
+	// to the Access Graph service.
+	ServerCredentials *tls.Config
+	// AccessGraphConfig is the configuration for the Access Graph client
+	AccessGraphConfig servicecfg.AccessGraphConfig
 
 	// TriggerFetchC is a list of channels that must be notified when a off-band poll must be performed.
 	// This is used to start a polling iteration when a new DiscoveryConfig change is received.
@@ -256,6 +271,12 @@ type Server struct {
 	muDynamicServerGCPFetchers sync.RWMutex
 	staticServerGCPFetchers    []server.Fetcher
 
+	// dynamicTAGSyncFetchers holds the current TAG Fetchers for the Dynamic Matchers (those coming from DiscoveryConfig resource).
+	// The key is the DiscoveryConfig name.
+	dynamicTAGSyncFetchers   map[string][]aws_sync.AWSSync
+	muDynamicTAGSyncFetchers sync.RWMutex
+	staticTAGSyncFetchers    []aws_sync.AWSSync
+
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
 	// reconciler periodically reconciles the labels of discovered instances
@@ -284,6 +305,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		dynamicServerAWSFetchers:   make(map[string][]server.Fetcher),
 		dynamicServerAzureFetchers: make(map[string][]server.Fetcher),
 		dynamicServerGCPFetchers:   make(map[string][]server.Fetcher),
+		dynamicTAGSyncFetchers:     make(map[string][]aws_sync.AWSSync),
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
@@ -316,6 +338,10 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}
 
 	if err := s.initKubeAppWatchers(cfg.Matchers.Kubernetes); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.initAccessGraphWatchers(ctx, cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
