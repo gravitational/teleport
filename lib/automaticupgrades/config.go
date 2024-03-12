@@ -30,8 +30,10 @@ import (
 
 const (
 	// EnvUpgrader environment variable specifies the external upgrader type
+	// Ex: unit, kube
 	EnvUpgrader = "TELEPORT_EXT_UPGRADER"
 	// EnvUpgraderVersion environment variable specifies the external upgrader version
+	// Ex: v14.3.6
 	EnvUpgraderVersion = "TELEPORT_EXT_UPGRADER_VERSION"
 
 	// automaticUpgradesEnvar defines the env var to lookup when deciding whether to enable AutomaticUpgrades feature.
