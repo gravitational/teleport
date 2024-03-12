@@ -181,7 +181,7 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			acsURL:           "https:/test.com/acs",
 			expectedEntityID: "IAMShowcase",
 			errAssertion:     require.NoError,
-			preset:           samlsp.GCP,
+			preset:           samlsp.GCPWorkforce,
 		},
 		{
 			name:             "unsupported preset value",

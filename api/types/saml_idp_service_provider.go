@@ -340,7 +340,7 @@ func (am *SAMLAttributeMapping) CheckAndSetDefaults() error {
 // preset can be either empty or one of the supported type.
 func validatePreset(preset string) bool {
 	switch preset {
-	case "", samlsp.GCP:
+	case "", samlsp.GCPWorkforce:
 		return true
 	default:
 		return false
