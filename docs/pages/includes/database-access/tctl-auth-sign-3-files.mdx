@@ -1,0 +1,57 @@
+{{ format="db" }}
+Teleport uses mutual TLS authentication with self-hosted databases. These
+databases must be configured with Teleport's certificate authority to be able to
+verify certificates presented by the Teleport Database Service. Self-hosted
+databases also need a certificate/key pair that Teleport can verify.
+
+If you are using Teleport Cloud, your Teleport user must be allowed to
+impersonate the system role `Db` in order to be able to generate the database
+certificate.
+
+Include the following `allow` rule in in your Teleport Cloud user's role:
+
+```yaml
+allow:
+  impersonate:
+    users: ["Db"]
+    roles: ["Db"]
+```
+
+Generate TLS credentials for your self-hosted database.
+
+If the {{ dbname }} database does not have its own CA, it can present a TLS
+certificate signed by Teleport. Generate a certificate, along with a TLS private
+key and a CA certificate to use for verifying client certificates, by running
+the following command on your workstation:
+
+```code
+# Export Teleport's certificate authority and a generate certificate/key pair
+# for host db.example.com with a 1-year validity period.
+$ tctl auth sign --format={{ format }} --host=db.example.com --out=server --ttl=2190h
+```
+
+In this example, `db.example.com` is the hostname where the Teleport Database
+Service can reach the {{ dbname }} server.
+
+(!docs/pages/includes/database-access/ttl-note.mdx!)
+
+The command creates 3 files: `server.cas`, `server.crt` and `server.key`.
+
+If the {{ dbname }} database already has a CA that it uses to sign certificates
+, you only need to export a Teleport CA certificate for {{ dbname }} to
+authenticate traffic from the Teleport Database Service.
+
+1. Replace <Var name="example.teleport.sh:443" /> with the host and web port of
+   the Teleport Proxy Service in your cluster. Run the following command on your
+   workstation:
+
+   ```code
+   $ tctl auth export --type=db-client --auth-server=<Var name="example.teleport.sh:443" /> > server.cas
+   ```
+
+   The command creates 1 file, `server.cas`.
+
+1. Generate `server.crt` and `server.key` by retrieving a TLS certificate and
+   private key from your existing database CA, signed for your database server.
+   You will use these files later in the guide.
+
