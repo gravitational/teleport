@@ -24,5 +24,5 @@ const (
 
 const (
 	// DefaultRelayStateGCPWorkforce is a default relay state for GCPWorkforce preset.
-	DefaultRelayStateGCPWorkforce = "https://console.cloud.google.com"
+	DefaultRelayStateGCPWorkforce = "https://console.cloud.google/"
 )
