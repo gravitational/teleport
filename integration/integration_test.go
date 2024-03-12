@@ -4842,19 +4842,23 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 						err = tmpFile.Chmod(fs.FileMode(0o777))
 						require.NoError(t, err)
 
-						// enter 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
-						_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v >> %s\n\r", x11.DisplayEnv, tmpFile.Name())))
-						require.NoError(t, err)
-
+						// Reading the display may fail if the session is not fully initialized
+						// and the write to stdin is swallowed.
 						var display string
-						require.Eventually(t, func() bool {
-							output, err := os.ReadFile(tmpFile.Name())
-							if err == nil && len(output) != 0 {
-								display = strings.TrimSpace(string(output))
-								return true
-							}
-							return false
-						}, 5*time.Second, 100*time.Millisecond, "failed to read display")
+						require.EventuallyWithT(t, func(collect *assert.CollectT) {
+							// enter 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
+							_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())))
+							assert.NoError(collect, err)
+
+							assert.Eventually(collect, func() bool {
+								output, err := os.ReadFile(tmpFile.Name())
+								if err == nil && len(output) != 0 {
+									display = strings.TrimSpace(string(output))
+									return true
+								}
+								return false
+							}, time.Second, 100*time.Millisecond, "failed to read display")
+						}, 10*time.Second, time.Second)
 
 						// Make a new connection to the XServer proxy to confirm that forwarding is working.
 						serverDisplay, err := x11.ParseDisplay(display)
