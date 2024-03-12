@@ -1,0 +1,284 @@
+/**
+ * Teleport
+ * Copyright (C) 2024 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import {
+  RpcInputStream,
+  UnaryCall,
+  ClientStreamingCall,
+  ServerStreamingCall,
+  DuplexStreamingCall,
+  RpcOutputStream,
+  RpcError,
+  RpcOptions,
+} from '@protobuf-ts/runtime-rpc';
+
+/**
+ * An abort signal that can be passed over the context bridge.
+ * Can be produced with `cloneAbortSignal()`.
+ */
+export type CloneableAbortSignal = AbortSignal & {
+  canBePassedThroughContextBridge: true;
+};
+
+/**
+ * Converts a regular `AbortSignal` to the signal
+ * that can be passed over the context bridge.
+ */
+export function cloneAbortSignal(signal: AbortSignal): CloneableAbortSignal {
+  const cloned: Writeable<CloneableAbortSignal> = {
+    canBePassedThroughContextBridge: true,
+    onabort: (...args) => signal.onabort(...args),
+    throwIfAborted: () => signal.throwIfAborted(),
+    reason: signal.reason,
+    aborted: signal.aborted,
+    dispatchEvent: (...args) => signal.dispatchEvent(...args),
+    addEventListener: (type, listener, options) =>
+      signal.addEventListener(type, listener, options),
+    removeEventListener: (type, listener, options) =>
+      signal.removeEventListener(type, listener, options),
+    eventListeners: (...args) => signal.eventListeners(...args),
+    removeAllListeners: (...args) => signal.removeAllListeners(...args),
+  };
+
+  signal.addEventListener(
+    'abort',
+    () => {
+      cloned.reason = signal.reason;
+      cloned.aborted = signal.aborted;
+    },
+    {
+      // Catch the abort event before other listeners to update properties.
+      capture: true,
+      once: true,
+    }
+  );
+
+  return cloned;
+}
+
+type Writeable<T> = {
+  -readonly [P in keyof T]: T[P];
+};
+
+/**
+ * User-provided options for Remote Procedure Calls.
+ *
+ * The only difference from the original `RpcOptions` is the abort signal.
+ * The regular one is replaced with `CloneableAbortSignal`
+ * that can be passed over the context bridge.
+ */
+export type CloneableRpcOptions = Omit<RpcOptions, 'abort'> & {
+  abort?: CloneableAbortSignal;
+};
+
+/**
+ * A unary RPC call. Can be passed over the context bridge.
+ * Errors are converted to `TshdRpcError` objects.
+ */
+export type CloneableUnaryCall<I extends object, O extends object> = Pick<
+  UnaryCall<I, O>,
+  'then'
+>;
+
+/**
+ * A client streaming RPC call. Can be passed over the context bridge.
+ * Errors are converted to `TshdRpcError` objects.
+ */
+export type CloneableClientStreamingCall<
+  I extends object,
+  O extends object,
+> = Pick<ClientStreamingCall<I, O>, 'requests' | 'then'>;
+
+/**
+ * A server streaming RPC call. Can be passed over the context bridge.
+ * Errors are converted to `TshdRpcError` objects.
+ */
+export type CloneableServerStreamingCall<
+  I extends object,
+  O extends object,
+> = Pick<ServerStreamingCall<I, O>, 'responses' | 'then'>;
+
+/**
+ * A duplex streaming RPC call. Can be passed over the context bridge.
+ * Errors are converted to `TshdRpcError` objects.
+ */
+export type CloneableDuplexStreamingCall<
+  I extends object,
+  O extends object,
+> = Pick<DuplexStreamingCall<I, O>, 'requests' | 'responses' | 'then'>;
+
+/**
+ * Transforms class-based unary call to an object that can be passed
+ * over the context bridge.
+ * Errors are converted to `TshdRpcError` objects.
+ */
+export function cloneUnaryCall<I extends object, O extends object>(
+  call: (input: I, options?: CloneableRpcOptions) => UnaryCall<I, O>
+): (input: I, options?: CloneableRpcOptions) => CloneableUnaryCall<I, O> {
+  return (input, options) => {
+    const output = call(input, options);
+    return { then: cloneThenRejection(output.then.bind(output)) };
+  };
+}
+
+/**
+ * Transforms class-based client streaming call to an object that can be passed
+ * over the context bridge.
+ * Errors are converted to `TshdRpcError` objects.
+ */
+export function cloneClientStreamingCall<I extends object, O extends object>(
+  call: (options?: CloneableRpcOptions) => ClientStreamingCall<I, O>
+): (options?: CloneableRpcOptions) => CloneableClientStreamingCall<I, O> {
+  return options => {
+    const output = call(options);
+    return {
+      requests: cloneRequests(output.requests),
+      then: cloneThenRejection(output.then.bind(output)),
+    };
+  };
+}
+
+/**
+ * Transforms class-based server streaming call to an object that can be passed
+ * over the context bridge.
+ * Errors are converted to `TshdRpcError` objects.
+ */
+export function cloneServerStreamingCall<I extends object, O extends object>(
+  call: (input: I, options?: CloneableRpcOptions) => ServerStreamingCall<I, O>
+): (
+  input: I,
+  options?: CloneableRpcOptions
+) => CloneableServerStreamingCall<I, O> {
+  return (input, options) => {
+    const output = call(input, options);
+    return {
+      responses: cloneResponses(output.responses),
+      then: cloneThenRejection(output.then.bind(output)),
+    };
+  };
+}
+
+/**
+ * Transforms class-based duplex streaming call to an object that can be passed
+ * over the context bridge.
+ * Errors are converted to `TshdRpcError` objects.
+ */
+export function cloneDuplexStreamingCall<I extends object, O extends object>(
+  call: (options?: CloneableRpcOptions) => DuplexStreamingCall<I, O>
+): (options?: CloneableRpcOptions) => CloneableDuplexStreamingCall<I, O> {
+  return options => {
+    const output = call(options);
+    return {
+      requests: cloneRequests(output.requests),
+      responses: cloneResponses(output.responses),
+      then: cloneThenRejection(output.then.bind(output)),
+    };
+  };
+}
+
+/**
+ * An object that is thrown when an RPC fails.
+ * Preserves properties that would normally be lost after `Error` has passed
+ * through the context bridge.
+ */
+export type TshdRpcError = Pick<
+  RpcError,
+  'name' | 'message' | 'stack' | 'cause' | 'code'
+> & {
+  /**
+   * `true` if the error can be resolved by logging in again.
+   * It is taken from the error metadata.
+   */
+  isResolvableWithRelogin: boolean;
+};
+
+/** Checks if the given value is a `TshdRpcError`. */
+export function isTshdRpcError(error: unknown): error is TshdRpcError {
+  return error['name'] === 'TshdRpcError';
+}
+
+function cloneError(error: unknown): TshdRpcError | Error | unknown {
+  if (error instanceof Error) {
+    if (error.name === 'RpcError') {
+      const e = error as RpcError;
+      return {
+        name: 'TshdRpcError',
+        message: e.message,
+        stack: e.stack,
+        cause: e.cause,
+        code: e.code,
+        isResolvableWithRelogin: e.meta['is-resolvable-with-relogin'] === '1',
+      } satisfies TshdRpcError;
+    }
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause,
+    } satisfies Error;
+  }
+
+  return error;
+}
+
+function cloneRequests<O extends object>(
+  original: RpcInputStream<O>
+): RpcInputStream<O> {
+  return {
+    send: (...args) => original.send(...args),
+    complete: (...args) => original.complete(...args),
+  };
+}
+
+function cloneResponses<O extends object>(
+  original: RpcOutputStream<O>
+): RpcOutputStream<O> {
+  return {
+    [Symbol.asyncIterator]: original[Symbol.asyncIterator],
+    onMessage: (...args) => original.onMessage(...args),
+    onComplete: (...args) => original.onComplete(...args),
+    onError: errorCallback =>
+      original.onError(e => errorCallback(cloneError(e) as Error)),
+    onNext: callback =>
+      original.onNext((message, error, complete) =>
+        callback(message, cloneError(error) as Error, complete)
+      ),
+  };
+}
+
+async function clonePromiseRejection<TResult>(
+  promise: Promise<TResult>
+): Promise<TResult> {
+  try {
+    return await promise;
+  } catch (e) {
+    throw cloneError(e);
+  }
+}
+
+function cloneThenRejection<TResult>(
+  then: Promise<TResult>['then']
+): Promise<TResult>['then'] {
+  return (onFulfilled, onRejected) => {
+    // If onRejected callback is provided, then it will handle the rejection.
+    if (onRejected) {
+      return then(onFulfilled, reason => onRejected(cloneError(reason)));
+    }
+    return clonePromiseRejection(then(onFulfilled));
+  };
+}
