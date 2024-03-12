@@ -108,6 +108,8 @@ type Resources struct {
 	AssociatedAccessPolicies []*accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1
 	// AccessEntries is the list of Access Entries.
 	AccessEntries []*accessgraphv1alpha.AWSEKSClusterAccessEntryV1
+	// RDSDatabases is a list of RDS instances and clusters.
+	RDSDatabases []*accessgraphv1alpha.AWSRDSDatabaseV1
 }
 
 // NewAWSFetcher creates a new AWS fetcher.
@@ -180,6 +182,9 @@ func (a *awsFetcher) poll(ctx context.Context) (*Resources, error) {
 
 	// fetch AWS EKS clusters
 	eGroup.Go(a.pollAWSEKSClusters(ctx, result, collectErr))
+
+	// fetch AWS RDS instances and clusters
+	eGroup.Go(a.pollAWSRDSDatabases(ctx, result, collectErr))
 
 	if err := eGroup.Wait(); err != nil {
 		return nil, trace.Wrap(err)
