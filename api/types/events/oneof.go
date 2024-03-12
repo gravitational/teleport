@@ -17,11 +17,12 @@ limitations under the License.
 package events
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"reflect"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // MustToOneOf converts audit event to OneOf
@@ -653,7 +654,7 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		}
 
 	default:
-		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
+		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}
 		unknown.Type = UnknownEvent
 		unknown.Code = UnknownCode
