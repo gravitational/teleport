@@ -359,7 +359,6 @@ exports[`renders loaded linux 1`] = `
 }
 
 .c29 {
-  background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -400,16 +399,14 @@ exports[`renders loaded linux 1`] = `
 }
 
 .c29 > thead > tr > th {
-  background: rgba(255,255,255,0.07);
   color: #FFFFFF;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
   cursor: pointer;
-  font-size: 10px;
-  font-weight: 400;
   padding-bottom: 0;
   padding-top: 0;
   text-align: left;
-  opacity: 0.75;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -419,15 +416,36 @@ exports[`renders loaded linux 1`] = `
 
 .c29 > tbody > tr > td {
   color: #FFFFFF;
-  line-height: 16px;
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.035px;
 }
 
 .c29 tbody tr {
-  border-bottom: 1px solid rgb(49,58,100);
+  transition: all 150ms;
+  position: relative;
+  border-top: 2px solid rgba(255,255,255,0.07);
 }
 
 .c29 tbody tr:hover {
-  background-color: rgba(255,255,255,0.07);
+  border-top: 2px solid rgba(0,0,0,0);
+  background-color: #222C59;
+}
+
+.c29 tbody tr:hover:after {
+  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+}
+
+.c29 tbody tr:hover + tr {
+  border-top: 2px solid rgba(0,0,0,0);
 }
 
 .c30 {
@@ -1376,7 +1394,6 @@ exports[`renders loaded macOS 1`] = `
 }
 
 .c29 {
-  background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -1417,16 +1434,14 @@ exports[`renders loaded macOS 1`] = `
 }
 
 .c29 > thead > tr > th {
-  background: rgba(255,255,255,0.07);
   color: #FFFFFF;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
   cursor: pointer;
-  font-size: 10px;
-  font-weight: 400;
   padding-bottom: 0;
   padding-top: 0;
   text-align: left;
-  opacity: 0.75;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -1436,15 +1451,36 @@ exports[`renders loaded macOS 1`] = `
 
 .c29 > tbody > tr > td {
   color: #FFFFFF;
-  line-height: 16px;
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.035px;
 }
 
 .c29 tbody tr {
-  border-bottom: 1px solid rgb(49,58,100);
+  transition: all 150ms;
+  position: relative;
+  border-top: 2px solid rgba(255,255,255,0.07);
 }
 
 .c29 tbody tr:hover {
-  background-color: rgba(255,255,255,0.07);
+  border-top: 2px solid rgba(0,0,0,0);
+  background-color: #222C59;
+}
+
+.c29 tbody tr:hover:after {
+  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+}
+
+.c29 tbody tr:hover + tr {
+  border-top: 2px solid rgba(0,0,0,0);
 }
 
 .c30 {
@@ -2319,7 +2355,6 @@ exports[`renders loaded windows 1`] = `
 }
 
 .c29 {
-  background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -2360,16 +2395,14 @@ exports[`renders loaded windows 1`] = `
 }
 
 .c29 > thead > tr > th {
-  background: rgba(255,255,255,0.07);
   color: #FFFFFF;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
   cursor: pointer;
-  font-size: 10px;
-  font-weight: 400;
   padding-bottom: 0;
   padding-top: 0;
   text-align: left;
-  opacity: 0.75;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -2379,15 +2412,36 @@ exports[`renders loaded windows 1`] = `
 
 .c29 > tbody > tr > td {
   color: #FFFFFF;
-  line-height: 16px;
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.035px;
 }
 
 .c29 tbody tr {
-  border-bottom: 1px solid rgb(49,58,100);
+  transition: all 150ms;
+  position: relative;
+  border-top: 2px solid rgba(255,255,255,0.07);
 }
 
 .c29 tbody tr:hover {
-  background-color: rgba(255,255,255,0.07);
+  border-top: 2px solid rgba(0,0,0,0);
+  background-color: #222C59;
+}
+
+.c29 tbody tr:hover:after {
+  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+}
+
+.c29 tbody tr:hover + tr {
+  border-top: 2px solid rgba(0,0,0,0);
 }
 
 .c35 {
@@ -3252,7 +3306,6 @@ exports[`renders when generating license 1`] = `
 }
 
 .c29 {
-  background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -3293,16 +3346,14 @@ exports[`renders when generating license 1`] = `
 }
 
 .c29 > thead > tr > th {
-  background: rgba(255,255,255,0.07);
   color: #FFFFFF;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
   cursor: pointer;
-  font-size: 10px;
-  font-weight: 400;
   padding-bottom: 0;
   padding-top: 0;
   text-align: left;
-  opacity: 0.75;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -3312,15 +3363,36 @@ exports[`renders when generating license 1`] = `
 
 .c29 > tbody > tr > td {
   color: #FFFFFF;
-  line-height: 16px;
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.035px;
 }
 
 .c29 tbody tr {
-  border-bottom: 1px solid rgb(49,58,100);
+  transition: all 150ms;
+  position: relative;
+  border-top: 2px solid rgba(255,255,255,0.07);
 }
 
 .c29 tbody tr:hover {
-  background-color: rgba(255,255,255,0.07);
+  border-top: 2px solid rgba(0,0,0,0);
+  background-color: #222C59;
+}
+
+.c29 tbody tr:hover:after {
+  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+}
+
+.c29 tbody tr:hover + tr {
+  border-top: 2px solid rgba(0,0,0,0);
 }
 
 .c30 {
@@ -4292,7 +4364,6 @@ exports[`renders when license failed 1`] = `
 }
 
 .c30 {
-  background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -4333,16 +4404,14 @@ exports[`renders when license failed 1`] = `
 }
 
 .c30 > thead > tr > th {
-  background: rgba(255,255,255,0.07);
   color: #FFFFFF;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
   cursor: pointer;
-  font-size: 10px;
-  font-weight: 400;
   padding-bottom: 0;
   padding-top: 0;
   text-align: left;
-  opacity: 0.75;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -4352,15 +4421,36 @@ exports[`renders when license failed 1`] = `
 
 .c30 > tbody > tr > td {
   color: #FFFFFF;
-  line-height: 16px;
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.035px;
 }
 
 .c30 tbody tr {
-  border-bottom: 1px solid rgb(49,58,100);
+  transition: all 150ms;
+  position: relative;
+  border-top: 2px solid rgba(255,255,255,0.07);
 }
 
 .c30 tbody tr:hover {
-  background-color: rgba(255,255,255,0.07);
+  border-top: 2px solid rgba(0,0,0,0);
+  background-color: #222C59;
+}
+
+.c30 tbody tr:hover:after {
+  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+}
+
+.c30 tbody tr:hover + tr {
+  border-top: 2px solid rgba(0,0,0,0);
 }
 
 .c31 {
@@ -5315,7 +5405,6 @@ exports[`renders when license generated 1`] = `
 }
 
 .c29 {
-  background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -5356,16 +5445,14 @@ exports[`renders when license generated 1`] = `
 }
 
 .c29 > thead > tr > th {
-  background: rgba(255,255,255,0.07);
   color: #FFFFFF;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
   cursor: pointer;
-  font-size: 10px;
-  font-weight: 400;
   padding-bottom: 0;
   padding-top: 0;
   text-align: left;
-  opacity: 0.75;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -5375,15 +5462,36 @@ exports[`renders when license generated 1`] = `
 
 .c29 > tbody > tr > td {
   color: #FFFFFF;
-  line-height: 16px;
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.035px;
 }
 
 .c29 tbody tr {
-  border-bottom: 1px solid rgb(49,58,100);
+  transition: all 150ms;
+  position: relative;
+  border-top: 2px solid rgba(255,255,255,0.07);
 }
 
 .c29 tbody tr:hover {
-  background-color: rgba(255,255,255,0.07);
+  border-top: 2px solid rgba(0,0,0,0);
+  background-color: #222C59;
+}
+
+.c29 tbody tr:hover:after {
+  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+}
+
+.c29 tbody tr:hover + tr {
+  border-top: 2px solid rgba(0,0,0,0);
 }
 
 .c30 {

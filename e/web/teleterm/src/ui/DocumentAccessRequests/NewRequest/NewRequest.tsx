@@ -2,11 +2,10 @@ import React, { useMemo } from 'react';
 
 import styled from 'styled-components';
 
-import { Box, Flex, Alert } from 'design';
+import { Alert, Box, Flex } from 'design';
 import { space, width } from 'design/system';
-import { StyledTableWrapper } from 'design/DataTable';
 
-import { SearchPanel, SearchPagination } from 'shared/components/Search';
+import { SearchPagination, SearchPanel } from 'shared/components/Search';
 import { ResourceList } from 'e-teleport/Workflow/NewRequest/ResourceList';
 
 import useNewRequest, { ResourceKind } from './useNewRequest';
@@ -111,35 +110,33 @@ export function NewRequest() {
             </StyledNavButton>
           ))}
         </Flex>
-        <StyledTableWrapper borderRadius={3}>
-          {/* roles use client-side search */}
-          {!isRoleList && (
-            <SearchPanel
-              updateQuery={updateQuery}
-              updateSearch={updateSearch}
-              pageIndicators={pageCount}
-              filter={agentFilter}
-              showSearchBar={true}
-              disableSearch={fetchStatus === 'loading'}
-            />
-          )}
-          <ResourceList
-            agents={agents}
-            selectedResource={selectedResource}
-            customSort={customSort}
-            onLabelClick={onAgentLabelClick}
-            addedResources={addedResources}
-            addOrRemoveResource={addOrRemoveResource}
-            requestableRoles={requestableRoles}
-            disableRows={fetchStatus === 'loading'}
+        {/* roles use client-side search */}
+        {!isRoleList && (
+          <SearchPanel
+            updateQuery={updateQuery}
+            updateSearch={updateSearch}
+            pageIndicators={pageCount}
+            filter={agentFilter}
+            showSearchBar={true}
+            disableSearch={fetchStatus === 'loading'}
           />
-          {!isRoleList && (
-            <SearchPagination
-              nextPage={fetchStatus === 'loading' ? null : nextPage}
-              prevPage={fetchStatus === 'loading' ? null : prevPage}
-            />
-          )}
-        </StyledTableWrapper>
+        )}
+        <ResourceList
+          agents={agents}
+          selectedResource={selectedResource}
+          customSort={customSort}
+          onLabelClick={onAgentLabelClick}
+          addedResources={addedResources}
+          addOrRemoveResource={addOrRemoveResource}
+          requestableRoles={requestableRoles}
+          disableRows={fetchStatus === 'loading'}
+        />
+        {!isRoleList && (
+          <SearchPagination
+            nextPage={fetchStatus === 'loading' ? null : nextPage}
+            prevPage={fetchStatus === 'loading' ? null : prevPage}
+          />
+        )}
       </StyledMain>
     </Layout>
   );
