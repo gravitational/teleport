@@ -17,8 +17,9 @@
  */
 
 import grpc from '@grpc/grpc-js';
+import { GrpcTransport } from '@protobuf-ts/grpc-transport';
 import * as api from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
-import { TerminalServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.grpc-client';
+import { TerminalServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 import {
   ClusterUserPreferences,
@@ -56,9 +57,12 @@ export function createTshdClient(
   credentials: grpc.ChannelCredentials
 ): types.TshdClient {
   const logger = new Logger('tshd');
-  const tshd = new TerminalServiceClient(addr, credentials, {
+  const transport = new GrpcTransport({
+    host: addr,
+    channelCredentials: credentials,
     interceptors: [loggingInterceptor(logger)],
   });
+  const tshd = new TerminalServiceClient(transport);
 
   // Create a client instance that could be shared with the  renderer (UI) via Electron contextBridge
   const client = {
