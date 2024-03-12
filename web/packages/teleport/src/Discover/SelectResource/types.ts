@@ -66,10 +66,10 @@ export enum KubeLocation {
   Aws,
 }
 
-/** SAMLServiceProviderPresets defines SAML service provider preset types.
+/** SamlServiceProviderPreset defines SAML service provider preset types.
  * Used to define custom or pre-defined configuration flow.
-*/
-export enum SAMLServiceProviderPresets {
+ */
+export enum SamlServiceProviderPreset {
   Unspecified = 'unspecified',
   Grafana = 'grafana',
 }
@@ -78,7 +78,7 @@ export interface ResourceSpec {
   dbMeta?: { location: DatabaseLocation; engine: DatabaseEngine };
   nodeMeta?: { location: ServerLocation };
   kubeMeta?: { location: KubeLocation };
-  samlMeta?: { preset: SAMLServiceProviderPresets };
+  samlMeta?: { preset: SamlServiceProviderPreset };
   name: string;
   popular?: boolean;
   kind: ResourceKind;
