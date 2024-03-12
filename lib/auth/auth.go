@@ -5909,6 +5909,12 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.BadParameter("empty Login field")
 		}
 
+		if t.Node.Login == teleport.SSHSessionJoinPrincipal && checker.RequiresMFAToJoinSessions() {
+			return &proto.IsMFARequiredResponse{
+				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+			}, nil
+		}
+
 		// Find the target node and check whether MFA is required.
 		matches, err := client.GetResourcesWithFilters(ctx, a, proto.ListResourcesRequest{
 			ResourceType:   types.KindNode,

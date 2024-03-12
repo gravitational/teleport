@@ -3121,6 +3121,10 @@ message SessionJoinPolicy {
 
   // Modes is a list of permitted participant modes for this policy.
   repeated string Modes = 4 [(gogoproto.jsontag) = "modes"];
+
+  // MFARequired specifies if MFA checks will be required when joining
+  // a session for all participant modes and also periodically for moderators.
+  bool MFARequired = 5 [(gogoproto.jsontag) = "mfa_required"];
 }
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on
