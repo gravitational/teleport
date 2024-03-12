@@ -218,7 +218,9 @@ func TestProxyProtocolPostgresStartup(t *testing.T) {
 				require.NoError(t, err)
 				defer conn.Close()
 				for _, task := range tt.tasks {
-					payload := task.sendMsg.Encode(nil)
+					payload, err := task.sendMsg.Encode(nil)
+					require.NoError(t, err, "FrontendMessage.Encode failed")
+
 					nWritten, err := conn.Write(payload)
 					require.NoError(t, err)
 					require.Equal(t, len(payload), nWritten, "failed to fully write payload")
