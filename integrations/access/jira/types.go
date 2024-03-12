@@ -64,7 +64,7 @@ type ErrorDetails struct {
 	// This is the official return format, according to Jira's docs.
 	errors map[string]string
 	// legacyErrors ensures backward compatibility with Jira errors returned as
-	// a list. It's unclear wich Jira version and which part of jira can return
+	// a list. It's unclear which Jira version and which part of jira can return
 	// such errors, but they existed at some point, and we might still get them.
 	legacyErrors []string
 }
