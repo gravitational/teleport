@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
 )
 
 func TestValidateLocalAuthSecrets_deviceTypes(t *testing.T) {
@@ -62,4 +63,21 @@ func TestValidateLocalAuthSecrets_deviceTypes(t *testing.T) {
 		},
 	})
 	assert.NoError(t, err, "ValidateLocalAuthSecrets failed")
+}
+
+func TestValidateLocalAuthSecrets_empty(t *testing.T) {
+	assert.NoError(t, services.ValidateLocalAuthSecrets(&types.LocalAuthSecrets{}))
+}
+
+func TestValidateLocalAuthSecrets_passwordHash(t *testing.T) {
+	assert.NoError(t, services.ValidateLocalAuthSecrets(&types.LocalAuthSecrets{
+		// bcrypt hash of "foobar"
+		PasswordHash: []byte("$2y$10$d3BZ9tUDA5vD1hUL8iSfC.ADGj.WS4VRTLVtEWkZrD76pRZFJZ5f2"),
+	}))
+
+	err := services.ValidateLocalAuthSecrets(&types.LocalAuthSecrets{
+		PasswordHash: []byte("$hashimpo$tor"),
+	})
+	assert.Error(t, err)
+	assert.True(t, trace.IsBadParameter(err))
 }
