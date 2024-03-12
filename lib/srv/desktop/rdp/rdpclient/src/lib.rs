@@ -415,6 +415,22 @@ pub unsafe extern "C" fn client_write_rdp_sync_keys(
     )
 }
 
+/// # Safety
+///
+/// `cgo_handle` must be a valid handle.
+#[no_mangle]
+pub unsafe extern "C" fn client_write_screen_resize(
+    cgo_handle: CgoHandle,
+    width: u32,
+    height: u32,
+) -> CGOErrCode {
+    handle_operation(
+        cgo_handle,
+        "client_write_screen_resize",
+        move |client_handle| client_handle.write_screen_resize(width, height),
+    )
+}
+
 #[repr(C)]
 pub struct CGOConnectParams {
     go_addr: *const c_char,

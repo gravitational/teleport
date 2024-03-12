@@ -27,7 +27,9 @@ use ironrdp_cliprdr::{Cliprdr, CliprdrClient, CliprdrSvcMessages};
 use ironrdp_connector::connection_activation::ConnectionActivationState;
 use ironrdp_connector::{Config, ConnectorError, Credentials};
 use ironrdp_dvc::DrdynvcClient;
-use ironrdp_pdu::dvc::display::{ClientPdu, Monitor, MonitorFlags, MonitorLayoutPdu, Orientation};
+use ironrdp_pdu::dvc::display::{
+    ClientPdu, DisplayPipelineError, Monitor, MonitorFlags, MonitorLayoutPdu, Orientation,
+};
 use ironrdp_pdu::input::fast_path::{
     FastPathInput, FastPathInputEvent, KeyboardFlags, SynchronizeFlags,
 };
@@ -363,60 +365,10 @@ impl Client {
         x224_processor: Arc<Mutex<x224::Processor>>,
     ) -> tokio::task::JoinHandle<ClientResult<()>> {
         global::TOKIO_RT.spawn(async move {
-            let mut width = 800;
-            let mut height = 600;
             loop {
                 match write_receiver.recv().await {
                     Some(write_request) => match write_request {
                         ClientFunction::WriteRdpKey(args) => {
-                            debug!("Scan code: {}", args.code);
-                            if args.code == 0x1E && args.down {
-                                width = 1800 - width;
-                                height = 1400 - height;
-                                debug!("Trying to resize: {}", args.code);
-
-                                let mut buf = WriteBuf::new();
-                                let monitor_layout_pdu =
-                                    ClientPdu::DisplayControlMonitorLayout(MonitorLayoutPdu {
-                                        monitors: vec![Monitor {
-                                            flags: MonitorFlags::PRIMARY,
-                                            left: 0,
-                                            top: 0,
-                                            width: width as u32,
-                                            height: height as u32,
-                                            physical_width: 0,
-                                            physical_height: 0,
-                                            orientation: Orientation::Landscape,
-                                            desktop_scale_factor: 100, // percent; todo: can this be zero?
-                                            device_scale_factor: 100, // percent; todo: can this be zero?
-                                        }],
-                                    });
-                                monitor_layout_pdu.to_buffer(&mut buf);
-
-                                let prcessor = x224_processor.clone();
-                                let res: ClientResult<WriteBuf> = global::TOKIO_RT
-                                    .spawn_blocking(move || {
-                                        let mut buf2 = WriteBuf::new();
-                                        let x224_processor = Self::x224_lock(&prcessor)?;
-                                        x224_processor.encode_dynamic(
-                                            &mut buf2,
-                                            dvc::display::CHANNEL_NAME,
-                                            buf.filled(),
-                                        )?;
-                                        Ok(buf2)
-                                    })
-                                    .await?;
-                                match res {
-                                    Ok(buf2) => {
-                                        let x = buf2.filled();
-                                        debug!("Sending resize {}x{}, {:?}", width, height, x);
-                                        write_stream.write_all(x).await?;
-                                    }
-                                    Err(e) => {
-                                        debug!("Not OK {:?}", e);
-                                    }
-                                }
-                            }
                             Client::write_rdp_key(&mut write_stream, args).await?;
                         }
                         ClientFunction::WriteRdpPointer(args) => {
@@ -431,6 +383,15 @@ impl Client {
                         ClientFunction::WriteRdpdr(args) => {
                             Client::write_rdpdr(&mut write_stream, x224_processor.clone(), args)
                                 .await?;
+                        }
+                        ClientFunction::WriteScreenResize(width, height) => {
+                            Client::write_screen_resize(
+                                &mut write_stream,
+                                x224_processor.clone(),
+                                width,
+                                height,
+                            )
+                            .await?;
                         }
                         ClientFunction::HandleTdpSdAnnounce(sda) => {
                             Client::handle_tdp_sd_announce(
@@ -645,6 +606,51 @@ impl Client {
 
         // Write the RDPDR PDU to the RDP server.
         write_stream.write_all(&encoded).await?;
+        Ok(())
+    }
+
+    /// Sends a screen resize to the RDP server.
+    async fn write_screen_resize(
+        write_stream: &mut RdpWriteStream,
+        x224_processor: Arc<Mutex<x224::Processor>>,
+        width: u32,
+        height: u32,
+    ) -> ClientResult<()> {
+        let monitor_layout_buf = {
+            let mut monitor_layout_buf = WriteBuf::new();
+            let monitor_layout_pdu = ClientPdu::DisplayControlMonitorLayout(MonitorLayoutPdu {
+                monitors: vec![Monitor {
+                    flags: MonitorFlags::PRIMARY,
+                    left: 0,
+                    top: 0,
+                    width,
+                    height,
+                    physical_width: 0,
+                    physical_height: 0,
+                    orientation: Orientation::Landscape,
+                    desktop_scale_factor: 100, // percent; todo: can this be zero?
+                    device_scale_factor: 100,  // percent; todo: can this be zero?
+                }],
+            });
+            monitor_layout_pdu.to_buffer(&mut monitor_layout_buf)?;
+
+            Ok::<_, ClientError>(monitor_layout_buf)
+        }?;
+
+        let full_dvc_buf = global::TOKIO_RT
+            .spawn_blocking(move || {
+                let mut full_dvc_buf = WriteBuf::new();
+                let x224_processor = Self::x224_lock(&x224_processor)?;
+                x224_processor.encode_dynamic(
+                    &mut full_dvc_buf,
+                    dvc::display::CHANNEL_NAME,
+                    monitor_layout_buf.filled(),
+                )?;
+                Ok::<_, ClientError>(full_dvc_buf)
+            })
+            .await??;
+
+        write_stream.write_all(full_dvc_buf.filled()).await?;
         Ok(())
     }
 
@@ -918,6 +924,8 @@ enum ClientFunction {
     WriteRawPdu(Vec<u8>),
     /// Corresponds to [`Client::write_rdpdr`]
     WriteRdpdr(RdpdrPdu),
+    /// Corresponds to [`Client::write_screen_resize`]
+    WriteScreenResize(u32, u32),
     /// Corresponds to [`Client::handle_tdp_sd_announce`]
     HandleTdpSdAnnounce(tdp::SharedDirectoryAnnounce),
     /// Corresponds to [`Client::handle_tdp_sd_info_response`]
@@ -994,6 +1002,15 @@ impl ClientHandle {
 
     pub async fn write_rdpdr_async(&self, pdu: RdpdrPdu) -> ClientResult<()> {
         self.send(ClientFunction::WriteRdpdr(pdu)).await
+    }
+
+    pub fn write_screen_resize(&self, width: u32, height: u32) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::WriteScreenResize(width, height))
+    }
+
+    pub async fn write_screen_resize_async(&self, width: u32, height: u32) -> ClientResult<()> {
+        self.send(ClientFunction::WriteScreenResize(width, height))
+            .await
     }
 
     pub fn handle_tdp_sd_announce(&self, sda: tdp::SharedDirectoryAnnounce) -> ClientResult<()> {
@@ -1234,6 +1251,7 @@ pub enum ClientError {
     ErrorStack(ErrorStack),
     #[cfg(feature = "fips")]
     HandshakeError(HandshakeError<TokioTcpStream>),
+    DisplayPipelineError(DisplayPipelineError),
 }
 
 impl std::error::Error for ClientError {}
@@ -1259,6 +1277,7 @@ impl Display for ClientError {
             ClientError::ErrorStack(e) => Display::fmt(e, f),
             #[cfg(feature = "fips")]
             ClientError::HandshakeError(e) => Display::fmt(e, f),
+            ClientError::DisplayPipelineError(e) => Display::fmt(e, f),
         }
     }
 }
@@ -1328,6 +1347,12 @@ impl From<ErrorStack> for ClientError {
 impl From<HandshakeError<TokioTcpStream>> for ClientError {
     fn from(e: HandshakeError<TokioTcpStream>) -> Self {
         ClientError::HandshakeError(e)
+    }
+}
+
+impl From<DisplayPipelineError> for ClientError {
+    fn from(e: DisplayPipelineError) -> Self {
+        ClientError::DisplayPipelineError(e)
     }
 }
 
