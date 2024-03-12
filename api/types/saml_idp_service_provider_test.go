@@ -244,7 +244,7 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 				if len(sp.GetAttributeMapping()) > 0 {
 					require.Equal(t, test.attributeMapping, sp.GetAttributeMapping())
 				}
-				if test.preset == "" {
+				if test.preset == "" && test.relayState == "" {
 					require.Empty(t, sp.GetRelayState())
 				}
 				if test.expectedRelayState != "" {
