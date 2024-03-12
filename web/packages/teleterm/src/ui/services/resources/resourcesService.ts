@@ -20,6 +20,8 @@ import { pluralize } from 'shared/utils/text';
 
 import { makeApp, App } from 'teleterm/ui/services/clusters';
 
+import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
+
 import type * as types from 'teleterm/services/tshd/types';
 import type * as uri from 'teleterm/ui/uri';
 import type { ResourceTypeFilter } from 'teleterm/ui/Search/searchResult';
@@ -89,7 +91,7 @@ export class ResourcesService {
     filters: ResourceTypeFilter[];
     limit: number;
   }): Promise<PromiseSettledResult<SearchResult[]>[]> {
-    const params = { search, clusterUri, sort: null, limit };
+    const params = { search, clusterUri, sort: null, limit, startKey: '' };
 
     const getServers = () =>
       this.fetchServers(params).then(
@@ -146,23 +148,10 @@ export class ResourcesService {
     params: types.ListUnifiedResourcesRequest,
     abortSignal: AbortSignal
   ) {
-    const tshAbortSignal = {
-      aborted: false,
-      addEventListener: (cb: (...args: any[]) => void) => {
-        abortSignal.addEventListener('abort', cb);
-      },
-      removeEventListener: (cb: (...args: any[]) => void) => {
-        abortSignal.removeEventListener('abort', cb);
-      },
-    };
-    abortSignal.addEventListener(
-      'abort',
-      () => {
-        tshAbortSignal.aborted = true;
-      },
-      { once: true }
+    return this.tshClient.listUnifiedResources(
+      params,
+      cloneAbortSignal(abortSignal)
     );
-    return this.tshClient.listUnifiedResources(params, tshAbortSignal);
   }
 }
 
