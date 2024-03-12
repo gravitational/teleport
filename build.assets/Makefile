@@ -333,12 +333,14 @@ test-helm-update-snapshots:
 .PHONY:integration
 integration: buildbox
 	docker run \
+		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		make -C $(SRCDIR) FLAGS='-cover' integration
 
 .PHONY:integration-root
 integration-root: buildbox
 	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
+		--env TELEPORT_XAUTH_TEST="yes" \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-root"
 
 .PHONY:integration-kube
