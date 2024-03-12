@@ -18,7 +18,7 @@ panic = "abort"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies]
-embed-resource = "2.4.1"
+embed-resource = "2.4.2"
 regex = "1.10.3"
 
 [dependencies]
