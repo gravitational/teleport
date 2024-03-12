@@ -367,6 +367,11 @@ func (a *Server) authenticateUserInternal(ctx context.Context, req AuthenticateU
 		authErr = authenticateHeadlessError
 	case req.Webauthn != nil:
 		authenticateFn = func() (*types.MFADevice, error) {
+			if req.Pass != nil {
+				if err = a.checkPasswordWOToken(user, req.Pass.Password); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
 			mfaResponse := &proto.MFAAuthenticateResponse{
 				Response: &proto.MFAAuthenticateResponse_Webauthn{
 					Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
