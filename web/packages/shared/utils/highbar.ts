@@ -110,7 +110,8 @@ export function runOnce<T extends (...args) => any>(func: T) {
   let result;
   return function () {
     if (--n > 0) {
-      result = func.apply(this, arguments);
+      // This implementation does not pass strictBindCallApply check.
+      result = func.apply(this, arguments as any);
     }
     if (n <= 1) {
       func = undefined;
@@ -292,6 +293,7 @@ export function debounce<T extends (...args: any) => any>(
     }
     return result;
   }
+
   debounced.cancel = cancel;
   debounced.flush = flush;
   return debounced;
