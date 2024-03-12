@@ -44,65 +44,25 @@ func TestAccessListMemberDefaults(t *testing.T) {
 			Spec: AccessListMemberSpec{
 				AccessList: accesslist,
 				Name:       user,
-				Membership: InclusionExplicit,
 				Joined:     time.Date(1969, time.July, 20, 20, 17, 40, 0, time.UTC),
 				AddedBy:    "some-other-user",
 			},
 		}
 	}
 
-	t.Run("membership defaults to explicit", func(t *testing.T) {
+	t.Run("join date required for member", func(t *testing.T) {
 		uut := newValidAccessListMember()
-		uut.Spec.Membership = InclusionUnspecified
-
-		err := uut.CheckAndSetDefaults()
-		require.NoError(t, err)
-		require.Equal(t, InclusionExplicit, uut.Spec.Membership)
-	})
-
-	t.Run("bad membership value is an error", func(t *testing.T) {
-		uut := newValidAccessListMember()
-		uut.Spec.Membership = Inclusion("nonsense")
-
-		err := uut.CheckAndSetDefaults()
-		require.Error(t, err)
-	})
-
-	t.Run("join date required for explicit member", func(t *testing.T) {
-		uut := newValidAccessListMember()
-		uut.Spec.Membership = InclusionExplicit
 		uut.Spec.Joined = time.Time{}
 
 		err := uut.CheckAndSetDefaults()
 		require.Error(t, err)
 	})
 
-	t.Run("join date not required for implicit member", func(t *testing.T) {
+	t.Run("added-by required", func(t *testing.T) {
 		uut := newValidAccessListMember()
-		uut.Spec.Membership = InclusionImplicit
-		uut.Spec.Joined = time.Time{}
-
-		err := uut.CheckAndSetDefaults()
-		require.NoError(t, err)
-		require.Equal(t, time.Time{}, uut.Spec.Joined)
-	})
-
-	t.Run("added-by required for explicit member", func(t *testing.T) {
-		uut := newValidAccessListMember()
-		uut.Spec.Membership = InclusionExplicit
 		uut.Spec.AddedBy = ""
 
 		err := uut.CheckAndSetDefaults()
 		require.Error(t, err)
-	})
-
-	t.Run("added-by not required for implicit member", func(t *testing.T) {
-		uut := newValidAccessListMember()
-		uut.Spec.Membership = InclusionImplicit
-		uut.Spec.AddedBy = ""
-
-		err := uut.CheckAndSetDefaults()
-		require.NoError(t, err)
-		require.Empty(t, uut.Spec.AddedBy)
 	})
 }
