@@ -49,6 +49,9 @@ func ReconcileResults(old *Resources, new *Resources) (upsert, delete *accessgra
 		reconcileRoleInlinePolicies(old.RoleInlinePolicies, new.RoleInlinePolicies),
 		reconcileRoleAttachedPolicies(old.RoleAttachedPolicies, new.RoleAttachedPolicies),
 		reconcileInstanceProfiles(old.InstanceProfiles, new.InstanceProfiles),
+		reconcileEKSClusters(old.EKSClusters, new.EKSClusters),
+		reconcileAssociatedAccessPolicy(old.AssociatedAccessPolicies, new.AssociatedAccessPolicies),
+		reconcileAccessEntry(old.AccessEntries, new.AccessEntries),
 	} {
 		upsert.Resources = append(upsert.Resources, results.upsert.Resources...)
 		delete.Resources = append(delete.Resources, results.delete.Resources...)
@@ -442,6 +445,84 @@ func reconcileInstanceProfiles(
 		delete.Resources = append(delete.Resources, &accessgraphv1alpha.AWSResource{
 			Resource: &accessgraphv1alpha.AWSResource_InstanceProfile{
 				InstanceProfile: profile,
+			},
+		})
+	}
+	return &reconcileIntermeditateResult{upsert, delete}
+}
+
+func reconcileEKSClusters(
+	old []*accessgraphv1alpha.AWSEKSClusterV1,
+	new []*accessgraphv1alpha.AWSEKSClusterV1,
+) *reconcileIntermeditateResult {
+	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
+	toAdd, toRemove := reconcile(old, new, func(cluster *accessgraphv1alpha.AWSEKSClusterV1) string {
+		return fmt.Sprintf("%s;%s", cluster.AccountId, cluster.Arn)
+	})
+
+	for _, cluster := range toAdd {
+		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_EksCluster{
+				EksCluster: cluster,
+			},
+		})
+	}
+	for _, cluster := range toRemove {
+		delete.Resources = append(delete.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_EksCluster{
+				EksCluster: cluster,
+			},
+		})
+	}
+	return &reconcileIntermeditateResult{upsert, delete}
+}
+
+func reconcileAssociatedAccessPolicy(
+	old []*accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1,
+	new []*accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1,
+) *reconcileIntermeditateResult {
+	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
+	toAdd, toRemove := reconcile(old, new, func(profile *accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1) string {
+		return fmt.Sprintf("%s;%s;%s;%s", profile.AccountId, profile.Cluster.Arn, profile.PrincipalArn, profile.PolicyArn)
+	})
+
+	for _, profile := range toAdd {
+		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_EksClusterAssociatedPolicy{
+				EksClusterAssociatedPolicy: profile,
+			},
+		})
+	}
+	for _, profile := range toRemove {
+		delete.Resources = append(delete.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_EksClusterAssociatedPolicy{
+				EksClusterAssociatedPolicy: profile,
+			},
+		})
+	}
+	return &reconcileIntermeditateResult{upsert, delete}
+}
+
+func reconcileAccessEntry(
+	old []*accessgraphv1alpha.AWSEKSClusterAccessEntryV1,
+	new []*accessgraphv1alpha.AWSEKSClusterAccessEntryV1,
+) *reconcileIntermeditateResult {
+	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
+	toAdd, toRemove := reconcile(old, new, func(profile *accessgraphv1alpha.AWSEKSClusterAccessEntryV1) string {
+		return fmt.Sprintf("%s;%s;%s;%s", profile.AccountId, profile.Cluster.Arn, profile.PrincipalArn, profile.AccessEntryArn)
+	})
+
+	for _, profile := range toAdd {
+		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_EksClusterAccessEntry{
+				EksClusterAccessEntry: profile,
+			},
+		})
+	}
+	for _, profile := range toRemove {
+		delete.Resources = append(delete.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_EksClusterAccessEntry{
+				EksClusterAccessEntry: profile,
 			},
 		})
 	}
