@@ -29,7 +29,7 @@ describe('removeIncompatibleVersions', () => {
     { authVersion: '9.1.0', versions: ['10.0.0', '10.0.1'], expected: [] },
   ];
   test.each(cases)(
-    'test removeNewerVersions: authVersion=$authVersion and versions=$versions should return $expected',
+    'removeNewerVersions: authVersion=$authVersion and versions=$versions should return $expected',
     ({ authVersion, versions, expected }) => {
       const result = removeIncompatibleVersions(authVersion, versions);
       expect(result).toEqual(expected);

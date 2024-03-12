@@ -20,7 +20,7 @@ describe('requiredAllEmailLike', () => {
     ${['a@b', 'c@d', 'e@f@g']} | ${false} | ${'Email is invalid'}
     ${['a@b', 'c@d', '']}      | ${false} | ${'Email is invalid'}
     ${['a@b', 'a', 'b', 'c']}  | ${false} | ${'Emails are invalid'}
-  `('test emails: $emails', ({ emails, valid, contains }) => {
+  `('emails: $emails', ({ emails, valid, contains }) => {
     const options: Option[] = emails.map(e => ({
       value: e,
       label: e,
@@ -48,7 +48,7 @@ describe('requiredAllUsersDoNotExist', () => {
     ${['Alice@example.com']}                        | ${false} | ${'User already exists'}
     ${['alice@example.com', 'charlie@example.com']} | ${false} | ${'User already exists'}
     ${['alice@example.com', 'bob@example.com']}     | ${false} | ${'Users already exist'}
-  `('test users: $entered', ({ entered, valid, contains }) => {
+  `('users: $entered', ({ entered, valid, contains }) => {
     const options: Option[] = entered.map(e => ({
       value: e,
       label: e,
@@ -72,7 +72,7 @@ describe('requiredNoDuplicateUsers', () => {
     ${['a', 'a']}                | ${false} | ${'Duplicate username:'}
     ${['a', 'A']}                | ${false} | ${'Duplicate username:'}
     ${['a', 'a', 'b', 'b', 'b']} | ${false} | ${'Duplicate usernames:'}
-  `('test duplicate users: $entered', ({ entered, valid, contains }) => {
+  `('duplicate users: $entered', ({ entered, valid, contains }) => {
     const options: Option[] = entered.map(e => ({
       value: e,
       label: e,
@@ -96,7 +96,7 @@ describe('requiredMaxDuplicates', () => {
     ${'e'} | ${0} | ${true}
     ${'a'} | ${1} | ${true}
     ${'a'} | ${0} | ${false}
-  `('test max duplicates: value=$value, max=$max', ({ value, max, valid }) => {
+  `('max duplicates: value=$value, max=$max', ({ value, max, valid }) => {
     const result = requiredMaxDuplicates(entries, max)(value)();
     expect(result.valid).toEqual(valid);
   });
@@ -111,7 +111,7 @@ describe('requiredAll', () => {
     ${['a']}                     | ${false} | ${'a'}
     ${['a', 'a']}                | ${false} | ${'a. a'}
     ${['a', 'a', 'b', 'b', 'b']} | ${false} | ${'a. a. b. b. b'}
-  `('test requiredAll: $inputs', ({ inputs, valid, message }) => {
+  `('requiredAll: $inputs', ({ inputs, valid, message }) => {
     const fns: Rule<Option>[] = inputs.map(e => () => {
       return () => {
         if (e) {
