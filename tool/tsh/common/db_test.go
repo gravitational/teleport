@@ -1948,11 +1948,11 @@ func Test_shouldRetryGetDatabaseUsingSearchAsRoles(t *testing.T) {
 			name: "access request disabled",
 			cf: &CLIConf{
 				command:              "db connect",
-				disableAccessRequest: false,
+				disableAccessRequest: true,
 			},
 			tc:          &client.TeleportClient{},
 			inputError:  trace.NotFound("not found"),
-			checkOutput: require.True,
+			checkOutput: require.False,
 		},
 	}
 

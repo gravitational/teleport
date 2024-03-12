@@ -857,7 +857,10 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, routes []tlsca.Rout
 		if err := makeDatabaseAccessRequestAndWaitForApproval(cf, tc, db); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		routes = nil // reset routes after reissueWithRequests.
+
+		// Reset routes. Once access requeset is approved, user certs are
+		// reissued with client.CertCacheDrop.
+		routes = nil
 
 	case err != nil:
 		return nil, trace.Wrap(err)
@@ -888,8 +891,12 @@ var dbCommandsWithAccessRequestSupport = []string{
 }
 
 func shouldRetryGetDatabaseUsingSearchAsRoles(cf *CLIConf, tc *client.TeleportClient, getDatabaseError error) bool {
-	// Only retry when the database cannot be found without UseSearchAsRoles.
-	if !trace.IsNotFound(getDatabaseError) || tc.UseSearchAsRoles {
+	// If already using SearchAsRoles, nothing to retry.
+	if tc.UseSearchAsRoles {
+		return false
+	}
+	// Only retry when the database cannot be found.
+	if !trace.IsNotFound(getDatabaseError) {
 		return false
 	}
 	// Check if auto access request is disabled.
