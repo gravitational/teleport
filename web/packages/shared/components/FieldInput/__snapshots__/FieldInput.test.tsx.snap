@@ -6,16 +6,16 @@ exports[`snapshot tests 1`] = `
   margin-bottom: 40px;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-}
-
 .c6 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
 }
 
 .c3 {
