@@ -118,7 +118,7 @@ type x11ChannelHandler func(ctx context.Context, nch ssh.NewChannel)
 func ServeChannelRequests(ctx context.Context, clt *ssh.Client, handler x11ChannelHandler) error {
 	channels := clt.HandleChannelOpen(sshutils.X11ChannelRequest)
 	if channels == nil {
-		return trace.AlreadyExists("X11 forwarding channel already open")
+		return trace.Wrap(trace.AlreadyExists("X11 forwarding channel already open"))
 	}
 
 	go func() {
