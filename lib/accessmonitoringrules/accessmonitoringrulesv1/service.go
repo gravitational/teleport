@@ -34,6 +34,12 @@ import (
 type ServiceConfig struct {
 	Backend    services.AccessMonitoringRules
 	Authorizer authz.Authorizer
+	Cache      Cache
+}
+
+// Cache is the subset of the cached resources that the service queries.
+type Cache interface {
+	services.AccessMonitoringRules
 }
 
 // Service implements the teleport.accessmonitoringrules.v1.AccessMonitoringRulesService RPC service.
@@ -42,6 +48,7 @@ type Service struct {
 
 	backend    services.AccessMonitoringRules
 	authorizer authz.Authorizer
+	cache      Cache
 }
 
 func NewService(cfg *ServiceConfig) (*Service, error) {
@@ -55,6 +62,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	return &Service{
 		backend:    cfg.Backend,
 		authorizer: cfg.Authorizer,
+		cache:      cfg.Cache,
 	}, nil
 }
 
@@ -139,13 +147,13 @@ func (s *Service) ListAccessMonitoringRules(ctx context.Context, req *accessmoni
 	if err := authCtx.CheckAccessToKind(types.KindAccessMonitoringRule, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	results, nextToken, err := s.backend.ListAccessMonitoringRules(ctx, int(req.PageSize), req.PageToken)
+	results, nextToken, err := s.cache.ListAccessMonitoringRules(ctx, int(req.PageSize), req.PageToken)
 	amrs := make([]*accessmonitoringrulesv1.AccessMonitoringRule, len(results))
 	for i, r := range results {
 		amrs[i] = conv.ToProto(r)
 	}
 	return &accessmonitoringrulesv1.ListAccessMonitoringRulesResponse{
-		Rules: amrs,
-		NextPageToken:         nextToken,
+		Rules:         amrs,
+		NextPageToken: nextToken,
 	}, nil
 }
