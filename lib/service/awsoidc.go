@@ -94,7 +94,7 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater() error {
 		return trace.Wrap(err)
 	}
 
-	process.log.Infof("The new service has started successfully. Checking for deploy service updates every %v.", updateAWSOIDCDeployServiceInterval)
+	process.logger.InfoContext(process.ExitContext(), "The new service has started successfully.", "update_interval", updateAWSOIDCDeployServiceInterval)
 	return trace.Wrap(updater.Run(process.GracefulExitContext()))
 }
 
