@@ -1,0 +1,30 @@
+{{ if .Values.proxy.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "teleport-cluster.proxy.fullname" . }}
+  labels:
+    {{- include "teleport-cluster.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "teleport-cluster.proxy.fullname" . }}
+  minReplicas: {{ .Values.proxy.hpa.minReplicas }}
+  maxReplicas: {{ .Values.proxy.hpa.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.proxy.hpa.targetCPUUtilizationPercentage }}
+  {{- if .Values.proxy.hpa.targetMemoryUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.proxy.hpa.targetMemoryUtilizationPercentage }}
+  {{- end }}
+{{ end }}

@@ -106,6 +106,26 @@ proxy:
   #       - key_file: /my-custom-mount/key.pem
   #         cert_file: /my-custom-mount/cert.pem
   teleportConfig: {}
+  # Horizontal Pod Autoscaler (HPA) configuration for dynamically scaling proxy pods
+  # based on CPU utilization or other metrics. HPA adjusts the number of running pods
+  # within the specified minReplicas and maxReplicas range.
+  hpa:
+    # Enable or disable HPA for proxy pods. Set to `true` to enable.
+    enabled: false
+    # The minimum number of replicas to which the proxy deployment can scale down.
+    # Ensure this value aligns with your cluster's workload and availability requirements.
+    minReplicas: 2
+    # The maximum number of replicas to which the proxy deployment can scale up.
+    # This should be set based on the expected peak load and the capacity of the underlying cluster.
+    maxReplicas: 5
+    # Target CPU utilization percentage that triggers the scaling of proxy pods.
+    # HPA will increase or decrease the number of pod replicas to maintain the CPU
+    # utilization at this target level. Adjust this value based on the application's
+    # performance characteristics and the desired responsiveness to load changes.
+    targetCPUUtilizationPercentage: 80
+    # (Optional) Uncomment and set `targetMemoryUtilizationPercentage` to enable scaling based on memory usage.
+    # This field represents the target memory utilization percentage for scaling.
+    # targetMemoryUtilizationPercentage: 80
 
 authentication:
   # Default authentication type. Possible values are 'local' and 'github' for OSS, plus 'oidc' and 'saml' for Enterprise.

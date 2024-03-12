@@ -22,6 +22,11 @@ if serviceAccount is not defined or serviceAccount.name is empty, use .Release.N
 {{- sub (include "teleport-cluster.majorVersion" . | atoi ) 1 -}}
 {{- end -}}
 
+{{/* Create the full name for proxy resources. */}}
+{{- define "teleport-cluster.proxy.fullname" -}}
+{{- printf "%s-%s-proxy" .Release.Name .Chart.Name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{/* Proxy selector labels */}}
 {{- define "teleport-cluster.proxy.selectorLabels" -}}
 app.kubernetes.io/name: '{{ default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}'
