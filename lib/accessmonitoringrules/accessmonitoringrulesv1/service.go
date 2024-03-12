@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -35,7 +34,6 @@ import (
 type ServiceConfig struct {
 	Backend    services.AccessMonitoringRules
 	Authorizer authz.Authorizer
-	Logger     *logrus.Entry
 }
 
 // Service implements the teleport.accessmonitoringrules.v1.AccessMonitoringRulesService RPC service.
@@ -44,7 +42,6 @@ type Service struct {
 
 	backend    services.AccessMonitoringRules
 	authorizer authz.Authorizer
-	log        *logrus.Entry
 }
 
 func NewService(cfg *ServiceConfig) (*Service, error) {
@@ -53,14 +50,11 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
-	case cfg.Logger == nil:
-		cfg.Logger = logrus.WithField(trace.Component, "AccessMonitoringRules.service")
 	}
 
 	return &Service{
 		backend:    cfg.Backend,
 		authorizer: cfg.Authorizer,
-		log:        cfg.Logger,
 	}, nil
 }
 
