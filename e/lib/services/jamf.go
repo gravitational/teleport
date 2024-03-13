@@ -61,10 +61,7 @@ func startJamfService(ctx context.Context, process *service.TeleportProcess, htt
 	// Register our request for MDM credentials.
 	process.RegisterWithAuthServer(types.RoleMDM, jamfIdentityEvent)
 
-	logger := process.Config.Log.WithField(
-		trace.Component,
-		teleport.Component(ent.ComponentJamf, process.GetID()),
-	)
+	logger := process.Config.Logger.With(trace.Component, teleport.Component(ent.ComponentJamf, process.GetID()))
 
 	// Wait for MDM credentials.
 	conn, err := process.WaitForConnector(jamfIdentityEvent, logger)
@@ -87,7 +84,7 @@ func startJamfService(ctx context.Context, process *service.TeleportProcess, htt
 
 	s, err := jamfservice.New(ctx, jamfservice.Opts{
 		Clock:            process.Clock,
-		Logger:           logger,
+		Logger:           process.Config.Log.WithField(trace.Component, teleport.Component(ent.ComponentJamf, process.GetID())),
 		Config:           &process.Config.Jamf,
 		DevicesClient:    conn.Client.DevicesClient(),
 		HTTPClient:       httpClient,
@@ -120,7 +117,7 @@ func startJamfService(ctx context.Context, process *service.TeleportProcess, htt
 	// Trigger exit_on_sync mechanism?
 	if process.Config.Jamf.ExitOnSync {
 		go func() {
-			logger.Info("Signaling shutdown to Teleport process [exit_on_sync=true]")
+			logger.InfoContext(process.ExitContext(), "Signaling shutdown to Teleport process [exit_on_sync=true]")
 
 			// Attempt a graceful shutdown first...
 			ctx := context.Background()

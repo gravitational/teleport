@@ -3,13 +3,13 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -109,17 +109,16 @@ func InitOktaPlugin(ctx context.Context, process *service.TeleportProcess, plugi
 func initOktaService(ctx context.Context, process *service.TeleportProcess, settings oktaSettings, logComponent string, components ...string) error {
 	defer process.BroadcastEvent(service.Event{Name: EventWithComponents(OktaStopped, components...), Payload: nil})
 
-	log := process.Config.Log.WithField(trace.Component, teleport.Component(
-		eteleport.ComponentOkta, logComponent))
+	logger := process.Config.Logger.With(trace.Component, teleport.Component(eteleport.ComponentOkta, logComponent))
 
-	conn, err := process.WaitForConnector(EventWithComponents(OktaIdentityEvent, components...), log)
+	conn, err := process.WaitForConnector(EventWithComponents(OktaIdentityEvent, components...), logger)
 	if conn == nil {
 		return trace.Wrap(err)
 	}
 
 	defer func() {
 		if err := conn.Close(); err != nil {
-			log.Warnf("Error while closing connection: %v", err)
+			logger.WarnContext(ctx, "Error while closing connection", "error", err)
 		}
 	}()
 
@@ -132,7 +131,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 	if cacheCleanup != nil {
 		defer func() {
 			if err := cacheCleanup(); err != nil {
-				log.Warnf("Error while closing Okta cache: %v", err)
+				logger.WarnContext(process.ExitContext(), "Error while closing Okta cache", "error", err)
 			}
 		}()
 	}
@@ -142,7 +141,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: eteleport.ComponentOkta,
-			Log:       log,
+			Log:       process.Config.Log.WithField(trace.Component, teleport.Component(eteleport.ComponentOkta, logComponent)),
 			Client:    conn.Client,
 		},
 	})
@@ -169,7 +168,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 	// Make sure that we close the emitter when this function exits
 	defer func() {
 		if err := asyncEmitter.Close(); err != nil {
-			log.Warnf("Error while closing emitter: %v", err)
+			logger.WarnContext(process.ExitContext(), "Error while closing emitter", "error", err)
 		}
 	}()
 
@@ -179,7 +178,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 	}
 
 	oktaService, err := okta.New(ctx, okta.Config{
-		Log:                        log,
+		Log:                        process.Config.Log.WithField(trace.Component, teleport.Component(eteleport.ComponentOkta, logComponent)),
 		Clock:                      process.Clock,
 		TLSConfig:                  tlsConfig,
 		Authorizer:                 authorizer,
@@ -211,7 +210,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 	var oktaServiceMu sync.Mutex
 
 	process.OnExit("okta.stop", func(payload interface{}) {
-		log.Info("Shutting down.")
+		logger.InfoContext(process.ExitContext(), "Shutting down.")
 		var ctx context.Context
 		if payload != nil {
 			payloadCtx, ok := payload.(context.Context)
@@ -222,7 +221,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 
 		oktaServiceMu.Lock()
 		defer oktaServiceMu.Unlock()
-		closeOktaService(ctx, log, oktaService)
+		closeOktaService(ctx, logger, oktaService)
 	})
 
 	process.BroadcastEvent(service.Event{Name: EventWithComponents(OktaReady, components...), Payload: nil})
@@ -231,7 +230,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		return trace.Wrap(err)
 	}
 
-	log.Info("Okta service has successfully started")
+	logger.InfoContext(process.ExitContext(), "Okta service has successfully started")
 
 	oktaService.Wait(ctx)
 
@@ -242,7 +241,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 
 	// We'll use a context with a short timeout in case Close() was not run by OnExit.
 	closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	closeOktaService(closeCtx, log, oktaService)
+	closeOktaService(closeCtx, logger, oktaService)
 	cancel()
 
 	// Set the okta service to nil so that the OnExit function is not holding onto a reference
@@ -278,19 +277,19 @@ func newLocalCacheForOkta(process *service.TeleportProcess, clt auth.ClientI, ca
 }
 
 // closeOktaService will close the Okta service.
-func closeOktaService(ctx context.Context, log *logrus.Entry, oktaService *okta.Service) {
+func closeOktaService(ctx context.Context, log *slog.Logger, oktaService *okta.Service) {
 	// Don't bother if the Okta service is nil.
 	if oktaService == nil {
 		return
 	}
 
 	if err := oktaService.Shutdown(); err != nil {
-		log.Errorf("Error shutting down Okta service: %v", err)
+		log.ErrorContext(ctx, "Error shutting down Okta service", "error", err)
 	}
 
 	if ctx != nil {
 		if err := oktaService.Close(ctx); err != nil {
-			log.Errorf("Error closing Okta service: %v", err)
+			log.ErrorContext(ctx, "Error closing Okta service", "error", err)
 		}
 	}
 }
