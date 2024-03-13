@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
@@ -2923,6 +2924,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAccessList:              newAccessList(t, "access-list", clock),
 		types.KindAccessListMember:        newAccessListMember(t, "access-list", "member"),
 		types.KindAccessListReview:        newAccessListReview(t, "access-list", "review"),
+		types.KindKubeWaitingContainer:    newKubeWaitingContainer(t),
 	}
 
 	for name, cfg := range cases {
@@ -3144,6 +3146,7 @@ func newDiscoveryConfig(t *testing.T, name string) *discoveryconfig.DiscoveryCon
 	require.NoError(t, err)
 	return discoveryConfig
 }
+
 func newAuditQuery(t *testing.T, name string) *secreports.AuditQuery {
 	t.Helper()
 
@@ -3337,6 +3340,22 @@ func newAccessListReview(t *testing.T, accessList, name string) *accesslist.Revi
 	require.NoError(t, err)
 
 	return review
+}
+
+func newKubeWaitingContainer(t *testing.T) *kubewaitingcontainer.KubeWaitingContainer {
+	t.Helper()
+
+	waitingCont, err := kubewaitingcontainer.NewKubeWaitingContainer(header.Metadata{}, kubewaitingcontainer.KubeWaitingContainerSpec{
+		Username:      "user",
+		Cluster:       "cluster",
+		Namespace:     "namespace",
+		PodName:       "pod",
+		ContainerName: "container",
+		Patch:         []byte("patch"),
+	})
+	require.NoError(t, err)
+
+	return waitingCont
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {
