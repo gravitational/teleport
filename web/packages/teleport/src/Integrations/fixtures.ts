@@ -16,7 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { IntegrationStatusCode } from 'teleport/services/integrations';
+import {
+  IntegrationKind,
+  IntegrationStatusCode,
+} from 'teleport/services/integrations';
 
 import type {
   Plugin,
@@ -135,16 +138,20 @@ export const integrations: Integration[] = [
   {
     resourceType: 'integration',
     name: 'aws',
-    kind: 'aws-oidc',
+    kind: IntegrationKind.AwsOidc,
     statusCode: IntegrationStatusCode.Running,
-    spec: { roleArn: '' },
+    spec: { roleArn: '', s3Prefix: '', s3Bucket: '' },
   },
   {
     resourceType: 'integration',
-    name: 'some-integration-name',
-    kind: '' as any,
+    name: 'aws',
+    kind: IntegrationKind.AwsOidc,
     statusCode: IntegrationStatusCode.Running,
-    spec: { roleArn: '' },
+    spec: {
+      roleArn: 'some-role-arn',
+      s3Prefix: 'some-prefix',
+      s3Bucket: 'some-bucket',
+    },
   },
 ];
 
