@@ -23,10 +23,7 @@ import styled from 'styled-components';
 import { Box, ButtonSecondary, Text, Link, Flex, ButtonPrimary } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
-import {
-  requiredField,
-  requiredIamRoleName,
-} from 'shared/components/Validation/rules';
+import { requiredIamRoleName } from 'shared/components/Validation/rules';
 import Validation, { Validator } from 'shared/components/Validation';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
@@ -48,12 +45,16 @@ import {
 import cfg from 'teleport/config';
 
 import { FinishDialog } from './FinishDialog';
+import { S3Bucket } from './S3Bucket';
+import { getDefaultS3BucketName, requiredPrefixName } from './Shared/utils';
 
 export function AwsOidc() {
   const [integrationName, setIntegrationName] = useState('');
   const [roleArn, setRoleArn] = useState('');
   const [roleName, setRoleName] = useState('');
   const [scriptUrl, setScriptUrl] = useState('');
+  const [s3Bucket, setS3Bucket] = useState(() => getDefaultS3BucketName());
+  const [s3Prefix, setS3Prefix] = useState('');
   const [createdIntegration, setCreatedIntegration] = useState<Integration>();
   const { attempt, run } = useAttempt('');
 
@@ -88,6 +89,8 @@ export function AwsOidc() {
           subKind: IntegrationKind.AwsOidc,
           awsoidc: {
             roleArn,
+            s3Bucket,
+            s3Prefix,
           },
         })
         .then(res => {
@@ -118,6 +121,8 @@ export function AwsOidc() {
     const newScriptUrl = cfg.getAwsOidcConfigureIdpScriptUrl({
       integrationName,
       roleName,
+      s3Bucket,
+      s3Prefix,
     });
 
     setScriptUrl(newScriptUrl);
@@ -158,25 +163,32 @@ export function AwsOidc() {
             <Container mb={5}>
               <Text bold>Step 1</Text>
 
-              <FieldInput
-                rule={requiredField('Integration name required')}
-                autoFocus={true}
-                value={integrationName}
-                label="Give this AWS integration a name"
-                placeholder="Integration Name"
-                width="430px"
-                onChange={e => setIntegrationName(e.target.value)}
-                disabled={!!scriptUrl}
-              />
-              <FieldInput
-                rule={requiredIamRoleName}
-                value={roleName}
-                placeholder="IAM Role Name"
-                label="IAM Role Name"
-                width="430px"
-                onChange={e => setRoleName(e.target.value)}
-                disabled={!!scriptUrl}
-              />
+              <Box width="600px">
+                <FieldInput
+                  rule={requiredPrefixName}
+                  autoFocus={true}
+                  value={integrationName}
+                  label="Give this AWS integration a name"
+                  placeholder="Integration Name"
+                  onChange={e => setIntegrationName(e.target.value)}
+                  disabled={!!scriptUrl}
+                />
+                <FieldInput
+                  rule={requiredIamRoleName}
+                  value={roleName}
+                  placeholder="IAM Role Name"
+                  label="IAM Role Name"
+                  onChange={e => setRoleName(e.target.value)}
+                  disabled={!!scriptUrl}
+                />
+                <S3Bucket
+                  s3Bucket={s3Bucket}
+                  setS3Bucket={setS3Bucket}
+                  s3Prefix={s3Prefix}
+                  setS3Prefix={setS3Prefix}
+                  disabled={!!scriptUrl}
+                />
+              </Box>
               {scriptUrl ? (
                 <ButtonSecondary mb={3} onClick={() => setScriptUrl('')}>
                   Edit
