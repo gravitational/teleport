@@ -46,7 +46,7 @@
     "@types/tar-fs": "^2.0.1",
     "@types/whatwg-url": "^11.0.1",
     "clean-webpack-plugin": "4.0.0",
-    "electron": "28.2.3",
+    "electron": "29.1.1",
     "electron-notarize": "^1.2.1",
     "electron-vite": "^2.0.0",
     "eslint-import-resolver-webpack": "0.13.2",
