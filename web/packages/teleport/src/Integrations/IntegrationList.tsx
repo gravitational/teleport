@@ -186,9 +186,6 @@ const StatusCell = ({ item }: { item: IntegrationLike }) => {
   if (
     item.resourceType === 'integration' &&
     item.kind === IntegrationKind.AwsOidc &&
-    // Notify to user that this integration may require editing
-    // this integration and re-running a script to re-configure
-    // the issuer.
     (!item.spec.s3Bucket || !item.spec.s3Prefix)
   ) {
     return (
