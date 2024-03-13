@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -177,7 +178,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	c.Log = logger.WithFields(log.Fields{
 		trace.Component: "SCP",
-		trace.ComponentFields: log.Fields{
+		teleport.ComponentFields: log.Fields{
 			"LocalAddr":      c.Flags.LocalAddr,
 			"RemoteAddr":     c.Flags.RemoteAddr,
 			"Target":         c.Flags.Target,

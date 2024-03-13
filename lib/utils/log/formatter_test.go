@@ -157,14 +157,14 @@ func TestOutput(t *testing.T) {
 				// Add some fields and output the message at the desired log level via logrus.
 				l := entry.WithField("test", 123).WithField("animal", "llama\n").WithField("error", logErr)
 				logrusTestLogLineNumber := func() int {
-					l.WithField("diag_addr", &addr).WithField(trace.ComponentFields, fields).Log(test.logrusLevel, message)
+					l.WithField("diag_addr", &addr).WithField(teleport.ComponentFields, fields).Log(test.logrusLevel, message)
 					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
 				}()
 
 				// Add some fields and output the message at the desired log level via slog.
 				l2 := slogLogger.With("test", 123).With("animal", "llama\n").With("error", logErr)
 				slogTestLogLineNumber := func() int {
-					l2.With(trace.ComponentFields, fields).Log(context.Background(), test.slogLevel, message, "diag_addr", &addr)
+					l2.With(teleport.ComponentFields, fields).Log(context.Background(), test.slogLevel, message, "diag_addr", &addr)
 					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
 				}()
 
@@ -358,7 +358,7 @@ func BenchmarkFormatter(b *testing.B) {
 			entry := logger.WithField(trace.Component, "test")
 			for i := 0; i < b.N; i++ {
 				l := entry.WithField("test", 123).WithField("animal", "llama\n").WithField("error", logErr)
-				l.WithField("diag_addr", &addr).WithField(trace.ComponentFields, fields).Info(message)
+				l.WithField("diag_addr", &addr).WithField(teleport.ComponentFields, fields).Info(message)
 			}
 		})
 
@@ -374,7 +374,7 @@ func BenchmarkFormatter(b *testing.B) {
 			entry := logger.WithField(trace.Component, "test")
 			for i := 0; i < b.N; i++ {
 				l := entry.WithField("test", 123).WithField("animal", "llama\n").WithField("error", logErr)
-				l.WithField("diag_addr", &addr).WithField(trace.ComponentFields, fields).Info(message)
+				l.WithField("diag_addr", &addr).WithField(teleport.ComponentFields, fields).Info(message)
 			}
 		})
 	})
@@ -389,7 +389,7 @@ func BenchmarkFormatter(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
-				l.With(trace.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
+				l.With(teleport.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})
 
@@ -399,7 +399,7 @@ func BenchmarkFormatter(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
-				l.With(trace.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
+				l.With(teleport.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})
 
@@ -412,7 +412,7 @@ func BenchmarkFormatter(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
-				l.With(trace.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
+				l.With(teleport.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})
 
@@ -422,7 +422,7 @@ func BenchmarkFormatter(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
-				l.With(trace.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
+				l.With(teleport.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})
 	})

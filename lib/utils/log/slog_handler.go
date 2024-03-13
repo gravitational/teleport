@@ -32,6 +32,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
 )
 
 // TraceLevel is the logging level when set to Trace verbosity.
@@ -144,7 +146,7 @@ func (s *SlogTextHandler) appendAttr(buf []byte, a slog.Attr) []byte {
 			break
 		}
 
-		if a.Key == trace.ComponentFields {
+		if a.Key == teleport.ComponentFields {
 			switch fields := a.Value.Any().(type) {
 			case map[string]any:
 				for k, v := range fields {
@@ -416,7 +418,7 @@ func (s *SlogTextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 			if component[len(component)-1] != ' ' {
 				component = component[:len(component)-1] + "]"
 			}
-		case trace.ComponentFields:
+		case teleport.ComponentFields:
 			switch fields := a.Value.Any().(type) {
 			case map[string]any:
 				for k, v := range fields {

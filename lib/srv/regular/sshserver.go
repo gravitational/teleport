@@ -803,8 +803,8 @@ func New(
 	}
 
 	s.Entry = logrus.WithFields(logrus.Fields{
-		trace.Component:       component,
-		trace.ComponentFields: logrus.Fields{},
+		trace.Component:          component,
+		teleport.ComponentFields: logrus.Fields{},
 	})
 
 	if s.GetCreateHostUser() {

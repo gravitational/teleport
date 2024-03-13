@@ -49,7 +49,7 @@ func parseRemoteSubsystem(ctx context.Context, subsytemName string, serverContex
 	return &remoteSubsystem{
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentRemoteSubsystem,
-			trace.ComponentFields: map[string]string{
+			teleport.ComponentFields: map[string]string{
 				"name": subsytemName,
 			},
 		}),

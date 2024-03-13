@@ -1182,7 +1182,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		connInfo:   connInfo,
 		logger: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentReverseTunnelServer,
-			trace.ComponentFields: log.Fields{
+			teleport.ComponentFields: log.Fields{
 				"cluster": domainName,
 			},
 		}),

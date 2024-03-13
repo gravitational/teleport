@@ -498,8 +498,8 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		"id":           child.id,
 	}
 	child.Entry = log.WithFields(log.Fields{
-		trace.Component:       child.srv.Component(),
-		trace.ComponentFields: fields,
+		trace.Component:          child.srv.Component(),
+		teleport.ComponentFields: fields,
 	})
 
 	if identityContext.Login == teleport.SSHSessionJoinPrincipal {
@@ -524,8 +524,8 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		fields["idle"] = child.clientIdleTimeout
 	}
 	child.Entry = log.WithFields(log.Fields{
-		trace.Component:       srv.Component(),
-		trace.ComponentFields: fields,
+		trace.Component:          srv.Component(),
+		teleport.ComponentFields: fields,
 	})
 
 	clusterName, err := srv.GetAccessPoint().GetClusterName()

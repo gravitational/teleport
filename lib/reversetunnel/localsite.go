@@ -103,7 +103,7 @@ func newLocalSite(srv *server, domainName string, authServers []string, opts ...
 		clock:       srv.Clock,
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentReverseTunnelServer,
-			trace.ComponentFields: map[string]string{
+			teleport.ComponentFields: map[string]string{
 				"cluster": domainName,
 			},
 		}),
