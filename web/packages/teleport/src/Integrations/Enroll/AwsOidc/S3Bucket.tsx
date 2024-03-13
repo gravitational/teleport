@@ -40,7 +40,11 @@ export function S3Bucket({
     <>
       <Flex alignItems="center" gap={1}>
         <Text>Amazon S3 Location</Text>
-        <ToolTipInfo children="Teleport will create and use Amazon S3 Bucket as this integration's issuer and will host the required endpoints" />
+        <ToolTipInfo>
+          Teleport will create and use Amazon S3 Bucket as this integration's
+          issuer and will publicly host two files: one for the OpenID
+          configuration and another one for the public key.
+        </ToolTipInfo>
       </Flex>
       <Flex gap={3}>
         <FieldInput
