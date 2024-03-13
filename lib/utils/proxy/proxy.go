@@ -35,7 +35,7 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentConnectProxy,
+	teleport.ComponentKey: teleport.ComponentConnectProxy,
 })
 
 // A Dialer is a means for a client to establish a SSH connection.

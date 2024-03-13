@@ -48,7 +48,7 @@ type remoteSubsystem struct {
 func parseRemoteSubsystem(ctx context.Context, subsytemName string, serverContext *srv.ServerContext) *remoteSubsystem {
 	return &remoteSubsystem{
 		log: log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRemoteSubsystem,
+			teleport.ComponentKey: teleport.ComponentRemoteSubsystem,
 			teleport.ComponentFields: map[string]string{
 				"name": subsytemName,
 			},

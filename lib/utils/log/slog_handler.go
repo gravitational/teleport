@@ -160,7 +160,7 @@ func (s *SlogTextHandler) appendAttr(buf []byte, a slog.Attr) []byte {
 		}
 
 		if needsQuoting(value) {
-			if a.Key == trace.Component || a.Key == slog.LevelKey || a.Key == callerField || a.Key == slog.MessageKey {
+			if a.Key == teleport.ComponentKey || a.Key == slog.LevelKey || a.Key == callerField || a.Key == slog.MessageKey {
 				if len(buf) > 0 {
 					buf = fmt.Append(buf, " ")
 				}
@@ -174,7 +174,7 @@ func (s *SlogTextHandler) appendAttr(buf []byte, a slog.Attr) []byte {
 			break
 		}
 
-		if a.Key == trace.Component || a.Key == slog.LevelKey || a.Key == callerField || a.Key == slog.MessageKey {
+		if a.Key == teleport.ComponentKey || a.Key == slog.LevelKey || a.Key == callerField || a.Key == slog.MessageKey {
 			if len(buf) > 0 {
 				buf = fmt.Append(buf, " ")
 			}
@@ -314,11 +314,11 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 			// specified in the arguments, the one with the lowest index is used and the others are ignored.
 			// In the example below, the resulting component in the message output would be "alpaca".
 			//
-			//	logger := logger.With(trace.Component, "fish")
-			//	logger.InfoContext(ctx, "llama llama llama", trace.Component, "alpaca", "foo", 123, trace.Component, "shark")
+			//	logger := logger.With(teleport.ComponentKey, "fish")
+			//	logger.InfoContext(ctx, "llama llama llama", teleport.ComponentKey, "alpaca", "foo", 123, teleport.ComponentKey, "shark")
 			component := s.component
 			r.Attrs(func(attr slog.Attr) bool {
-				if attr.Key == trace.Component {
+				if attr.Key == teleport.ComponentKey {
 					component = fmt.Sprintf("[%v]", attr.Value)
 					component = strings.ToUpper(padMax(component, s.cfg.Padding))
 					if component[len(component)-1] != ' ' {
@@ -331,7 +331,7 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 				return true
 			})
 
-			*buf = s.appendAttr(*buf, slog.String(trace.Component, component))
+			*buf = s.appendAttr(*buf, slog.String(teleport.ComponentKey, component))
 		default:
 			if _, ok := knownFormatFields[field]; !ok {
 				return trace.BadParameter("invalid log format key: %v", field)
@@ -353,7 +353,7 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 
 		r.Attrs(func(a slog.Attr) bool {
 			// Skip adding any component attrs since they are processed above.
-			if a.Key == trace.Component {
+			if a.Key == teleport.ComponentKey {
 				return true
 			}
 
@@ -412,7 +412,7 @@ func (s *SlogTextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	// Pre-format the attributes.
 	for _, a := range attrs {
 		switch a.Key {
-		case trace.Component:
+		case teleport.ComponentKey:
 			component = fmt.Sprintf("[%v]", a.Value.String())
 			component = strings.ToUpper(padMax(component, s.cfg.Padding))
 			if component[len(component)-1] != ' ' {
@@ -484,7 +484,7 @@ func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler
 			Level:     cfg.Level,
 			ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 				switch a.Key {
-				case trace.Component:
+				case teleport.ComponentKey:
 					if !withComponent {
 						return slog.Attr{}
 					}

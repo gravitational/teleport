@@ -186,7 +186,7 @@ func newProxySubsys(ctx *srv.ServerContext, srv *Server, req proxySubsysRequest)
 		proxySubsysRequest: req,
 		ctx:                ctx,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component:          teleport.ComponentSubsystemProxy,
+			teleport.ComponentKey:    teleport.ComponentSubsystemProxy,
 			teleport.ComponentFields: map[string]string{},
 		}),
 		closeC:       make(chan error),
@@ -206,7 +206,7 @@ func (t *proxySubsys) String() string {
 func (t *proxySubsys) Start(ctx context.Context, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
 	// once we start the connection, update logger to include component fields
 	t.log = logrus.WithFields(logrus.Fields{
-		trace.Component: teleport.ComponentSubsystemProxy,
+		teleport.ComponentKey: teleport.ComponentSubsystemProxy,
 		teleport.ComponentFields: map[string]string{
 			"src":       sconn.RemoteAddr().String(),
 			"dst":       sconn.LocalAddr().String(),

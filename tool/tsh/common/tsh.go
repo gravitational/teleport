@@ -91,7 +91,7 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentTSH,
+	teleport.ComponentKey: teleport.ComponentTSH,
 })
 
 const (

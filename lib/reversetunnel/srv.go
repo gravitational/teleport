@@ -269,7 +269,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		logger = log.StandardLogger()
 	}
 	cfg.Log = logger.WithFields(log.Fields{
-		trace.Component: cfg.Component,
+		teleport.ComponentKey: cfg.Component,
 	})
 	if cfg.LockWatcher == nil {
 		return trace.BadParameter("missing parameter LockWatcher")
@@ -1181,7 +1181,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		domainName: domainName,
 		connInfo:   connInfo,
 		logger: log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentReverseTunnelServer,
+			teleport.ComponentKey: teleport.ComponentReverseTunnelServer,
 			teleport.ComponentFields: log.Fields{
 				"cluster": domainName,
 			},

@@ -498,7 +498,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		"id":           child.id,
 	}
 	child.Entry = log.WithFields(log.Fields{
-		trace.Component:          child.srv.Component(),
+		teleport.ComponentKey:    child.srv.Component(),
 		teleport.ComponentFields: fields,
 	})
 
@@ -524,7 +524,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		fields["idle"] = child.clientIdleTimeout
 	}
 	child.Entry = log.WithFields(log.Fields{
-		trace.Component:          srv.Component(),
+		teleport.ComponentKey:    srv.Component(),
 		teleport.ComponentFields: fields,
 	})
 

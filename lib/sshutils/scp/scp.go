@@ -177,7 +177,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		logger = log.StandardLogger()
 	}
 	c.Log = logger.WithFields(log.Fields{
-		trace.Component: "SCP",
+		teleport.ComponentKey: "SCP",
 		teleport.ComponentFields: log.Fields{
 			"LocalAddr":      c.Flags.LocalAddr,
 			"RemoteAddr":     c.Flags.RemoteAddr,

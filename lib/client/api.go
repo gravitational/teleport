@@ -129,7 +129,7 @@ const (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentClient,
+	teleport.ComponentKey: teleport.ComponentClient,
 })
 
 // ForwardedPort specifies local tunnel to remote

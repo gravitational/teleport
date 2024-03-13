@@ -137,7 +137,7 @@ func SetIngressReporter(service string, r *ingress.Reporter) ServerOption {
 // SetLogger sets the logger for the server
 func SetLogger(logger logrus.FieldLogger) ServerOption {
 	return func(s *Server) error {
-		s.log = logger.WithField(trace.Component, "ssh:"+s.component)
+		s.log = logger.WithField(teleport.ComponentKey, "ssh:"+s.component)
 		return nil
 	}
 }
@@ -205,7 +205,7 @@ func NewServer(
 	closeContext, cancel := context.WithCancel(context.TODO())
 	s := &Server{
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "ssh:" + component,
+			teleport.ComponentKey: "ssh:" + component,
 		}),
 		addr:           a,
 		newChanHandler: h,

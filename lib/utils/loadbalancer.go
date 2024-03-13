@@ -59,7 +59,7 @@ func newLoadBalancer(ctx context.Context, frontend NetAddr, policy loadBalancerP
 		waitCtx:    waitCtx,
 		waitCancel: waitCancel,
 		Entry: log.WithFields(log.Fields{
-			trace.Component: "loadbalancer",
+			teleport.ComponentKey: "loadbalancer",
 			teleport.ComponentFields: log.Fields{
 				"listen": frontend.String(),
 			},

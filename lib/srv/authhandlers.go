@@ -140,7 +140,7 @@ func NewAuthHandlers(config *AuthHandlerConfig) (*AuthHandlers, error) {
 
 	ah := &AuthHandlers{
 		c:   config,
-		log: log.WithField(trace.Component, config.Component),
+		log: log.WithField(teleport.ComponentKey, config.Component),
 	}
 	ah.loginChecker = &ahLoginChecker{
 		log: ah.log,

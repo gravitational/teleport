@@ -29,6 +29,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
 )
 
 // TextFormatter is a [logrus.Formatter] that outputs messages in
@@ -180,7 +182,7 @@ func (tf *TextFormatter) Format(e *logrus.Entry) ([]byte, error) {
 			if w.Len() > 0 {
 				w.WriteByte(' ')
 			}
-			component, ok := e.Data[trace.Component].(string)
+			component, ok := e.Data[teleport.ComponentKey].(string)
 			if ok && component != "" {
 				component = fmt.Sprintf("[%v]", component)
 			}
@@ -267,10 +269,10 @@ func (j *JSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	}
 
 	if j.componentEnabled {
-		e.Data[componentField] = e.Data[trace.Component]
+		e.Data[componentField] = e.Data[teleport.ComponentKey]
 	}
 
-	delete(e.Data, trace.Component)
+	delete(e.Data, teleport.ComponentKey)
 
 	return j.JSONFormatter.Format(e)
 }
@@ -359,7 +361,7 @@ func (w *writer) writeMap(m map[string]any) {
 	}
 	slices.Sort(keys)
 	for _, key := range keys {
-		if key == trace.Component {
+		if key == teleport.ComponentKey {
 			continue
 		}
 		switch value := m[key].(type) {

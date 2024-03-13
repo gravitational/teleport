@@ -202,7 +202,7 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 		events:          make(chan Agent),
 		backoff:         retry,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentReverseTunnelAgent,
+			teleport.ComponentKey: teleport.ComponentReverseTunnelAgent,
 			teleport.ComponentFields: logrus.Fields{
 				"targetCluster": config.Cluster,
 				"localCluster":  config.LocalCluster,
