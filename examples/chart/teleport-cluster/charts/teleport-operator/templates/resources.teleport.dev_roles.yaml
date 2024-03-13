@@ -206,6 +206,11 @@ spec:
                             type: string
                           nullable: true
                           type: array
+                        mfa_required:
+                          description: MFARequired specifies if MFA checks will be
+                            required when joining a session for all participant modes
+                            and also periodically for moderators.
+                          type: boolean
                         modes:
                           description: Modes is a list of permitted participant modes
                             for this policy.
@@ -744,6 +749,11 @@ spec:
                             type: string
                           nullable: true
                           type: array
+                        mfa_required:
+                          description: MFARequired specifies if MFA checks will be
+                            required when joining a session for all participant modes
+                            and also periodically for moderators.
+                          type: boolean
                         modes:
                           description: Modes is a list of permitted participant modes
                             for this policy.
@@ -1558,6 +1568,11 @@ spec:
                             type: string
                           nullable: true
                           type: array
+                        mfa_required:
+                          description: MFARequired specifies if MFA checks will be
+                            required when joining a session for all participant modes
+                            and also periodically for moderators.
+                          type: boolean
                         modes:
                           description: Modes is a list of permitted participant modes
                             for this policy.
@@ -2096,6 +2111,11 @@ spec:
                             type: string
                           nullable: true
                           type: array
+                        mfa_required:
+                          description: MFARequired specifies if MFA checks will be
+                            required when joining a session for all participant modes
+                            and also periodically for moderators.
+                          type: boolean
                         modes:
                           description: Modes is a list of permitted participant modes
                             for this policy.
