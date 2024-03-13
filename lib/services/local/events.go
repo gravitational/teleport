@@ -21,6 +21,7 @@ package local
 import (
 	"bytes"
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -28,6 +29,8 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -189,6 +192,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessListMemberParser()
 		case types.KindAccessListReview:
 			parser = newAccessListReviewParser()
+		case types.KindKubeWaitingContainer:
+			parser = newKubeWaitingContainerParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -1875,6 +1880,58 @@ func (p *accessListReviewParser) parse(event backend.Event) (types.Resource, err
 		}, nil
 	case types.OpPut:
 		return services.UnmarshalAccessListReview(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newKubeWaitingContainerParser() *kubeWaitingContainerParser {
+	return &kubeWaitingContainerParser{
+		baseParser: newBaseParser(backend.Key(kubeWaitingContPrefix)),
+	}
+}
+
+type kubeWaitingContainerParser struct {
+	baseParser
+}
+
+func (p *kubeWaitingContainerParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		// remove the first separator so no separated parts should be
+		// empty strings
+		key := string(event.Item.Key)
+		if len(key) > 0 && key[0] == backend.Separator {
+			key = key[1:]
+		}
+		parts := strings.Split(key, string(backend.Separator))
+		if len(parts) != 6 {
+			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindKubeWaitingContainer, event.Item.Key)
+		}
+
+		return &kubewaitingcontainer.KubeWaitingContainer{
+			ResourceHeader: header.ResourceHeader{
+				Kind:    types.KindKubeWaitingContainer,
+				Version: types.V1,
+				Metadata: header.Metadata{
+					Name: parts[5],
+				},
+			},
+			Spec: kubewaitingcontainer.KubeWaitingContainerSpec{
+				Username:      parts[1],
+				Cluster:       parts[2],
+				Namespace:     parts[3],
+				PodName:       parts[4],
+				ContainerName: parts[5],
+			},
+		}, nil
+	case types.OpPut:
+		return services.UnmarshalKubeWaitingContainer(
+			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),

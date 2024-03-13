@@ -345,6 +345,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if cfg.KubeWaitingContainers == nil {
+		cfg.KubeWaitingContainers, err = local.NewKubeWaitingContainerService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		Trust:                     cfg.Trust,
@@ -379,6 +386,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Assistant:                 cfg.Assist,
 		UserPreferences:           cfg.UserPreferences,
 		PluginData:                cfg.PluginData,
+		KubeWaitingContainer:      cfg.KubeWaitingContainers,
 	}
 
 	as := Server{
@@ -533,6 +541,7 @@ type Services struct {
 	types.Events
 	events.AuditLogSessionStreamer
 	services.SecReports
+	services.KubeWaitingContainer
 }
 
 // SecReportsClient returns the security reports client.
@@ -581,6 +590,12 @@ func (r *Services) DiscoveryConfigClient() services.DiscoveryConfigs {
 
 // UserLoginStateClient returns the user login state client.
 func (r *Services) UserLoginStateClient() services.UserLoginStates {
+	return r
+}
+
+// KubernetesWaitingContainerClient returns the Kubernetes waiting
+// container client.
+func (r *Services) KubernetesWaitingContainerClient() services.KubeWaitingContainer {
 	return r
 }
 

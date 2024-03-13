@@ -26,11 +26,13 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 
+	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/client/proto"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -253,6 +255,16 @@ type ReadProxyAccessPoint interface {
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
+	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+	// containers that are waiting to be created until moderated
+	// session conditions are met.
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainer.KubeWaitingContainer, string, error)
+
+	// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
+	// container that are waiting to be created until moderated
+	// session conditions are met.
+	GetKubernetesWaitingContainer(ctx context.Context, req kubewaitingcontainerclient.KubeWaitingContainerRequest) (*kubewaitingcontainer.KubeWaitingContainer, error)
+
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 
@@ -449,6 +461,16 @@ type ReadKubernetesAccessPoint interface {
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
+
+	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+	// containers that are waiting to be created until moderated
+	// session conditions are met.
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainer.KubeWaitingContainer, string, error)
+
+	// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
+	// container that are waiting to be created until moderated
+	// session conditions are met.
+	GetKubernetesWaitingContainer(ctx context.Context, req kubewaitingcontainerclient.KubeWaitingContainerRequest) (*kubewaitingcontainer.KubeWaitingContainer, error)
 
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
@@ -1009,6 +1031,16 @@ type Cache interface {
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
+
+	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+	// containers that are waiting to be created until moderated
+	// session conditions are met.
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainer.KubeWaitingContainer, string, error)
+
+	// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
+	// container that are waiting to be created until moderated
+	// session conditions are met.
+	GetKubernetesWaitingContainer(ctx context.Context, req kubewaitingcontainerclient.KubeWaitingContainerRequest) (*kubewaitingcontainer.KubeWaitingContainer, error)
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
