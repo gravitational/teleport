@@ -376,8 +376,7 @@ function TdpClientCanvas(props: Props) {
 
   useEffect(() => {
     if (client && windowOnResize) {
-      const canvas = canvasRef.current;
-      const _onresize = () => windowOnResize(client, canvas);
+      const _onresize = () => windowOnResize(client);
       window.addEventListener('resize', _onresize);
       return () => {
         windowOnResize.cancel();
@@ -453,9 +452,7 @@ export type Props = {
   canvasOnMouseUp?: (cli: TdpClient, e: MouseEvent) => void;
   canvasOnMouseWheelScroll?: (cli: TdpClient, e: WheelEvent) => void;
   canvasOnContextMenu?: () => boolean;
-  windowOnResize?: DebouncedFunc<
-    (cli: TdpClient, canvas: HTMLCanvasElement) => void
-  >;
+  windowOnResize?: DebouncedFunc<(cli: TdpClient) => void>;
   style?: CSSProperties;
   updatePointer?: boolean;
 };

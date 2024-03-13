@@ -272,15 +272,10 @@ export default function useTdpClientCanvas(props: Props) {
   // on the remote machine.
   const canvasOnContextMenu = () => false;
 
-  const windowOnResize = throttle(
-    (cli: TdpClient, canvas: HTMLCanvasElement) => {
-      // TODO: probably need to clear the canvas
-      const spec = getDisplaySize();
-      syncCanvas(canvas, spec);
-      cli.resize(spec);
-    },
-    250
-  );
+  const windowOnResize = throttle((cli: TdpClient) => {
+    const spec = getDisplaySize();
+    cli.resize(spec);
+  }, 250);
 
   const sendLocalClipboardToRemote = async (cli: TdpClient) => {
     if (await sysClipboardGuard(clipboardSharingState, 'read')) {

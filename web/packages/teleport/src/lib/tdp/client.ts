@@ -172,7 +172,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     spec: ClientScreenSpec
   ) {
     this.logger.debug(
-      `initializing fast path processor with screen spec ${spec.width} x ${spec.height}`
+      `setting up fast path processor with screen spec ${spec.width} x ${spec.height}`
     );
 
     this.fastPathProcessor = new FastPathProcessor(
@@ -326,7 +326,7 @@ export default class Client extends EventEmitterWebAuthnSender {
       this.codec.decodeRDPConnectionActivated(buffer);
     const spec = { width: screenWidth, height: screenHeight };
     this.logger.info(
-      `setting screen spec received from server ${spec.width} x ${spec.height}`
+      `screen spec received from server ${spec.width} x ${spec.height}`
     );
 
     this.initFastPathProcessor(ioChannelId, userChannelId, {
