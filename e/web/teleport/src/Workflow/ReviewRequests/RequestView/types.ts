@@ -2,7 +2,7 @@ import { AccessList } from 'e-teleport/services/accessmanagement';
 import { RequestState } from 'e-teleport/services/workflow';
 
 export type RequestFlags = {
-  /** Decides if the button to assume a request should be visible. */
+  /** Describes request is own request and request is approved */
   canAssume: boolean;
   /**
    * Decides if the button to assume a request should be disabled
@@ -25,4 +25,5 @@ export type SubmitReview = {
   state: RequestState;
   reason: string;
   promotedToAccessList?: SuggestedAccessList;
+  assumeStartTime?: Date;
 };

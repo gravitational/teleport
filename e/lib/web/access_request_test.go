@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -42,10 +43,13 @@ func TestCreateAccessRequest_RoleBased(t *testing.T) {
 	}
 
 	// Test with empty role requests, wild card is used.
+	assumeStartTime := time.Now().UTC().Add(1 * time.Hour)
+	request.AssumeStartTime = &assumeStartTime
 	req, err := createAccessRequest(context.Background(), m, request, "userFoo")
 	require.NoError(t, err)
 	require.NotEmpty(t, req.ID)
 	require.Equal(t, types.RequestState_PENDING.String(), req.State)
+	require.Equal(t, assumeStartTime, *req.AssumeStartTime)
 
 	// Test with specific roles requested.
 	request.Roles = []string{"role1", "role2"}
@@ -484,6 +488,34 @@ func TestReviewAccessRequest(t *testing.T) {
 	req, err = reviewAccessRequest(context.Background(), m, reviewSubmission)
 	require.True(t, trace.IsBadParameter(err))
 	require.Nil(t, req)
+}
+
+func TestReviewAccessRequest_Approved(t *testing.T) {
+	m := &mockedAccessRequestAPIGetter{}
+
+	validStartTime := time.Now().UTC().Add(1 * time.Hour)
+
+	fakeReq, err := services.NewAccessRequest("foo", []string{"bar"}...)
+	require.NoError(t, err)
+	m.mockGetAccessRequests = func(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
+		return []types.AccessRequest{fakeReq}, nil
+	}
+
+	m.mockSubmitAccessReview = func(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error) {
+		require.Equal(t, fakeReq.GetMetadata().Name, params.RequestID)
+		require.Equal(t, types.RequestState_APPROVED, params.Review.ProposedState)
+		require.Equal(t, &validStartTime, params.Review.AssumeStartTime)
+		return fakeReq, nil
+	}
+
+	reviewSubmission := accessRequestParameters{
+		State:           "APPROVED",
+		ID:              fakeReq.GetMetadata().Name,
+		AssumeStartTime: &validStartTime,
+	}
+
+	_, err = reviewAccessRequest(context.Background(), m, reviewSubmission)
+	require.NoError(t, err)
 }
 
 type mockedAccessRequestAPIGetter struct {

@@ -255,7 +255,10 @@ describe('access strategy behavioral testing', () => {
   });
 });
 
-const sampleRequest = makeAccessRequest();
+const sampleRequest = makeAccessRequest({
+  created: '2020-11-04T19:02:50.693Z',
+  expires: '2020-11-04T19:02:50.693Z',
+});
 
 const sampleContext = (type = '') => ({
   accessStrategy: {

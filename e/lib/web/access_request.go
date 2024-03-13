@@ -104,6 +104,10 @@ func createAccessRequest(ctx context.Context, clt accessRequestGetCreator, reque
 	req.SetMaxDuration(request.MaxDuration)
 	req.SetDryRun(request.DryRun)
 
+	if request.AssumeStartTime != nil {
+		req.SetAssumeStartTime(*request.AssumeStartTime)
+	}
+
 	// If the request is a dry run, then we need to use the V2 API to get the
 	// response with the resource details. Otherwise, we can use the V1 API
 	// for backwards compatibility.
@@ -425,13 +429,19 @@ func reviewAccessRequest(ctx context.Context, clt accessReviewSubmitter, review 
 		return nil, trace.BadParameter("access review state %q, is not a valid state. The request has already been processed.", review.State)
 	}
 
+	var assumeStartTime *time.Time
+	if review.AssumeStartTime != nil {
+		assumeStartTime = review.AssumeStartTime
+	}
+
 	reviewSubmission := types.AccessReviewSubmission{
 		RequestID: review.ID,
 		Review: types.AccessReview{
-			Roles:         review.Roles,
-			ProposedState: reviewState,
-			Reason:        review.Reason,
-			Created:       time.Now(),
+			Roles:           review.Roles,
+			ProposedState:   reviewState,
+			Reason:          review.Reason,
+			Created:         time.Now(),
+			AssumeStartTime: assumeStartTime,
 		},
 	}
 
@@ -553,6 +563,8 @@ type accessRequestParameters struct {
 	// was promoted to. Used by WebUI to display the title of the access list.
 	// This field is only populated when the request is in the PROMOTED state.
 	PromotedAccessListTitle string `json:"promotedAccessListTitle,omitempty"`
+	// AssumeStartTime is the time the requested roles can be assumed.
+	AssumeStartTime *time.Time `json:"assumeStartTime"`
 }
 
 func (p *Plugin) getSuggestedAccessListsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (any, error) {

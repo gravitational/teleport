@@ -31,6 +31,8 @@ export interface AccessRequest {
   thresholdNames: string[];
   resources: Resource[];
   promotedAccessListTitle?: string;
+  assumeStartTime?: Date;
+  assumeStartTimeDuration?: string;
 }
 
 export interface AccessRequestReview {
@@ -81,6 +83,7 @@ export interface CreateAccessRequest {
   maxDuration?: Date;
   requestTTL?: Date;
   dryRun?: boolean;
+  assumeStartTime?: Date;
 }
 
 export interface UpdateAccessRequest {
@@ -88,6 +91,7 @@ export interface UpdateAccessRequest {
   reason?: string;
   roles?: string[];
   id: string;
+  assumeStartTime?: Date;
 }
 
 export interface PromoteAccessRequest {

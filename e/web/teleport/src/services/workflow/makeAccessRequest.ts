@@ -16,15 +16,17 @@ export default function makeAccessRequest(json?): AccessRequest {
     id: json.id,
     state: json.state,
     user: json.user,
-    expires: json.expires,
+    expires: new Date(json.expires),
     expiresDuration: getDurationText(json.expires),
-    created: json.created,
+    created: new Date(json.created),
     createdDuration: getDurationAgoText(json.created),
-    maxDuration: json.maxDuration,
+    // maxDuration can be null if talking with an older auth (before v13.3)
+    maxDuration: json.maxDuration ? new Date(json.maxDuration) : null,
     maxDurationText: getDurationText(json.maxDuration),
     requestTTL: json.requestTTL,
     requestTTLDuration: getDurationText(json.requestTTL),
-    sessionTTL: json.sessionTTL,
+    // sessionTTL can be null if talking with an older auth (before v13.3)
+    sessionTTL: json.sessionTTL ? new Date(json.sessionTTL) : null,
     sessionTTLDuration: getDurationText(json.sessionTTL),
     roles: json.roles || [],
     resolveReason: json.resolveReason,
@@ -34,6 +36,12 @@ export default function makeAccessRequest(json?): AccessRequest {
     thresholdNames: json.thresholdNames || [],
     resources: json.resources || [],
     promotedAccessListTitle: json.promotedAccessListTitle,
+    // assumeStartTime can be null because it's an optional field
+    // to request.
+    assumeStartTime: json.assumeStartTime
+      ? new Date(json.assumeStartTime)
+      : null,
+    assumeStartTimeDuration: getAssumeStartDurationText(json.assumeStartTime),
   };
 }
 
@@ -92,4 +100,20 @@ function getDurationAgoText(date: Date) {
   return date
     ? formatDistanceStrict(new Date(date), new Date(), { addSuffix: true })
     : '';
+}
+
+function getAssumeStartDurationText(date: Date) {
+  if (canAssumeNow(date)) {
+    return 'now';
+  }
+
+  return `${getDurationText(date)} from now`;
+}
+
+export function canAssumeNow(date: Date) {
+  if (!date) {
+    return true;
+  }
+
+  return Date.now() >= new Date(date).getTime();
 }

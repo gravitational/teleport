@@ -47,6 +47,8 @@ type AccessRequest struct {
 	// PromotedAccessListTitle is the title of the access list that was promoted
 	// to a resource access request.
 	PromotedAccessListTitle string `json:"promotedAccessListTitle,omitempty"`
+	// AssumeStartTime is the time the requested roles can be assumed.
+	AssumeStartTime *time.Time `json:"assumeStartTime"`
 }
 
 // AccessRequestReview defines fields of a review applied to a request.
@@ -169,6 +171,7 @@ func NewAccessRequest(request types.AccessRequest, opts ...NewAccessRequestOptio
 		ThresholdNames:          thresholdNames,
 		Resources:               resources,
 		PromotedAccessListTitle: request.GetPromotedAccessListTitle(),
+		AssumeStartTime:         request.GetAssumeStartTime(),
 	}, nil
 }
 

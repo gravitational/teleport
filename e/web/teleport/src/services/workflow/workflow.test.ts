@@ -38,25 +38,29 @@ test('handling of empty resource request roles response', async () => {
 });
 
 test('correct formatting of access request json response', async () => {
+  jest.useFakeTimers().setSystemTime(new Date('2024-02-15'));
+
   jest.spyOn(api, 'get').mockResolvedValue(requestApproved);
 
   const workflow = new Workflow();
   const response = await workflow.fetchAccessRequest('123');
 
   expect(response).toEqual({
+    assumeStartTime: null,
+    assumeStartTimeDuration: 'now',
     id: '72de9b90-04fd-5621-a55d-432d9fe56ef2',
     state: 'APPROVED',
     user: 'Sam',
-    expires: undefined,
-    expiresDuration: '',
-    created: undefined,
-    createdDuration: '',
-    maxDuration: undefined,
-    maxDurationText: '',
-    requestTTL: undefined,
-    requestTTLDuration: '',
-    sessionTTL: undefined,
-    sessionTTLDuration: '',
+    expires: new Date('2024-02-15T11:56:43.482795Z'),
+    expiresDuration: '12 hours',
+    created: new Date('2024-02-15T03:56:45.533492Z'),
+    createdDuration: 'in 4 hours',
+    maxDuration: new Date('2024-02-15T11:56:43.482795Z'),
+    maxDurationText: '12 hours',
+    requestTTL: new Date('2024-02-15T11:56:43.480999Z'),
+    requestTTLDuration: '12 hours',
+    sessionTTL: new Date('2024-02-15T11:56:43.482795Z'),
+    sessionTTLDuration: '12 hours',
     roles: ['dev', 'admin'],
     resolveReason: 'resolve reason',
     requestReason: 'request reason',
@@ -94,6 +98,23 @@ test('correct formatting of access request json response', async () => {
   });
 });
 
+test('correct formatting of assume start time', async () => {
+  jest.useFakeTimers().setSystemTime(new Date('2020-01-18'));
+
+  jest.spyOn(api, 'get').mockResolvedValue({
+    ...requestApproved,
+    assumeStartTime: new Date('2020-01-19'),
+  });
+
+  const workflow = new Workflow();
+  const response = await workflow.fetchAccessRequest('123');
+
+  expect(response).toMatchObject({
+    assumeStartTime: new Date('2020-01-19'),
+    assumeStartTimeDuration: '1 day from now',
+  });
+});
+
 const requestApproved = {
   id: '72de9b90-04fd-5621-a55d-432d9fe56ef2',
   state: 'APPROVED',
@@ -124,4 +145,9 @@ const requestApproved = {
       details: { hostname: 'hostname' },
     },
   ],
+  expires: new Date('2024-02-15T11:56:43.482795Z'),
+  created: new Date('2024-02-15T03:56:45.533492Z'),
+  maxDuration: new Date('2024-02-15T11:56:43.482795Z'),
+  requestTTL: new Date('2024-02-15T11:56:43.480999Z'),
+  sessionTTL: new Date('2024-02-15T11:56:43.482795Z'),
 };
