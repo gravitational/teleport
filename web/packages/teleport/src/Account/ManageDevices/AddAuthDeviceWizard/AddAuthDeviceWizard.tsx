@@ -449,6 +449,9 @@ export function SaveDeviceStep({
     setAuthCode(e.target.value);
   };
 
+  const label =
+    usage === 'passwordless' ? 'Passkey Nickname' : 'MFA Method Name';
+
   return (
     <div ref={refCallback} data-testid="save-step">
       <DialogHeader
@@ -466,12 +469,8 @@ export function SaveDeviceStep({
         {({ validator }) => (
           <form onSubmit={e => onSave(e, validator)}>
             <FieldInput
-              label={
-                usage === 'passwordless'
-                  ? 'Passkey Nickname'
-                  : 'MFA Method Name'
-              }
-              rule={requiredField('Passkey nickname is required')}
+              label={label}
+              rule={requiredField(`${label} is required`)}
               value={deviceName}
               placeholder="ex. my-macbookpro"
               autoFocus
