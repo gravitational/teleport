@@ -5,13 +5,11 @@ state: draft
 
 # RFD 0167 - Automatic Updates Change Proposal
 
-
 ## Required Approvers
 
 * Engineering
 * Security:
 * Product:
-
 
 ## What
 This RFD proposes some major design changes to the automatic updates architecture.
@@ -82,16 +80,20 @@ The initial design of auto updates relied on a single version channel. All Telep
 Issue: However, there are still a number of Teleport agents using the deprecated version of the Teleport updater. Until all Teleport updaters are updated, Teleport Cloud needs to continue to maintain the global version channel. The global version has to stay at the minimum version of all tenants using the deprecated version of the Teleport updater.
 
 ### Packages
-The initial design assumed that Teleport Cloud will only publish vX.X.X to the stable/cloud channel package repository when version vX.X.X is compatible with the control plane of all Teleport Cloud users. So it was communicated that it should always be safe to pull the latest version of teleport-ent from the stable/cloud package repository.
+The initial design assumed that Teleport Cloud would be able to get all tenants enrolled in automatic updates and updated to the latest version of Teleport. This would allow Teleport Cloud to publish vX.X.X to the stable/cloud channel package repository when version v.X.X.X is compatible with the control plane of all Teleport Cloud users. With this assumption, it was communicated that it should always be safe to pull the latest version of teleport-ent from the stable/cloud package repository.
 
-Issue: The stable/cloud package repository cannot support the needs of Teleport Cloud. It is expected that users should be able to update/install the latest available version of the teleport-ent package and maintain version compatibility with the Teleport control plane. Since Teleport Cloud supports tenants on multiple major versions, it is not possible for the stable/cloud channel to meet this requirement for all tenants.
+This did not end up being the case. Teleport Cloud was unable to get all tenants enrolled in automatic updates and updated to the latest version of Teleport. It has become clear that Teleport Cloud will need to support tenants on multiple major versions for an extended period of time.
+
+Because this assumption ended up being false, it is not the case that the latest version of Teleport from the stable/cloud package repository is compatible with all Teleport Cloud tenants, and it is not safe for all Teleport Cloud users to pull the latest version of teleport-ent from the stable/cloud package repository. These limitations have caused a number of issues for Teleport Cloud users.
+
+Issue: Some users will attempt to install the latest available teleport-ent package from the stable/cloud repository. This results in a failed installation if the Teleport client is incompatible with the Teleport control plane.
+
+Issue: Some users will attempt to manually update the teleport-ent package to the latest available version in the stable/cloud repository. This results in a failed update if the Teleport client is incompatible with the Teleport control plane.
 
 ### Helm Charts
-The teleport/teleport-kube-agent Helm release manages the deployment of both the teleport-agent and the teleport-agent-updater.
+The teleport/teleport-kube-agent Helm release manages the deployment of both the teleport-agent and the teleport-agent-updater. This may be an issue for some users become the teleport-agent-updater updates the image of the teleport-agent. This results in the version of the teleport-agent diverging from the version specific in the Helm chart.
 
-Issue: The teleport-agent-updater updates the image of the teleport-agent resource. This results in the version of the teleport-agent diverging from the version specified in the Helm chart. If the Helm chart is redeployed, the teleport-agent will revert back to the original specified value.
-
-There are a number of users unable to enroll in automatic updates because it is incompatible with their ArgoCD deployments. ArgoCD generates the template from the Helm chart and manages the resources itself. It monitors the teleport-agent resource and when it detects that the resource has diverged from the initial spec, it will reconcile the resource.
+Issue: There are a number of users unable to enroll in automatic updates because it is incompatible with their ArgoCD deployments. ArgoCD generates the template from the Helm chart and manages the resources itself. It monitors the teleport-agent resource and when it detects that the resource has diverged from the initial spec, it will reconcile the resource.
 
 ### Test Coverage
 Because it was assumed that the Teleport updater would be stable, the Teleport updater logic is written in bash and it lacks sufficient testing. There is some automated testing. There are unit tests in place to verify the functionality of the Teleport updater, and there are tests to verify that the Teleport updater can be installed from the stable/cloud repository.
@@ -100,6 +102,12 @@ Issue: For such a critical piece of the Teleport architecture, it seems like an 
 
 ## Change proposals
 These proposals contain minimal implementation details. If the proposals are approved, an execution plan will be written up for each item with more implementation details.
+
+Here are the goals that these changes should accomplish:
+1. The Teleport updater must be able to update it's own update logic in some compacity. If these change proposals are accepted, the changes will require multiple steps to implement. Teleport Cloud users should not be expected to update their updater multiple times to receive the incoming patches. This should be among one of the first goals to prioritize so that users can update once, and not have to worry about keeping up with new patches to the Teleport updater.
+2. The Teleport updater must preserve the ability to rollback an update. The Teleport updater must be able to identify if it's entered a broken state, it must then be able to rollback to a previously working state.
+3. Teleport Cloud must have fine grain control of the version of all Teleport agents. The Teleport updater must manage the version of the Teleport agent at installation, and all future version updates. The version of the Teleport agent must be locked otherwise, and it should not be overridable by regular system maintenance.
+4. Teleport Cloud must provide the necessary tools for a user to build their own automation to keep Teleport client software up to date. This should include a stable API that users can rely on to request the latest version of Teleport that is compatible with their Teleport control plane.
 
 ### Deprecate the stable/cloud teleport-ent package
 Currently, the teleport-ent-updater package requires the teleport-ent package as a dependency. This means that the user must install the latest version of the teleport-ent package which may or may not be compatible with their Teleport control plane, or they must first specify a compatible version of teleport-ent to install. This puts unnecessary burden on the user, and complicates the installation process.
@@ -114,13 +122,13 @@ $ teleport-upgrade install --proxy=example.teleport.sh
 
 This step does not ensure major version compatibility. If a user manually updates the teleport-ent package to the latest available version, they may still get an incompatible major version of Teleport.
 
-Step 2: The Teleport package repository supports per major version channels (stable/vXX). Users were instructed to use these channels prior to the stable/cloud channel. In order to ensure the teleport-ent package does not get updated to an incompatible major version. The Teleport updater will now maintain the channel of the Teleport package repository. Whenever the Teleport cluster is updated to a new major version, the Teleport updater will also update the Teleport package repository channel. This will allow the stable/cloud teleport-ent package to be deprecated.
+Step 2: The Teleport package repository supports major version channels (stable/vXX). Users were instructed to use these channels prior to the stable/cloud channel. In order to ensure the teleport-ent package does not get updated to an incompatible major version. The Teleport updater will now maintain the channel of the Teleport package repository. Whenever the Teleport cluster is updated to a new major version, the Teleport updater will also update the Teleport package repository channel. This will allow the stable/cloud teleport-ent package to be deprecated.
 
 This step does not ensure minor version compatibility. If a user manually updates the teleport-ent package to the latest available version, they may still get an incompatible minor version of Teleport.
 
-Step 2 (Alternative): Instead of relying on the stable/vXX channels. There is also the option of preventing updates of the teleport-ent package except by the Teleport updater. This would not require the stable/cloud channel to be deprecated. However, this would require a different solution of each support package manager, would could get messy.
+Step 2 (Alternative): Instead of relying on the stable/vXX channels. There is also the option of preventing updates of the teleport-ent package except by the Teleport updater. This would not require the stable/cloud channel to be deprecated. However, this would require a different solution for each supported package manager, which could get complicated.
 
-Apt supports an apt-mark hold command that can be used to hold back a package from being updated. The Teleport updater can be modified to hold the teleport-ent package after an update, and un-hold when it is performing an update.
+Apt supports an apt-mark hold command that can be used to hold back a package from being updated. The Teleport updater can be modified to lock the teleport-ent package after an update, and unlock when it is performing an update.
 
 Yum has a similar feature that can exclude packages from a system update. This can be done by specifying teleport-ent to be excluded in the /etc/yum.conf file.
 
@@ -128,12 +136,25 @@ Step 3: The Teleport installation process should no longer rely on the package m
 
 This step will ensure version compatibility for the teleport-ent packages downloaded from the proxy. This step also removes version compatibility concerns from the Teleport updater, and the version servers can be deprecated.
 
-### Reduce to a single installation path
-Teleport supports different installation scripts for a number of different methods of installation for Teleport. This creates an increased maintenance and testing burden on developers. This has already lead to several incidents, and if these change proposals are accepted there is concern for more issues to emerge.
+Step 4: The Teleport documentation should be updated to include a new section with instructions about how a user can build their own update automation.
 
-Step 1: The different installation scripts should be reduced to a single script used regardless of the installation method.
+### Reduce installation paths
+Teleport supports different scripts and methods of installation. This creates an increased maintenance and testing burden on developers. It also leads to confusion for the Teleport user, as it is unclear which installation method fits their needs. This has already lead to several incidents, and if these change proposals are accepted there is concern for more issues to emerge.
 
-Step 2: After reducing cardinality, it should be more manageable to implement more extensive testing for the single installation script. There should be automated testing in place to verify installation and updates. Teleport supports the 3 latest major versions. So tests should be run against all the supported major versions.
+Step 1: Reduce to a single installation script. The installation script should be able to install the installation for OSS, Cloud, and Enterprise. The script should require minimal arguments for installation. Ideally, it should only require the Teleport proxy address.
+
+Step 2: Choose a source of truth for download/installation documentation. Teleport currently provides instructions on how to download and install Teleport in multiple different pages.
+- https://goteleport.com/docs/installation/ - This page provides the most detailed set of instructions about how to install Teleport using multiple different methods.
+- https://goteleport.com/download/ - This page provides download instructions for OSS Teleport.
+- https://goteleport.com/docs/choose-an-edition/teleport-cloud/downloads/ - This page provides download instructions for Teleport Cloud.
+
+The /download page should now recommend users to install Teleport using the script from step 1. The script should be able to handle installation for OSS, Cloud, and Enterprise Teleport. This will enable the /download page to now be the source of truth for all Teleport download instructions.
+
+The /docs/installation page should continue to be maintained. This page should only be recommended to users who do not wish to install Teleport using the provided installation script.
+
+Step 3: Extend the capabilities of the installation script to replace the installation scripts used for node joining, teleport auto discovery, and any other installation scripts currently available.
+
+Step 4: After reducing cardinality, it should be more manageable to implement more extensive testing for the single installation script. There should be automated testing in place to verify installation and updates. Teleport supports the 3 latest major versions. So tests should be run against all the supported major versions.
 
 ### Give ownership of the teleport-agent to the teleport-agent-updater
 The teleport/teleport-kube-agent Helm chart with the updater enabled is not currently compatible with ArgoCD.
@@ -147,21 +168,5 @@ There have been many user upset and confused about the changes that have been ma
 
 ## Out of Scope
 
-### Move Update Logic
-A key requirement for the initial design of the Teleport updater was that the updater must not rely on Teleport itself, because it needs to be able to recover if a broken version of Teleport is shipped. If this broken version of Teleport is unable to execute any commands, it could leave the agent and updater in a permanently broken state.
-
-If these change proposals are accepted, the changes will require multiple steps to implement, and users will need to update their teleport-ent-updater multiple times. To avoid this situation, it might be worth considering some options to modify the update logic without having to update the teleport-ent-updater package.
-
-- Move update logic into Teleport. Teleport could provide a teleport update command that either updates the package, or it generates an update script for the Teleport updater to then execute. The update script could also be a static script that lives in the teleport-ent package.
-
-### Opt Out of Auto Updates
-There are some users who deploy and maintain Teleport with methods that are not currently supported.
-- Teleport builds from source
-- Teleport images sourced from a private ECR
-- DIY automatic updates
-
-These methods of deploying and maintaining Teleport are currently incompatible with the auto updates feature. However, these users are most likely in the minority. Ensuring these users are up to date with their Teleport client software can be handled on a case-by-case basis for now.
-
 ### Relax Teleport Version Requirements
 Something to consider is relaxing the Teleport client/server version requirements. Teleport supports the 3 latest major versions, but it only supports compatibility with clients up to one major version behind and does not support clients that are on a newer version.
-
