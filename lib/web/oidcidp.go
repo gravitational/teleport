@@ -50,6 +50,7 @@ func (h *Handler) openidConfiguration(_ http.ResponseWriter, _ *http.Request, _ 
 func (h *Handler) jwksOIDC(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
 	return h.jwks(r.Context())
 }
+
 func (h *Handler) jwks(ctx context.Context) (*JWKSResponse, error) {
 	clusterName, err := h.GetProxyClient().GetDomainName(ctx)
 	if err != nil {
