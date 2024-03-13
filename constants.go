@@ -422,7 +422,14 @@ const (
 
 // Component generates "component:subcomponent1:subcomponent2" strings used
 // in debugging
+// TODO(tross) remove this when references in e have been updated.
 func Component(components ...string) string {
+	return strings.Join(components, ":")
+}
+
+// CompoundComponent generates "component:subcomponent1:subcomponent2" strings used
+// in debugging
+func CompoundComponent(components ...string) string {
 	return strings.Join(components, ":")
 }
 

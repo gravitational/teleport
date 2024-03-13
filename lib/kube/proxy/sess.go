@@ -711,7 +711,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		RecordingCfg: s.ctx.recordingConfig,
 		SyncStreamer: s.forwarder.cfg.AuthClient,
 		DataDir:      s.forwarder.cfg.DataDir,
-		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
+		Component:    teleport.CompoundComponent(teleport.ComponentSession, teleport.ComponentProxyKube),
 		// Session stream is using server context, not session context,
 		// to make sure that session is uploaded even after it is closed
 		Context: s.forwarder.ctx,

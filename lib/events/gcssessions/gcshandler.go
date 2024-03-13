@@ -199,9 +199,7 @@ func NewHandler(ctx context.Context, cancelFunc context.CancelFunc, cfg Config, 
 		return nil, trace.Wrap(err)
 	}
 	h := &Handler{
-		Entry: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(teleport.SchemeGCS),
-		}),
+		Entry:         log.WithField(trace.Component, teleport.SchemeGCS),
 		Config:        cfg,
 		gcsClient:     client,
 		clientContext: ctx,

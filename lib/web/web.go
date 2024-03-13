@@ -31,5 +31,5 @@ var log = newPackageLogger()
 // configured for the package
 func newPackageLogger(subcomponents ...string) logrus.FieldLogger {
 	return logrus.WithField(trace.Component,
-		teleport.Component(append([]string{teleport.ComponentWeb}, subcomponents...)...))
+		teleport.CompoundComponent(append([]string{teleport.ComponentWeb}, subcomponents...)...))
 }

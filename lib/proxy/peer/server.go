@@ -69,7 +69,7 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 	}
 	c.Log = c.Log.WithField(
 		trace.Component,
-		teleport.Component(teleport.ComponentProxy, "peer"),
+		teleport.CompoundComponent(teleport.ComponentProxy, "peer"),
 	)
 
 	if c.AccessCache == nil {

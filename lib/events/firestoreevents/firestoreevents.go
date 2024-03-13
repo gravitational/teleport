@@ -274,9 +274,7 @@ func New(cfg EventsConfig) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	l := log.WithFields(log.Fields{
-		trace.Component: teleport.Component(teleport.ComponentFirestore),
-	})
+	l := log.WithField(trace.Component, teleport.ComponentFirestore)
 	l.Info("Initializing event backend.")
 	closeCtx, cancel := context.WithCancel(context.Background())
 	firestoreAdminClient, firestoreClient, err := firestorebk.CreateFirestoreClients(closeCtx, cfg.ProjectID, cfg.EndPoint, cfg.CredentialsPath)

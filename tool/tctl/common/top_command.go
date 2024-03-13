@@ -706,7 +706,7 @@ func generateReport(metrics map[string]*dto.MetricFamily, prev *Report, period t
 		stats = nil
 	}
 	collectBackendStats(teleport.ComponentCache, &re.Cache, stats)
-	re.Cache.QueueSize = getComponentGaugeValue(teleport.Component(teleport.ComponentAuth, teleport.ComponentCache),
+	re.Cache.QueueSize = getComponentGaugeValue(teleport.CompoundComponent(teleport.ComponentAuth, teleport.ComponentCache),
 		metrics[teleport.MetricBackendWatcherQueues])
 
 	var watchStats *WatcherStats

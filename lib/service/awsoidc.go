@@ -83,7 +83,7 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater() error {
 	}
 
 	updater, err := NewDeployServiceUpdater(AWSOIDCDeployServiceUpdaterConfig{
-		Log:                    process.log.WithField(trace.Component, teleport.Component(teleport.ComponentProxy, "aws_oidc_deploy_service_updater")),
+		Log:                    process.log.WithField(trace.Component, teleport.CompoundComponent(teleport.ComponentProxy, "aws_oidc_deploy_service_updater")),
 		AuthClient:             authClient,
 		Clock:                  process.Clock,
 		TeleportClusterName:    clusterNameConfig.GetClusterName(),
@@ -129,7 +129,7 @@ func (cfg *AWSOIDCDeployServiceUpdaterConfig) CheckAndSetDefaults() error {
 	}
 
 	if cfg.Log == nil {
-		cfg.Log = logrus.WithField(trace.Component, teleport.Component(teleport.ComponentProxy, "aws_oidc_deploy_service_updater"))
+		cfg.Log = logrus.WithField(trace.Component, teleport.CompoundComponent(teleport.ComponentProxy, "aws_oidc_deploy_service_updater"))
 	}
 
 	if cfg.Clock == nil {

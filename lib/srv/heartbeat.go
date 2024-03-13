@@ -157,7 +157,7 @@ func NewHeartbeat(cfg HeartbeatConfig) (*Heartbeat, error) {
 		cancel:          cancel,
 		HeartbeatConfig: cfg,
 		Entry: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(cfg.Component, "beat"),
+			trace.Component: teleport.CompoundComponent(cfg.Component, "beat"),
 		}),
 		checkTicker: cfg.Clock.NewTicker(cfg.CheckPeriod),
 		announceC:   make(chan struct{}, 1),

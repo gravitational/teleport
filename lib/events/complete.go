@@ -95,10 +95,8 @@ func NewUploadCompleter(cfg UploadCompleterConfig) (*UploadCompleter, error) {
 		return nil, trace.Wrap(err)
 	}
 	u := &UploadCompleter{
-		cfg: cfg,
-		log: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(cfg.Component, "completer"),
-		}),
+		cfg:    cfg,
+		log:    log.WithField(trace.Component, teleport.CompoundComponent(cfg.Component, "completer")),
 		closeC: make(chan struct{}),
 	}
 

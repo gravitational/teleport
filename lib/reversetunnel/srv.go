@@ -262,7 +262,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 	if cfg.Component == "" {
-		cfg.Component = teleport.Component(teleport.ComponentProxy, teleport.ComponentServer)
+		cfg.Component = teleport.CompoundComponent(teleport.ComponentProxy, teleport.ComponentServer)
 	}
 	logger := cfg.Log
 	if cfg.Log == nil {

@@ -83,10 +83,7 @@ func New(reporter usagereporter.UsageReporter, log logrus.FieldLogger, inner api
 	}
 
 	return &UsageLogger{
-		Entry: log.WithField(
-			trace.Component,
-			teleport.Component(teleport.ComponentUsageReporting),
-		),
+		Entry:    log.WithField(trace.Component, teleport.ComponentUsageReporting),
 		reporter: reporter,
 		inner:    inner,
 	}, nil

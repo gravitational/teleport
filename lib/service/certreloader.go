@@ -58,7 +58,7 @@ type CertReloader struct {
 func NewCertReloader(cfg CertReloaderConfig) *CertReloader {
 	return &CertReloader{
 		Entry: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(teleport.ComponentProxy, "certreloader"),
+			trace.Component: teleport.CompoundComponent(teleport.ComponentProxy, "certreloader"),
 		}),
 		cfg: cfg,
 	}

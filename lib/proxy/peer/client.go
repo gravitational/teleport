@@ -102,10 +102,7 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 		c.Log = logrus.New()
 	}
 
-	c.Log = c.Log.WithField(
-		trace.Component,
-		teleport.Component(teleport.ComponentProxyPeer),
-	)
+	c.Log = c.Log.WithField(trace.Component, teleport.ComponentProxyPeer)
 
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -247,7 +244,7 @@ func (c *Client) monitor() {
 func (c *Client) sync() {
 	proxyWatcher, err := services.NewProxyWatcher(c.ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.Component(teleport.ComponentProxyPeer),
+			Component: teleport.ComponentProxyPeer,
 			Client:    c.config.AccessPoint,
 			Log:       c.config.Log,
 		},

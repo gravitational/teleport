@@ -170,7 +170,7 @@ func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
 	return &SessionRegistry{
 		SessionRegistryConfig: cfg,
 		log: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(teleport.ComponentSession, cfg.Srv.Component()),
+			trace.Component: teleport.CompoundComponent(teleport.ComponentSession, cfg.Srv.Component()),
 		}),
 		sessions: make(map[rsession.ID]*session),
 		users:    cfg.Srv.GetHostUsers(),
@@ -755,7 +755,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 	access := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, scx.Identity.TeleportUser)
 	sess := &session{
 		log: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(teleport.ComponentSession, r.Srv.Component()),
+			trace.Component: teleport.CompoundComponent(teleport.ComponentSession, r.Srv.Component()),
 			"session_id":    id,
 		}),
 		id:                             id,
@@ -1385,7 +1385,7 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder
 		RecordingCfg: ctx.SessionRecordingConfig,
 		SyncStreamer: ctx.srv,
 		DataDir:      ctx.srv.GetDataDir(),
-		Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
+		Component:    teleport.CompoundComponent(teleport.ComponentSession, ctx.srv.Component()),
 		// Session stream is using server context, not session context,
 		// to make sure that session is uploaded even after it is closed
 		Context: ctx.srv.Context(),
@@ -1970,7 +1970,7 @@ type party struct {
 func newParty(s *session, mode types.SessionParticipantMode, ch ssh.Channel, ctx *ServerContext) *party {
 	return &party{
 		log: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
+			trace.Component: teleport.CompoundComponent(teleport.ComponentSession, ctx.srv.Component()),
 		}),
 		user:     ctx.Identity.TeleportUser,
 		login:    ctx.Identity.Login,

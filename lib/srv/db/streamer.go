@@ -50,7 +50,7 @@ func (s *Server) newSessionRecorder(sessionCtx *common.Session) (libevents.Sessi
 		RecordingCfg: recConfig,
 		SyncStreamer: s.cfg.AuthClient,
 		DataDir:      s.cfg.DataDir,
-		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentDatabase),
+		Component:    teleport.CompoundComponent(teleport.ComponentSession, teleport.ComponentDatabase),
 		// Session stream is using server context, not session context,
 		// to make sure that session is uploaded even after it is closed
 		Context: s.connContext,

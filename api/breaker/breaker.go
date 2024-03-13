@@ -22,7 +22,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -132,8 +131,6 @@ type Config struct {
 	OnStandBy func()
 	// IsSuccessful is used by the CircuitBreaker to determine if the executed function was successful or not
 	IsSuccessful func(v interface{}, err error) bool
-	// Logger is the logger
-	Logger logrus.FieldLogger
 	// TrippedErrorMessage is an optional message to use as the error message when the CircuitBreaker
 	// is tripped. Defaults to ErrStateTripped if not provided.
 	TrippedErrorMessage string
@@ -260,12 +257,6 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.IsSuccessful = NonNilErrorIsSuccess
 	}
 
-	if c.Logger == nil {
-		c.Logger = logrus.New().WithFields(logrus.Fields{
-			trace.Component: "breaker",
-		})
-	}
-
 	c.TrippedPeriod = retryutils.NewSeventhJitter()(c.TrippedPeriod)
 
 	return nil
@@ -359,10 +350,8 @@ func (c *CircuitBreaker) afterExecution(prior uint64, v interface{}, err error) 
 	}
 
 	if c.cfg.IsSuccessful(v, err) {
-		c.cfg.Logger.Debugf("successful execution, %s", c.metrics.String())
 		c.success(state, now)
 	} else {
-		c.cfg.Logger.Debugf("failed execution, %s", c.metrics.String())
 		c.failure(state, now)
 	}
 }
@@ -406,8 +395,6 @@ func (c *CircuitBreaker) setState(s State, t time.Time) {
 	if c.state == s {
 		return
 	}
-
-	c.cfg.Logger.Debugf("state is transition from %s -> %s", c.state, s)
 
 	c.state = s
 	c.nextGeneration(t)

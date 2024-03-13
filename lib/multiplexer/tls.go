@@ -73,9 +73,7 @@ func NewTLSListener(cfg TLSListenerConfig) (*TLSListener, error) {
 	}
 	context, cancel := context.WithCancel(context.TODO())
 	return &TLSListener{
-		log: log.WithFields(log.Fields{
-			trace.Component: teleport.Component("mxtls", cfg.ID),
-		}),
+		log:           log.WithField(trace.Component, teleport.CompoundComponent("mxtls", cfg.ID)),
 		cfg:           cfg,
 		http2Listener: newListener(context, cfg.Listener.Addr()),
 		httpListener:  newListener(context, cfg.Listener.Addr()),

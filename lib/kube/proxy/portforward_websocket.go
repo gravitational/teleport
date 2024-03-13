@@ -144,7 +144,7 @@ func runPortForwardingWebSocket(req portForwardRequest) error {
 		targetConn:    targetConn,
 		onPortForward: req.onPortForward,
 		FieldLogger: logrus.WithFields(logrus.Fields{
-			trace.Component:   teleport.Component(teleport.ComponentProxyKube),
+			trace.Component:   teleport.CompoundComponent(teleport.ComponentProxyKube),
 			events.RemoteAddr: req.httpRequest.RemoteAddr,
 		}),
 		context: req.context,

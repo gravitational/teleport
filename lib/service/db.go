@@ -47,7 +47,7 @@ func (process *TeleportProcess) initDatabases() {
 }
 
 func (process *TeleportProcess) initDatabaseService() (retErr error) {
-	logger := process.logger.With(trace.Component, teleport.Component(teleport.ComponentDatabase, process.id))
+	logger := process.logger.With(trace.Component, teleport.CompoundComponent(teleport.ComponentDatabase, process.id))
 
 	conn, err := process.WaitForConnector(DatabasesIdentityEvent, logger)
 	if conn == nil {
@@ -87,7 +87,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentDatabase,
-			Log:       process.log.WithField(trace.Component, teleport.Component(teleport.ComponentDatabase, process.id)),
+			Log:       process.log.WithField(trace.Component, teleport.CompoundComponent(teleport.ComponentDatabase, process.id)),
 			Client:    conn.Client,
 		},
 	})
@@ -100,7 +100,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
-		Logger:      process.log.WithField(trace.Component, teleport.Component(teleport.ComponentDatabase, process.id)),
+		Logger:      process.log.WithField(trace.Component, teleport.CompoundComponent(teleport.ComponentDatabase, process.id)),
 	})
 	if err != nil {
 		return trace.Wrap(err)

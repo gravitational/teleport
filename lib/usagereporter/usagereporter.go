@@ -421,10 +421,7 @@ func NewUsageReporter[T any](options *Options[T]) *UsageReporter[T] {
 	}
 
 	reporter := &UsageReporter[T]{
-		Entry: options.Log.WithField(
-			trace.Component,
-			teleport.Component(teleport.ComponentUsageReporting),
-		),
+		Entry:           options.Log.WithField(trace.Component, teleport.ComponentUsageReporting),
 		events:          make(chan []*SubmittedEvent[T], 1),
 		submissionQueue: make(chan []*SubmittedEvent[T], 1),
 		eventsClosed:    make(chan struct{}),

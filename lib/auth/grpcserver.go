@@ -5276,10 +5276,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	dbobjectimportrulev12.RegisterDatabaseObjectImportRuleServiceServer(server, dbObjectImportRuleService)
 
 	authServer := &GRPCServer{
-		APIConfig: cfg.APIConfig,
-		Entry: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
-		}),
+		APIConfig:    cfg.APIConfig,
+		Entry:        logrus.WithField(trace.Component, teleport.CompoundComponent(teleport.ComponentAuth, teleport.ComponentGRPC)),
 		server:       server,
 		usersService: usersService,
 		botService:   botService,

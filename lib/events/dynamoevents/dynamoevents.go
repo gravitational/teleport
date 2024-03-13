@@ -250,9 +250,7 @@ const (
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
 func New(ctx context.Context, cfg Config) (*Log, error) {
-	l := log.WithFields(log.Fields{
-		trace.Component: teleport.Component(teleport.ComponentDynamoDB),
-	})
+	l := log.WithField(trace.Component, teleport.ComponentDynamoDB)
 	l.Info("Initializing event backend.")
 
 	err := cfg.CheckAndSetDefaults()

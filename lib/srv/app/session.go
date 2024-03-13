@@ -315,7 +315,7 @@ func (s *Server) newSessionRecorder(ctx context.Context, startTime time.Time, ch
 		RecordingCfg: recConfig,
 		SyncStreamer: s.c.AuthClient,
 		DataDir:      s.c.DataDir,
-		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentApp),
+		Component:    teleport.CompoundComponent(teleport.ComponentSession, teleport.ComponentApp),
 		Context:      ctx,
 		StartTime:    startTime,
 	})
