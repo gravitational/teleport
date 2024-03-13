@@ -281,6 +281,8 @@ function makeIntegration(json: any): Integration {
     kind: subKind,
     spec: {
       roleArn: awsoidc?.roleArn,
+      s3Bucket: awsoidc?.s3Bucket,
+      s3Prefix: awsoidc?.s3Prefix,
     },
     // The integration resource does not have a "status" field, but is
     // a required field for the table that lists both plugin and
