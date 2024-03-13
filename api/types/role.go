@@ -198,6 +198,9 @@ type Role interface {
 	GetSessionJoinPolicies() []*SessionJoinPolicy
 	// SetSessionJoinPolicies sets the RBAC join policies for a session.
 	SetSessionJoinPolicies([]*SessionJoinPolicy)
+	// IsSessionJoinMFARequired returns true if any of the RBAC join
+	// policies require MFA to join sessions.
+	IsSessionJoinMFARequired() bool
 	// GetSessionPolicySet returns the RBAC policy set for a role.
 	GetSessionPolicySet() SessionTrackerPolicySet
 
@@ -1668,6 +1671,20 @@ func (r *RoleV6) GetSessionJoinPolicies() []*SessionJoinPolicy {
 // SetSessionJoinPolicies sets the RBAC join policies for a role.
 func (r *RoleV6) SetSessionJoinPolicies(policies []*SessionJoinPolicy) {
 	r.Spec.Allow.JoinSessions = policies
+}
+
+// IsSessionJoinMFARequired returns true if any of the RBAC join
+// policies require MFA to join sessions.
+func (r *RoleV6) IsSessionJoinMFARequired() bool {
+	if r.Version != V7 {
+		return false
+	}
+	for _, policy := range r.Spec.Allow.JoinSessions {
+		if policy.MFARequired {
+			return true
+		}
+	}
+	return false
 }
 
 // GetSearchAsRoles returns the list of extra roles which should apply to a
