@@ -1444,18 +1444,8 @@
           ]
         },
         {
-          "title": "Configuring Access",
-          "slug": "/kubernetes-access/manage-access/",
-          "entries": [
-            {
-              "title": "Setting up Role-Based Access Controls",
-              "slug": "/kubernetes-access/manage-access/rbac/"
-            },
-            {
-              "title": "Federation",
-              "slug": "/kubernetes-access/manage-access/federation/"
-            }
-          ]
+          "title": "Setting up Role-Based Access Controls",
+          "slug": "/kubernetes-access/manage-access/"
         },
         {
           "title": "Access Controls Reference",
@@ -1627,13 +1617,7 @@
         },
         {
           "title": "Access Controls",
-          "slug": "/database-access/rbac/",
-          "entries": [
-            {
-              "title": "RBAC",
-              "slug": "/database-access/rbac/configuring-access/"
-            }
-          ]
+          "slug": "/database-access/rbac/"
         },
         {
           "title": "Automatic User Provisioning",
@@ -3044,11 +3028,6 @@
       "permanent": true
     },
     {
-      "source": "/kubernetes-access/guides/federation/",
-      "destination": "/kubernetes-access/manage-access/federation/",
-      "permanent": true
-    },
-    {
       "source": "/kubernetes-access/guides/dynamic-registration/",
       "destination": "/kubernetes-access/register-clusters/dynamic-registration/",
       "permanent": true
@@ -3481,6 +3460,16 @@
     {
       "source": "/choose-an-edition/teleport-team/",
       "destination": "/choose-an-edition/teleport-cloud/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/manage-access/rbac/",
+      "destination": "/kubernetes-access/manage-access/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/rbac/configuring-access/",
+      "destination": "/database-access/rbac/",
       "permanent": true
     }
   ]
