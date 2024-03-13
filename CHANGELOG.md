@@ -1,5 +1,21 @@
 # Changelog
 
+## 13.4.18 (03/13/24)
+
+* Patched CVE-2024-27304 (Postgres driver). [#39263](https://github.com/gravitational/teleport/pull/39263)
+* Raised the concurrent connection limits between Teleport Cloud regions and in clusters that use proxy peering. [#39231](https://github.com/gravitational/teleport/pull/39231)
+* Improved the clean up of system resources during a fast shutdown of Teleport. [#39214](https://github.com/gravitational/teleport/pull/39214)
+* Fixed an issue where it was possible to skip providing old password when setting a new one. [#39125](https://github.com/gravitational/teleport/pull/39125)
+* Fixed a bug when using automatic updates and the discovery service. The default install script now installs the correct teleport version by querying the version server. [#39103](https://github.com/gravitational/teleport/pull/39103)
+* Fixed a regression where `tsh kube credentials` fails to re-login when credentials expire. [#39073](https://github.com/gravitational/teleport/pull/39073)
+* Expanded the EC2 joining process to include newly created AWS regions. [#39053](https://github.com/gravitational/teleport/pull/39053)
+* Added GCP MySQL access IAM Authentication support. [#39042](https://github.com/gravitational/teleport/pull/39042)
+* Updated Go to 1.21.8. [#38986](https://github.com/gravitational/teleport/pull/38986)
+* Updated electron-builder dependency to address possible arbitrary code execution in the Windows installer of Teleport Connect (CVE-2024-27303). [#38967](https://github.com/gravitational/teleport/pull/38967)
+* Fixed an issue with over counting of reported Teleport updater metrics. [#38833](https://github.com/gravitational/teleport/pull/38833)
+* Fixed a bug that caused `tsh` to return "private key policy not met" errors instead of automatically initiating re-login to satisfy the private key policy. [#38817](https://github.com/gravitational/teleport/pull/38817)
+* Fixed issue where DynamoDB writes could fail when recording too many records. [#38761](https://github.com/gravitational/teleport/pull/38761)
+
 ## 13.4.17
 
 * tbot-distroless image is now published. This contains just the tbot binary and therefore has a smaller image size. [#38720](https://github.com/gravitational/teleport/pull/38720)
