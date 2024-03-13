@@ -93,7 +93,7 @@ type SlogTextHandlerConfig struct {
 // NewSlogTextHandler creates a SlogTextHandler that writes messages to w.
 func NewSlogTextHandler(w io.Writer, cfg SlogTextHandlerConfig) *SlogTextHandler {
 	if cfg.Padding == 0 {
-		cfg.Padding = trace.DefaultComponentPadding
+		cfg.Padding = defaultComponentPadding
 	}
 
 	handler := SlogTextHandler{
@@ -302,7 +302,7 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 				color = noColor
 			}
 
-			level = padMax(level, trace.DefaultLevelPadding)
+			level = padMax(level, defaultLevelPadding)
 			if color == noColor {
 				*buf = s.appendAttr(*buf, slog.String(slog.LevelKey, level))
 			} else {
