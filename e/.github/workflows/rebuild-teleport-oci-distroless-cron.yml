@@ -8,6 +8,10 @@ on:
     # Run daily at 7.23 am UTC. 7am UTC is 0:00 PDT, and the 23-
     # minute offset is not important; just a random offset to
     # stagger jobs.
+    # This is only run from the `master` branch. GitHub Actions
+    # will not run scheduled/cron jobs from other branches. This
+    # file appears on release branches due to how they are created
+    # off master, but those scheduled/cron jobs do not run.
     - cron: '23 7 * * *'
 
 env:
@@ -15,7 +19,7 @@ env:
   # we want to rebuild the images. Make sure this value is kept
   # up-to-date as new major versions are released. See:
   #   https://github.com/gravitational/teleport/blob/master/docs/postrelease.md
-  TELEPORT_MAJOR_VERSIONS: "v12 v13 v14 v15"
+  TELEPORT_MAJOR_VERSIONS: "v13 v14 v15"
 
 permissions:
   contents: read
