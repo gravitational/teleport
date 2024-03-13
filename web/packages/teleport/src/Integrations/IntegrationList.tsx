@@ -105,7 +105,11 @@ export function IntegrationList(props: Props<IntegrationLike>) {
               );
             }
 
-            if (item.resourceType === 'integration') {
+            if (
+              item.resourceType === 'integration' &&
+              // Currently, only AWSOIDC supports editing.
+              item.kind === IntegrationKind.AwsOidc
+            ) {
               return (
                 <Cell align="right">
                   <MenuButton>
@@ -179,6 +183,29 @@ export function IntegrationList(props: Props<IntegrationLike>) {
 }
 
 const StatusCell = ({ item }: { item: IntegrationLike }) => {
+  if (
+    item.resourceType === 'integration' &&
+    item.kind === IntegrationKind.AwsOidc &&
+    // Notify to user that this integration may require editing
+    // this integration and re-running a script to re-configure
+    // the issuer.
+    (!item.spec.s3Bucket || !item.spec.s3Prefix)
+  ) {
+    return (
+      <Cell>
+        <Flex alignItems="center">
+          <StatusLight status={Status.Warning} />
+          Integration needs updating
+          <Box mx="1">
+            <ToolTipInfo>
+              Requires setting up a Amazon S3 Bucket. Click on 'OPTIONS' and
+              'Edit...' and fill out the 'S3 Location' input fields.
+            </ToolTipInfo>
+          </Box>
+        </Flex>
+      </Cell>
+    );
+  }
   const status = getStatus(item);
   const statusDescription = getStatusCodeDescription(item.statusCode);
 
