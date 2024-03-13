@@ -112,6 +112,8 @@ const Component = () => {
         resourceType: 'integration',
         spec: {
           roleArn: 'arn-123',
+          s3Bucket: '',
+          s3Prefix: '',
         },
         statusCode: IntegrationStatusCode.Running,
       },
