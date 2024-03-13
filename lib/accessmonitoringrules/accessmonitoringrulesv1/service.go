@@ -57,6 +57,8 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.Cache == nil:
+		return nil, trace.BadParameter("cache is required")
 	}
 
 	return &Service{
@@ -85,6 +87,43 @@ func (s *Service) CreateAccessMonitoringRule(ctx context.Context, req *accessmon
 		return nil, trace.Wrap(err)
 	}
 	return conv.ToProto(created), nil
+}
+
+// UpdateAccessMonitoringRule updates the specified access monitoring rule.
+func (s *Service) UpdateAccessMonitoringRule(ctx context.Context, req *accessmonitoringrulesv1.UpdateAccessMonitoringRuleRequest) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindAccessMonitoringRule, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	amr, err := conv.FromProto(req.Rule)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	created, err := s.backend.UpdateAccessMonitoringRule(ctx, amr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conv.ToProto(created), nil
+}
+
+// GetAccessMonitoringRule gets the specified access monitoring rule.
+func (s *Service) GetAccessMonitoringRule(ctx context.Context, req *accessmonitoringrulesv1.GetAccessMonitoringRuleRequest) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindAccessMonitoringRule, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	got, err := s.backend.GetAccessMonitoringRule(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conv.ToProto(got), nil
 }
 
 // DeleteAccessMonitoringRule deletes the specified access monitoring rule.
