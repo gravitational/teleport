@@ -61,7 +61,7 @@ func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipi
 
 // BroadcastAccessRequestMessage creates an alert for the provided recipients (schedules)
 func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (data accessrequest.SentMessages, err error) {
-	rawRecipients := []string{}
+	rawRecipients := make([]string, 0, len(recipients))
 	for _, recipient := range recipients {
 		rawRecipients = append(rawRecipients, recipient.Name)
 	}
