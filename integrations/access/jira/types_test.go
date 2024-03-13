@@ -39,7 +39,7 @@ func TestErrorResultUnmarshal(t *testing.T) {
 			name:  "new error",
 			input: `{"errorMessages":[], "errors": {"project": "project is required"}}`,
 			expectedOutput: ErrorResult{
-				Details: ErrorDetails{errors: map[string]string{"project": "project is required"}},
+				Details: ErrorDetails{Errors: map[string]string{"project": "project is required"}},
 			},
 			assertErr: require.NoError,
 		},
@@ -48,7 +48,7 @@ func TestErrorResultUnmarshal(t *testing.T) {
 			input: `{"errorMessages":["foo"],"errors":["bar", "baz"]}`,
 			expectedOutput: ErrorResult{
 				ErrorMessages: []string{"foo"},
-				Details:       ErrorDetails{legacyErrors: []string{"bar", "baz"}},
+				Details:       ErrorDetails{LegacyErrors: []string{"bar", "baz"}},
 			},
 			assertErr: require.NoError,
 		},
