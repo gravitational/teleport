@@ -1,11 +1,9 @@
 ---
-title: Database object permissions
-description: Understand the concepts behind database object permissions managed by Teleport.
+title: Database Object Permissions
+description: Understand the concepts behind Database Object Permissions managed by Teleport.
 ---
 
-## Overview
-
-Database object permissions is a Teleport feature that enables the configuration of access levels for individual users to specific database objects based on their required level of access.
+Database Object Permissions is a Teleport feature that enables the configuration of access levels for individual users to specific database objects based on their required level of access.
 
 Database objects are labeled based on import rules, and these labels correspond to specific permissions configured within user roles.
 
@@ -41,7 +39,9 @@ spec:
       protocol: '{{obj.protocol}}'
       schema: '{{obj.schema}}'
       database_service_name: '{{obj.database_service_name}}'
+    # match adds objects to be imported; it cannot be empty.
     match:
+      # list of all table names
       table_names:
       - '*'
   # Additional mappings can be added here.
@@ -103,7 +103,7 @@ Save the rule to a file and execute `tctl create -f ownership_nonprod.yaml` to c
 ## Database permissions in roles
 
 To grant user permissions during a database connection, the user must be associated with a role that meets specific criteria:
-- `spec.allow.db_labels` must match the database labels of particular database
+- `spec.allow.db_labels` must match the database labels of particular database.
 - Database user auto-provisioning should be enabled (`spec.options.create_db_user_mode` not set to `off` or `spec.options.create_db_user: true`).
 - The label key/value pairs in `spec.allow.db_permissions.match` should correspond to the labels on the specific database object.
 

@@ -60,6 +60,14 @@ to ensure that your configuration is correct.
 </TabItem>
 </Tabs>
 
+<Admonition type="note" title="Database object permissions for `teleport-admin`">
+When [Database Object Permissions](./database-object-permissions.mdx) feature is in use, the `teleport-admin` should have permissions to relevant database objects. For example:
+
+```sql
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA schema1, schema2, schema3 TO "teleport-admin";
+```
+</Admonition>
+
 Users created by Teleport will be placed in the `teleport-auto-user` group in
 the database, which will be created automatically if it doesn't exist.
 
@@ -108,7 +116,7 @@ The role names must be valid and exist in the database.
 See PostgreSQL [CREATE ROLE](https://www.postgresql.org/docs/current/sql-createrole.html) for information on how to create database roles.
 
 </TabItem>
-<TabItem label="Database object permissions">
+<TabItem label="Database Object Permissions">
 
 Required Teleport version: v15.2 or above.
 
