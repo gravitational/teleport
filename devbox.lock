@@ -120,11 +120,25 @@
       "source": "devbox-search",
       "version": "14.0.6"
     },
-    "nodejs@18.16.1": {
-      "last_modified": "2023-06-30T04:44:22Z",
-      "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#nodejs_18",
+    "nodejs@20.11.1": {
+      "last_modified": "2024-02-24T23:06:34Z",
+      "resolved": "github:NixOS/nixpkgs/9a9dae8f6319600fa9aebde37f340975cab4b8c0#nodejs_20",
       "source": "devbox-search",
-      "version": "18.16.1"
+      "version": "20.11.1",
+      "systems": {
+        "aarch64-darwin": {
+          "store_path": "/nix/store/xr7qgwzvymigkn4lhz8hzdky765m32r4-nodejs-20.11.1"
+        },
+        "aarch64-linux": {
+          "store_path": "/nix/store/gdjc5gacmfpj6warfxhfkjj3i8vhaxq9-nodejs-20.11.1"
+        },
+        "x86_64-darwin": {
+          "store_path": "/nix/store/c0bc4479fbsdmzam1b50yil1ixcaaz4s-nodejs-20.11.1"
+        },
+        "x86_64-linux": {
+          "store_path": "/nix/store/vz13mi0w75q96sfjxz2ylnv8812hvf34-nodejs-20.11.1"
+        }
+      }
     },
     "openssl@latest": {
       "last_modified": "2023-08-30T00:25:28Z",
