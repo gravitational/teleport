@@ -272,6 +272,8 @@ export type ListAwsRdsDatabaseResponse = {
 export type IntegrationUpdateRequest = {
   awsoidc: {
     roleArn: string;
+    s3Bucket: string;
+    s3Prefix: string;
   };
 };
 
