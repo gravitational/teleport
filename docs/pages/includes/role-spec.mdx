@@ -222,6 +222,16 @@ spec:
     db_roles: ['{{external.db_roles}}']
     db_labels:
       'env': '{{regexp.replace(external.env, "^(staging)$", "$1")}}'
+    
+    # Grant read-write for all tables.
+    db_permissions:
+    - match:
+        object_kind: table
+      permissions:
+      - SELECT
+      - UPDATE
+      - INSERT
+      - DELETE
 
     # app_labels: a user with this role will be allowed to connect to
     # applications with labels matching below.
