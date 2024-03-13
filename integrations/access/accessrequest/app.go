@@ -352,19 +352,15 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 		recipientSet.Add(common.Recipient{})
 		return recipientSet.ToSlice()
 	case types.PluginTypeOpsgenie:
-		// For backwards compatibility we need to use the schedules label to grab recipients
-		// if the notify services isn't set.
 		recipients, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationNotifyServicesLabel]
 		if !ok {
-			recipients, ok = req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]
-			if !ok {
-				return recipientSet.ToSlice()
-			}
+			return recipientSet.ToSlice()
 		}
 		for _, recipient := range recipients {
 			rec, err := a.bot.FetchRecipient(ctx, recipient)
 			if err != nil {
 				log.Warning(err)
+				continue
 			}
 			recipientSet.Add(*rec)
 		}
