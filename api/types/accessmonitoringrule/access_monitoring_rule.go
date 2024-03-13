@@ -17,10 +17,11 @@ limitations under the License.
 package accessmonitoringrule
 
 import (
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types/header"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // AccessMonitoringRuleSubkind represents the type of the AccessMonitoringRule, e.g., access request, MDM etc.
