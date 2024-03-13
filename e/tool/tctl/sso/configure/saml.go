@@ -76,7 +76,7 @@ func addSAMLCommand(cmd *configure.SSOConfigureCommand) *configure.AuthKindComma
 	}
 	presets := tester.Indent(pTable.AsBuffer().String(), 2)
 
-	sub := cmd.ConfigureCmd.Command("saml", fmt.Sprintf("Configure SAML connector, optionally using a preset. Available presets: %v.", samlPresets.getNames()))
+	sub := cmd.ConfigureCmd.Command("saml", fmt.Sprintf("Configure SAML auth connector, optionally using a preset. Available presets: %v.", samlPresets.getNames()))
 
 	saml := &samlExtraFlags{}
 

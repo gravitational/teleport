@@ -133,7 +133,7 @@ func addOIDCCommand(cmd *configure.SSOConfigureCommand) *configure.AuthKindComma
 
 	extra := &oidcExtraFlags{}
 
-	sub := cmd.ConfigureCmd.Command("oidc", "Configure OIDC auth connector, optionally using a preset.")
+	sub := cmd.ConfigureCmd.Command("oidc", fmt.Sprintf("Configure OIDC auth connector, optionally using a preset. Available presets: %v.", oidcPresets.getNames()))
 	// commonly used flags
 	sub.Flag("preset", fmt.Sprintf("Preset. One of: %v", oidcPresets.getNames())).Short('p').EnumVar(&extra.chosenPreset, oidcPresets.getNames()...)
 	sub.Flag("name", "Connector name. Required, unless implied from preset.").Short('n').StringVar(&extra.connectorName)
