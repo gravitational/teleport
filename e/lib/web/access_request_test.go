@@ -405,26 +405,37 @@ func TestGetAccessRequest(t *testing.T) {
 func TestGetAccessRequests(t *testing.T) {
 	m := &mockedAccessRequestAPIGetter{}
 
-	m.mockGetAccessRequests = func(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
+	m.mockListAccessRequests = func(ctx context.Context, request *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
 		roleBasedReq1, err := services.NewAccessRequest("baz", []string{"bar"}...)
 		require.NoError(t, err)
 		roleBasedReq1.SetState(types.RequestState_NONE)
+		rb1, ok := roleBasedReq1.(*types.AccessRequestV3)
+		require.True(t, ok)
 
 		roleBasedReq2, err := services.NewAccessRequest("foz", []string{"foo"}...)
 		require.NoError(t, err)
 		roleBasedReq2.SetState(types.RequestState_APPROVED)
+		rb2, ok := roleBasedReq2.(*types.AccessRequestV3)
+		require.True(t, ok)
 
 		searchBasedReq, err := services.NewAccessRequestWithResources("bar", nil, []types.ResourceID{{ClusterName: "test-cluster", Name: "test-name", Kind: "test-kind"}})
 		require.NoError(t, err)
+		sb, ok := searchBasedReq.(*types.AccessRequestV3)
+		require.True(t, ok)
 
-		return []types.AccessRequest{roleBasedReq1, roleBasedReq2, searchBasedReq}, nil
+		return &proto.ListAccessRequestsResponse{
+			AccessRequests: []*types.AccessRequestV3{rb1, rb2, sb},
+		}, nil
 	}
 
 	plugin, err := NewPlugin(Config{})
 	require.NoError(t, err)
 
+	request := &proto.ListAccessRequestsRequest{
+		Filter: &types.AccessRequestFilter{},
+	}
 	// Test request state set to NONE, is not returned.
-	reqs, err := plugin.getAccessRequests(context.Background(), m, types.AccessRequestFilter{})
+	reqs, err := plugin.getAccessRequests(context.Background(), m, request)
 	require.NoError(t, err)
 	require.Len(t, reqs, 2)
 	require.Equal(t, types.RequestState_APPROVED.String(), reqs[0].State)
@@ -478,6 +489,7 @@ func TestReviewAccessRequest(t *testing.T) {
 type mockedAccessRequestAPIGetter struct {
 	mockCreateAccessRequest func(ctx context.Context, req types.AccessRequest) error
 	mockGetAccessRequests   func(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
+	mockListAccessRequests  func(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error)
 	mockSubmitAccessReview  func(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
 }
 
@@ -507,6 +519,14 @@ func (m *mockedAccessRequestAPIGetter) GetAccessRequests(ctx context.Context, fi
 	}
 
 	return nil, trace.NotImplemented("mockGetAccessRequests not implemented")
+}
+
+func (m *mockedAccessRequestAPIGetter) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+	if m.mockListAccessRequests != nil {
+		return m.mockListAccessRequests(ctx, req)
+	}
+
+	return nil, trace.NotImplemented("mockListAccessRequests not implemented")
 }
 
 func (m *mockedAccessRequestAPIGetter) SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error) {

@@ -14,6 +14,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	apiaccessrequest "github.com/gravitational/teleport/api/accessrequest"
+	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/accessrequest"
@@ -245,7 +246,7 @@ func getResourceDetails(ctx context.Context, req types.AccessRequest, cfg *getAc
 
 // getBulkResourceDetails is equivalent to getResourceDetails except that it batch-processes sets of
 // access requests.
-func getBulkResourceDetails(ctx context.Context, reqs []types.AccessRequest, cfg *getAccessRequestConfig) (map[string]ui.ResourceDetails, error) {
+func getBulkResourceDetails(ctx context.Context, reqs []*types.AccessRequestV3, cfg *getAccessRequestConfig) (map[string]ui.ResourceDetails, error) {
 	if cfg.clusterClientProvider == nil {
 		// We have no way to get resource details, but this is not an error.
 		// Some APIs may not need details. A nil map is a valid result
@@ -336,19 +337,34 @@ func (p *Plugin) getAccessRequestsHandle(w http.ResponseWriter, r *http.Request,
 	}
 
 	query := r.URL.Query()
-	filter := types.AccessRequestFilter{
+	filter := &types.AccessRequestFilter{
 		User: query.Get("user"),
 	}
 
-	return p.getAccessRequests(r.Context(), clt, filter, withClusterClientProvider(clusterClientProvider))
+	req := &proto.ListAccessRequestsRequest{
+		Filter:   filter,
+		StartKey: query.Get("startKey"),
+	}
+
+	limitStr := query.Get("limit")
+	if limitStr != "" {
+		limit, err := strconv.ParseInt(limitStr, 10, 32)
+		if err != nil {
+			return nil, trace.Wrap(err, "converting %s to int32", limitStr)
+		}
+		req.Limit = int32(limit)
+	}
+
+	return p.getAccessRequests(r.Context(), clt, req, withClusterClientProvider(clusterClientProvider))
 }
 
 type accessRequestGetter interface {
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
+	ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error)
 }
 
-func (p *Plugin) getAccessRequests(ctx context.Context, clt accessRequestGetter, filter types.AccessRequestFilter, opts ...getAccessRequestOption) ([]ui.AccessRequest, error) {
-	reqs, err := clt.GetAccessRequests(ctx, filter)
+func (p *Plugin) getAccessRequests(ctx context.Context, clt accessRequestGetter, req *proto.ListAccessRequestsRequest, opts ...getAccessRequestOption) ([]ui.AccessRequest, error) {
+	resp, err := clt.ListAccessRequests(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -358,13 +374,13 @@ func (p *Plugin) getAccessRequests(ctx context.Context, clt accessRequestGetter,
 		opt(cfg)
 	}
 
-	details, err := getBulkResourceDetails(ctx, reqs, cfg)
+	details, err := getBulkResourceDetails(ctx, resp.AccessRequests, cfg)
 	if err != nil {
 		logrus.WithError(err).Warn("Failed to load resource details for access requests.")
 	}
 
-	uiReqs := make([]ui.AccessRequest, 0, len(reqs))
-	for _, req := range reqs {
+	uiReqs := make([]ui.AccessRequest, 0, len(resp.AccessRequests))
+	for _, req := range resp.AccessRequests {
 		uiReq, err := ui.NewAccessRequest(req, ui.WithResourceDetails(details))
 		if err != nil {
 			p.Log.Warnf("Failed to process access request: %v", err)
