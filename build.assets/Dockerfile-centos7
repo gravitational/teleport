@@ -179,6 +179,8 @@ RUN git clone --depth=1 https://github.com/gravitational/PCSC.git -b ${LIBPCSCLI
     make install
 
 ## BUILDBOX ###################################################################
+# Build the `buildbox` target to build the non-fips buildbox
+# ============================================================================
 
 FROM base AS buildbox
 
@@ -321,6 +323,47 @@ ENV LIBCLANG_PATH=/opt/llvm/lib/
 # and injects it into the environment as CPLUS_INCLUDE_PATH before
 # boring is built.
 ENV BORING_BSSL_FIPS_CPLUS_INCLUDE_PATH=/opt/llvm/include/c++/v1/
+
+VOLUME ["/go/src/github.com/gravitational/teleport"]
+EXPOSE 6600 2379 2380
+
+
+## BUILDBOX-FIPS ##############################################################
+# Build the `buildbox-fips` target to create a buildbox that creates a FIPS
+# Teleport binary. It enables FIPS in the Go toolchain and in OpenSSL, and
+# builds a test binary to ensure binaries are FIPS-compliant.
+
+FROM buildbox as buildbox-fips
+
+# Set environment variables used for enabling FIPS mode
+# `GOEXPERIMENT=boringcrypto` -- enable FIPS mode (BoringCrypto) for Go
+# https://github.com/golang/go/blob/master/src/crypto/internal/boring/README.md
+# `OPENSSL_FIPS=1` -- enable FIPS mode for OpenSSL
+# https://www.openssl.org/docs/man3.0/man7/fips_module.html
+ENV GOEXPERIMENT=boringcrypto \
+    OPENSSL_FIPS=1
+
+# Enable OpenSSL FIPS mode by default
+# https://www.openssl.org/docs/man3.0/man7/fips_module.html
+COPY fips-files/openssh.cnf /usr/local/ssl/openssl.cnf
+
+USER ci
+
+# Validate that environment variables were set
+RUN echo "Ensure environment variables are set" && \
+    [ -n "$GOEXPERIMENT" ] && \
+    [ -n "$OPENSSL_FIPS" ]
+
+# Validate that Go binaries have BoringCrypto enabled
+COPY --chown=ci fips-files/boringtest.nogo /tmp/boringtest.go
+
+RUN echo "Ensure Go is using BoringCrypto" && \
+    go run /tmp/boringtest.go
+
+RUN echo "Ensure OpenSSL is using FIPS module" && \
+    ! openssl md5 /tmp/boringtest.go > /dev/null 2>&1
+
+RUN rm /tmp/boringtest.go
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

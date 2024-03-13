@@ -48,7 +48,7 @@ func (c *StatusCommand) Initialize(app *kingpin.Application, config *servicecfg.
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *StatusCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
+func (c *StatusCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
 	switch cmd {
 	case c.status.FullCommand():
 		err = c.Status(ctx, client)
@@ -64,7 +64,7 @@ type caFetchError struct {
 }
 
 // Status is called to execute "status" CLI command.
-func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
+func (c *StatusCommand) Status(ctx context.Context, client *auth.Client) error {
 	pingRsp, err := client.Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err)

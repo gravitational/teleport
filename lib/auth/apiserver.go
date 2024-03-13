@@ -124,11 +124,9 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/tunnelconnections", srv.WithAuth(srv.deleteAllTunnelConnections))
 
 	// Remote clusters
-	srv.POST("/:version/remoteclusters", srv.WithAuth(srv.createRemoteCluster))
 	srv.GET("/:version/remoteclusters/:cluster", srv.WithAuth(srv.getRemoteCluster))
 	srv.GET("/:version/remoteclusters", srv.WithAuth(srv.getRemoteClusters))
 	srv.DELETE("/:version/remoteclusters/:cluster", srv.WithAuth(srv.deleteRemoteCluster))
-	srv.DELETE("/:version/remoteclusters", srv.WithAuth(srv.deleteAllRemoteClusters))
 
 	// Reverse tunnels
 	srv.POST("/:version/reversetunnels", srv.WithAuth(srv.upsertReverseTunnel))
@@ -961,30 +959,9 @@ func (s *APIServer) deleteAllTunnelConnections(auth *ServerWithRoles, w http.Res
 	return message("ok"), nil
 }
 
-type createRemoteClusterRawReq struct {
-	// RemoteCluster is marshaled remote cluster resource
-	RemoteCluster json.RawMessage `json:"remote_cluster"`
-}
-
-// createRemoteCluster creates remote cluster
-func (s *APIServer) createRemoteCluster(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req createRemoteClusterRawReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	conn, err := services.UnmarshalRemoteCluster(req.RemoteCluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.CreateRemoteCluster(conn); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
 // getRemoteClusters returns a list of remote clusters
 func (s *APIServer) getRemoteClusters(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	clusters, err := auth.GetRemoteClusters()
+	clusters, err := auth.GetRemoteClusters(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1001,7 +978,7 @@ func (s *APIServer) getRemoteClusters(auth *ServerWithRoles, w http.ResponseWrit
 
 // getRemoteCluster returns a remote cluster by name
 func (s *APIServer) getRemoteCluster(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cluster, err := auth.GetRemoteCluster(p.ByName("cluster"))
+	cluster, err := auth.GetRemoteCluster(r.Context(), p.ByName("cluster"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1011,15 +988,6 @@ func (s *APIServer) getRemoteCluster(auth *ServerWithRoles, w http.ResponseWrite
 // deleteRemoteCluster deletes remote cluster by name
 func (s *APIServer) deleteRemoteCluster(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	err := auth.DeleteRemoteCluster(r.Context(), p.ByName("cluster"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-// deleteAllRemoteClusters deletes all remote clusters
-func (s *APIServer) deleteAllRemoteClusters(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteAllRemoteClusters()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

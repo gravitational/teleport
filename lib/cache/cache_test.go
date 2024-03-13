@@ -1649,19 +1649,25 @@ func TestRemoteClusters(t *testing.T) {
 		newResource: func(name string) (types.RemoteCluster, error) {
 			return types.NewRemoteCluster(name)
 		},
-		create: modifyNoContext(p.presenceS.CreateRemoteCluster),
+		create: func(ctx context.Context, rc types.RemoteCluster) error {
+			_, err := p.presenceS.CreateRemoteCluster(ctx, rc)
+			return err
+		},
 		list: func(ctx context.Context) ([]types.RemoteCluster, error) {
-			return p.presenceS.GetRemoteClusters()
+			return p.presenceS.GetRemoteClusters(ctx)
 		},
 		cacheGet: func(ctx context.Context, name string) (types.RemoteCluster, error) {
-			return p.cache.GetRemoteCluster(name)
+			return p.cache.GetRemoteCluster(ctx, name)
 		},
-		cacheList: func(_ context.Context) ([]types.RemoteCluster, error) {
-			return p.cache.GetRemoteClusters()
+		cacheList: func(ctx context.Context) ([]types.RemoteCluster, error) {
+			return p.cache.GetRemoteClusters(ctx)
 		},
-		update: p.presenceS.UpdateRemoteCluster,
-		deleteAll: func(_ context.Context) error {
-			return p.presenceS.DeleteAllRemoteClusters()
+		update: func(ctx context.Context, rc types.RemoteCluster) error {
+			_, err := p.presenceS.UpdateRemoteCluster(ctx, rc)
+			return err
+		},
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllRemoteClusters(ctx)
 		},
 	})
 }

@@ -1359,6 +1359,14 @@ export const formatters: Formatters = {
         ? `User [${user}] has updated a device`
         : `User [${user}] has failed to update a device`,
   },
+  [eventCodes.DEVICE_WEB_TOKEN_CREATE]: {
+    type: 'device.webtoken.create',
+    desc: 'Device Web Token Create',
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
+        ? `User [${user}] has issued a device web token`
+        : `User [${user}] has failed to issue a device web token`,
+  },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',
     desc: 'X11 Forwarding Requested',

@@ -192,8 +192,8 @@ field.
 
 The Teleport SSH Service executes `useradd` to create new users on the host, and
 returns an error if it cannot find the `useradd` binary. The `useradd` command
-creates a new home directory with the name of the new host user and adds the
-user to the groups specified in the Teleport user's roles.
+adds the user to the groups specified in the Teleport user's roles, and Teleport
+separately creates a new home directory with the name of the new host user.
 
 The SSH Service executes
 `useradd --no-create-home --home-dir <home> <username> --groups <groups> --uid <uid> --gid <gid>`

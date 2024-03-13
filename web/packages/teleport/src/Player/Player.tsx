@@ -38,7 +38,7 @@ import Tabs, { TabItem } from './PlayerTabs';
 
 const validRecordingTypes = ['ssh', 'k8s', 'desktop'];
 
-export default function Player() {
+export function Player() {
   const { sid, clusterId } = useParams<UrlPlayerParams>();
   const { search } = useLocation();
 

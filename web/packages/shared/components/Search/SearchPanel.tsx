@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { Text, Flex } from 'design';
+import { Flex } from 'design';
 import { StyledPanel } from 'design/DataTable';
 import InputSearch from 'design/DataTable/InputSearch';
+import { PageIndicatorText } from 'design/DataTable/Pager/PageIndicatorText';
 import { ResourceFilter } from 'teleport/services/agents';
 
 import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
@@ -107,31 +108,10 @@ const StyledFlex = styled(Flex)`
   // The timing functions of transitions have been chosen so that the element loses opacity slowly
   // when entering the disabled state but gains it quickly when going out of the disabled state.
   transition: opacity 150ms ease-out;
+
   &.disabled {
     pointer-events: none;
     opacity: 0.7;
     transition: opacity 150ms ease-in;
   }
 `;
-
-export function PageIndicatorText({
-  from,
-  to,
-  count,
-}: {
-  from: number;
-  to: number;
-  count: number;
-}) {
-  return (
-    <Text
-      typography="body2"
-      color="text.main"
-      style={{ textTransform: 'uppercase' }}
-      mr={1}
-    >
-      Showing <strong>{from}</strong> - <strong>{to}</strong> of{' '}
-      <strong>{count}</strong>
-    </Text>
-  );
-}

@@ -116,6 +116,8 @@ type Config struct {
 	AccessPoint auth.DiscoveryAccessPoint
 	// Log is the logger.
 	Log logrus.FieldLogger
+	// ServerID identifies the Teleport instance where this service runs.
+	ServerID string
 	// onDatabaseReconcile is called after each database resource reconciliation.
 	onDatabaseReconcile func()
 	// protocolChecker is used by Kubernetes fetchers to check port's protocol if needed.
@@ -398,6 +400,10 @@ func (s *Server) startDynamicMatchersWatcher(ctx context.Context) error {
 	}
 
 	s.dynamicMatcherWatcher = watcher
+
+	if err := s.loadExistingDynamicDiscoveryConfigs(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	go s.startDynamicWatcherUpdater()
 	return nil
@@ -1233,24 +1239,22 @@ func (s *Server) Start() error {
 	return nil
 }
 
-// startDynamicWatcherUpdater watches for DiscoveryConfig resource change events.
-// Before consuming changes, it iterates over all DiscoveryConfigs and
-// For deleted resources, it deletes the matchers.
-// For new/updated resources, it replaces the set of fetchers.
-func (s *Server) startDynamicWatcherUpdater() {
+// loadExistingDynamicDiscoveryConfigs loads all the dynamic discovery configs for the current discovery group
+// and setups their matchers.
+func (s *Server) loadExistingDynamicDiscoveryConfigs() error {
 	// Add all existing DiscoveryConfigs as matchers.
 	nextKey := ""
 	for {
 		dcs, respNextKey, err := s.AccessPoint.ListDiscoveryConfigs(s.ctx, 0, nextKey)
 		if err != nil {
 			s.Log.WithError(err).Warnf("failed to list discovery configs")
-			return
+			return trace.Wrap(err)
 		}
+
 		for _, dc := range dcs {
 			if dc.GetDiscoveryGroup() != s.DiscoveryGroup {
 				continue
 			}
-
 			if err := s.upsertDynamicMatchers(s.ctx, dc); err != nil {
 				s.Log.WithError(err).Warnf("failed to update dynamic matchers for discovery config %q", dc.GetName())
 				continue
@@ -1261,7 +1265,14 @@ func (s *Server) startDynamicWatcherUpdater() {
 		}
 		nextKey = respNextKey
 	}
+	return nil
+}
 
+// startDynamicWatcherUpdater watches for DiscoveryConfig resource change events.
+// Before consuming changes, it iterates over all DiscoveryConfigs and
+// For deleted resources, it deletes the matchers.
+// For new/updated resources, it replaces the set of fetchers.
+func (s *Server) startDynamicWatcherUpdater() {
 	// Consume DiscoveryConfig events to update Matchers as they change.
 	for {
 		select {

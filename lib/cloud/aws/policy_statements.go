@@ -57,6 +57,9 @@ func StatementForECSManageService() *Statement {
 			"ecs:DescribeServices", "ecs:CreateService", "ecs:UpdateService", "ecs:ListServices",
 			"ecs:RegisterTaskDefinition", "ecs:DescribeTaskDefinition", "ecs:DeregisterTaskDefinition",
 
+			// Required if the account has Resource Tagging Authorization enabled in Amazon ECS.
+			"ecs:TagResource",
+
 			// EC2 DescribeSecurityGroups is required so that the user can list the SG and then pick which ones they want to apply to the ECS Service.
 			"ec2:DescribeSecurityGroups",
 		},
@@ -364,6 +367,9 @@ func StatementAccessGraphAWSSync() *Statement {
 			"iam:ListAttachedGroupPolicies",
 			"iam:GetPolicy",
 			"iam:GetPolicyVersion",
+			"iam:ListRolePolicies",
+			"iam:ListAttachedRolePolicies",
+			"iam:GetRolePolicy",
 		},
 		Resources: allResources,
 	}

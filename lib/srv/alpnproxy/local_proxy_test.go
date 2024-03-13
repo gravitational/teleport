@@ -674,14 +674,22 @@ func TestGetCertsForConn(t *testing.T) {
 		"no tunnel when not needed for postgres protocol": {
 			checkCertsNeeded: true,
 			addProtocols:     []common.Protocol{common.ProtocolPostgres},
-			stubConnBytes:    (&pgproto3.SSLRequest{}).Encode(nil),
-			wantCerts:        false,
+			stubConnBytes: func() []byte {
+				val, err := (&pgproto3.SSLRequest{}).Encode(nil)
+				require.NoError(t, err, "SSLRequest.Encode failed")
+				return val
+			}(),
+			wantCerts: false,
 		},
 		"tunnel when needed for postgres protocol": {
 			checkCertsNeeded: true,
 			addProtocols:     []common.Protocol{common.ProtocolPostgres},
-			stubConnBytes:    (&pgproto3.CancelRequest{}).Encode(nil),
-			wantCerts:        true,
+			stubConnBytes: func() []byte {
+				val, err := (&pgproto3.CancelRequest{}).Encode(nil)
+				require.NoError(t, err, "CancelRequest.Encode failed")
+				return val
+			}(),
+			wantCerts: true,
 		},
 	}
 	for name, tt := range tests {

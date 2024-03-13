@@ -13,15 +13,18 @@ upgrades or upgrade them manually using the method you used to install Teleport.
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components in your cluster.
 
-- A Teleport Enterprise Cloud or Teleport Team account. You can determine the
-  current version of the Auth Service and Proxy Service by running the following
-  command, where `mytenant` is the name of your Teleport Team or Teleport
-  Enterprise Cloud account. This requires the [`jq` CLI
-  tool](https://jqlang.github.io/jq/):
+- A Teleport Enterprise Cloud account. You can determine the current version of
+  the Auth Service and Proxy Service by running the following command, where
+  `mytenant` is the name of your Teleport Enterprise Cloud account. This
+  requires the [`jq` CLI tool](https://jqlang.github.io/jq/):
 
   ```code
   $ curl -s https://mytenant.teleport.sh/webapi/ping | jq '.server_version'
   ```
+
+- (!docs/pages/includes/cloud/tctl-tsh-prerequisite.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
 
 Teleport supports automatic agent updates for systemd-based Linux distributions
 using `apt`, `yum`, and `zypper` package managers. The [Automatic Update
@@ -42,7 +45,7 @@ how agent updating works. Automatic agent upgrades require:
 
   So you can access each agent, we assume that each agent runs the Teleport SSH
   Service in addition to any other services. See the [Deploy Teleport Agents
-  with Terraform](../agents/deploy-agents-terraform.mdx] guide for an example.
+  with Terraform](../agents/deploy-agents-terraform.mdx) guide for an example.
 
 ## Step 1/2. Find agents to upgrade
 

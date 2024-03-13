@@ -37,6 +37,8 @@ service ClusterConfigService {
   rpc UpdateSessionRecordingConfig(UpdateSessionRecordingConfigRequest) returns (types.SessionRecordingConfigV2);
   // UpsertSessionRecordingConfig overwrites the active session recording configuration.
   rpc UpsertSessionRecordingConfig(UpsertSessionRecordingConfigRequest) returns (types.SessionRecordingConfigV2);
+  // ResetSessionRecordingConfig restores the active session recording configuration to default settings.
+  rpc ResetSessionRecordingConfig(ResetSessionRecordingConfigRequest) returns (types.SessionRecordingConfigV2);
 
   // GetAuthPreference retrieves the active auth preference.
   rpc GetAuthPreference(GetAuthPreferenceRequest) returns (types.AuthPreferenceV2);
@@ -49,12 +51,6 @@ service ClusterConfigService {
 
   // GetClusterAuditConfig retrieves the active cluster audit configuration.
   rpc GetClusterAuditConfig(GetClusterAuditConfigRequest) returns (types.ClusterAuditConfigV2);
-  // UpdateClusterAuditConfig updates the cluster audit configuration..
-  rpc UpdateClusterAuditConfig(UpdateClusterAuditConfigRequest) returns (types.ClusterAuditConfigV2);
-  // UpsertClusterAuditConfig overwrites the active cluster audit configuration..
-  rpc UpsertClusterAuditConfig(UpsertClusterAuditConfigRequest) returns (types.ClusterAuditConfigV2);
-  // ResetClusterAuditConfig restores the active cluster audit configuration. to default settings.
-  rpc ResetClusterAuditConfig(ResetClusterAuditConfigRequest) returns (types.ClusterAuditConfigV2);
 }
 
 // Request for GetClusterNetworkingConfig
@@ -107,16 +103,3 @@ message ResetAuthPreferenceRequest {}
 
 // Request for GetClusterAuditConfig
 message GetClusterAuditConfigRequest {}
-
-// Request for UpdateClusterAuditConfig
-message UpdateClusterAuditConfigRequest {
-  types.ClusterAuditConfigV2 audit_config = 1;
-}
-
-// Request for UpsertClusterAuditConfig
-message UpsertClusterAuditConfigRequest {
-  types.ClusterAuditConfigV2 audit_config = 1;
-}
-
-// Request for ResetClusterAuditConfig
-message ResetClusterAuditConfigRequest {}

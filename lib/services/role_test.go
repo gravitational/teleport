@@ -4333,7 +4333,7 @@ func TestCheckDatabaseRoles(t *testing.T) {
 		Metadata: types.Metadata{Name: "roleB", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
-				CreateDatabaseUser: types.NewBoolOption(true),
+				CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
 			},
 			Allow: types.RoleConditions{
 				DatabaseLabelsExpression: `labels["env"] == "prod"`,
@@ -4352,7 +4352,7 @@ func TestCheckDatabaseRoles(t *testing.T) {
 		Metadata: types.Metadata{Name: "roleC", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
-				CreateDatabaseUser: types.NewBoolOption(true),
+				CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
 			},
 			Allow: types.RoleConditions{
 				DatabaseLabels: types.Labels{"app": []string{"metrics"}},
@@ -4366,7 +4366,7 @@ func TestCheckDatabaseRoles(t *testing.T) {
 		Metadata: types.Metadata{Name: "roleD", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
-				CreateDatabaseUser: types.NewBoolOption(true),
+				CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
 			},
 			Allow: types.RoleConditions{
 				DatabaseLabelsExpression: `a bad expression`,
@@ -4375,15 +4375,67 @@ func TestCheckDatabaseRoles(t *testing.T) {
 		},
 	}
 
+	// roleE is like roleB, allows auto-user provisioning for production database,
+	// but uses database permissions instead of roles.
+	roleE := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleB", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			},
+			Allow: types.RoleConditions{
+				DatabaseLabelsExpression: `labels["env"] == "prod"`,
+				DatabasePermissions: []types.DatabasePermission{
+					{
+						Permissions: []string{"SELECT"},
+						Match:       map[string]apiutils.Strings{"*": []string{"*"}},
+					},
+				},
+			},
+			Deny: types.RoleConditions{
+				DatabaseLabelsExpression: `labels["env"] == "prod"`,
+				DatabasePermissions: []types.DatabasePermission{
+					{
+						Permissions: []string{"UPDATE", "INSERT", "DELETE"},
+						Match:       map[string]apiutils.Strings{"*": []string{"*"}},
+					},
+				},
+			},
+		},
+	}
+
+	// roleF is like roleC, allows auto-user provisioning for metrics database,
+	// but uses database permissions instead of roles.
+	roleF := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleC", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			},
+			Allow: types.RoleConditions{
+				DatabaseLabels: types.Labels{"app": []string{"metrics"}},
+				DatabasePermissions: []types.DatabasePermission{
+					{
+						Permissions: []string{"SELECT", "UPDATE", "INSERT", "DELETE"},
+						Match:       map[string]apiutils.Strings{"*": []string{"*"}},
+					},
+				},
+			},
+		},
+	}
+
 	tests := []struct {
-		name             string
-		roleSet          RoleSet
-		inDatabaseLabels map[string]string
-		inRequestedRoles []string
-		outModeError     bool
-		outRolesError    bool
-		outCreateUser    bool
-		outRoles         []string
+		name                string
+		roleSet             RoleSet
+		inDatabaseLabels    map[string]string
+		inRequestedRoles    []string
+		outModeError        bool
+		outRolesError       bool
+		outCreateUser       bool
+		outRoles            []string
+		outPermissionsError bool
+		outAllowPermissions types.DatabasePermissions
+		outDenyPermissions  types.DatabasePermissions
 	}{
 		{
 			name:             "no auto-provision roles assigned",
@@ -4414,11 +4466,37 @@ func TestCheckDatabaseRoles(t *testing.T) {
 			outRoles:         []string{"reader", "writer"},
 		},
 		{
+			name:             "connect to metrics database, get reader/writer permissions",
+			roleSet:          RoleSet{roleA, roleE, roleF},
+			inDatabaseLabels: map[string]string{"app": "metrics"},
+			outCreateUser:    true,
+			outRoles:         []string{},
+			outAllowPermissions: types.DatabasePermissions{
+				types.DatabasePermission{Permissions: []string{"SELECT", "UPDATE", "INSERT", "DELETE"}, Match: types.Labels{"*": apiutils.Strings{"*"}}},
+			},
+		},
+		{
 			name:             "connect to prod database, get reader role",
 			roleSet:          RoleSet{roleA, roleB, roleC},
 			inDatabaseLabels: map[string]string{"app": "metrics", "env": "prod"},
 			outCreateUser:    true,
 			outRoles:         []string{"reader"},
+		},
+		{
+			name:             "connect to prod database, get reader permissions",
+			roleSet:          RoleSet{roleA, roleE, roleF},
+			inDatabaseLabels: map[string]string{"app": "metrics", "env": "prod"},
+			outCreateUser:    true,
+			outRoles:         []string{},
+			// the overlap between outAllowPermissions and outDenyPermissions is expected.
+			// the permission arithmetic (e.g. removing denied permissions) will be done ba a downstream function.
+			outAllowPermissions: types.DatabasePermissions{
+				types.DatabasePermission{Permissions: []string{"SELECT"}, Match: types.Labels{"*": apiutils.Strings{"*"}}},
+				types.DatabasePermission{Permissions: []string{"SELECT", "UPDATE", "INSERT", "DELETE"}, Match: types.Labels{"*": apiutils.Strings{"*"}}},
+			},
+			outDenyPermissions: types.DatabasePermissions{
+				types.DatabasePermission{Permissions: []string{"UPDATE", "INSERT", "DELETE"}, Match: types.Labels{"*": apiutils.Strings{"*"}}},
+			},
 		},
 		{
 			name:             "connect to metrics database, requested writer role",
@@ -4437,11 +4515,12 @@ func TestCheckDatabaseRoles(t *testing.T) {
 			outRolesError:    true,
 		},
 		{
-			name:             "check fails",
-			roleSet:          RoleSet{roleD},
-			inDatabaseLabels: map[string]string{"app": "metrics"},
-			outModeError:     true,
-			outRolesError:    true,
+			name:                "check fails",
+			roleSet:             RoleSet{roleD},
+			inDatabaseLabels:    map[string]string{"app": "metrics"},
+			outModeError:        true,
+			outRolesError:       true,
+			outPermissionsError: true,
 		},
 	}
 
@@ -4471,6 +4550,17 @@ func TestCheckDatabaseRoles(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, test.outRoles, roles)
+			}
+
+			allow, deny, err := accessChecker.GetDatabasePermissions(database)
+			if test.outPermissionsError {
+				require.Error(t, err)
+				require.Empty(t, allow)
+				require.Empty(t, deny)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.outAllowPermissions, allow)
+				require.Equal(t, test.outDenyPermissions, deny)
 			}
 		})
 	}

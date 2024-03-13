@@ -69,6 +69,19 @@ export function createViteConfig(
         outDir: outputDirectory,
         assetsDir: 'app',
         emptyOutDir: true,
+        rollupOptions: {
+          output: {
+            // removes hashing from our entry point file
+            entryFileNames: 'app/app.js',
+            // assist is still lazy loaded and the telemetry bundle breaks any
+            // websocket connections if included in the bundle. We will leave these two
+            // files out of the bundle but without hashing so they are still discoverable.
+            // TODO (avatus): find out why this breaks websocket connectivity and unchunk
+            chunkFileNames: 'app/[name].js',
+            // this will remove hashing from asset (non-js) files.
+            assetFileNames: `app/[name].[ext]`,
+          },
+        },
       },
       plugins: [
         react({
