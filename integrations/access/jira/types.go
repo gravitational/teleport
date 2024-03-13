@@ -34,8 +34,8 @@ import (
 // However JIRA does not consistently respect the schema (especially for old instances).
 // We need to support legacy errors as well (array of strings).
 type ErrorResult struct {
-	ErrorMessages []string     `url:"errorMessages"`
-	Details       ErrorDetails `url:"errors"`
+	ErrorMessages []string     `url:"errorMessages" json:"errorMessages"`
+	Details       ErrorDetails `url:"errors" json:"errors"`
 }
 
 // Error implements the error interface and returns a string describing the
