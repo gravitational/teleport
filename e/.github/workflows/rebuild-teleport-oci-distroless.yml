@@ -134,6 +134,7 @@ jobs:
           # FIPS release is currently amd64 and arm64-only
           - release: 'fips'
             repo-enterprise-infix: '-ent-fips'
+            dockerfile-suffix: '-fips'
             architectures: |
               amd64
               arm64
@@ -156,6 +157,7 @@ jobs:
       signing-key-url: ${{ inputs.signing-key-url }}
       image-build-args: |
         TELEPORT_VERSION=${{ needs.configure.outputs.teleport_version }}
+      image-build-dockerfile: Dockerfile-distroless${{ matrix.dockerfile-suffix }}
       scan-image: false
       architectures: ${{ matrix.architectures }}
     secrets:
