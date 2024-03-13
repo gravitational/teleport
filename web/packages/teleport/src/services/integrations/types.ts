@@ -55,6 +55,8 @@ export enum IntegrationKind {
 }
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
+  s3Bucket: string;
+  s3Prefix: string;
 };
 
 export enum IntegrationStatusCode {
