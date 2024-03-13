@@ -41,7 +41,7 @@ type ErrorResult struct {
 func (e ErrorResult) Error() string {
 	sb := strings.Builder{}
 	if len(e.ErrorMessages) > 0 {
-		sb.WriteString(fmt.Sprintf("error messages: %s ", e.ErrorMessages))
+		sb.WriteString(fmt.Sprintf("error messages: %s ", strings.Join(e.ErrorMessages, ";")))
 	}
 	if details := e.Details.String(); details != "" {
 		sb.WriteString(fmt.Sprintf("error details: %s", details))
@@ -56,29 +56,29 @@ func (e ErrorResult) Error() string {
 // ErrorDetails are used to unmarshall inconsistently formatted Jira errors
 // details.
 type ErrorDetails struct {
-	// errors contain object-formatted Jira errors. Usually Jira returns
+	// Errors contain object-formatted Jira Errors. Usually Jira returns
 	// errors in an object where keys are single word representing what is
-	// broken, and values containing text descrption of the issue.
+	// broken, and values containing text description of the issue.
 	// This is the official return format, according to Jira's docs.
-	errors map[string]string
-	// legacyErrors ensures backward compatibility with Jira errors returned as
-	// a list. It's unclear which Jira version and which part of jira can return
+	Errors map[string]string
+	// LegacyErrors ensures backward compatibility with Jira errors returned as
+	// a list. It's unclear which Jira version and which part of Jira can return
 	// such errors, but they existed at some point, and we might still get them.
-	legacyErrors []string
+	LegacyErrors []string
 }
 
 func (e *ErrorDetails) UnmarshalJSON(data []byte) error {
 	// Try to parse as a new error
 	var errors map[string]string
 	if err := json.Unmarshal(data, &errors); err == nil {
-		e.errors = errors
+		e.Errors = errors
 		return nil
 	}
 
 	// Try to parse as a legacy error
 	var legacyErrors []string
 	if err := json.Unmarshal(data, &legacyErrors); err == nil {
-		e.legacyErrors = legacyErrors
+		e.LegacyErrors = legacyErrors
 		return nil
 	}
 
@@ -89,10 +89,10 @@ func (e *ErrorDetails) UnmarshalJSON(data []byte) error {
 
 func (e ErrorDetails) String() string {
 	switch {
-	case len(e.errors) > 0:
-		return fmt.Sprintf("%s", e.errors)
-	case len(e.legacyErrors) > 0:
-		return fmt.Sprintf("%s", e.legacyErrors)
+	case len(e.Errors) > 0:
+		return fmt.Sprintf("%s", e.Errors)
+	case len(e.LegacyErrors) > 0:
+		return fmt.Sprintf("%s", e.LegacyErrors)
 	default:
 		return ""
 	}
