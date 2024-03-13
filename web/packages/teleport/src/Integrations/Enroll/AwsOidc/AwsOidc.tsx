@@ -45,8 +45,12 @@ import {
 import cfg from 'teleport/config';
 
 import { FinishDialog } from './FinishDialog';
-import { S3Bucket } from './S3Bucket';
-import { getDefaultS3BucketName, requiredPrefixName } from './Shared/utils';
+import { S3BucketConfiguration } from './S3BucketConfiguration';
+import {
+  getDefaultS3BucketName,
+  requiredPrefixName,
+  validPrefixNameToolTipContent,
+} from './Shared/utils';
 
 export function AwsOidc() {
   const [integrationName, setIntegrationName] = useState('');
@@ -89,8 +93,8 @@ export function AwsOidc() {
           subKind: IntegrationKind.AwsOidc,
           awsoidc: {
             roleArn,
-            s3Bucket,
-            s3Prefix,
+            issuerS3Bucket: s3Bucket,
+            issuerS3Prefix: s3Prefix,
           },
         })
         .then(res => {
@@ -172,6 +176,13 @@ export function AwsOidc() {
                   placeholder="Integration Name"
                   onChange={e => setIntegrationName(e.target.value)}
                   disabled={!!scriptUrl}
+                  onBlur={() => {
+                    // Help come up with a default prefix name for user.
+                    if (!s3Prefix) {
+                      setS3Prefix(`${integrationName}-oidc-idp`);
+                    }
+                  }}
+                  toolTipContent={validPrefixNameToolTipContent('Integration')}
                 />
                 <FieldInput
                   rule={requiredIamRoleName}
@@ -181,7 +192,7 @@ export function AwsOidc() {
                   onChange={e => setRoleName(e.target.value)}
                   disabled={!!scriptUrl}
                 />
-                <S3Bucket
+                <S3BucketConfiguration
                   s3Bucket={s3Bucket}
                   setS3Bucket={setS3Bucket}
                   s3Prefix={s3Prefix}

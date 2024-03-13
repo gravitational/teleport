@@ -39,8 +39,8 @@ export function useIntegrationOperation() {
     return integrationService.updateIntegration(operation.item.name, {
       awsoidc: {
         roleArn: req.roleArn,
-        s3Bucket: req.s3Bucket,
-        s3Prefix: req.s3Prefix,
+        issuerS3Bucket: req.s3Bucket,
+        issuerS3Prefix: req.s3Prefix,
       },
     });
   }

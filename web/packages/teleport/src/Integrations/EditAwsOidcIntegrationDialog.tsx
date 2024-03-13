@@ -17,6 +17,7 @@
  */
 
 import React, { useState } from 'react';
+import styled from 'styled-components';
 import {
   ButtonSecondary,
   ButtonPrimary,
@@ -45,7 +46,7 @@ import { Integration } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
 
 import { EditableIntegrationFields } from './Operations/useIntegrationOperation';
-import { S3Bucket } from './Enroll/AwsOidc/S3Bucket';
+import { S3BucketConfiguration } from './Enroll/AwsOidc/S3BucketConfiguration';
 import {
   getDefaultS3BucketName,
   getDefaultS3PrefixName,
@@ -63,11 +64,11 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
 
   const [roleArn, setRoleArn] = useState(integration.spec.roleArn);
   const [s3Bucket, setS3Bucket] = useState(
-    () => integration.spec.s3Bucket || getDefaultS3BucketName()
+    () => integration.spec.issuerS3Bucket || getDefaultS3BucketName()
   );
   const [s3Prefix, setS3Prefix] = useState(
     () =>
-      integration.spec.s3Prefix ||
+      integration.spec.issuerS3Prefix ||
       getDefaultS3PrefixName(integration.spec.roleArn.split(':role/')[1])
   );
 
@@ -101,11 +102,12 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
   }
 
   const isProcessing = attempt.status === 'processing';
-  const requiresS3 = !integration.spec.s3Bucket || !integration.spec.s3Prefix;
+  const requiresS3 =
+    !integration.spec.issuerS3Bucket || !integration.spec.issuerS3Prefix;
   const showGenerateCommand =
     requiresS3 ||
-    integration.spec.s3Bucket !== s3Bucket ||
-    integration.spec.s3Prefix !== s3Prefix;
+    integration.spec.issuerS3Bucket !== s3Bucket ||
+    integration.spec.issuerS3Prefix !== s3Prefix;
 
   return (
     <Validation>
@@ -138,27 +140,7 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
               }
               disabled={scriptUrl}
             />
-            <Box
-              requiresS3={requiresS3}
-              px={3}
-              pt={2}
-              css={`
-                border-radius: ${p => p.theme.space[1]}px;
-                border: 2px solid
-                  ${p => {
-                    if (p.requiresS3) {
-                      return p.theme.colors.warning.main;
-                    }
-                    return p.theme.colors.spotBackground[1];
-                  }};
-                background-color: ${p => {
-                  if (p.requiresS3) {
-                    return p.theme.colors.interactive.tonal.alert[0];
-                  }
-                  return p.theme.colors.spotBackground[0];
-                }};
-              `}
-            >
+            <S3BucketBox requiresS3={requiresS3} px={3} pt={2}>
               {requiresS3 && (
                 <Flex alignItems="center" gap={1} mb={2}>
                   <Text bold>Required</Text>
@@ -167,7 +149,7 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                   </ToolTipInfo>
                 </Flex>
               )}
-              <S3Bucket
+              <S3BucketConfiguration
                 s3Bucket={s3Bucket}
                 setS3Bucket={setS3Bucket}
                 s3Prefix={s3Prefix}
@@ -175,7 +157,7 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                 disabled={!!scriptUrl}
               />
               {scriptUrl && (
-                <Box mb={5}>
+                <Box mb={5} data-testid="scriptbox">
                   Configure the required permission in your AWS account.
                   <Text mb={2}>
                     Open{' '}
@@ -217,7 +199,7 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                   Generate Command
                 </ButtonBorder>
               )}
-            </Box>
+            </S3BucketBox>
           </DialogContent>
           <DialogFooter>
             {showGenerateCommand && scriptUrl && (
@@ -226,6 +208,7 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                   role="checkbox"
                   type="checkbox"
                   name="checkbox"
+                  data-testid="checkbox"
                   checked={confirmed}
                   onChange={e => {
                     setConfirmed(e.target.checked);
@@ -240,8 +223,8 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                 isProcessing ||
                 (showGenerateCommand && !confirmed) ||
                 (roleArn === integration.spec.roleArn &&
-                  s3Bucket === integration.spec.s3Bucket &&
-                  s3Prefix === integration.spec.s3Prefix)
+                  s3Bucket === integration.spec.issuerS3Bucket &&
+                  s3Prefix === integration.spec.issuerS3Prefix)
               }
               onClick={() => handleEdit(validator)}
             >
@@ -256,3 +239,20 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
     </Validation>
   );
 }
+
+const S3BucketBox = styled(Box)`
+  border-radius: ${p => p.theme.space[1]}px;
+  border: 2px solid
+    ${p => {
+      if (p.requiresS3) {
+        return p.theme.colors.warning.main;
+      }
+      return p.theme.colors.spotBackground[1];
+    }};
+  background-color: ${p => {
+    if (p.requiresS3) {
+      return p.theme.colors.interactive.tonal.alert[0];
+    }
+    return p.theme.colors.spotBackground[0];
+  }};
+`;

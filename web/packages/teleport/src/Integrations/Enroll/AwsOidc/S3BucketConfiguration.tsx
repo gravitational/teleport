@@ -21,9 +21,13 @@ import { Text, Flex } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
-import { requiredBucketName, requiredPrefixName } from './Shared/utils';
+import {
+  requiredBucketName,
+  requiredPrefixName,
+  validPrefixNameToolTipContent,
+} from './Shared/utils';
 
-export function S3Bucket({
+export function S3BucketConfiguration({
   s3Bucket,
   setS3Bucket,
   s3Prefix,
@@ -40,7 +44,11 @@ export function S3Bucket({
     <>
       <Flex alignItems="center" gap={1}>
         <Text>Amazon S3 Location</Text>
-        <ToolTipInfo children="Teleport will create and use Amazon S3 Bucket as this integration's issuer and will host the required endpoints" />
+        <ToolTipInfo>
+          Teleport will create and use Amazon S3 Bucket as this integration's
+          issuer and will publicly host two files: one for the OpenID
+          configuration and another one for the public key.
+        </ToolTipInfo>
       </Flex>
       <Flex gap={3}>
         <FieldInput
@@ -51,6 +59,12 @@ export function S3Bucket({
           width="50%"
           onChange={e => setS3Bucket(e.target.value.trim())}
           disabled={disabled}
+          toolTipContent={
+            <Text>
+              Bucket name can consist only of lowercase letters and numbers.
+              Hyphens (-) are allowed in between letters and numbers.
+            </Text>
+          }
         />
         <FieldInput
           rule={requiredPrefixName}
@@ -60,6 +74,7 @@ export function S3Bucket({
           width="50%"
           onChange={e => setS3Prefix(e.target.value.trim())}
           disabled={disabled}
+          toolTipContent={validPrefixNameToolTipContent('Prefix')}
         />
       </Flex>
     </>

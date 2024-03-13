@@ -36,21 +36,18 @@ test('edit without s3 fields', async () => {
         name: 'some-integration-name',
         spec: {
           roleArn: 'arn:aws:iam::123456789012:role/johndoe',
-          s3Bucket: '',
-          s3Prefix: '',
+          issuerS3Bucket: '',
+          issuerS3Prefix: '',
         },
         statusCode: IntegrationStatusCode.Running,
       }}
     />
   );
 
-  const checkbox = /I have ran/i;
-  const script = /bash -c/i;
-
   // Initial state.
   expect(screen.getByText(/required/i)).toBeInTheDocument();
-  expect(screen.queryByText(script)).not.toBeInTheDocument();
-  expect(screen.queryByText(checkbox)).not.toBeInTheDocument();
+  expect(screen.queryByTestId('scriptbox')).not.toBeInTheDocument();
+  expect(screen.queryByTestId('checkbox')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
 
   // Click on generate command:
@@ -64,8 +61,8 @@ test('edit without s3 fields', async () => {
   expect(
     screen.queryByRole('button', { name: /generate command/i })
   ).not.toBeInTheDocument();
-  expect(screen.getByText(checkbox)).toBeInTheDocument();
-  expect(screen.getByText(script)).toBeInTheDocument();
+  expect(screen.getByTestId('checkbox')).toBeInTheDocument();
+  expect(screen.getByTestId('scriptbox')).toBeInTheDocument();
 
   // Click on checkbox should enable save button and disable edit button.
   fireEvent.click(screen.getByRole('checkbox'));
@@ -92,13 +89,10 @@ test('edit with s3 fields', async () => {
     />
   );
 
-  const checkbox = /I have ran/i;
-  const script = /bash -c/i;
-
   // Initial state.
   expect(screen.queryByText(/required/i)).not.toBeInTheDocument();
-  expect(screen.queryByText(script)).not.toBeInTheDocument();
-  expect(screen.queryByText(checkbox)).not.toBeInTheDocument();
+  expect(screen.queryByTestId('scriptbox')).not.toBeInTheDocument();
+  expect(screen.queryByTestId('checkbox')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
   expect(
     screen.queryByRole('button', { name: /generate command/i })
@@ -193,8 +187,8 @@ const integration: Integration = {
   name: 'some-integration-name',
   spec: {
     roleArn: 'arn:aws:iam::123456789012:role/johndoe',
-    s3Bucket: 's3-bucket',
-    s3Prefix: 's3-prefix',
+    issuerS3Bucket: 's3-bucket',
+    issuerS3Prefix: 's3-prefix',
   },
   statusCode: IntegrationStatusCode.Running,
 };
