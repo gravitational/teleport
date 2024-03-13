@@ -12103,10 +12103,10 @@ node-int64@^0.4.0:
   resolved "https://registry.yarnpkg.com/node-int64/-/node-int64-0.4.0.tgz#87a9065cdb355d3182d8f94ce11188b825c68a3b"
   integrity sha1-h6kGXNs1XTGC2PlM4RGIuCXGijs=
 
-node-pty@1.1.0-beta11:
-  version "1.1.0-beta11"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-1.1.0-beta11.tgz#909d5dd8f9aa2a7857e7b632fd4d2d4768bdf69f"
-  integrity sha512-vTjF+VrvSCfPDILUkIT+YrG1Fdn06/eBRS2fc9a3JzYAvknMB1Ip8aoJhxl8hNpjWAbprmCEiV91mlfNpCD+GQ==
+node-pty@1.1.0-beta12:
+  version "1.1.0-beta12"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-1.1.0-beta12.tgz#702f8c05ac1d175dcbc17901f1c66ee5d67b27cd"
+  integrity sha512-xhWrczF9AN+TnIZoHcSiclt4dkD1IcncUOzcdgx3by0jwctt54ZgWEp68O0lE0D8ydxa/bk3nA9sWEDhDNJuwg==
   dependencies:
     node-addon-api "^7.1.0"
 
