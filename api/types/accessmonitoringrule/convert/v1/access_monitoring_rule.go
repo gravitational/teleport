@@ -49,13 +49,18 @@ func FromProto(amr *accessmonitoringrulev1.AccessMonitoringRule) (*accessmonitor
 	if notification != nil {
 		spec.Notification = *notification
 	}
-	return &accessmonitoringrule.AccessMonitoringRule{
+	rule := &accessmonitoringrule.AccessMonitoringRule{
 		Metadata: headerv1.FromMetadataProto(amr.Metadata),
 		Kind:     amr.Kind,
 		SubKind:  amr.SubKind,
 		Version:  amr.Version,
 		Spec:     spec,
-	}, nil
+	}
+
+	if err := rule.ValidateAccessMonitoringRule(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rule, nil
 }
 
 // ToProto converts an internal access monitoring rule into a v1 access monitoring rule object.
