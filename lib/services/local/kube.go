@@ -90,6 +90,10 @@ func (s *KubernetesService) CreateKubernetesCluster(ctx context.Context, cluster
 		ID:      cluster.GetResourceID(),
 	}
 	_, err = s.Create(ctx, item)
+	if trace.IsAlreadyExists(err) {
+		return trace.AlreadyExists("kubernetes cluster %q already exists", cluster.GetName())
+	}
+
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -114,6 +118,9 @@ func (s *KubernetesService) UpdateKubernetesCluster(ctx context.Context, cluster
 		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)
+	if trace.IsNotFound(err) {
+		return trace.NotFound("kubernetes cluster %q doesn't exist", cluster.GetName())
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
