@@ -89,7 +89,7 @@ type EKSClusterEnrollmentState = {
 };
 
 export function EnrollEksCluster(props: AgentStepProps) {
-  const { agentMeta, emitErrorEvent } = useDiscover();
+  const { agentMeta, updateAgentMeta, emitErrorEvent } = useDiscover();
   const { attempt: fetchClustersAttempt, setAttempt: setFetchClustersAttempt } =
     useAttempt('');
 
@@ -250,7 +250,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
     }
 
     setAutoDiscoverAttempt({ status: 'success' });
-    props.updateAgentMeta({
+    updateAgentMeta({
       ...agentMeta,
       autoDiscovery: {
         config: discoveryConfig,
@@ -310,7 +310,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
   }
 
   async function handleOnProceed() {
-    props.updateAgentMeta({
+    updateAgentMeta({
       ...props.agentMeta,
       kube: confirmedCluster,
       resourceName: confirmedCluster.name,

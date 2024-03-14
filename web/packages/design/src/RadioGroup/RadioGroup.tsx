@@ -75,7 +75,7 @@ interface RadioProps {
   onChange?: (value: string) => void;
 }
 
-function Radio(props: RadioProps) {
+export function Radio(props: RadioProps) {
   const optionValue = isRadioObjectOption(props.option)
     ? props.option.value
     : props.option;
