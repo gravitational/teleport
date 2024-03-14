@@ -106,3 +106,13 @@ func (a *AccessListMember) CheckAndSetDefaults() error {
 func (a *AccessListMember) GetMetadata() types.Metadata {
 	return legacy.FromHeaderMetadata(a.Metadata)
 }
+
+// IsEqual defines AccessListMember equality for use with
+// `services.CompareResources()` (and hence the services.Reconciler).
+//
+// For the purposes of reconciliation, we only care that the user and target
+// AccessList match.
+func (a *AccessListMember) IsEqual(other *AccessListMember) bool {
+	return a.Spec.Name == other.Spec.Name &&
+		a.Spec.AccessList == other.Spec.AccessList
+}
