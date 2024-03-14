@@ -253,9 +253,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
 	}
 
-	awsConfig := aws.Config{
-		EC2MetadataEnableFallback: aws.Bool(false),
-	}
+	awsConfig := aws.Config{}
 	if cfg.Region != "" {
 		awsConfig.Region = aws.String(cfg.Region)
 	}
