@@ -8162,7 +8162,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 		},
 	})
 	require.NoError(t, err)
-	_, err = authServer.CreateRole(ctx, sshAccessRole)
+	err = authServer.CreateRole(ctx, sshAccessRole)
 	require.NoError(t, err)
 
 	peerRole, err := types.NewRole("peer", types.RoleSpecV6{
@@ -8184,14 +8184,14 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 		},
 	})
 	require.NoError(t, err)
-	_, err = authServer.CreateRole(ctx, peerRole)
+	err = authServer.CreateRole(ctx, peerRole)
 	require.NoError(t, err)
 
 	peerUser, err := types.NewUser(peerUsername)
 	require.NoError(t, err)
 	peerUser.SetLogins([]string{username})
 	peerUser.SetRoles([]string{sshAccessRole.GetName(), peerRole.GetName()})
-	_, err = authServer.CreateUser(ctx, peerUser)
+	err = authServer.CreateUser(ctx, peerUser)
 	require.NoError(t, err)
 
 	modUsername := username + "-moderator"
@@ -8206,14 +8206,14 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 		},
 	})
 	require.NoError(t, err)
-	_, err = authServer.CreateRole(ctx, modRole)
+	err = authServer.CreateRole(ctx, modRole)
 	require.NoError(t, err)
 
 	moderatorUser, err := types.NewUser(modUsername)
 	require.NoError(t, err)
 	moderatorUser.SetLogins([]string{username})
 	moderatorUser.SetRoles([]string{sshAccessRole.GetName(), modRole.GetName()})
-	_, err = authServer.CreateUser(ctx, moderatorUser)
+	err = authServer.CreateUser(ctx, moderatorUser)
 	require.NoError(t, err)
 
 	waitForNodesToRegister(t, instance, helpers.Site)
