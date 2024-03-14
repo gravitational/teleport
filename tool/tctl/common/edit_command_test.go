@@ -61,6 +61,10 @@ func TestEditResources(t *testing.T) {
 			kind: types.KindUser,
 			edit: testEditUser,
 		},
+		{
+			kind: types.KindClusterNetworkingConfig,
+			edit: testEditClusterNetworkingConfig,
+		},
 	}
 
 	for _, test := range tests {
@@ -194,6 +198,46 @@ func testEditUser(t *testing.T, fc *config.FileConfig, clt *auth.Client) {
 	// since the created revision is stale.
 	_, err = runEditCommand(t, fc, []string{"edit", "user/llama"}, withEditor(editor))
 	assert.Error(t, err, "stale user was allowed to be updated")
+	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
+}
+
+func testEditClusterNetworkingConfig(t *testing.T, fc *config.FileConfig, clt *auth.Client) {
+	ctx := context.Background()
+
+	expected := types.DefaultClusterNetworkingConfig()
+	initial, err := clt.GetClusterNetworkingConfig(ctx)
+	require.NoError(t, err, "getting initial networking config")
+
+	editor := func(name string) error {
+		f, err := os.Create(name)
+		if err != nil {
+			return trace.Wrap(err, "opening file to edit")
+		}
+
+		expected.SetRevision(initial.GetRevision())
+		expected.SetKeepAliveCountMax(1)
+		expected.SetCaseInsensitiveRouting(true)
+
+		collection := &netConfigCollection{netConfig: expected}
+		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+
+	}
+
+	// Edit the cnc and validate that the expected field is updated.
+	_, err = runEditCommand(t, fc, []string{"edit", "cluster_networking_config"}, withEditor(editor))
+	require.NoError(t, err, "expected editing cnc to succeed")
+
+	actual, err := clt.GetClusterNetworkingConfig(ctx)
+	require.NoError(t, err, "retrieving cnc after edit")
+	assert.NotEqual(t, initial.GetKeepAliveCountMax(), actual.GetKeepAliveCountMax(), "keep alive count max should have been modified by edit")
+	assert.NotEqual(t, initial.GetCaseInsensitiveRouting(), actual.GetCaseInsensitiveRouting(), "keep alive count max should have been modified by edit")
+	require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Labels")))
+	assert.Equal(t, types.OriginDynamic, actual.Origin())
+
+	// Try editing the cnc a second time. This time the revisions will not match
+	// since the created revision is stale.
+	_, err = runEditCommand(t, fc, []string{"edit", "cluster_networking_config"}, withEditor(editor))
+	assert.Error(t, err, "stale cnc was allowed to be updated")
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
 

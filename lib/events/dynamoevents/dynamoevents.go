@@ -251,7 +251,7 @@ const (
 // It's an implementation of backend API's NewFunc
 func New(ctx context.Context, cfg Config) (*Log, error) {
 	l := log.WithFields(log.Fields{
-		trace.Component: teleport.Component(teleport.ComponentDynamoDB),
+		teleport.ComponentKey: teleport.Component(teleport.ComponentDynamoDB),
 	})
 	l.Info("Initializing event backend.")
 

@@ -110,7 +110,7 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 		c:            c,
 		closeContext: ctx,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentAppProxy,
+			teleport.ComponentKey: teleport.ComponentAppProxy,
 		}),
 	}
 

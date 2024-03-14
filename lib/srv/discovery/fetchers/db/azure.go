@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -61,12 +62,12 @@ func newAzureFetcher[DBType comparable, ListClient azureListClient[DBType]](conf
 	fetcher := &azureFetcher[DBType, ListClient]{
 		cfg: config,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "watch:azure",
-			"labels":        config.Labels,
-			"regions":       config.Regions,
-			"group":         config.ResourceGroup,
-			"subscription":  config.Subscription,
-			"type":          config.Type,
+			teleport.ComponentKey: "watch:azure",
+			"labels":              config.Labels,
+			"regions":             config.Regions,
+			"group":               config.ResourceGroup,
+			"subscription":        config.Subscription,
+			"type":                config.Type,
 		}),
 		azureFetcherPlugin: plugin,
 	}

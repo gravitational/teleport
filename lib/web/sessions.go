@@ -40,6 +40,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -951,8 +952,8 @@ func (s *sessionCache) upsertSessionContext(user string) *sessionResources {
 	}
 	ctx := &sessionResources{
 		log: s.log.WithFields(logrus.Fields{
-			trace.Component: "user-session",
-			"user":          user,
+			teleport.ComponentKey: "user-session",
+			"user":                user,
 		}),
 	}
 	s.resources[user] = ctx

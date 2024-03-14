@@ -328,8 +328,8 @@ func New(c ServerConfig) (*Server, error) {
 
 	s := &Server{
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentForwardingNode,
-			trace.ComponentFields: map[string]string{
+			teleport.ComponentKey: teleport.ComponentForwardingNode,
+			teleport.ComponentFields: map[string]string{
 				"src-addr": c.SrcAddr.String(),
 				"dst-addr": c.DstAddr.String(),
 			},

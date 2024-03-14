@@ -51,8 +51,6 @@
   ],
   "references": [{ "path": "./tsconfig.node.json" }],
   "exclude": [
-    "**/vite.config.mts",
-    "web/packages/build/vite/*",
     "node_modules",
     "**/node_modules/*",
     "dist",

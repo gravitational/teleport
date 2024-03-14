@@ -1834,6 +1834,9 @@ message PaginatedResource {
     types.SAMLIdPServiceProviderV1 SAMLIdPServiceProvider = 12 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
   }
 
+  // Logins allowed for the included resource. Only to be populated for SSH and Desktops.
+  repeated string Logins = 13 [(gogoproto.jsontag) = "logins,omitempty"];
+
   reserved 4;
   reserved "KubeService";
 }
@@ -1874,6 +1877,9 @@ message ListUnifiedResourcesRequest {
   // PinnedOnly indicates that the request will pull only the pinned resources
   // of the requesting user
   bool PinnedOnly = 11 [(gogoproto.jsontag) = "pinned_only,omitempty"];
+  // IncludeLogins indicates that the response should include a users allowed logins
+  // for all returned resources.
+  bool IncludeLogins = 12 [(gogoproto.jsontag) = "include_logins,omitempty"];
 }
 
 // ListUnifiedResourceResponse response of ListUnifiedResources.
@@ -1933,6 +1939,9 @@ message ListResourcesRequest {
   // UsePreviewAsRoles indicates that the response should include all resources
   // the caller would be able to access with their preview_as_roles
   bool UsePreviewAsRoles = 12 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
+  // IncludeLogins indicates that the response should include a users allowed logins
+  // for all returned resources.
+  bool IncludeLogins = 13 [(gogoproto.jsontag) = "include_logins,omitempty"];
 }
 
 // GetSSHTargetsRequest gets all servers that might match an equivalent ssh dial request.
@@ -2972,11 +2981,20 @@ service AuthService {
   rpc GetClusterAuditConfig(google.protobuf.Empty) returns (types.ClusterAuditConfigV2);
 
   // GetClusterNetworkingConfig gets cluster networking configuration.
-  rpc GetClusterNetworkingConfig(google.protobuf.Empty) returns (types.ClusterNetworkingConfigV2);
+  // Deprecated: Use clusterconfigv1.Service.GetClusterNetworkingConfig instead.
+  rpc GetClusterNetworkingConfig(google.protobuf.Empty) returns (types.ClusterNetworkingConfigV2) {
+    option deprecated = true;
+  }
   // SetClusterNetworkingConfig sets cluster networking configuration.
-  rpc SetClusterNetworkingConfig(types.ClusterNetworkingConfigV2) returns (google.protobuf.Empty);
+  // Deprecated: Use clusterconfigv1.Service.Update/UpsertClusterNetworkingConfig instead.
+  rpc SetClusterNetworkingConfig(types.ClusterNetworkingConfigV2) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
-  rpc ResetClusterNetworkingConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
+  // Deprecated: Use clusterconfigv1.Service.ResetClusterNetworkingConfig instead.
+  rpc ResetClusterNetworkingConfig(google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
 
   // GetSessionRecordingConfig gets session recording configuration.
   rpc GetSessionRecordingConfig(google.protobuf.Empty) returns (types.SessionRecordingConfigV2);

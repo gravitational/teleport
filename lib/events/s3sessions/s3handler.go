@@ -210,7 +210,7 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 
 	h := &Handler{
 		Entry: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(teleport.SchemeS3),
+			teleport.ComponentKey: teleport.Component(teleport.SchemeS3),
 		}),
 		Config:     cfg,
 		uploader:   uploader,
