@@ -7,25 +7,19 @@ The Teleport team delivers a new major release roughly every 4 months.
 
 ## Teleport
 
-| Version | Date              |
-|---------|-------------------|
-| 15.1.3  | March 8, 2024     |
-| 15.2.0  | March 29, 2024    |
+| Version | Date            |
+|---------|-----------------|
+| 15.1.5  | March 15, 2024  |
+| 15.2.0  | March 29, 2024  |
+| 16.0.0  | May 31, 2024    |
 
-### 15.1.3
+### 15.1.5
 
 #### SSH remote port forwarding
 
 In Teleport 15.1, we will expose remote port forwarding via the `tsh ssh -R`
 command. Remote port forwarding will be supported for both Teleport and OpenSSH
 nodes.
-
-*Delayed from Teleport 15.1.0*
-
-#### Database permission management for for PostgreSQL
-
-Admins will be able to configure Teleport RBAC rules for managing access to
-database objects (such as tables) in for PostgreSQL.
 
 *Delayed from Teleport 15.1.0*
 
@@ -38,6 +32,44 @@ access requests, which will improve performance on clusters with large numbers
 of these resources.
 
 *Delayed from Teleport 15.1.0*
+
+#### Zero-downtime web asset rollout
+
+Teleport 15.2 changes the way that web assets are served and cached, which
+will allow multiple compatible versions of the Teleport Proxy to run behind
+the same load balancer.
+
+#### Workload Identity MVP
+
+With Teleport 15.2, Machine ID can bootstrap and issue identity to services
+across multiple computing environments and organizational boundaries. Workload
+Identity issues [SPIFFE](https://spiffe.io/)-compatible x509 certificates that
+can be used for mTLS between services.
+
+#### Support for Kubernetes 1.29+
+
+The Kubernetes project is deprecating the SPDY protocol for streaming commands
+(`kubectl exec`, `kubectl port-forward`, etc) and replacing it with a new
+websocket-based subprotocol. Teleport 15.2.0 will support the new protocol to
+ensure compatibility with newer Kubernetes clusters.
+
+#### Automatic database access requests
+
+Both `tsh db connect` and `tsh proxy db` will offer the option to submit an
+access request if the user attempts to connect to a database that they don't
+already have access to.
+
+### 16.0.0
+
+#### Teleport VNet
+
+Teleport 16 introduces Teleport VNet, a new feature that provides a virtual IP
+subnet and DNS server that automatically proxies TCP connections to Teleport
+apps over mutually authenticated tunnels.
+
+This will allow scripts and software applications to connect to any
+Teleport-protected application as if they were connected to a VPN, without the
+need to manage local tunnels.
 
 ## Teleport Cloud
 
@@ -85,19 +117,3 @@ minor release, such as (=teleport.major_version=).1.0.
 
 Patch releases contain small bug fixes and can typically be deployed directly
 to production.
-
-## Preview Policy
-
-A product or feature may be marked as "Preview" if any of the following is
-true.
-
-- The product or feature is missing key functionality. For example, Microsoft
-  SQL Server support for database access initially shipped without audit
-  logging support.
-- The product or feature has NOT been adopted by at least 2 existing customers.
-- The product or feature has NOT been through a security audit.
-- The documentation for the product or feature is incomplete.
-- Assets (e.g. binaries) associated with the feature are not published to our
-  official downloads page.
-
-Use preview features in production if the above issues are not a concern.
