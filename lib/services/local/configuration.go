@@ -189,13 +189,6 @@ func (s *ClusterConfigurationService) GetAuthPreference(ctx context.Context) (ty
 		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
-// SetAuthPreference sets the cluster authentication preferences
-// on the backend.
-func (s *ClusterConfigurationService) SetAuthPreference(ctx context.Context, preference types.AuthPreference) error {
-	_, err := s.UpsertAuthPreference(ctx, preference)
-	return trace.Wrap(err)
-}
-
 // CreateAuthPreference creates an auth preference if once does not already exist.
 func (s *ClusterConfigurationService) CreateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error) {
 	// Perform the modules-provided checks.
@@ -258,14 +251,16 @@ func (s *ClusterConfigurationService) UpsertAuthPreference(ctx context.Context, 
 		return nil, trace.Wrap(err)
 	}
 
+	rev := preference.GetRevision()
 	value, err := services.MarshalAuthPreference(preference)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(authPrefix, preferencePrefix, generalPrefix),
-		Value: value,
+		Key:      backend.Key(authPrefix, preferencePrefix, generalPrefix),
+		Value:    value,
+		Revision: rev,
 	}
 
 	lease, err := s.Put(ctx, item)

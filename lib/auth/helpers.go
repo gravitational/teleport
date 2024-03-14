@@ -351,7 +351,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = srv.AuthServer.SetAuthPreference(ctx, authPreference)
+	_, err = srv.AuthServer.UpsertAuthPreference(ctx, authPreference)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

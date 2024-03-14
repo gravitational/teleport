@@ -332,7 +332,8 @@ func initSvc(t *testing.T) (map[string]context.Context, *assistv1.Service) {
 	userSvc := local.NewIdentityService(backend)
 	presenceSvc := local.NewPresenceService(backend)
 
-	require.NoError(t, clusterConfigSvc.SetAuthPreference(ctx, types.DefaultAuthPreference()))
+	_, err = clusterConfigSvc.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+	require.NoError(t, err)
 	require.NoError(t, clusterConfigSvc.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()))
 	_, err = clusterConfigSvc.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 	require.NoError(t, err)
