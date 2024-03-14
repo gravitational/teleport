@@ -37,9 +37,9 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
-var regexpWebProxyStarting = regexp.MustCompile(`Web proxy service [^ ]+ is starting on [^ ]+:(\d+)`)
-var regexpSSHProxyStarting = regexp.MustCompile(`SSH proxy service [^ ]+ is starting on [^ ]+:(\d+)`)
-var regexpReverseTunnelStarting = regexp.MustCompile(`Reverse tunnel service [^ ]+ is starting on [^ ]+:(\d+)`)
+var regexpWebProxyStarting = regexp.MustCompile(`Starting web proxy service.*listen_address:[^ ]+:(\d+)`)
+var regexpSSHProxyStarting = regexp.MustCompile(`Starting SSH proxy service.*listen_address:[^ ]+:(\d+)`)
+var regexpReverseTunnelStarting = regexp.MustCompile(`Starting reverse tunnel server.*listen_address:[^ ]+:(\d+)`)
 
 type ProxyService struct {
 	mu                sync.Mutex

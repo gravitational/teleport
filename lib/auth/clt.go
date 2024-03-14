@@ -556,10 +556,6 @@ func (c *Client) UpsertUser(ctx context.Context, user types.User) (types.User, e
 		return nil, trace.Wrap(err)
 	}
 
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	upserted, err = c.GetUser(ctx, user.GetName(), false)
 	return upserted, trace.Wrap(err)
 }

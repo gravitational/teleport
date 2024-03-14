@@ -27,6 +27,7 @@ import Button, {
 } from './Button';
 import ButtonIcon from './ButtonIcon';
 import ButtonLink from './ButtonLink';
+import { ButtonWithMenu } from './ButtonWithMenu';
 import Card from './Card';
 import CardSuccess, { CardSuccessLogin } from './CardSuccess';
 import DocumentTitle from './DocumentTitle';
@@ -60,6 +61,7 @@ export {
   ButtonPrimary,
   ButtonSecondary,
   ButtonWarning,
+  ButtonWithMenu,
   ButtonText,
   Card,
   CardSuccess,
@@ -88,3 +90,4 @@ export {
   Toggle,
 };
 export type { TextAreaProps } from './TextArea';
+export * from './keyframes';

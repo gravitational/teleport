@@ -132,11 +132,12 @@ func (b *Bot) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	addr, _ := b.cfg.Address()
 	resolver, err := reversetunnelclient.CachingResolver(
 		ctx,
 		reversetunnelclient.WebClientResolver(&webclient.Config{
 			Context:   ctx,
-			ProxyAddr: b.cfg.AuthServer,
+			ProxyAddr: addr,
 			Insecure:  b.cfg.Insecure,
 		}),
 		nil /* clock */)
@@ -300,11 +301,16 @@ func (b *Bot) preRunChecks(ctx context.Context) (func() error, error) {
 	ctx, span := tracer.Start(ctx, "Bot/preRunChecks")
 	defer span.End()
 
-	if b.cfg.AuthServer == "" {
+	switch _, addrKind := b.cfg.Address(); addrKind {
+	case config.AddressKindUnspecified:
 		return nil, trace.BadParameter(
-			"an auth or proxy server must be set via --auth-server or configuration",
+			"either a proxy or auth address must be set using --proxy, --auth-server or configuration",
 		)
+	case config.AddressKindAuth:
+		// TODO(noah): DELETE IN V17.0.0
+		b.log.Warn("We recently introduced the ability to explicitly configure the address of the Teleport Proxy using --proxy-server. We recommend switching to this if you currently provide the address of the Proxy to --auth-server.")
 	}
+
 	// Ensure they have provided a join method.
 	if b.cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {
 		return nil, trace.BadParameter("join method must be provided")
@@ -414,7 +420,7 @@ func clientForFacade(
 	log logrus.FieldLogger,
 	cfg *config.BotConfig,
 	facade *identity.Facade,
-	resolver reversetunnelclient.Resolver) (auth.ClientI, error) {
+	resolver reversetunnelclient.Resolver) (*auth.Client, error) {
 	ctx, span := tracer.Start(ctx, "clientForFacade")
 	defer span.End()
 
@@ -427,15 +433,18 @@ func clientForFacade(
 		return nil, trace.Wrap(err)
 	}
 
-	authAddr, err := utils.ParseAddr(cfg.AuthServer)
+	addr, _ := cfg.Address()
+	parsedAddr, err := utils.ParseAddr(addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	authClientConfig := &authclient.Config{
-		TLS:         tlsConfig,
-		SSH:         sshConfig,
-		AuthServers: []utils.NetAddr{*authAddr},
+		TLS: tlsConfig,
+		SSH: sshConfig,
+		// TODO(noah): It'd be ideal to distinguish the proxy addr and auth addr
+		// here to avoid pointlessly hitting the address as an auth server.
+		AuthServers: []utils.NetAddr{*parsedAddr},
 		Log:         log,
 		Insecure:    cfg.Insecure,
 		Resolver:    resolver,

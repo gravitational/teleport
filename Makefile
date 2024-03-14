@@ -162,12 +162,12 @@ TOUCHID_MESSAGE := with-Touch-ID
 TOUCHID_TAG := touchid
 endif
 
-# Enable PIV for testing?
-# Eagerly enable if we detect the dynamic libpcsclite library, we want to test as much as possible.
-ifeq ("$(shell pkg-config libpcsclite 2>/dev/null; echo $$?)", "0")
-# This test tag should not be used for builds/releases, only tests.
-PIV_TEST_TAG := piv
-endif
+# Enable PIV test packages for testing.
+# This test tag should never be used for builds/releases, only tests.
+PIV_TEST_TAG := pivtest
+
+# enable PIV package for linting.
+PIV_LINT_TAG := piv
 
 # Build teleport/api with PIV? This requires the libpcsclite library for linux.
 #
@@ -998,7 +998,7 @@ endif
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
-	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)' $(GO_LINT_FLAGS)
+	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_LINT_TAG)' $(GO_LINT_FLAGS)
 
 .PHONY: fix-imports
 fix-imports:
@@ -1313,6 +1313,19 @@ buf/installed:
 		exit 1; \
 	fi
 
+# derive will generate derived functions for our API.
+.PHONY: derive
+derive:
+	cd $(TOOLINGDIR) && go run ./cmd/goderive/main.go ../../api/types
+
+# derive-up-to-date checks if the generated derived functions are up to date.
+.PHONY: derive-up-to-date
+derive-up-to-date: must-start-clean/host derive
+	@if ! $(GIT) diff --quiet; then \
+		echo 'Please run make derive.'; \
+		exit 1; \
+	fi
+
 # grpc generates gRPC stubs from service definitions.
 # This target runs in the buildbox container.
 .PHONY: grpc
@@ -1524,7 +1537,12 @@ rustup-install-target-toolchain: rustup-set-version
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.
 #
+# usage: make changelog
+# usage: make changelog BASE_BRANCH=branch/v13 BASE_TAG=13.2.0
 # usage: BASE_BRANCH=branch/v13 BASE_TAG=13.2.0 make changelog
+#
+# BASE_BRANCH and BASE_TAG will be automatically determined if not specified.
+# See ./build.assets/changelog.sh
 .PHONY: changelog
 changelog:
-	@./build.assets/changelog.sh BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG)
+	@BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG) ./build.assets/changelog.sh

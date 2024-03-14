@@ -36,7 +36,6 @@ import (
 
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/experiment"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -245,10 +244,6 @@ func (o *SPIFFESVIDOutput) GetRoles() []string {
 
 // CheckAndSetDefaults checks the SPIFFESVIDOutput values and sets any defaults.
 func (o *SPIFFESVIDOutput) CheckAndSetDefaults() error {
-	if !experiment.Enabled() {
-		return trace.AccessDenied("workload identity has not been enabled")
-	}
-
 	if err := o.SVID.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "validating svid")
 	}

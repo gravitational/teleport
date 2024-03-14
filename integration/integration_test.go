@@ -100,6 +100,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
@@ -143,6 +144,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("ClientIdleConnection", suite.bind(testClientIdleConnection))
 	t.Run("CmdLabels", suite.bind(testCmdLabels))
 	t.Run("ControlMaster", suite.bind(testControlMaster))
+	t.Run("X11Forwarding", suite.bind(testX11Forwarding))
 	t.Run("CustomReverseTunnel", suite.bind(testCustomReverseTunnel))
 	t.Run("DataTransfer", suite.bind(testDataTransfer))
 	t.Run("Disconnection", suite.bind(testDisconnectScenarios))
@@ -2052,7 +2054,7 @@ func (r repeatingReader) Close() error {
 // the client idle timeout that the session is not terminated.
 func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 	netConfig := types.DefaultClusterNetworkingConfig()
-	netConfig.SetClientIdleTimeout(time.Second)
+	netConfig.SetClientIdleTimeout(3 * time.Second)
 
 	tconf := servicecfg.MakeDefaultConfig()
 	tconf.SSH.Enabled = true
@@ -2073,22 +2075,23 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 	sessionErr := make(chan error)
 	openSession := func() {
 		cl, err := instance.NewClient(helpers.ClientConfig{
-			Login:   suite.Me.Username,
-			Cluster: helpers.Site,
-			Host:    Host,
+			Login:                suite.Me.Username,
+			Cluster:              helpers.Site,
+			Host:                 Host,
+			DisableSSHResumption: true,
 		})
 		if err != nil {
 			sessionErr <- trace.Wrap(err)
 			return
 		}
 		cl.Stdout = &output
-		// Execute a command 10x faster than the idle timeout to stay active.
-		reader := newRepeatingReader("echo txlxport | sed 's/x/e/g'\n", netConfig.GetClientIdleTimeout()/10)
+		// Execute a command faster than the idle timeout to stay active.
+		reader := newRepeatingReader("echo txlxport | sed 's/x/e/g'\n", 100*time.Millisecond)
 		defer func() { reader.Close() }()
 		cl.Stdin = reader
 
-		// Terminate the session after 3x the idle timeout
-		ctx, cancel := context.WithTimeout(context.Background(), netConfig.GetClientIdleTimeout()*3)
+		// Terminate the session after 2x the idle timeout
+		ctx, cancel := context.WithTimeout(context.Background(), netConfig.GetClientIdleTimeout()*2)
 		defer cancel()
 		sessionErr <- cl.SSH(ctx, nil, false)
 	}
@@ -2097,16 +2100,16 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 
 	// Wait for the sessions to end - we expect an error
 	// since we are canceling the context.
-	err := waitForError(sessionErr, time.Second*10)
+	err := waitForError(sessionErr, time.Second*15)
 	require.Error(t, err)
 
 	// Ensure that the session was alive beyond the idle timeout by
 	// counting the number of times "teleport" was output. If the session
-	// was alive past the idle timeout then there should be at least 11 occurrences
-	// since the command is run at 1/10 the idle timeout.
+	// was alive past the idle timeout, then there should be at least 30 occurrences
+	// since the command is run more frequently the idle timeout.
 	require.NotEmpty(t, output)
 	count := strings.Count(output.String(), "teleport")
-	require.Greater(t, count, 10)
+	require.Greater(t, count, 30)
 }
 
 // TestDisconnectScenarios tests multiple scenarios with client disconnects
@@ -4722,6 +4725,157 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 				}
 				require.NoError(t, err, "stderr=%q", stderr)
 				require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "hello"))
+			}
+		})
+	}
+}
+
+// Tests X11 forwarding from an OpenSSH client to a Teleport Node.
+func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
+		t.Skip("Skipping x11 test as xauth is not enabled")
+	}
+
+	// Only run this test if we have access to the external SSH binary.
+	if _, err := exec.LookPath("ssh"); err != nil {
+		t.Skip("Skipping TestX11Forwarding, no external SSH binary found.")
+	}
+
+	// Create a fake client XServer listener.
+	clientXServer, clientDisplay, err := x11.OpenNewXServerListener(x11.DefaultDisplayOffset, x11.DefaultMaxDisplays, 0)
+	require.NoError(t, err)
+	go func() {
+		for {
+			conn, err := clientXServer.Accept()
+			if err != nil {
+				return
+			}
+			conn.Close()
+		}
+	}()
+	t.Cleanup(func() { clientXServer.Close() })
+
+	for _, recordLocation := range []string{types.RecordAtNode, types.RecordAtProxy} {
+		t.Run(fmt.Sprintf("recording_mode=%s", recordLocation), func(t *testing.T) {
+			// Create a Teleport instance with auth, proxy, and node.
+			recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+				Mode: recordLocation,
+			})
+			require.NoError(t, err)
+
+			tconf := suite.defaultServiceConfig()
+			tconf.Auth.Enabled = true
+			tconf.Auth.SessionRecordingConfig = recConfig
+
+			tconf.Proxy.Enabled = true
+			tconf.Proxy.DisableWebService = true
+			tconf.Proxy.DisableWebInterface = true
+
+			tconf.SSH.Enabled = true
+			tconf.SSH.X11 = &x11.ServerConfig{
+				Enabled:       true,
+				MaxDisplay:    x11.DefaultMaxDisplays,
+				DisplayOffset: x11.DefaultDisplayOffset,
+			}
+
+			teleport := suite.NewTeleportWithConfig(t, nil, nil, tconf)
+			t.Cleanup(func() { teleport.StopAll() })
+
+			// Generate certificates for the user simulating login.
+			creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
+				Process:  teleport.Process,
+				Username: suite.Me.Username,
+			})
+			require.NoError(t, err)
+
+			// Start an agent that runs during this integration test.
+			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.Key)
+			require.NoError(t, err)
+			t.Cleanup(func() { helpers.CloseAgent(teleAgent, socketDirPath) })
+
+			for _, withControlMaster := range []bool{false, true} {
+				t.Run(fmt.Sprintf("controlMaster=%v", withControlMaster), func(t *testing.T) {
+					// Use ControlMaster if specified in the test.
+					var controlPath string
+					if withControlMaster {
+						// We use os.MkdirTemp isntead of t.TempDir because the latter
+						// creates a path "too long for Unix domain socket[s]".
+						controlDir, err := os.MkdirTemp("", "teleport-")
+						require.NoError(t, err)
+						t.Cleanup(func() { os.RemoveAll(controlDir) })
+						controlPath = filepath.Join(controlDir, "control-path")
+					}
+
+					// Create and run an exec command twice. When ControlPath is set, this will cause
+					// re-use of the connection and creation of two sessions within  the connection.
+					for i := 0; i < 2; i++ {
+						execCmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
+							ForcePTY:      true,
+							ForwardAgent:  true,
+							X11Forwarding: true,
+							ControlPath:   controlPath,
+							SocketPath:    socketPath,
+							ProxyPort:     helpers.PortStr(t, teleport.SSHProxy),
+							NodePort:      helpers.PortStr(t, teleport.SSH),
+						})
+						require.NoError(t, err)
+
+						// Set Display to the fake x11 server we opened. The server will proxy x11
+						// connections to the session's temporary x11 display to this client display.
+						execCmd.Env = append(execCmd.Env, fmt.Sprintf("%v=%v", x11.DisplayEnv, clientDisplay.String()))
+
+						// Capture stderr and mirror it in os.Stderr for test debugging.
+						stderrBuffer := bytes.NewBuffer([]byte{})
+						execCmd.Stderr = io.MultiWriter(os.Stderr, stderrBuffer)
+
+						keyboard, err := execCmd.StdinPipe()
+						require.NoError(t, err)
+
+						// start an interactive shell.
+						err = execCmd.Start()
+						require.NoError(t, err)
+						t.Cleanup(func() {
+							execCmd.Process.Kill()
+						})
+
+						// create a temp file to collect the shell output into:
+						tmpFile, err := os.CreateTemp(t.TempDir(), "teleport-x11-forward-test")
+						require.NoError(t, err)
+
+						// Allow non-root user to write to the temp file
+						err = tmpFile.Chmod(fs.FileMode(0o777))
+						require.NoError(t, err)
+
+						// Reading the display may fail if the session is not fully initialized
+						// and the write to stdin is swallowed.
+						var display string
+						require.EventuallyWithT(t, func(t *assert.CollectT) {
+							// enter 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
+							_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())))
+							assert.NoError(t, err)
+
+							assert.Eventually(t, func() bool {
+								output, err := os.ReadFile(tmpFile.Name())
+								if err == nil && len(output) != 0 {
+									display = strings.TrimSpace(string(output))
+									return true
+								}
+								return false
+							}, time.Second, 100*time.Millisecond, "failed to read display")
+						}, 10*time.Second, time.Second)
+
+						// Make a new connection to the XServer proxy to confirm that forwarding is working.
+						serverDisplay, err := x11.ParseDisplay(display)
+						require.NoError(t, err)
+
+						conn, err := serverDisplay.Dial()
+						require.NoError(t, err)
+						conn.Close()
+					}
+				})
 			}
 		})
 	}

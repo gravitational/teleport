@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/experiment"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -68,7 +67,7 @@ type SPIFFEWorkloadAPIService struct {
 	botCfg      *config.BotConfig
 	cfg         *config.SPIFFEWorkloadAPIService
 	log         logrus.FieldLogger
-	botClient   auth.ClientI
+	botClient   *auth.Client
 	resolver    reversetunnelclient.Resolver
 	// rootReloadBroadcaster allows the service to listen for CA rotations and
 	// update the trust bundle cache.
@@ -78,7 +77,7 @@ type SPIFFEWorkloadAPIService struct {
 	trustBundleBroadcast *channelBroadcaster
 
 	// client holds the impersonated client for the service
-	client auth.ClientI
+	client *auth.Client
 
 	trustDomain string
 
@@ -187,9 +186,6 @@ func createListener(addr string) (net.Listener, error) {
 func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/Run")
 	defer span.End()
-	if !experiment.Enabled() {
-		return trace.BadParameter("workload identity has not been enabled")
-	}
 
 	s.log.Debug("Starting pre-run initialization")
 	if err := s.setup(ctx); err != nil {
