@@ -930,13 +930,17 @@ as returned by `tsh recordings ls`:
 $ tsh play c0a02222-70dc-4be8-9308-7b7901d2d600
 ```
 
-Users of self-hosted Teleport clusters can also run `tsh play` with the path to
-a TAR file that contains a session recording (this requires access to the
-session recording backend):
+You can also run `tsh play` with the path to a TAR file that contains a session
+recording:
 
 ```code
 $ tsh play ./my-recording.tar
 ```
+
+To retrieve a TAR file containing a session recording, you must have access to
+the session recording backend. This requires either a self-hosted Teleport
+cluster or [external audit
+storage](../choose-an-edition/teleport-cloud/external-audit-storage.mdx).
 
 The `tsh play` command can print recordings in three formats, depending on the
 kind of resource the recorded session interacts with. To choose a format, use
@@ -947,16 +951,6 @@ the `--format` flag of `tsh play`:
 | `pty` (default)  | Servers, Kubernetes clusters | `tsh` opens a pseudo-terminal to play each command executed in the session. |
 | `json` | Servers, Kubernetes clusters, applications, databases | `tsh` prints a JSON-serialized list of audit events, separated by newlines. |
 | `yaml` | Servers, Kubernetes clusters, applications, databases | `tsh` prints a YAML-serialized list of audit events, separated by `---` characters. |
-
-To view recordings of Windows desktop sessions, you must run the following
-command:
-
-```code
-$ tsh recordings export <session-id>
-```
-
-This command downloads a file containing a recording of the desktop session that
-you can play from your workstation.
 
 ## tsh configuration files
 
