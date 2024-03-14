@@ -212,27 +212,6 @@ perform the steps we did in Step 2 above, configuring `tbot` and then starting i
 [one-shot mode](../../includes/machine-id/daemon-or-oneshot.mdx).
 
 ```yaml
-on:
- push:
-   branches:
-   - main
-   paths:
-   - terraform/**
- pull_request:
-   branches:
-   - main
-   paths:
-   - terraform/**
- 
-env:
- # verbosity setting for Terraform logs
- TF_LOG: INFO
- # Credentials for deployment to AWS
- AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
- AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
- # S3 bucket for the Terraform state
- BUCKET_TF_STATE: ${{ secrets.BUCKET_TF_STATE}}
-
 jobs:
   terraform:
     runs-on: ubuntu-latest
@@ -242,7 +221,7 @@ jobs:
       - name: Install Teleport
         uses: teleport-actions/setup@v1
         with:
-          version: 15.0.1
+          version: (=teleport.version=)
       - name: Authorize against Teleport
         id: auth
         uses: teleport-actions/auth@v2
@@ -270,55 +249,14 @@ jobs:
         id: init
         run: terraform init -backend-config="bucket=$BUCKET_TF_STATE"
   
-      - name: Terraform format
-        id: fmt
-        run: terraform fmt -check
-      
-      - name: Terraform validate
-        id: validate
-        run: terraform validate
-  
       - name: Terraform plan
         id: plan
         if: github.event_name == 'pull_request'
         run: terraform plan -no-color -input=false
-        continue-on-error: true
-      
-      - uses: actions/github-script@v6
-        if: github.event_name == 'pull_request'
-        env:
-          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
-        with:
-          script: |
-            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
-            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-  
-            <details><summary>Show Plan</summary>
-  
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
-  
-            </details>
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-  
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
-  
-      - name: Terraform Plan Status
-        if: steps.plan.outcome == 'failure'
-        run: exit 1
-  
-      - name: Terraform Apply
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: terraform apply -auto-approve -input=false
 ```
+
+You can see a full example of Terraform commands to run in CI at Hashicorp's GitHub Actions
+[tutorial page](https://developer.hashicorp.com/terraform/tutorials/automation/github-actions#review-terraform-plan-workflow).
 
 ## Next steps
 
