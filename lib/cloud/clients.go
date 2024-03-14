@@ -57,6 +57,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 	"github.com/aws/aws-sdk-go/service/ssm"
@@ -134,6 +136,8 @@ type AWSClients interface {
 	GetAWSEKSClient(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (eksiface.EKSAPI, error)
 	// GetAWSKMSClient returns AWS KMS client for the specified region.
 	GetAWSKMSClient(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (kmsiface.KMSAPI, error)
+	// GetAWSS3Client returns AWS S3 client.
+	GetAWSS3Client(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (s3iface.S3API, error)
 }
 
 // AzureClients is an interface for Azure-specific API clients
@@ -542,6 +546,15 @@ func (c *cloudClients) GetAWSIAMClient(ctx context.Context, region string, opts 
 		return nil, trace.Wrap(err)
 	}
 	return iam.New(session), nil
+}
+
+// GetAWSS3Client returns AWS S3 client.
+func (c *cloudClients) GetAWSS3Client(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (s3iface.S3API, error) {
+	session, err := c.GetAWSSession(ctx, region, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return s3.New(session), nil
 }
 
 // GetAWSSTSClient returns AWS STS client for the specified region.
@@ -960,6 +973,7 @@ type TestCloudClients struct {
 	InstanceMetadata        InstanceMetadata
 	EKS                     eksiface.EKSAPI
 	KMS                     kmsiface.KMSAPI
+	S3                      s3iface.S3API
 	AzureMySQL              azure.DBServersClient
 	AzureMySQLPerSub        map[string]azure.DBServersClient
 	AzurePostgres           azure.DBServersClient
@@ -1088,6 +1102,15 @@ func (c *TestCloudClients) GetAWSIAMClient(ctx context.Context, region string, o
 		return nil, trace.Wrap(err)
 	}
 	return c.IAM, nil
+}
+
+// GetAWSS3Client returns AWS S3 client.
+func (c *TestCloudClients) GetAWSS3Client(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (s3iface.S3API, error) {
+	_, err := c.GetAWSSession(ctx, region, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return c.S3, nil
 }
 
 // GetAWSSTSClient returns AWS STS client for the specified region.

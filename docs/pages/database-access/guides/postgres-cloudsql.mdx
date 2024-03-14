@@ -31,43 +31,15 @@ videoBanner: br9LZ3ZXqCk
 Teleport uses [IAM database authentication](https://cloud.google.com/sql/docs/postgres/authentication)
 with Cloud SQL PostgreSQL instances.
 
-If you're [creating](https://console.cloud.google.com/sql/choose-instance-engine)
-a new PostgreSQL instance, make sure to add the `cloudsql.iam_authentication`
-database flag under "Customize your instance / Flags" section:
+(!docs/pages/includes/database-access/cloudsql_enable_iam_auth.mdx type="PostgreSQL" !)
 
-![Enable IAM Authentication](../../../img/database-access/guides/cloudsql/iam-new-instance@2x.png)
-
-To check whether IAM authentication is enabled for an existing Cloud SQL instance,
-look for the flag on the Configuration panel on the instance's Overview page:
-
-![Check IAM Authentication](../../../img/database-access/guides/cloudsql/iam-existing-instance@2x.png)
-
-If it isn't enabled, you can add this flag using the "Edit configuration" dialog
-at the bottom of the Configuration panel. Note, changing this setting may
-require a database instance reboot.
-
-## Step 2/7. Create a service account for the database
+## Step 2/7. Create a service account for a database user
 
 Teleport uses service accounts to connect to Cloud SQL databases.
 
-### Create a service account
+(!docs/pages/includes/database-access/cloudsql_create_db_user_account.mdx!)
 
-Go to the IAM & Admin [Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts)
-page and create a new service account:
-
-![Create Service Account](../../../img/database-access/guides/cloudsql/service-account-db@2x.png)
-
-Press "Create".
-
-### Grant permissions
-
-On the second step grant this service account the "Cloud SQL Instance User" role
-which will allow it to connect to Cloud SQL instances using IAM token for
-authentication:
-
-![Grant Cloud SQL Instance User to Service Account](../../../img/database-access/guides/cloudsql/service-account-db-grant@2x.png)
-
-Press "Done".
+(!docs/pages/includes/database-access/cloudsql_grant_db_user.mdx!)
 
 ### Configure authentication for your service account
 
@@ -84,7 +56,7 @@ Press "Add" and your Users table should look similar to this:
 See [Creating and managing IAM users](https://cloud.google.com/sql/docs/postgres/create-manage-iam-users)
 in Google Cloud documentation for more info.
 
-## Step 3/7. Create a service account for Teleport Database Service
+## Step 3/7. Create a service account for the Teleport Database Service
 
 The final part of GCP configuration is to create a service account for the
 Teleport Database Service.
@@ -98,23 +70,7 @@ page and create a service account:
 
 ### Grant permissions
 
-Assign the Service Account the following IAM roles:
-
-- "Service Account Token Creator" will allow the Database Service to generate
-  IAM authentication tokens when connecting to the database as the service account user
-  we created above.
-- Either "Cloud SQL Viewer" or "Cloud SQL Admin":
-  - "Cloud SQL Viewer" will allow the Database Service to automatically download
-    your Cloud SQL instance's root CA certificate, but does not support client
-    certificate authentication.
-  - "Cloud SQL Admin" will allow the Database Service to automatically download
-    your Cloud SQL instance's root CA certificate and generate an
-    ephemeral client certificate when the GCP instance is configured to
-    "Allow only SSL connections."
-
-Assign it the "Service Account Token Creator" role:
-
-![Grant Service Account Token Creator to Service Account](../../../img/database-access/guides/cloudsql/service-account-db-service-grant@2x.png)
+(!docs/pages/includes/database-access/cloudsql_grant_db_service_account.mdx!)
 
 <Admonition type="note" title="Service account permissions">
   "Service Account Token Creator", "Cloud SQL Viewer", and "Cloud SQL Admin"
@@ -133,18 +89,9 @@ Assign it the "Service Account Token Creator" role:
 
 (!docs/pages/includes/database-access/cloudsql-ssl.mdx!)
 
-### Create a key for the service account
+### (Optional) Create a key for the service account
 
-Once created, go to that service account's Keys tab and create a new key:
-
-![Service Account Keys](../../../img/database-access/guides/cloudsql/service-account-keys@2x.png)
-
-Make sure to choose JSON format:
-
-![Service Account New Key](../../../img/database-access/guides/cloudsql/service-account-new-key@2x.png)
-
-Save the file. The Teleport Database Service will need it to be able to generate
-IAM auth tokens.
+(!docs/pages/includes/database-access/cloudsql_service_account_key.mdx!)
 
 ## Step 4/7. Gather Cloud SQL instance information
 
@@ -169,27 +116,21 @@ on the "Connect to this instance" panel on the Overview page:
 
 ![Instance Public IP](../../../img/database-access/guides/cloudsql/instance-public-ip@2x.png)
 
-- Cloud SQL instance root certificate.
+- (Optional) Cloud SQL instance root certificate.
 
-The instance's root certificate is required so Teleport can validate the
-certificate presented by the database instance. You can download `server-ca.pem`
-file from the Connections tab under Security section:
+(!docs/pages/includes/database-access/cloudsql_download_root_ca.mdx!)
 
-![Instance Root Certificate](../../../img/database-access/guides/cloudsql/instance-root-ca@2x.png)
+## Step 5/7. Create a Teleport user
 
-## Step 5/7. Set up the Teleport Database Service
+(!docs/pages/includes/database-access/create-user.mdx!)
+
+## Step 6/7. Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
 Install Teleport on the host where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
-
-### Create a user
-
-(!docs/pages/includes/database-access/create-user.mdx!)
-
-## Step 6/7. Set up the Teleport Database service
 
 Below is an example of a Database Service configuration file that proxies
 a single Cloud SQL PostgreSQL database. Save this to `/etc/teleport.yaml`:
@@ -205,7 +146,7 @@ teleport:
   # Proxy address to connect to. Note that it has to be the proxy address
   # because the Database Service always connects to the cluster over a reverse
   # tunnel.
-  proxy_server: teleport.example.com:3080
+  proxy_server: teleport.example.com:443
   auth_token: "/tmp/token"
 db_service:
   enabled: "yes"
@@ -220,7 +161,8 @@ db_service:
     protocol: "postgres"
     # Database endpoint. For Cloud SQL use instance's public IP address.
     uri: "35.1.2.3:5432"
-    # Path to Cloud SQL instance root certificate you downloaded above.
+    # (Optional) path to Cloud SQL instance root certificate you downloaded
+    # manually above.
     ca_cert_file: /path/to/cloudsql/instance/root.pem
     # GCP specific configuration when connecting Cloud SQL instance.
     gcp:
@@ -263,7 +205,8 @@ db_service:
     protocol: "postgres"
     # Database endpoint. For Cloud SQL use instance's public IP address.
     uri: "35.1.2.3:5432"
-    # Path to Cloud SQL instance root certificate you downloaded above.
+    # (Optional) path to Cloud SQL instance root certificate you downloaded
+    # manually above.
     ca_cert_file: /path/to/cloudsql/instance/root.pem
     # GCP specific configuration when connecting Cloud SQL instance.
     gcp:
@@ -300,23 +243,7 @@ proxy_service:
 
 ### GCP credentials
 
-The Teleport Database Service must have credentials of `teleport-db-service` GCP
-service account we created
-[above](#step-37-create-a-service-account-for-teleport-database-service) in order to be
-able to generate IAM auth tokens.
-
-The easiest way to ensure that is to set the `GOOGLE_APPLICATION_CREDENTIALS`
-environment variable to point to the JSON credentials file you downloaded
-earlier.
-
-See [Authenticating as a service account](https://cloud.google.com/docs/authentication/production)
-in the Google Cloud documentation for more details.
-
-If you are using `systemd` to start `teleport`, then you should edit the service's `EnvironmentFile`
-to include the following env var:
-```code
-$ echo 'GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json' | sudo tee -a /etc/default/teleport
-```
+(!docs/pages/includes/database-access/cloudsql_service_credentials.mdx!)
 
 ## Step 7/7. Connect
 
@@ -365,9 +292,9 @@ $ tsh db connect --db-user=teleport@<project-id>.iam --db-name=postgres cloudsql
 
   When connecting to the database, use the name of the database's service account
   that you added as an IAM database user
-  [above](#step-27-create-a-service-account-for-the-database), minus the
-  `.gserviceaccount.com` suffix. The database user name is shown on the Users
-  page of your Cloud SQL instance.
+  [above](#step-27-create-a-service-account-for-a-database-user),
+  minus the `.gserviceaccount.com` suffix. The database user name is shown on
+  the Users page of your Cloud SQL instance.
 
 </Admonition>
 
@@ -383,3 +310,11 @@ $ tsh db logout
 ## Troubleshooting
 
 (!docs/pages/includes/database-access/pg-cancel-request-limitation.mdx!)
+
+## Next steps
+
+(!docs/pages/includes/database-access/guides-next-steps.mdx!)
+
+- Learn more about [authenticating as a service
+  account](https://cloud.google.com/docs/authentication#service-accounts) in
+  Google Cloud.

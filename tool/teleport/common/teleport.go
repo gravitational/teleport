@@ -473,6 +473,10 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfEKSCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfEKSIAMArguments.Region)
 	integrationConfEKSCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfEKSIAMArguments.Role)
 
+	integrationConfAccessGraphCmd := integrationConfigureCmd.Command("access-graph", "Manages Access Graph configuration.")
+	integrationConfTAGSyncCmd := integrationConfAccessGraphCmd.Command("aws-iam", "Adds required IAM permissions for syncing data into Access Graph service.")
+	integrationConfTAGSyncCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.Role)
+
 	integrationConfAWSOIDCIdPCmd := integrationConfigureCmd.Command("awsoidc-idp", "Creates an IAM IdP (OIDC) in your AWS account to allow the AWS OIDC Integration to access AWS APIs.")
 	integrationConfAWSOIDCIdPCmd.Flag("cluster", "Teleport Cluster name.").Required().StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.Cluster)
@@ -597,6 +601,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onIntegrationConfListDatabasesIAM(ccf.IntegrationConfListDatabasesIAMArguments)
 	case integrationConfExternalAuditCmd.FullCommand():
 		err = onIntegrationConfExternalAuditCmd(ccf.IntegrationConfExternalAuditStorageArguments)
+	case integrationConfTAGSyncCmd.FullCommand():
+		err = onIntegrationConfAccessGraphAWSSync(ccf.IntegrationConfAccessGraphAWSSyncArguments)
 	}
 	if err != nil {
 		utils.FatalError(err)
@@ -1085,4 +1091,22 @@ func onIntegrationConfExternalAuditCmd(params easconfig.ExternalAuditStorageConf
 		Sts: sts.NewFromConfig(cfg),
 	}
 	return trace.Wrap(awsoidc.ConfigureExternalAuditStorage(ctx, clt, &params))
+}
+
+func onIntegrationConfAccessGraphAWSSync(params config.IntegrationConfAccessGraphAWSSync) error {
+	ctx := context.Background()
+
+	iamClient, err := awsoidc.NewAccessGraphIAMConfigureClient(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = awsoidc.ConfigureAccessGraphSyncIAM(ctx, iamClient, awsoidc.AccessGraphAWSIAMConfigureRequest{
+		IntegrationRole: params.Role,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }

@@ -3006,7 +3006,7 @@ func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.upsertWebSession(ctx, user, sess); err != nil {
+	if err := a.upsertWebSession(ctx, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess.WithoutSecrets(), nil
@@ -3784,7 +3784,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 
 	sess.SetConsumedAccessRequestID(req.AccessRequestID)
 
-	if err := a.upsertWebSession(ctx, req.User, sess); err != nil {
+	if err := a.upsertWebSession(ctx, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4676,7 +4676,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 // the error and return whatever it has. The caller is expected to deal with the possibility of a nil promotions object.
 func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.AccessRequest) (types.AccessRequest, *types.AccessRequestAllowedPromotions) {
 	reqCopy := req.Copy()
-	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Services, reqCopy)
+	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Cache, reqCopy)
 	if err != nil {
 		// Do not fail the request if the promotions failed to generate.
 		// The request promotion will be blocked, but the request can still be approved.
@@ -6202,7 +6202,7 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 	}
 }
 
-func (a *Server) upsertWebSession(ctx context.Context, user string, session types.WebSession) error {
+func (a *Server) upsertWebSession(ctx context.Context, session types.WebSession) error {
 	if err := a.WebSessions().Upsert(ctx, session); err != nil {
 		return trace.Wrap(err)
 	}

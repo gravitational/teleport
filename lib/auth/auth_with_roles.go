@@ -2018,7 +2018,7 @@ func (a *ServerWithRoles) GetTokens(ctx context.Context) ([]types.ProvisionToken
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2034,7 +2034,7 @@ func (a *ServerWithRoles) GetToken(ctx context.Context, token string) (types.Pro
 		}
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2657,7 +2657,7 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 			log.WithError(err).Warn()
 			return nil, err
 		}
-		return a.desiredAccessInfoForImpersonation(req, user)
+		return a.desiredAccessInfoForImpersonation(user)
 	}
 	if isRoleImpersonation(*req) {
 		if len(req.AccessRequests) > 0 {
@@ -2672,7 +2672,7 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 
 // desiredAccessInfoForImpersonation returns the desired AccessInfo for an
 // impersonation request.
-func (a *ServerWithRoles) desiredAccessInfoForImpersonation(req *proto.UserCertsRequest, user types.User) (*services.AccessInfo, error) {
+func (a *ServerWithRoles) desiredAccessInfoForImpersonation(user types.User) (*services.AccessInfo, error) {
 	return &services.AccessInfo{
 		Roles:  user.GetRoles(),
 		Traits: user.GetTraits(),
@@ -4736,6 +4736,9 @@ func (a *ServerWithRoles) AcquireSemaphore(ctx context.Context, params types.Acq
 	if err := a.action(apidefaults.Namespace, types.KindSemaphore, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if a.hasBuiltinRole(types.RoleDiscovery) && params.SemaphoreKind != types.KindAccessGraph {
+		return nil, trace.AccessDenied("discovery service can not create other semaphores")
+	}
 	return a.authServer.AcquireSemaphore(ctx, params)
 }
 
@@ -4743,6 +4746,9 @@ func (a *ServerWithRoles) AcquireSemaphore(ctx context.Context, params types.Acq
 func (a *ServerWithRoles) KeepAliveSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
 	if err := a.action(apidefaults.Namespace, types.KindSemaphore, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
+	}
+	if a.hasBuiltinRole(types.RoleDiscovery) && lease.SemaphoreKind != types.KindAccessGraph {
+		return trace.AccessDenied("discovery service can not create other semaphores")
 	}
 	return a.authServer.KeepAliveSemaphoreLease(ctx, lease)
 }

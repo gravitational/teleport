@@ -228,6 +228,17 @@ type CommandLineFlags struct {
 	// IntegrationConfExternalAuditStorageArguments contains the arguments of the
 	// `teleport integration configure externalauditstorage` command
 	IntegrationConfExternalAuditStorageArguments easconfig.ExternalAuditStorageConfiguration
+
+	// IntegrationConfAccessGraphAWSSyncArguments contains the arguments of
+	// `teleport integration configure access-graph aws-iam` command
+	IntegrationConfAccessGraphAWSSyncArguments IntegrationConfAccessGraphAWSSync
+}
+
+// IntegrationConfAccessGraphAWSSync contains the arguments of
+// `teleport integration configure access-graph aws-iam` command.
+type IntegrationConfAccessGraphAWSSync struct {
+	// Role is the AWS Role associated with the Integration
+	Role string
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -1603,6 +1614,28 @@ kubernetes matchers are present`)
 		}
 
 		cfg.Discovery.KubernetesMatchers = append(cfg.Discovery.KubernetesMatchers, serviceMatcher)
+	}
+
+	if fc.Discovery.AccessGraph != nil {
+		var tMatcher types.AccessGraphSync
+		for _, awsMatcher := range fc.Discovery.AccessGraph.AWS {
+			regions := awsMatcher.Regions
+			if len(regions) == 0 {
+				return trace.BadParameter("missing regions in access_graph")
+			}
+			var assumeRole *types.AssumeRole
+			if awsMatcher.AssumeRoleARN != "" || awsMatcher.ExternalID != "" {
+				assumeRole = &types.AssumeRole{
+					RoleARN:    awsMatcher.AssumeRoleARN,
+					ExternalID: awsMatcher.ExternalID,
+				}
+			}
+			tMatcher.AWS = append(tMatcher.AWS, &types.AccessGraphAWSSync{
+				Regions:    regions,
+				AssumeRole: assumeRole,
+			})
+		}
+		cfg.Discovery.AccessGraph = &tMatcher
 	}
 
 	return nil

@@ -1,5 +1,38 @@
 # Changelog
 
+## 15.1.4 (03/12/24)
+
+* Raised concurrent connection limits between Teleport Cloud regions and in clusters that use proxy peering. [#39233](https://github.com/gravitational/teleport/pull/39233)
+* Improved clean up of system resources during a fast shutdown of Teleport. [#39211](https://github.com/gravitational/teleport/pull/39211)
+* Resolved sporadic errors caused by requests fail to comply with Kubernetes API spec by not specifying resource identifiers. [#39168](https://github.com/gravitational/teleport/pull/39168)
+* Added a new password change wizard. [#39124](https://github.com/gravitational/teleport/pull/39124)
+* Fixed the NumLock and Pause keys for Desktop Access sessions not working. [#39095](https://github.com/gravitational/teleport/pull/39095)
+
+## 15.1.3 (03/08/24)
+
+* Fix a bug when using automatic updates and the discovery service. The default install script now installs the correct teleport version by querying the version server. [#39099](https://github.com/gravitational/teleport/pull/39099)
+* Fix a regression where `tsh kube credentials` fails to re-login when credentials expire. [#39075](https://github.com/gravitational/teleport/pull/39075)
+* TBot now supports `--proxy-server` for explicitly configuring the Proxy address. We recommend switching to this if you currently specify the address of your Teleport proxy to `--auth-server`. [#39055](https://github.com/gravitational/teleport/pull/39055)
+* Expand the EC2 joining process to include newly created AWS regions. [#39051](https://github.com/gravitational/teleport/pull/39051)
+* Added GCP MySQL access IAM Authentication support. [#39040](https://github.com/gravitational/teleport/pull/39040)
+* Fixed compatibility of the Teleport service file with older versions of systemd. [#39032](https://github.com/gravitational/teleport/pull/39032)
+* Update WebUI database connection instructions. [#39027](https://github.com/gravitational/teleport/pull/39027)
+* Teleport Proxy Service now runs a version server by default serving its own version. [#39017](https://github.com/gravitational/teleport/pull/39017)
+* Significantly reduced latency of network calls in Teleport Connect. [#39012](https://github.com/gravitational/teleport/pull/39012)
+* SPIFFE SVID generation introduced to tbot (experimental). [#39011](https://github.com/gravitational/teleport/pull/39011)
+* Adds `tsh workload issue` command for issuing SVIDs using `tsh`. [#39115](https://github.com/gravitational/teleport/pull/39115)
+* Fixed an issue in SAML IdP entity descriptor generator process, which would fail to generate entity descriptor if the configured Entity ID endpoint would return HTTP status code above `200` and below `400` . [#38987](https://github.com/gravitational/teleport/pull/38987)
+* Updated Go to 1.21.8. [#38983](https://github.com/gravitational/teleport/pull/38983)
+* Updated electron-builder dependency to address possible arbitrary code execution in the Windows installer of Teleport Connect  (CVE-2024-27303). [#38964](https://github.com/gravitational/teleport/pull/38964)
+* Fixed an issue where it was possible to skip providing old password when setting a new one. [#38962](https://github.com/gravitational/teleport/pull/38962)
+* Added database permission management support for Postgres. [#38945](https://github.com/gravitational/teleport/pull/38945)
+* Improved reliability and performance of `tbot`. [#38928](https://github.com/gravitational/teleport/pull/38928)
+* Filter terminated sessions from the `tsh sessions ls` output. [#38887](https://github.com/gravitational/teleport/pull/38887)
+* Make it easier to identify Teleport browser tabs by placing the session information before the cluster name. [#38737](https://github.com/gravitational/teleport/pull/38737)
+* The `teleport-ent-upgrader` package now gracefully restarts the Teleport binary if possible, to avoid cutting off ongoing connections. [#3578](https://github.com/gravitational/teleport.e/pull/3578)
+* Trusted device authentication failures may now include a brief explanation message in the corresponding audit event. [#3572](https://github.com/gravitational/teleport.e/pull/3572)
+* Okta access lists sync will now sync groups without members. [#3636](https://github.com/gravitational/teleport.e/pull/3636)
+
 ## 15.1.1 (03/01/24)
 
 * Fixed panic when an older `tsh` or proxy changes an access list. [#38861](https://github.com/gravitational/teleport/pull/38861)
@@ -4584,7 +4617,7 @@ can limit access by changing the options on the new `event` resource.
 The minimum set of Kubernetes permissions that need to be granted to Teleport
 proxies has been updated. If you use the Kubernetes integration, please make
 sure that the ClusterRole used by the proxy has [sufficient
-permissions](./docs/pages/kubernetes-access/manage-access/rbac.mdx).
+permissions](./docs/pages/kubernetes-access/controls.mdx).
 
 ##### Path prefix for etcd
 

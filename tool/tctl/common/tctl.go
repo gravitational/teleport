@@ -94,7 +94,7 @@ type CLICommand interface {
 
 	// TryRun is executed after the CLI parsing is done. The command must
 	// determine if selectedCommand belongs to it and return match=true
-	TryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error)
+	TryRun(ctx context.Context, selectedCommand string, c *auth.Client) (match bool, err error)
 }
 
 // Run is the same as 'make'. It helps to share the code between different

@@ -879,6 +879,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/requireddatabasesvpcs", h.WithClusterAuth(h.awsOIDCRequiredDatabasesVPCS))
 	h.GET("/webapi/scripts/integrations/configure/eice-iam.sh", h.WithLimiter(h.awsOIDCConfigureEICEIAM))
 	h.GET("/webapi/scripts/integrations/configure/eks-iam.sh", h.WithLimiter(h.awsOIDCConfigureEKSIAM))
+	h.GET("/webapi/scripts/integrations/configure/access-graph-cloud-sync-iam.sh", h.WithLimiter(h.accessGraphCloudSyncOIDC))
 
 	// AWS OIDC Integration specific endpoints:
 	// Unauthenticated access to OpenID Configuration - used for AWS OIDC IdP integration
@@ -3533,12 +3534,10 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	}
 
 	// look at 'offset' parameter
+	// (skip error check and treat an invalid offset as offset 0)
 	query := r.URL.Query()
 	offset, _ := strconv.Atoi(query.Get("offset"))
-	if err != nil {
-		onError(trace.Wrap(err))
-		return
-	}
+
 	max, err := strconv.Atoi(query.Get("bytes"))
 	if err != nil || max <= 0 {
 		max = maxStreamBytes
@@ -3901,7 +3900,6 @@ func (h *Handler) authenticateWSRequestWithClusterDeprecated(w http.ResponseWrit
 // remote trusted cluster) as specified by the ":site" url parameter.
 func (h *Handler) authenticateRequestWithCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (*SessionContext, reversetunnelclient.RemoteSite, error) {
 	sctx, err := h.AuthenticateRequest(w, r, true)
-
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
