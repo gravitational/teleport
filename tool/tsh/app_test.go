@@ -80,10 +80,15 @@ func TestAppLoginLeaf(t *testing.T) {
 
 	// TODO(tener): consider making this default for tests.
 	configStorage := func(cfg *servicecfg.Config) {
+		cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 		cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
 	}
 
-	rootAuth, rootProxy := makeTestServers(t, withClusterName(t, "root"), withBootstrap(connector, alice), withConfig(configStorage))
+	rootAuth, rootProxy := makeTestServers(t,
+		withClusterName(t, "root"),
+		withBootstrap(connector, alice),
+		withConfig(configStorage),
+	)
 	event, err := rootAuth.WaitForEventTimeout(time.Second, service.ProxyReverseTunnelReady)
 	require.NoError(t, err)
 	tunnel, ok := event.Payload.(reversetunnelclient.Server)
