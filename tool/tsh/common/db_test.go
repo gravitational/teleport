@@ -485,9 +485,11 @@ func TestLocalProxyRequirement(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			require.NoError(t, authServer.SetAuthPreference(ctx, tt.clusterAuthPref))
+			_, err = authServer.UpsertAuthPreference(ctx, tt.clusterAuthPref)
+			require.NoError(t, err)
 			t.Cleanup(func() {
-				require.NoError(t, authServer.SetAuthPreference(ctx, defaultAuthPref))
+				_, err = authServer.UpsertAuthPreference(ctx, defaultAuthPref)
+				require.NoError(t, err)
 			})
 			cf := &CLIConf{
 				Context:         ctx,

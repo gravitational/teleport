@@ -417,9 +417,9 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	})
 
 	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/SetAuthPreference")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthPreference")
 		defer span.End()
-		return trace.Wrap(initSetAuthPreference(ctx, asrv, cfg.AuthPreference))
+		return trace.Wrap(initializeAuthPreference(ctx, asrv, cfg.AuthPreference))
 	})
 
 	g.Go(func() error {
@@ -697,22 +697,43 @@ func generateAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID)
 	return ca, nil
 }
 
-func initSetAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
-	storedAuthPref, err := asrv.Services.GetAuthPreference(ctx)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedAuthPref, newAuthPref)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if shouldReplace {
-		if err := asrv.SetAuthPreference(ctx, newAuthPref); err != nil {
+func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
+	const iterationLimit = 3
+	for i := 0; i < iterationLimit; i++ {
+		storedAuthPref, err := asrv.Services.GetAuthPreference(ctx)
+		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-		log.Infof("Updating cluster auth preference: %v.", newAuthPref)
+
+		shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedAuthPref, newAuthPref)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !shouldReplace {
+			return nil
+		}
+
+		if storedAuthPref == nil {
+			log.Infof("Creating cluster auth preference: %v.", newAuthPref)
+			_, err := asrv.CreateAuthPreference(ctx, newAuthPref)
+			if trace.IsAlreadyExists(err) {
+				continue
+			}
+
+			return trace.Wrap(err)
+		}
+
+		newAuthPref.SetRevision(storedAuthPref.GetRevision())
+		_, err = asrv.UpdateAuthPreference(ctx, newAuthPref)
+		if trace.IsCompareFailed(err) {
+			continue
+		}
+
+		return trace.Wrap(err)
 	}
-	return nil
+
+	return trace.LimitExceeded("failed to initialize auth preference in %v iterations", iterationLimit)
 }
 
 func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetConfig types.ClusterNetworkingConfig) error {
@@ -1524,7 +1545,7 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		case types.ClusterNetworkingConfig:
 			_, err = service.ClusterConfiguration.UpsertClusterNetworkingConfig(ctx, r)
 		case types.AuthPreference:
-			err = service.ClusterConfiguration.SetAuthPreference(ctx, r)
+			_, err = service.ClusterConfiguration.UpsertAuthPreference(ctx, r)
 		case *machineidv1pb.Bot:
 			_, err = machineidv1.UpsertBot(ctx, service, r, time.Now(), "system")
 		case *dbobjectimportrulev1pb.DatabaseObjectImportRule:
