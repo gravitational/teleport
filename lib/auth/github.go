@@ -141,7 +141,7 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 		return nil, trace.Wrap(err)
 	}
 	req.RedirectURL = client.AuthCodeURL(req.StateToken, "", "")
-	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
+	log.WithFields(logrus.Fields{teleport.ComponentKey: "github"}).Debugf(
 		"Redirect URL: %v.", req.RedirectURL)
 	req.SetExpiry(a.GetClock().Now().UTC().Add(defaults.GithubAuthRequestTTL))
 	err = a.Services.CreateGithubAuthRequest(ctx, req)
@@ -578,7 +578,7 @@ func (a *Server) getGithubOAuth2Client(connector types.GithubConnector) (*oauth2
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
 func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
-	logger := log.WithFields(logrus.Fields{trace.Component: "github"})
+	logger := log.WithFields(logrus.Fields{teleport.ComponentKey: "github"})
 
 	if errParam := q.Get("error"); errParam != "" {
 		// try to find request so the error gets logged against it.
@@ -860,7 +860,7 @@ func (a *Server) calculateGithubUser(ctx context.Context, diagCtx *SSODiagContex
 }
 
 func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryRun bool) (types.User, error) {
-	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
+	log.WithFields(logrus.Fields{teleport.ComponentKey: "github"}).Debugf(
 		"Generating dynamic GitHub identity %v/%v with roles: %v. Dry run: %v.",
 		p.ConnectorName, p.Username, p.Roles, dryRun)
 
@@ -941,7 +941,7 @@ func populateGithubClaims(user *userResponse, teams []teamResponse) (*types.Gith
 		OrganizationToTeams: orgToTeams,
 		Teams:               teamList,
 	}
-	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
+	log.WithFields(logrus.Fields{teleport.ComponentKey: "github"}).Debugf(
 		"Claims: %#v.", claims)
 	return claims, nil
 }

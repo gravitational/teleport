@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -74,7 +75,7 @@ func (c *ReconcilerConfig[T]) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing reconciler OnDelete")
 	}
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "reconciler")
+		c.Log = logrus.WithField(teleport.ComponentKey, "reconciler")
 	}
 	return nil
 }

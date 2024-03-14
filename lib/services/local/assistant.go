@@ -29,6 +29,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/lib/backend"
 )
@@ -50,7 +51,7 @@ type AssistService struct {
 func NewAssistService(backend backend.Backend) *AssistService {
 	return &AssistService{
 		Backend: backend,
-		log:     logrus.WithField(trace.Component, "assist"),
+		log:     logrus.WithField(teleport.ComponentKey, "assist"),
 	}
 }
 

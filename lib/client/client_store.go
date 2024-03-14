@@ -53,7 +53,7 @@ type Store struct {
 func NewFSClientStore(dirPath string) *Store {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &Store{
-		log:               logrus.WithField(trace.Component, teleport.ComponentKeyStore),
+		log:               logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
 		KeyStore:          NewFSKeyStore(dirPath),
 		TrustedCertsStore: NewFSTrustedCertsStore(dirPath),
 		ProfileStore:      NewFSProfileStore(dirPath),
@@ -63,7 +63,7 @@ func NewFSClientStore(dirPath string) *Store {
 // NewMemClientStore initializes a new in-memory client store.
 func NewMemClientStore() *Store {
 	return &Store{
-		log:               logrus.WithField(trace.Component, teleport.ComponentKeyStore),
+		log:               logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
 		KeyStore:          NewMemKeyStore(),
 		TrustedCertsStore: NewMemTrustedCertsStore(),
 		ProfileStore:      NewMemProfileStore(),

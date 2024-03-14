@@ -50,7 +50,7 @@ const (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentTBot,
+	teleport.ComponentKey: teleport.ComponentTBot,
 })
 
 // capture runs a command (presumably tsh) with the given arguments and

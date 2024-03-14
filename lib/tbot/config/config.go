@@ -60,7 +60,7 @@ var SupportedJoinMethods = []string{
 }
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentTBot,
+	teleport.ComponentKey: teleport.ComponentTBot,
 })
 
 // RemainingArgsList is a custom kingpin parser that consumes all remaining

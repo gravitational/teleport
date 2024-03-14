@@ -44,6 +44,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -220,7 +221,7 @@ var _ backend.Backend = &Backend{}
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
 func New(ctx context.Context, params backend.Params) (*Backend, error) {
-	l := log.WithFields(log.Fields{trace.Component: BackendName})
+	l := log.WithFields(log.Fields{teleport.ComponentKey: BackendName})
 
 	var cfg *Config
 	err := utils.ObjectToStruct(params, &cfg)
