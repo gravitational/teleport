@@ -5953,12 +5953,15 @@ message SAMLIdPServiceProviderSpecV1 {
   string EntityID = 2 [(gogoproto.jsontag) = "entity_id"];
   // ACSURL is the endpoint where SAML authentication response will be redirected.
   string ACSURL = 3 [(gogoproto.jsontag) = "acs_url"];
-  // AttributeMapping is used to map Service Provider requested attributes to
+  // AttributeMapping is used to map service provider requested attributes to
   // username, role and traits in Teleport.
   repeated SAMLAttributeMapping AttributeMapping = 4 [(gogoproto.jsontag) = "attribute_mapping"];
+  // Preset is used to define service provider profile that will have a custom behavior
+  // processed by Teleport.
+  string Preset = 5 [(gogoproto.jsontag) = "preset"];
 }
 
-// SAMLAttributeMapping represents SAML Service Provider requested attribute
+// SAMLAttributeMapping represents SAML service provider requested attribute
 // name, format and its values.
 message SAMLAttributeMapping {
   //  name is an attribute name.
