@@ -42,6 +42,7 @@ import { Server } from "./server_pb";
 import { Gateway } from "./gateway_pb";
 import { Cluster } from "./cluster_pb";
 import { AccessList } from "../../../accesslist/v1/accesslist_pb";
+import { Timestamp } from "../../../../google/protobuf/timestamp_pb";
 import { ResourceID } from "./access_request_pb";
 import { AccessRequest } from "./access_request_pb";
 /**
@@ -152,17 +153,50 @@ export interface CreateAccessRequestRequest {
      */
     reason: string;
     /**
+     * a list of roles requested
+     *
      * @generated from protobuf field: repeated string roles = 3;
      */
     roles: string[];
     /**
+     * suggested_reviewers is a suggested list of reviewers that can review a request.
+     *
      * @generated from protobuf field: repeated string suggested_reviewers = 4;
      */
     suggestedReviewers: string[];
     /**
+     * TODO(avatus) remove the resource_ids field once the changes to rely on resources instead is merged
+     * a list of resourceIDs requested in the AccessRequest
+     *
      * @generated from protobuf field: repeated teleport.lib.teleterm.v1.ResourceID resource_ids = 5;
      */
     resourceIds: ResourceID[];
+    /**
+     * assume_start_time is the time after which the requested access can be assumed.
+     *
+     * @generated from protobuf field: google.protobuf.Timestamp assume_start_time = 6;
+     */
+    assumeStartTime?: Timestamp;
+    /**
+     * dry_run is a flag that indicates whether the request is a dry run to check and set defaults,
+     * and return before actually creating the request in the backend.
+     *
+     * @generated from protobuf field: bool dry_run = 7;
+     */
+    dryRun: boolean;
+    /**
+     * max_duration is the maximum duration for which the request is valid.
+     *
+     * @generated from protobuf field: google.protobuf.Timestamp max_duration = 8;
+     */
+    maxDuration?: Timestamp;
+    /**
+     * request_ttl is the expiration time of the request (how long it will await
+     * approval).
+     *
+     * @generated from protobuf field: google.protobuf.Timestamp request_ttl = 9;
+     */
+    requestTtl?: Timestamp;
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.CreateAccessRequestResponse
@@ -240,6 +274,12 @@ export interface ReviewAccessRequestRequest {
      * @generated from protobuf field: string access_request_id = 5;
      */
     accessRequestId: string;
+    /**
+     * Overwrites the requested start time (optional).
+     *
+     * @generated from protobuf field: google.protobuf.Timestamp assume_start_time = 6;
+     */
+    assumeStartTime?: Timestamp;
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.ReviewAccessRequestResponse
@@ -1657,7 +1697,11 @@ class CreateAccessRequestRequest$Type extends MessageType<CreateAccessRequestReq
             { no: 2, name: "reason", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "suggested_reviewers", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "resource_ids", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ResourceID }
+            { no: 5, name: "resource_ids", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ResourceID },
+            { no: 6, name: "assume_start_time", kind: "message", T: () => Timestamp },
+            { no: 7, name: "dry_run", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 8, name: "max_duration", kind: "message", T: () => Timestamp },
+            { no: 9, name: "request_ttl", kind: "message", T: () => Timestamp }
         ]);
     }
     create(value?: PartialMessage<CreateAccessRequestRequest>): CreateAccessRequestRequest {
@@ -1667,6 +1711,7 @@ class CreateAccessRequestRequest$Type extends MessageType<CreateAccessRequestReq
         message.roles = [];
         message.suggestedReviewers = [];
         message.resourceIds = [];
+        message.dryRun = false;
         if (value !== undefined)
             reflectionMergePartial<CreateAccessRequestRequest>(this, message, value);
         return message;
@@ -1690,6 +1735,18 @@ class CreateAccessRequestRequest$Type extends MessageType<CreateAccessRequestReq
                     break;
                 case /* repeated teleport.lib.teleterm.v1.ResourceID resource_ids */ 5:
                     message.resourceIds.push(ResourceID.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* google.protobuf.Timestamp assume_start_time */ 6:
+                    message.assumeStartTime = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.assumeStartTime);
+                    break;
+                case /* bool dry_run */ 7:
+                    message.dryRun = reader.bool();
+                    break;
+                case /* google.protobuf.Timestamp max_duration */ 8:
+                    message.maxDuration = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.maxDuration);
+                    break;
+                case /* google.protobuf.Timestamp request_ttl */ 9:
+                    message.requestTtl = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.requestTtl);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1718,6 +1775,18 @@ class CreateAccessRequestRequest$Type extends MessageType<CreateAccessRequestReq
         /* repeated teleport.lib.teleterm.v1.ResourceID resource_ids = 5; */
         for (let i = 0; i < message.resourceIds.length; i++)
             ResourceID.internalBinaryWrite(message.resourceIds[i], writer.tag(5, WireType.LengthDelimited).fork(), options).join();
+        /* google.protobuf.Timestamp assume_start_time = 6; */
+        if (message.assumeStartTime)
+            Timestamp.internalBinaryWrite(message.assumeStartTime, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
+        /* bool dry_run = 7; */
+        if (message.dryRun !== false)
+            writer.tag(7, WireType.Varint).bool(message.dryRun);
+        /* google.protobuf.Timestamp max_duration = 8; */
+        if (message.maxDuration)
+            Timestamp.internalBinaryWrite(message.maxDuration, writer.tag(8, WireType.LengthDelimited).fork(), options).join();
+        /* google.protobuf.Timestamp request_ttl = 9; */
+        if (message.requestTtl)
+            Timestamp.internalBinaryWrite(message.requestTtl, writer.tag(9, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1955,7 +2024,8 @@ class ReviewAccessRequestRequest$Type extends MessageType<ReviewAccessRequestReq
             { no: 2, name: "state", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "reason", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "access_request_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 5, name: "access_request_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "assume_start_time", kind: "message", T: () => Timestamp }
         ]);
     }
     create(value?: PartialMessage<ReviewAccessRequestRequest>): ReviewAccessRequestRequest {
@@ -1989,6 +2059,9 @@ class ReviewAccessRequestRequest$Type extends MessageType<ReviewAccessRequestReq
                 case /* string access_request_id */ 5:
                     message.accessRequestId = reader.string();
                     break;
+                case /* google.protobuf.Timestamp assume_start_time */ 6:
+                    message.assumeStartTime = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.assumeStartTime);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -2016,6 +2089,9 @@ class ReviewAccessRequestRequest$Type extends MessageType<ReviewAccessRequestReq
         /* string access_request_id = 5; */
         if (message.accessRequestId !== "")
             writer.tag(5, WireType.LengthDelimited).string(message.accessRequestId);
+        /* google.protobuf.Timestamp assume_start_time = 6; */
+        if (message.assumeStartTime)
+            Timestamp.internalBinaryWrite(message.assumeStartTime, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

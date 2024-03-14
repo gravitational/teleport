@@ -1023,9 +1023,8 @@ func (c *TestCloudClients) getAWSSessionForRegion(region string) (*awssession.Se
 			AccessKeyID:     "fakeClientKeyID",
 			SecretAccessKey: "fakeClientSecret",
 		}}),
-		Region:                    aws.String(region),
-		EC2MetadataEnableFallback: aws.Bool(false),
-		UseFIPSEndpoint:           useFIPSEndpoint,
+		Region:          aws.String(region),
+		UseFIPSEndpoint: useFIPSEndpoint,
 	})
 }
 
@@ -1296,10 +1295,9 @@ func buildAWSSessionOptions(region string, cred *credentials.Credentials) awsses
 	return awssession.Options{
 		SharedConfigState: awssession.SharedConfigEnable,
 		Config: aws.Config{
-			Region:                    aws.String(region),
-			Credentials:               cred,
-			EC2MetadataEnableFallback: aws.Bool(false),
-			UseFIPSEndpoint:           useFIPSEndpoint,
+			Region:          aws.String(region),
+			Credentials:     cred,
+			UseFIPSEndpoint: useFIPSEndpoint,
 		},
 	}
 }
