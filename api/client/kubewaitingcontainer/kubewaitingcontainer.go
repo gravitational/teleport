@@ -20,8 +20,6 @@ import (
 	"github.com/gravitational/trace"
 
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
-	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
-	convert "github.com/gravitational/teleport/api/types/kubewaitingcontainer/convert/v1"
 )
 
 // Client is a KubeWaitingContainers client.
@@ -55,7 +53,7 @@ type KubeWaitingContainerRequest struct {
 // ListKubernetesWaitingContainers lists Kubernetes ephemeral
 // containers that are waiting to be created until moderated
 // session conditions are met.
-func (c *Client) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainer.KubeWaitingContainer, string, error) {
+func (c *Client) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
 	resp, err := c.grpcClient.ListKubernetesWaitingContainers(ctx, &kubewaitingcontainerpb.ListKubernetesWaitingContainersRequest{
 		PageSize:  int32(pageSize),
 		PageToken: pageToken,
@@ -64,22 +62,13 @@ func (c *Client) ListKubernetesWaitingContainers(ctx context.Context, pageSize i
 		return nil, "", trace.Wrap(err)
 	}
 
-	converted := make([]*kubewaitingcontainer.KubeWaitingContainer, len(resp.WaitingContainers))
-	for i, msg := range resp.WaitingContainers {
-		out, err := convert.FromProto(msg)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		converted[i] = out
-	}
-
-	return converted, resp.NextPageToken, nil
+	return resp.WaitingContainers, resp.NextPageToken, nil
 }
 
 // GetKubernetesWaitingContainer returns a Kubernetes ephemeral
 // container that is waiting to be created until moderated
 // session conditions are met.
-func (c *Client) GetKubernetesWaitingContainer(ctx context.Context, req KubeWaitingContainerRequest) (*kubewaitingcontainer.KubeWaitingContainer, error) {
+func (c *Client) GetKubernetesWaitingContainer(ctx context.Context, req KubeWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
 	if req.Username == "" {
 		return nil, trace.BadParameter("missing Username")
 	}
@@ -96,7 +85,7 @@ func (c *Client) GetKubernetesWaitingContainer(ctx context.Context, req KubeWait
 		return nil, trace.BadParameter("missing ContainerName")
 	}
 
-	resp, err := c.grpcClient.GetKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest{
+	out, err := c.grpcClient.GetKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest{
 		Username:      req.Username,
 		Cluster:       req.Cluster,
 		Namespace:     req.Namespace,
@@ -107,26 +96,16 @@ func (c *Client) GetKubernetesWaitingContainer(ctx context.Context, req KubeWait
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := convert.FromProto(resp)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return out, nil
 }
 
 // CreateKubernetesWaitingContainer creates a Kubernetes ephemeral
 // container that is waiting to be created until moderated
 // session conditions are met.
-func (c *Client) CreateKubernetesWaitingContainer(ctx context.Context, waitingPod *kubewaitingcontainer.KubeWaitingContainer) (*kubewaitingcontainer.KubeWaitingContainer, error) {
-	resp, err := c.grpcClient.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
-		WaitingContainer: convert.ToProto(waitingPod),
+func (c *Client) CreateKubernetesWaitingContainer(ctx context.Context, waitingPod *kubewaitingcontainerpb.KubernetesWaitingContainer) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+	out, err := c.grpcClient.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
+		WaitingContainer: waitingPod,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out, err := convert.FromProto(resp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

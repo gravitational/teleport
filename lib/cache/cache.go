@@ -38,11 +38,11 @@ import (
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
-	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -2246,7 +2246,7 @@ func (c *Cache) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, e
 // ListKubernetesWaitingContainers lists Kubernetes ephemeral
 // containers that are waiting to be created until moderated
 // session conditions are met.
-func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainer.KubeWaitingContainer, string, error) {
+func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListKubernetesWaitingContainers")
 	defer span.End()
 
@@ -2261,7 +2261,7 @@ func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize in
 // GetKubernetesWaitingContainer returns a Kubernetes ephemeral
 // container that are waiting to be created until moderated
 // session conditions are met.
-func (c *Cache) GetKubernetesWaitingContainer(ctx context.Context, req kubewaitingcontainerclient.KubeWaitingContainerRequest) (*kubewaitingcontainer.KubeWaitingContainer, error) {
+func (c *Cache) GetKubernetesWaitingContainer(ctx context.Context, req kubewaitingcontainerclient.KubeWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesWaitingContainer")
 	defer span.End()
 

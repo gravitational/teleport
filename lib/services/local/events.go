@@ -29,8 +29,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1914,29 +1914,31 @@ func (p *kubeWaitingContainerParser) parse(event backend.Event) (types.Resource,
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindKubeWaitingContainer, event.Item.Key)
 		}
 
-		return &kubewaitingcontainer.KubeWaitingContainer{
-			ResourceHeader: header.ResourceHeader{
-				Kind:    types.KindKubeWaitingContainer,
-				Version: types.V1,
-				Metadata: header.Metadata{
-					Name: parts[5],
-				},
-			},
-			Spec: kubewaitingcontainer.KubeWaitingContainerSpec{
+		resource, err := kubewaitingcontainer.NewKubeWaitingContainer(
+			parts[5],
+			&kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
 				Username:      parts[1],
 				Cluster:       parts[2],
 				Namespace:     parts[3],
 				PodName:       parts[4],
 				ContainerName: parts[5],
 			},
-		}, nil
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(resource), nil
 	case types.OpPut:
-		return services.UnmarshalKubeWaitingContainer(
+		resource, err := services.UnmarshalKubeWaitingContainer(
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(resource), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

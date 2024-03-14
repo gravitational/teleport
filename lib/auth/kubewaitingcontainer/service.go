@@ -12,19 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kubewaitingcontainerv1
+package kubewaitingcontainer
 
 import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
-	convert "github.com/gravitational/teleport/api/types/kubewaitingcontainer/convert/v1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -37,9 +35,15 @@ type ServiceConfig struct {
 	// Backend is the backend used to store Kubernetes waiting containers.
 	Backend services.KubeWaitingContainer
 	// Cache is the cache used to store Kubernetes waiting containers.
-	Cache services.KubeWaitingContainerGetter
-	// Logger is the logger used to log messages.
-	Logger *logrus.Entry
+	Cache KubeWaitingContainerGetter
+}
+
+// KubeWaitingContainerGetter is responsible for getting Kubernetes
+// ephemeral containers that are waiting to be created until moderated
+// session conditions are met.
+type KubeWaitingContainerGetter interface {
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+	GetKubernetesWaitingContainer(ctx context.Context, req kubewaitingcontainerclient.KubeWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
 }
 
 // Service implements the teleport.kubewaitingcontainer.v1.KubernetesWaitingContainer
@@ -49,8 +53,7 @@ type Service struct {
 
 	authorizer authz.Authorizer
 	backend    services.KubeWaitingContainer
-	cache      services.KubeWaitingContainerGetter
-	logger     *logrus.Entry
+	cache      KubeWaitingContainerGetter
 }
 
 // NewService returns a new Kubernetes waiting container gRPC service.
@@ -62,14 +65,11 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("authorizer is required")
 	case cfg.Cache == nil:
 		return nil, trace.BadParameter("cache is required")
-	case cfg.Logger == nil:
-		cfg.Logger = logrus.WithField(trace.Component, "trust.service")
 	}
 
 	return &Service{
 		authorizer: cfg.Authorizer,
 		backend:    cfg.Backend,
-		logger:     cfg.Logger,
 		cache:      cfg.Cache,
 	}, nil
 }
@@ -93,13 +93,9 @@ func (s *Service) ListKubernetesWaitingContainers(ctx context.Context, req *kube
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	converted := make([]*kubewaitingcontainerpb.KubernetesWaitingContainer, len(conts))
-	for i, cont := range conts {
-		converted[i] = convert.ToProto(cont)
-	}
 
 	return &kubewaitingcontainerpb.ListKubernetesWaitingContainersResponse{
-		WaitingContainers: converted,
+		WaitingContainers: conts,
 		NextPageToken:     nextToken,
 	}, nil
 }
@@ -118,10 +114,10 @@ func (s *Service) GetKubernetesWaitingContainer(ctx context.Context, req *kubewa
 		return nil, trace.BadParameter("missing namespace")
 	}
 	if req.PodName == "" {
-		return nil, trace.BadParameter("missing podName")
+		return nil, trace.BadParameter("missing pod name")
 	}
 	if req.ContainerName == "" {
-		return nil, trace.BadParameter("missing contName")
+		return nil, trace.BadParameter("missing container name")
 	}
 
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -146,7 +142,7 @@ func (s *Service) GetKubernetesWaitingContainer(ctx context.Context, req *kubewa
 		return nil, trace.Wrap(err)
 	}
 
-	return convert.ToProto(out), nil
+	return out, nil
 }
 
 // CreateKubernetesWaitingContainer creates a Kubernetes ephemeral
@@ -164,16 +160,12 @@ func (s *Service) CreateKubernetesWaitingContainer(ctx context.Context, req *kub
 		return nil, trace.AccessDenied("unauthorized to create Kubernetes waiting container resources")
 	}
 
-	in, err := convert.FromProto(req.WaitingContainer)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := s.backend.CreateKubernetesWaitingContainer(ctx, in)
+	out, err := s.backend.CreateKubernetesWaitingContainer(ctx, req.WaitingContainer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return convert.ToProto(out), nil
+	return out, nil
 }
 
 // DeleteKubernetesWaitingContainer deletes a Kubernetes ephemeral
@@ -190,10 +182,10 @@ func (s *Service) DeleteKubernetesWaitingContainer(ctx context.Context, req *kub
 		return nil, trace.BadParameter("missing namespace")
 	}
 	if req.PodName == "" {
-		return nil, trace.BadParameter("missing podName")
+		return nil, trace.BadParameter("missing pod name")
 	}
 	if req.ContainerName == "" {
-		return nil, trace.BadParameter("missing contName")
+		return nil, trace.BadParameter("missing container name")
 	}
 
 	authCtx, err := s.authorizer.Authorize(ctx)

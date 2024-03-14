@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -3342,10 +3343,10 @@ func newAccessListReview(t *testing.T, accessList, name string) *accesslist.Revi
 	return review
 }
 
-func newKubeWaitingContainer(t *testing.T) *kubewaitingcontainer.KubeWaitingContainer {
+func newKubeWaitingContainer(t *testing.T) types.Resource {
 	t.Helper()
 
-	waitingCont, err := kubewaitingcontainer.NewKubeWaitingContainer(header.Metadata{}, kubewaitingcontainer.KubeWaitingContainerSpec{
+	waitingCont, err := kubewaitingcontainer.NewKubeWaitingContainer("name", &kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
 		Username:      "user",
 		Cluster:       "cluster",
 		Namespace:     "namespace",
@@ -3355,7 +3356,7 @@ func newKubeWaitingContainer(t *testing.T) *kubewaitingcontainer.KubeWaitingCont
 	})
 	require.NoError(t, err)
 
-	return waitingCont
+	return types.Resource153ToLegacy(waitingCont)
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {

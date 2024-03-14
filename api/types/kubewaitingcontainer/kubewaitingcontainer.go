@@ -20,51 +20,23 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/header"
-	"github.com/gravitational/teleport/api/types/header/convert/legacy"
 )
-
-// KubeWaitingContainer is a Kubernetes ephemeral
-// container that are waiting to be created until moderated
-// session conditions are met.
-type KubeWaitingContainer struct {
-	header.ResourceHeader
-
-	// Spec is the resource specification.
-	Spec KubeWaitingContainerSpec `json:"spec" yaml:"spec"`
-}
-
-// KubeWaitingContainerSpec is the specification for KubeWaitingContainers.
-type KubeWaitingContainerSpec struct {
-	// Username is the Teleport user that attempted to create the container
-	Username string `json:"username" yaml:"username"`
-	// Cluster is the Kubernetes cluster of the container
-	Cluster string `json:"cluster" yaml:"cluster"`
-	// Namespace is the Kubernetes namespace of the container
-	Namespace string `json:"namespace" yaml:"namespace"`
-	// PodName is the parent pod of the container
-	PodName string `json:"pod_name" yaml:"pod_name"`
-	// ContainerName is the name of the container
-	ContainerName string `json:"container_name" yaml:"container_name"`
-	// Patch is the patch that should be applied to the parent pod
-	// to create this ephemeral container
-	Patch []byte `json:"patch" yaml:"patch"`
-}
 
 // NewKubeWaitingContainer creates a new Kubernetes ephemeral
 // container that are waiting to be created until moderated
 // session conditions are met.
-func NewKubeWaitingContainer(name string, spec KubeWaitingContainerSpec) (*KubeWaitingContainer, error) {
-	waitingCont := &KubeWaitingContainer{
-		ResourceHeader: header.ResourceHeader{
-			Kind:    types.KindKubeWaitingContainer,
-			Version: types.V1,
-			Metadata: header.Metadata{
-				Name:    name,
-				Expires: time.Now().Add(time.Hour),
-			},
+func NewKubeWaitingContainer(name string, spec *kubewaitingcontainerv1.KubernetesWaitingContainerSpec) (*kubewaitingcontainerv1.KubernetesWaitingContainer, error) {
+	waitingCont := &kubewaitingcontainerv1.KubernetesWaitingContainer{
+		Kind:    types.KindKubeWaitingContainer,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name:    name,
+			Expires: timestamppb.New(time.Now().Add(time.Hour)),
 		},
 		Spec: spec,
 	}
@@ -77,7 +49,7 @@ func NewKubeWaitingContainer(name string, spec KubeWaitingContainerSpec) (*KubeW
 
 // ValidateKubeWaitingContainer checks that required parameters are set
 // for the specified KubeWaitingContainer
-func ValidateKubeWaitingContainer(k *KubeWaitingContainer) error {
+func ValidateKubeWaitingContainer(k *kubewaitingcontainerv1.KubernetesWaitingContainer) error {
 	if k.Spec.Username == "" {
 		return trace.BadParameter("Username is unset")
 	}
@@ -107,13 +79,9 @@ func ValidateKubeWaitingContainer(k *KubeWaitingContainer) error {
 	return nil
 }
 
-// GetMetadata returns metadata. This is specifically for conforming to the Resource interface,
-// and should be removed when possible.
-func (k *KubeWaitingContainer) GetMetadata() types.Metadata {
-	return legacy.FromHeaderMetadata(k.Metadata)
-}
-
-func (k *KubeWaitingContainer) GetParts() []string {
+// KubeWaitingContainerParts returns the strings that are used to build
+// the path for this resource in the backend.
+func KubeWaitingContainerParts(k *kubewaitingcontainerv1.KubernetesWaitingContainer) []string {
 	return []string{
 		k.Spec.Username,
 		k.Spec.Cluster,

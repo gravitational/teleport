@@ -29,10 +29,10 @@ import (
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
-	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/services"
@@ -56,7 +56,7 @@ type collection interface {
 
 // executor[T, R] is a specific way to run the collector operations that we need
 // for the genericCollector for a generic resource type T and its reader type R.
-type executor[T types.Resource, R any] interface {
+type executor[T any, R any] interface {
 	// getAll returns all of the target resources from the auth server.
 	// For singleton objects, this should be a size-1 slice.
 	getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]T, error)
@@ -86,7 +86,7 @@ type noReader struct{}
 // genericCollection is a generic collection implementation for resource type T with collection-specific logic
 // encapsulated in executor type E. Type R provides getter methods related to the collection, e.g. GetNodes(),
 // GetRoles().
-type genericCollection[T types.Resource, R any, E executor[T, R]] struct {
+type genericCollection[T any, R any, E executor[T, R]] struct {
 	cache *Cache
 	watch types.WatchKind
 	exec  E
@@ -662,7 +662,7 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections.kubeWaitingContainers = &genericCollection[*kubewaitingcontainer.KubeWaitingContainer, kubernetesWaitingContainerGetter, kubeWaitingContainerExecutor]{
+			collections.kubeWaitingContainers = &genericCollection[*kubewaitingcontainerpb.KubernetesWaitingContainer, kubernetesWaitingContainerGetter, kubeWaitingContainerExecutor]{
 				cache: c,
 				watch: watch,
 			}
@@ -2095,15 +2095,28 @@ type kubernetesClusterGetter interface {
 
 type kubeWaitingContainerExecutor struct{}
 
-func (kubeWaitingContainerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*kubewaitingcontainer.KubeWaitingContainer, error) {
-	conts, err := cache.kubeWaitingContsCache.GetKubernetesWaitingContainers(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (kubeWaitingContainerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+	var (
+		startKey string
+		allConts []*kubewaitingcontainerpb.KubernetesWaitingContainer
+	)
+	for {
+		conts, nextKey, err := cache.kubeWaitingContsCache.ListKubernetesWaitingContainers(ctx, 0, startKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		allConts = append(allConts, conts...)
+
+		if nextKey == "" {
+			break
+		}
+		startKey = nextKey
 	}
-	return conts, nil
+	return allConts, nil
 }
 
-func (kubeWaitingContainerExecutor) upsert(ctx context.Context, cache *Cache, resource *kubewaitingcontainer.KubeWaitingContainer) error {
+func (kubeWaitingContainerExecutor) upsert(ctx context.Context, cache *Cache, resource *kubewaitingcontainerpb.KubernetesWaitingContainer) error {
 	_, err := cache.kubeWaitingContsCache.UpsertKubernetesWaitingContainer(ctx, resource)
 	return trace.Wrap(err)
 }
@@ -2113,9 +2126,9 @@ func (kubeWaitingContainerExecutor) deleteAll(ctx context.Context, cache *Cache)
 }
 
 func (kubeWaitingContainerExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	wc, ok := resource.(*kubewaitingcontainer.KubeWaitingContainer)
+	wc, ok := types.UnwrapResource153(resource).(*kubewaitingcontainerpb.KubernetesWaitingContainer)
 	if !ok {
-		return trace.BadParameter("unknown KubeWaitingContainer type, expected *kubewaitingcontainer.KubeWaitingContainer, got %T", resource)
+		return trace.BadParameter("unknown KubeWaitingContainer type, expected *kubewaitingcontainerpb.KubernetesWaitingContainer, got %T", resource)
 	}
 	err := cache.kubeWaitingContsCache.DeleteKubernetesWaitingContainer(ctx, kubewaitingcontainerclient.KubeWaitingContainerRequest{
 		Username:      wc.Spec.Username,
@@ -2137,11 +2150,11 @@ func (kubeWaitingContainerExecutor) getReader(cache *Cache, cacheOK bool) kubern
 }
 
 type kubernetesWaitingContainerGetter interface {
-	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainer.KubeWaitingContainer, string, error)
-	GetKubernetesWaitingContainer(ctx context.Context, req kubewaitingcontainerclient.KubeWaitingContainerRequest) (*kubewaitingcontainer.KubeWaitingContainer, error)
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+	GetKubernetesWaitingContainer(ctx context.Context, req kubewaitingcontainerclient.KubeWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
 }
 
-var _ executor[*kubewaitingcontainer.KubeWaitingContainer, kubernetesWaitingContainerGetter] = kubeWaitingContainerExecutor{}
+var _ executor[*kubewaitingcontainerpb.KubernetesWaitingContainer, kubernetesWaitingContainerGetter] = kubeWaitingContainerExecutor{}
 
 //nolint:revive // Because we want this to be IdP.
 type samlIdPServiceProvidersExecutor struct{}

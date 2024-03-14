@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/backend"
@@ -38,19 +39,19 @@ const (
 // KubeWaitingContainerService manages Kubernetes ephemeral containers
 // that are waiting to be created until moderated session conditions are met.
 type KubeWaitingContainerService struct {
-	svc *generic.Service[*kubewaitingcontainer.KubeWaitingContainer]
+	svc *generic.ServiceWrapper[*kubewaitingcontainerpb.KubernetesWaitingContainer]
 }
 
 // NewKubeWaitingContainerService returns a new Kubernetes waiting
 // container service.
 func NewKubeWaitingContainerService(backend backend.Backend) (*KubeWaitingContainerService, error) {
-	svc, err := generic.NewService(&generic.ServiceConfig[*kubewaitingcontainer.KubeWaitingContainer]{
-		Backend:       backend,
-		ResourceKind:  types.KindKubeWaitingContainer,
-		BackendPrefix: kubeWaitingContPrefix,
-		MarshalFunc:   services.MarshalKubeWaitingContainer,
-		UnmarshalFunc: services.UnmarshalKubeWaitingContainer,
-	})
+	svc, err := generic.NewServiceWrapper(
+		backend,
+		types.KindKubeWaitingContainer,
+		kubeWaitingContPrefix,
+		services.MarshalKubeWaitingContainer,
+		services.UnmarshalKubeWaitingContainer,
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -63,7 +64,7 @@ func NewKubeWaitingContainerService(backend backend.Backend) (*KubeWaitingContai
 // ListKubernetesWaitingContainers lists Kubernetes ephemeral
 // containers that are waiting to be created until moderated
 // session conditions are met.
-func (k *KubeWaitingContainerService) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainer.KubeWaitingContainer, string, error) {
+func (k *KubeWaitingContainerService) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
 	out, nextToken, err := k.svc.ListResources(ctx, pageSize, pageToken)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -72,22 +73,10 @@ func (k *KubeWaitingContainerService) ListKubernetesWaitingContainers(ctx contex
 	return out, nextToken, nil
 }
 
-// GetKubernetesWaitingContainers returns all Kubernetes ephemeral
-// containers that are waiting to be created until moderated
-// session conditions are met.
-func (k *KubeWaitingContainerService) GetKubernetesWaitingContainers(ctx context.Context) ([]*kubewaitingcontainer.KubeWaitingContainer, error) {
-	out, err := k.svc.GetResources(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return out, nil
-}
-
 // GetKubernetesWaitingContainer returns a Kubernetes ephemeral
 // container that are waiting to be created until moderated
 // session conditions are met.
-func (k *KubeWaitingContainerService) GetKubernetesWaitingContainer(ctx context.Context, req kubewaitingcontainerclient.KubeWaitingContainerRequest) (*kubewaitingcontainer.KubeWaitingContainer, error) {
+func (k *KubeWaitingContainerService) GetKubernetesWaitingContainer(ctx context.Context, req kubewaitingcontainerclient.KubeWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
 	out, err := k.svc.WithPrefix(req.Username, req.Cluster, req.Namespace, req.PodName).GetResource(ctx, req.ContainerName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -99,8 +88,8 @@ func (k *KubeWaitingContainerService) GetKubernetesWaitingContainer(ctx context.
 // CreateKubernetesWaitingContainer creates a Kubernetes ephemeral
 // container that are waiting to be created until moderated
 // session conditions are met.
-func (k *KubeWaitingContainerService) CreateKubernetesWaitingContainer(ctx context.Context, in *kubewaitingcontainer.KubeWaitingContainer) (*kubewaitingcontainer.KubeWaitingContainer, error) {
-	out, err := k.svc.WithPrefix(in.GetParts()...).CreateResource(ctx, in)
+func (k *KubeWaitingContainerService) CreateKubernetesWaitingContainer(ctx context.Context, in *kubewaitingcontainerpb.KubernetesWaitingContainer) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+	out, err := k.svc.WithPrefix(kubewaitingcontainer.KubeWaitingContainerParts(in)...).CreateResource(ctx, in)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -111,8 +100,8 @@ func (k *KubeWaitingContainerService) CreateKubernetesWaitingContainer(ctx conte
 // UpsertKubernetesWaitingContainer upserts a Kubernetes ephemeral
 // container that are waiting to be created until moderated
 // session conditions are met.
-func (k *KubeWaitingContainerService) UpsertKubernetesWaitingContainer(ctx context.Context, in *kubewaitingcontainer.KubeWaitingContainer) (*kubewaitingcontainer.KubeWaitingContainer, error) {
-	out, err := k.svc.WithPrefix(in.GetParts()...).UpsertResource(ctx, in)
+func (k *KubeWaitingContainerService) UpsertKubernetesWaitingContainer(ctx context.Context, in *kubewaitingcontainerpb.KubernetesWaitingContainer) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+	out, err := k.svc.WithPrefix(kubewaitingcontainer.KubeWaitingContainerParts(in)...).UpsertResource(ctx, in)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
