@@ -100,6 +100,14 @@ Because it was assumed that the Teleport updater would be stable, the Teleport u
 
 Issue: For such a critical piece of the Teleport architecture, it seems like an insufficient amount of test coverage. Developers are uncomfortable making changes to the Teleport updater.
 
+### Self-Hosted Support
+The automatic updates feature has been pushed for Teleport Cloud clusters, but not for self-hosted clusters. This has lead development of special execution paths in the Teleport codebase just for Teleport Cloud. These paths are typically not test as extensively, and are expensive to maintain.
+
+Issue: This has lead to some incidents where changes made specifically for Teleport Cloud were merged but contained a bug in a specific edge case. The edge case was not thoroughly tested and the bug was deployed.
+
+### Integrations
+The automatic updates feature does not support Teleport integrations. The Teleport Operator was introduced in Teleport 15 and is already being used for self-hosted plugins. As adoption increases, users may face the same issues with keeping their integrations updated.
+
 ## Change proposals
 These proposals contain minimal implementation details. If the proposals are approved, an execution plan will be written up for each item with more implementation details.
 
