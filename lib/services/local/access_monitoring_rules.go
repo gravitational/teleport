@@ -34,7 +34,6 @@ const (
 	accessMonitoringRulesPrefix = "access_monitoring_rule"
 )
 
-var _ services.AccessMonitoringRules = (*AccessMonitoringRulesService)(nil)
 
 // AccessMonitoringRulesService manages AccessMonitoringRules in the Backend.
 type AccessMonitoringRulesService struct {
