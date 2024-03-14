@@ -264,9 +264,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		Config: cfg,
 	}
 
-	awsConfig := aws.Config{
-		EC2MetadataEnableFallback: aws.Bool(false),
-	}
+	awsConfig := aws.Config{}
 
 	// Override the default environment's region if value set in YAML file:
 	if cfg.Region != "" {
