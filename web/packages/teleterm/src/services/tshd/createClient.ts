@@ -31,12 +31,7 @@ import {
   resourceOneOfIsServer,
 } from 'teleterm/helpers';
 
-import {
-  CloneableAbortSignal,
-  cloneUnaryCall,
-  cloneDuplexStreamingCall,
-  cloneServerStreamingCall,
-} from './cloneableClient';
+import { CloneableAbortSignal, cloneClient } from './cloneableClient';
 import * as types from './types';
 import {
   UpdateHeadlessAuthenticationStateParams,
@@ -54,7 +49,7 @@ export function createTshdClient(
     channelCredentials: credentials,
     interceptors: [loggingInterceptor(logger)],
   });
-  const tshd = new TerminalServiceClient(transport);
+  const tshd = cloneClient(new TerminalServiceClient(transport));
 
   // Create a client instance that could be shared with the  renderer (UI) via Electron contextBridge
   const client = {
@@ -71,8 +66,7 @@ export function createTshdClient(
       startKey,
       limit,
     }: types.GetResourcesParams) {
-      const getKubes = cloneUnaryCall(tshd.getKubes.bind(tshd));
-      const { response } = await getKubes({
+      const { response } = await tshd.getKubes({
         clusterUri,
         searchAsRoles,
         startKey,
@@ -94,8 +88,7 @@ export function createTshdClient(
       startKey,
       limit,
     }: types.GetResourcesParams) {
-      const getApps = cloneUnaryCall(tshd.getApps.bind(tshd));
-      const { response } = await getApps({
+      const { response } = await tshd.getApps({
         clusterUri,
         searchAsRoles,
         startKey,
@@ -109,22 +102,19 @@ export function createTshdClient(
     },
 
     async listGateways() {
-      const listGateways = cloneUnaryCall(tshd.listGateways.bind(tshd));
-      const { response } = await listGateways({});
+      const { response } = await tshd.listGateways({});
 
       return response.gateways as types.Gateway[];
     },
 
     async listLeafClusters(clusterUri: uri.RootClusterUri) {
-      const listLeafClusters = cloneUnaryCall(tshd.listLeafClusters.bind(tshd));
-      const { response } = await listLeafClusters({ clusterUri });
+      const { response } = await tshd.listLeafClusters({ clusterUri });
 
       return response.clusters as types.Cluster[];
     },
 
     async listRootClusters(abortSignal?: CloneableAbortSignal) {
-      const listRootClusters = cloneUnaryCall(tshd.listRootClusters.bind(tshd));
-      const { response } = await listRootClusters(
+      const { response } = await tshd.listRootClusters(
         {},
         {
           abort: abortSignal,
@@ -143,8 +133,7 @@ export function createTshdClient(
       startKey,
       limit,
     }: types.GetResourcesParams) {
-      const getDatabases = cloneUnaryCall(tshd.getDatabases.bind(tshd));
-      const { response } = await getDatabases({
+      const { response } = await tshd.getDatabases({
         clusterUri,
         searchAsRoles,
         startKey,
@@ -158,17 +147,13 @@ export function createTshdClient(
     },
 
     async listDatabaseUsers(dbUri: uri.DatabaseUri) {
-      const listDatabaseUsers = cloneUnaryCall(
-        tshd.listDatabaseUsers.bind(tshd)
-      );
-      const { response } = await listDatabaseUsers({ dbUri });
+      const { response } = await tshd.listDatabaseUsers({ dbUri });
 
       return response.users;
     },
 
     async getAccessRequest(clusterUri: uri.RootClusterUri, requestId: string) {
-      const getAccessRequest = cloneUnaryCall(tshd.getAccessRequest.bind(tshd));
-      const { response } = await getAccessRequest({
+      const { response } = await tshd.getAccessRequest({
         clusterUri,
         accessRequestId: requestId,
       });
@@ -177,10 +162,7 @@ export function createTshdClient(
     },
 
     async getAccessRequests(clusterUri: uri.RootClusterUri) {
-      const getAccessRequests = cloneUnaryCall(
-        tshd.getAccessRequests.bind(tshd)
-      );
-      const { response } = await getAccessRequests({ clusterUri });
+      const { response } = await tshd.getAccessRequests({ clusterUri });
 
       return response.requests;
     },
@@ -194,8 +176,7 @@ export function createTshdClient(
       startKey,
       limit,
     }: types.GetResourcesParams) {
-      const getServers = cloneUnaryCall(tshd.getServers.bind(tshd));
-      const { response } = await getServers({
+      const { response } = await tshd.getServers({
         clusterUri,
         searchAsRoles,
         startKey,
@@ -208,10 +189,7 @@ export function createTshdClient(
     },
 
     async createAccessRequest(params: types.CreateAccessRequestParams) {
-      const createAccessRequest = cloneUnaryCall(
-        tshd.createAccessRequest.bind(tshd)
-      );
-      const { response } = await createAccessRequest({
+      const { response } = await tshd.createAccessRequest({
         rootClusterUri: params.rootClusterUri,
         suggestedReviewers: params.suggestedReviewers,
         roles: params.roles,
@@ -231,10 +209,7 @@ export function createTshdClient(
       clusterUri: uri.RootClusterUri,
       requestId: string
     ) {
-      const deleteAccessRequest = cloneUnaryCall(
-        tshd.deleteAccessRequest.bind(tshd)
-      );
-      await deleteAccessRequest({
+      await tshd.deleteAccessRequest({
         rootClusterUri: clusterUri,
         accessRequestId: requestId,
       });
@@ -245,8 +220,7 @@ export function createTshdClient(
       requestIds: string[],
       dropIds: string[]
     ) {
-      const assumeRole = cloneUnaryCall(tshd.assumeRole.bind(tshd));
-      await assumeRole({
+      await tshd.assumeRole({
         rootClusterUri: clusterUri,
         accessRequestIds: requestIds,
         dropRequestIds: dropIds,
@@ -257,10 +231,7 @@ export function createTshdClient(
       clusterUri: uri.RootClusterUri,
       params: types.ReviewAccessRequestParams
     ) {
-      const reviewAccessRequest = cloneUnaryCall(
-        tshd.reviewAccessRequest.bind(tshd)
-      );
-      const { response } = await reviewAccessRequest({
+      const { response } = await tshd.reviewAccessRequest({
         rootClusterUri: clusterUri,
         accessRequestId: params.id,
         state: params.state,
@@ -272,10 +243,7 @@ export function createTshdClient(
     },
 
     async getRequestableRoles(params: types.GetRequestableRolesParams) {
-      const getRequestableRoles = cloneUnaryCall(
-        tshd.getRequestableRoles.bind(tshd)
-      );
-      const { response } = await getRequestableRoles({
+      const { response } = await tshd.getRequestableRoles({
         clusterUri: params.rootClusterUri,
         resourceIds: params.resourceIds!.map(({ id, clusterName, kind }) => ({
           name: id,
@@ -289,14 +257,12 @@ export function createTshdClient(
     },
 
     async addRootCluster(addr: string) {
-      const addCluster = cloneUnaryCall(tshd.addCluster.bind(tshd));
-      const { response } = await addCluster({ name: addr });
+      const { response } = await tshd.addCluster({ name: addr });
       return response as types.Cluster;
     },
 
     async getCluster(uri: uri.RootClusterUri) {
-      const getCluster = cloneUnaryCall(tshd.getCluster.bind(tshd));
-      const { response } = await getCluster({ clusterUri: uri });
+      const { response } = await tshd.getCluster({ clusterUri: uri });
       return response as types.Cluster;
     },
 
@@ -304,8 +270,7 @@ export function createTshdClient(
       params: types.LoginLocalParams,
       abortSignal?: CloneableAbortSignal
     ) {
-      const login = cloneUnaryCall(tshd.login.bind(tshd));
-      await login(
+      await tshd.login(
         {
           clusterUri: params.clusterUri,
           params: {
@@ -327,8 +292,7 @@ export function createTshdClient(
       params: types.LoginSsoParams,
       abortSignal?: CloneableAbortSignal
     ) {
-      const login = cloneUnaryCall(tshd.login.bind(tshd));
-      await login(
+      await tshd.login(
         {
           clusterUri: params.clusterUri,
           params: {
@@ -347,11 +311,8 @@ export function createTshdClient(
       params: types.LoginPasswordlessParams,
       abortSignal?: CloneableAbortSignal
     ) {
-      const loginPasswordless = cloneDuplexStreamingCall(
-        tshd.loginPasswordless.bind(tshd)
-      );
       return new Promise<void>((resolve, reject) => {
-        const stream = loginPasswordless({
+        const stream = tshd.loginPasswordless({
           abort: abortSignal,
         });
 
@@ -437,14 +398,12 @@ export function createTshdClient(
     },
 
     async getAuthSettings(clusterUri: uri.RootClusterUri) {
-      const getAuthSettings = cloneUnaryCall(tshd.getAuthSettings.bind(tshd));
-      const { response } = await getAuthSettings({ clusterUri });
+      const { response } = await tshd.getAuthSettings({ clusterUri });
       return response;
     },
 
     async createGateway(params: types.CreateGatewayParams) {
-      const createGateway = cloneUnaryCall(tshd.createGateway.bind(tshd));
-      const { response } = await createGateway({
+      const { response } = await tshd.createGateway({
         targetUri: params.targetUri,
         targetUser: params.user,
         localPort: params.port,
@@ -455,23 +414,18 @@ export function createTshdClient(
     },
 
     async removeCluster(clusterUri: uri.RootClusterUri) {
-      const removeCluster = cloneUnaryCall(tshd.removeCluster.bind(tshd));
-      await removeCluster({ clusterUri });
+      await tshd.removeCluster({ clusterUri });
     },
 
     async removeGateway(gatewayUri: uri.GatewayUri) {
-      const removeGateway = cloneUnaryCall(tshd.removeGateway.bind(tshd));
-      await removeGateway({ gatewayUri });
+      await tshd.removeGateway({ gatewayUri });
     },
 
     async setGatewayTargetSubresourceName(
       gatewayUri: uri.GatewayUri,
       targetSubresourceName = ''
     ) {
-      const setGatewayTargetSubresourceName = cloneUnaryCall(
-        tshd.setGatewayTargetSubresourceName.bind(tshd)
-      );
-      const { response } = await setGatewayTargetSubresourceName({
+      const { response } = await tshd.setGatewayTargetSubresourceName({
         gatewayUri,
         targetSubresourceName,
       });
@@ -480,10 +434,7 @@ export function createTshdClient(
     },
 
     async setGatewayLocalPort(gatewayUri: uri.GatewayUri, localPort: string) {
-      const setGatewayLocalPort = cloneUnaryCall(
-        tshd.setGatewayLocalPort.bind(tshd)
-      );
-      const { response } = await setGatewayLocalPort({
+      const { response } = await tshd.setGatewayLocalPort({
         gatewayUri,
         localPort,
       });
@@ -495,11 +446,7 @@ export function createTshdClient(
       req: types.FileTransferRequest,
       abortSignal: CloneableAbortSignal
     ) {
-      const transferFile = cloneServerStreamingCall(
-        tshd.transferFile.bind(tshd)
-      );
-
-      const stream = transferFile(req, {
+      const stream = tshd.transferFile(req, {
         abort: abortSignal,
       });
 
@@ -513,19 +460,13 @@ export function createTshdClient(
     },
 
     async updateTshdEventsServerAddress(address: string) {
-      const updateTshdEventsServerAddress = cloneUnaryCall(
-        tshd.updateTshdEventsServerAddress.bind(tshd)
-      );
-      await updateTshdEventsServerAddress({ address });
+      await tshd.updateTshdEventsServerAddress({ address });
     },
 
-    reportUsageEvent: cloneUnaryCall(tshd.reportUsageEvent.bind(tshd)),
+    reportUsageEvent: tshd.reportUsageEvent,
 
     async createConnectMyComputerRole(rootClusterUri: uri.RootClusterUri) {
-      const createConnectMyComputerRole = cloneUnaryCall(
-        tshd.createConnectMyComputerRole.bind(tshd)
-      );
-      const { response } = await createConnectMyComputerRole({
+      const { response } = await tshd.createConnectMyComputerRole({
         rootClusterUri,
       });
 
@@ -533,10 +474,7 @@ export function createTshdClient(
     },
 
     async createConnectMyComputerNodeToken(uri: uri.RootClusterUri) {
-      const createConnectMyComputerNodeToken = cloneUnaryCall(
-        tshd.createConnectMyComputerNodeToken.bind(tshd)
-      );
-      const { response } = await createConnectMyComputerNodeToken({
+      const { response } = await tshd.createConnectMyComputerNodeToken({
         rootClusterUri: uri,
       });
 
@@ -547,10 +485,7 @@ export function createTshdClient(
       uri: uri.RootClusterUri,
       abortSignal: CloneableAbortSignal
     ) {
-      const waitForConnectMyComputerNodeJoin = cloneUnaryCall(
-        tshd.waitForConnectMyComputerNodeJoin.bind(tshd)
-      );
-      const { response } = await waitForConnectMyComputerNodeJoin(
+      const { response } = await tshd.waitForConnectMyComputerNodeJoin(
         {
           rootClusterUri: uri,
         },
@@ -563,19 +498,13 @@ export function createTshdClient(
     },
 
     async deleteConnectMyComputerNode(uri: uri.RootClusterUri) {
-      const deleteConnectMyComputerNode = cloneUnaryCall(
-        tshd.deleteConnectMyComputerNode.bind(tshd)
-      );
-      await deleteConnectMyComputerNode({
+      await tshd.deleteConnectMyComputerNode({
         rootClusterUri: uri,
       });
     },
 
     async getConnectMyComputerNodeName(uri: uri.RootClusterUri) {
-      const getConnectMyComputerNodeName = cloneUnaryCall(
-        tshd.getConnectMyComputerNodeName.bind(tshd)
-      );
-      const { response } = await getConnectMyComputerNodeName({
+      const { response } = await tshd.getConnectMyComputerNodeName({
         rootClusterUri: uri,
       });
 
@@ -586,10 +515,7 @@ export function createTshdClient(
       params: UpdateHeadlessAuthenticationStateParams,
       abortSignal?: CloneableAbortSignal
     ) {
-      const updateHeadlessAuthenticationState = cloneUnaryCall(
-        tshd.updateHeadlessAuthenticationState.bind(tshd)
-      );
-      await updateHeadlessAuthenticationState(params, {
+      await tshd.updateHeadlessAuthenticationState(params, {
         abort: abortSignal,
       });
     },
@@ -598,10 +524,7 @@ export function createTshdClient(
       params: types.ListUnifiedResourcesRequest,
       abortSignal?: CloneableAbortSignal
     ) {
-      const listUnifiedResources = cloneUnaryCall(
-        tshd.listUnifiedResources.bind(tshd)
-      );
-      const { response } = await listUnifiedResources(
+      const { response } = await tshd.listUnifiedResources(
         {
           clusterUri: params.clusterUri,
           limit: params.limit,
@@ -658,10 +581,7 @@ export function createTshdClient(
       params: api.GetUserPreferencesRequest,
       abortSignal?: CloneableAbortSignal
     ): Promise<api.UserPreferences> {
-      const getUserPreferences = cloneUnaryCall(
-        tshd.getUserPreferences.bind(tshd)
-      );
-      const { response } = await getUserPreferences(params, {
+      const { response } = await tshd.getUserPreferences(params, {
         abort: abortSignal,
       });
 
@@ -671,9 +591,6 @@ export function createTshdClient(
       params: api.UpdateUserPreferencesRequest,
       abortSignal?: CloneableAbortSignal
     ): Promise<api.UserPreferences> {
-      const updateUserPreferences = cloneUnaryCall(
-        tshd.updateUserPreferences.bind(tshd)
-      );
       const userPreferences: api.UserPreferences = {};
       if (params.userPreferences.clusterPreferences) {
         userPreferences.clusterPreferences = {
@@ -695,7 +612,7 @@ export function createTshdClient(
         };
       }
 
-      const { response } = await updateUserPreferences(
+      const { response } = await tshd.updateUserPreferences(
         {
           clusterUri: params.clusterUri,
           userPreferences,
@@ -711,10 +628,7 @@ export function createTshdClient(
       params: api.PromoteAccessRequestRequest,
       abortSignal?: CloneableAbortSignal
     ): Promise<types.AccessRequest> {
-      const promoteAccessRequest = cloneUnaryCall(
-        tshd.promoteAccessRequest.bind(tshd)
-      );
-      const { response } = await promoteAccessRequest(params, {
+      const { response } = await tshd.promoteAccessRequest(params, {
         abort: abortSignal,
       });
       return response.request;
@@ -724,10 +638,7 @@ export function createTshdClient(
       params: api.GetSuggestedAccessListsRequest,
       abortSignal?: CloneableAbortSignal
     ): Promise<types.AccessList[]> {
-      const getSuggestedAccessLists = cloneUnaryCall(
-        tshd.getSuggestedAccessLists.bind(tshd)
-      );
-      const { response } = await getSuggestedAccessLists(params, {
+      const { response } = await tshd.getSuggestedAccessLists(params, {
         abort: abortSignal,
       });
 
