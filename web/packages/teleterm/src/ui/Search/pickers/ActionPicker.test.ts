@@ -18,7 +18,10 @@
 
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import {
+  makeRootCluster,
+  makeRetryableError,
+} from 'teleterm/services/tshd/testHelpers';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 
 import { getActionPickerStatus } from './ActionPicker';
@@ -29,7 +32,7 @@ describe('getActionPickerStatus', () => {
       const retryableError = new ResourceSearchError(
         '/clusters/foo',
         'server',
-        new Error('ssh: cert has expired')
+        makeRetryableError()
       );
 
       const nonRetryableError = new ResourceSearchError(
@@ -66,7 +69,7 @@ describe('getActionPickerStatus', () => {
       const retryableError = new ResourceSearchError(
         '/clusters/foo',
         'server',
-        new Error('ssh: cert has expired')
+        makeRetryableError()
       );
 
       const status = getActionPickerStatus({
@@ -95,18 +98,14 @@ describe('getActionPickerStatus', () => {
         new ResourceSearchError(
           '/clusters/foo',
           'server',
-          new Error('ssh: cert has expired')
+          makeRetryableError()
         ),
         new ResourceSearchError(
           '/clusters/foo',
           'database',
-          new Error('ssh: cert has expired')
+          makeRetryableError()
         ),
-        new ResourceSearchError(
-          '/clusters/foo',
-          'kube',
-          new Error('ssh: cert has expired')
-        ),
+        new ResourceSearchError('/clusters/foo', 'kube', makeRetryableError()),
       ];
       const status = getActionPickerStatus({
         inputValue: 'foo',
@@ -194,7 +193,7 @@ describe('getActionPickerStatus', () => {
         new ResourceSearchError(
           '/clusters/foo',
           'server',
-          new Error('ssh: cert has expired')
+          makeRetryableError()
         ),
         nonRetryableError,
       ];

@@ -28,16 +28,11 @@ import {
   ServerStreamingCall,
   DuplexStreamingCall,
   RpcOutputStream,
+  ServiceInfo,
+  MethodInfo,
 } from '@protobuf-ts/runtime-rpc';
 
-import {
-  cloneAbortSignal,
-  cloneUnaryCall,
-  TshdRpcError,
-  cloneClientStreamingCall,
-  cloneServerStreamingCall,
-  cloneDuplexStreamingCall,
-} from './cloneableClient';
+import { cloneAbortSignal, TshdRpcError, cloneClient } from './cloneableClient';
 
 function getRpcError() {
   return new RpcError('You do not have permission.', 'ACCESS_DENIED');
@@ -51,6 +46,31 @@ const tshdRpcErrorObjectMatcher: TshdRpcError = expect.objectContaining({
   stack: expect.stringContaining('You do not have permission.'),
   cause: undefined,
 });
+
+class MockServiceMethod<T extends (...args: any[]) => any>
+  implements ServiceInfo
+{
+  public methods: MethodInfo[];
+  public options = {};
+  public typeName = '';
+
+  constructor(
+    methodInfo: Pick<MethodInfo, 'clientStreaming' | 'serverStreaming'>,
+    private implementation: T
+  ) {
+    this.methods = [
+      {
+        localName: 'fakeMethod',
+        serverStreaming: methodInfo.serverStreaming,
+        clientStreaming: methodInfo.clientStreaming,
+      } as MethodInfo,
+    ];
+  }
+
+  fakeMethod(...args: Parameters<T>): ReturnType<T> {
+    return this.implementation(...args);
+  }
+}
 
 test('cloneable abort signal reads up-to-date signal.aborted and signal.reason', () => {
   const controller = new AbortController();
@@ -67,13 +87,21 @@ test('response error is cloned as an object for a unary call', async () => {
   const fakeCall: () => UnaryCall = jest.fn().mockImplementation(() => ({
     then: () => Promise.reject(getRpcError()),
   }));
+  const client = cloneClient(
+    new MockServiceMethod(
+      {
+        clientStreaming: false,
+        serverStreaming: false,
+      },
+      fakeCall
+    )
+  );
 
   let error: unknown;
   try {
-    const cloned = cloneUnaryCall(fakeCall);
     // Normally we would simply await `cloned({})`, but jest doesn't support
     // thenables https://github.com/jestjs/jest/issues/10501.
-    await cloned({}).then();
+    await client.fakeMethod().then();
   } catch (e) {
     error = e;
   }
@@ -94,8 +122,16 @@ test('response error is cloned as an object in a client streaming call', async (
       },
       then: () => Promise.reject(getRpcError()),
     }));
-  const cloned = cloneClientStreamingCall(fakeCall);
-  const res = cloned({});
+  const client = cloneClient(
+    new MockServiceMethod(
+      {
+        clientStreaming: true,
+        serverStreaming: false,
+      },
+      fakeCall
+    )
+  );
+  const res = client.fakeMethod();
   await res.requests.send({ value: 'test' });
   expect(send).toHaveBeenLastCalledWith({ value: 'test' });
   await res.requests.complete();
@@ -103,7 +139,7 @@ test('response error is cloned as an object in a client streaming call', async (
 
   let error: unknown;
   try {
-    await cloned({}).then();
+    await res.then();
   } catch (e) {
     error = e;
   }
@@ -130,8 +166,16 @@ test('response error is cloned as an object in a server streaming call', async (
       } as Pick<RpcOutputStream, 'onNext' | 'onError'>,
       then: rejectedPromise,
     }));
-  const cloned = cloneServerStreamingCall(fakeCall);
-  const res = cloned({});
+  const client = cloneClient(
+    new MockServiceMethod(
+      {
+        clientStreaming: false,
+        serverStreaming: true,
+      },
+      fakeCall
+    )
+  );
+  const res = client.fakeMethod();
   const onNext = jest.fn();
   const onError = jest.fn();
   res.responses.onNext(onNext);
@@ -174,8 +218,16 @@ test('response error is cloned as an object in a duplex call', async () => {
       } as Pick<RpcOutputStream, 'onNext' | 'onError'>,
       then: rejectedPromise,
     }));
-  const cloned = cloneDuplexStreamingCall(fakeCall);
-  const res = cloned({});
+  const client = cloneClient(
+    new MockServiceMethod(
+      {
+        clientStreaming: true,
+        serverStreaming: true,
+      },
+      fakeCall
+    )
+  );
+  const res = client.fakeMethod();
   const onNext = jest.fn();
   const onError = jest.fn();
   res.responses.onNext(onNext);
