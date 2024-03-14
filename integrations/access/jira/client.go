@@ -131,7 +131,7 @@ func NewJiraClient(conf JiraConfig, clusterName, teleportProxyAddr string, statu
 				if resp.IsError() {
 					switch result := resp.Error().(type) {
 					case *ErrorResult:
-						return trace.Errorf("http error code=%v, errors=[%v]", resp.StatusCode(), strings.Join(result.ErrorMessages, ", "))
+						return trace.Errorf("http error code=%v, errors=[%s]", resp.StatusCode(), result)
 					case nil:
 						return nil
 					default:
