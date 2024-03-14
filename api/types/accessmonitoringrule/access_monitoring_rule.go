@@ -17,10 +17,12 @@ limitations under the License.
 package accessmonitoringrule
 
 import (
+	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 )
 
@@ -68,11 +70,30 @@ type Notification struct {
 }
 
 // NewAccessMonitoringRule creates a new AccessMonitoringRule resource.
-func NewAccessMonitoringRule(metadata header.Metadata, spec Spec) *AccessMonitoringRule {
-	return &AccessMonitoringRule{
+func NewAccessMonitoringRule(metadata header.Metadata, spec Spec) (*AccessMonitoringRule, error) {
+	rule := &AccessMonitoringRule{
+		Kind:     types.KindAccessMonitoringRule,
 		Metadata: metadata,
 		Spec:     spec,
 	}
+	if err := rule.ValidateAccessMonitoringRule(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rule, nil
+}
+
+// ValidateAccessMonitoringRule checks if the provided AccessMonitoringRule is valid.
+func (amr *AccessMonitoringRule) ValidateAccessMonitoringRule() error {
+	if amr == nil {
+		return trace.BadParameter("access monitoring rule is nil")
+	}
+	if amr.Spec.Subjects == nil || len(amr.Spec.Subjects) == 0 {
+		return trace.BadParameter("access monitoring rule spec is missing subjects")
+	}
+	if amr.Spec.Condition == "" {
+		return trace.BadParameter("access monitoring rule spec is missing condition")
+	}
+	return nil
 }
 
 // GetMetadata returns metadata. This is specifically for conforming to the Resource interface,

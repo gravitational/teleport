@@ -47,13 +47,19 @@ func TestAccessMonitoringRulesCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Define two AccessMonitoringRules
-	AccessMonitoringRule1 := accessmonitoringrule.NewAccessMonitoringRule(
+	AccessMonitoringRule1, _ := accessmonitoringrule.NewAccessMonitoringRule(
 		header.Metadata{Name: "p1"},
-		accessmonitoringrule.Spec{},
+		accessmonitoringrule.Spec{
+			Subjects:  []string{"someSubject"},
+			Condition: "someCondition",
+		},
 	)
-	AccessMonitoringRule2 := accessmonitoringrule.NewAccessMonitoringRule(
+	AccessMonitoringRule2, _ := accessmonitoringrule.NewAccessMonitoringRule(
 		header.Metadata{Name: "p2"},
-		accessmonitoringrule.Spec{},
+		accessmonitoringrule.Spec{
+			Subjects:  []string{"someSubject"},
+			Condition: "someCondition",
+		},
 	)
 
 	// Create both AccessMonitoringRules.
@@ -112,10 +118,13 @@ func TestListAccessMonitoringRules(t *testing.T) {
 
 	var insertedAccessMonitoringRules []*accessmonitoringrule.AccessMonitoringRule
 	for i := 0; i < numAccessMonitoringRules; i++ {
-		AccessMonitoringRule := accessmonitoringrule.NewAccessMonitoringRule(
+		AccessMonitoringRule, _ := accessmonitoringrule.NewAccessMonitoringRule(
 			header.Metadata{Name: fmt.Sprintf("p%02d", i+1)},
-			accessmonitoringrule.Spec{})
-		_,err := service.CreateAccessMonitoringRule(ctx, AccessMonitoringRule)
+			accessmonitoringrule.Spec{
+				Subjects:  []string{"someSubject"},
+				Condition: "someCondition",
+			})
+		_, err := service.CreateAccessMonitoringRule(ctx, AccessMonitoringRule)
 		require.NoError(t, err)
 		insertedAccessMonitoringRules = append(insertedAccessMonitoringRules, AccessMonitoringRule)
 	}

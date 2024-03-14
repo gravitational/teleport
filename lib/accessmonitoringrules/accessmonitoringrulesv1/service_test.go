@@ -51,9 +51,12 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 	ctx, localClient, resourceSvc := initSvc(t, clusterName)
 
 	sampleAccessMonitoringRuleFn := func(t *testing.T, name string) *accessmonitoringrule.AccessMonitoringRule {
-		rule := accessmonitoringrule.NewAccessMonitoringRule(
+		rule, _ := accessmonitoringrule.NewAccessMonitoringRule(
 			header.Metadata{Name: name},
-			accessmonitoringrule.Spec{},
+			accessmonitoringrule.Spec{
+				Subjects:  []string{"someSubject"},
+				Condition: "someCondition",
+			},
 		)
 		return rule
 	}
