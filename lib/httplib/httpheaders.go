@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // Mutex protected cache for memoizing functions which construct the CSP header string.
@@ -177,6 +178,12 @@ func getIndexContentSecurityPolicy(withStripe, withWasm bool) cspMap {
 
 	if withWasm {
 		cspMaps = append(cspMaps, wasmSecurityPolicy)
+	}
+
+	// Allows a URL for collecting surveys and feedback:
+	// https://github.com/gravitational/peopleware/blob/main/rfd/0001-adoption-metrics.md
+	if modules.GetModules().BuildType() == modules.BuildOSS {
+		cspMaps = append(cspMaps, cspMap{"connect-src": {"https://usage.teleport.dev"}})
 	}
 
 	return combineCSPMaps(cspMaps...)
