@@ -19,8 +19,9 @@ package services
 import (
 	"context"
 
-	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 )
 
 // SCIM is an internal abstraction for the SCIM provisioning service, allowing clients
