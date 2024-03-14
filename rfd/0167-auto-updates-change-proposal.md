@@ -128,9 +128,9 @@ $ apt-get install teleport-ent-updater
 $ teleport-upgrade install --proxy=example.teleport.sh
 ```
 
-Step 2: In order to deprecate the stable/cloud teleport-ent package, Teleport must provide an alternate method of downloading the latest compatible version of Teleport. The Teleport CDN already serves tarball packages for supported systems. To ensure version compatibility, the Teleport proxy will now serve a new endpoint that redirects to the Teleport CDN and downloads the latest compatible version of Teleport.
+Step 2: Teleport must provide an alternate method of securely downloading the latest compatible version of Teleport. The Teleport CDN already serves Teleport artifacts and their SHA256 checksums. To ensure authenticity of these Teleport downloads, Teleport will now need to sign these artifacts and provide the digital signatures. The public key required to verify the digital signature will be baked into the Teleport updater.
 
-Step 3: The Teleport updater must control all Teleport updates. To ensure this, the Teleport updater will no longer rely on the system package manager to install/update Teleport. Users will no longer be able to manually update Teleport through the system package manager. Instead, the Teleport updater will now utilize the new Teleport proxy endpoint described in step 2. Teleport binaries will be downloaded as a tarball, and installed into the /var/lib/teleport directory.
+Step 3: The Teleport updater must control all Teleport updates. To ensure this, the Teleport updater will no longer rely on the system package manager to install/update Teleport. Users will no longer be able to manually update Teleport through the system package manager. Instead, the Teleport updater will now download the Teleport artifacts from the Teleport CDN along with the SHA256 checksum and the digital signature. The Teleport updater will verify the Teleport artifact and install Teleport into the /var/lib/teleport directory.
 
 The Teleport updater must be able to resolve conflict for these two situations:
 1. If Teleport is already installed on the system via the system package manager, the Teleport updater must be able to migrate the Teleport service to use the new binary installed using the Teleport CDN.
