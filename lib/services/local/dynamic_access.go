@@ -107,6 +107,13 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 			req.SetRoles(params.Roles)
 		}
 
+		if params.AssumeStartTime != nil {
+			if err := types.ValidateAssumeStartTime(*params.AssumeStartTime, req.GetAccessExpiry(), req.GetCreationTime()); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			req.SetAssumeStartTime(*params.AssumeStartTime)
+		}
+
 		// approved requests should have a resource expiry which matches
 		// the underlying access expiry.
 		if params.State.IsApproved() {

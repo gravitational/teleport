@@ -642,7 +642,7 @@ func TestReviewThresholds(t *testing.T) {
 					propose:         approve,
 					assumeStartTime: clock.Now().UTC().Add(10000 * time.Hour),
 					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
-						require.ErrorIs(tt, err, trace.BadParameter("request start time is after expiry"), i...)
+						require.ErrorContains(tt, err, "assume start time must be prior to access expiry time", i...)
 					},
 				},
 			},
