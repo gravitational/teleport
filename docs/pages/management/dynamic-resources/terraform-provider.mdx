@@ -96,37 +96,37 @@ To prepare credentials for a local Teleport user:
 1. Create a new file called `create_and_run_terraform_bot.sh`, open it in an editor, and
 paste in the following content:
 
-  ```shell
-  #! /usr/bin/env bash
+   ```shell
+   #! /usr/bin/env bash
 
-  set -euxo pipefail
+   set -euxo pipefail
 
-  TOKEN=$(tctl bots add terraform-test --roles=terraform --format=json | jq -r '.token_id')
-  tbot start \
-    --destination-dir=./terraform-identity \
-    --token="$TOKEN" \
-    --auth-server=teleport-ent-15.asteroid.earth:443 \
-    --join-method=token
-  ```
+   TOKEN=$(tctl bots add terraform-test --roles=terraform --format=json | jq -r '.token_id')
+   tbot start \
+     --destination-dir=./terraform-identity \
+     --token="$TOKEN" \
+     --auth-server=teleport-ent-15.asteroid.earth:443 \
+     --join-method=token
+   ```
 
-  When run, this creates a new bot with the token retrieved from the JSON output. That token
-  is piped into the start command. For security reasons, we don't allow bot join tokens to be
-  created in any way other than adding a bot, so for local development work, you must manually
-  manage the bot and its token.
+   When run, this creates a new bot with the token retrieved from the JSON output. That token
+   is piped into the start command. For security reasons, we don't allow bot join tokens to be
+   created in any way other than adding a bot, so for local development work, you must manually
+   manage the bot and its token.
 
 1. Create another file called `remove_terraform_bot.sh`, open it in an editor, and
 paste in the following content:
 
-  ```shell
-  #! /usr/bin/env bash
+   ```shell
+   #! /usr/bin/env bash
 
-  set -euxo pipefail
+   set -euxo pipefail
 
-  tctl bots rm terraform-dave
-  rm -rf ./terraform-identity
-  ```
+   tctl bots rm terraform-dave
+   rm -rf ./terraform-identity
+   ```
 
-  This script will be used later to clean up our bot in between runs and when we're done.
+   This script will be used later to clean up our bot in between runs and when we're done.
 
 1. In a new terminal window, run the `create_and_run_terraform_bot.sh` script to create the new bot
    and start it:
