@@ -524,22 +524,9 @@ export function createTshdClient(
       params: types.ListUnifiedResourcesRequest,
       abortSignal?: CloneableAbortSignal
     ) {
-      const { response } = await tshd.listUnifiedResources(
-        {
-          clusterUri: params.clusterUri,
-          limit: params.limit,
-          kinds: params.kinds,
-          startKey: params.startKey || '',
-          search: params.search,
-          query: params.query,
-          pinnedOnly: params.pinnedOnly,
-          searchAsRoles: params.searchAsRoles,
-          sortBy: params.sortBy || { field: 'name', isDesc: false },
-        },
-        {
-          abort: abortSignal,
-        }
-      );
+      const { response } = await tshd.listUnifiedResources(params, {
+        abort: abortSignal,
+      });
       return {
         nextKey: response.nextKey,
         resources: response.resources
