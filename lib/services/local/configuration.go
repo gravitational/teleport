@@ -455,14 +455,16 @@ func (s *ClusterConfigurationService) UpsertClusterNetworkingConfig(ctx context.
 		return nil, trace.Wrap(err)
 	}
 
+	rev := cfg.GetRevision()
 	value, err := services.MarshalClusterNetworkingConfig(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(clusterConfigPrefix, networkingPrefix),
-		Value: value,
+		Key:      backend.Key(clusterConfigPrefix, networkingPrefix),
+		Value:    value,
+		Revision: rev,
 	}
 
 	lease, err := s.Backend.Put(ctx, item)
@@ -472,13 +474,6 @@ func (s *ClusterConfigurationService) UpsertClusterNetworkingConfig(ctx context.
 
 	cfg.SetRevision(lease.Revision)
 	return cfg, nil
-}
-
-// SetClusterNetworkingConfig sets the cluster networking config
-// on the backend.
-func (s *ClusterConfigurationService) SetClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) error {
-	_, err := s.UpsertClusterNetworkingConfig(ctx, cfg)
-	return trace.Wrap(err)
 }
 
 // DeleteClusterNetworkingConfig deletes ClusterNetworkingConfig from the backend.

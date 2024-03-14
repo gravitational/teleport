@@ -350,7 +350,7 @@ func TestClusterNetworkingConfig(t *testing.T) {
 			})
 			require.NoError(t, err)
 			dynamically.SetOrigin(types.OriginDynamic)
-			err = authServer.SetClusterNetworkingConfig(ctx, dynamically)
+			_, err = authServer.UpsertClusterNetworkingConfig(ctx, dynamically)
 			require.NoError(t, err)
 		},
 		getStored: func(t *testing.T, authServer *Server) types.ResourceWithOrigin {

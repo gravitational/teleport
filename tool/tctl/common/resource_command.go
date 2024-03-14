@@ -152,11 +152,12 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindDatabaseObjectImportRule: rc.createDatabaseObjectImportRule,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
-		types.KindUser:            rc.updateUser,
-		types.KindGithubConnector: rc.updateGithubConnector,
-		types.KindOIDCConnector:   rc.updateOIDCConnector,
-		types.KindSAMLConnector:   rc.updateSAMLConnector,
-		types.KindRole:            rc.updateRole,
+		types.KindUser:                    rc.updateUser,
+		types.KindGithubConnector:         rc.updateGithubConnector,
+		types.KindOIDCConnector:           rc.updateOIDCConnector,
+		types.KindSAMLConnector:           rc.updateSAMLConnector,
+		types.KindRole:                    rc.updateRole,
+		types.KindClusterNetworkingConfig: rc.updateClusterNetworkingConfig,
 	}
 	rc.config = config
 
@@ -666,7 +667,21 @@ func (rc *ResourceCommand) createClusterNetworkingConfig(ctx context.Context, cl
 		return trace.Wrap(err)
 	}
 
-	if err := client.SetClusterNetworkingConfig(ctx, newNetConfig); err != nil {
+	if _, err := client.UpsertClusterNetworkingConfig(ctx, newNetConfig); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("cluster networking configuration has been updated\n")
+	return nil
+}
+
+// updateClusterNetworkingConfig
+func (rc *ResourceCommand) updateClusterNetworkingConfig(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+	newNetConfig, err := services.UnmarshalClusterNetworkingConfig(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := client.UpdateClusterNetworkingConfig(ctx, newNetConfig); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("cluster networking configuration has been updated\n")

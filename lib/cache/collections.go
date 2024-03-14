@@ -1755,7 +1755,8 @@ func (clusterNetworkingConfigExecutor) getAll(ctx context.Context, cache *Cache,
 }
 
 func (clusterNetworkingConfigExecutor) upsert(ctx context.Context, cache *Cache, resource types.ClusterNetworkingConfig) error {
-	return cache.clusterConfigCache.SetClusterNetworkingConfig(ctx, resource)
+	_, err := cache.clusterConfigCache.UpsertClusterNetworkingConfig(ctx, resource)
+	return trace.Wrap(err)
 }
 
 func (clusterNetworkingConfigExecutor) deleteAll(ctx context.Context, cache *Cache) error {

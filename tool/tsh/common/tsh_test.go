@@ -605,12 +605,12 @@ func switchProxyListenerMode(t *testing.T, authServer *auth.Server, mode types.P
 	require.NoError(t, err)
 	prevValue := networkCfg.GetProxyListenerMode()
 	networkCfg.SetProxyListenerMode(mode)
-	err = authServer.SetClusterNetworkingConfig(context.Background(), networkCfg)
+	_, err = authServer.UpsertClusterNetworkingConfig(context.Background(), networkCfg)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		networkCfg.SetProxyListenerMode(prevValue)
-		err = authServer.SetClusterNetworkingConfig(context.Background(), networkCfg)
+		_, err = authServer.UpsertClusterNetworkingConfig(context.Background(), networkCfg)
 		require.NoError(t, err)
 	})
 }
