@@ -480,13 +480,6 @@ func (s *ClusterConfigurationService) UpsertClusterNetworkingConfig(ctx context.
 	return cfg, nil
 }
 
-// SetClusterNetworkingConfig sets the cluster networking config
-// on the backend.
-func (s *ClusterConfigurationService) SetClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) error {
-	_, err := s.UpsertClusterNetworkingConfig(ctx, cfg)
-	return trace.Wrap(err)
-}
-
 // DeleteClusterNetworkingConfig deletes ClusterNetworkingConfig from the backend.
 func (s *ClusterConfigurationService) DeleteClusterNetworkingConfig(ctx context.Context) error {
 	err := s.Delete(ctx, backend.Key(clusterConfigPrefix, networkingPrefix))

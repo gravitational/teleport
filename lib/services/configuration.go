@@ -102,9 +102,6 @@ type ClusterConfiguration interface {
 	UpdateClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error)
 	// UpsertClusterNetworkingConfig creates a new cluster networking config or overwrites the existing cluster networking config.
 	UpsertClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error)
-	// SetClusterNetworkingConfig sets ClusterNetworkingConfig from the backend.
-	// TODO(tross): Deprecate/Remove this once everything is converted to use the new methods.
-	SetClusterNetworkingConfig(context.Context, types.ClusterNetworkingConfig) error
 	// DeleteClusterNetworkingConfig deletes ClusterNetworkingConfig from the backend.
 	DeleteClusterNetworkingConfig(ctx context.Context) error
 
