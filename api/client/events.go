@@ -18,13 +18,12 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	discoveryconfigv1conv "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
-	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
-	kubewaitingcontainerconv "github.com/gravitational/teleport/api/types/kubewaitingcontainer/convert/v1"
 	"github.com/gravitational/teleport/api/types/secreports"
 	secreprotsv1conv "github.com/gravitational/teleport/api/types/secreports/convert/v1"
 	"github.com/gravitational/teleport/api/types/userloginstate"
@@ -50,7 +49,9 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		}
 		return &out, nil
 	}
-	switch r := in.Resource.(type) {
+
+	resource := types.UnwrapResource153(in.Resource)
+	switch r := resource.(type) {
 	case *types.ResourceHeader:
 		out.Resource = &proto.Event_ResourceHeader{
 			ResourceHeader: r,
@@ -252,9 +253,9 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_AccessListReview{
 			AccessListReview: accesslistv1conv.ToReviewProto(r),
 		}
-	case *kubewaitingcontainer.KubeWaitingContainer:
+	case *kubewaitingcontainerpb.KubernetesWaitingContainer:
 		out.Resource = &proto.Event_KubernetesWaitingContainer{
-			KubernetesWaitingContainer: kubewaitingcontainerconv.ToProto(r),
+			KubernetesWaitingContainer: r,
 		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
@@ -460,10 +461,7 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		}
 		return &out, nil
 	} else if r := in.GetKubernetesWaitingContainer(); r != nil {
-		out.Resource, err = kubewaitingcontainerconv.FromProto(r)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)

@@ -22,36 +22,30 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-// KubeWaitingContainerGetter is responsible for getting Kubernetes
-// ephemeral containers that are waiting to be created until moderated
-// session conditions are met.
-type KubeWaitingContainerGetter interface {
-	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainer.KubeWaitingContainer, string, error)
-	GetKubernetesWaitingContainer(ctx context.Context, req kubewaitingcontainerclient.KubeWaitingContainerRequest) (*kubewaitingcontainer.KubeWaitingContainer, error)
-}
 
 // KubeWaitingContainer is responsible for managing Kubernetes
 // ephemeral containers that are waiting to be created until moderated
 // session conditions are met.
 type KubeWaitingContainer interface {
-	KubeWaitingContainerGetter
-
-	CreateKubernetesWaitingContainer(ctx context.Context, in *kubewaitingcontainer.KubeWaitingContainer) (*kubewaitingcontainer.KubeWaitingContainer, error)
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+	GetKubernetesWaitingContainer(ctx context.Context, req kubewaitingcontainerclient.KubeWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
+	CreateKubernetesWaitingContainer(ctx context.Context, in *kubewaitingcontainerpb.KubernetesWaitingContainer) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
 	DeleteKubernetesWaitingContainer(ctx context.Context, req kubewaitingcontainerclient.KubeWaitingContainerRequest) error
 }
 
 // MarshalKubeWaitingContainer marshals a KubernetesWaitingContainer resource to JSON.
-func MarshalKubeWaitingContainer(in *kubewaitingcontainer.KubeWaitingContainer, opts ...MarshalOption) ([]byte, error) {
+func MarshalKubeWaitingContainer(in *kubewaitingcontainerpb.KubernetesWaitingContainer, opts ...MarshalOption) ([]byte, error) {
 	if in == nil {
 		return nil, trace.BadParameter("message is nil")
 	}
-	if err := in.CheckAndSetDefaults(); err != nil {
+	if err := kubewaitingcontainer.ValidateKubeWaitingContainer(in); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -61,17 +55,15 @@ func MarshalKubeWaitingContainer(in *kubewaitingcontainer.KubeWaitingContainer, 
 	}
 
 	if !cfg.PreserveResourceID {
-		copy := *in
-		copy.SetResourceID(0)
-		copy.SetRevision("")
-		in = &copy
+		in.Metadata.Id = 0
+		in.Metadata.Revision = ""
 	}
 
 	return utils.FastMarshal(in)
 }
 
 // UnmarshalKubeWaitingContainer unmarshals a KubernetesWaitingContainer resource from JSON.
-func UnmarshalKubeWaitingContainer(data []byte, opts ...MarshalOption) (*kubewaitingcontainer.KubeWaitingContainer, error) {
+func UnmarshalKubeWaitingContainer(data []byte, opts ...MarshalOption) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("data is empty")
 	}
@@ -79,21 +71,21 @@ func UnmarshalKubeWaitingContainer(data []byte, opts ...MarshalOption) (*kubewai
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var out *kubewaitingcontainer.KubeWaitingContainer
+	var out *kubewaitingcontainerpb.KubernetesWaitingContainer
 	if err := utils.FastUnmarshal(data, &out); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
-	if err := out.CheckAndSetDefaults(); err != nil {
+	if err := kubewaitingcontainer.ValidateKubeWaitingContainer(out); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if cfg.ID != 0 {
-		out.SetResourceID(cfg.ID)
+		out.Metadata.Id = cfg.ID
 	}
 	if cfg.Revision != "" {
-		out.SetRevision(cfg.Revision)
+		out.Metadata.Revision = cfg.Revision
 	}
 	if !cfg.Expires.IsZero() {
-		out.SetExpiry(cfg.Expires)
+		out.Metadata.Expires = timestamppb.New(cfg.Expires)
 	}
 
 	return out, nil
