@@ -4095,13 +4095,16 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Context:          process.ExitContext(),
 			StaticFS:         fs,
 			ClusterFeatures:  process.getClusterFeatures(),
-			UI:               cfg.Proxy.UI,
-			ProxySettings:    proxySettings,
-			PublicProxyAddr:  process.proxyPublicAddr().Addr,
-			ALPNHandler:      alpnHandlerForWeb.HandleConnection,
-			ProxyKubeAddr:    proxyKubeAddr,
-			TraceClient:      traceClt,
-			Router:           proxyRouter,
+			GetProxyIdentity: func() (*auth.Identity, error) {
+				return process.GetIdentity(types.RoleProxy)
+			},
+			UI:              cfg.Proxy.UI,
+			ProxySettings:   proxySettings,
+			PublicProxyAddr: process.proxyPublicAddr().Addr,
+			ALPNHandler:     alpnHandlerForWeb.HandleConnection,
+			ProxyKubeAddr:   proxyKubeAddr,
+			TraceClient:     traceClt,
+			Router:          proxyRouter,
 			SessionControl: web.SessionControllerFunc(func(ctx context.Context, sctx *web.SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
 				controller := srv.WebSessionController(sessionController)
 				ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
