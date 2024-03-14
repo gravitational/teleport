@@ -110,9 +110,9 @@ Here are the goals that these changes should accomplish:
 4. Teleport Cloud must provide the necessary tools for a user to build their own automation to keep Teleport client software up to date. This should include a stable API that users can rely on to request the latest version of Teleport that is compatible with their Teleport control plane.
 
 ### Deprecate the stable/cloud teleport-ent package
-Currently, the teleport-ent-updater package requires the teleport-ent package as a dependency. This means that the user must install the latest version of the teleport-ent package which may or may not be compatible with their Teleport control plane, or they must first specify a compatible version of teleport-ent to install. This puts unnecessary burden on the user, and complicates the installation process.
+Currently, Teleport does not have full control of Teleport agent versions. A user is able to install the teleport-ent package at any version, including versions that may be incompatible with their Teleport control plane. A user is also able to manually update a Teleport agent to an incompatible version of Teleport.
 
-Step 1: To remove this burden from the user and simplify the installation process, the Teleport updater will support an install command. The install command accepts the necessary configuration and then installs the latest compatible version of the teleport-ent package for the user.
+Step 1: The Teleport updater must control the version of Teleport agents at installation. To accomplish this, all agent installations will be done through the Teleport updater. The Teleport updater will now support an install command. The install command accepts the necessary configuration and then installs the latest compatible version of Teleport.
 
 An example of what this new installation process might look like:
 ```sh
@@ -120,23 +120,22 @@ $ apt-get install teleport-ent-updater
 $ teleport-upgrade install --proxy=example.teleport.sh
 ```
 
-This step does not ensure major version compatibility. If a user manually updates the teleport-ent package to the latest available version, they may still get an incompatible major version of Teleport.
+Step 2: In order to deprecate the stable/cloud teleport-ent package, Teleport must provide an alternate method of downloading the latest compatible version of Teleport. The Teleport CDN already serves tarball packages for supported systems. To ensure version compatibility, the Teleport proxy will now serve a new endpoint that redirects to the Teleport CDN and downloads the latest compatible version of Teleport.
 
-Step 2: The Teleport package repository supports major version channels (stable/vXX). Users were instructed to use these channels prior to the stable/cloud channel. In order to ensure the teleport-ent package does not get updated to an incompatible major version. The Teleport updater will now maintain the channel of the Teleport package repository. Whenever the Teleport cluster is updated to a new major version, the Teleport updater will also update the Teleport package repository channel. This will allow the stable/cloud teleport-ent package to be deprecated.
+Step 3: The Teleport updater must control all Teleport updates. To ensure this, the Teleport updater will no longer rely on the system package manager to install/update Teleport. Users will no longer be able to manually update Teleport through the system package manager. Instead, the Teleport updater will now utilize the new Teleport proxy endpoint described in step 2. Teleport binaries will be downloaded as a tarball, and installed into the /var/lib/teleport directory.
 
-This step does not ensure minor version compatibility. If a user manually updates the teleport-ent package to the latest available version, they may still get an incompatible minor version of Teleport.
-
-Step 2 (Alternative): Instead of relying on the stable/vXX channels. There is also the option of preventing updates of the teleport-ent package except by the Teleport updater. This would not require the stable/cloud channel to be deprecated. However, this would require a different solution for each supported package manager, which could get complicated.
-
-Apt supports an apt-mark hold command that can be used to hold back a package from being updated. The Teleport updater can be modified to lock the teleport-ent package after an update, and unlock when it is performing an update.
-
-Yum has a similar feature that can exclude packages from a system update. This can be done by specifying teleport-ent to be excluded in the /etc/yum.conf file.
-
-Step 3: The Teleport installation process should no longer rely on the package manager to download teleport-ent packages. Instead, the Teleport proxy will now serve the latest compatible version of the teleport-ent package. The Teleport updater will then be responsible for downloading and installing the teleport-ent packages from the Teleport proxy.
-
-This step will ensure version compatibility for the teleport-ent packages downloaded from the proxy. This step also removes version compatibility concerns from the Teleport updater, and the version servers can be deprecated.
+The Teleport updater must be able to resolve conflict for these two situations:
+1. If Teleport is already installed on the system via the system package manager, the Teleport updater must be able to migrate the Teleport service to use the new binary installed using the Teleport CDN.
+2. If Teleport is already installed into the /var/lib/teleport directory, a new installation of Teleport via the system package manager must not override the Teleport binary used by the Teleport service.
 
 Step 4: The Teleport documentation should be updated to include a new section with instructions about how a user can build their own update automation.
+
+### Updating the Teleport Updater
+The purpose of the Teleport updater is to reduce the maintenance required to keep Teleport client software up to date. If users need to periodically update the Teleport updater to receive new patches, that defeats the purpose of the automatic updates feature.
+
+The Teleport updater will now be able to update itself. The tarball downloaded from the Teleport CDN will now contain both the Teleport binary and the Teleport updater binary. This copy of the Teleport updater binary will also be installed into the /var/lib/teleport directory. The Teleport updater service will prioritize the Teleport updater binary installed in /var/lib/teleport before executing the Teleport updater binary installed via the system package manager.
+
+All installed versions of the Teleport updater will be persisted in the /var/lib/teleport directory. These older version of the Teleport updater binary will used to rollback changes to the Teleport updater in the case that a broken version of the Teleport updater is shipped.
 
 ### Reduce installation paths
 Teleport supports different scripts and methods of installation. This creates an increased maintenance and testing burden on developers. It also leads to confusion for the Teleport user, as it is unclear which installation method fits their needs. This has already lead to several incidents, and if these change proposals are accepted there is concern for more issues to emerge.
