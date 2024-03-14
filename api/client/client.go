@@ -2722,13 +2722,21 @@ func (c *Client) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterN
 }
 
 // SetClusterNetworkingConfig sets cluster networking configuration.
-func (c *Client) SetClusterNetworkingConfig(ctx context.Context, netConfig types.ClusterNetworkingConfig) error {
-	netConfigV2, ok := netConfig.(*types.ClusterNetworkingConfigV2)
-	if !ok {
-		return trace.BadParameter("invalid type %T", netConfig)
-	}
-	_, err := c.grpc.SetClusterNetworkingConfig(ctx, netConfigV2)
+// Deprecated: Use UpdateClusterNetworkingConfig or UpsertClusterNetworkingConfig instead.
+func (c *Client) SetClusterNetworkingConfig(ctx context.Context, netConfig *types.ClusterNetworkingConfigV2) error {
+	_, err := c.grpc.SetClusterNetworkingConfig(ctx, netConfig)
 	return trace.Wrap(err)
+}
+
+// setClusterNetworkingConfig sets cluster networking configuration.
+func (c *Client) setClusterNetworkingConfig(ctx context.Context, netConfig *types.ClusterNetworkingConfigV2) (types.ClusterNetworkingConfig, error) {
+	_, err := c.grpc.SetClusterNetworkingConfig(ctx, netConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg, err := c.grpc.GetClusterNetworkingConfig(ctx, &emptypb.Empty{})
+	return cfg, trace.Wrap(err)
 }
 
 // UpdateClusterNetworkingConfig updates an existing cluster networking configuration.
@@ -2739,6 +2747,12 @@ func (c *Client) UpdateClusterNetworkingConfig(ctx context.Context, cfg types.Cl
 	}
 
 	updated, err := c.ClusterConfigClient().UpdateClusterNetworkingConfig(ctx, &clusterconfigpb.UpdateClusterNetworkingConfigRequest{ClusterNetworkConfig: v2})
+	// TODO(tross) DELETE IN v18.0.0
+	if trace.IsNotImplemented(err) {
+		cnc, err := c.setClusterNetworkingConfig(ctx, v2)
+		return cnc, trace.Wrap(err)
+	}
+
 	return updated, trace.Wrap(err)
 }
 
@@ -2750,6 +2764,12 @@ func (c *Client) UpsertClusterNetworkingConfig(ctx context.Context, cfg types.Cl
 	}
 
 	updated, err := c.ClusterConfigClient().UpsertClusterNetworkingConfig(ctx, &clusterconfigpb.UpsertClusterNetworkingConfigRequest{ClusterNetworkConfig: v2})
+	// TODO(tross) DELETE IN v18.0.0
+	if trace.IsNotImplemented(err) {
+		cnc, err := c.setClusterNetworkingConfig(ctx, v2)
+		return cnc, trace.Wrap(err)
+	}
+
 	return updated, trace.Wrap(err)
 }
 

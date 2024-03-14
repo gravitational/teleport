@@ -2981,11 +2981,20 @@ service AuthService {
   rpc GetClusterAuditConfig(google.protobuf.Empty) returns (types.ClusterAuditConfigV2);
 
   // GetClusterNetworkingConfig gets cluster networking configuration.
-  rpc GetClusterNetworkingConfig(google.protobuf.Empty) returns (types.ClusterNetworkingConfigV2);
+  // Deprecated: Use clusterconfigv1.Service.GetClusterNetworkingConfig instead.
+  rpc GetClusterNetworkingConfig(google.protobuf.Empty) returns (types.ClusterNetworkingConfigV2) {
+    option deprecated = true;
+  }
   // SetClusterNetworkingConfig sets cluster networking configuration.
-  rpc SetClusterNetworkingConfig(types.ClusterNetworkingConfigV2) returns (google.protobuf.Empty);
+  // Deprecated: Use clusterconfigv1.Service.Update/UpsertClusterNetworkingConfig instead.
+  rpc SetClusterNetworkingConfig(types.ClusterNetworkingConfigV2) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
-  rpc ResetClusterNetworkingConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
+  // Deprecated: Use clusterconfigv1.Service.ResetClusterNetworkingConfig instead.
+  rpc ResetClusterNetworkingConfig(google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
 
   // GetSessionRecordingConfig gets session recording configuration.
   rpc GetSessionRecordingConfig(google.protobuf.Empty) returns (types.SessionRecordingConfigV2);

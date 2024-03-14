@@ -5258,7 +5258,8 @@ func TestNewSessionResponseWithRenewSession(t *testing.T) {
 	duration := time.Duration(5) * time.Minute
 	cfg := types.DefaultClusterNetworkingConfig()
 	cfg.SetWebIdleTimeout(duration)
-	require.NoError(t, env.server.Auth().SetClusterNetworkingConfig(context.Background(), cfg))
+	_, err := env.server.Auth().UpsertClusterNetworkingConfig(context.Background(), cfg)
+	require.NoError(t, err)
 
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "foo", nil /* roles */)

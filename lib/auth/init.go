@@ -405,9 +405,9 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	})
 
 	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/SetClusterNetworkingConfig")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeClusterNetworkingConfig")
 		defer span.End()
-		return trace.Wrap(initSetClusterNetworkingConfig(ctx, asrv, cfg.ClusterNetworkingConfig))
+		return trace.Wrap(initializeClusterNetworkingConfig(ctx, asrv, cfg.ClusterNetworkingConfig))
 	})
 
 	g.Go(func() error {
@@ -715,22 +715,44 @@ func initSetAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.
 	return nil
 }
 
-func initSetClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetConfig types.ClusterNetworkingConfig) error {
-	storedNetConfig, err := asrv.Services.GetClusterNetworkingConfig(ctx)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedNetConfig, newNetConfig)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if shouldReplace {
-		if err := asrv.SetClusterNetworkingConfig(ctx, newNetConfig); err != nil {
+func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetConfig types.ClusterNetworkingConfig) error {
+	const iterationLimit = 3
+	for i := 0; i < 3; i++ {
+		storedNetConfig, err := asrv.Services.GetClusterNetworkingConfig(ctx)
+		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
+
+		shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedNetConfig, newNetConfig)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !shouldReplace {
+			return nil
+		}
+
+		if storedNetConfig == nil {
+			log.Infof("Creating cluster networking configuration: %v.", newNetConfig)
+			_, err = asrv.CreateClusterNetworkingConfig(ctx, newNetConfig)
+			if trace.IsAlreadyExists(err) {
+				continue
+			}
+
+			return trace.Wrap(err)
+		}
+
 		log.Infof("Updating cluster networking configuration: %v.", newNetConfig)
+		newNetConfig.SetRevision(storedNetConfig.GetRevision())
+		_, err = asrv.UpdateClusterNetworkingConfig(ctx, newNetConfig)
+		if trace.IsCompareFailed(err) {
+			continue
+		}
+
+		return trace.Wrap(err)
 	}
-	return nil
+
+	return trace.LimitExceeded("failed to initialize cluster networking config in %v iterations", iterationLimit)
 }
 
 func initSetSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
@@ -1500,7 +1522,7 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		case types.Role:
 			_, err = service.Access.UpsertRole(ctx, r)
 		case types.ClusterNetworkingConfig:
-			err = service.ClusterConfiguration.SetClusterNetworkingConfig(ctx, r)
+			_, err = service.ClusterConfiguration.UpsertClusterNetworkingConfig(ctx, r)
 		case types.AuthPreference:
 			err = service.ClusterConfiguration.SetAuthPreference(ctx, r)
 		case *machineidv1pb.Bot:
