@@ -2474,7 +2474,7 @@ func (c *Client) StreamSessionEvents(ctx context.Context, sessionID string, star
 			oneOf, err := stream.Recv()
 			if err != nil {
 				if !errors.Is(err, io.EOF) {
-					e <- trace.Wrap(trace.Wrap(err))
+					e <- trace.Wrap(err)
 				} else {
 					close(ch)
 				}
@@ -2484,7 +2484,7 @@ func (c *Client) StreamSessionEvents(ctx context.Context, sessionID string, star
 
 			event, err := events.FromOneOf(*oneOf)
 			if err != nil {
-				e <- trace.Wrap(trace.Wrap(err))
+				e <- trace.Wrap(err)
 				break outer
 			}
 
@@ -2579,7 +2579,7 @@ func (c *Client) StreamUnstructuredSessionEvents(ctx context.Context, sessionID 
 			// on the client grpc side.
 			c.streamUnstructuredSessionEventsFallback(ctx, sessionID, startIndex, ch, e)
 		} else {
-			e <- trace.Wrap(trace.Wrap(err))
+			e <- trace.Wrap(err)
 		}
 		return ch, e
 	}
@@ -2602,7 +2602,7 @@ func (c *Client) StreamUnstructuredSessionEvents(ctx context.Context, sessionID 
 						go c.streamUnstructuredSessionEventsFallback(ctx, sessionID, startIndex, ch, e)
 						return
 					}
-					e <- trace.Wrap(trace.Wrap(err))
+					e <- trace.Wrap(err)
 				} else {
 					close(ch)
 				}
@@ -2649,7 +2649,7 @@ func (c *Client) streamUnstructuredSessionEventsFallback(ctx context.Context, se
 			oneOf, err := stream.Recv()
 			if err != nil {
 				if !errors.Is(err, io.EOF) {
-					e <- trace.Wrap(trace.Wrap(err))
+					e <- trace.Wrap(err)
 				} else {
 					close(ch)
 				}
@@ -2659,7 +2659,7 @@ func (c *Client) streamUnstructuredSessionEventsFallback(ctx context.Context, se
 
 			event, err := events.FromOneOf(*oneOf)
 			if err != nil {
-				e <- trace.Wrap(trace.Wrap(err))
+				e <- trace.Wrap(err)
 				return
 			}
 
@@ -3670,7 +3670,7 @@ func ListUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient
 
 	// Set the limit to the default size if one was not provided within
 	// an acceptable range.
-	if req.Limit == 0 || req.Limit > int32(defaults.DefaultChunkSize) {
+	if req.Limit <= 0 || req.Limit > int32(defaults.DefaultChunkSize) {
 		req.Limit = int32(defaults.DefaultChunkSize)
 	}
 
@@ -3682,7 +3682,7 @@ func ListUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient
 				req.Limit /= 2
 				// This is an extremely unlikely scenario, but better to cover it anyways.
 				if req.Limit == 0 {
-					return out, trace.Wrap(trace.Wrap(err), "resource is too large to retrieve")
+					return out, trace.Wrap(err, "resource is too large to retrieve")
 				}
 
 				continue
@@ -3705,13 +3705,13 @@ func ListUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient
 	}
 }
 
-// GetResourcePage is a helper for getting a single page of resources that match the provide request.
-func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetResourcesClient, req *proto.ListResourcesRequest) (ResourcePage[T], error) {
-	var out ResourcePage[T]
+// GetEnrichedResourcePage is a helper for getting a single page of enriched resources.
+func GetEnrichedResourcePage(ctx context.Context, clt GetResourcesClient, req *proto.ListResourcesRequest) (ResourcePage[*types.EnrichedResource], error) {
+	var out ResourcePage[*types.EnrichedResource]
 
 	// Set the limit to the default size if one was not provided within
 	// an acceptable range.
-	if req.Limit == 0 || req.Limit > int32(defaults.DefaultChunkSize) {
+	if req.Limit <= 0 || req.Limit > int32(defaults.DefaultChunkSize) {
 		req.Limit = int32(defaults.DefaultChunkSize)
 	}
 
@@ -3723,7 +3723,75 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				req.Limit /= 2
 				// This is an extremely unlikely scenario, but better to cover it anyways.
 				if req.Limit == 0 {
-					return out, trace.Wrap(trace.Wrap(err), "resource is too large to retrieve")
+					return out, trace.Wrap(err, "resource is too large to retrieve")
+				}
+
+				continue
+			}
+
+			return out, trace.Wrap(err)
+		}
+
+		for _, respResource := range resp.Resources {
+			var resource types.ResourceWithLabels
+			switch req.ResourceType {
+			case types.KindDatabaseServer:
+				resource = respResource.GetDatabaseServer()
+			case types.KindDatabaseService:
+				resource = respResource.GetDatabaseService()
+			case types.KindAppServer:
+				resource = respResource.GetAppServer()
+			case types.KindNode:
+				resource = respResource.GetNode()
+			case types.KindWindowsDesktop:
+				resource = respResource.GetWindowsDesktop()
+			case types.KindWindowsDesktopService:
+				resource = respResource.GetWindowsDesktopService()
+			case types.KindKubernetesCluster:
+				resource = respResource.GetKubeCluster()
+			case types.KindKubeServer:
+				resource = respResource.GetKubernetesServer()
+			case types.KindUserGroup:
+				resource = respResource.GetUserGroup()
+			case types.KindAppOrSAMLIdPServiceProvider:
+				//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
+				resource = respResource.GetAppServerOrSAMLIdPServiceProvider()
+			case types.KindSAMLIdPServiceProvider:
+				resource = respResource.GetSAMLIdPServiceProvider()
+			default:
+				out.Resources = nil
+				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
+			}
+
+			out.Resources = append(out.Resources, &types.EnrichedResource{ResourceWithLabels: resource, Logins: respResource.Logins})
+		}
+
+		out.NextKey = resp.NextKey
+		out.Total = int(resp.TotalCount)
+
+		return out, nil
+	}
+}
+
+// GetResourcePage is a helper for getting a single page of resources that match the provide request.
+func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetResourcesClient, req *proto.ListResourcesRequest) (ResourcePage[T], error) {
+	var out ResourcePage[T]
+
+	// Set the limit to the default size if one was not provided within
+	// an acceptable range.
+	if req.Limit <= 0 || req.Limit > int32(defaults.DefaultChunkSize) {
+		req.Limit = int32(defaults.DefaultChunkSize)
+	}
+
+	for {
+		resp, err := clt.GetResources(ctx, req)
+		if err != nil {
+			if trace.IsLimitExceeded(err) {
+				// Cut chunkSize in half if gRPC max message size is exceeded.
+				req.Limit /= 2
+				// This is an extremely unlikely scenario, but better to cover it anyways.
+				if req.Limit == 0 {
+					return out, trace.Wrap(err, "resource is too large to retrieve")
 				}
 
 				continue
@@ -3839,7 +3907,7 @@ func GetResourcesWithFilters(ctx context.Context, clt ListResourcesClient, req p
 				chunkSize = chunkSize / 2
 				// This is an extremely unlikely scenario, but better to cover it anyways.
 				if chunkSize == 0 {
-					return nil, trace.Wrap(trace.Wrap(err), "resource is too large to retrieve")
+					return nil, trace.Wrap(err, "resource is too large to retrieve")
 				}
 
 				continue
@@ -3890,7 +3958,7 @@ func GetKubernetesResourcesWithFilters(ctx context.Context, clt kubeproto.KubeSe
 				chunkSize = chunkSize / 2
 				// This is an extremely unlikely scenario, but better to cover it anyways.
 				if chunkSize == 0 {
-					return nil, trace.Wrap(trace.Wrap(err), "resource is too large to retrieve")
+					return nil, trace.Wrap(err, "resource is too large to retrieve")
 				}
 				continue
 			}
