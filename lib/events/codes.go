@@ -580,6 +580,13 @@ const (
 	// SPIFFESVIDIssuedFailureCode is the SPIFFE SVID issued failure code.
 	SPIFFESVIDIssuedFailureCode = "TSPIFFE000E"
 
+	// AuthPreferenceUpdateCode is the auth preference updated event code.
+	AuthPreferenceUpdateCode = "TCAUTH001I"
+	// ClusterNetworkingConfigUpdateCode is the cluster networking config updated event code.
+	ClusterNetworkingConfigUpdateCode = "TCNET002I"
+	// SessionRecordingConfigUpdateCode is the session recording config updated event code.
+	SessionRecordingConfigUpdateCode = "TCREC003I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )

@@ -635,6 +635,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SPIFFESVIDIssued{
 			SPIFFESVIDIssued: e,
 		}
+	case *AuthPreferenceUpdate:
+		out.Event = &OneOf_AuthPreferenceUpdate{
+			AuthPreferenceUpdate: e,
+		}
+	case *ClusterNetworkingConfigUpdate:
+		out.Event = &OneOf_ClusterNetworkingConfigUpdate{
+			ClusterNetworkingConfigUpdate: e,
+		}
+	case *SessionRecordingConfigUpdate:
+		out.Event = &OneOf_SessionRecordingConfigUpdate{
+			SessionRecordingConfigUpdate: e,
+		}
 
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())

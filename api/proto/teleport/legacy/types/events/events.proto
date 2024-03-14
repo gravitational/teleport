@@ -3974,6 +3974,9 @@ message OneOf {
     events.OktaAccessListSync OktaAccessListSync = 148;
     events.DatabasePermissionUpdate DatabasePermissionUpdate = 149;
     events.SPIFFESVIDIssued SPIFFESVIDIssued = 150;
+    events.AuthPreferenceUpdate AuthPreferenceUpdate = 152;
+    events.SessionRecordingConfigUpdate SessionRecordingConfigUpdate = 153;
+    events.ClusterNetworkingConfigUpdate ClusterNetworkingConfigUpdate = 154;
   }
 }
 
@@ -5909,4 +5912,97 @@ message SPIFFESVIDIssued {
   string SerialNumber = 8 [(gogoproto.jsontag) = "serial_number"];
   // Hint is the hint of the issued SVID
   string Hint = 9 [(gogoproto.jsontag) = "hint"];
+}
+
+// AuthPreferenceUpdate is emitted when the auth preference is updated.
+message AuthPreferenceUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// ClusterNetworkingConfigUpdate is emitted when the cluster networking config is updated.
+message ClusterNetworkingConfigUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// SessionRecordingConfigUpdate is emitted when the session recording config is updated.
+message SessionRecordingConfigUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
