@@ -311,7 +311,7 @@ export type RawEvents = {
   >;
   [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: RawEvent<
     typeof eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH,
-    { resource_type: string; search_as_roles: string }
+    { resource_type: string; search_as_roles: string[] }
   >;
   [eventCodes.AUTH_ATTEMPT_FAILURE]: RawEventAuthFailure<
     typeof eventCodes.AUTH_ATTEMPT_FAILURE
