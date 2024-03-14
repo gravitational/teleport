@@ -5278,7 +5278,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
 		Entry: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
+			teleport.ComponentKey: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
 		}),
 		server:       server,
 		usersService: usersService,

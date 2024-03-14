@@ -391,7 +391,7 @@ func (cfg *sqsCollectConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.logger == nil {
 		cfg.logger = log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentAthena,
+			teleport.ComponentKey: teleport.ComponentAthena,
 		})
 	}
 	if cfg.errHandlingFn == nil {

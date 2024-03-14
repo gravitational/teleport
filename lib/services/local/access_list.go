@@ -29,6 +29,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -110,7 +111,7 @@ func NewAccessListService(backend backend.Backend, clock clockwork.Clock) (*Acce
 	}
 
 	return &AccessListService{
-		log:           logrus.WithFields(logrus.Fields{trace.Component: "access-list:local-service"}),
+		log:           logrus.WithFields(logrus.Fields{teleport.ComponentKey: "access-list:local-service"}),
 		clock:         clock,
 		service:       service,
 		memberService: memberService,

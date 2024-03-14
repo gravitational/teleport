@@ -38,6 +38,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -67,7 +68,7 @@ type IdentityService struct {
 func NewIdentityService(backend backend.Backend) *IdentityService {
 	return &IdentityService{
 		Backend: backend,
-		log:     logrus.WithField(trace.Component, "identity"),
+		log:     logrus.WithField(teleport.ComponentKey, "identity"),
 	}
 }
 

@@ -76,7 +76,7 @@ func (cfg *SignerHandlerConfig) CheckAndSetDefaults() error {
 		cfg.RoundTripper = tr
 	}
 	if cfg.Log == nil {
-		cfg.Log = logrus.WithField(trace.Component, "aws:signer")
+		cfg.Log = logrus.WithField(teleport.ComponentKey, "aws:signer")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()

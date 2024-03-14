@@ -267,7 +267,7 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 
 	if cfg.LogEntry == nil {
 		cfg.LogEntry = log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentAthena,
+			teleport.ComponentKey: teleport.ComponentAthena,
 		})
 	}
 

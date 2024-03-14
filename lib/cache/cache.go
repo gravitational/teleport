@@ -942,7 +942,7 @@ func New(config Config) (*Cache, error) {
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
 		Logger: log.WithFields(log.Fields{
-			trace.Component: config.Component,
+			teleport.ComponentKey: config.Component,
 		}),
 	}
 	collections, err := setupCollections(cs, config.Watches)

@@ -192,7 +192,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	log := cfg.Log.WithFields(logrus.Fields{
-		trace.Component: cfg.Component,
+		teleport.ComponentKey: cfg.Component,
 	})
 	// limiter limits requests by frequency and amount of simultaneous
 	// connections per client
