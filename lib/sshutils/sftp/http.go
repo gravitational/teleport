@@ -38,14 +38,6 @@ import (
 type contextKey string
 
 const (
-	// FileTransferDstPath is the dstPath (location) for the requested file transfer. This would be equal
-	// to the file to be downloaded, or location for a file to be uploaded.
-	FileTransferDstPath string = "TELEPORT_FILE_TRANSFER_DST_PATH"
-	// FileTransferRequestID is an optional parameter id of an file transfer request that has gone through
-	// an approval process during a moderated session to allow a file transfer scp command to be executed
-	// used as a value in the file transfer context and env var for exec session
-	FileTransferRequestID contextKey = "TELEPORT_FILE_TRANSFER_REQUEST_ID"
-
 	// ModeratedSessionID is an optional parameter sent during SCP requests to specify which moderated session
 	// to check for valid FileTransferRequests
 	// used as a value in the file transfer context and env var for exec session
