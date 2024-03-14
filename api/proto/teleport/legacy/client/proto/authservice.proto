@@ -3088,11 +3088,20 @@ service AuthService {
   rpc ResetSessionRecordingConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetAuthPreference gets cluster auth preference.
-  rpc GetAuthPreference(google.protobuf.Empty) returns (types.AuthPreferenceV2);
+  // Deprecated: Use clusterconfigv1.Service.GetAuthPreference instead.
+  rpc GetAuthPreference(google.protobuf.Empty) returns (types.AuthPreferenceV2) {
+    option deprecated = true;
+  }
   // SetAuthPreference sets cluster auth preference.
-  rpc SetAuthPreference(types.AuthPreferenceV2) returns (google.protobuf.Empty);
+  // Deprecated: Use clusterconfigv1.Service.Create/Update/UpsertAuthPreference instead.
+  rpc SetAuthPreference(types.AuthPreferenceV2) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // ResetAuthPreference resets cluster auth preference to defaults.
-  rpc ResetAuthPreference(google.protobuf.Empty) returns (google.protobuf.Empty);
+  // Deprecated: Use clusterconfigv1.Service.ResetAuthPreference instead.
+  rpc ResetAuthPreference(google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
 
   // GetUIConfig gets the configuration for the UI served by the proxy service
   rpc GetUIConfig(google.protobuf.Empty) returns (types.UIConfigV1);

@@ -1379,6 +1379,10 @@ func TestCreateResources(t *testing.T) {
 			kind:   types.KindClusterNetworkingConfig,
 			create: testCreateClusterNetworkingConfig,
 		},
+		{
+			kind:   types.KindClusterAuthPreference,
+			create: testCreateAuthPreference,
+		},
 	}
 
 	for _, test := range tests {
@@ -1776,6 +1780,56 @@ version: v2
 	require.True(t, trace.IsAlreadyExists(err))
 
 	_, err = runResourceCommand(t, fc, []string{"create", "-f", cncYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateAuthPreference(t *testing.T, fc *config.FileConfig) {
+	// Get the initial CAP.
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindClusterAuthPreference, "--format=json"})
+	require.NoError(t, err)
+
+	cap := mustDecodeJSON[[]*types.AuthPreferenceV2](t, buf)
+	require.Len(t, cap, 1)
+	initial := cap[0]
+
+	const capYAML = `kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  second_factor: off
+  type: local
+version: v2
+`
+
+	// Create the cap
+	capYAMLPath := filepath.Join(t.TempDir(), "cap.yaml")
+	require.NoError(t, os.WriteFile(capYAMLPath, []byte(capYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", capYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the cap
+	buf, err = runResourceCommand(t, fc, []string{"get", types.KindClusterAuthPreference, "--format=json"})
+	require.NoError(t, err)
+	cap = mustDecodeJSON[[]*types.AuthPreferenceV2](t, buf)
+	require.Len(t, cap, 1)
+
+	var expected types.AuthPreferenceV2
+	require.NoError(t, yaml.Unmarshal([]byte(capYAML), &expected))
+
+	require.NotEqual(t, constants.SecondFactorOff, initial.GetSecondFactor())
+	require.Equal(t, constants.SecondFactorOff, expected.GetSecondFactor())
+
+	// Explicitly change the revision and try creating the cap with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	raw, err := services.MarshalAuthPreference(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(capYAMLPath, raw, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", capYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", capYAMLPath})
 	require.NoError(t, err)
 }
 

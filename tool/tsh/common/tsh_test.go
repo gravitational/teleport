@@ -1224,7 +1224,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 
 	setupUser := func(cluster, name string, withDevices bool, asrv *auth.Server) {
 		// set the default auth preference
-		err = asrv.SetAuthPreference(ctx, webauthnPreference(cluster))
+		_, err = asrv.UpsertAuthPreference(ctx, webauthnPreference(cluster))
 		require.NoError(t, err)
 
 		if !withDevices {
@@ -1698,9 +1698,11 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			}
 
 			if tt.authPreference != nil {
-				require.NoError(t, tt.auth.SetAuthPreference(ctx, tt.authPreference))
+				_, err = tt.auth.UpsertAuthPreference(ctx, tt.authPreference)
+				require.NoError(t, err)
 				t.Cleanup(func() {
-					require.NoError(t, tt.auth.SetAuthPreference(ctx, webauthnPreference(clusterName.GetClusterName())))
+					_, err = tt.auth.UpsertAuthPreference(ctx, webauthnPreference(clusterName.GetClusterName()))
+					require.NoError(t, err)
 				})
 			}
 
@@ -2538,7 +2540,7 @@ func TestSSHHeadless(t *testing.T) {
 	proxyAddr, err := rootProxy.ProxyWebAddr()
 	require.NoError(t, err)
 
-	require.NoError(t, rootAuth.GetAuthServer().SetAuthPreference(ctx, &types.AuthPreferenceV2{
+	_, err = rootAuth.GetAuthServer().UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOptional,
@@ -2546,7 +2548,8 @@ func TestSSHHeadless(t *testing.T) {
 				RPID: "127.0.0.1",
 			},
 		},
-	}))
+	})
+	require.NoError(t, err)
 
 	go func() {
 		if err := approveAllAccessRequests(ctx, rootAuth.GetAuthServer()); err != nil {
@@ -2641,7 +2644,7 @@ func TestHeadlessDoesNotAddKeysToAgent(t *testing.T) {
 	proxyAddr, err := rootProxy.ProxyWebAddr()
 	require.NoError(t, err)
 
-	require.NoError(t, rootAuth.GetAuthServer().SetAuthPreference(ctx, &types.AuthPreferenceV2{
+	_, err = rootAuth.GetAuthServer().UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOptional,
@@ -2649,7 +2652,8 @@ func TestHeadlessDoesNotAddKeysToAgent(t *testing.T) {
 				RPID: "127.0.0.1",
 			},
 		},
-	}))
+	})
+	require.NoError(t, err)
 
 	go func() {
 		if err := approveAllAccessRequests(ctx, rootAuth.GetAuthServer()); err != nil {

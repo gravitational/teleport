@@ -401,9 +401,8 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			apV2.Spec.DeviceTrust = &types.DeviceTrust{
 				Mode: test.deviceMode,
 			}
-			require.NoError(t,
-				client.SetAuthPreference(ctx, apV2),
-				"SetAuthPreference failed")
+			_, err = client.UpsertAuthPreference(ctx, apV2)
+			require.NoError(t, err, "UpsertAuthPreference failed")
 
 			// Create a new authorizer.
 			authorizer, err := NewAuthorizer(AuthorizerOpts{
@@ -467,7 +466,8 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, client.SetAuthPreference(ctx, authPreference))
+	_, err = client.UpsertAuthPreference(ctx, authPreference)
+	require.NoError(t, err)
 
 	// Create a new local user.
 	localUser, _, err := createUserAndRole(client, "localuser", []string{"local"}, nil)
@@ -1068,10 +1068,14 @@ func newTestResources(t *testing.T) (*testClient, *services.LockWatcher, Authori
 
 	// Set default singletons
 	ctx := context.Background()
-	client.SetAuthPreference(ctx, types.DefaultAuthPreference())
-	client.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
-	client.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
-	client.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	_, err = client.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+	require.NoError(t, err)
+	err = client.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
+	require.NoError(t, err)
+	_, err = client.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
+	err = client.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	require.NoError(t, err)
 
 	lockSvc := local.NewAccessService(backend)
 

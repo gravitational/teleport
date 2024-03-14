@@ -478,7 +478,7 @@ func setConfigClientIdleTimoutAndDisconnectExpiredCert(ctx context.Context, t *t
 	authPref, err := auth.GetAuthPreference(ctx)
 	require.NoError(t, err)
 	authPref.SetDisconnectExpiredCert(true)
-	err = auth.SetAuthPreference(ctx, authPref)
+	_, err = auth.UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	netConfig, err := auth.GetClusterNetworkingConfig(ctx)
