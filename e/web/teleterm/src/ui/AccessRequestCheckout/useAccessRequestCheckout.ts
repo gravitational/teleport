@@ -6,6 +6,7 @@ import { PendingAccessRequest } from 'teleterm/ui/services/workspacesService';
 import { useLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { ReviewerOption } from 'e-teleport/Workflow/NewRequest/RequestCheckout/types';
+import { CreateAccessRequestParams } from 'teleterm/services/tshd/types';
 
 import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/useNewRequest';
 
@@ -137,11 +138,19 @@ export default function useAccessRequestCheckout() {
 
   function createRequest(reason: string, suggestedReviewers: string[]) {
     const data = getPendingAccessRequestsPerResource(pendingAccessRequest);
-    const req = {
+    const req: CreateAccessRequestParams = {
       rootClusterUri,
       reason,
       suggestedReviewers,
-      resourceIds: data.filter(d => d.kind !== 'role'),
+      dryRun: false, // TODO(lisa): this field should be determined by caller
+      resourceIds: data
+        .filter(d => d.kind !== 'role')
+        .map(d => ({
+          name: d.id,
+          clusterName: d.clusterName,
+          kind: d.kind,
+          subResourceName: '',
+        })),
       roles: data.filter(d => d.kind === 'role').map(d => d.name),
     };
 

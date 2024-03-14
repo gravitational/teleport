@@ -13,6 +13,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 
 export default function useAccessRequests(doc: types.DocumentAccessRequests) {
   const ctx = useAppContext();
@@ -96,17 +97,17 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
 export function makeUiAccessRequest(request: TshdAccessRequest) {
   return makeAccessRequest({
     ...request,
-    // Timestamppb sends date through gRPC
-    // {
-    //   seconds: number,
-    //   nanos: number,
-    // },
-    created: request.created.seconds * 1000,
-    expires: request.expires.seconds * 1000,
+    created: Timestamp.toDate(request.created),
+    expires: Timestamp.toDate(request.expires),
+    maxDuration: request.maxDuration && Timestamp.toDate(request.maxDuration),
+    requestTTL: request.requestTtl && Timestamp.toDate(request.requestTtl),
+    sessionTTL: request.sessionTtl && Timestamp.toDate(request.sessionTtl),
+    assumeStartTime:
+      request.assumeStartTime && Timestamp.toDate(request.assumeStartTime),
     roles: request.roles,
     reviews: request.reviews.map(review => ({
       ...review,
-      created: review.created.seconds * 1000,
+      created: Timestamp.toDate(review.created),
     })),
     suggestedReviewers: request.suggestedReviewers,
     thresholdNames: request.thresholdNames,
