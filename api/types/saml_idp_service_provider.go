@@ -129,6 +129,10 @@ type SAMLIdPServiceProvider interface {
 	GetACSURL() string
 	// SetACSURL sets the ACS URL.
 	SetACSURL(string)
+	// GetPreset returns the Preset.
+	GetPreset() string
+	// SetPreset sets the Preset.
+	SetPreset(string)
 	// GetAttributeMapping returns Attribute Mapping.
 	GetAttributeMapping() []*SAMLAttributeMapping
 	// SetAttributeMapping sets Attribute Mapping.
@@ -193,6 +197,16 @@ func (s *SAMLIdPServiceProviderV1) GetAttributeMapping() []*SAMLAttributeMapping
 // SetAttributeMapping sets Attribute Mapping.
 func (s *SAMLIdPServiceProviderV1) SetAttributeMapping(attrMaps []*SAMLAttributeMapping) {
 	s.Spec.AttributeMapping = attrMaps
+}
+
+// GetPreset returns the Preset.
+func (s *SAMLIdPServiceProviderV1) GetPreset() string {
+	return s.Spec.Preset
+}
+
+// SetPreset sets the Preset.
+func (s *SAMLIdPServiceProviderV1) SetPreset(preset string) {
+	s.Spec.Preset = preset
 }
 
 // String returns the SAML IdP service provider string representation.
