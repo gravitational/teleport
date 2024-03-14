@@ -136,7 +136,7 @@ type RouterConfig struct {
 // CheckAndSetDefaults ensures the required items were populated
 func (c *RouterConfig) CheckAndSetDefaults() error {
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "Router")
+		c.Log = logrus.WithField(teleport.ComponentKey, "Router")
 	}
 
 	if c.ClusterName == "" {

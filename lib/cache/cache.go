@@ -956,7 +956,7 @@ func New(config Config) (*Cache, error) {
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
 		kubeWaitingContsCache:        kubeWaitingContsCache,
 		Logger: log.WithFields(log.Fields{
-			trace.Component: config.Component,
+			teleport.ComponentKey: config.Component,
 		}),
 	}
 	collections, err := setupCollections(cs, config.Watches)

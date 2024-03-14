@@ -33,6 +33,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
@@ -276,7 +277,7 @@ type RoleSetupConfig struct {
 
 func (c *RoleSetupConfig) CheckAndSetDefaults() error {
 	if c.Log == nil {
-		c.Log = logrus.NewEntry(logrus.StandardLogger()).WithField(trace.Component, "CMC role")
+		c.Log = logrus.NewEntry(logrus.StandardLogger()).WithField(teleport.ComponentKey, "CMC role")
 	}
 
 	return nil

@@ -2426,7 +2426,7 @@ func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...in
 	debugf = func(format string, args ...interface{}) {}
 
 	if debugEnabled {
-		debugf = log.WithField(trace.Component, teleport.ComponentRBAC).Tracef
+		debugf = log.WithField(teleport.ComponentKey, teleport.ComponentRBAC).Tracef
 	}
 
 	return
@@ -3020,7 +3020,7 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 			}
 			if matched {
 				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
+					teleport.ComponentKey: teleport.ComponentRBAC,
 				}).Tracef("Access to %v %v in namespace %v denied to %v: deny rule matched.",
 					p.verb, p.resource, p.namespace, role.GetName())
 				return trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
@@ -3043,7 +3043,7 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 	}
 
 	log.WithFields(log.Fields{
-		trace.Component: teleport.ComponentRBAC,
+		teleport.ComponentKey: teleport.ComponentRBAC,
 	}).Tracef("Access to %v %v in namespace %v denied to %v: no allow rule matched.",
 		p.verb, p.resource, p.namespace, set)
 

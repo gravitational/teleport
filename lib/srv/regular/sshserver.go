@@ -75,7 +75,7 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentNode,
+	teleport.ComponentKey: teleport.ComponentNode,
 })
 
 // Server implements SSH server that uses configuration backend and
@@ -817,8 +817,8 @@ func New(
 	}
 
 	s.Entry = logrus.WithFields(logrus.Fields{
-		trace.Component:       component,
-		trace.ComponentFields: logrus.Fields{},
+		teleport.ComponentKey:    component,
+		teleport.ComponentFields: logrus.Fields{},
 	})
 
 	if s.GetCreateHostUser() {

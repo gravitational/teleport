@@ -45,7 +45,7 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentAuthority,
+	teleport.ComponentKey: teleport.ComponentAuthority,
 })
 
 // FromCertAndSigner returns a CertAuthority with the given raw certificate and signer.

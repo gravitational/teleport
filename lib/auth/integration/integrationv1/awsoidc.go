@@ -29,6 +29,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -171,7 +172,7 @@ func (s *AWSOIDCServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if s.Logger == nil {
-		s.Logger = logrus.WithField(trace.Component, "integrations.awsoidc.service")
+		s.Logger = logrus.WithField(teleport.ComponentKey, "integrations.awsoidc.service")
 	}
 
 	return nil

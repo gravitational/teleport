@@ -38,7 +38,7 @@ import (
 )
 
 func (process *TeleportProcess) initKubernetes() {
-	logger := process.logger.With(trace.Component, teleport.Component(teleport.ComponentKube, process.id))
+	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id))
 
 	process.RegisterWithAuthServer(types.RoleKube, KubeIdentityEvent)
 	process.RegisterCriticalFunc("kube.init", func() error {
@@ -151,7 +151,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	if len(cfg.Kube.DynamicLabels) != 0 {
 		dynLabels, err = labels.NewDynamic(process.ExitContext(), &labels.DynamicConfig{
 			Labels: cfg.Kube.DynamicLabels,
-			Log:    process.log.WithField(trace.Component, teleport.Component(teleport.ComponentKube, process.id)),
+			Log:    process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -168,7 +168,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentKube,
-			Log:       process.log.WithField(trace.Component, teleport.Component(teleport.ComponentKube, process.id)),
+			Log:       process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 			Client:    conn.Client,
 		},
 	})
@@ -181,7 +181,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		ClusterName: teleportClusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
-		Logger:      process.log.WithField(trace.Component, teleport.Component(teleport.ComponentKube, process.id)),
+		Logger:      process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -235,7 +235,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		StaticLabels:         cfg.Kube.StaticLabels,
 		DynamicLabels:        dynLabels,
 		CloudLabels:          process.cloudLabels,
-		Log:                  process.log.WithField(trace.Component, teleport.Component(teleport.ComponentKube, process.id)),
+		Log:                  process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 		PROXYProtocolMode:    multiplexer.PROXYProtocolOff, // Kube service doesn't need to process unsigned PROXY headers.
 	})
 	if err != nil {
