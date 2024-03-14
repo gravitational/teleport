@@ -295,21 +295,8 @@ export function createTshdClient(
     },
 
     async createAccessRequest(params: types.CreateAccessRequestParams) {
-      const req = api.CreateAccessRequestRequest.create({
-        rootClusterUri: params.rootClusterUri,
-        suggestedReviewers: params.suggestedReviewers,
-        roles: params.roles,
-        reason: params.reason,
-        resourceIds: params.resourceIds.map(({ id, clusterName, kind }) =>
-          ResourceID.create({
-            name: id,
-            clusterName,
-            kind,
-          })
-        ),
-      });
       return new Promise<AccessRequest>((resolve, reject) => {
-        tshd.createAccessRequest(req, (err, response) => {
+        tshd.createAccessRequest(params, (err, response) => {
           if (err) {
             reject(err);
           } else {
@@ -369,6 +356,7 @@ export function createTshdClient(
         state: params.state,
         reason: params.reason,
         roles: params.roles,
+        assumeStartTime: params.assumeStartTime,
       });
       return new Promise<types.AccessRequest>((resolve, reject) => {
         tshd.reviewAccessRequest(req, (err, response) => {

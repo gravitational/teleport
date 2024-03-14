@@ -163,6 +163,7 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 			Reason:                  rev.Reason,
 			Created:                 timestamppb.New(rev.Created),
 			PromotedAccessListTitle: rev.GetAccessListTitle(),
+			AssumeStartTime:         getProtoTimestamp(rev.AssumeStartTime),
 		})
 	}
 
@@ -214,6 +215,10 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 		ResourceIds:             requestedResourceIDs,
 		Resources:               resources,
 		PromotedAccessListTitle: req.GetPromotedAccessListTitle(),
+		AssumeStartTime:         getProtoTimestamp(req.GetAssumeStartTime()),
+		MaxDuration:             timestamppb.New(req.GetMaxDuration()),
+		RequestTtl:              timestamppb.New(req.Expiry()),
+		SessionTtl:              timestamppb.New(req.GetSessionTLL()),
 	}
 }
 
