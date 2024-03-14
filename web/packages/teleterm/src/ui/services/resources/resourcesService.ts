@@ -20,7 +20,10 @@ import { pluralize } from 'shared/utils/text';
 
 import { makeApp, App } from 'teleterm/ui/services/clusters';
 
-import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
+import {
+  cloneAbortSignal,
+  TshdRpcError,
+} from 'teleterm/services/tshd/cloneableClient';
 
 import type * as types from 'teleterm/services/tshd/types';
 import type * as uri from 'teleterm/ui/uri';
@@ -166,7 +169,7 @@ export class ResourceSearchError extends Error {
   constructor(
     public clusterUri: uri.ClusterUri,
     public resourceKind: SearchResult['kind'],
-    cause: Error
+    cause: Error | TshdRpcError
   ) {
     super(
       `Error while fetching resources of type ${resourceKind} from cluster ${clusterUri}`,
