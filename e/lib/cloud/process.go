@@ -8,6 +8,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/cloud/feature"
@@ -161,7 +162,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 // CheckAndSetDefaults checks and sets default config values
 func (c *Config) CheckAndSetDefaults() (err error) {
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, cloudComponent)
+		c.Log = logrus.WithField(teleport.ComponentKey, cloudComponent)
 	}
 
 	if c.AuthPlugin == nil {

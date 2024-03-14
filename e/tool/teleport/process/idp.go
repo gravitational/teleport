@@ -5,8 +5,9 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/e/lib/idp/saml"
-	"github.com/gravitational/teleport/e/lib/teleport"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/e/lib/web"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -17,7 +18,7 @@ import (
 //
 //nolint:revive // Because we want this to be IdP.
 func initSAMLIdP(ctx context.Context, cfg *servicecfg.Config, plugin *web.Plugin) error {
-	log := cfg.Log.WithField(trace.Component, teleport.ComponentSAMLIdP)
+	log := cfg.Log.WithField(teleport.ComponentKey, eteleport.ComponentSAMLIdP)
 	authClient := plugin.GetProxyClient()
 	accessPoint := plugin.GetAccessPoint()
 
@@ -28,7 +29,7 @@ func initSAMLIdP(ctx context.Context, cfg *servicecfg.Config, plugin *web.Plugin
 	}
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentSAMLIdP,
+			Component: eteleport.ComponentSAMLIdP,
 			Log:       log,
 			Client:    authClient,
 		},

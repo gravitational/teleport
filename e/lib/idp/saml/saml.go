@@ -12,10 +12,11 @@ import (
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/e/lib/teleport"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -42,7 +43,7 @@ type Config struct {
 // Check makes sure the SAML identity provider service configuration is valid.
 func (c *Config) Check() error {
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, teleport.ComponentSAMLIdP)
+		c.Log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentSAMLIdP)
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()

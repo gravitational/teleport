@@ -11,11 +11,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/teleport"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -88,7 +89,7 @@ func (c *UserAssignmentCreatorConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, teleport.ComponentOktaUserAssignmentCreator)
+		c.Log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentOktaUserAssignmentCreator)
 	}
 
 	if c.Clock == nil {
@@ -365,7 +366,7 @@ func (u *UserAssignmentCreator) newOktaAssignment(ctx context.Context, assignmen
 	assignment, err := types.NewOktaAssignment(types.Metadata{
 		Name: assignmentName,
 		Labels: map[string]string{
-			teleport.OktaAssignmentSourceLabel: userAssignmentCreatorSource,
+			eteleport.OktaAssignmentSourceLabel: userAssignmentCreatorSource,
 		},
 	}, types.OktaAssignmentSpecV1{
 		User:           username,
@@ -391,7 +392,7 @@ func (u *UserAssignmentCreator) findOldOktaAssignments(ctx context.Context, user
 		}
 
 		for _, assignment := range assignments {
-			sourceLabel, ok := assignment.GetLabel(teleport.OktaAssignmentSourceLabel)
+			sourceLabel, ok := assignment.GetLabel(eteleport.OktaAssignmentSourceLabel)
 			if !ok {
 				u.log.Debugf("No source label for assignment %s, skipping", assignment.GetName())
 				continue

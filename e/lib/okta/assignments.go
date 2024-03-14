@@ -9,8 +9,9 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/teleport"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -62,7 +63,7 @@ type assignmentReconciler struct {
 
 // newAssignmentReconciler creates a new AssignmentReconciler.
 func newAssignmentReconciler(ctx context.Context, clusterName string, svc *Service) *assignmentReconciler {
-	log := logrus.WithField(trace.Component, teleport.ComponentOktaAssignmentReconciler)
+	log := logrus.WithField(teleport.ComponentKey, eteleport.ComponentOktaAssignmentReconciler)
 	a := &assignmentReconciler{
 		log:            log,
 		clock:          svc.clock,
@@ -180,7 +181,7 @@ func (a *assignmentReconciler) startResourceWatcher(ctx context.Context) (*servi
 	a.log.Debug("Initializing assignment resource watcher.")
 	watcher, err := services.NewOktaAssignmentWatcher(ctx, services.OktaAssignmentWatcherConfig{
 		RWCfg: services.ResourceWatcherConfig{
-			Component: teleport.ComponentOktaAssignmentReconciler,
+			Component: eteleport.ComponentOktaAssignmentReconciler,
 			Log:       a.log,
 			Client:    a.accessPoint,
 		},

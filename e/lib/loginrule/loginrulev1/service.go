@@ -7,6 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -47,7 +48,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("emitter is required")
 	}
 	return &Service{
-		logger:     logrus.WithField(trace.Component, "loginrule.service"),
+		logger:     logrus.WithField(teleport.ComponentKey, "loginrule.service"),
 		storage:    cfg.Storage,
 		authorizer: cfg.Authorizer,
 		emitter:    cfg.Emitter,

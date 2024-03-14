@@ -24,6 +24,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
@@ -169,8 +170,8 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 		}
 
 		log := cfg.Log.WithFields(logrus.Fields{
-			trace.Component: "accessgraph",
-			"Addr":          accessGraphAddr,
+			teleport.ComponentKey: "accessgraph",
+			"Addr":                accessGraphAddr,
 		})
 
 		config := ServiceClientConfig{

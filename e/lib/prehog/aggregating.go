@@ -139,7 +139,7 @@ func ClearAggregatingUsageReportingAlert(process *service.TeleportProcess) {
 
 func usageReportingLog(process *service.TeleportProcess) *logrus.Entry {
 	return process.Config.Log.WithField(
-		trace.Component,
+		teleport.ComponentKey,
 		teleport.Component(
 			teleport.ComponentUsageReporting,
 			process.GetID(),

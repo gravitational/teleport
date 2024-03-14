@@ -105,7 +105,7 @@ func (args *installOktaPluginArgs) CheckAndSetDefaults() error {
 // will default to using the standard Okta client settings if no HTTP client is
 // provided.
 func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plugin, error) {
-	log := args.log.WithField(trace.Component, teleport.Component(types.PluginTypeOkta))
+	log := args.log.WithField(teleport.ComponentKey, teleport.Component(types.PluginTypeOkta))
 
 	params, err := validateOktaPluginInputs(ctx, args.validateOktaPluginInputsArgs)
 	if err != nil {
@@ -290,8 +290,8 @@ func (args *validateOktaPluginInputsArgs) validateOktaConfig(ctx context.Context
 	}
 
 	log := args.log.WithFields(logrus.Fields{
-		trace.Component: teleport.Component(types.PluginTypeOkta),
-		"oktaOrg":       orgURL.String(),
+		teleport.ComponentKey: teleport.Component(types.PluginTypeOkta),
+		"oktaOrg":             orgURL.String(),
 	})
 
 	oktaClient, err := okta.NewClient(ctx, okta.ClientConfig{

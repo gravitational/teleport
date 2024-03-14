@@ -9,6 +9,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
 )
 
 // NewPuller create a new instance of Puller.
@@ -34,7 +36,7 @@ func (a *PullerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing tlsConf")
 	}
 	if a.Log == nil {
-		a.Log = logrus.WithField(trace.Component, "DB:ORC:AU")
+		a.Log = logrus.WithField(teleport.ComponentKey, "DB:ORC:AU")
 	}
 	if a.Interval <= 0 {
 		a.Interval = time.Second * 20

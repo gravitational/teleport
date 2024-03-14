@@ -18,6 +18,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
@@ -71,7 +72,7 @@ func newFromConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		cfg.ChangeFeedConnString = cfg.ConnString
 	}
 
-	log := logrus.WithField(trace.Component, component)
+	log := logrus.WithField(teleport.ComponentKey, component)
 	poolConfig, err := pgxpool.ParseConfig(cfg.ConnString)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -25,6 +25,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/userloginstate"
@@ -60,7 +61,7 @@ type UserMonitorConfig struct {
 
 func (u *UserMonitorConfig) CheckAndSetDefaults() error {
 	if u.Log == nil {
-		u.Log = logrus.WithField(trace.Component, eteleport.ComponentUserMonitor)
+		u.Log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentUserMonitor)
 	}
 
 	if u.Clock == nil {

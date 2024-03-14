@@ -16,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -60,7 +61,7 @@ const (
 	pluginName = "auth.enterprise"
 )
 
-var log = logrus.WithField(trace.Component, pluginName)
+var log = logrus.WithField(teleport.ComponentKey, pluginName)
 
 // License is an interface for checking if a license is disabled.
 type License interface {
@@ -479,7 +480,7 @@ func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC 
 		Clock:            p.authServer.AuthServer.GetClock(),
 		Emitter:          p.authServer.Emitter,
 		LimiterStorage:   storage,
-		Logger:           log.WithField(trace.Component, "mon"),
+		Logger:           log.WithField(teleport.ComponentKey, "mon"),
 		ProcessContext:   ctx,
 		Region:           auditConf.Region(),
 		Semaphore:        p.authServer.AuthServer,

@@ -43,7 +43,7 @@ func init() {
 // SetModules installs modules that provide custom behavior for the
 // enterprise compared to the open-source version
 func SetModules(licenseFile *licensefile.LicenseFile) error {
-	log := logrus.WithField(trace.Component, eModuleComponent)
+	log := logrus.WithField(teleport.ComponentKey, eModuleComponent)
 	p := enterpriseModules{log: log}
 
 	if licenseFile == nil || licenseFile.License == nil {

@@ -49,7 +49,7 @@ func newOktaShim(ctx context.Context, plugin types.Plugin, service *Service) (pr
 	}
 
 	log := service.log.WithField(
-		trace.Component,
+		teleport.ComponentKey,
 		teleport.Component(ComponentName, eteleport.ComponentOkta))
 
 	return &oktaShim{

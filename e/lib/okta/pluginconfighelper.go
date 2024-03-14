@@ -11,6 +11,7 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -41,7 +42,7 @@ func (c *PluginConfigHelperConfig) CheckAndSetDefaults() {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, eteleport.ComponentOkta)
+		c.Log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentOkta)
 	}
 
 	if c.CacheTTL == 0 {

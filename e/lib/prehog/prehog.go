@@ -8,6 +8,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/lib/events/usageevents"
 	"github.com/gravitational/teleport/lib/service"
@@ -27,7 +28,7 @@ const (
 	prehogComponent = "prehog"
 )
 
-var log = logrus.WithField(trace.Component, prehogComponent)
+var log = logrus.WithField(teleport.ComponentKey, prehogComponent)
 
 // InitStreamingUsageReporting adds the prehog usage reporter to the given
 // Teleport process.

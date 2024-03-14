@@ -61,7 +61,7 @@ func startJamfService(ctx context.Context, process *service.TeleportProcess, htt
 	// Register our request for MDM credentials.
 	process.RegisterWithAuthServer(types.RoleMDM, jamfIdentityEvent)
 
-	logger := process.Config.Logger.With(trace.Component, teleport.Component(ent.ComponentJamf, process.GetID()))
+	logger := process.Config.Logger.With(teleport.ComponentKey, teleport.Component(ent.ComponentJamf, process.GetID()))
 
 	// Wait for MDM credentials.
 	conn, err := process.WaitForConnector(jamfIdentityEvent, logger)
@@ -84,7 +84,7 @@ func startJamfService(ctx context.Context, process *service.TeleportProcess, htt
 
 	s, err := jamfservice.New(ctx, jamfservice.Opts{
 		Clock:            process.Clock,
-		Logger:           process.Config.Log.WithField(trace.Component, teleport.Component(ent.ComponentJamf, process.GetID())),
+		Logger:           process.Config.Log.WithField(teleport.ComponentKey, teleport.Component(ent.ComponentJamf, process.GetID())),
 		Config:           &process.Config.Jamf,
 		DevicesClient:    conn.Client.DevicesClient(),
 		HTTPClient:       httpClient,

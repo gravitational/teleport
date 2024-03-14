@@ -8,7 +8,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 )
 
 // purgeCache clears the assignmentClient caches, forcing the client to reload
@@ -29,7 +30,7 @@ func (a *assignmentClient) purgeCache() {
 
 func TestAssignmentClient(t *testing.T) {
 	ctx := context.Background()
-	log := logrus.WithField(trace.Component, teleport.ComponentOkta)
+	log := logrus.WithField(teleport.ComponentKey, eteleport.ComponentOkta)
 	testGroup := "test-group"
 	testApp := "test-app"
 	testUser := "test-user@test.user"

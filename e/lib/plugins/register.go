@@ -4,7 +4,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -28,14 +29,14 @@ func RegisterPluginManager(oauthProviders servicecfg.PluginOAuthProviders, proce
 		ParentProcess:           process,
 
 		Log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentPluginManager,
+			teleport.ComponentKey: eteleport.ComponentPluginManager,
 		}),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	process.Supervisor.RegisterFunc(teleport.ComponentPluginManager, func() error {
+	process.Supervisor.RegisterFunc(eteleport.ComponentPluginManager, func() error {
 		return trace.Wrap(pluginManager.Run(process.GracefulExitContext()))
 	})
 	return nil

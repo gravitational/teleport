@@ -109,7 +109,7 @@ func InitOktaPlugin(ctx context.Context, process *service.TeleportProcess, plugi
 func initOktaService(ctx context.Context, process *service.TeleportProcess, settings oktaSettings, logComponent string, components ...string) error {
 	defer process.BroadcastEvent(service.Event{Name: EventWithComponents(OktaStopped, components...), Payload: nil})
 
-	logger := process.Config.Logger.With(trace.Component, teleport.Component(eteleport.ComponentOkta, logComponent))
+	logger := process.Config.Logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentOkta, logComponent))
 
 	conn, err := process.WaitForConnector(EventWithComponents(OktaIdentityEvent, components...), logger)
 	if conn == nil {
@@ -141,7 +141,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: eteleport.ComponentOkta,
-			Log:       process.Config.Log.WithField(trace.Component, teleport.Component(eteleport.ComponentOkta, logComponent)),
+			Log:       process.Config.Log.WithField(teleport.ComponentKey, teleport.Component(eteleport.ComponentOkta, logComponent)),
 			Client:    conn.Client,
 		},
 	})
@@ -178,7 +178,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 	}
 
 	oktaService, err := okta.New(ctx, okta.Config{
-		Log:                        process.Config.Log.WithField(trace.Component, teleport.Component(eteleport.ComponentOkta, logComponent)),
+		Log:                        process.Config.Log.WithField(teleport.ComponentKey, teleport.Component(eteleport.ComponentOkta, logComponent)),
 		Clock:                      process.Clock,
 		TLSConfig:                  tlsConfig,
 		Authorizer:                 authorizer,

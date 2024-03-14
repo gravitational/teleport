@@ -200,7 +200,7 @@ func New(params ServiceParams) (*Service, error) {
 	}
 
 	return &Service{
-		logger:      baseLogger.WithField(trace.Component, "devicetrust.service"),
+		logger:      baseLogger.WithField(teleport.ComponentKey, "devicetrust.service"),
 		authServer:  params.AuthServer,
 		authorizer:  params.Authorizer,
 		cachedRoles: params.CachedAccessService,

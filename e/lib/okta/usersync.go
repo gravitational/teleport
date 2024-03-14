@@ -12,6 +12,7 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
@@ -207,7 +208,7 @@ func (cfg *userReconcilerConfig) CheckAndSetDefaults() error {
 	}
 
 	if cfg.log == nil {
-		cfg.log = logrus.WithField(trace.Component, eteleport.ComponentOkta)
+		cfg.log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentOkta)
 	}
 
 	if cfg.clock == nil {
@@ -432,7 +433,7 @@ func (p *LockParams) CheckAndSetDefaults() error {
 	}
 
 	if p.Log == nil {
-		p.Log = logrus.WithField(trace.Component, eteleport.ComponentOkta)
+		p.Log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentOkta)
 	}
 
 	if p.Clock == nil {

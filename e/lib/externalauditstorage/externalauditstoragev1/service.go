@@ -80,7 +80,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("Emitter is required")
 	}
 	return &Service{
-		logger:                   logrus.WithField(trace.Component, "ExternalAuditStorage.service"),
+		logger:                   logrus.WithField(teleport.ComponentKey, "ExternalAuditStorage.service"),
 		authorizer:               cfg.Authorizer,
 		externalAuditStorage:     cfg.ExternalAuditStorage,
 		clusterAuditConfigGetter: cfg.ClusterAuditConfigGetter,

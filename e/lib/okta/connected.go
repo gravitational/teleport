@@ -8,8 +8,9 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/teleport"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -51,7 +52,7 @@ func (o *OktaConnectedConfig) CheckAndSetDefaults() error {
 	}
 
 	if o.Log == nil {
-		o.Log = logrus.WithField(trace.Component, teleport.ComponentOktaConnected)
+		o.Log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentOktaConnected)
 	}
 
 	if o.Clock == nil {

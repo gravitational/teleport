@@ -10,11 +10,12 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/e/lib/teleport"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -85,7 +86,7 @@ type AccessRequestReconcilerConfig struct {
 
 func (c *AccessRequestReconcilerConfig) CheckAndSetDefaults() error {
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, teleport.ComponentOktaAccessRequestReconciler)
+		c.Log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentOktaAccessRequestReconciler)
 	}
 
 	if c.Clock == nil {
@@ -368,7 +369,7 @@ func (a *AccessRequestReconciler) startResourceWatcher(ctx context.Context) (*se
 	a.log.Debug("Initializing access request resource watcher.")
 	watcher, err := services.NewAccessRequestWatcher(ctx, services.AccessRequestWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentOktaAccessRequestReconciler,
+			Component: eteleport.ComponentOktaAccessRequestReconciler,
 			Log:       a.log,
 			Client:    a.accessPoint,
 		},
@@ -581,7 +582,7 @@ func (a *AccessRequestReconciler) accessRequestToOktaAssignment(ctx context.Cont
 	assignment, err := types.NewOktaAssignment(types.Metadata{
 		Name: accessRequest.GetName(),
 		Labels: map[string]string{
-			teleport.OktaAssignmentSourceLabel: fmt.Sprintf(accessRequestFormat, accessRequest.GetName()),
+			eteleport.OktaAssignmentSourceLabel: fmt.Sprintf(accessRequestFormat, accessRequest.GetName()),
 		},
 	}, types.OktaAssignmentSpecV1{
 		User:        accessRequest.GetUser(),

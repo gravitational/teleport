@@ -6,6 +6,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -45,7 +46,7 @@ func (cfg *MemberReconcilerConfig) CheckAndSetDefaults() error {
 	}
 
 	if cfg.Log == nil {
-		cfg.Log = logrus.WithField(trace.Component, componentAccessListService)
+		cfg.Log = logrus.WithField(teleport.ComponentKey, componentAccessListService)
 	}
 
 	if cfg.Matcher == nil {

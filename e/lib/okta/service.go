@@ -21,6 +21,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -148,7 +149,7 @@ type Config struct {
 
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, eteleport.ComponentOkta)
+		c.Log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentOkta)
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()

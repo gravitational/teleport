@@ -10,6 +10,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/e/lib/scim"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -98,9 +99,9 @@ func (p *Plugin) scimGetResourceList(w http.ResponseWriter, r *http.Request, par
 	integration := params.ByName("integration")
 	resourceType := params.ByName("resourceType")
 	log := p.Log.WithFields(logrus.Fields{
-		trace.Component: "scim",
-		"integration":   integration,
-		"resourceType":  resourceType,
+		teleport.ComponentKey: "scim",
+		"integration":         integration,
+		"resourceType":        resourceType,
 	})
 
 	filter := r.URL.Query().Get(queryFieldFilter)
@@ -155,10 +156,10 @@ func (p *Plugin) scimGetResource(w http.ResponseWriter, r *http.Request, params 
 	}
 
 	log := p.Log.WithFields(logrus.Fields{
-		trace.Component: "scim",
-		"integration":   integration,
-		"resourceType":  resourceType,
-		"resourceID":    resourceID,
+		teleport.ComponentKey: "scim",
+		"integration":         integration,
+		"resourceType":        resourceType,
+		"resourceID":          resourceID,
 	})
 
 	scimClient := p.h.GetProxyClient().SCIMClient()
@@ -188,9 +189,9 @@ func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, para
 	integration := params.ByName("integration")
 	resourceType := params.ByName("resourceType")
 	log := p.Log.WithFields(logrus.Fields{
-		trace.Component: "scim",
-		"integration":   integration,
-		"resourceType":  resourceType,
+		teleport.ComponentKey: "scim",
+		"integration":         integration,
+		"resourceType":        resourceType,
 	})
 
 	if r.ContentLength > maxSCIMBodyBytes {
@@ -236,10 +237,10 @@ func (p *Plugin) scimUpdateResource(w http.ResponseWriter, r *http.Request, para
 	}
 
 	log := p.Log.WithFields(logrus.Fields{
-		trace.Component: "scim",
-		"integration":   integration,
-		"resourceType":  resourceType,
-		"resourceID":    resourceID,
+		teleport.ComponentKey: "scim",
+		"integration":         integration,
+		"resourceType":        resourceType,
+		"resourceID":          resourceID,
 	})
 
 	if r.ContentLength > maxSCIMBodyBytes {
@@ -292,10 +293,10 @@ func (p *Plugin) scimPatchResource(w http.ResponseWriter, r *http.Request, param
 
 	p.Log.
 		WithFields(logrus.Fields{
-			trace.Component: "scim",
-			"integration":   integration,
-			"resourceType":  resourceType,
-			"resourceID":    resourceID,
+			teleport.ComponentKey: "scim",
+			"integration":         integration,
+			"resourceType":        resourceType,
+			"resourceID":          resourceID,
 		}).
 		Info("Unexpected PATCH request")
 

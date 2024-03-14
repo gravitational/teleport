@@ -8,6 +8,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -98,7 +99,7 @@ func NewService(cfg *Config) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	log := cfg.Log.WithField(trace.Component, ComponentName)
+	log := cfg.Log.WithField(teleport.ComponentKey, ComponentName)
 	usersLog := log.WithField("ResourceType", "Users")
 
 	return &Service{

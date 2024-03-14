@@ -99,7 +99,7 @@ type accessListSyncConfig struct {
 
 func (a *accessListSyncConfig) CheckAndSetDefaults() error {
 	if a.Log == nil {
-		a.Log = logrus.WithField(trace.Component, eteleport.ComponentOkta)
+		a.Log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentOkta)
 	}
 
 	if a.Clock == nil {

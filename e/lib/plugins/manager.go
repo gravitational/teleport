@@ -9,10 +9,11 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/integrations/access/common/teleport"
+	teleclient "github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -30,7 +31,7 @@ type ManagerConfig struct {
 	Events                  types.Events
 	Factories               map[types.PluginType]instanceFactory
 	// TeleportClient is the Teleport API client passed to plugins
-	TeleportClient teleport.Client
+	TeleportClient teleclient.Client
 	// RetryConfig defines the backoff settings for retrying the inner event loop
 	RetryConfig *retryutils.RetryV2Config
 	// ParentProcess is the process that is running this plugin manager. This is needed
@@ -107,7 +108,7 @@ type Manager struct {
 	events                  types.Events
 	factories               map[types.PluginType]instanceFactory
 	instances               map[string]*instance
-	teleportClient          teleport.Client
+	teleportClient          teleclient.Client
 	watcher                 types.Watcher
 	retryConfig             retryutils.RetryV2Config
 	parentProcess           *service.TeleportProcess
@@ -296,9 +297,9 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 	statusSink := newStatusSink(m.plugins, plugin.GetName(), string(plugin.GetType()))
 
 	log := m.log.WithFields(logrus.Fields{
-		trace.Component: plugin.GetName(),
-		"plugin_name":   plugin.GetName(),
-		"plugin_type":   plugin.GetType(),
+		teleport.ComponentKey: plugin.GetName(),
+		"plugin_name":         plugin.GetName(),
+		"plugin_type":         plugin.GetType(),
 	})
 
 	staticCreds, err := m.getStaticCredentials(ctx, plugin)

@@ -23,6 +23,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -96,7 +97,7 @@ func New(params Params) (*S, error) {
 	}
 
 	return &S{
-		logger:     log.WithField(trace.Component, "devicetrust.storage"),
+		logger:     log.WithField(teleport.ComponentKey, "devicetrust.storage"),
 		backend:    params.Backend,
 		users:      params.UsersService,
 		bcryptCost: cost,

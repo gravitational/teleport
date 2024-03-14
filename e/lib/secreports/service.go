@@ -9,6 +9,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -80,7 +81,7 @@ func (c *ServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("authorizer param is missing")
 	}
 	if c.Logger == nil {
-		c.Logger = logrus.New().WithField(trace.Component, "secreports")
+		c.Logger = logrus.New().WithField(teleport.ComponentKey, "secreports")
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
