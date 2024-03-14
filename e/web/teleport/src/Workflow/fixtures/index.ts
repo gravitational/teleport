@@ -1,6 +1,30 @@
 import StoreAccessRequests from 'e-teleport/stores/storeAccessRequests';
 import { AccessRequest } from 'e-teleport/services/workflow';
 
+export const dryRunResponse: AccessRequest = {
+  id: 'e9803adc-3260-4c49-baae-047494da2822',
+  state: 'PENDING',
+  resolveReason: '',
+  requestReason: '',
+  user: 'lisa',
+  roles: ['auditor'],
+  created: new Date('2024-02-15T02:51:00.000088Z'),
+  createdDuration: '',
+  expires: new Date('2024-02-17T02:51:12.70087Z'),
+  expiresDuration: '',
+  maxDuration: new Date('2024-02-17T02:51:12.70087Z'),
+  maxDurationText: '',
+  requestTTL: new Date('2024-02-15T03:51:12.70087Z'),
+  requestTTLDuration: '',
+  sessionTTL: new Date('2024-02-15T14:51:03.999893Z'),
+  sessionTTLDuration: '',
+  reviews: [],
+  reviewers: [],
+  thresholdNames: ['default'],
+  resources: [],
+  assumeStartTime: null,
+};
+
 export const requestSearchPending: AccessRequest = {
   id: '461ff4bb-62f1-53b5-84ae-731022261a12',
   state: 'PENDING',
@@ -122,6 +146,8 @@ export const requestRolePending: AccessRequest = {
   ],
   thresholdNames: ['Default', 'Poplar', 'Admin'],
   resources: [],
+  assumeStartTime: new Date('12-6-2020'),
+  assumeStartTimeDuration: '24 hours from now',
 };
 
 export const requestRoleDenied: AccessRequest = {
