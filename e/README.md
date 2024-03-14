@@ -19,8 +19,8 @@ $GOHOME/gravitational/teleport  <-- open source public Teleport repo
 Regular OSS version of `tsh` is used for Enterprise, while `tctl` and
 `teleport` binaries are built differently. Differences:
 
-* `teleport` has different UI
-* `tctl` supports additional commands
+- `teleport` has different UI
+- `tctl` supports additional commands
 
 Both `teleport` and `tctl` report different version string when given `version`
 CLI command.
@@ -58,26 +58,19 @@ The compiled binaries can be found in `teleport/e/build`.
 If you wish to run a local enterprise Teleport cluster, you need to copy
 one of the licenses from the `fixtures` directory of this repo to
 the data directory of your Teleport cluster as `license.pem`. See
-[fixtures/README.md](fixtures/README.md) for more info. However, due to
-[#481](https://github.com/gravitational/teleport.e/issues/481) you still
-need to update your Teleport config and point to that license file:
-
-```yaml
-auth_service:
-  license_file: license.pem
-```
+[fixtures/README.md](fixtures/README.md) for more info.
 
 ## Submodules
 
 Read these two articles and you'll be fine:
 
-* [Introduction to Submodules](https://git-scm.com/book/en/v2/Git-Tools-Submodules)
-* [Submodules Reference](https://git-scm.com/docs/git-submodule)
+- [Introduction to Submodules](https://git-scm.com/book/en/v2/Git-Tools-Submodules)
+- [Submodules Reference](https://git-scm.com/docs/git-submodule)
 
 ## Working with Submodules
 
 The parent OSS repository always "knows" which branch of the `e` submodule is
-current.  Say, you want to introduce a new feature which spans across both
+current. Say, you want to introduce a new feature which spans across both
 repositories, so ideally you'd like to keep it in your own "safe place", often in your own branch.
 
 How to create such "safe place" with two repositories when one of them is a
@@ -128,7 +121,6 @@ $ git submodule update --remote
 **PRO TIP:** think of a submodule as one file. I.e. when you change _anything_
 in the enterprise submodule, you have to `git add e && git commit` the OSS
 repo.
-
 
 ### AWS Licensing
 
