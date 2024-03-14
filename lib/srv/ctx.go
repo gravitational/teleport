@@ -452,6 +452,10 @@ type ServerContext struct {
 
 	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
 	UserCreatedByTeleport bool
+
+	// approvedFileReq is an approved file transfer request that will only be
+	// set when the session's pending file transfer request is approved.
+	approvedFileReq *FileTransferRequest
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -1398,4 +1402,24 @@ func (c *ServerContext) GetPortForwardEvent() apievents.PortForward {
 			Success: true,
 		},
 	}
+}
+
+func (c *ServerContext) setApprovedFileTransferRequest(req *FileTransferRequest) {
+	c.mu.Lock()
+	c.approvedFileReq = req
+	c.mu.Unlock()
+}
+
+// ConsumeApprovedFileTransferRequest will return the approved file transfer
+// request for this session if there is one present. Note that if an
+// approved request is returned future calls to this method will return
+// nil to prevent an approved request getting reused incorrectly.
+func (c *ServerContext) ConsumeApprovedFileTransferRequest() *FileTransferRequest {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	req := c.approvedFileReq
+	c.approvedFileReq = nil
+
+	return req
 }
