@@ -30,9 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
-const (
-	accessMonitoringRulesPrefix = "access_monitoring_rule"
-)
+const accessMonitoringRulesPrefix = "access_monitoring_rule"
 
 
 // AccessMonitoringRulesService manages AccessMonitoringRules in the Backend.
