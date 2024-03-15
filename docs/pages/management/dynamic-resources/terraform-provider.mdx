@@ -104,7 +104,8 @@ authority to manage resources in the cluster. To prepare credentials using a loc
    tbot start \
      --destination-dir=./terraform-identity \
      --token="$TOKEN" \
-     # Replace with your own auth server address
+     # Replace with the host and port of your Teleport Auth Service
+     # or Teleport Proxy Service
      --auth-server=tele.example.com:443 \
      --join-method=token
    ```
