@@ -48,10 +48,16 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 
 	switch req.SubKind {
 	case types.IntegrationSubKindAWSOIDC:
+		issuerS3URI := url.URL{
+			Scheme: "s3",
+			Host:   req.AWSOIDC.IssuerS3Bucket,
+			Path:   req.AWSOIDC.IssuerS3Prefix,
+		}
 		ig, err = types.NewIntegrationAWSOIDC(
 			types.Metadata{Name: req.Name},
 			&types.AWSOIDCIntegrationSpecV1{
-				RoleARN: req.AWSOIDC.RoleARN,
+				RoleARN:     req.AWSOIDC.RoleARN,
+				IssuerS3URI: issuerS3URI.String(),
 			},
 		)
 
