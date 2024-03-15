@@ -5909,6 +5909,15 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.BadParameter("empty Login field")
 		}
 
+		// state.MFARequired is "per-role", so if the user is joining
+		// a session, MFA is required no matter what node they are
+		// connecting to. We don't preform an RBAC check like we do
+		// below when users are starting a session to selectively
+		// require MFA because we don't know what session the user
+		// is joining, nor do we know what role allowed the session
+		// creator to start the session that is attempting to be joined.
+		// We need this info to be able to selectively allow MFA in
+		// this case.
 		if t.Node.Login == teleport.SSHSessionJoinPrincipal {
 			return &proto.IsMFARequiredResponse{
 				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
