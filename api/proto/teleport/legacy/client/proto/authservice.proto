@@ -3081,11 +3081,20 @@ service AuthService {
   }
 
   // GetSessionRecordingConfig gets session recording configuration.
-  rpc GetSessionRecordingConfig(google.protobuf.Empty) returns (types.SessionRecordingConfigV2);
+  // Deprecated: Use clusterconfigv1.Service.GetSessionRecordingConfig instead.
+  rpc GetSessionRecordingConfig(google.protobuf.Empty) returns (types.SessionRecordingConfigV2) {
+    option deprecated = true;
+  }
   // SetSessionRecordingConfig sets session recording configuration.
-  rpc SetSessionRecordingConfig(types.SessionRecordingConfigV2) returns (google.protobuf.Empty);
+  // Deprecated: Use clusterconfigv1.Service.Upsert/UpdateSessionRecordingConfig instead.
+  rpc SetSessionRecordingConfig(types.SessionRecordingConfigV2) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // ResetSessionRecordingConfig resets session recording configuration to defaults.
-  rpc ResetSessionRecordingConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
+  // Deprecated: Use clusterconfigv1.Service.ResetSessionRecordingConfig instead.
+  rpc ResetSessionRecordingConfig(google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
 
   // GetAuthPreference gets cluster auth preference.
   // Deprecated: Use clusterconfigv1.Service.GetAuthPreference instead.

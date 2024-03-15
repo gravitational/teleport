@@ -1848,7 +1848,8 @@ func (sessionRecordingConfigExecutor) getAll(ctx context.Context, cache *Cache, 
 }
 
 func (sessionRecordingConfigExecutor) upsert(ctx context.Context, cache *Cache, resource types.SessionRecordingConfig) error {
-	return cache.clusterConfigCache.SetSessionRecordingConfig(ctx, resource)
+	_, err := cache.clusterConfigCache.UpsertSessionRecordingConfig(ctx, resource)
+	return trace.Wrap(err)
 }
 
 func (sessionRecordingConfigExecutor) deleteAll(ctx context.Context, cache *Cache) error {

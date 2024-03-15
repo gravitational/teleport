@@ -2809,13 +2809,30 @@ func (c *Client) GetSessionRecordingConfig(ctx context.Context) (types.SessionRe
 }
 
 // SetSessionRecordingConfig sets session recording configuration.
+// Deprecated: Use UpdateSessionRecordingConfig or UpsertSessionRecordingConfig instead.
 func (c *Client) SetSessionRecordingConfig(ctx context.Context, recConfig types.SessionRecordingConfig) error {
 	recConfigV2, ok := recConfig.(*types.SessionRecordingConfigV2)
 	if !ok {
 		return trace.BadParameter("invalid type %T", recConfig)
 	}
+
 	_, err := c.grpc.SetSessionRecordingConfig(ctx, recConfigV2)
 	return trace.Wrap(err)
+}
+
+// setSessionRecordingConfig sets session recording configuration.
+func (c *Client) setSessionRecordingConfig(ctx context.Context, recConfig types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	recConfigV2, ok := recConfig.(*types.SessionRecordingConfigV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", recConfig)
+	}
+
+	if _, err := c.grpc.SetSessionRecordingConfig(ctx, recConfigV2); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg, err := c.grpc.GetSessionRecordingConfig(ctx, &emptypb.Empty{})
+	return cfg, trace.Wrap(err)
 }
 
 // ResetSessionRecordingConfig resets session recording configuration to defaults.
@@ -2837,6 +2854,11 @@ func (c *Client) UpdateSessionRecordingConfig(ctx context.Context, cfg types.Ses
 	}
 
 	updated, err := c.ClusterConfigClient().UpdateSessionRecordingConfig(ctx, &clusterconfigpb.UpdateSessionRecordingConfigRequest{SessionRecordingConfig: v2})
+	// TODO(tross) DELETE IN v18.0.0
+	if trace.IsNotImplemented(err) {
+		cfg, err = c.setSessionRecordingConfig(ctx, v2)
+		return cfg, trace.Wrap(err)
+	}
 	return updated, trace.Wrap(err)
 }
 
@@ -2848,6 +2870,11 @@ func (c *Client) UpsertSessionRecordingConfig(ctx context.Context, cfg types.Ses
 	}
 
 	updated, err := c.ClusterConfigClient().UpsertSessionRecordingConfig(ctx, &clusterconfigpb.UpsertSessionRecordingConfigRequest{SessionRecordingConfig: v2})
+	// TODO(tross) DELETE IN v18.0.0
+	if trace.IsNotImplemented(err) {
+		cfg, err = c.setSessionRecordingConfig(ctx, v2)
+		return cfg, trace.Wrap(err)
+	}
 	return updated, trace.Wrap(err)
 }
 
@@ -2961,12 +2988,6 @@ func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfi
 		return nil, trace.Wrap(err)
 	}
 	return rsp.AccessGraph, nil
-}
-
-// ClusterConfigClient returns an unadorned Cluster Configuration client, using the underlying
-// Auth gRPC connection.
-func (c *Client) ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClient {
-	return clusterconfigpb.NewClusterConfigServiceClient(c.conn)
 }
 
 // GetInstaller gets all installer script resources

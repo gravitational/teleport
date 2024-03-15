@@ -810,7 +810,8 @@ func (s *adminActionTestSuite) testSessionRecordingConfig(t *testing.T) {
 	sessionRecordingConfig.SetOrigin(types.OriginDynamic)
 
 	createSessionRecordingConfig := func() error {
-		return s.authServer.SetSessionRecordingConfig(ctx, sessionRecordingConfig)
+		_, err := s.authServer.UpsertSessionRecordingConfig(ctx, sessionRecordingConfig)
+		return err
 	}
 
 	getSessionRecordingConfig := func() (types.Resource, error) {
@@ -818,7 +819,8 @@ func (s *adminActionTestSuite) testSessionRecordingConfig(t *testing.T) {
 	}
 
 	resetSessionRecordingConfig := func() error {
-		return s.authServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+		_, err := s.authServer.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+		return err
 	}
 
 	t.Run("ResourceCommands", func(t *testing.T) {

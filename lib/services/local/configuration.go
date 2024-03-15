@@ -579,12 +579,6 @@ func (s *ClusterConfigurationService) UpsertSessionRecordingConfig(ctx context.C
 	return cfg, nil
 }
 
-// SetSessionRecordingConfig sets session recording config on the backend.
-func (s *ClusterConfigurationService) SetSessionRecordingConfig(ctx context.Context, recConfig types.SessionRecordingConfig) error {
-	_, err := s.UpsertSessionRecordingConfig(ctx, recConfig)
-	return trace.Wrap(err)
-}
-
 // DeleteSessionRecordingConfig deletes SessionRecordingConfig from the backend.
 func (s *ClusterConfigurationService) DeleteSessionRecordingConfig(ctx context.Context) error {
 	err := s.Delete(ctx, backend.Key(clusterConfigPrefix, sessionRecordingPrefix))
