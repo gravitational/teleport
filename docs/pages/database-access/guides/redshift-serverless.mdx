@@ -143,6 +143,7 @@ On the same host, run the following command:
 ```code
 $ sudo teleport db configure create \
    -o file \
+   --name="redshift-serverless" \
    --proxy=<Var name="example.teleport.sh:443" />  \
    --protocol=postgres \
    --uri=<Var name="REDSHIFT_SERVERLESS_URI" /> \

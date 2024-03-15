@@ -55,6 +55,7 @@ Assign `CLUSTER_URI` to the domain name and port of the cluster:
 ```code
 $ sudo teleport db configure create \
    -o file \
+   --name="redshift-postgres" \
    --proxy=teleport.example.com:3080 \
    --protocol=postgres \
    --token=/tmp/token \
@@ -67,6 +68,7 @@ $ sudo teleport db configure create \
 ```code
 $ sudo teleport db configure create \
    -o file \
+   --name="redshift-postgres" \
    --proxy=mytenant.teleport.sh:443 \
    --protocol=postgres \
    --token=/tmp/token \
