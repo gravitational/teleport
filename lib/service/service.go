@@ -997,6 +997,13 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	upgraderKind := os.Getenv("TELEPORT_EXT_UPGRADER")
 	upgraderVersion := automaticupgrades.GetUpgraderVersion(process.GracefulExitContext())
 
+	// Instances deployed using the AWS OIDC integration are automatically updated
+	// by the proxy. The instance heartbeat should properly reflect that.
+	externalUpgrader := upgraderKind
+	if externalUpgrader == "" && os.Getenv(types.InstallMethodAWSOIDCDeployServiceEnvVar) == "true" {
+		externalUpgrader = types.OriginIntegrationAWSOIDC
+	}
+
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
 	process.inventoryHandle = inventory.NewDownstreamHandle(process.makeInventoryControlStreamWhenReady, proto.UpstreamInventoryHello{
@@ -1004,7 +1011,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		Version:                 teleport.Version,
 		Services:                process.getInstanceRoles(),
 		Hostname:                cfg.Hostname,
-		ExternalUpgrader:        upgraderKind,
+		ExternalUpgrader:        externalUpgrader,
 		ExternalUpgraderVersion: vc.Normalize(upgraderVersion),
 	})
 
@@ -1020,7 +1027,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 	// if an external upgrader is defined, we need to set up an appropriate upgrade window exporter.
 	// An upgrade window exporter is not needed for AWS OIDC instances.
-	if upgraderKind != "" && upgraderKind != types.OriginIntegrationAWSOIDC {
+	if upgraderKind != "" {
 		if process.Config.Auth.Enabled || process.Config.Proxy.Enabled {
 			process.log.Warnf("Use of external upgraders on control-plane instances is not recommended.")
 		}

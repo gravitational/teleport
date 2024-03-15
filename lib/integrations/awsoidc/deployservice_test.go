@@ -230,10 +230,6 @@ func TestUpsertTask(t *testing.T) {
 			Value: aws.String("true"),
 		},
 		{
-			Name:  aws.String(automaticupgrades.EnvUpgrader),
-			Value: aws.String(types.OriginIntegrationAWSOIDC),
-		},
-		{
 			Name:  aws.String(automaticupgrades.EnvUpgraderVersion),
 			Value: aws.String(teleport.Version),
 		},
