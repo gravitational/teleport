@@ -555,8 +555,8 @@ func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (r *Services) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
-	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx)
+func (r *Services) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
+	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, integration)
 }
 
 // OktaClient returns the okta client.
