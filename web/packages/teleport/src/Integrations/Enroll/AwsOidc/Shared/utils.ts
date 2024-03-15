@@ -34,14 +34,14 @@ export const requiredBucketName: Rule = inputVal => () => {
   if (inputVal.length < 3 || inputVal.length > 63) {
     return {
       valid: false,
-      message: 'only 3-63 characters long',
+      message: 'name should be 3-63 characters',
     };
   }
 
   if (!bucketNameRegex.test(inputVal)) {
     return {
       valid: false,
-      message: 'only - (in between words), a-z, and 0-9',
+      message: 'name is in a invalid format',
     };
   }
 
@@ -100,14 +100,14 @@ export const requiredPrefixName: Rule = inputVal => () => {
   if (inputVal.length > 63) {
     return {
       valid: false,
-      message: 'only 63 characters long',
+      message: 'name can be max 63 characters long',
     };
   }
 
   if (!prefixNameRegex.test(inputVal)) {
     return {
       valid: false,
-      message: 'only - . _ (in between words) and alphanumerics',
+      message: 'name is in a invalid format',
     };
   }
 
@@ -131,4 +131,9 @@ export function getDefaultS3PrefixName(integrationName: string) {
   }
 
   return `${integrationName}-oidc-idp`;
+}
+
+export function validPrefixNameToolTipContent(fieldName: string) {
+  return `${fieldName} name can consist only of letters and numbers. \
+  Hyphens (-), dots (.), and underscores (_) are allowed in between letters and numbers.`;
 }
