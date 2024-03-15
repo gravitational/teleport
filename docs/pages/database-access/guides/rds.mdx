@@ -162,6 +162,7 @@ you want to proxy:
 ```code
 $ sudo teleport db configure create \
    -o file \
+   --name="postgres-rds" \
    --proxy=<Var name="example.teleport.sh:443" />  \
    --protocol=<Var name="protocol" /> \
    --uri=<Var name="RDS_URI" /> \
@@ -176,6 +177,7 @@ you want to proxy:
 ```code
 $ sudo teleport db configure create \
    -o file \
+   --name="postgres-rds" \
    --proxy=<Var name="example.teleport.sh:443" />  \
    --protocol=<Var name="protocol" /> \
    --uri=<Var name="RDS_URI" /> \
@@ -427,12 +429,9 @@ Once the Database Service has started and joined the cluster, log in as the
 ```code
 $ tsh login --proxy=<Var name="example.teleport.sh:443" /> --user=alice
 $ tsh db ls
-# Name                           Description                                   Labels
-# ------------------------------ --------------------------------------------- --------
-# postgres-rds                                                                 ...
-# aurora-mysql                                                                 ...
-# aurora-mysql-custom-myendpoint                                               ...
-# aurora-mysql-reader                                                          ...
+# Name         Description Labels
+# ------------ ----------- --------
+# postgres-rds 
 ```
 
 Retrieve credentials for a database and connect to it as the `alice` user,

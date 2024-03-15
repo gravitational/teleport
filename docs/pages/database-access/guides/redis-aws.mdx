@@ -60,6 +60,7 @@ Create the Database Service configuration:
   $ ELASTICACHE_URI=""
   $ sudo teleport db configure create \
      -o file \
+     --name="elasticache" \
      --proxy=example.teleport.sh:443 \
      --protocol="redis" \
      --uri=${ELASTICACHE_URI?} \
@@ -76,6 +77,7 @@ Create the Database Service configuration:
   $ MEMORYDB_URI=""
   $ sudo teleport db configure create \
      -o file \
+     --name="memorydb" \
      --proxy=example.teleport.sh:443 \
      --protocol="redis" \ \
      --uri=${MEMORYDB_URI} \
