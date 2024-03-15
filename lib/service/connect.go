@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // reconnectToAuthService continuously attempts to reconnect to the auth
@@ -155,7 +156,7 @@ func (process *TeleportProcess) connectToAuthService(role types.SystemRole, opts
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	process.logger.DebugContext(process.ExitContext(), "Client successfully connected to cluster", "client_identity", connector.ClientIdentity)
+	process.logger.DebugContext(process.ExitContext(), "Client successfully connected to cluster", "client_identity", logutils.StringerAttr(connector.ClientIdentity))
 	process.addConnector(connector)
 
 	return connector, nil
@@ -179,7 +180,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		c, err := process.firstTimeConnect(role)
 		return c, trace.Wrap(err)
 	}
-	process.logger.DebugContext(process.ExitContext(), "Got connected state.", "rotation_state", state.Spec.Rotation.String())
+	process.logger.DebugContext(process.ExitContext(), "Got connected state.", "rotation_state", logutils.StringerAttr(&state.Spec.Rotation))
 
 	identity, err := process.GetIdentity(role)
 	if err != nil {
