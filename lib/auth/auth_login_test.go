@@ -518,21 +518,37 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 			wantChallenges:  true,
 		},
 		{
-			name:            "MFA required to join session (join MFA role)",
+			name:            "MFA required to join session on prod node (join MFA role)",
 			userClient:      joinMFAClient,
 			req:             createReqForNode(prodNode, teleport.SSHSessionJoinPrincipal),
 			wantMFARequired: proto.MFARequired_MFA_REQUIRED_YES,
 			wantChallenges:  true,
 		},
 		{
-			name:            "MFA not required to join session, no challenges issued (join no MFA role)",
+			name:            "MFA required to join session dev node (join MFA role)",
+			userClient:      joinMFAClient,
+			req:             createReqForNode(prodNode, teleport.SSHSessionJoinPrincipal),
+			wantMFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+			wantChallenges:  true,
+		},
+		{
+			name:            "MFA not required to join session, no challenges issued on dev node (join no MFA role)",
 			userClient:      joinNoMFAClient,
 			req:             createReqForNode(devNode, teleport.SSHSessionJoinPrincipal),
 			wantMFARequired: proto.MFARequired_MFA_REQUIRED_NO,
 		},
+		{
+			name:            "MFA not required to join session, no challenges issued on prod node (join no MFA role)",
+			userClient:      joinNoMFAClient,
+			req:             createReqForNode(prodNode, teleport.SSHSessionJoinPrincipal),
+			wantMFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		},
 	}
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			resp, err := test.userClient.CreateAuthenticateChallenge(ctx, test.req)
 			require.NoError(t, err, "CreateAuthenticateChallenge")
 
