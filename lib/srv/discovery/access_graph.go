@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"os"
 	"time"
 
@@ -193,6 +194,10 @@ func newAccessGraphClient(ctx context.Context, certs []tls.Certificate, config s
 	return conn, trace.Wrap(err)
 }
 
+// errTAGFeatureNotEnabled is returned when the TAG feature is not enabled
+// in the cluster features.
+var errTAGFeatureNotEnabled = errors.New("TAG feature is not enabled")
+
 // initializeAndWatchAccessGraph creates a new access graph service client and
 // watches the connection state. If the connection is closed, it will
 // automatically try to reconnect.
@@ -210,6 +215,11 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 		 }
 	 }`
 	)
+
+	clusterFeatures := s.Config.ClusterFeatures()
+	if !clusterFeatures.AccessGraph && (clusterFeatures.Policy == nil || !clusterFeatures.Policy.Enabled) {
+		return trace.Wrap(errTAGFeatureNotEnabled)
+	}
 
 	const (
 		semaphoreExpiration = time.Minute
@@ -337,14 +347,17 @@ func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error
 			reloadCh := s.newDiscoveryConfigChangedSub()
 			for {
 				// reset the currentTAGResources to force a full sync
-				if err := s.initializeAndWatchAccessGraph(ctx, reloadCh); err != nil {
+				if err := s.initializeAndWatchAccessGraph(ctx, reloadCh); errors.Is(err, errTAGFeatureNotEnabled) {
+					s.Log.Warn("Access Graph specified in config, but the license does not include Teleport Policy. Access graph sync will not be enabled.")
+					break
+				} else if err != nil {
 					s.Log.Warnf("Error initializing and watching access graph: %v", err)
 				}
 
 				select {
 				case <-ctx.Done():
 					return
-				case <-time.After(30 * time.Second):
+				case <-time.After(time.Minute):
 				}
 			}
 		}()
