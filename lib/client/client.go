@@ -744,8 +744,29 @@ func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req 
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := client.GetAllResources[types.Server](ctx, site, req)
-	return servers, trace.Wrap(err)
+	ureq := proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{string(types.KindNode)},
+		Labels:              req.Labels,
+		SearchKeywords:      req.SearchKeywords,
+		PredicateExpression: req.PredicateExpression,
+		UseSearchAsRoles:    req.UseSearchAsRoles,
+	}
+	var nodes []types.Server
+	for {
+		page, err := client.ListUnifiedResourcePage(ctx, site, &ureq)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, rsc := range page.Resources {
+			nodes = append(nodes, rsc.(types.Server))
+		}
+		ureq.StartKey = page.NextKey
+		if ureq.StartKey == "" {
+			break
+		}
+	}
+
+	return nodes, nil
 }
 
 // FindAppServersByFilters returns a list of application servers in the current cluster which have filters matched.
