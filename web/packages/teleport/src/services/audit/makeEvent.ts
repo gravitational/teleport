@@ -901,19 +901,55 @@ export const formatters: Formatters = {
       `Received malformed packet from [${user}] in [${db_name}] on database [${db_service}]`,
   },
   [eventCodes.DATABASE_SESSION_PERMISSIONS_UPDATE]: {
-    type: ' db.session.permissions.update',
-    desc: 'Database Permissions Update',
+    type: 'db.session.permissions.update',
+    desc: 'Database User Permissions Updated',
     format: ({ user, db_service, db_name, permission_summary }) => {
-      console.log(permission_summary);
-      const summary = permission_summary
-        .map(p => {
+      if (!permission_summary) {
+        return `Database user [${user}] permissions updated for database [${db_name}] on [${db_service}]`;
+      }
+        const summary = permission_summary.map(p => {
           const details = Object.entries(p.counts)
-            .map(([key, value]) => `${key}:${value}`)
-            .join(',');
+              .map(([key, value]) => `${key}:${value}`)
+              .join(',');
           return `${p.permission}:${details}`;
         })
-        .join('; ');
-      return `User permissions [${user}] in [${db_name}] on database [${db_service}]: ${summary}`;
+            .join('; ');
+        return `Database user [${user}] permissions updated for database [${db_name}] on [${db_service}]: ${summary}`;
+
+    },
+  },
+  [eventCodes.DATABASE_SESSION_USER_CREATE]: {
+    type: ' db.session.user.create',
+    desc: 'Database User Created',
+    format: (ev) => {
+      if (!ev.roles) {
+        return `Database user [${ev.user}] created in database [${ev.db_service}]`
+      }
+      return `Database user [${ev.user}] created in database [${ev.db_service}], roles: [${ev.roles}]}`
+    },
+  },
+  [eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE]: {
+    type: ' db.session.user.create',
+    desc: 'Database User Creation Failed',
+    format: (ev) => {
+      return `Failed to create database user [${ev.user}] in database [${ev.db_service}], error: [${ev.error}]`
+    },
+  },
+  [eventCodes.DATABASE_SESSION_USER_DEACTIVATE]: {
+    type: ' db.session.user.deactivate',
+    desc: 'Database User Deactivated',
+    format: (ev) => {
+      if (!ev.delete) {
+        return `Database user [${ev.user}] disabled in database [${ev.db_service}]`
+      }
+      return `Database user [${ev.user}] deleted in database [${ev.db_service}]`
+    },
+  },
+  [eventCodes.DATABASE_SESSION_USER_DEACTIVATE_FAILURE]: {
+    type: ' db.session.user.deactivate',
+    desc: 'Database User Deactivate Failure',
+    format: (ev) => {
+      return `Failed to disable database user [${ev.user}] in database [${ev.db_service}], error: [${ev.error}]`
     },
   },
   [eventCodes.DATABASE_CREATED]: {
@@ -1642,7 +1678,7 @@ export const formatters: Formatters = {
     type: 'access_list.review',
     desc: 'Access list review failed',
     format: ({ name, updated_by }) =>
-      `User [${updated_by}] failed to to review access list [${name}]]`,
+      `User [${updated_by}] failed to to review access list [${name}]`,
   },
   [eventCodes.ACCESS_LIST_MEMBER_CREATE]: {
     type: 'access_list.member.create',

@@ -80,12 +80,14 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	}
 
 	e.Log.WithField("user", sessionCtx.DatabaseUser).WithField("roles", roles).Info("Activating PostgreSQL user")
-
 	_, err = conn.Exec(ctx, activateQuery, sessionCtx.DatabaseUser, roles)
 	if err != nil {
 		e.Log.WithError(err).Debug("Call teleport_activate_user failed.")
-		return trace.Wrap(convertActivateError(sessionCtx, err))
+		errOut := convertActivateError(sessionCtx, err)
+		e.Audit.OnDatabaseUserCreate(ctx, sessionCtx, errOut)
+		return trace.Wrap(errOut)
 	}
+	e.Audit.OnDatabaseUserCreate(ctx, sessionCtx, nil)
 
 	if err != nil {
 		if strings.Contains(err.Error(), "already exists") {
@@ -303,8 +305,10 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 
 	_, err = conn.Exec(ctx, deactivateQuery, sessionCtx.DatabaseUser)
 	if err != nil {
+		e.Audit.OnDatabaseUserDeactivate(ctx, sessionCtx, false, err)
 		return trace.NewAggregate(errRemove, trace.Wrap(err))
 	}
+	e.Audit.OnDatabaseUserDeactivate(ctx, sessionCtx, false, nil)
 
 	return errRemove
 }
@@ -337,14 +341,17 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 		return trace.NewAggregate(errRemove, trace.Wrap(err))
 	}
 
+	deleted := true
 	switch state {
 	case common.SQLStateUserDropped:
 		e.Log.WithField("user", sessionCtx.DatabaseUser).Debug("User deleted successfully.")
 	case common.SQLStateUserDeactivated:
+		deleted = false
 		e.Log.WithField("user", sessionCtx.DatabaseUser).Info("Unable to delete user, it was disabled instead.")
 	default:
 		e.Log.WithField("user", sessionCtx.DatabaseUser).Warn("Unable to determine user deletion state.")
 	}
+	e.Audit.OnDatabaseUserDeactivate(ctx, sessionCtx, deleted, nil)
 
 	return errRemove
 }

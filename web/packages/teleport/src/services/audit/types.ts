@@ -69,6 +69,10 @@ export const eventCodes = {
   DATABASE_SESSION_STARTED: 'TDB00I',
   DATABASE_SESSION_MALFORMED_PACKET: 'TDB06I',
   DATABASE_SESSION_PERMISSIONS_UPDATE: 'TDB07I',
+  DATABASE_SESSION_USER_CREATE: 'TDB08I',
+  DATABASE_SESSION_USER_CREATE_FAILURE: 'TDB08W',
+  DATABASE_SESSION_USER_DEACTIVATE: 'TDB09I',
+  DATABASE_SESSION_USER_DEACTIVATE_FAILURE: 'TDB09W',
   DATABASE_CREATED: 'TDB03I',
   DATABASE_UPDATED: 'TDB04I',
   DATABASE_DELETED: 'TDB05I',
@@ -787,7 +791,54 @@ export type RawEvents = {
       }[];
     }
   >;
-  [eventCodes.DATABASE_CREATED]: RawEvent<
+  [eventCodes.DATABASE_SESSION_USER_CREATE]: RawEvent<
+    typeof eventCodes.DATABASE_SESSION_USER_CREATE,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      db_user: string;
+      username: string;
+      roles: string[];
+    }
+  >;
+  [eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE]: RawEvent<
+      typeof eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE,
+      {
+        name: string;
+        db_service: string;
+        db_name: string;
+        db_user: string;
+        error: string;
+        message: string;
+        username: string;
+        roles: string[];
+      }
+  >;
+  [eventCodes.DATABASE_SESSION_USER_DEACTIVATE]: RawEvent<
+    typeof eventCodes.DATABASE_SESSION_USER_DEACTIVATE,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      db_user: string;
+      username: string;
+      delete: boolean;
+    }
+  >;
+  [eventCodes.DATABASE_SESSION_USER_DEACTIVATE_FAILURE]: RawEvent<
+      typeof eventCodes.DATABASE_SESSION_USER_DEACTIVATE_FAILURE,
+      {
+        name: string;
+        db_service: string;
+        db_name: string;
+        db_user: string;
+        error: string;
+        message: string;
+        username: string;
+        delete: boolean;
+      }
+  >;  [eventCodes.DATABASE_CREATED]: RawEvent<
     typeof eventCodes.DATABASE_CREATED,
     {
       name: string;
