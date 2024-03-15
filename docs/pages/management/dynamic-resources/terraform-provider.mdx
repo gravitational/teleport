@@ -45,7 +45,9 @@ authority to manage resources in the cluster. To prepare credentials using a loc
 
 1. Create a new file called `terraform.yaml` and open it in an editor.
 
-1. Configure the necessary role by pasting the following content into a `terraform_role.yaml` file:
+1. Terraform needs a role giving it permission to manage our Cluster's resources. The bot will
+   create identity certificates that have this role. Configure the necessary role by pasting
+   the following content into a `terraform_role.yaml` file:
 
    ```yaml
    kind: role
@@ -89,8 +91,9 @@ authority to manage resources in the cluster. To prepare credentials using a loc
    role 'terraform' has been created
    ```
 
-1. Create a new file called `create_and_run_terraform_bot.sh`, open it in an editor, and
-paste in the following content:
+1. We're going to create two scripts that will let us quickly and repeatably create and destroy
+   our local Terraform bot. First, create a new file called `create_and_run_terraform_bot.sh`,
+   open it in an editor, and paste in the following content:
 
    ```shell
    #! /usr/bin/env bash
@@ -101,7 +104,7 @@ paste in the following content:
    tbot start \
      --destination-dir=./terraform-identity \
      --token="$TOKEN" \
-     --auth-server=teleport-ent-15.asteroid.earth:443 \
+     --auth-server=tele.example.com:443 \
      --join-method=token
    ```
 
