@@ -48,10 +48,13 @@ func Init() {
 		ExtraFields:      []string{logutils.LevelField, logutils.ComponentField, logutils.CallerField},
 	}
 
-	_ = formatter.CheckAndSetDefaults()
+	log.SetOutput(os.Stderr)
+	if err := formatter.CheckAndSetDefaults(); err != nil {
+		log.WithError(err).Error("unable to create text log formatter")
+		return
+	}
 
 	log.SetFormatter(formatter)
-	log.SetOutput(os.Stderr)
 }
 
 func Setup(conf Config) error {
