@@ -89,9 +89,7 @@ func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.Pr
 		// We'll save the client in the cache, so we don't have to
 		// build a new connection next time.
 		// All cached clients will be closed when the daemon exits.
-		if err := c.addToCache(clusterURI, newProxyClient); err != nil {
-			return nil, trace.NewAggregate(err, newProxyClient.Close())
-		}
+		c.addToCache(clusterURI, newProxyClient)
 
 		c.cfg.Log.WithField("cluster", clusterURI.String()).Info("Added client to cache.")
 
@@ -155,14 +153,10 @@ func (c *Cache) Clear() error {
 	return trace.NewAggregate(errors...)
 }
 
-func (c *Cache) addToCache(clusterURI uri.ResourceURI, proxyClient *client.ProxyClient) error {
+func (c *Cache) addToCache(clusterURI uri.ResourceURI, proxyClient *client.ProxyClient) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	var err error
-	if c.clients[clusterURI] != nil {
-		err = c.clients[clusterURI].Close()
-	}
 	c.clients[clusterURI] = proxyClient
 
 	// This goroutine removes the connection from the cache when
@@ -181,7 +175,6 @@ func (c *Cache) addToCache(clusterURI uri.ResourceURI, proxyClient *client.Proxy
 		c.cfg.Log.WithField("cluster", clusterURI.String()).WithError(err).
 			Info("Connection has been closed, removed client from cache.")
 	}()
-	return trace.Wrap(err)
 }
 
 func (c *Cache) getFromCache(clusterURI uri.ResourceURI) *client.ProxyClient {
