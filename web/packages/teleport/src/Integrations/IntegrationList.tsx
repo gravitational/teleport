@@ -186,7 +186,7 @@ const StatusCell = ({ item }: { item: IntegrationLike }) => {
   if (
     item.resourceType === 'integration' &&
     item.kind === IntegrationKind.AwsOidc &&
-    (!item.spec.s3Bucket || !item.spec.s3Prefix)
+    (!item.spec.issuerS3Bucket || !item.spec.issuerS3Prefix)
   ) {
     return (
       <Cell>

@@ -140,7 +140,7 @@ export const integrations: Integration[] = [
     name: 'aws',
     kind: IntegrationKind.AwsOidc,
     statusCode: IntegrationStatusCode.Running,
-    spec: { roleArn: '', s3Prefix: '', s3Bucket: '' },
+    spec: { roleArn: '', issuerS3Prefix: '', issuerS3Bucket: '' },
   },
   {
     resourceType: 'integration',
@@ -149,8 +149,8 @@ export const integrations: Integration[] = [
     statusCode: IntegrationStatusCode.Running,
     spec: {
       roleArn: 'some-role-arn',
-      s3Prefix: 'some-prefix',
-      s3Bucket: 'some-bucket',
+      issuerS3Prefix: 'some-prefix',
+      issuerS3Bucket: 'some-bucket',
     },
   },
 ];

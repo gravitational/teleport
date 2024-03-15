@@ -91,8 +91,8 @@ export function getDbMeta(): DbMeta {
       resourceType: 'integration',
       spec: {
         roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
-        s3Bucket: '',
-        s3Prefix: '',
+        issuerS3Bucket: '',
+        issuerS3Prefix: '',
       },
       statusCode: IntegrationStatusCode.Running,
     },

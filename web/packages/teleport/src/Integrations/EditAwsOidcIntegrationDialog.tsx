@@ -63,11 +63,11 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
 
   const [roleArn, setRoleArn] = useState(integration.spec.roleArn);
   const [s3Bucket, setS3Bucket] = useState(
-    () => integration.spec.s3Bucket || getDefaultS3BucketName()
+    () => integration.spec.issuerS3Bucket || getDefaultS3BucketName()
   );
   const [s3Prefix, setS3Prefix] = useState(
     () =>
-      integration.spec.s3Prefix ||
+      integration.spec.issuerS3Prefix ||
       getDefaultS3PrefixName(integration.spec.roleArn.split(':role/')[1])
   );
 
@@ -101,11 +101,12 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
   }
 
   const isProcessing = attempt.status === 'processing';
-  const requiresS3 = !integration.spec.s3Bucket || !integration.spec.s3Prefix;
+  const requiresS3 =
+    !integration.spec.issuerS3Bucket || !integration.spec.issuerS3Prefix;
   const showGenerateCommand =
     requiresS3 ||
-    integration.spec.s3Bucket !== s3Bucket ||
-    integration.spec.s3Prefix !== s3Prefix;
+    integration.spec.issuerS3Bucket !== s3Bucket ||
+    integration.spec.issuerS3Prefix !== s3Prefix;
 
   return (
     <Validation>
@@ -240,8 +241,8 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                 isProcessing ||
                 (showGenerateCommand && !confirmed) ||
                 (roleArn === integration.spec.roleArn &&
-                  s3Bucket === integration.spec.s3Bucket &&
-                  s3Prefix === integration.spec.s3Prefix)
+                  s3Bucket === integration.spec.issuerS3Bucket &&
+                  s3Prefix === integration.spec.issuerS3Prefix)
               }
               onClick={() => handleEdit(validator)}
             >

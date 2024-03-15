@@ -36,8 +36,8 @@ test('edit without s3 fields', async () => {
         name: 'some-integration-name',
         spec: {
           roleArn: 'arn:aws:iam::123456789012:role/johndoe',
-          s3Bucket: '',
-          s3Prefix: '',
+          issuerS3Bucket: '',
+          issuerS3Prefix: '',
         },
         statusCode: IntegrationStatusCode.Running,
       }}
@@ -193,8 +193,8 @@ const integration: Integration = {
   name: 'some-integration-name',
   spec: {
     roleArn: 'arn:aws:iam::123456789012:role/johndoe',
-    s3Bucket: 's3-bucket',
-    s3Prefix: 's3-prefix',
+    issuerS3Bucket: 's3-bucket',
+    issuerS3Prefix: 's3-prefix',
   },
   statusCode: IntegrationStatusCode.Running,
 };

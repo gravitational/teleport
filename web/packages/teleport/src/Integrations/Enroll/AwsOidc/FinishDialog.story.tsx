@@ -38,7 +38,11 @@ export const Story = () => (
         kind: IntegrationKind.AwsOidc,
         name: 'some-integration-name',
         statusCode: IntegrationStatusCode.Running,
-        spec: { roleArn: 'some-role-arn', s3Bucket: '', s3Prefix: '' },
+        spec: {
+          roleArn: 'some-role-arn',
+          issuerS3Bucket: '',
+          issuerS3Prefix: '',
+        },
       }}
     />
   </MemoryRouter>
@@ -53,7 +57,11 @@ export const FinishDialogueDiscover = () => (
         kind: IntegrationKind.AwsOidc,
         name: 'some-integration-name',
         statusCode: IntegrationStatusCode.Running,
-        spec: { roleArn: 'some-role-arn', s3Bucket: '', s3Prefix: '' },
+        spec: {
+          roleArn: 'some-role-arn',
+          issuerS3Bucket: '',
+          issuerS3Prefix: '',
+        },
       }}
     />
   </MemoryRouter>

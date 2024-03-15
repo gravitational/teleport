@@ -89,8 +89,8 @@ export function AwsOidc() {
           subKind: IntegrationKind.AwsOidc,
           awsoidc: {
             roleArn,
-            s3Bucket,
-            s3Prefix,
+            issuerS3Bucket: s3Bucket,
+            issuerS3Prefix: s3Prefix,
           },
         })
         .then(res => {
