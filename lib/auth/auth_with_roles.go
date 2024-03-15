@@ -381,13 +381,15 @@ func (a *ServerWithRoles) DeleteIntegration(ctx context.Context, name string) er
 }
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
+func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	igSvc, err := a.integrationsService()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{})
+	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
+		Integration: integration,
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
