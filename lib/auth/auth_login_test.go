@@ -398,6 +398,9 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 
 	// Create a role that requires MFA when joining sessions
 	joinMFARole, err := types.NewRole("mfa_session_join", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
 		Allow: types.RoleConditions{
 			Logins: []string{"{{internal.logins}}"},
 			NodeLabels: types.Labels{
@@ -405,11 +408,10 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 			},
 			JoinSessions: []*types.SessionJoinPolicy{
 				{
-					Name:        "session_join",
-					Roles:       []string{"access"},
-					Kinds:       []string{string(types.SSHSessionKind)},
-					Modes:       []string{string(types.SessionPeerMode)},
-					MFARequired: true,
+					Name:  "session_join",
+					Roles: []string{"access"},
+					Kinds: []string{string(types.SSHSessionKind)},
+					Modes: []string{string(types.SessionPeerMode)},
 				},
 			},
 		},
@@ -502,10 +504,18 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 			wantChallenges:  true,
 		},
 		{
-			name:            "MFA not required to join session, no challenges issued (prod role)",
+			name:            "MFA required to join session on prod node (prod role)",
+			userClient:      prodAccessClient,
+			req:             createReqForNode(prodNode, teleport.SSHSessionJoinPrincipal),
+			wantMFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+			wantChallenges:  true,
+		},
+		{
+			name:            "MFA required to join session on dev node (prod role)",
 			userClient:      prodAccessClient,
 			req:             createReqForNode(devNode, teleport.SSHSessionJoinPrincipal),
-			wantMFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			wantMFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+			wantChallenges:  true,
 		},
 		{
 			name:            "MFA required to join session (join MFA role)",

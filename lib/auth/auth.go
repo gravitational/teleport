@@ -5909,7 +5909,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.BadParameter("empty Login field")
 		}
 
-		if t.Node.Login == teleport.SSHSessionJoinPrincipal && checker.RequiresMFAToJoinSessions() {
+		if t.Node.Login == teleport.SSHSessionJoinPrincipal {
 			return &proto.IsMFARequiredResponse{
 				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
 			}, nil

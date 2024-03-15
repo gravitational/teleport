@@ -265,10 +265,6 @@ type AccessChecker interface {
 	// requested SPIFFE ID. Returns an error if the role set does not have the
 	// ability to generate the requested SVID.
 	CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs []net.IP) error
-
-	// RequiresMFAToJoinSessions returns true if a role requires an MFA check
-	// to join a session.
-	RequiresMFAToJoinSessions() bool
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -1097,25 +1093,6 @@ func (a *accessChecker) HostSudoers(s types.Server) ([]string, error) {
 	}
 
 	return sudoers, nil
-}
-
-// RequiresMFAToJoinSessions returns true if a role requires an MFA check
-// to join a session.
-func (a *accessChecker) RequiresMFAToJoinSessions() bool {
-	for _, role := range a.RoleSet {
-		if role.GetVersion() != types.V7 {
-			continue
-		}
-
-		joinPolicies := role.GetSessionJoinPolicies()
-		for _, joinPolicy := range joinPolicies {
-			if joinPolicy.MFARequired {
-				return true
-			}
-		}
-	}
-
-	return false
 }
 
 // AccessInfoFromLocalCertificate returns a new AccessInfo populated from the

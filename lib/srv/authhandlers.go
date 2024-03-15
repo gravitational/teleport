@@ -645,15 +645,13 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 	if osUser == teleport.SSHSessionJoinPrincipal &&
 		auth.RoleSupportsModeratedSessions(accessChecker.Roles()) {
 
-		// allow joining if MFA is not required for joining and cluster
-		// wide MFA is not required
-		if !accessChecker.RequiresMFAToJoinSessions() && state.MFARequired != services.MFARequiredAlways {
+		// allow joining if cluster wide MFA is not required
+		if state.MFARequired != services.MFARequiredAlways {
 			return nil
 		}
 
 		// only allow joining if the MFA ceremony was completed
-		// first if cluster wide MFA or MFA is required to join sessions
-		// is enabled
+		// first if cluster wide MFA is enabled
 		if state.MFAVerified {
 			return nil
 		}

@@ -1211,24 +1211,15 @@ func (set RoleSet) getMFARequired(clusterRequireMFAType types.RequireMFAType) MF
 	// Set mfaRequired to the first role's requirement, then check if all other roles match.
 	if len(set) > 0 {
 		rolesMFARequired := set[0].GetOptions().RequireMFAType.IsSessionMFARequired()
-		joinMFARequired := set[0].IsSessionJoinMFARequired()
 		for _, role := range set[1:] {
 			if role.GetOptions().RequireMFAType.IsSessionMFARequired() != rolesMFARequired {
 				// This role differs from the MFA requirement of the other roles, return per-role.
 				return MFARequiredPerRole
 			}
-			if !joinMFARequired && role.IsSessionJoinMFARequired() {
-				joinMFARequired = true
-			}
 		}
 
 		if rolesMFARequired {
 			return MFARequiredAlways
-		}
-		// MFA is required when joining sessions but since we don't know
-		// if a session is being joined, return per-role.
-		if joinMFARequired {
-			return MFARequiredPerRole
 		}
 	}
 
