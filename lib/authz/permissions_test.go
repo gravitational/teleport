@@ -1074,7 +1074,7 @@ func newTestResources(t *testing.T) (*testClient, *services.LockWatcher, Authori
 	require.NoError(t, err)
 	_, err = client.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 	require.NoError(t, err)
-	err = client.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	_, err = client.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
 	require.NoError(t, err)
 
 	lockSvc := local.NewAccessService(backend)

@@ -252,7 +252,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		// that runs in the background introduces races with test cleanup
 		recConfig := types.DefaultSessionRecordingConfig()
 		recConfig.SetMode(types.RecordAtNodeSync)
-		err := s.server.AuthServer.AuthServer.SetSessionRecordingConfig(context.Background(), recConfig)
+		_, err := s.server.AuthServer.AuthServer.UpsertSessionRecordingConfig(context.Background(), recConfig)
 		require.NoError(t, err)
 	}
 
@@ -1921,7 +1921,8 @@ func TestTerminal(t *testing.T) {
 			s := newWebSuite(t)
 
 			// Set the recording config
-			require.NoError(t, s.server.Auth().SetSessionRecordingConfig(context.Background(), &tt.recordingConfig))
+			_, err := s.server.Auth().UpsertSessionRecordingConfig(context.Background(), &tt.recordingConfig)
+			require.NoError(t, err)
 
 			ctx, cancel := context.WithCancel(s.ctx)
 			t.Cleanup(cancel)
@@ -7473,7 +7474,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 	// that runs in the background introduces races with test cleanup
 	recConfig := types.DefaultSessionRecordingConfig()
 	recConfig.SetMode(types.RecordAtNodeSync)
-	err = server.AuthServer.AuthServer.SetSessionRecordingConfig(context.Background(), recConfig)
+	_, err = server.AuthServer.AuthServer.UpsertSessionRecordingConfig(context.Background(), recConfig)
 	require.NoError(t, err)
 
 	// Register the auth server, since test auth server doesn't start its own
