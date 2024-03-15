@@ -803,17 +803,17 @@ export type RawEvents = {
     }
   >;
   [eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE]: RawEvent<
-      typeof eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE,
-      {
-        name: string;
-        db_service: string;
-        db_name: string;
-        db_user: string;
-        error: string;
-        message: string;
-        username: string;
-        roles: string[];
-      }
+    typeof eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      db_user: string;
+      error: string;
+      message: string;
+      username: string;
+      roles: string[];
+    }
   >;
   [eventCodes.DATABASE_SESSION_USER_DEACTIVATE]: RawEvent<
     typeof eventCodes.DATABASE_SESSION_USER_DEACTIVATE,
@@ -827,18 +827,19 @@ export type RawEvents = {
     }
   >;
   [eventCodes.DATABASE_SESSION_USER_DEACTIVATE_FAILURE]: RawEvent<
-      typeof eventCodes.DATABASE_SESSION_USER_DEACTIVATE_FAILURE,
-      {
-        name: string;
-        db_service: string;
-        db_name: string;
-        db_user: string;
-        error: string;
-        message: string;
-        username: string;
-        delete: boolean;
-      }
-  >;  [eventCodes.DATABASE_CREATED]: RawEvent<
+    typeof eventCodes.DATABASE_SESSION_USER_DEACTIVATE_FAILURE,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      db_user: string;
+      error: string;
+      message: string;
+      username: string;
+      delete: boolean;
+    }
+  >;
+  [eventCodes.DATABASE_CREATED]: RawEvent<
     typeof eventCodes.DATABASE_CREATED,
     {
       name: string;

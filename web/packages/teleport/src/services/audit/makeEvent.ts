@@ -907,49 +907,49 @@ export const formatters: Formatters = {
       if (!permission_summary) {
         return `Database user [${user}] permissions updated for database [${db_name}] on [${db_service}]`;
       }
-        const summary = permission_summary.map(p => {
+      const summary = permission_summary
+        .map(p => {
           const details = Object.entries(p.counts)
-              .map(([key, value]) => `${key}:${value}`)
-              .join(',');
+            .map(([key, value]) => `${key}:${value}`)
+            .join(',');
           return `${p.permission}:${details}`;
         })
-            .join('; ');
-        return `Database user [${user}] permissions updated for database [${db_name}] on [${db_service}]: ${summary}`;
-
+        .join('; ');
+      return `Database user [${user}] permissions updated for database [${db_name}] on [${db_service}]: ${summary}`;
     },
   },
   [eventCodes.DATABASE_SESSION_USER_CREATE]: {
     type: ' db.session.user.create',
     desc: 'Database User Created',
-    format: (ev) => {
+    format: ev => {
       if (!ev.roles) {
-        return `Database user [${ev.user}] created in database [${ev.db_service}]`
+        return `Database user [${ev.user}] created in database [${ev.db_service}]`;
       }
-      return `Database user [${ev.user}] created in database [${ev.db_service}], roles: [${ev.roles}]}`
+      return `Database user [${ev.user}] created in database [${ev.db_service}], roles: [${ev.roles}]}`;
     },
   },
   [eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE]: {
     type: ' db.session.user.create',
     desc: 'Database User Creation Failed',
-    format: (ev) => {
-      return `Failed to create database user [${ev.user}] in database [${ev.db_service}], error: [${ev.error}]`
+    format: ev => {
+      return `Failed to create database user [${ev.user}] in database [${ev.db_service}], error: [${ev.error}]`;
     },
   },
   [eventCodes.DATABASE_SESSION_USER_DEACTIVATE]: {
     type: ' db.session.user.deactivate',
     desc: 'Database User Deactivated',
-    format: (ev) => {
+    format: ev => {
       if (!ev.delete) {
-        return `Database user [${ev.user}] disabled in database [${ev.db_service}]`
+        return `Database user [${ev.user}] disabled in database [${ev.db_service}]`;
       }
-      return `Database user [${ev.user}] deleted in database [${ev.db_service}]`
+      return `Database user [${ev.user}] deleted in database [${ev.db_service}]`;
     },
   },
   [eventCodes.DATABASE_SESSION_USER_DEACTIVATE_FAILURE]: {
     type: ' db.session.user.deactivate',
     desc: 'Database User Deactivate Failure',
-    format: (ev) => {
-      return `Failed to disable database user [${ev.user}] in database [${ev.db_service}], error: [${ev.error}]`
+    format: ev => {
+      return `Failed to disable database user [${ev.user}] in database [${ev.db_service}], error: [${ev.error}]`;
     },
   },
   [eventCodes.DATABASE_CREATED]: {
