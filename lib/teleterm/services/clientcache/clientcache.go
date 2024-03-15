@@ -18,6 +18,7 @@ package clientcache
 
 import (
 	"context"
+	"slices"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -182,4 +183,86 @@ func (c *Cache) getFromCache(clusterURI uri.ResourceURI) *client.ProxyClient {
 
 	clt := c.clients[clusterURI]
 	return clt
+}
+
+// NoCache is a client cache implementation that returns a new client
+// on each call to Get.
+//
+// ClearForRoot and Clear still work as expected.
+type NoCache struct {
+	mu       sync.Mutex
+	resolver clusters.Resolver
+	clients  []noCacheClient
+}
+
+type noCacheClient struct {
+	uri    uri.ResourceURI
+	client *client.ProxyClient
+}
+
+func NewNoCache(resolver clusters.Resolver) *NoCache {
+	return &NoCache{
+		resolver: resolver,
+	}
+}
+
+func (c *NoCache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
+	_, clusterClient, err := c.resolver.ResolveCluster(clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	//nolint:staticcheck // SA1019. TODO(gzdunek): Update to use client.ClusterClient.
+	newProxyClient, err := clusterClient.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	c.mu.Lock()
+	c.clients = append(c.clients, noCacheClient{
+		uri:    clusterURI,
+		client: newProxyClient,
+	})
+	c.mu.Unlock()
+
+	return newProxyClient, nil
+}
+
+func (c *NoCache) ClearForRoot(clusterURI uri.ResourceURI) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	rootClusterURI := clusterURI.GetRootClusterURI()
+	var (
+		errors []error
+	)
+
+	c.clients = slices.DeleteFunc(c.clients, func(ncc noCacheClient) bool {
+		belongsToCluster := ncc.uri.GetRootClusterURI() == rootClusterURI
+
+		if belongsToCluster {
+			if err := ncc.client.Close(); err != nil {
+				errors = append(errors, err)
+			}
+		}
+
+		return belongsToCluster
+	})
+
+	return trace.NewAggregate(errors...)
+}
+
+func (c *NoCache) Clear() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var errors []error
+	for _, ncc := range c.clients {
+		if err := ncc.client.Close(); err != nil {
+			errors = append(errors, err)
+		}
+	}
+	c.clients = nil
+
+	return trace.NewAggregate(errors...)
 }
