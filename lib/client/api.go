@@ -128,6 +128,8 @@ const (
 	ForwardAgentLocal
 )
 
+const remoteForwardUnsupportedMessage = "ssh: tcpip-forward request denied by peer"
+
 var log = logrus.WithFields(logrus.Fields{
 	teleport.ComponentKey: teleport.ComponentClient,
 })
@@ -311,6 +313,10 @@ type Config struct {
 	// DynamicForwardedPorts are the list of ports tsh listens on for dynamic
 	// port forwarding (parameters to -D ssh flag).
 	DynamicForwardedPorts DynamicForwardedPorts
+
+	// RemoteForwardPorts are the list of ports the remote connection listens on
+	// for remote port forwarding (parameters to -R ssh flag).
+	RemoteForwardPorts ForwardedPorts
 
 	// HostKeyCallback will be called to check host keys of the remote
 	// node, if not specified will be using CheckHostSignature function
@@ -1957,6 +1963,22 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 			return trace.Errorf("Failed to bind to %v: %v.", addr, err)
 		}
 		go nodeClient.dynamicListenAndForward(ctx, socket, addr)
+	}
+	for _, fp := range tc.Config.RemoteForwardPorts {
+		addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
+		socket, err := nodeClient.Client.Listen("tcp", addr)
+		if err != nil {
+			// We log the error here instead of returning it to be consistent with
+			// the other port forwarding methods, which don't stop the session
+			// if forwarding fails.
+			message := fmt.Sprintf("Failed to bind on remote host to %v: %v.", addr, err)
+			if strings.Contains(err.Error(), remoteForwardUnsupportedMessage) {
+				message = "Node does not support remote port forwarding (-R)."
+			}
+			log.Error(message)
+		} else {
+			go nodeClient.remoteListenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)), addr)
+		}
 	}
 	return nil
 }

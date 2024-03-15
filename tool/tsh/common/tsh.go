@@ -177,6 +177,8 @@ type CLIConf struct {
 	// DynamicForwardedPorts is port forwarding using SOCKS5. It is similar to
 	// "ssh -D 8080 example.com".
 	DynamicForwardedPorts []string
+	// -R flag for ssh. Remote port forwarding like 'ssh -R 80:localhost:80 -R 443:localhost:443'
+	RemoteForwardPorts []string
 	// ForwardAgent agent to target node. Equivalent of -A for OpenSSH.
 	ForwardAgent bool
 	// ProxyJump is an optional -J flag pointing to the list of jumphosts,
@@ -740,6 +742,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("forward-agent", "Forward agent to target node").Short('A').BoolVar(&cf.ForwardAgent)
 	ssh.Flag("forward", "Forward localhost connections to remote server").Short('L').StringsVar(&cf.LocalForwardPorts)
 	ssh.Flag("dynamic-forward", "Forward localhost connections to remote server using SOCKS5").Short('D').StringsVar(&cf.DynamicForwardedPorts)
+	ssh.Flag("remote-forward", "Forward remote connections to localhost").Short('R').StringsVar(&cf.RemoteForwardPorts)
 	ssh.Flag("local", "Execute command on localhost after connecting to SSH node").Default("false").BoolVar(&cf.LocalExec)
 	ssh.Flag("tty", "Allocate TTY").Short('t').BoolVar(&cf.Interactive)
 	ssh.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -3646,6 +3649,11 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		return nil, trace.Wrap(err)
 	}
 
+	rPorts, err := client.ParsePortForwardSpec(cf.RemoteForwardPorts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
 
@@ -3790,6 +3798,9 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 	if len(dPorts) > 0 {
 		c.DynamicForwardedPorts = dPorts
+	}
+	if len(rPorts) > 0 {
+		c.RemoteForwardPorts = rPorts
 	}
 	if cf.SiteName != "" {
 		c.SiteName = cf.SiteName
