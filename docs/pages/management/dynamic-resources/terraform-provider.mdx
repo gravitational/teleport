@@ -34,10 +34,6 @@ authority to manage resources in the cluster. Terraform is intended to be used w
 [(Machine ID)](../../machine-id/introduction.mdx), so this tutorial will show you how to
 use a local Machine ID bot to try it out.
 
-For production, Terraform should be run using Machine ID on a CI/CD platform.
-For more information on using Machine ID and Terraform in a production setting, see the
-[Machine ID Terraform Guide](../../machine-id/access-guides/terraform.mdx).
-
 To prepare credentials for a local Teleport user:
 
 1. Create a folder called `teleport-terraform` to hold temporary files:
@@ -197,4 +193,4 @@ To apply the configuration:
 - Follow [the user and role IaC guide](./user-and-role.mdx) to use the Terraform
   Provider to create Teleport users and grant them roles.
 - Explore the full list of supported [Terraform provider resources](../../reference/terraform-provider.mdx).
-- Read more about [impersonation](../../access-controls/guides/impersonation.mdx).
+- See how to use Machine ID with Terraform in [production](../../machine-id/access-guides/terraform.mdx).
