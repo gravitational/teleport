@@ -138,12 +138,26 @@ The Teleport updater must be able to resolve conflict for these two situations:
 
 Step 4: The Teleport documentation should be updated to include a new section with instructions about how a user can build their own update automation.
 
+### Agent Version Management
+Currently, the Teleport proxies rely on the upstream major version channels to serve the latest compatible version of Teleport to the updaters. This is configurable by modifying the teleport.yaml proxy configuration, but this requires pausing reconciliation for the resource because the Teleport Controller will revert the changes back to the default. Changing the proxy configuration also requires redeploying the proxy.
+
+The agent version should be made easier to configure using the Kubernetes or Cloud API. Modifying the agent version should not require reconciliation to be paused, and it should not require the Teleport proxy to be redeployed.
+
+A simple solution is to configure the Teleport proxies to now read the agent version from a monitored file on disk. Teleport Cloud will be able to easily and dynamically modify the agent version via the Kubernetes API.
+
 ### Updating the Teleport Updater
 The purpose of the Teleport updater is to reduce the maintenance required to keep Teleport client software up to date. If users need to periodically update the Teleport updater to receive new patches, that defeats the purpose of the automatic updates feature.
 
 The Teleport updater will now be able to update itself. The tarball downloaded from the Teleport CDN will now contain both the Teleport binary and the Teleport updater binary. This copy of the Teleport updater binary will also be installed into the /var/lib/teleport directory. The Teleport updater service will prioritize the Teleport updater binary installed in /var/lib/teleport before executing the Teleport updater binary installed via the system package manager.
 
 All installed versions of the Teleport updater will be persisted in the /var/lib/teleport directory. These older version of the Teleport updater binary will used to rollback changes to the Teleport updater in the case that a broken version of the Teleport updater is shipped.
+
+### Simplify the Updater
+Currently, the Teleport agents export an update schedule to the local machine. This schedule is then used by the Teleport updater to determine when to perform an update. This mechanism for scheduling Teleport agent updates is no longer needed.
+
+Each tenant now serves the desired Teleport agent version from the Teleport proxy. This means that Teleport Cloud is able to deploy agent updates for each tenant individually. This enables Teleport Cloud to deploy agent updates on schedule and deploy critical updates while removing this logic from the Teleport updater.
+
+The Teleport updater will be simplified to now periodically query the Teleport proxy for the desired agent version. If the version is different than the currently installed version, Teleport will be immediately updated.
 
 ### Reduce installation paths
 Teleport supports different scripts and methods of installation. This creates an increased maintenance and testing burden on developers. It also leads to confusion for the Teleport user, as it is unclear which installation method fits their needs. This has already lead to several incidents, and if these change proposals are accepted there is concern for more issues to emerge.
@@ -162,6 +176,11 @@ The /docs/installation page should continue to be maintained. This page should o
 Step 3: Extend the capabilities of the installation script to replace the installation scripts used for node joining, teleport auto discovery, and any other installation scripts currently available.
 
 Step 4: After reducing cardinality, it should be more manageable to implement more extensive testing for the single installation script. There should be automated testing in place to verify installation and updates. Teleport supports the 3 latest major versions. So tests should be run against all the supported major versions.
+
+### Serve Install Script from Proxy
+Currently, Teleport serves a static install script at https://goteleport.com/static/install.sh. The script supports installation for OSS, Enterprise, and Cloud. However, the script requires the user to provide the desired version and the Teleport edition. Having to figuring out which is the right version and edition of Teleport unnecessarily complicates the installation step for users.
+
+To simplify this step, the Teleport proxy should now serve the install script with the version and edition preconfigured to be compatible with the users Teleport cluster. The user would no longer need to provide the Teleport version and edition to run the script, and this should help simplify the installation process and documentation.
 
 ### Give ownership of the teleport-agent to the teleport-agent-updater
 The teleport/teleport-kube-agent Helm chart with the updater enabled is not currently compatible with ArgoCD.
