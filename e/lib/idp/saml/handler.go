@@ -224,14 +224,13 @@ func (s *Service) handleIdPInitiatedLogin(w http.ResponseWriter, r *http.Request
 	// audit event emitted in the session provider doesn't have access to the entity ID.
 	r = r.WithContext(ctxWithSPEntityID(r.Context(), sp.GetEntityID()))
 
-	// TODO (mdwn): Implement configurable relay state.
 	// The saml.IdentityProvider does the response handling here.
 	idp, err := s.createIdP(r.Context())
 	if err != nil {
 		s.log.Errorf("Error creating IdP: %v", err)
 		s.writeError(w, http.StatusInternalServerError)
 	}
-	idp.ServeIDPInitiated(w, r, sp.GetEntityID(), "" /* empty relay state for now */)
+	idp.ServeIDPInitiated(w, r, sp.GetEntityID(), sp.GetRelayState())
 }
 
 // handler returns the HTTP handler for the identity provider.

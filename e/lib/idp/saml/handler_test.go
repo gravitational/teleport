@@ -261,6 +261,7 @@ func testIdPInitiatedLogin(t *testing.T, method string) {
 		types.SAMLIdPServiceProviderSpecV1{
 			EntityDescriptor: testenv.NewTestEntityDescriptor("sp1"),
 			EntityID:         "sp1",
+			RelayState:       "test-relay-state",
 		},
 	)
 	require.NoError(t, err)
@@ -291,6 +292,7 @@ func testIdPInitiatedLogin(t *testing.T, method string) {
 	require.Equal(t, "https://sptest.iamshowcase.com/acs", formNode.Attr[1].Val)
 	require.Equal(t, "id", formNode.Attr[2].Key)
 	require.Equal(t, "SAMLResponseForm", formNode.Attr[2].Val)
+	require.Equal(t, "test-relay-state", formNode.FirstChild.NextSibling.Attr[2].Val)
 
 	w = httptest.NewRecorder()
 	r = httptest.NewRequest(method, path.Join(IdPRoute, "login/doesntexist"), nil)
