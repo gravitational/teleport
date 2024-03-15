@@ -235,15 +235,14 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			IsSuccess: e.Status.Success,
 		}
 	case *apievents.ValidateMFAAuthResponse:
-		deviceId := ""
-		deviceType := ""
+		var deviceID, deviceType string
 		if e.MFADevice != nil {
-			deviceId = e.MFADevice.DeviceID
+			deviceID = e.MFADevice.DeviceID
 			deviceType = e.MFADevice.DeviceType
 		}
 		return &MFAAuthenticationEvent{
 			UserName:          e.User,
-			DeviceId:          deviceId,
+			DeviceId:          deviceID,
 			DeviceType:        deviceType,
 			MfaChallengeScope: e.ChallengeScope,
 		}
