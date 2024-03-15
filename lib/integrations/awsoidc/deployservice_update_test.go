@@ -392,10 +392,6 @@ func TestEnsureUpgraderEnvironmentVariables(t *testing.T) {
 					Value: aws.String("EXAMPLE"),
 				},
 				{
-					Name:  aws.String(automaticupgrades.EnvUpgrader),
-					Value: aws.String(types.OriginIntegrationAWSOIDC),
-				},
-				{
 					Name:  aws.String(automaticupgrades.EnvUpgraderVersion),
 					Value: aws.String(teleport.Version),
 				},
@@ -404,10 +400,6 @@ func TestEnsureUpgraderEnvironmentVariables(t *testing.T) {
 				{
 					Name:  aws.String("EXAMPLE_ENV"),
 					Value: aws.String("EXAMPLE"),
-				},
-				{
-					Name:  aws.String(automaticupgrades.EnvUpgrader),
-					Value: aws.String(types.OriginIntegrationAWSOIDC),
 				},
 				{
 					Name:  aws.String(automaticupgrades.EnvUpgraderVersion),
@@ -429,10 +421,6 @@ func TestEnsureUpgraderEnvironmentVariables(t *testing.T) {
 					Value: aws.String("EXAMPLE"),
 				},
 				{
-					Name:  aws.String(automaticupgrades.EnvUpgrader),
-					Value: aws.String(types.OriginIntegrationAWSOIDC),
-				},
-				{
 					Name:  aws.String(automaticupgrades.EnvUpgraderVersion),
 					Value: aws.String(teleport.Version),
 				},
@@ -446,10 +434,6 @@ func TestEnsureUpgraderEnvironmentVariables(t *testing.T) {
 					Value: aws.String("EXAMPLE"),
 				},
 				{
-					Name:  aws.String(automaticupgrades.EnvUpgrader),
-					Value: aws.String("none"),
-				},
-				{
 					Name:  aws.String(automaticupgrades.EnvUpgraderVersion),
 					Value: aws.String("v1.0.0"),
 				},
@@ -458,10 +442,6 @@ func TestEnsureUpgraderEnvironmentVariables(t *testing.T) {
 				{
 					Name:  aws.String("EXAMPLE_ENV"),
 					Value: aws.String("EXAMPLE"),
-				},
-				{
-					Name:  aws.String(automaticupgrades.EnvUpgrader),
-					Value: aws.String(types.OriginIntegrationAWSOIDC),
 				},
 				{
 					Name:  aws.String(automaticupgrades.EnvUpgraderVersion),
