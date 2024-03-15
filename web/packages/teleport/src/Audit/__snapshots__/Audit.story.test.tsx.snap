@@ -5691,7 +5691,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          Database user [alice] created in database [postgres-local], roles: [foo,bar]}
+          Database user [alice] created in database [postgres-local], roles: [foo,bar]
         </td>
         <td
           style="min-width: 120px;"

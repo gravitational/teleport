@@ -925,7 +925,7 @@ export const formatters: Formatters = {
       if (!ev.roles) {
         return `Database user [${ev.user}] created in database [${ev.db_service}]`;
       }
-      return `Database user [${ev.user}] created in database [${ev.db_service}], roles: [${ev.roles}]}`;
+      return `Database user [${ev.user}] created in database [${ev.db_service}], roles: [${ev.roles}]`;
     },
   },
   [eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE]: {
