@@ -98,7 +98,7 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 	}
 	logger := opts.Logger
 	if logger == nil {
-		logger = logrus.WithFields(logrus.Fields{trace.Component: "authorizer"})
+		logger = logrus.WithFields(logrus.Fields{teleport.ComponentKey: "authorizer"})
 	}
 
 	return &authorizer{
@@ -490,12 +490,6 @@ func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, aut
 }
 
 func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Context) error {
-	// Certain hardware-key based private key policies require MFA for each request.
-	if authContext.Identity.GetIdentity().PrivateKeyPolicy.MFAVerified() {
-		authContext.AdminActionAuthState = AdminActionAuthMFAVerified
-		return nil
-	}
-
 	// MFA is required to be passed through the request context.
 	mfaResp, err := mfa.CredentialsFromContext(ctx)
 	if err != nil {

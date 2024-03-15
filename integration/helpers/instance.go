@@ -629,6 +629,7 @@ func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *servicecfg.Config) er
 			// allow tests to forward agent, still needs to be passed in client
 			roleOptions := role.GetOptions()
 			roleOptions.ForwardAgent = types.NewBool(true)
+			roleOptions.PermitX11Forwarding = types.NewBool(true)
 			role.SetOptions(roleOptions)
 
 			role, err = auth.UpsertRole(ctx, role)

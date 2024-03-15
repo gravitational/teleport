@@ -605,12 +605,12 @@ func switchProxyListenerMode(t *testing.T, authServer *auth.Server, mode types.P
 	require.NoError(t, err)
 	prevValue := networkCfg.GetProxyListenerMode()
 	networkCfg.SetProxyListenerMode(mode)
-	err = authServer.SetClusterNetworkingConfig(context.Background(), networkCfg)
+	_, err = authServer.UpsertClusterNetworkingConfig(context.Background(), networkCfg)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		networkCfg.SetProxyListenerMode(prevValue)
-		err = authServer.SetClusterNetworkingConfig(context.Background(), networkCfg)
+		_, err = authServer.UpsertClusterNetworkingConfig(context.Background(), networkCfg)
 		require.NoError(t, err)
 	})
 }
@@ -1179,7 +1179,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 
 	setupUser := func(cluster, name string, withDevices bool, asrv *auth.Server) {
 		// set the default auth preference
-		err = asrv.SetAuthPreference(ctx, webauthnPreference(cluster))
+		_, err = asrv.UpsertAuthPreference(ctx, webauthnPreference(cluster))
 		require.NoError(t, err)
 
 		if !withDevices {
@@ -1653,9 +1653,11 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			}
 
 			if tt.authPreference != nil {
-				require.NoError(t, tt.auth.SetAuthPreference(ctx, tt.authPreference))
+				_, err = tt.auth.UpsertAuthPreference(ctx, tt.authPreference)
+				require.NoError(t, err)
 				t.Cleanup(func() {
-					require.NoError(t, tt.auth.SetAuthPreference(ctx, webauthnPreference(clusterName.GetClusterName())))
+					_, err = tt.auth.UpsertAuthPreference(ctx, webauthnPreference(clusterName.GetClusterName()))
+					require.NoError(t, err)
 				})
 			}
 
@@ -2471,7 +2473,7 @@ func TestSSHHeadless(t *testing.T) {
 	proxyAddr, err := rootProxy.ProxyWebAddr()
 	require.NoError(t, err)
 
-	require.NoError(t, rootAuth.GetAuthServer().SetAuthPreference(ctx, &types.AuthPreferenceV2{
+	_, err = rootAuth.GetAuthServer().UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOptional,
@@ -2479,7 +2481,8 @@ func TestSSHHeadless(t *testing.T) {
 				RPID: "127.0.0.1",
 			},
 		},
-	}))
+	})
+	require.NoError(t, err)
 
 	go func() {
 		if err := approveAllAccessRequests(ctx, rootAuth.GetAuthServer()); err != nil {
@@ -2574,7 +2577,7 @@ func TestHeadlessDoesNotAddKeysToAgent(t *testing.T) {
 	proxyAddr, err := rootProxy.ProxyWebAddr()
 	require.NoError(t, err)
 
-	require.NoError(t, rootAuth.GetAuthServer().SetAuthPreference(ctx, &types.AuthPreferenceV2{
+	_, err = rootAuth.GetAuthServer().UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOptional,
@@ -2582,7 +2585,8 @@ func TestHeadlessDoesNotAddKeysToAgent(t *testing.T) {
 				RPID: "127.0.0.1",
 			},
 		},
-	}))
+	})
+	require.NoError(t, err)
 
 	go func() {
 		if err := approveAllAccessRequests(ctx, rootAuth.GetAuthServer()); err != nil {
@@ -5360,4 +5364,63 @@ func Test_formatActiveDB(t *testing.T) {
 			require.Equal(t, test.expect, formatActiveDB(test.active, test.displayName))
 		})
 	}
+}
+
+func TestFlatten(t *testing.T) {
+	// Test setup: create a server and a user
+	home := t.TempDir()
+	identityPath := filepath.Join(t.TempDir(), "identity.pem")
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	connector := mockConnector(t)
+
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Test setup: log in and obtain a valid identity for the user
+	conf := CLIConf{
+		Username:           alice.GetName(),
+		Proxy:              proxyAddr.String(),
+		InsecureSkipVerify: true,
+		IdentityFileOut:    identityPath,
+		IdentityFormat:     identityfile.FormatFile,
+		HomePath:           home,
+		AuthConnector:      connector.GetName(),
+		MockSSOLogin:       mockSSOLogin(authServer, alice),
+		Context:            context.Background(),
+	}
+	require.NoError(t, onLogin(&conf))
+
+	// Test setup: validate we got a valid identity
+	_, err = identityfile.KeyFromIdentityFile(identityPath, "proxy.example.com", "")
+	require.NoError(t, err)
+
+	// Test execution: flatten the identity previously obtained in a new home.
+	freshHome := t.TempDir()
+	conf = CLIConf{
+		Proxy:              proxyAddr.String(),
+		InsecureSkipVerify: true,
+		IdentityFileIn:     identityPath,
+		HomePath:           freshHome,
+		Context:            context.Background(),
+	}
+	require.NoError(t, flattenIdentity(&conf))
+
+	// Test execution: validate that the newly created profile can be used to build a valid client.
+	clt, err := makeClient(&conf)
+	require.NoError(t, err)
+
+	_, err = clt.Ping(context.Background())
+	require.NoError(t, err)
+
+	// Test execution: validate that flattening succeeds if a profile already exists.
+	conf.IdentityFileIn = identityPath
+	require.NoError(t, flattenIdentity(&conf), "unexpected error when overwriting a tsh profile")
 }

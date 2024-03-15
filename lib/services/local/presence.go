@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -55,7 +56,7 @@ type backendItemToResourceFunc func(item backend.Item) (types.ResourceWithLabels
 // NewPresenceService returns new presence service instance
 func NewPresenceService(b backend.Backend) *PresenceService {
 	return &PresenceService{
-		log:     logrus.WithFields(logrus.Fields{trace.Component: "Presence"}),
+		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "Presence"}),
 		jitter:  retryutils.NewFullJitter(),
 		Backend: b,
 	}
@@ -1882,6 +1883,9 @@ type FakePaginateParams struct {
 	Kinds []string
 	// NeedTotalCount indicates whether or not the caller also wants the total number of resources after filtering.
 	NeedTotalCount bool
+	// EnrichResourceFn if provided allows the resource to be enriched with additional
+	// information (logins, db names, etc.) before being added to the response.
+	EnrichResourceFn func(types.ResourceWithLabels) (types.ResourceWithLabels, error)
 }
 
 // GetWindowsDesktopFilter retrieves the WindowsDesktopFilter from params
@@ -1934,6 +1938,12 @@ func FakePaginate(resources []types.ResourceWithLabels, req FakePaginateParams) 
 			return nil, trace.Wrap(err)
 		case !match:
 			continue
+		}
+
+		if req.EnrichResourceFn != nil {
+			if enriched, err := req.EnrichResourceFn(resource); err == nil {
+				resource = enriched
+			}
 		}
 
 		filtered = append(filtered, resource)

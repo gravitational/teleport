@@ -26,6 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	conv "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
@@ -60,7 +61,7 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if s.Logger == nil {
-		s.Logger = logrus.New().WithField(trace.Component, "discoveryconfig_crud_service")
+		s.Logger = logrus.New().WithField(teleport.ComponentKey, "discoveryconfig_crud_service")
 	}
 
 	if s.Clock == nil {

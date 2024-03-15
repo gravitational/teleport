@@ -437,9 +437,8 @@ func createSignedSTSIdentityRequest(ctx context.Context, challenge string, opts 
 
 func newSTSClient(ctx context.Context, cfg *stsIdentityRequestConfig) (*sts.STS, error) {
 	awsConfig := awssdk.Config{
-		EC2MetadataEnableFallback: awssdk.Bool(false),
-		UseFIPSEndpoint:           cfg.fipsEndpointOption,
-		STSRegionalEndpoint:       cfg.regionalEndpointOption,
+		UseFIPSEndpoint:     cfg.fipsEndpointOption,
+		STSRegionalEndpoint: cfg.regionalEndpointOption,
 	}
 	sess, err := session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,

@@ -283,7 +283,7 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 		RequireMFAType: types.RequireMFAType_SESSION,
 	})
 	require.NoError(t, err)
-	err = authServer.SetAuthPreference(ctx, ap)
+	_, err = authServer.UpsertAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
 	// Set up otp device.

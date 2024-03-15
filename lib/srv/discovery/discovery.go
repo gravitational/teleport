@@ -219,7 +219,7 @@ kubernetes matchers are present.`)
 		return trace.BadParameter("cluster features are required")
 	}
 
-	c.Log = c.Log.WithField(trace.Component, teleport.ComponentDiscovery)
+	c.Log = c.Log.WithField(teleport.ComponentKey, teleport.ComponentDiscovery)
 
 	if c.DiscoveryGroup == "" {
 		c.Log.Warn("discovery_service.discovery_group is not set. This field is required for the discovery service to work properly.\n" +

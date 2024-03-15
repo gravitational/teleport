@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
@@ -64,7 +65,7 @@ func (c *AKSFetcherConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "fetcher:aks")
+		c.Log = logrus.WithField(teleport.ComponentKey, "fetcher:aks")
 	}
 	return nil
 }

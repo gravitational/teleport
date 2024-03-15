@@ -159,24 +159,6 @@ func TestFromProtoNils(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("membership", func(t *testing.T) {
-		msg := ToProto(newAccessList(t, "access-list"))
-		msg.Spec.Membership = ""
-
-		uut, err := FromProto(msg)
-		require.NoError(t, err)
-		require.Equal(t, accesslist.InclusionExplicit, uut.Spec.Membership)
-	})
-
-	t.Run("ownership", func(t *testing.T) {
-		msg := ToProto(newAccessList(t, "access-list"))
-		msg.Spec.Ownership = ""
-
-		uut, err := FromProto(msg)
-		require.NoError(t, err)
-		require.Equal(t, accesslist.InclusionExplicit, uut.Spec.Ownership)
-	})
-
 	t.Run("owner_grants", func(t *testing.T) {
 		msg := ToProto(newAccessList(t, "access-list"))
 		msg.Spec.OwnerGrants = nil

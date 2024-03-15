@@ -162,13 +162,13 @@ func newTestPack(
 	if err != nil {
 		return p, trace.Wrap(err)
 	}
-	if err := p.a.SetAuthPreference(ctx, authPreference); err != nil {
+	if _, err = p.a.UpsertAuthPreference(ctx, authPreference); err != nil {
 		return p, trace.Wrap(err)
 	}
 	if err := p.a.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()); err != nil {
 		return p, trace.Wrap(err)
 	}
-	if err := p.a.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()); err != nil {
+	if _, err := p.a.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()); err != nil {
 		return p, trace.Wrap(err)
 	}
 	if err := p.a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()); err != nil {
@@ -669,9 +669,8 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 	authPref.SetWebauthn(&types.Webauthn{
 		RPID: "localhost",
 	})
-	require.NoError(t,
-		authServer.SetAuthPreference(ctx, authPref),
-		"SetAuthPreference")
+	_, err = authServer.UpdateAuthPreference(ctx, authPref)
+	require.NoError(t, err, "UpdateAuthPreference")
 
 	// Prepare user, password and MFA device.
 	_, _, err = CreateUserAndRole(authServer, user, []string{user}, nil /* allowRules */)
@@ -2781,7 +2780,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 
 			authPref, err := types.NewAuthPreference(tt.cap)
 			require.NoError(t, err)
-			err = p.a.SetAuthPreference(ctx, authPref)
+			_, err = p.a.UpsertAuthPreference(ctx, authPref)
 			require.NoError(t, err)
 
 			_, err = p.a.generateUserCert(ctx, certReq)
@@ -2800,7 +2799,7 @@ func TestNewWebSession(t *testing.T) {
 	duration := time.Duration(5) * time.Minute
 	cfg := types.DefaultClusterNetworkingConfig()
 	cfg.SetWebIdleTimeout(duration)
-	err = p.a.SetClusterNetworkingConfig(ctx, cfg)
+	_, err = p.a.UpsertClusterNetworkingConfig(ctx, cfg)
 	require.NoError(t, err)
 
 	// Create a user.
@@ -2852,7 +2851,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = authServer.SetAuthPreference(ctx, authPreference)
+	_, err = authServer.UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
 	userClient, err := testServer.NewClient(TestUser(username))
@@ -2995,7 +2994,7 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = authServer.SetAuthPreference(ctx, authPreference)
+	_, err = authServer.UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
 	userClient, err := testServer.NewClient(TestUser(username))
@@ -3128,9 +3127,8 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 			Webauthn:     webConfig,
 		})
 		require.NoError(t, err, "NewAuthPreference")
-		require.NoError(t,
-			authServer.SetAuthPreference(ctx, authPreference),
-			"SetAuthPreference")
+		_, err = authServer.UpsertAuthPreference(ctx, authPreference)
+		require.NoError(t, err, "UpsertAuthPreference")
 	}
 
 	deleteDevice := func(userClient *Client, testDev *TestDevice) error {
@@ -3220,7 +3218,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = authServer.SetAuthPreference(ctx, authPreference)
+	_, err = authServer.UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
 	u, err := createUserWithSecondFactors(testServer)
@@ -3435,7 +3433,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPreference)
+	_, err = srv.Auth().UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
 	username := "llama@goteleport.com"
@@ -3519,7 +3517,7 @@ func TestGetMFADevices_WithAuth(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPreference)
+	_, err = srv.Auth().UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
 	username := "llama@goteleport.com"
