@@ -885,7 +885,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 		// rollback cycle.
 		case "", types.RotationStateStandby:
 			if regenerateCertificate {
-				process.logger.InfoContext(process.ExitContext(), "Service has updated principals and DNS Names, going to request new principals and update.", "identity", id.Role, "principals", additionalPrincipals, "dna_names", dnsNames)
+				process.logger.InfoContext(process.ExitContext(), "Service has updated principals and DNS Names, going to request new principals and update.", "identity", id.Role, "principals", additionalPrincipals, "dns_names", dnsNames)
 				identity, err := process.reRegister(conn, additionalPrincipals, dnsNames, remote)
 				if err != nil {
 					return nil, trace.Wrap(err)
@@ -943,7 +943,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			process.logger.DebugContext(process.ExitContext(), "Re-registered, received new identity.", "identity", identity)
+			process.logger.DebugContext(process.ExitContext(), "Re-registered, received new identity.", "identity", logutils.StringerAttr(identity))
 			err = writeStateAndIdentity(auth.IdentityReplacement, identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
