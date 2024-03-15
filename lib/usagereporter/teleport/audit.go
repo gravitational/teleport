@@ -235,10 +235,16 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			IsSuccess: e.Status.Success,
 		}
 	case *apievents.ValidateMFAAuthResponse:
+		deviceId := ""
+		deviceType := ""
+		if e.MFADevice != nil {
+			deviceId = e.MFADevice.DeviceID
+			deviceType = e.MFADevice.DeviceType
+		}
 		return &MFAAuthenticationEvent{
 			UserName:          e.User,
-			DeviceId:          e.MFADevice.DeviceID,
-			DeviceType:        e.MFADevice.DeviceType,
+			DeviceId:          deviceId,
+			DeviceType:        deviceType,
 			MfaChallengeScope: e.ChallengeScope,
 		}
 	case *apievents.OktaAccessListSync:
