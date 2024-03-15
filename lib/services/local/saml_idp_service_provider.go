@@ -250,7 +250,7 @@ func (s *SAMLIdPServiceProviderService) configureEntityDescriptorPerPreset(sp ty
 		// fetchAndSetEntityDescriptor is expected to return error if it fails
 		// to fetch a valid entity descriptor.
 		if err := s.fetchAndSetEntityDescriptor(sp); err != nil {
-			s.log.Debugf("Failed to fetch entity descriptor from %q. %v.", sp.GetEntityID(), err)
+			s.log.Debugf("Failed to fetch entity descriptor from %q: %v.", sp.GetEntityID(), err)
 			// We aren't interested in checking error type as any occurrence of error
 			// mean entity descriptor was not set.
 			return trace.Wrap(s.generateAndSetEntityDescriptor(sp))
