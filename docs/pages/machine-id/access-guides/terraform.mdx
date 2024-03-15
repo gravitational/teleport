@@ -94,8 +94,9 @@ outputs:
 ```
 
 If operating `tbot` as a background service, restart it. If running `tbot` in
-[one-shot mode](../../includes/machine-id/daemon-or-oneshot.mdx), it must be executed
-before you attempt to execute the Terraform plan later.
+one-shot mode (which creates credentials and ends the process, rather than running
+a background process), it must be executed before you attempt to execute the
+Terraform plan later.
 
 You should now see an `identity` file under `/opt/machine-id`. This contains
 the private key and signed certificates needed by the Terraform provider to
@@ -209,7 +210,7 @@ spec:
 Now we'll combine the available `teleport-actions` and `hashicorp` Actions to run Terraform in CI, using
 tbot to authenticate with the Teleport cluster. The Actions `teleport-actions/setup` and `teleport-actions/auth`
 perform the steps we did in Step 2 above, configuring `tbot` and then starting it up in
-[one-shot mode](../../includes/machine-id/daemon-or-oneshot.mdx).
+one-shot mode.
 
 ```yaml
 jobs:
