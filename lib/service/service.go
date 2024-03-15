@@ -994,7 +994,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	upgraderKind := os.Getenv("TELEPORT_EXT_UPGRADER")
+	upgraderKind := os.Getenv(automaticupgrades.EnvUpgrader)
 	upgraderVersion := automaticupgrades.GetUpgraderVersion(process.GracefulExitContext())
 
 	// Instances deployed using the AWS OIDC integration are automatically updated
