@@ -25,7 +25,7 @@ import { Story, createContext } from './Clusters.story';
 test('render clusters', async () => {
   const ctx = createContext();
   const { container } = render(<Story value={ctx} />);
-
-  await screen.findByRole('table');
+  // wait for Showing 1 - x of y
+  expect(await screen.findByText(/Showing/)).toBeInTheDocument();
   expect(container.firstChild).toMatchSnapshot();
 });

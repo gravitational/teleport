@@ -26,6 +26,7 @@ import { Loaded } from './Recordings.story';
 test('rendering of Session Recordings', async () => {
   const { container } = render(<Loaded />);
 
-  await screen.findByRole('table');
+  // wait for Showing 1 - x of y
+  expect(await screen.findByText(/Showing/)).toBeInTheDocument();
   expect(container).toMatchSnapshot();
 });
