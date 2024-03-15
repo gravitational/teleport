@@ -18,7 +18,22 @@ exports[`rendering of Session Recordings 1`] = `
   width: 210px;
 }
 
-.c19 {
+.c16 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  width: 100%;
+}
+
+.c18 {
+  box-sizing: border-box;
+  margin-right: 8px;
+}
+
+.c20 {
+  box-sizing: border-box;
+}
+
+.c27 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -45,28 +60,107 @@ exports[`rendering of Session Recordings 1`] = `
   width: 80px;
 }
 
-.c19:hover,
-.c19:focus {
+.c27:hover,
+.c27:focus {
   background: #B29DFF;
 }
 
-.c19:active {
+.c27:active {
   background: #C5B6FF;
 }
 
-.c19:disabled {
+.c27:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c17 {
+.c21 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+  margin-right: 0px;
+}
+
+.c21:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c21:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c21:hover:enabled,
+.c21:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c21:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c24 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c24:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c24:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c24:hover:enabled,
+.c24:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c24:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c23 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c18 {
+.c26 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -84,6 +178,17 @@ exports[`rendering of Session Recordings 1`] = `
   margin-right: 56px;
 }
 
+.c19 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+  font-weight: 500;
+}
+
 .c1 {
   display: flex;
 }
@@ -91,6 +196,12 @@ exports[`rendering of Session Recordings 1`] = `
 .c4 {
   display: flex;
   align-items: center;
+}
+
+.c17 {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .c9 .react-select-container {
@@ -278,7 +389,7 @@ exports[`rendering of Session Recordings 1`] = `
   padding-bottom: 24px;
 }
 
-.c16 {
+.c25 {
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -286,39 +397,39 @@ exports[`rendering of Session Recordings 1`] = `
   width: 100%;
 }
 
-.c16 > thead > tr > th,
-.c16 > tbody > tr > th,
-.c16 > tfoot > tr > th,
-.c16 > thead > tr > td,
-.c16 > tbody > tr > td,
-.c16 > tfoot > tr > td {
+.c25 > thead > tr > th,
+.c25 > tbody > tr > th,
+.c25 > tfoot > tr > th,
+.c25 > thead > tr > td,
+.c25 > tbody > tr > td,
+.c25 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c16 > thead > tr > th:first-child,
-.c16 > tbody > tr > th:first-child,
-.c16 > tfoot > tr > th:first-child,
-.c16 > thead > tr > td:first-child,
-.c16 > tbody > tr > td:first-child,
-.c16 > tfoot > tr > td:first-child {
+.c25 > thead > tr > th:first-child,
+.c25 > tbody > tr > th:first-child,
+.c25 > tfoot > tr > th:first-child,
+.c25 > thead > tr > td:first-child,
+.c25 > tbody > tr > td:first-child,
+.c25 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c16 > thead > tr > th:last-child,
-.c16 > tbody > tr > th:last-child,
-.c16 > tfoot > tr > th:last-child,
-.c16 > thead > tr > td:last-child,
-.c16 > tbody > tr > td:last-child,
-.c16 > tfoot > tr > td:last-child {
+.c25 > thead > tr > th:last-child,
+.c25 > tbody > tr > th:last-child,
+.c25 > tfoot > tr > th:last-child,
+.c25 > thead > tr > td:last-child,
+.c25 > tbody > tr > td:last-child,
+.c25 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c16 > tbody > tr > td {
+.c25 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c16 > thead > tr > th {
+.c25 > thead > tr > th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -330,11 +441,11 @@ exports[`rendering of Session Recordings 1`] = `
   white-space: nowrap;
 }
 
-.c16 > thead > tr > th svg {
+.c25 > thead > tr > th svg {
   height: 12px;
 }
 
-.c16 > tbody > tr > td {
+.c25 > tbody > tr > td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -342,7 +453,7 @@ exports[`rendering of Session Recordings 1`] = `
   letter-spacing: 0.035px;
 }
 
-.c16 tbody tr {
+.c25 tbody tr {
   transition: all 150ms;
   position: relative;
   border-top: 2px solid rgba(255,255,255,0.07);
@@ -352,12 +463,12 @@ exports[`rendering of Session Recordings 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c16 tbody tr:hover {
+.c25 tbody tr:hover {
   border-top: 2px solid rgba(0,0,0,0);
   background-color: #222C59;
 }
 
-.c16 tbody tr:hover:after {
+.c25 tbody tr:hover:after {
   box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
   content: '';
   position: absolute;
@@ -368,7 +479,7 @@ exports[`rendering of Session Recordings 1`] = `
   height: 100%;
 }
 
-.c16 tbody tr:hover + tr {
+.c25 tbody tr:hover + tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -380,6 +491,14 @@ exports[`rendering of Session Recordings 1`] = `
   padding: 16px 0;
   max-height: 40px;
   margin-bottom: 8px;
+}
+
+.c22 svg {
+  font-size: 20px;
+}
+
+.c22 svg:before {
+  padding-left: 1px;
 }
 
 .c15 {
@@ -534,8 +653,87 @@ exports[`rendering of Session Recordings 1`] = `
         </div>
       </div>
     </nav>
+    <div
+      class="c16 c17"
+      width="100%"
+    >
+      <div
+        class="c18 c1"
+      >
+        <div
+          class="c19"
+          font-weight="500"
+          style="white-space: nowrap; letter-spacing: 0.15px;"
+        >
+          Showing 
+          <strong>
+            1
+          </strong>
+           - 
+          <strong>
+            7
+          </strong>
+           of
+           
+          <strong>
+            7
+          </strong>
+        </div>
+      </div>
+      <div
+        class="c20 c1"
+      >
+        <button
+          class="c21 c22"
+          disabled=""
+          title="Previous page"
+        >
+          <span
+            class="c23 icon icon-circlearrowleft"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                d="M10.0607 11.25L11.7803 9.53033C12.0732 9.23744 12.0732 8.76256 11.7803 8.46967C11.4874 8.17678 11.0126 8.17678 10.7197 8.46967L7.71967 11.4697C7.64776 11.5416 7.59351 11.6245 7.55691 11.7129C7.52024 11.8013 7.5 11.8983 7.5 12C7.5 12.1017 7.52024 12.1987 7.55691 12.2871C7.59351 12.3755 7.64776 12.4584 7.71967 12.5303L10.7197 15.5303C11.0126 15.8232 11.4874 15.8232 11.7803 15.5303C12.0732 15.2374 12.0732 14.7626 11.7803 14.4697L10.0607 12.75H15.75C16.1642 12.75 16.5 12.4142 16.5 12C16.5 11.5858 16.1642 11.25 15.75 11.25H10.0607Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+        <button
+          class="c24 c22"
+          disabled=""
+          title="Next page"
+        >
+          <span
+            class="c23 icon icon-circlearrowright"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                clip-rule="evenodd"
+                d="M12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75ZM2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM7.5 12C7.5 11.5858 7.83579 11.25 8.25 11.25H13.9393L12.2197 9.53033C11.9268 9.23744 11.9268 8.76256 12.2197 8.46967C12.5126 8.17678 12.9874 8.17678 13.2803 8.46967L16.2803 11.4697C16.3522 11.5416 16.4065 11.6245 16.4431 11.7129C16.4798 11.8013 16.5 11.8983 16.5 12C16.5 12.1017 16.4798 12.1987 16.4431 12.2871C16.4065 12.3755 16.3522 12.4584 16.2803 12.5303L13.2803 15.5303C12.9874 15.8232 12.5126 15.8232 12.2197 15.5303C11.9268 15.2374 11.9268 14.7626 12.2197 14.4697L13.9393 12.75H8.25C7.83579 12.75 7.5 12.4142 7.5 12Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+      </div>
+    </div>
     <table
-      class="c16"
+      class="c25"
     >
       <thead>
         <tr>
@@ -545,7 +743,7 @@ exports[`rendering of Session Recordings 1`] = `
             >
               Type
               <span
-                class="c17 icon icon-chevronsvertical"
+                class="c23 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -570,7 +768,7 @@ exports[`rendering of Session Recordings 1`] = `
             >
               Name
               <span
-                class="c17 icon icon-chevronsvertical"
+                class="c23 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -595,7 +793,7 @@ exports[`rendering of Session Recordings 1`] = `
             >
               User(s)
               <span
-                class="c17 icon icon-chevronsvertical"
+                class="c23 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -620,7 +818,7 @@ exports[`rendering of Session Recordings 1`] = `
             >
               Duration
               <span
-                class="c17 icon icon-chevronsvertical"
+                class="c23 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -645,7 +843,7 @@ exports[`rendering of Session Recordings 1`] = `
             >
               Created (UTC)
               <span
-                class="c17 icon icon-chevrondown"
+                class="c23 icon icon-chevrondown"
                 title="sort items desc"
               >
                 <svg
@@ -677,7 +875,7 @@ exports[`rendering of Session Recordings 1`] = `
         <tr>
           <td>
             <span
-              class="c18 icon icon-kubernetes"
+              class="c26 icon icon-kubernetes"
             >
               <svg
                 fill="currentColor"
@@ -714,7 +912,7 @@ exports[`rendering of Session Recordings 1`] = `
             align="right"
           >
             <a
-              class="c19"
+              class="c27"
               href="/web/cluster/localhost/session/8efccedd-9633-473f-bfb3-fcc07e2af345?recordingType=k8s&durationMs=9477"
               kind="primary"
               target="_blank"
@@ -727,7 +925,7 @@ exports[`rendering of Session Recordings 1`] = `
         <tr>
           <td>
             <span
-              class="c18 icon icon-desktop"
+              class="c26 icon icon-desktop"
             >
               <svg
                 fill="currentColor"
@@ -770,7 +968,7 @@ exports[`rendering of Session Recordings 1`] = `
         <tr>
           <td>
             <span
-              class="c18 icon icon-desktop"
+              class="c26 icon icon-desktop"
             >
               <svg
                 fill="currentColor"
@@ -813,107 +1011,7 @@ exports[`rendering of Session Recordings 1`] = `
         <tr>
           <td>
             <span
-              class="c18 icon icon-cli"
-            >
-              <svg
-                fill="currentColor"
-                height="24"
-                viewBox="0 0 24 24"
-                width="24"
-              >
-                <path
-                  clip-rule="evenodd"
-                  d="M4.24828 5.43945C3.93869 5.16426 3.46464 5.19215 3.18945 5.50174C2.91426 5.81132 2.94215 6.28538 3.25174 6.56056L9.37111 12L3.25174 17.4395C2.94215 17.7146 2.91426 18.1887 3.18945 18.4983C3.46464 18.8079 3.93869 18.8358 4.24828 18.5606L10.9983 12.5606C11.1584 12.4182 11.25 12.2142 11.25 12C11.25 11.7858 11.1584 11.5818 10.9983 11.4395L4.24828 5.43945ZM11.25 17.25C10.8358 17.25 10.5 17.5858 10.5 18C10.5 18.4142 10.8358 18.75 11.25 18.75H20.25C20.6642 18.75 21 18.4142 21 18C21 17.5858 20.6642 17.25 20.25 17.25H11.25Z"
-                  fill-rule="evenodd"
-                />
-              </svg>
-            </span>
-          </td>
-          <td>
-            apple-node
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            one, two
-          </td>
-          <td>
-            19 minutes
-          </td>
-          <td>
-            2019-04-22T00:00:51.543Z
-          </td>
-          <td>
-            426485-6491-11e9-80a1-427cfde50f5a
-          </td>
-          <td
-            align="right"
-          >
-            <a
-              class="c19"
-              href="/web/cluster/localhost/session/426485-6491-11e9-80a1-427cfde50f5a?recordingType=ssh&durationMs=1161287"
-              kind="primary"
-              target="_blank"
-              width="80px"
-            >
-              Play
-            </a>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <span
-              class="c18 icon icon-cli"
-            >
-              <svg
-                fill="currentColor"
-                height="24"
-                viewBox="0 0 24 24"
-                width="24"
-              >
-                <path
-                  clip-rule="evenodd"
-                  d="M4.24828 5.43945C3.93869 5.16426 3.46464 5.19215 3.18945 5.50174C2.91426 5.81132 2.94215 6.28538 3.25174 6.56056L9.37111 12L3.25174 17.4395C2.94215 17.7146 2.91426 18.1887 3.18945 18.4983C3.46464 18.8079 3.93869 18.8358 4.24828 18.5606L10.9983 12.5606C11.1584 12.4182 11.25 12.2142 11.25 12C11.25 11.7858 11.1584 11.5818 10.9983 11.4395L4.24828 5.43945ZM11.25 17.25C10.8358 17.25 10.5 17.5858 10.5 18C10.5 18.4142 10.8358 18.75 11.25 18.75H20.25C20.6642 18.75 21 18.4142 21 18C21 17.5858 20.6642 17.25 20.25 17.25H11.25Z"
-                  fill-rule="evenodd"
-                />
-              </svg>
-            </span>
-          </td>
-          <td>
-            peach-node
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            one, two
-          </td>
-          <td>
-            21 seconds
-          </td>
-          <td>
-            2019-04-22T00:00:51.543Z
-          </td>
-          <td>
-            377875-6491-11e9-80a1-427cfde50f5a
-          </td>
-          <td
-            align="right"
-          >
-            <a
-              class="c19"
-              href="/web/cluster/localhost/session/377875-6491-11e9-80a1-427cfde50f5a?recordingType=ssh&durationMs=21287"
-              kind="primary"
-              target="_blank"
-              width="80px"
-            >
-              Play
-            </a>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <span
-              class="c18 icon icon-cli"
+              class="c26 icon icon-cli"
             >
               <svg
                 fill="currentColor"
@@ -956,7 +1054,7 @@ exports[`rendering of Session Recordings 1`] = `
         <tr>
           <td>
             <span
-              class="c18 icon icon-cli"
+              class="c26 icon icon-cli"
             >
               <svg
                 fill="currentColor"
@@ -994,6 +1092,108 @@ exports[`rendering of Session Recordings 1`] = `
             style="color: rgb(159, 159, 159);"
           >
             non-interactive
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span
+              class="c26 icon icon-cli"
+            >
+              <svg
+                fill="currentColor"
+                height="24"
+                viewBox="0 0 24 24"
+                width="24"
+              >
+                <path
+                  clip-rule="evenodd"
+                  d="M4.24828 5.43945C3.93869 5.16426 3.46464 5.19215 3.18945 5.50174C2.91426 5.81132 2.94215 6.28538 3.25174 6.56056L9.37111 12L3.25174 17.4395C2.94215 17.7146 2.91426 18.1887 3.18945 18.4983C3.46464 18.8079 3.93869 18.8358 4.24828 18.5606L10.9983 12.5606C11.1584 12.4182 11.25 12.2142 11.25 12C11.25 11.7858 11.1584 11.5818 10.9983 11.4395L4.24828 5.43945ZM11.25 17.25C10.8358 17.25 10.5 17.5858 10.5 18C10.5 18.4142 10.8358 18.75 11.25 18.75H20.25C20.6642 18.75 21 18.4142 21 18C21 17.5858 20.6642 17.25 20.25 17.25H11.25Z"
+                  fill-rule="evenodd"
+                />
+              </svg>
+            </span>
+          </td>
+          <td>
+            peach-node
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            one, two
+          </td>
+          <td>
+            21 seconds
+          </td>
+          <td>
+            2019-04-22T00:00:51.543Z
+          </td>
+          <td>
+            377875-6491-11e9-80a1-427cfde50f5a
+          </td>
+          <td
+            align="right"
+            style=""
+          >
+            <a
+              class="c27"
+              href="/web/cluster/localhost/session/377875-6491-11e9-80a1-427cfde50f5a?recordingType=ssh&durationMs=21287"
+              kind="primary"
+              target="_blank"
+              width="80px"
+            >
+              Play
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span
+              class="c26 icon icon-cli"
+            >
+              <svg
+                fill="currentColor"
+                height="24"
+                viewBox="0 0 24 24"
+                width="24"
+              >
+                <path
+                  clip-rule="evenodd"
+                  d="M4.24828 5.43945C3.93869 5.16426 3.46464 5.19215 3.18945 5.50174C2.91426 5.81132 2.94215 6.28538 3.25174 6.56056L9.37111 12L3.25174 17.4395C2.94215 17.7146 2.91426 18.1887 3.18945 18.4983C3.46464 18.8079 3.93869 18.8358 4.24828 18.5606L10.9983 12.5606C11.1584 12.4182 11.25 12.2142 11.25 12C11.25 11.7858 11.1584 11.5818 10.9983 11.4395L4.24828 5.43945ZM11.25 17.25C10.8358 17.25 10.5 17.5858 10.5 18C10.5 18.4142 10.8358 18.75 11.25 18.75H20.25C20.6642 18.75 21 18.4142 21 18C21 17.5858 20.6642 17.25 20.25 17.25H11.25Z"
+                  fill-rule="evenodd"
+                />
+              </svg>
+            </span>
+          </td>
+          <td>
+            apple-node
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            one, two
+          </td>
+          <td>
+            19 minutes
+          </td>
+          <td>
+            2019-04-22T00:00:51.543Z
+          </td>
+          <td>
+            426485-6491-11e9-80a1-427cfde50f5a
+          </td>
+          <td
+            align="right"
+            style=""
+          >
+            <a
+              class="c27"
+              href="/web/cluster/localhost/session/426485-6491-11e9-80a1-427cfde50f5a?recordingType=ssh&durationMs=1161287"
+              kind="primary"
+              target="_blank"
+              width="80px"
+            >
+              Play
+            </a>
           </td>
         </tr>
       </tbody>
