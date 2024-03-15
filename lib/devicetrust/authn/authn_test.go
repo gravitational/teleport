@@ -31,7 +31,9 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust/testenv"
 )
 
-func TestRunCeremony(t *testing.T) {
+func TestCeremony_Run(t *testing.T) {
+	t.Parallel()
+
 	env := testenv.MustNew(
 		testenv.WithAutoCreateDevice(true),
 	)
@@ -47,6 +49,16 @@ func TestRunCeremony(t *testing.T) {
 
 	linuxDev1 := testenv.NewFakeLinuxDevice()
 	windowsDev1 := testenv.NewFakeWindowsDevice()
+
+	// Enroll all fake devices.
+	for _, dev := range []testenv.FakeDevice{
+		macOSDev1,
+		linuxDev1,
+		windowsDev1,
+	} {
+		_, err := enrollDevice(ctx, devices, dev)
+		require.NoError(t, err, "EnrollDevice failed")
+	}
 
 	tests := []struct {
 		name  string
@@ -80,21 +92,8 @@ func TestRunCeremony(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ceremony := authn.Ceremony{
-				GetDeviceCredential: func() (*devicepb.DeviceCredential, error) {
-					return test.dev.GetDeviceCredential(), nil
-				},
-				CollectDeviceData:            test.dev.CollectDeviceData,
-				SignChallenge:                test.dev.SignChallenge,
-				SolveTPMAuthnDeviceChallenge: test.dev.SolveTPMAuthnDeviceChallenge,
-				GetDeviceOSType:              test.dev.GetDeviceOSType,
-			}
+			_, err = newAuthnCeremony(test.dev).Run(ctx, devices, test.certs)
 
-			// We need to enroll the device before we can test device auth
-			_, err := enrollDevice(ctx, devices, test.dev)
-			require.NoError(t, err, "enrollDevice failed")
-
-			_, err = ceremony.Run(ctx, devices, test.certs)
 			// A nil error is good enough for this test.
 			assert.NoError(t, err, "RunCeremony failed")
 		})
