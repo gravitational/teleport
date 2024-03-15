@@ -21,6 +21,7 @@ package local
 import (
 	"context"
 	"encoding/xml"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -114,8 +115,10 @@ func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProvider(ctx context.Co
 func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
 	if sp.GetEntityDescriptor() == "" {
 		if err := s.configureEntityDescriptorPerPreset(sp); err != nil {
-			return trace.Wrap(trace.BadParameter("failed to configure entity descriptor with the given entity_id %q and acs_url %q: %v",
-				sp.GetEntityID(), sp.GetACSURL(), err))
+			errMsg := fmt.Errorf("failed to configure entity descriptor with the given entity_id %q and acs_url %q: %v",
+				sp.GetEntityID(), sp.GetACSURL(), err)
+			s.log.Errorf(errMsg.Error())
+			return trace.BadParameter(errMsg.Error())
 		}
 	}
 
@@ -242,7 +245,7 @@ func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Conte
 func (s *SAMLIdPServiceProviderService) configureEntityDescriptorPerPreset(sp types.SAMLIdPServiceProvider) error {
 	switch sp.GetPreset() {
 	case preset.GCPWorkforce:
-		return s.generateAndSetEntityDescriptor(sp)
+		return trace.Wrap(s.generateAndSetEntityDescriptor(sp))
 	default:
 		// fetchAndSetEntityDescriptor is expected to return error if it fails
 		// to fetch a valid entity descriptor.
@@ -250,7 +253,7 @@ func (s *SAMLIdPServiceProviderService) configureEntityDescriptorPerPreset(sp ty
 			s.log.Debugf("Failed to fetch entity descriptor from %q. %v.", sp.GetEntityID(), err)
 			// We aren't interested in checking error type as any occurrence of error
 			// mean entity descriptor was not set.
-			return s.generateAndSetEntityDescriptor(sp)
+			return trace.Wrap(s.generateAndSetEntityDescriptor(sp))
 		}
 	}
 
