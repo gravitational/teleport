@@ -150,10 +150,10 @@ func (s *IntegrationSpecV1_AWSOIDC) CheckAndSetDefaults() error {
 	if s.AWSOIDC.IssuerS3URI != "" {
 		issuerS3URL, err := url.Parse(s.AWSOIDC.IssuerS3URI)
 		if err != nil {
-			return trace.BadParameter("issuer s3 uri is required")
+			return trace.BadParameter("unable to parse issuer s3 uri, valid format (eg, s3://my-bucket/my-prefix)")
 		}
 		if issuerS3URL.Scheme != "s3" || issuerS3URL.Host == "" || issuerS3URL.Path == "" {
-			return trace.BadParameter("issuer s3 uri must be a valid s3 uri (eg, s3://my-bucket/my-prefix)")
+			return trace.BadParameter("issuer s3 uri must be in a valid format (eg, s3://my-bucket/my-prefix)")
 		}
 	}
 

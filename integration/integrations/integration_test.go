@@ -110,7 +110,9 @@ func TestIntegrationCRUD(t *testing.T) {
 		Name:    "MyAWSAccount",
 		SubKind: types.IntegrationSubKindAWSOIDC,
 		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
-			RoleARN: "arn:aws:iam::123456789012:role/DevTeam",
+			RoleARN:        "arn:aws:iam::123456789012:role/DevTeam",
+			IssuerS3Bucket: "my-bucket",
+			IssuerS3Prefix: "prefix",
 		},
 	}, integrationResp, string(respBody))
 
