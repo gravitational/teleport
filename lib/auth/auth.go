@@ -5916,7 +5916,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		// require MFA because we don't know what session the user
 		// is joining, nor do we know what role allowed the session
 		// creator to start the session that is attempting to be joined.
-		// We need this info to be able to selectively allow MFA in
+		// We need this info to be able to selectively skip MFA in
 		// this case.
 		if t.Node.Login == teleport.SSHSessionJoinPrincipal {
 			return &proto.IsMFARequiredResponse{
