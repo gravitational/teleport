@@ -1,8 +1,9 @@
-//go:build !unix
+//go:build !darwin && !linux
+// +build !darwin,!linux
 
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,18 +18,18 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-package uds
+package regular
 
 import (
-	"errors"
+	"net"
+	"os"
+	"runtime"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/srv"
 )
 
-var nonUnixErr = errors.New("socket pair not available on non-unix platform")
-
-// NewSocketpair creates a unix socket pair, returning the halves as files.
-func NewSocketpair(t SocketType) (left, right *Conn, err error) {
-	return nil, nil, trace.Wrap(nonUnixErr)
+func validateListenerSocket(scx *srv.ServerContext, controlConn *net.UnixConn, listenerFD *os.File) error {
+	return trace.BadParameter("remote forwarding is not implemented for %s", runtime.GOOS)
 }
