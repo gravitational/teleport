@@ -1383,6 +1383,10 @@ func TestCreateResources(t *testing.T) {
 			kind:   types.KindClusterAuthPreference,
 			create: testCreateAuthPreference,
 		},
+		{
+			kind:   types.KindSessionRecordingConfig,
+			create: testCreateSessionRecordingConfig,
+		},
 	}
 
 	for _, test := range tests {
@@ -1830,6 +1834,57 @@ version: v2
 	require.True(t, trace.IsAlreadyExists(err))
 
 	_, err = runResourceCommand(t, fc, []string{"create", "-f", capYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateSessionRecordingConfig(t *testing.T, fc *config.FileConfig) {
+	// Get the initial recording config.
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindSessionRecordingConfig, "--format=json"})
+	require.NoError(t, err)
+
+	src := mustDecodeJSON[[]*types.SessionRecordingConfigV2](t, buf)
+	require.Len(t, src, 1)
+	initial := src[0]
+
+	const srcYAML = `kind: session_recording_config
+metadata:
+  labels:
+    teleport.dev/origin: defaults
+  name: session-recording-config
+spec:
+  mode: proxy
+version: v2
+`
+
+	// Create the src
+	srcYAMLPath := filepath.Join(t.TempDir(), "src.yaml")
+	require.NoError(t, os.WriteFile(srcYAMLPath, []byte(srcYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", srcYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the cap
+	buf, err = runResourceCommand(t, fc, []string{"get", types.KindSessionRecordingConfig, "--format=json"})
+	require.NoError(t, err)
+	src = mustDecodeJSON[[]*types.SessionRecordingConfigV2](t, buf)
+	require.Len(t, src, 1)
+
+	var expected types.SessionRecordingConfigV2
+	require.NoError(t, yaml.Unmarshal([]byte(srcYAML), &expected))
+
+	require.Equal(t, types.RecordAtNode, initial.GetMode())
+	require.Equal(t, types.RecordAtProxy, expected.GetMode())
+
+	// Explicitly change the revision and try creating the src with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	raw, err := services.MarshalSessionRecordingConfig(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(srcYAMLPath, raw, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", srcYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", srcYAMLPath})
 	require.NoError(t, err)
 }
 

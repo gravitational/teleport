@@ -70,6 +70,10 @@ func TestEditResources(t *testing.T) {
 			kind: types.KindClusterAuthPreference,
 			edit: testEditAuthPreference,
 		},
+		{
+			kind: types.KindSessionRecordingConfig,
+			edit: testEditSessionRecordingConfig,
+		},
 	}
 
 	for _, test := range tests {
@@ -281,6 +285,44 @@ func testEditAuthPreference(t *testing.T, fc *config.FileConfig, clt *auth.Clien
 	// since the created revision is stale.
 	_, err = runEditCommand(t, fc, []string{"edit", "cap"}, withEditor(editor))
 	assert.Error(t, err, "stale cap was allowed to be updated")
+	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
+}
+
+func testEditSessionRecordingConfig(t *testing.T, fc *config.FileConfig, clt *auth.Client) {
+	ctx := context.Background()
+
+	expected := types.DefaultSessionRecordingConfig()
+	initial, err := clt.GetSessionRecordingConfig(ctx)
+	require.NoError(t, err, "getting initial session recording config")
+
+	editor := func(name string) error {
+		f, err := os.Create(name)
+		if err != nil {
+			return trace.Wrap(err, "opening file to edit")
+		}
+
+		expected.SetRevision(initial.GetRevision())
+		expected.SetMode(types.RecordAtProxy)
+
+		collection := &recConfigCollection{recConfig: expected}
+		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+
+	}
+
+	// Edit the src and validate that the expected field is updated.
+	_, err = runEditCommand(t, fc, []string{"edit", "session_recording_config"}, withEditor(editor))
+	require.NoError(t, err, "expected editing src to succeed")
+
+	actual, err := clt.GetSessionRecordingConfig(ctx)
+	require.NoError(t, err, "retrieving src after edit")
+	assert.NotEqual(t, initial.GetMode(), actual.GetMode(), "mode should have been modified by edit")
+	require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Labels")))
+	assert.Equal(t, types.OriginDynamic, actual.Origin())
+
+	// Try editing the src a second time. This time the revisions will not match
+	// since the created revision is stale.
+	_, err = runEditCommand(t, fc, []string{"edit", "session_recording_config"}, withEditor(editor))
+	assert.Error(t, err, "stale src was allowed to be updated")
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
 

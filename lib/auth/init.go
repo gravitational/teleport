@@ -411,9 +411,9 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	})
 
 	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/SetSessionRecordingConfig")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeSessionRecordingConfig")
 		defer span.End()
-		return trace.Wrap(initSetSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig))
+		return trace.Wrap(initializeSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig))
 	})
 
 	g.Go(func() error {
@@ -776,22 +776,44 @@ func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNet
 	return trace.LimitExceeded("failed to initialize cluster networking config in %v iterations", iterationLimit)
 }
 
-func initSetSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
-	storedRecConfig, err := asrv.Services.GetSessionRecordingConfig(ctx)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedRecConfig, newRecConfig)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if shouldReplace {
-		if err := asrv.SetSessionRecordingConfig(ctx, newRecConfig); err != nil {
+func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
+	const iterationLimit = 3
+	for i := 0; i < iterationLimit; i++ {
+		storedRecConfig, err := asrv.Services.GetSessionRecordingConfig(ctx)
+		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-		log.Infof("Updating session recording configuration: %v.", newRecConfig)
+
+		shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedRecConfig, newRecConfig)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !shouldReplace {
+			return nil
+		}
+
+		if storedRecConfig == nil {
+			log.Infof("Creating session recording config: %v.", newRecConfig)
+			_, err := asrv.CreateSessionRecordingConfig(ctx, newRecConfig)
+			if trace.IsAlreadyExists(err) {
+				continue
+			}
+
+			return trace.Wrap(err)
+		}
+
+		log.Infof("Updating session recording config: %v.", newRecConfig)
+		newRecConfig.SetRevision(storedRecConfig.GetRevision())
+		_, err = asrv.UpdateSessionRecordingConfig(ctx, newRecConfig)
+		if trace.IsCompareFailed(err) {
+			continue
+		}
+
+		return trace.Wrap(err)
 	}
-	return nil
+
+	return trace.LimitExceeded("failed to initialize session recording config in %v iterations", iterationLimit)
 }
 
 // shouldInitReplaceResourceWithOrigin determines whether the candidate
