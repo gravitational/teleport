@@ -88,6 +88,10 @@ func (s *AppService) CreateApp(ctx context.Context, app types.Application) error
 		ID:      app.GetResourceID(),
 	}
 	_, err = s.Create(ctx, item)
+	if trace.IsAlreadyExists(err) {
+		return trace.AlreadyExists("app %q already exists", app.GetName())
+	}
+
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -110,6 +114,10 @@ func (s *AppService) UpdateApp(ctx context.Context, app types.Application) error
 		ID:      app.GetResourceID(),
 	}
 	_, err = s.Update(ctx, item)
+	if trace.IsNotFound(err) {
+		return trace.NotFound("app %q doesn't exist", app.GetName())
+	}
+
 	if err != nil {
 		return trace.Wrap(err)
 	}
