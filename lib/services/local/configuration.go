@@ -258,14 +258,16 @@ func (s *ClusterConfigurationService) UpsertAuthPreference(ctx context.Context, 
 		return nil, trace.Wrap(err)
 	}
 
+	rev := preference.GetRevision()
 	value, err := services.MarshalAuthPreference(preference)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(authPrefix, preferencePrefix, generalPrefix),
-		Value: value,
+		Key:      backend.Key(authPrefix, preferencePrefix, generalPrefix),
+		Value:    value,
+		Revision: rev,
 	}
 
 	lease, err := s.Put(ctx, item)
@@ -352,14 +354,16 @@ func (s *ClusterConfigurationService) UpdateClusterAuditConfig(ctx context.Conte
 
 // UpsertClusterAuditConfig creates a new cluster audit config or overwrites the existing cluster audit config.
 func (s *ClusterConfigurationService) UpsertClusterAuditConfig(ctx context.Context, cfg types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
+	rev := cfg.GetRevision()
 	value, err := services.MarshalClusterAuditConfig(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(clusterConfigPrefix, auditPrefix),
-		Value: value,
+		Key:      backend.Key(clusterConfigPrefix, auditPrefix),
+		Value:    value,
+		Revision: rev,
 	}
 
 	lease, err := s.Backend.Put(ctx, item)
@@ -455,14 +459,16 @@ func (s *ClusterConfigurationService) UpsertClusterNetworkingConfig(ctx context.
 		return nil, trace.Wrap(err)
 	}
 
+	rev := cfg.GetRevision()
 	value, err := services.MarshalClusterNetworkingConfig(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(clusterConfigPrefix, networkingPrefix),
-		Value: value,
+		Key:      backend.Key(clusterConfigPrefix, networkingPrefix),
+		Value:    value,
+		Revision: rev,
 	}
 
 	lease, err := s.Backend.Put(ctx, item)
@@ -566,14 +572,16 @@ func (s *ClusterConfigurationService) UpsertSessionRecordingConfig(ctx context.C
 		return nil, trace.Wrap(err)
 	}
 
+	rev := cfg.GetRevision()
 	value, err := services.MarshalSessionRecordingConfig(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(clusterConfigPrefix, sessionRecordingPrefix),
-		Value: value,
+		Key:      backend.Key(clusterConfigPrefix, sessionRecordingPrefix),
+		Value:    value,
+		Revision: rev,
 	}
 
 	lease, err := s.Backend.Put(ctx, item)
