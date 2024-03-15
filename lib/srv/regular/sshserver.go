@@ -31,7 +31,6 @@ import (
 	"os"
 	"os/user"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -44,7 +43,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -1241,69 +1239,6 @@ func controlSyscallConn(conn syscall.Conn, f func(fd uintptr) error) error {
 		return trace.Wrap(cErr)
 	}
 	return trace.Wrap(err)
-}
-
-// validateListenerSocket checks that the socket and listener file descriptor
-// sent from the forwarding process have the expected properties.
-func validateListenerSocket(scx *srv.ServerContext, controlConn *net.UnixConn, listenerFD *os.File) error {
-	// Get the credentials of the client connected to the socket.
-	var cred *unix.Ucred
-	var err error
-	if err := controlSyscallConn(controlConn, func(fd uintptr) error {
-		cred, err = unix.GetsockoptUcred(int(fd), unix.SOL_SOCKET, unix.SO_PEERCRED)
-		return err
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Check that the user connected to the socket is who we expect.
-	usr, err := user.Lookup(scx.Identity.Login)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if expectedUid, err := strconv.Atoi(usr.Uid); err != nil {
-		return trace.Wrap(err)
-	} else if int(cred.Uid) != expectedUid {
-		return trace.AccessDenied("unexpected user UID for the socket: %v", cred.Uid)
-	}
-	if expectedGid, err := strconv.Atoi(usr.Gid); err != nil {
-		return trace.Wrap(err)
-	} else if int(cred.Gid) != expectedGid {
-		return trace.AccessDenied("unexpected user GID for the socket: %v", cred.Gid)
-	}
-
-	if err := controlSyscallConn(listenerFD, func(fd uintptr) error {
-		// Verify the socket type
-		if sockType, err := unix.GetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_TYPE); err != nil {
-			return trace.Wrap(err)
-		} else if sockType != unix.SOCK_STREAM {
-			return trace.AccessDenied("socket is not of the expected type (STREAM)")
-		}
-
-		// Verify that reuse is not enabled on the socket
-		if reuseAddr, err := unix.GetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEADDR); err != nil {
-			return trace.Wrap(err)
-		} else if reuseAddr != 0 {
-			return trace.AccessDenied("SO_REUSEADDR is enabled on the socket")
-		}
-		if reusePort, err := unix.GetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT); err != nil {
-			// Some systems may not support SO_REUSEPORT, so we ignore the error here
-		} else if reusePort != 0 {
-			return trace.AccessDenied("SO_REUSEPORT is enabled on the socket")
-		}
-
-		// Verify that the listener is already listening.
-		if acceptConn, err := unix.GetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_ACCEPTCONN); err != nil {
-			return trace.Wrap(err)
-		} else if acceptConn == 0 {
-			return trace.AccessDenied("SO_ACCEPTCONN is not set, socket is not listening")
-		}
-
-		return nil
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // getDirectTCPIPForwarder sets up a connection-level subprocess that handles
