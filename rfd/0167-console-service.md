@@ -46,12 +46,12 @@ integrations, such as the usage of
 ### New service
 
 Teleport will start listening using a Unix socket located at
-`/var/run/teleport-diag-<node-id>.sock`.
+`<data_dir>/debug.sock`.
 
-Having the Node ID on the socket name will also cover scenarios where multiple
-instances of running on the same machine exist. In this case, the consumers can
-rely on the Teleport configuration to locate the data directory and retrieve
-the ID.
+Having the the socket placed at the instan data directory will also cover
+scenarios where multiple instances of running on the same machine exist. In
+this case, the consumers can rely on the Teleport configuration to locate the
+data directory.
 
 ### Disabling
 
@@ -59,8 +59,8 @@ The service is enabled by default. If users require to disable the service they
 can do it by changing their configuration:
 
 ```yaml
-teleport:
-  disable_debug_service: true
+debug_service:
+  enabled: false
 ```
 
 #### Endpoints
@@ -80,14 +80,13 @@ logger (legacy):
 - `logrus`: Both `Config` and default logger will need to be updated using
   `SetLevel`.
 
-### `teleport console` command
+### `teleport debug` command
 
 A new set of commands will be introduced to `teleport` to consume the new
 service.
 
 Commands will have a common argument for receiving the instance configuration.
-This allows loading the configuration to locate the data directory, and later
-read the Node ID for generating the socket name.
+This allows loading the configuration to locate the data directory.
 
 #### Connecting to the server
 
@@ -126,7 +125,7 @@ func createClient(socketAddr string) *http.Client {
 
 // While making requests using the client, the users will still require to
 // provide the full URL since the client always validate them.
-res, err := client.Get("http://console-service/debug/pprof/heap")
+res, err := client.Get("http://debug-service/debug/pprof/heap")
 ```
 </details>
 
@@ -134,7 +133,7 @@ res, err := client.Get("http://console-service/debug/pprof/heap")
 
 Changes the application log level.
 
-`teleport [-c config-path] console set-log-level [LEVEL]`
+`teleport [-c config-path] debug set-log-level [LEVEL]`
 
 |Flag|Description|Default value|
 |----|-----------|-------------|
@@ -143,15 +142,15 @@ Changes the application log level.
 
 Usage examples:
 ```bash
-$ teleport console set-log-level DEBUG
-$ teleport -c /random/teleport.yaml console set-log-level INFO
+$ teleport debug set-log-level DEBUG
+$ teleport -c /random/teleport.yaml debug set-log-level INFO
 ```
 
 #### Capture `pprof` profiles command
 
-Export the application profile (`pprof` format).
+Export the application profiles (`pprof` format).
 
-`teleport [-c config-path] console profile [--tar] [--seconds=] [PROFILES]`
+`teleport [-c config-path] debug profile [--tar] [--seconds=] [PROFILES]`
 
 The `PROFILES` values follow the Golang's definition on `runtime.Profile`
 plus the profiles defined by `net/http/pprof`:
@@ -182,17 +181,17 @@ This parameter max value will be set to the HTTP server write timeout value.
 Usage examples:
 ```bash
 # Output to a file.
-$ teleport console profile > debug.tar.gz
+$ teleport debug profile > debug.tar.gz
 
 # Directly extract it to a directory.
-$ teleport console profile | tar xv -C pprof
+$ teleport debug profile | tar xv -C pprof
 $ ls pprof/
 heap.pprof
 profile.pprof
 goroutine.pprof
 
 # Multiple profiles get merged into a single file.
-$ teleport console profile heap,goroutine > profile.tar.gz
+$ teleport debug profile heap,goroutine > profile.tar.gz
 ```
 
 ### Security
@@ -238,7 +237,7 @@ sanitize the resulting contents.
 
 #### Limit command execution to a configured list of users/groups
 
-To limit the access to the `teleport console` we can introduce a new section
+To limit the access to the `teleport debug` we can introduce a new section
 on the Teleport's configuration that enable users to set a list of permitted
 machine users/groups that can invoke the command.
 
@@ -248,8 +247,7 @@ and check if it is on the allowed list.
 Here's an example of what the configuration could look like:
 
 ```
-teleport:
-  console_service:
-    users: [root]
-    groups: [adminstrators]
+debug_service:
+  users: [root]
+  groups: [adminstrators]
 ```
