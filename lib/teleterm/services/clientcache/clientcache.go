@@ -92,7 +92,7 @@ func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.Pr
 			return nil, trace.NewAggregate(err, newProxyClient.Close())
 		}
 
-		c.cfg.Log.WithField("cluster", clusterURI).Info("Added client to cache.")
+		c.cfg.Log.WithField("cluster", clusterURI.String()).Info("Added client to cache.")
 
 		return newProxyClient, nil
 	})
@@ -117,7 +117,7 @@ func (c *Cache) ClearForRoot(clusterURI uri.ResourceURI) error {
 	rootClusterURI := clusterURI.GetRootClusterURI()
 	var (
 		errors  []error
-		deleted []uri.ResourceURI
+		deleted []string
 	)
 
 	for resourceURI, clt := range c.clients {
@@ -125,12 +125,14 @@ func (c *Cache) ClearForRoot(clusterURI uri.ResourceURI) error {
 			if err := clt.Close(); err != nil {
 				errors = append(errors, err)
 			}
-			deleted = append(deleted, resourceURI.GetClusterURI())
+			deleted = append(deleted, resourceURI.GetClusterURI().String())
 			delete(c.clients, resourceURI)
 		}
 	}
 
-	c.cfg.Log.WithFields(logrus.Fields{"cluster": rootClusterURI, "clients": deleted}).Info("Invalidated cached clients for root cluster.")
+	c.cfg.Log.WithFields(
+		logrus.Fields{"cluster": rootClusterURI.String(), "clients": deleted},
+	).Info("Invalidated cached clients for root cluster.")
 
 	return trace.NewAggregate(errors...)
 
@@ -175,7 +177,8 @@ func (c *Cache) addToCache(clusterURI uri.ResourceURI, proxyClient *client.Proxy
 		}
 
 		delete(c.clients, clusterURI)
-		c.cfg.Log.WithField("cluster", clusterURI).WithError(err).Info("Connection has been closed, removed client from cache.")
+		c.cfg.Log.WithField("cluster", clusterURI.String()).WithError(err).
+			Info("Connection has been closed, removed client from cache.")
 	}()
 	return trace.Wrap(err)
 }
