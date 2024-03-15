@@ -140,6 +140,9 @@ type Config struct {
 	// AccessGraphConfig is the configuration for the Access Graph client
 	AccessGraphConfig servicecfg.AccessGraphConfig
 
+	// ClusterFeatures returns the features of the cluster.
+	ClusterFeatures func() proto.Features
+
 	// TriggerFetchC is a list of channels that must be notified when a off-band poll must be performed.
 	// This is used to start a polling iteration when a new DiscoveryConfig change is received.
 	TriggerFetchC  []chan struct{}
