@@ -617,7 +617,7 @@ func TestValidateFields(t *testing.T) {
 	}{
 		{
 			comment:     "invalid key (does not exist)",
-			extraFields: []string{levelField, "invalid key"},
+			extraFields: []string{LevelField, "invalid key"},
 			assertErr:   require.Error,
 		},
 		{
