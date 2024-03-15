@@ -3,8 +3,9 @@ package usagereporter
 import (
 	"testing"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/stretchr/testify/assert"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
 func TestConvertAuditEvent(t *testing.T) {
