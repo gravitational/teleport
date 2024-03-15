@@ -9,7 +9,7 @@ resource "teleport_provision_token" "agent" {
     roles = var.agent_roles
   }
   metadata = {
-    name  = random_string.token[count.index].result
+    name    = random_string.token[count.index].result
     expires = timeadd(timestamp(), "1h")
   }
 }
