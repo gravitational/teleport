@@ -326,7 +326,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		clusterNetworkingCfg = types.DefaultClusterNetworkingConfig()
 	}
 
-	err = srv.AuthServer.SetClusterNetworkingConfig(ctx, clusterNetworkingCfg)
+	_, err = srv.AuthServer.UpsertClusterNetworkingConfig(ctx, clusterNetworkingCfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -351,7 +351,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = srv.AuthServer.SetAuthPreference(ctx, authPreference)
+	_, err = srv.AuthServer.UpsertAuthPreference(ctx, authPreference)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -45,7 +46,7 @@ type DynamicAccessService struct {
 func NewDynamicAccessService(backend backend.Backend) *DynamicAccessService {
 	return &DynamicAccessService{
 		Backend: backend,
-		log:     logrus.WithFields(logrus.Fields{trace.Component: "DynamicAccess"}),
+		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "DynamicAccess"}),
 	}
 }
 

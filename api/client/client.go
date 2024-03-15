@@ -2722,13 +2722,21 @@ func (c *Client) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterN
 }
 
 // SetClusterNetworkingConfig sets cluster networking configuration.
-func (c *Client) SetClusterNetworkingConfig(ctx context.Context, netConfig types.ClusterNetworkingConfig) error {
-	netConfigV2, ok := netConfig.(*types.ClusterNetworkingConfigV2)
-	if !ok {
-		return trace.BadParameter("invalid type %T", netConfig)
-	}
-	_, err := c.grpc.SetClusterNetworkingConfig(ctx, netConfigV2)
+// Deprecated: Use UpdateClusterNetworkingConfig or UpsertClusterNetworkingConfig instead.
+func (c *Client) SetClusterNetworkingConfig(ctx context.Context, netConfig *types.ClusterNetworkingConfigV2) error {
+	_, err := c.grpc.SetClusterNetworkingConfig(ctx, netConfig)
 	return trace.Wrap(err)
+}
+
+// setClusterNetworkingConfig sets cluster networking configuration.
+func (c *Client) setClusterNetworkingConfig(ctx context.Context, netConfig *types.ClusterNetworkingConfigV2) (types.ClusterNetworkingConfig, error) {
+	_, err := c.grpc.SetClusterNetworkingConfig(ctx, netConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg, err := c.grpc.GetClusterNetworkingConfig(ctx, &emptypb.Empty{})
+	return cfg, trace.Wrap(err)
 }
 
 // UpdateClusterNetworkingConfig updates an existing cluster networking configuration.
@@ -2739,6 +2747,12 @@ func (c *Client) UpdateClusterNetworkingConfig(ctx context.Context, cfg types.Cl
 	}
 
 	updated, err := c.ClusterConfigClient().UpdateClusterNetworkingConfig(ctx, &clusterconfigpb.UpdateClusterNetworkingConfigRequest{ClusterNetworkConfig: v2})
+	// TODO(tross) DELETE IN v18.0.0
+	if trace.IsNotImplemented(err) {
+		cnc, err := c.setClusterNetworkingConfig(ctx, v2)
+		return cnc, trace.Wrap(err)
+	}
+
 	return updated, trace.Wrap(err)
 }
 
@@ -2750,6 +2764,12 @@ func (c *Client) UpsertClusterNetworkingConfig(ctx context.Context, cfg types.Cl
 	}
 
 	updated, err := c.ClusterConfigClient().UpsertClusterNetworkingConfig(ctx, &clusterconfigpb.UpsertClusterNetworkingConfigRequest{ClusterNetworkConfig: v2})
+	// TODO(tross) DELETE IN v18.0.0
+	if trace.IsNotImplemented(err) {
+		cnc, err := c.setClusterNetworkingConfig(ctx, v2)
+		return cnc, trace.Wrap(err)
+	}
+
 	return updated, trace.Wrap(err)
 }
 
@@ -2820,8 +2840,9 @@ func (c *Client) UpsertSessionRecordingConfig(ctx context.Context, cfg types.Ses
 // GetAuthPreference gets the active cluster auth preference.
 func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	pref, err := c.ClusterConfigClient().GetAuthPreference(ctx, &clusterconfigpb.GetAuthPreferenceRequest{})
+	// TODO(tross) DELETE IN v18.0.0
 	if err != nil && trace.IsNotImplemented(err) {
-		pref, err := c.grpc.GetAuthPreference(ctx, &emptypb.Empty{})
+		pref, err = c.grpc.GetAuthPreference(ctx, &emptypb.Empty{})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2834,7 +2855,9 @@ func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 	return pref, trace.Wrap(err)
 }
 
-// SetAuthPreference sets cluster auth preference.
+// SetAuthPreference sets cluster auth preference via the legacy mechanism.
+// Deprecated: Use UpdateAuthPreference or UpsertAuthPreference instead.
+// TODO(tross) DELETE IN v18.0.0
 func (c *Client) SetAuthPreference(ctx context.Context, authPref types.AuthPreference) error {
 	authPrefV2, ok := authPref.(*types.AuthPreferenceV2)
 	if !ok {
@@ -2849,9 +2872,26 @@ func (c *Client) SetAuthPreference(ctx context.Context, authPref types.AuthPrefe
 	return trace.Wrap(err)
 }
 
+// setAuthPreference sets cluster auth preference via the legacy mechanism.
+// TODO(tross) DELETE IN v18.0.0
+func (c *Client) setAuthPreference(ctx context.Context, authPref *types.AuthPreferenceV2) (types.AuthPreference, error) {
+	// An old server would expect PIVSlot instead of HardwareKey.PIVSlot
+	// TODO(Joerger): DELETE IN 17.0.0
+	authPref.CheckSetPIVSlot()
+
+	_, err := c.grpc.SetAuthPreference(ctx, authPref)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pref, err := c.grpc.GetAuthPreference(ctx, &emptypb.Empty{})
+	return pref, trace.Wrap(err)
+}
+
 // ResetAuthPreference resets cluster auth preference to defaults.
 func (c *Client) ResetAuthPreference(ctx context.Context) error {
 	_, err := c.ClusterConfigClient().ResetAuthPreference(ctx, &clusterconfigpb.ResetAuthPreferenceRequest{})
+	// TODO(tross) DELETE IN v18.0.0
 	if err != nil && trace.IsNotImplemented(err) {
 		_, err := c.grpc.ResetAuthPreference(ctx, &emptypb.Empty{})
 		return trace.Wrap(err)
@@ -2867,6 +2907,11 @@ func (c *Client) UpdateAuthPreference(ctx context.Context, p types.AuthPreferenc
 	}
 
 	updated, err := c.ClusterConfigClient().UpdateAuthPreference(ctx, &clusterconfigpb.UpdateAuthPreferenceRequest{AuthPreference: v2})
+	// TODO(tross) DELETE IN v18.0.0
+	if trace.IsNotImplemented(err) {
+		pref, err := c.setAuthPreference(ctx, v2)
+		return pref, trace.Wrap(err)
+	}
 	return updated, trace.Wrap(err)
 }
 
@@ -2878,6 +2923,11 @@ func (c *Client) UpsertAuthPreference(ctx context.Context, p types.AuthPreferenc
 	}
 
 	updated, err := c.ClusterConfigClient().UpsertAuthPreference(ctx, &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: v2})
+	// TODO(tross) DELETE IN v18.0.0
+	if trace.IsNotImplemented(err) {
+		pref, err := c.setAuthPreference(ctx, v2)
+		return pref, trace.Wrap(err)
+	}
 	return updated, trace.Wrap(err)
 }
 

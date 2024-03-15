@@ -36,7 +36,7 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentBPF,
+	teleport.ComponentKey: teleport.ComponentBPF,
 })
 
 const (

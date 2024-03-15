@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -55,7 +56,7 @@ type backendItemToResourceFunc func(item backend.Item) (types.ResourceWithLabels
 // NewPresenceService returns new presence service instance
 func NewPresenceService(b backend.Backend) *PresenceService {
 	return &PresenceService{
-		log:     logrus.WithFields(logrus.Fields{trace.Component: "Presence"}),
+		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "Presence"}),
 		jitter:  retryutils.NewFullJitter(),
 		Backend: b,
 	}

@@ -5259,7 +5259,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [foo] searched for resource type [db_server] with role(s) [admin]
+          User [foo] searched for resource type [db_server] with role(s) [admin,really-long-role-name-1,really-long-role-name-2,really-long-role-name-3...]
         </td>
         <td
           style="min-width: 120px;"

@@ -80,24 +80,6 @@ func (c compositeCh) Close() error {
 	return trace.NewAggregate(c.r.Close(), c.w.Close())
 }
 
-// bufferedReaderCloser wraps a [bufio.Reader] to make it an [io.ReadCloser].
-type bufferedReaderCloser struct {
-	bufio.Reader
-
-	inner io.ReadCloser
-}
-
-func newBufferedReaderCloser(r io.ReadCloser) *bufferedReaderCloser {
-	return &bufferedReaderCloser{
-		Reader: *bufio.NewReader(r),
-		inner:  r,
-	}
-}
-
-func (b *bufferedReaderCloser) Close() error {
-	return b.inner.Close()
-}
-
 type allowedOps struct {
 	write bool
 	path  string
@@ -591,7 +573,7 @@ func onSFTP() error {
 
 	// Ensure the parent process will receive log messages from us
 	l := utils.NewLogger()
-	logger := l.WithField(trace.Component, teleport.ComponentSubsystemSFTP)
+	logger := l.WithField(teleport.ComponentKey, teleport.ComponentSubsystemSFTP)
 
 	currentUser, err := user.Current()
 	if err != nil {
@@ -603,7 +585,7 @@ func onSFTP() error {
 	}
 
 	// Read the file transfer request for this session if one exists
-	bufferedReader := newBufferedReaderCloser(chr)
+	bufferedReader := bufio.NewReader(chr)
 	var encodedReq []byte
 	var fileTransferReq *srv.FileTransferRequest
 	for {
@@ -623,7 +605,7 @@ func onSFTP() error {
 			return trace.Wrap(err)
 		}
 	}
-	ch := compositeCh{bufferedReader, chw}
+	ch := compositeCh{io.NopCloser(bufferedReader), chw}
 
 	sftpEvents := make(chan *apievents.SFTP, 1)
 	h, err := newSFTPHandler(logger, fileTransferReq, sftpEvents)

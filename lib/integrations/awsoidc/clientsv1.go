@@ -71,8 +71,7 @@ func NewSessionV1(ctx context.Context, client IntegrationTokenGenerator, region 
 	sess, err := session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigDisable,
 		Config: aws.Config{
-			EC2MetadataEnableFallback: aws.Bool(false),
-			UseFIPSEndpoint:           useFIPSEndpoint,
+			UseFIPSEndpoint: useFIPSEndpoint,
 		},
 	})
 	if err != nil {
@@ -99,10 +98,9 @@ func NewSessionV1(ctx context.Context, client IntegrationTokenGenerator, region 
 	session, err := session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigDisable,
 		Config: aws.Config{
-			Region:                    aws.String(region),
-			Credentials:               awsCredentials,
-			EC2MetadataEnableFallback: aws.Bool(false),
-			UseFIPSEndpoint:           useFIPSEndpoint,
+			Region:          aws.String(region),
+			Credentials:     awsCredentials,
+			UseFIPSEndpoint: useFIPSEndpoint,
 		},
 	})
 	if err != nil {

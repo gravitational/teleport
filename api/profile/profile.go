@@ -106,6 +106,10 @@ type Profile struct {
 
 	// PIVSlot is a specific piv slot that Teleport clients should use for hardware key support.
 	PIVSlot keys.PIVSlot `yaml:"piv_slot"`
+
+	// MissingClusterDetails means this profile was created with limited cluster details.
+	// Missing cluster details should be loaded into the profile by pinging the proxy.
+	MissingClusterDetails bool
 }
 
 // Copy returns a shallow copy of p, or nil if p is nil.
