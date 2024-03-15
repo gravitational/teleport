@@ -7,6 +7,10 @@ videoBanner: YgNHD4SS8dg
 This guide demonstrates how to: Set up the Terraform provider for Teleport on
 Linux and macOS.
 
+Terraform is intended to be used with Machine ID, Teleport's feature for identifying
+machines and services, rather than users. This tutorial will show you how to use
+a local Machine ID bot to try it out.
+
 For instructions on managing users and roles via Terraform, read
 the ["Managing users and roles with IaC" guide](./user-and-role.mdx).
 
@@ -30,11 +34,7 @@ and Machine ID](../../machine-id/deployment/spacelift.mdx).
 ## Step 1/3. Create Teleport credentials for Terraform
 
 Terraform needs a signed identity file from the Teleport cluster certificate
-authority to manage resources in the cluster. Terraform is intended to be used with
-[(Machine ID)](../../machine-id/introduction.mdx), so this tutorial will show you how to
-use a local Machine ID bot to try it out.
-
-To prepare credentials for a local Teleport user:
+authority to manage resources in the cluster. To prepare credentials using a local Teleport bot:
 
 1. Create a folder called `teleport-terraform` to hold temporary files:
 
