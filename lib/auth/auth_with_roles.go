@@ -1832,7 +1832,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		resources = appsOrSPs.AsResources()
 
 	case types.KindSAMLIdPServiceProvider:
-		serviceProviders, err := a.GetSAMLIdPServiceProviders(ctx, req.Namespace, req.Limit, req.SortBy)
+		serviceProviders, err := a.GetSAMLIdPServiceProviders(ctx, req.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -5062,7 +5062,7 @@ func (a *ServerWithRoles) checkAccessToSAMLIdPServiceProvider(samlSP types.SAMLI
 
 // GetSAMLIdPServiceProviders returns all registered SAMLIdPServiceProviders resources.
 // Results are filtered with RBAC.
-func (a *ServerWithRoles) GetSAMLIdPServiceProviders(ctx context.Context, namespace string, pageSize int32, sortBy types.SortBy) ([]types.SAMLIdPServiceProvider, error) {
+func (a *ServerWithRoles) GetSAMLIdPServiceProviders(ctx context.Context, namespace string) ([]types.SAMLIdPServiceProvider, error) {
 	if modules.GetModules().BuildType() != modules.BuildEnterprise {
 		return nil, trace.NotImplemented("SAML IdP requires enterprise subscription.")
 	}
@@ -5073,7 +5073,7 @@ func (a *ServerWithRoles) GetSAMLIdPServiceProviders(ctx context.Context, namesp
 	var serviceProviders []types.SAMLIdPServiceProvider
 	var startKey string
 	for {
-		sps, nextKey, err := a.authServer.ListSAMLIdPServiceProviders(ctx, int(pageSize), startKey)
+		sps, nextKey, err := a.authServer.ListSAMLIdPServiceProviders(ctx, apidefaults.DefaultChunkSize, startKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
