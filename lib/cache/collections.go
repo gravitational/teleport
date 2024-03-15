@@ -1681,7 +1681,8 @@ func (authPreferenceExecutor) getAll(ctx context.Context, cache *Cache, loadSecr
 }
 
 func (authPreferenceExecutor) upsert(ctx context.Context, cache *Cache, resource types.AuthPreference) error {
-	return cache.clusterConfigCache.SetAuthPreference(ctx, resource)
+	_, err := cache.clusterConfigCache.UpsertAuthPreference(ctx, resource)
+	return trace.Wrap(err)
 }
 
 func (authPreferenceExecutor) deleteAll(ctx context.Context, cache *Cache) error {

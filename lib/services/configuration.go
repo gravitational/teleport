@@ -60,9 +60,6 @@ type ClusterConfiguration interface {
 	UpdateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
 	// UpsertAuthPreference creates a new auth preference or overwrites an existing auth preference.
 	UpsertAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
-	// SetAuthPreference sets types.AuthPreference from the backend.
-	// TODO(tross): Deprecate/Remove this once everything is converted to use the new methods.
-	SetAuthPreference(context.Context, types.AuthPreference) error
 	// DeleteAuthPreference deletes types.AuthPreference from the backend.
 	DeleteAuthPreference(ctx context.Context) error
 

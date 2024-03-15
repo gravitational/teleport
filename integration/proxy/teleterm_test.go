@@ -526,7 +526,7 @@ func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, ro
 	t.Helper()
 
 	// Enable optional MFA.
-	err := authServer.SetAuthPreference(ctx, &types.AuthPreferenceV2{
+	_, err := authServer.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOptional,

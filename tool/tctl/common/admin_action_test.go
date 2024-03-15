@@ -699,7 +699,8 @@ func (s *adminActionTestSuite) testClusterAuthPreference(t *testing.T) {
 			return trace.Wrap(err)
 		}
 		authPref.SetOrigin(types.OriginDynamic)
-		return s.authServer.SetAuthPreference(ctx, authPref)
+		_, err = s.authServer.UpsertAuthPreference(ctx, authPref)
+		return trace.Wrap(err)
 	}
 
 	getAuthPref := func() (types.Resource, error) {
@@ -707,7 +708,8 @@ func (s *adminActionTestSuite) testClusterAuthPreference(t *testing.T) {
 	}
 
 	resetAuthPref := func() error {
-		return s.authServer.SetAuthPreference(ctx, originalAuthPref)
+		_, err = s.authServer.UpsertAuthPreference(ctx, originalAuthPref)
+		return trace.Wrap(err)
 	}
 
 	t.Run("ResourceCommands", func(t *testing.T) {
@@ -1109,9 +1111,11 @@ func (s *adminActionTestSuite) testCommand(t *testing.T, ctx context.Context, tc
 		originalAuthPref, err := s.authServer.GetAuthPreference(ctx)
 		require.NoError(t, err)
 
-		require.NoError(t, s.authServer.SetAuthPreference(ctx, authPref))
+		_, err = s.authServer.UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err)
 		t.Cleanup(func() {
-			require.NoError(t, s.authServer.SetAuthPreference(ctx, originalAuthPref))
+			_, err = s.authServer.UpsertAuthPreference(ctx, originalAuthPref)
+			require.NoError(t, err)
 		})
 
 		err = runTestCase(t, ctx, s.userClientNoMFA, tc)
