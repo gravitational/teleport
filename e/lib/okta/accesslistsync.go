@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"regexp"
 	"strings"
 	"sync"
@@ -26,6 +25,7 @@ import (
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -195,37 +195,31 @@ type accessListSync struct {
 	accessListReconciler *services.Reconciler[*accesslist.AccessList]
 
 	// importAccessLists is the current mapping of imported access lists.
-	importAccessListsMu sync.Mutex
-	importAccessLists   map[string]*accesslist.AccessList
+	importAccessLists utils.SyncMap[string, *accesslist.AccessList]
 
 	// newImportAccessLists is the mapping of access lists imported from Okta, not yet synchronized
 	// to the import reconciler.
-	newImportAccessListsMu sync.Mutex
-	newImportAccessLists   map[string]*accesslist.AccessList
+	newImportAccessLists utils.SyncMap[string, *accesslist.AccessList]
 
 	// accessListMemberReconciler will sync imported access list members to the backend.
 	accessListMemberReconciler *accesslistsvc.MemberReconciler
 
 	// importAccessListMembers is the current mapping of imported access list members.
-	importAccessListMembersMu sync.Mutex
-	importAccessListMembers   map[string]*accesslist.AccessListMember
+	importAccessListMembers utils.SyncMap[string, *accesslist.AccessListMember]
 
 	// newAccessListMembers is the mapping of roles imported from Okta, not yet synchronized
 	// to the import reconciler.
-	newImportAccessListMembersMu sync.Mutex
-	newImportAccessListMembers   map[string]*accesslist.AccessListMember
+	newImportAccessListMembers utils.SyncMap[string, *accesslist.AccessListMember]
 
 	// roleReconciler will sync imported roles to the backend.
 	roleReconciler *services.Reconciler[types.Role]
 
 	// importRoles is the current mapping of imported roles.
-	importRolesMu sync.Mutex
-	importRoles   map[string]types.Role
+	importRoles utils.SyncMap[string, types.Role]
 
 	// newImportRoles is the mapping of roles imported from Okta, not yet synchronized
 	// to the import reconciler.
-	newImportRolesMu sync.Mutex
-	newImportRoles   map[string]types.Role
+	newImportRoles utils.SyncMap[string, types.Role]
 
 	// these are used to maintain app and group import stats per synchronization run.
 	appsImported   atomic.Int32
@@ -251,37 +245,31 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 	}
 
 	a := &accessListSync{
-		log:                        cfg.Log,
-		clock:                      cfg.Clock,
-		clusterName:                cfg.ClusterName,
-		client:                     cfg.Client,
-		owners:                     owners,
-		emitter:                    cfg.Emitter,
-		access:                     cfg.Access,
-		accessLists:                cfg.AccessLists,
-		orgURL:                     cfg.OrgURL,
-		syncInterval:               cfg.SyncInterval,
-		appsGetter:                 cfg.AppsGetter,
-		groupsGetter:               cfg.GroupsGetter,
-		appFilters:                 cfg.AppFilters,
-		groupFilters:               cfg.GroupFilters,
-		importAccessLists:          map[string]*accesslist.AccessList{},
-		newImportAccessLists:       map[string]*accesslist.AccessList{},
-		importRoles:                map[string]types.Role{},
-		newImportRoles:             map[string]types.Role{},
-		importAccessListMembers:    map[string]*accesslist.AccessListMember{},
-		newImportAccessListMembers: map[string]*accesslist.AccessListMember{},
-		synchronizerSuccess:        cfg.SynchronizerSuccess,
-		synchronizingMu:            cfg.SynchronizingMu,
-		stopCh:                     cfg.StopChannel,
+		log:                 cfg.Log,
+		clock:               cfg.Clock,
+		clusterName:         cfg.ClusterName,
+		client:              cfg.Client,
+		owners:              owners,
+		emitter:             cfg.Emitter,
+		access:              cfg.Access,
+		accessLists:         cfg.AccessLists,
+		orgURL:              cfg.OrgURL,
+		syncInterval:        cfg.SyncInterval,
+		appsGetter:          cfg.AppsGetter,
+		groupsGetter:        cfg.GroupsGetter,
+		appFilters:          cfg.AppFilters,
+		groupFilters:        cfg.GroupFilters,
+		synchronizerSuccess: cfg.SynchronizerSuccess,
+		synchronizingMu:     cfg.SynchronizingMu,
+		stopCh:              cfg.StopChannel,
 	}
 
 	// Create the reconcilers we need.
 	var err error
 	a.accessListReconciler, err = services.NewReconciler(services.ReconcilerConfig[*accesslist.AccessList]{
-		Matcher:             matchByLabels[*accesslist.AccessList](a.orgURL),
-		GetCurrentResources: a.getImportAccessLists,
-		GetNewResources:     a.getNewImportAccessLists,
+		Matcher:             MatchByLabels[*accesslist.AccessList](a.orgURL),
+		GetCurrentResources: a.importAccessLists.Clone,
+		GetNewResources:     a.newImportAccessLists.Clone,
 		OnCreate:            a.onUpsertAccessList,
 		OnUpdate: func(ctx context.Context, accessList, _ *accesslist.AccessList) error {
 			return a.onUpsertAccessList(ctx, accessList)
@@ -296,7 +284,7 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 	a.accessListMemberReconciler, err = accesslistsvc.NewMemberReconciler(
 		accesslistsvc.MemberReconcilerConfig{
 			AccessListMembers: a.accessLists,
-			Matcher:           matchByLabels[*accesslist.AccessListMember](a.orgURL),
+			Matcher:           MatchByLabels[*accesslist.AccessListMember](a.orgURL),
 			Log:               a.log,
 			OnUpsert:          a.onUpsertAccessListMember,
 			OnDelete:          a.onDeleteAccessListMember,
@@ -306,9 +294,9 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 	}
 
 	a.roleReconciler, err = services.NewReconciler(services.ReconcilerConfig[types.Role]{
-		Matcher:             matchByLabels[types.Role](a.orgURL),
-		GetCurrentResources: a.getImportRoles,
-		GetNewResources:     a.getNewImportRoles,
+		Matcher:             MatchByLabels[types.Role](a.orgURL),
+		GetCurrentResources: a.importRoles.Clone,
+		GetNewResources:     a.newImportRoles.Clone,
 		OnCreate:            a.onUpsertRole,
 		OnUpdate: func(ctx context.Context, role, _ types.Role) error {
 			return a.onUpsertRole(ctx, role)
@@ -327,8 +315,8 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 func (a *accessListSync) reconcileAll(ctx context.Context) error {
 	alErr := a.accessListReconciler.Reconcile(ctx)
 
-	existingMembers := lockedMapCopy(&a.importAccessListMembersMu, a.importAccessListMembers)
-	newMembers := lockedMapCopy(&a.newImportAccessListMembersMu, a.newImportAccessListMembers)
+	existingMembers := a.importAccessListMembers.Clone()
+	newMembers := a.newImportAccessListMembers.Clone()
 	memberErr := a.accessListMemberReconciler.Reconcile(ctx, newMembers, existingMembers)
 
 	roleErr := a.roleReconciler.Reconcile(ctx)
@@ -384,7 +372,7 @@ func (a *accessListSync) startSync(ctx context.Context) {
 // in the backend.
 func (a *accessListSync) refreshCurrentImports(ctx context.Context) error {
 	// Make sure we only refresh imports that we should be reconciling.
-	match := matchByLabels[types.Resource](a.orgURL)
+	match := MatchByLabels[types.Resource](a.orgURL)
 
 	// Get new matching access lists.
 	accessLists := map[string]*accesslist.AccessList{}
@@ -450,34 +438,18 @@ func (a *accessListSync) refreshCurrentImports(ctx context.Context) error {
 	}
 
 	// Refresh the currently known resources.
-	a.importAccessListsMu.Lock()
-	a.importAccessLists = accessLists
-	a.importAccessListsMu.Unlock()
-
-	a.importAccessListMembersMu.Lock()
-	a.importAccessListMembers = accessListMembers
-	a.importAccessListMembersMu.Unlock()
-
-	a.importRolesMu.Lock()
-	a.importRoles = roles
-	a.importRolesMu.Unlock()
+	a.importAccessLists.Set(accessLists)
+	a.importAccessListMembers.Set(accessListMembers)
+	a.importRoles.Set(roles)
 
 	return nil
 }
 
 // clearNewImports will clear all of the existing newImport maps.
 func (a *accessListSync) clearNewImports() {
-	a.newImportAccessListsMu.Lock()
-	clear(a.newImportAccessLists)
-	a.newImportAccessListsMu.Unlock()
-
-	a.newImportAccessListMembersMu.Lock()
-	clear(a.newImportAccessListMembers)
-	a.newImportAccessListMembersMu.Unlock()
-
-	a.newImportRolesMu.Lock()
-	clear(a.newImportRoles)
-	a.newImportRolesMu.Unlock()
+	a.newImportAccessLists.Clear()
+	a.newImportAccessListMembers.Clear()
+	a.newImportRoles.Clear()
 }
 
 // importOktaNativeAssignmentsAsAccessLists will look through each known Okta application and group, get their
@@ -589,21 +561,21 @@ func (a *accessListSync) convertAccessListMetadata(ctx context.Context, importCh
 			}
 
 			// Push all of the resources into the various new maps.
-			a.newImportAccessListsMu.Lock()
-			a.newImportAccessLists[accessList.GetName()] = accessList
-			a.newImportAccessListsMu.Unlock()
+			a.newImportAccessLists.Store(accessList.GetName(), accessList)
 
-			a.newImportAccessListMembersMu.Lock()
-			for _, member := range members {
-				a.newImportAccessListMembers[memberMapKey(member)] = member
-			}
-			a.newImportAccessListMembersMu.Unlock()
+			a.newImportAccessListMembers.Write(
+				func(newMembers map[string]*accesslist.AccessListMember) {
+					for _, member := range members {
+						newMembers[memberMapKey(member)] = member
+					}
+				})
 
-			a.newImportRolesMu.Lock()
-			for _, role := range roles {
-				a.newImportRoles[role.GetName()] = role
-			}
-			a.newImportRolesMu.Unlock()
+			a.newImportRoles.Write(
+				func(newImportRoles map[string]types.Role) {
+					for _, role := range roles {
+						newImportRoles[role.GetName()] = role
+					}
+				})
 
 		case <-a.stopCh:
 			return
@@ -641,17 +613,9 @@ func (a *accessListSync) emitAccessListSyncEvent(ctx context.Context, reconcileE
 		NumGroups:       a.groupsImported.Load(),
 	}
 
-	a.importRolesMu.Lock()
-	event.NumRoles = int32(len(a.importRoles))
-	a.importRolesMu.Unlock()
-
-	a.importAccessListsMu.Lock()
-	event.NumAccessLists = int32(len(a.importAccessLists))
-	a.importAccessListsMu.Unlock()
-
-	a.importAccessListMembersMu.Lock()
-	event.NumAccessListMembers = int32(len(a.importAccessListMembers))
-	a.importAccessListMembersMu.Unlock()
+	event.NumRoles = int32(a.importRoles.Len())
+	event.NumAccessLists = int32(a.importAccessLists.Len())
+	event.NumAccessListMembers = int32(a.importAccessListMembers.Len())
 
 	if err := a.emitter.EmitAuditEvent(ctx, event); err != nil {
 		a.log.WithError(err).Warn("Unable to emit audit event")
@@ -880,42 +844,6 @@ func (a *accessListSync) groupToImportResources(ctx context.Context, groupID str
 	}, nil
 }
 
-func (a *accessListSync) getImportAccessLists() map[string]*accesslist.AccessList {
-	a.importAccessListsMu.Lock()
-	defer a.importAccessListsMu.Unlock()
-
-	copyMap := map[string]*accesslist.AccessList{}
-	maps.Copy(copyMap, a.importAccessLists)
-	return copyMap
-}
-
-func (a *accessListSync) getNewImportAccessLists() map[string]*accesslist.AccessList {
-	a.newImportAccessListsMu.Lock()
-	defer a.newImportAccessListsMu.Unlock()
-
-	copyMap := map[string]*accesslist.AccessList{}
-	maps.Copy(copyMap, a.newImportAccessLists)
-	return copyMap
-}
-
-func (a *accessListSync) getImportRoles() map[string]types.Role {
-	a.importRolesMu.Lock()
-	defer a.importRolesMu.Unlock()
-
-	copyMap := map[string]types.Role{}
-	maps.Copy(copyMap, a.importRoles)
-	return copyMap
-}
-
-func (a *accessListSync) getNewImportRoles() map[string]types.Role {
-	a.newImportRolesMu.Lock()
-	defer a.newImportRolesMu.Unlock()
-
-	copyMap := map[string]types.Role{}
-	maps.Copy(copyMap, a.newImportRoles)
-	return copyMap
-}
-
 // metadataToImportResources will convert import resource metadata from Okta and convert it into import resources.
 func (a *accessListSync) metadataToImportResources(irMetadata importResourceMetadata) (*accesslist.AccessList, []*accesslist.AccessListMember, []types.Role, error) {
 	labels := map[string]string{
@@ -932,14 +860,16 @@ func (a *accessListSync) metadataToImportResources(irMetadata importResourceMeta
 	owners := a.owners
 	var membershipRequires, ownershipRequires accesslist.Requires
 	var audit accesslist.Audit
-	a.importAccessListsMu.Lock()
-	if oldAccessList, ok := a.importAccessLists[irMetadata.name]; ok {
-		owners = oldAccessList.GetOwners()
-		membershipRequires = oldAccessList.Spec.MembershipRequires
-		ownershipRequires = oldAccessList.Spec.OwnershipRequires
-		audit = oldAccessList.Spec.Audit
-	}
-	a.importAccessListsMu.Unlock()
+
+	a.importAccessLists.Read(
+		func(importAccessLists map[string]*accesslist.AccessList) {
+			if oldAccessList, ok := importAccessLists[irMetadata.name]; ok {
+				owners = oldAccessList.GetOwners()
+				membershipRequires = oldAccessList.Spec.MembershipRequires
+				ownershipRequires = oldAccessList.Spec.OwnershipRequires
+				audit = oldAccessList.Spec.Audit
+			}
+		})
 
 	reviewerRoleName := irMetadata.name + reviewerSuffix
 
@@ -1019,12 +949,7 @@ func (a *accessListSync) onUpsertAccessList(ctx context.Context, accessList *acc
 	if _, err := a.accessLists.UpsertAccessList(ctx, accessList); err != nil {
 		return trace.Wrap(err)
 	}
-
-	lockedMapSet(
-		&a.importAccessListsMu,
-		a.importAccessLists,
-		accessList.GetName(),
-		accessList)
+	a.importAccessLists.Store(accessList.GetName(), accessList)
 	return nil
 }
 
@@ -1034,27 +959,19 @@ func (a *accessListSync) onDeleteAccessList(ctx context.Context, accessList *acc
 	if err := a.accessLists.DeleteAccessList(ctx, accessList.GetName()); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
-
-	lockedMapDelete(&a.importAccessListsMu, a.importAccessLists, accessList.GetName())
+	a.importAccessLists.Delete(accessList.GetName())
 	return nil
 }
 
 // onUpsertAccessListMember will create or modify an access list member.
 func (a *accessListSync) onUpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) error {
-	lockedMapSet(
-		&a.importAccessListMembersMu,
-		a.importAccessListMembers,
-		memberMapKey(member),
-		member)
+	a.importAccessListMembers.Store(memberMapKey(member), member)
 	return nil
 }
 
 // onDeleteAccessListMember will delete an access list member.
 func (a *accessListSync) onDeleteAccessListMember(ctx context.Context, member *accesslist.AccessListMember) error {
-	lockedMapDelete(
-		&a.importAccessListMembersMu,
-		a.importAccessListMembers,
-		memberMapKey(member))
+	a.importAccessListMembers.Delete(memberMapKey(member))
 	return nil
 }
 
@@ -1064,9 +981,7 @@ func (a *accessListSync) onUpsertRole(ctx context.Context, role types.Role) erro
 		return trace.Wrap(err)
 	}
 
-	a.importRolesMu.Lock()
-	a.importRoles[role.GetName()] = role
-	a.importRolesMu.Unlock()
+	a.importRoles.Store(role.GetName(), role)
 	return nil
 }
 
@@ -1077,24 +992,24 @@ func (a *accessListSync) onDeleteRole(ctx context.Context, role types.Role) erro
 		return trace.Wrap(err)
 	}
 
-	a.importRolesMu.Lock()
-	delete(a.importRoles, role.GetName())
-	a.importRolesMu.Unlock()
+	a.importRoles.Delete(role.GetName())
 	return nil
 }
 
 // addRolesToOktaRequester will add non-reviewer roles to the Okta requester.
 func (a *accessListSync) addRolesToOktaRequester(ctx context.Context) error {
-	a.importRolesMu.Lock()
 	var roles []string
-	for roleName := range a.importRoles {
-		if strings.HasSuffix(roleName, reviewerSuffix) {
-			continue
-		}
 
-		roles = append(roles, roleName)
-	}
-	a.importRolesMu.Unlock()
+	a.importRoles.Read(
+		func(importRoles map[string]types.Role) {
+			for roleName := range importRoles {
+				if strings.HasSuffix(roleName, reviewerSuffix) {
+					continue
+				}
+
+				roles = append(roles, roleName)
+			}
+		})
 
 	oktaRequesterRole, err := a.access.GetRole(ctx, teleport.SystemOktaRequesterRoleName)
 	if err != nil {
@@ -1118,8 +1033,8 @@ func toLabels(m map[string][]string) types.Labels {
 	return labels
 }
 
-// matchByLabels will match a resource based on the labels.
-func matchByLabels[T types.Resource](expectedOrgURL string) func(T) bool {
+// MatchByLabels will match a resource based on the labels.
+func MatchByLabels[T types.Resource](expectedOrgURL string) func(T) bool {
 	return func(resource T) bool {
 		origin, ok := resource.GetMetadata().Labels[types.OriginLabel]
 		if !ok || origin != types.OriginOkta {
@@ -1138,33 +1053,4 @@ func matchByLabels[T types.Resource](expectedOrgURL string) func(T) bool {
 // memberMapKey returns an identifier for members that will be unique in the reconciler.
 func memberMapKey(member *accesslist.AccessListMember) string {
 	return fmt.Sprintf("%s/%s", member.Spec.AccessList, member.GetName())
-}
-
-// lockedMapCopy creates a shallow copy of the supplied resource map,
-// serializing access to the source map using the supplied mutex
-func lockedMapCopy[T services.Reconciled](mu *sync.Mutex, src map[string]T) map[string]T {
-	mu.Lock()
-	defer mu.Unlock()
-
-	dst := make(map[string]T, len(src))
-	maps.Copy(dst, src)
-	return dst
-}
-
-// lockedMapSet sets a value in the resource map `m`, serializing access to the
-// map using the supplied mutex
-func lockedMapSet[T services.Reconciled](mu *sync.Mutex, m map[string]T, key string, value T) {
-	mu.Lock()
-	defer mu.Unlock()
-
-	m[key] = value
-}
-
-// lockedMapDelete deletes a value in the resource map `m`, serializing access
-// to the map using the supplied mutex
-func lockedMapDelete[T services.Reconciled](mu *sync.Mutex, m map[string]T, key string) {
-	mu.Lock()
-	defer mu.Unlock()
-
-	delete(m, key)
 }

@@ -11,12 +11,22 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+// AccessListsService describes the subset of services.AccessListsMembers
+// required by the reconciler
+type AccessListMembers interface {
+	UpsertAccessListMember(context.Context, *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
+	DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error
+}
+
+// Static assertion that AccessListMembers is a subset of services.AccessListMembers
+var _ AccessListMembers = (services.AccessListMembers)(nil)
+
 // MemberReconcilerConfig holds the configuration parameters for a
 // MemberReconciler
 type MemberReconcilerConfig struct {
 	// AccessListMembers is a mandatory handle to an AccessListMembers CRUD
 	// service
-	AccessListMembers services.AccessListMembers
+	AccessListMembers AccessListMembers
 
 	// Log is an optional logger. A default logger will be created if not set.
 	Log *logrus.Entry
@@ -59,7 +69,7 @@ func (cfg *MemberReconcilerConfig) CheckAndSetDefaults() error {
 // MemberReconciler reconciles two lists of AccessListMember records,
 // automatically updating the cluster back end as necessary
 type MemberReconciler struct {
-	accessListMembers services.AccessListMembers
+	accessListMembers AccessListMembers
 	backend           *services.Reconciler[*accesslist.AccessListMember]
 	log               *logrus.Entry
 

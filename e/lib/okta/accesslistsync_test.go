@@ -128,14 +128,6 @@ func initAccessListSync(t *testing.T, ctx context.Context) *accessListSyncTestCo
 	return alsCtx
 }
 
-func (a *accessListSync) getImportAccessListMembers() map[string]*accesslist.AccessListMember {
-	return lockedMapCopy(&a.importAccessListMembersMu, a.importAccessListMembers)
-}
-
-func (a *accessListSync) getNewImportAccessListMembers() map[string]*accesslist.AccessListMember {
-	return lockedMapCopy(&a.newImportAccessListMembersMu, a.newImportAccessListMembers)
-}
-
 func TestAccessListSync(t *testing.T) {
 	ctx := context.Background()
 
@@ -145,12 +137,12 @@ func TestAccessListSync(t *testing.T) {
 		c := initAccessListSync(t, ctx)
 		c.advanceAndWaitForSync()
 
-		require.Empty(t, c.svc.getImportAccessLists())
-		require.Empty(t, c.svc.getNewImportAccessLists())
-		require.Empty(t, c.svc.getImportAccessListMembers())
-		require.Empty(t, c.svc.getNewImportAccessListMembers())
-		require.Empty(t, c.svc.getImportRoles())
-		require.Empty(t, c.svc.getNewImportRoles())
+		require.Empty(t, c.svc.importAccessLists.Clone())
+		require.Empty(t, c.svc.newImportAccessLists.Clone())
+		require.Empty(t, c.svc.importAccessListMembers.Clone())
+		require.Empty(t, c.svc.newImportAccessListMembers.Clone())
+		require.Empty(t, c.svc.importRoles.Clone())
+		require.Empty(t, c.svc.newImportRoles.Clone())
 
 		expectAuditEvent(t, c.emitter, func(event *apievents.OktaAccessListSync) {
 			require.True(t, event.Success)
@@ -181,17 +173,17 @@ func TestAccessListSync(t *testing.T) {
 		require.Empty(t, cmp.Diff(map[string]*accesslist.AccessList{
 			"group1": newAccessList(t, "group1", "group label", []string{"group1-reviewer"}, []string{"group1"}, owners),
 			"group2": newAccessList(t, "group2", "group label", []string{"group2-reviewer"}, []string{"group2"}, owners),
-		}, c.svc.getImportAccessLists(), cmpOpts...))
-		require.Empty(t, cmp.Diff(c.svc.getImportAccessLists(), c.svc.getNewImportAccessLists(), cmpOpts...))
-		require.Empty(t, c.svc.getImportAccessListMembers())
-		require.Empty(t, c.svc.getNewImportAccessListMembers())
+		}, c.svc.importAccessLists.Clone(), cmpOpts...))
+		require.Empty(t, cmp.Diff(c.svc.importAccessLists.Clone(), c.svc.importAccessLists.Clone(), cmpOpts...))
+		require.Empty(t, c.svc.importAccessListMembers.Clone())
+		require.Empty(t, c.svc.newImportAccessListMembers.Clone())
 		require.Empty(t, cmp.Diff(map[string]types.Role{
 			"group1":          newRole(t, "group1", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"group1"}}),
 			"group1-reviewer": newReviewerRole(t, "group1"),
 			"group2":          newRole(t, "group2", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"group2"}}),
 			"group2-reviewer": newReviewerRole(t, "group2"),
-		}, c.svc.getImportRoles(), cmpOpts...))
-		require.Empty(t, cmp.Diff(c.svc.getImportRoles(), c.svc.getNewImportRoles(), cmpOpts...))
+		}, c.svc.importRoles.Clone(), cmpOpts...))
+		require.Empty(t, cmp.Diff(c.svc.importRoles.Clone(), c.svc.newImportRoles.Clone(), cmpOpts...))
 
 		expectAuditEvent(t, c.emitter, func(event *apievents.OktaAccessListSync) {
 			require.True(t, event.Success)
@@ -230,8 +222,8 @@ func TestAccessListSync(t *testing.T) {
 			"app2":   newAccessList(t, "app2", "app label", []string{"app2-reviewer"}, []string{"app2"}, owners),
 			"group1": newAccessList(t, "group1", "group label", []string{"group1-reviewer"}, []string{"group1"}, owners),
 			"group2": newAccessList(t, "group2", "group label", []string{"group2-reviewer"}, []string{"group2"}, owners),
-		}, c.svc.getImportAccessLists(), cmpOpts...))
-		require.Empty(t, cmp.Diff(c.svc.getImportAccessLists(), c.svc.getNewImportAccessLists(), cmpOpts...))
+		}, c.svc.importAccessLists.Clone(), cmpOpts...))
+		require.Empty(t, cmp.Diff(c.svc.importAccessLists.Clone(), c.svc.importAccessLists.Clone(), cmpOpts...))
 		require.Empty(t, cmp.Diff(map[string]*accesslist.AccessListMember{
 			"app1/user1": newAccessListMember(t, "app1", "user1", c.clock.Now()),
 			"app1/user2": newAccessListMember(t, "app1", "user2", c.clock.Now()),
@@ -239,8 +231,8 @@ func TestAccessListSync(t *testing.T) {
 			"app2/user1": newAccessListMember(t, "app2", "user1", c.clock.Now()),
 			"app2/user2": newAccessListMember(t, "app2", "user2", c.clock.Now()),
 			"app2/user3": newAccessListMember(t, "app2", "user3", c.clock.Now()),
-		}, c.svc.getImportAccessListMembers(), cmpOpts...))
-		require.Empty(t, cmp.Diff(c.svc.getImportAccessListMembers(), c.svc.getNewImportAccessListMembers(), cmpOpts...))
+		}, c.svc.importAccessListMembers.Clone(), cmpOpts...))
+		require.Empty(t, cmp.Diff(c.svc.importAccessListMembers.Clone(), c.svc.newImportAccessListMembers.Clone(), cmpOpts...))
 		require.Empty(t, cmp.Diff(map[string]types.Role{
 			"app1":            newRole(t, "app1", types.Labels{eteleport.OktaAppIDLabel: []string{"app1-okta"}}, nil),
 			"app1-reviewer":   newReviewerRole(t, "app1"),
@@ -250,8 +242,8 @@ func TestAccessListSync(t *testing.T) {
 			"group1-reviewer": newReviewerRole(t, "group1"),
 			"group2":          newRole(t, "group2", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"group2"}}),
 			"group2-reviewer": newReviewerRole(t, "group2"),
-		}, c.svc.getImportRoles(), cmpOpts...))
-		require.Empty(t, cmp.Diff(c.svc.getImportRoles(), c.svc.getNewImportRoles(), cmpOpts...))
+		}, c.svc.importRoles.Clone(), cmpOpts...))
+		require.Empty(t, cmp.Diff(c.svc.importRoles.Clone(), c.svc.newImportRoles.Clone(), cmpOpts...))
 
 		verifyServiceMatchesBackend(t, c.ap, c.svc)
 
@@ -292,16 +284,16 @@ func TestAccessListSync(t *testing.T) {
 			"app2":   newAccessList(t, "app2", "app label", []string{"app2-reviewer"}, []string{"app2"}, owners),
 			"group1": newAccessList(t, "group1", "group label", []string{"group1-reviewer"}, []string{"group1"}, owners),
 			"group2": newAccessList(t, "group2", "group label", []string{"group2-reviewer"}, []string{"group2"}, owners),
-		}, c.svc.getImportAccessLists(), cmpOpts...))
-		require.Empty(t, cmp.Diff(c.svc.getImportAccessLists(), c.svc.getNewImportAccessLists(), cmpOpts...))
+		}, c.svc.importAccessLists.Clone(), cmpOpts...))
+		require.Empty(t, cmp.Diff(c.svc.importAccessLists.Clone(), c.svc.importAccessLists.Clone(), cmpOpts...))
 		require.Empty(t, cmp.Diff(map[string]*accesslist.AccessListMember{
 			"app1/user1":   newAccessListMember(t, "app1", "user1", c.clock.Now()),
 			"app2/user1":   newAccessListMember(t, "app2", "user1", c.clock.Now()),
 			"app2/user2":   newAccessListMember(t, "app2", "user2", c.clock.Now()),
 			"group1/user1": newAccessListMember(t, "group1", "user1", c.clock.Now()),
 			"group1/user2": newAccessListMember(t, "group1", "user2", c.clock.Now()),
-		}, c.svc.getImportAccessListMembers(), cmpOpts...))
-		require.Empty(t, cmp.Diff(c.svc.getImportAccessListMembers(), c.svc.getNewImportAccessListMembers(), cmpOpts...))
+		}, c.svc.importAccessListMembers.Clone(), cmpOpts...))
+		require.Empty(t, cmp.Diff(c.svc.importAccessListMembers.Clone(), c.svc.newImportAccessListMembers.Clone(), cmpOpts...))
 		require.Empty(t, cmp.Diff(map[string]types.Role{
 			"app1":            newRole(t, "app1", types.Labels{eteleport.OktaAppIDLabel: []string{"app1-okta"}}, nil),
 			"app1-reviewer":   newReviewerRole(t, "app1"),
@@ -311,8 +303,8 @@ func TestAccessListSync(t *testing.T) {
 			"group1-reviewer": newReviewerRole(t, "group1"),
 			"group2":          newRole(t, "group2", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"group2"}}),
 			"group2-reviewer": newReviewerRole(t, "group2"),
-		}, c.svc.getImportRoles(), cmpOpts...))
-		require.Empty(t, cmp.Diff(c.svc.getImportRoles(), c.svc.getNewImportRoles(), cmpOpts...))
+		}, c.svc.importRoles.Clone(), cmpOpts...))
+		require.Empty(t, cmp.Diff(c.svc.importRoles.Clone(), c.svc.newImportRoles.Clone(), cmpOpts...))
 
 		verifyServiceMatchesBackend(t, c.ap, c.svc)
 
@@ -365,8 +357,8 @@ func TestAccessListSync(t *testing.T) {
 			"dev-app3":   newAccessList(t, "dev-app3", "dev-app3", []string{"dev-app3-reviewer"}, []string{"dev-app3"}, owners),
 			"dev-group2": newAccessList(t, "dev-group2", "dev-group2", []string{"dev-group2-reviewer"}, []string{"dev-group2"}, owners),
 			"dev-group3": newAccessList(t, "dev-group3", "dev-group3", []string{"dev-group3-reviewer"}, []string{"dev-group3"}, owners),
-		}, c.svc.getImportAccessLists(), cmpOpts...))
-		require.Empty(t, cmp.Diff(c.svc.getImportAccessLists(), c.svc.getNewImportAccessLists(), cmpOpts...))
+		}, c.svc.importAccessLists.Clone(), cmpOpts...))
+		require.Empty(t, cmp.Diff(c.svc.importAccessLists.Clone(), c.svc.importAccessLists.Clone(), cmpOpts...))
 		require.Empty(t, cmp.Diff(map[string]*accesslist.AccessListMember{
 			"dev-app2/user1":   newAccessListMember(t, "dev-app2", "user1", c.clock.Now()),
 			"dev-app2/user2":   newAccessListMember(t, "dev-app2", "user2", c.clock.Now()),
@@ -376,8 +368,8 @@ func TestAccessListSync(t *testing.T) {
 			"dev-group2/user2": newAccessListMember(t, "dev-group2", "user2", c.clock.Now()),
 			"dev-group3/user1": newAccessListMember(t, "dev-group3", "user1", c.clock.Now()),
 			"dev-group3/user2": newAccessListMember(t, "dev-group3", "user2", c.clock.Now()),
-		}, c.svc.getImportAccessListMembers(), cmpOpts...))
-		require.Empty(t, cmp.Diff(c.svc.getImportAccessListMembers(), c.svc.getNewImportAccessListMembers(), cmpOpts...))
+		}, c.svc.importAccessListMembers.Clone(), cmpOpts...))
+		require.Empty(t, cmp.Diff(c.svc.importAccessListMembers.Clone(), c.svc.newImportAccessListMembers.Clone(), cmpOpts...))
 		require.Empty(t, cmp.Diff(map[string]types.Role{
 			"dev-app2":            newRole(t, "dev-app2", types.Labels{eteleport.OktaAppIDLabel: []string{"dev-app2-okta"}}, nil),
 			"dev-app2-reviewer":   newReviewerRole(t, "dev-app2"),
@@ -387,8 +379,8 @@ func TestAccessListSync(t *testing.T) {
 			"dev-group2-reviewer": newReviewerRole(t, "dev-group2"),
 			"dev-group3":          newRole(t, "dev-group3", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"dev-group3"}}),
 			"dev-group3-reviewer": newReviewerRole(t, "dev-group3"),
-		}, c.svc.getImportRoles(), cmpOpts...))
-		require.Empty(t, cmp.Diff(c.svc.getImportRoles(), c.svc.getNewImportRoles(), cmpOpts...))
+		}, c.svc.importRoles.Clone(), cmpOpts...))
+		require.Empty(t, cmp.Diff(c.svc.importRoles.Clone(), c.svc.newImportRoles.Clone(), cmpOpts...))
 
 		verifyServiceMatchesBackend(t, c.ap, c.svc)
 
@@ -440,14 +432,14 @@ func TestAccessListSync(t *testing.T) {
 			"app1":   preserved,
 			"app2":   newAccessList(t, "app2", "blah", []string{"some-role-reviewer"}, []string{"some-role"}, owners),
 			"group3": newAccessList(t, "group3", "blah", []string{"some-role-reviewer"}, []string{"some-role"}, owners),
-		}, c.svc.getImportAccessLists(), cmpOpts...))
+		}, c.svc.importAccessLists.Clone(), cmpOpts...))
 		require.Empty(t, cmp.Diff(map[string]*accesslist.AccessListMember{
 			"app1/user-to-remove":   newAccessListMember(t, "app1", "user-to-remove", c.clock.Now()),
 			"group3/user-to-remove": newAccessListMember(t, "group3", "user-to-remove", c.clock.Now()),
-		}, c.svc.getImportAccessListMembers(), cmpOpts...))
+		}, c.svc.importAccessListMembers.Clone(), cmpOpts...))
 		require.Empty(t, cmp.Diff(map[string]types.Role{
 			"app4": newRole(t, "app4", nil, nil),
-		}, c.svc.getImportRoles(), cmpOpts...))
+		}, c.svc.importRoles.Clone(), cmpOpts...))
 
 		c.client.addUserID("user1", "1")
 		c.client.addUserID("user2", "2")
@@ -471,16 +463,16 @@ func TestAccessListSync(t *testing.T) {
 			"app2":   newAccessList(t, "app2", "app label", []string{"app2-reviewer"}, []string{"app2"}, owners),
 			"group1": newAccessList(t, "group1", "group label", []string{"group1-reviewer"}, []string{"group1"}, owners),
 			"group2": newAccessList(t, "group2", "group label", []string{"group2-reviewer"}, []string{"group2"}, owners),
-		}, c.svc.getImportAccessLists(), cmpOpts...))
-		require.Empty(t, cmp.Diff(c.svc.getImportAccessLists(), c.svc.getNewImportAccessLists(), cmpOpts...))
+		}, c.svc.importAccessLists.Clone(), cmpOpts...))
+		require.Empty(t, cmp.Diff(c.svc.importAccessLists.Clone(), c.svc.importAccessLists.Clone(), cmpOpts...))
 		require.Empty(t, cmp.Diff(map[string]*accesslist.AccessListMember{
 			"app1/user1":   newAccessListMember(t, "app1", "user1", c.clock.Now()),
 			"app2/user1":   newAccessListMember(t, "app2", "user1", c.clock.Now()),
 			"app2/user2":   newAccessListMember(t, "app2", "user2", c.clock.Now()),
 			"group1/user1": newAccessListMember(t, "group1", "user1", c.clock.Now()),
 			"group1/user2": newAccessListMember(t, "group1", "user2", c.clock.Now()),
-		}, c.svc.getImportAccessListMembers(), cmpOpts...))
-		require.Empty(t, cmp.Diff(c.svc.getImportAccessListMembers(), c.svc.getNewImportAccessListMembers(), cmpOpts...))
+		}, c.svc.importAccessListMembers.Clone(), cmpOpts...))
+		require.Empty(t, cmp.Diff(c.svc.importAccessListMembers.Clone(), c.svc.newImportAccessListMembers.Clone(), cmpOpts...))
 		require.Empty(t, cmp.Diff(map[string]types.Role{
 			"app1":            newRole(t, "app1", types.Labels{eteleport.OktaAppIDLabel: []string{"app1-okta"}}, nil),
 			"app1-reviewer":   newReviewerRole(t, "app1"),
@@ -490,8 +482,8 @@ func TestAccessListSync(t *testing.T) {
 			"group1-reviewer": newReviewerRole(t, "group1"),
 			"group2":          newRole(t, "group2", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"group2"}}),
 			"group2-reviewer": newReviewerRole(t, "group2"),
-		}, c.svc.getImportRoles(), cmpOpts...))
-		require.Empty(t, cmp.Diff(c.svc.getImportRoles(), c.svc.getNewImportRoles(), cmpOpts...))
+		}, c.svc.importRoles.Clone(), cmpOpts...))
+		require.Empty(t, cmp.Diff(c.svc.importRoles.Clone(), c.svc.newImportRoles.Clone(), cmpOpts...))
 
 		verifyServiceMatchesBackend(t, c.ap, c.svc)
 
@@ -681,9 +673,9 @@ func newRole(t *testing.T, name string, appLabels, groupLabels types.Labels) typ
 func verifyServiceMatchesBackend(t *testing.T, ap *testAccessPoint, svc *accessListSync) {
 	t.Helper()
 
-	accessLists := svc.getImportAccessLists()
-	accessListMembers := svc.getImportAccessListMembers()
-	roles := svc.getImportRoles()
+	accessLists := svc.importAccessLists.Clone()
+	accessListMembers := svc.importAccessListMembers.Clone()
+	roles := svc.importRoles.Clone()
 
 	ctx := context.Background()
 	for _, accessList := range accessLists {

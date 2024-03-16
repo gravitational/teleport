@@ -24,12 +24,13 @@ import (
 // and resource handlers. A new shim will be created for every request requiring
 // Okta-specific behavior.
 type oktaShim struct {
-	creds  CredentialsService
-	locks  LocksService
-	users  UsersService
-	plugin *types.PluginV1
-	clock  clockwork.Clock
-	log    logrus.FieldLogger
+	creds       CredentialsService
+	locks       LocksService
+	users       UsersService
+	isValidUser func(types.User) bool
+	plugin      *types.PluginV1
+	clock       clockwork.Clock
+	log         logrus.FieldLogger
 }
 
 // Static assertion that the oktaShim implements the `shim` interface
@@ -86,7 +87,10 @@ func (s *oktaShim) authorizeRequest(ctx context.Context, authHeader string) erro
 }
 
 func (s *oktaShim) userPredicate(_ context.Context, user types.User) bool {
-	return okta.IsOktaUserInOrg(user, s.plugin.Spec.GetOkta().OrgUrl)
+	if s.isValidUser == nil {
+		s.isValidUser = okta.MatchByLabels[types.User](s.plugin.Spec.GetOkta().OrgUrl)
+	}
+	return s.isValidUser(user)
 }
 
 func (s *oktaShim) userToResource(_ context.Context, user types.User) (*scimpb.Resource, error) {

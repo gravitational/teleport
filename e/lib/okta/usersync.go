@@ -163,9 +163,10 @@ func listTeleportUsers(ctx context.Context, userSvc ReconcilerAccessPoint, userO
 		return nil, trace.Wrap(err, "listing teleport okta users")
 	}
 
+	isOktaUserInOrg := MatchByLabels[types.User](userOrgURL)
 	for _, user := range users {
 		// Filter out non-okta-origin users
-		if !IsOktaUserInOrg(user, userOrgURL) {
+		if !isOktaUserInOrg(user) {
 			continue
 		}
 
@@ -173,19 +174,6 @@ func listTeleportUsers(ctx context.Context, userSvc ReconcilerAccessPoint, userO
 	}
 
 	return result, nil
-}
-
-// IsOktaUserInOrg checks the user labels to assert that the given user was
-// created by Okta and belongs to the target Org.
-func IsOktaUserInOrg(u types.User, orgURL string) bool {
-	if u.Origin() != types.OriginOkta {
-		return false
-	}
-
-	// Filter out okta users from a different Okta organization, which
-	// belong to a different integration
-	label, _ := u.GetLabel(eteleport.OktaOrgURLLabel)
-	return label == orgURL
 }
 
 // userReconcilerConfig holds the caller-supplied information needed to create a
