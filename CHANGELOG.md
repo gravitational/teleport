@@ -1,5 +1,10 @@
 # Changelog
 
+## 15.1.6 (03/15/24)
+
+* Added remote port forwarding for Teleport nodes. [#39440](https://github.com/gravitational/teleport/pull/39440)
+* Added remote port forwarding for OpenSSH nodes. [#39438](https://github.com/gravitational/teleport/pull/39438)
+
 ## 15.1.5 (03/15/24)
 
 * Improve error messaging when creating resources fails because they already exist or updating resources fails because they were removed. [#39395](https://github.com/gravitational/teleport/pull/39395)
