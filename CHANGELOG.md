@@ -1,6 +1,6 @@
 # Changelog
 
-## 15.1.6 (03/15/24)
+## 15.1.7 (03/16/24)
 
 * Added remote port forwarding for Teleport nodes. [#39440](https://github.com/gravitational/teleport/pull/39440)
 * Added remote port forwarding for OpenSSH nodes. [#39438](https://github.com/gravitational/teleport/pull/39438)
