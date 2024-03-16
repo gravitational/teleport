@@ -35,13 +35,13 @@ type ServiceConfig struct {
 	// Backend is the backend used to store Kubernetes waiting containers.
 	Backend services.KubeWaitingContainer
 	// Cache is the cache used to store Kubernetes waiting containers.
-	Cache KubeWaitingContainerGetter
+	Cache Cache
 }
 
-// KubeWaitingContainerGetter is responsible for getting Kubernetes
+// Cache is responsible for getting Kubernetes
 // ephemeral containers that are waiting to be created until moderated
 // session conditions are met.
-type KubeWaitingContainerGetter interface {
+type Cache interface {
 	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
 	GetKubernetesWaitingContainer(ctx context.Context, req kubewaitingcontainerclient.KubeWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
 }
@@ -53,7 +53,7 @@ type Service struct {
 
 	authorizer authz.Authorizer
 	backend    services.KubeWaitingContainer
-	cache      KubeWaitingContainerGetter
+	cache      Cache
 }
 
 // NewService returns a new Kubernetes waiting container gRPC service.

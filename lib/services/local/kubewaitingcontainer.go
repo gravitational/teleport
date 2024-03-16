@@ -26,7 +26,6 @@ import (
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -89,7 +88,7 @@ func (k *KubeWaitingContainerService) GetKubernetesWaitingContainer(ctx context.
 // container that are waiting to be created until moderated
 // session conditions are met.
 func (k *KubeWaitingContainerService) CreateKubernetesWaitingContainer(ctx context.Context, in *kubewaitingcontainerpb.KubernetesWaitingContainer) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
-	out, err := k.svc.WithPrefix(kubewaitingcontainer.KubeWaitingContainerParts(in)...).CreateResource(ctx, in)
+	out, err := k.svc.WithPrefix(kubeWaitingContainerParts(in)...).CreateResource(ctx, in)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -101,7 +100,7 @@ func (k *KubeWaitingContainerService) CreateKubernetesWaitingContainer(ctx conte
 // container that are waiting to be created until moderated
 // session conditions are met.
 func (k *KubeWaitingContainerService) UpsertKubernetesWaitingContainer(ctx context.Context, in *kubewaitingcontainerpb.KubernetesWaitingContainer) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
-	out, err := k.svc.WithPrefix(kubewaitingcontainer.KubeWaitingContainerParts(in)...).UpsertResource(ctx, in)
+	out, err := k.svc.WithPrefix(kubeWaitingContainerParts(in)...).UpsertResource(ctx, in)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -121,4 +120,15 @@ func (k *KubeWaitingContainerService) DeleteKubernetesWaitingContainer(ctx conte
 // session conditions are met.
 func (k *KubeWaitingContainerService) DeleteAllKubernetesWaitingContainers(ctx context.Context) error {
 	return trace.Wrap(k.svc.DeleteAllResources(ctx))
+}
+
+// kubeWaitingContainerParts returns the strings that are used to build
+// the path for this resource in the backend.
+func kubeWaitingContainerParts(k *kubewaitingcontainerpb.KubernetesWaitingContainer) []string {
+	return []string{
+		k.Spec.Username,
+		k.Spec.Cluster,
+		k.Spec.Namespace,
+		k.Spec.PodName,
+	}
 }
