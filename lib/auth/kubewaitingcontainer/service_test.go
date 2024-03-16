@@ -287,6 +287,8 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 	for _, tc := range tt {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx, _, resourceSvc := initSvc(t, tc.Authorizer)
 
 			wcName := uuid.NewString()

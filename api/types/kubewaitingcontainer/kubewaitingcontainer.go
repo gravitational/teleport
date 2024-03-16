@@ -41,7 +41,7 @@ func NewKubeWaitingContainer(name string, spec *kubewaitingcontainerv1.Kubernete
 		Spec: spec,
 	}
 	if err := ValidateKubeWaitingContainer(waitingCont); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	return waitingCont, nil
@@ -77,15 +77,4 @@ func ValidateKubeWaitingContainer(k *kubewaitingcontainerv1.KubernetesWaitingCon
 	}
 
 	return nil
-}
-
-// KubeWaitingContainerParts returns the strings that are used to build
-// the path for this resource in the backend.
-func KubeWaitingContainerParts(k *kubewaitingcontainerv1.KubernetesWaitingContainer) []string {
-	return []string{
-		k.Spec.Username,
-		k.Spec.Cluster,
-		k.Spec.Namespace,
-		k.Spec.PodName,
-	}
 }
