@@ -1,5 +1,9 @@
 # Changelog
 
+## 14.3.9 (03/16/24)
+
+* Fixed issue with Teleport auth server panicking when Access Graph is enabled in discovery service. [#39456](https://github.com/gravitational/teleport/pull/39456)
+
 ## 14.3.8 (03/15/24)
 
 * Improve error messaging when creating resources fails because they already exist or updating resources fails because they were removed. [#39396](https://github.com/gravitational/teleport/pull/39396)
