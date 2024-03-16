@@ -1,5 +1,17 @@
 # Changelog
 
+## 14.3.8 (03/15/24)
+
+* Improve error messaging when creating resources fails because they already exist or updating resources fails because they were removed. [#39396](https://github.com/gravitational/teleport/pull/39396)
+* Support logging in with an identity file with `tsh login -i identity.pem`. This allows running `tsh app login` in CI environments where MachineID is impossible. [#39374](https://github.com/gravitational/teleport/pull/39374)
+* Only allow necessary operations during moderated file transfers and limit in-flight file transfer requests to one per session. [#39352](https://github.com/gravitational/teleport/pull/39352)
+* Make the Jira access plugin log Jira errors properly. [#39347](https://github.com/gravitational/teleport/pull/39347)
+* Teleport Enterprise now attempts to load the license file from the configured data directory if not otherwise specified. [#39313](https://github.com/gravitational/teleport/pull/39313)
+* Patched CVE-2024-27304 (Postgres driver). [#39259](https://github.com/gravitational/teleport/pull/39259)
+* Raised concurrent connection limits between Teleport Cloud regions and in clusters that use proxy peering. [#39232](https://github.com/gravitational/teleport/pull/39232)
+* Improved clean up of system resources during a fast shutdown of Teleport. [#39213](https://github.com/gravitational/teleport/pull/39213)
+* Fixed an issue where it was possible to skip providing old password when setting a new one. [#39126](https://github.com/gravitational/teleport/pull/39126)
+
 ## 14.3.7 (03/11/24)
 
 * Resolved sporadic errors caused by requests fail to comply with Kubernetes API spec by not specifying resource identifiers. [#39167](https://github.com/gravitational/teleport/pull/39167)
