@@ -109,7 +109,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
 	sftp := app.Command(teleport.SFTPSubCommand, "Server-side implementation of SFTP.").Hidden()
 	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
-	forward := app.Command(teleport.ForwardSubCommand, "Used internally by Teleport to re-exec itself to port forward.").Hidden()
+	forward := app.Command(teleport.LocalForwardSubCommand, "Used internally by Teleport to re-exec itself to port forward.").Hidden()
+	remoteForward := app.Command(teleport.RemoteForwardSubCommand, "Used internally by Teleport to re-exec itself to remote port forward.").Hidden()
 	checkHomeDir := app.Command(teleport.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
 	park := app.Command(teleport.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing.").Hidden()
 	app.HelpFlag.Short('h')
@@ -556,7 +557,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case exec.FullCommand():
 		srv.RunAndExit(teleport.ExecSubCommand)
 	case forward.FullCommand():
-		srv.RunAndExit(teleport.ForwardSubCommand)
+		srv.RunAndExit(teleport.LocalForwardSubCommand)
+	case remoteForward.FullCommand():
+		srv.RunAndExit(teleport.RemoteForwardSubCommand)
 	case checkHomeDir.FullCommand():
 		srv.RunAndExit(teleport.CheckHomeDirSubCommand)
 	case park.FullCommand():
