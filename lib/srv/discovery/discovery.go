@@ -164,6 +164,10 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("no AccessPoint configured for discovery")
 	}
 
+	if c.ClusterFeatures == nil {
+		return trace.BadParameter("no ClusterFeatures configured for discovery")
+	}
+
 	if len(c.Matchers.Kubernetes) > 0 && c.DiscoveryGroup == "" {
 		return trace.BadParameter(`the DiscoveryGroup name should be set for discovery server if
 kubernetes matchers are present.`)
