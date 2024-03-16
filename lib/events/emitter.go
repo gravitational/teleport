@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/internal/context121"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -236,18 +237,26 @@ func (w *WriterEmitter) EmitAuditEvent(ctx context.Context, event apievents.Audi
 }
 
 // NewLoggingEmitter returns an emitter that logs all events to the console
-// with the info level
+// with the info level. Events are only logged for self-hosted installations,
+// Teleport Cloud treats this as a no-op.
 func NewLoggingEmitter() *LoggingEmitter {
-	return &LoggingEmitter{}
+	return &LoggingEmitter{
+		emit: !modules.GetModules().Features().Cloud,
+	}
 }
 
 // LoggingEmitter logs all events with info level
 type LoggingEmitter struct {
+	emit bool
 }
 
 // EmitAuditEvent logs audit event, skips session print events, session
 // disk events and app session request events, because they are very verbose.
-func (*LoggingEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (l *LoggingEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	if !l.emit {
+		return nil
+	}
+
 	switch event.GetType() {
 	case ResizeEvent, SessionDiskEvent, SessionPrintEvent, AppSessionRequestEvent, "":
 		return nil
