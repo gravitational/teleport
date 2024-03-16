@@ -115,7 +115,7 @@ func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProvider(ctx context.Co
 func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
 	if sp.GetEntityDescriptor() == "" {
 		if err := s.configureEntityDescriptorPerPreset(sp); err != nil {
-			errMsg := fmt.Errorf("failed to configure entity descriptor with the given entity_id %q and acs_url %q: %v",
+			errMsg := fmt.Errorf("failed to configure entity descriptor with the given entity_id %q and acs_url %q: %w",
 				sp.GetEntityID(), sp.GetACSURL(), err)
 			s.log.Errorf(errMsg.Error())
 			return trace.BadParameter(errMsg.Error())
