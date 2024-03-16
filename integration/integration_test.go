@@ -8375,7 +8375,7 @@ func sshRquestIgnoringKeepalives(t *testing.T, ch <-chan *ssh.Request) *ssh.Requ
 		}
 	}
 
-	t.Fatal("no non-keepalive request recieved before the request channel closed")
+	t.Fatal("no non-keepalive request received before the request channel closed")
 	return nil
 }
 
