@@ -239,9 +239,9 @@ func (w *WriterEmitter) EmitAuditEvent(ctx context.Context, event apievents.Audi
 // NewLoggingEmitter returns an emitter that logs all events to the console
 // with the info level. Events are only logged for self-hosted installations,
 // Teleport Cloud treats this as a no-op.
-func NewLoggingEmitter() *LoggingEmitter {
+func NewLoggingEmitter(cloud bool) *LoggingEmitter {
 	return &LoggingEmitter{
-		emit: !modules.GetModules().Features().Cloud,
+		emit: !(modules.GetModules().Features().Cloud || cloud),
 	}
 }
 
