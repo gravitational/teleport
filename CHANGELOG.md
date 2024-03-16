@@ -1,5 +1,12 @@
 # Changelog
 
+## 13.4.19 (03/15/24)
+
+* Improved error messaging when creating resources fails because they already exist or updating resources fails because they were removed. [#39397](https://github.com/gravitational/teleport/pull/39397)
+* Only allow necessary operations during moderated file transfers and limit in-flight file transfer requests to one per session. [#39356](https://github.com/gravitational/teleport/pull/39356)
+* Make the Jira access plugin log Jira errors properly. [#39348](https://github.com/gravitational/teleport/pull/39348)
+* Teleport Enterprise now attempts to load the license file from the configured data directory if not otherwise specified. [#39312](https://github.com/gravitational/teleport/pull/39312)
+
 ## 13.4.18 (03/13/24)
 
 * Patched CVE-2024-27304 (Postgres driver). [#39263](https://github.com/gravitational/teleport/pull/39263)
