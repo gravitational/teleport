@@ -1,6 +1,6 @@
 # Changelog
 
-## 13.4.19 (03/15/24)
+## 13.4.20 (03/16/24)
 
 * Improved error messaging when creating resources fails because they already exist or updating resources fails because they were removed. [#39397](https://github.com/gravitational/teleport/pull/39397)
 * Only allow necessary operations during moderated file transfers and limit in-flight file transfer requests to one per session. [#39356](https://github.com/gravitational/teleport/pull/39356)
