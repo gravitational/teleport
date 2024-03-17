@@ -472,9 +472,49 @@ Note: Since this prompt requires stdin, it may not work in environments that do 
 
 `tsh db connect` uses raw RSA private key data to form connections. Since this cannot be supported with hardware private keys, users will instead need to use `tsh proxy db` to connect using a local proxy. Teleport Connect already uses `tsh proxy db` and will not be affected, but the WebUI may have an additional challenge to support database connections.
 
+Update: this has been implemented as part of [RFD 90](https://github.com/gravitational/teleport/blob/master/rfd/0090-db-mfa-sessions.md#integrating-with-piv-hardware-private-keys-for-security-improvements).
+
 #### Kubernetes support
 
 Kubernetes integration uses raw RSA private [key data to form connections](https://github.com/gravitational/teleport/blob/master/lib/kube/kubeconfig/kubeconfig.go#L164-L167). It may be possible to create a [custom auth provider plugin](https://pkg.go.dev/k8s.io/client-go@v0.24.3/tools/clientcmd/api#AuthProviderConfig) and supply it to the kubernetes Auth Info. Kubernetes support will be investigated and fixed in a follow up PR after the initial hardware private key implementation.
+
+Update: this has been implemented as part of [RFD 121](https://github.com/gravitational/teleport/blob/master/rfd/0121-kube-mfa-sessions.md).
+
+#### Application Access
+
+Application Access can be supported by expanding the changes outlined in the
+section above for [Web Sessions](#web-sessions) for App Sessions, which are
+essentially just a specific type of Web Session.
+
+Similarly to Web Sessions, App Sessions can be managed entirely by the Proxy and
+Auth services, with the addition of App services. In order to ensure this is the
+case, the endpoints below will be restricted to require `read` or `list` permissions
+for `KindWebSession`. These permissions will only be granted to the Proxy and App
+service roles.
+
+* `rpc GetAppSession`
+* `rpc ListAppSessions`
+
+Additionally `rpc CreateAppSession` will be updated to return the App Session
+without secrets. Only the Session ID is needed by the user in order to request
+certificates tied to the App Session with `rpc GenerateUserCerts`. The Proxy
+and App services will still be able to retrieve the secrets with the get/list
+endpoints above.
+
+Note: in order to maintain backwards compatibility, `CreateAppSession` will
+still continue to return secrets for 1-2 major versions (as needed) for App
+Sessions *without* a `web_session` attestation.
+
+Once these changes are complete, the Auth service can begin attesting App
+Sessions with the private key policy `web_session`, allowing users to
+connect to applications with Hardware Key support protections in place.
+The Auth service will require the user to call `CreateAppSession` with
+credentials that meet their hardware key policy requirement.
+
+Note: The Auth service will also attested App Sessions when an attested
+Web Session is used with an MFA challenge response. However, this relies
+on Per-session MFA being implemented for App Access. This will be covered
+in a separate RFD and implemented alongside these changes.
 
 #### Agent key support
 
