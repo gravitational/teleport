@@ -3239,8 +3239,25 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	logger.InfoContext(process.ExitContext(), "Starting diagnostic service.", "listen_address", process.Config.DiagnosticAddr.Addr)
 
 	process.RegisterFunc("diagnostic.service", func() error {
-		err := server.Serve(listener)
-		if err != nil && err != http.ErrServerClosed {
+		muxListener, err := multiplexer.New(multiplexer.Config{
+			Context:                        process.GracefulExitContext(),
+			Listener:                       listener,
+			PROXYProtocolMode:              multiplexer.PROXYProtocolUnspecified,
+			SuppressUnexpectedPROXYWarning: true,
+			ID:                             teleport.Component(teleport.ComponentDiagnostic),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		listenerHTTP := muxListener.HTTP()
+		go func() {
+			if err := muxListener.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+				muxListener.Entry.WithError(err).Error("Mux encountered err serving")
+			}
+		}()
+
+		err = server.Serve(listenerHTTP)
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.WarnContext(process.ExitContext(), "Diagnostic server exited with error.", "error", err)
 		}
 		return nil
