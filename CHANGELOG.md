@@ -1,6 +1,6 @@
 # Changelog
 
-## 14.3.9 (03/16/24)
+## 14.3.10 (03/16/24)
 
 * Fixed issue with Teleport auth server panicking when Access Graph is enabled in discovery service. [#39456](https://github.com/gravitational/teleport/pull/39456)
 
