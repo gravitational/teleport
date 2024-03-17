@@ -98,8 +98,6 @@ authority to manage resources in the cluster. To prepare credentials using a loc
    ```shell
    #! /usr/bin/env bash
 
-   set -euxo pipefail
-
    TOKEN=$(tctl bots add terraform-test --roles=terraform --format=json | jq -r '.token_id')
    tbot start \
      --destination-dir=./terraform-identity \
@@ -120,8 +118,6 @@ paste in the following content:
 
    ```shell
    #! /usr/bin/env bash
-
-   set -euxo pipefail
 
    tctl bots rm terraform-test
    rm -rf ./terraform-identity
