@@ -130,14 +130,14 @@ export function filterSensitiveProperties(toFilter: object): object {
 function makeMethodLogger(logger: Logger, methodName: string) {
   return {
     logRequest: (input: object) => {
-      logger.info(`${methodName} REQUEST:`, filterSensitiveProperties(input));
+      logger.info(`${methodName} request:`, filterSensitiveProperties(input));
     },
     logResponse: (output: object) => {
       const toLog = output ? filterSensitiveProperties(output) : null;
-      logger.info(`${methodName} RESPONSE:`, toLog);
+      logger.info(`${methodName} response:`, toLog);
     },
     logError: (error: unknown) => {
-      logger.error(`${methodName} RESPONSE:`, `${error}`);
+      logger.error(`${methodName} response:`, `${error}`);
     },
   };
 }
