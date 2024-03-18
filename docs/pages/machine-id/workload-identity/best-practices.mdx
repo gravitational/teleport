@@ -3,6 +3,52 @@ title: Best Practices for Teleport Workload Identity
 description: Teleport's Workload Identity for SPIFFE
 ---
 
+This page covers common questions and best practices for using Teleport's
+Workload Identity feature in production.
+
 ## Structuring SPIFFE IDs
+
+The SPIFFE ID is a flexible identifier for workloads, and potentially even
+users. It is ultimately up to your organization to decide how to structure
+your SPIFFE ID namespace.
+
+There's a few common strategies to structuring SPIFFE IDs. Generally, though, a
+hierarchical structure is used, with the root of the hierarchy being the most
+general and the deepest part being the most specific. This allows rules to be
+created which allow access to a group of workloads that share common parts
+of the hierarchy.
+
+One strategy is to structure SPIFFE IDs based on the logical function of a
+workload. For example, you may have a service named `processor` that falls
+within a group of `payments` services. You could give this a SPIFFE ID of
+`spiffe://example.teleport.sh/production/payments/processor`. You may then
+decide that all `payments` services should be able to access each other and
+create a rule that allows access to any SPIFFE ID that starts with
+`spiffe://example.teleport.sh/production/payments`.
+
+Another strategy is to structure the SPIFFE IDs using a more "physical" location
+of a workload. This may still include elements that are "virtual". For example,
+you may have a workload running on a VM on a host in a datacenter in London.
+You could give this a SPIFFE ID of
+`spiffe://example.teleport.sh/europe/uk/london/hypervisor-001/vm-a3847f`.
+This is useful in a different way to the logical structure, it'd be ideal in a
+case where you want to restrict a workload to only be able to access other
+workloads which are physically proximate, such as a cache. You may say that
+the cache located in London will only accept connections from workloads with a
+SPIFFE ID that starts with `spiffe://example.teleport.sh/europe/uk`.
+
+However, it's worth noting that a workload can possess multiple SVIDs and use
+these for different purposes. This means you could actually use multiple
+strategies. You'll want to ensure you use some form of namespacing to ensure
+these two different types of SPIFFE ID don't collide. For example, taking our
+last two examples we can prefix the ID with `phy` for the physical location
+and `svc` for the logical location:
+
+- spiffe://example.teleport.sh/phy/europe/uk/london/hypervisor-001/vm-a3847f
+- spiffe://example.teleport.sh/svc/payments/processor
+
+It's worth noting that the SPIFFE ID contained within a SVID is not secret and
+is exposed to workloads that connect and that you connect out to. So avoid
+placing sensitive information within the SPIFFE ID.
 
 ## Integrating SPIFFE with your services
