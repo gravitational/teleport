@@ -144,7 +144,7 @@ func createLTSBucket(ctx context.Context, clt BootstrapS3Client, bucketName stri
 			ObjectLockEnabled: s3types.ObjectLockEnabledEnabled,
 			Rule: &s3types.ObjectLockRule{
 				DefaultRetention: &s3types.DefaultRetention{
-					Years: defaultObjectLockRetentionYears,
+					Years: aws.Int32(defaultObjectLockRetentionYears),
 					// Modification is prohibited without IAM S3:BypassGovernancePermission
 					Mode: s3types.ObjectLockRetentionModeGovernance,
 				},
@@ -174,7 +174,7 @@ func createTransientBucket(ctx context.Context, clt BootstrapS3Client, bucketNam
 					Status: s3types.ExpirationStatusEnabled,
 					ID:     aws.String("ExpireQueryResults"),
 					Expiration: &s3types.LifecycleExpiration{
-						Days: 1,
+						Days: aws.Int32(1),
 					},
 					Filter: &s3types.LifecycleRuleFilterMemberPrefix{
 						Value: "/query_results",
@@ -184,14 +184,14 @@ func createTransientBucket(ctx context.Context, clt BootstrapS3Client, bucketNam
 					Status: s3types.ExpirationStatusEnabled,
 					ID:     aws.String("ExpireNonCurrentVersionsAndDeleteMarkers"),
 					NoncurrentVersionExpiration: &s3types.NoncurrentVersionExpiration{
-						NewerNoncurrentVersions: 0,
-						NoncurrentDays:          1,
+						NewerNoncurrentVersions: aws.Int32(0),
+						NoncurrentDays:          aws.Int32(1),
 					},
 					AbortIncompleteMultipartUpload: &s3types.AbortIncompleteMultipartUpload{
-						DaysAfterInitiation: 7,
+						DaysAfterInitiation: aws.Int32(7),
 					},
 					Expiration: &s3types.LifecycleExpiration{
-						ExpiredObjectDeleteMarker: true,
+						ExpiredObjectDeleteMarker: aws.Bool(true),
 					},
 					Filter: &s3types.LifecycleRuleFilterMemberPrefix{},
 				},
@@ -204,8 +204,8 @@ func createTransientBucket(ctx context.Context, clt BootstrapS3Client, bucketNam
 func createBucket(ctx context.Context, clt BootstrapS3Client, bucketName string, region string, objectLock bool) error {
 	_, err := clt.CreateBucket(ctx, &s3.CreateBucketInput{
 		Bucket:                     &bucketName,
-		CreateBucketConfiguration:  createBucketConfiguration(region),
-		ObjectLockEnabledForBucket: objectLock,
+		CreateBucketConfiguration:  awsutil.CreateBucketConfiguration(region),
+		ObjectLockEnabledForBucket: &objectLock,
 		ACL:                        s3types.BucketCannedACLPrivate,
 		ObjectOwnership:            s3types.ObjectOwnershipBucketOwnerEnforced,
 	})
@@ -220,18 +220,6 @@ func createBucket(ctx context.Context, clt BootstrapS3Client, bucketName string,
 		},
 	})
 	return trace.Wrap(awsutil.ConvertS3Error(err), "setting versioning configuration on S3 bucket")
-}
-
-func createBucketConfiguration(region string) *s3types.CreateBucketConfiguration {
-	// No location constraint wanted for us-east-1 because it is the default and
-	// AWS has decided, in all their infinite wisdom, that the CreateBucket API
-	// should fail if you explicitly pass the default location constraint.
-	if region == "us-east-1" {
-		return nil
-	}
-	return &s3types.CreateBucketConfiguration{
-		LocationConstraint: s3types.BucketLocationConstraint(region),
-	}
 }
 
 // createAthenaWorkgroup creates an athena workgroup in which to run athena sql queries.

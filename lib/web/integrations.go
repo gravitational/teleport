@@ -18,6 +18,7 @@ package web
 
 import (
 	"net/http"
+	"net/url"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -45,10 +46,16 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 
 	switch req.SubKind {
 	case types.IntegrationSubKindAWSOIDC:
+		issuerS3URI := url.URL{
+			Scheme: "s3",
+			Host:   req.AWSOIDC.IssuerS3Bucket,
+			Path:   req.AWSOIDC.IssuerS3Prefix,
+		}
 		ig, err = types.NewIntegrationAWSOIDC(
 			types.Metadata{Name: req.Name},
 			&types.AWSOIDCIntegrationSpecV1{
-				RoleARN: req.AWSOIDC.RoleARN,
+				RoleARN:     req.AWSOIDC.RoleARN,
+				IssuerS3URI: issuerS3URI.String(),
 			},
 		)
 
@@ -73,7 +80,12 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeIntegration(storedIntegration), nil
+	uiIg, err := ui.MakeIntegration(storedIntegration)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return uiIg, nil
 }
 
 // integrationsUpdate updates the Integration based on its name
@@ -107,14 +119,25 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 			return nil, trace.BadParameter("cannot update %q fields for a %q integration", types.IntegrationSubKindAWSOIDC, integration.GetSubKind())
 		}
 
+		issuerS3URI := url.URL{
+			Scheme: "s3",
+			Host:   req.AWSOIDC.IssuerS3Bucket,
+			Path:   req.AWSOIDC.IssuerS3Prefix,
+		}
 		integration.SetAWSOIDCRoleARN(req.AWSOIDC.RoleARN)
+		integration.SetAWSOIDCIssuerS3URI(issuerS3URI.String())
 	}
 
 	if _, err := clt.UpdateIntegration(r.Context(), integration); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeIntegration(integration), nil
+	uiIg, err := ui.MakeIntegration(integration)
+	if err != nil {
+		return nil, err
+	}
+
+	return uiIg, nil
 }
 
 // integrationsDelete removes an Integration based on its name
@@ -153,7 +176,12 @@ func (h *Handler) integrationsGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeIntegration(ig), nil
+	uiIg, err := ui.MakeIntegration(ig)
+	if err != nil {
+		return nil, err
+	}
+
+	return uiIg, nil
 }
 
 // integrationsList returns a page of Integrations
@@ -176,8 +204,13 @@ func (h *Handler) integrationsList(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
+	items, err := ui.MakeIntegrations(igs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return ui.IntegrationsListResponse{
-		Items:   ui.MakeIntegrations(igs),
+		Items:   items,
 		NextKey: nextKey,
 	}, nil
 }
