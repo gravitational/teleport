@@ -506,7 +506,7 @@ func (s *localSite) setupTunnelForOpenSSHEICENode(ctx context.Context, targetSer
 		return nil, trace.BadParameter("missing aws cloud metadata")
 	}
 
-	token, err := s.client.GenerateAWSOIDCToken(ctx)
+	token, err := s.client.GenerateAWSOIDCToken(ctx, awsInfo.Integration)
 	if err != nil {
 		return nil, trace.BadParameter("failed to generate aws token: %v", err)
 	}
