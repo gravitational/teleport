@@ -830,7 +830,7 @@ func (s *Service) upsertAccessListMember(ctx context.Context, authCtx *authz.Con
 
 	// If the user didn't exist before, make sure the current user is recorded as the user that added it.
 	if oldMember, err := s.accessLists.GetAccessListMember(ctx, member.Spec.AccessList, member.GetName()); err == nil || trace.IsNotFound(err) {
-		updated, member = s.populateMemberFields(username, oldMember, member)
+		updated, member = populateMemberFields(s.clock, username, oldMember, member)
 	} else {
 		return nil, member.Spec.AccessList, updated, trace.Wrap(err)
 	}
@@ -862,18 +862,24 @@ func (s *Service) userTryingToAddThemselves(ctx context.Context, authCtx *authz.
 
 // populateMemberFields will populate member fields with their pre-existing values or calculate
 // new values. True will be returned if the existing values were preserved.
-func (s *Service) populateMemberFields(username string, oldMember, member *accesslist.AccessListMember) (preserved bool, populatedMember *accesslist.AccessListMember) {
+func populateMemberFields(clock clockwork.Clock, username string, oldMember, member *accesslist.AccessListMember) (preserved bool, populatedMember *accesslist.AccessListMember) {
 	if oldMember == nil {
 		// Make sure that the member metadata name matches the name in the spec.
 		member.Spec.Name = member.GetName()
 		member.Spec.AddedBy = username
-		member.Spec.Joined = s.clock.Now()
+		member.Spec.Joined = clock.Now()
 		return false, member
 	}
 
 	// If the user already existed, use existing values.
-	oldMember.Spec.Expires = member.Spec.Expires
-	return true, oldMember
+	member.Metadata = oldMember.Metadata
+	member.Spec.AccessList = oldMember.Spec.AccessList
+	member.Spec.Name = oldMember.Spec.Name
+	member.Spec.Joined = oldMember.Spec.Joined
+	member.Spec.AddedBy = oldMember.Spec.AddedBy
+	member.Spec.Reason = oldMember.Spec.Reason
+
+	return true, member
 }
 
 // emitUpsertAccessListMemberEvent will emit the create/update event for the access list member.
@@ -1281,10 +1287,10 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 		}
 		// Preserve the added by and joined fields for old members.
 		oldMember := oldMembers[m.GetName()]
+		_, m = populateMemberFields(s.clock, username, oldMember, m)
 		if err := s.canUpdateMembership(ctx, authCtx, username, oldMember, m); err != nil {
 			return nil, updated, accessListModified, nil, trace.Wrap(err)
 		}
-		_, m = s.populateMemberFields(username, oldMember, m)
 		members = append(members, m)
 	}
 

@@ -1688,12 +1688,26 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		}, require.NoError)
 
 		// Owner adds another user, including themselves, which is okay since it already exists.
+		// We'll modify joined, which is a field that should be preserved. This will verify that the modification
+		// preserves the correct values.
+		oldJoin := ownerMember.Spec.Joined
+		ownerMember.Spec.Joined = time.Date(1, 1, 1, 1, 1, 1, 1, time.UTC)
 		upsertAccessListWithMembers(t, c.ownerCtx, a2, []*accesslist.AccessListMember{
 			a2m1,
 			a2m2,
 			ownerMember,
 			newAccessListMember(t, a2.GetName(), "new-user1", c.clock),
 		}, require.NoError)
+		ownerMember.Spec.Joined = oldJoin
+
+		resp, err := c.svc.GetAccessListMember(c.userCtx, &accesslistv1.GetAccessListMemberRequest{
+			AccessList: ownerMember.Spec.AccessList,
+			MemberName: ownerMember.Metadata.Name,
+		})
+		require.NoError(t, err)
+		protoMember, err := conv.FromMemberProto(resp)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(ownerMember, protoMember, cmpOpts...), "ownerMember x storage comparison mismatch")
 
 		// Owner attempts to modify their own user.
 		ownerMember.Spec.Expires = c.clock.Now()
@@ -2233,6 +2247,209 @@ func TestService_DeleteAccessListReviews(t *testing.T) {
 		require.Equal(t, a3.GetName(), event.AccessListReviewDelete.Metadata.Id)
 		require.Equal(t, review1ForA3.GetName(), event.AccessListReviewDelete.AccessListReviewId)
 	})
+}
+
+func member(t *testing.T, metadata header.Metadata, spec accesslist.AccessListMemberSpec) *accesslist.AccessListMember {
+	t.Helper()
+
+	member, err := accesslist.NewAccessListMember(metadata, spec)
+	require.NoError(t, err)
+	return member
+}
+
+func TestPopulateMemberFields(t *testing.T) {
+	tests := []struct {
+		name          string
+		currentTime   time.Time
+		username      string
+		oldMember     *accesslist.AccessListMember
+		newMember     *accesslist.AccessListMember
+		wantPreserved bool
+		want          *accesslist.AccessListMember
+	}{
+		{
+			name:        "no old member",
+			currentTime: time.Date(2024, 1, 1, 1, 1, 1, 1, time.UTC),
+			username:    "added-by",
+			newMember: member(t, header.Metadata{Name: "member"}, accesslist.AccessListMemberSpec{
+				Name:             "member",
+				AccessList:       "access-list",
+				Joined:           time.Date(2020, 1, 1, 1, 1, 1, 1, time.UTC),
+				Reason:           "reason",
+				AddedBy:          "dummy",
+				IneligibleStatus: "ineligible",
+			}),
+			wantPreserved: false,
+			want: member(t, header.Metadata{Name: "member"}, accesslist.AccessListMemberSpec{
+				Name:             "member",
+				AccessList:       "access-list",
+				Joined:           time.Date(2024, 1, 1, 1, 1, 1, 1, time.UTC),
+				Reason:           "reason",
+				AddedBy:          "added-by",
+				IneligibleStatus: "ineligible",
+			}),
+		},
+		{
+			name:        "old member preserved almost everything",
+			currentTime: time.Date(2024, 1, 1, 1, 1, 1, 1, time.UTC),
+			username:    "added-by-ignored",
+			oldMember: member(t, header.Metadata{Name: "member", Labels: map[string]string{"label": "value"}}, accesslist.AccessListMemberSpec{
+				Name:             "member",
+				AccessList:       "original access-list",
+				Joined:           time.Date(2020, 1, 1, 1, 1, 1, 1, time.UTC),
+				Expires:          time.Date(2024, 1, 1, 1, 1, 1, 1, time.UTC),
+				Reason:           "original reason",
+				AddedBy:          "original dummy",
+				IneligibleStatus: "original ineligible",
+			}),
+			newMember: member(t, header.Metadata{Name: "member", Labels: map[string]string{"label": "value"}}, accesslist.AccessListMemberSpec{
+				Name:             "member",
+				AccessList:       "new access-list",
+				Joined:           time.Date(2020, 2, 2, 2, 2, 2, 2, time.UTC),
+				Expires:          time.Date(2024, 2, 2, 2, 2, 2, 2, time.UTC),
+				Reason:           "new reason",
+				AddedBy:          "new dummy",
+				IneligibleStatus: "new ineligible",
+			}),
+			wantPreserved: true,
+			want: member(t, header.Metadata{Name: "member", Labels: map[string]string{"label": "value"}}, accesslist.AccessListMemberSpec{
+				Name:             "member",
+				AccessList:       "original access-list",
+				Joined:           time.Date(2020, 1, 1, 1, 1, 1, 1, time.UTC),
+				Expires:          time.Date(2024, 2, 2, 2, 2, 2, 2, time.UTC),
+				Reason:           "original reason",
+				AddedBy:          "original dummy",
+				IneligibleStatus: "new ineligible",
+			}),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			preserved, member := populateMemberFields(clockwork.NewFakeClockAt(test.currentTime), test.username, test.oldMember, test.newMember)
+			require.Equal(t, test.wantPreserved, preserved)
+			require.Empty(t, cmp.Diff(test.want, member, cmpOpts...))
+		})
+	}
+}
+
+func TestCanUpdateMembership(t *testing.T) {
+	c := initSvc(t)
+
+	tests := []struct {
+		name      string
+		userCtx   context.Context
+		oldMember *accesslist.AccessListMember
+		newMember *accesslist.AccessListMember
+		wantErr   require.ErrorAssertionFunc
+	}{
+		{
+			name:    "owner adds a new user",
+			userCtx: genUserContext(context.Background(), ownerUser, nil, nil),
+			newMember: member(t, header.Metadata{Name: "new-user"}, accesslist.AccessListMemberSpec{
+				Name:             "new-user",
+				AccessList:       "access-list",
+				Joined:           time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+				Reason:           "reason",
+				AddedBy:          "owner",
+				IneligibleStatus: "ineligible",
+			}),
+			wantErr: require.NoError,
+		},
+		{
+			name:    "owner modifies a different user",
+			userCtx: genUserContext(context.Background(), ownerUser, nil, nil),
+			oldMember: member(t, header.Metadata{Name: "new-user"}, accesslist.AccessListMemberSpec{
+				Name:             "new-user",
+				AccessList:       "access-list",
+				Joined:           time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+				Reason:           "reason",
+				AddedBy:          "owner",
+				IneligibleStatus: "ineligible",
+			}),
+			newMember: member(t, header.Metadata{Name: "new-user"}, accesslist.AccessListMemberSpec{
+				Name:             "new-user",
+				AccessList:       "access-list",
+				Joined:           time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+				Expires:          time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
+				Reason:           "reason",
+				AddedBy:          "owner",
+				IneligibleStatus: "ineligible",
+			}),
+			wantErr: require.NoError,
+		},
+		{
+			name:    "owner adds itself",
+			userCtx: genUserContext(context.Background(), ownerUser, nil, nil),
+			newMember: member(t, header.Metadata{Name: ownerUser}, accesslist.AccessListMemberSpec{
+				Name:             ownerUser,
+				AccessList:       "access-list",
+				Joined:           time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+				Reason:           "reason",
+				AddedBy:          "owner",
+				IneligibleStatus: "ineligible",
+			}),
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name:    "owner modifies itself",
+			userCtx: genUserContext(context.Background(), ownerUser, nil, nil),
+			oldMember: member(t, header.Metadata{Name: ownerUser}, accesslist.AccessListMemberSpec{
+				Name:             ownerUser,
+				AccessList:       "access-list",
+				Joined:           time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+				Reason:           "reason",
+				AddedBy:          "owner",
+				IneligibleStatus: "ineligible",
+			}),
+			newMember: member(t, header.Metadata{Name: ownerUser}, accesslist.AccessListMemberSpec{
+				Name:             ownerUser,
+				AccessList:       "modified access-list",
+				Joined:           time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+				Reason:           "reason",
+				AddedBy:          "owner",
+				IneligibleStatus: "ineligible",
+			}),
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name:    "owner doesn't modify itself",
+			userCtx: genUserContext(context.Background(), ownerUser, nil, nil),
+			oldMember: member(t, header.Metadata{Name: ownerUser}, accesslist.AccessListMemberSpec{
+				Name:             ownerUser,
+				AccessList:       "access-list",
+				Joined:           time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+				Reason:           "reason",
+				AddedBy:          "owner",
+				IneligibleStatus: "ineligible",
+			}),
+			newMember: member(t, header.Metadata{Name: ownerUser}, accesslist.AccessListMemberSpec{
+				Name:             ownerUser,
+				AccessList:       "access-list",
+				Joined:           time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+				Reason:           "reason",
+				AddedBy:          "owner",
+				IneligibleStatus: "ineligible",
+			}),
+			wantErr: require.NoError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			authCtx, err := c.svc.authorizer.Authorize(test.userCtx)
+			require.NoError(t, err)
+			username, err := getUsername(authCtx)
+			require.NoError(t, err)
+
+			test.wantErr(t, c.svc.canUpdateMembership(ctx, authCtx, username, test.oldMember, test.newMember))
+		})
+	}
 }
 
 func listAllAccessListMembers(ctx context.Context, t *testing.T, service *Service, accessListName string, pageSize int) []*accesslist.AccessListMember {
