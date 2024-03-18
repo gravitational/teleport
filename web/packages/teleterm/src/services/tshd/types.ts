@@ -39,12 +39,18 @@ import * as apiAccessList from 'gen-proto-ts/teleport/accesslist/v1/accesslist_p
 
 import * as uri from 'teleterm/ui/uri';
 
-import { CloneableAbortSignal, CloneableRpcOptions } from './cloneableClient';
+import {
+  CloneableAbortSignal,
+  CloneableRpcOptions,
+  CloneableClient,
+} from './cloneableClient';
 
 // We want to reexport both the type and the value of UserType. Because it's in a namespace, we have
 // to alias it first to do the reexport.
 // https://www.typescriptlang.org/docs/handbook/namespaces.html#aliases
 import UserType = apiCluster.LoggedInUser_UserType;
+
+import type { ITerminalServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
 
 export { UserType };
 export type { CloneableAbortSignal, CloneableRpcOptions };
@@ -289,10 +295,7 @@ export type TshdClient = {
     options: FileTransferRequest,
     abortSignal?: CloneableAbortSignal
   ) => FileTransferListeners;
-  reportUsageEvent: (
-    input: ReportUsageEventRequest,
-    options?: CloneableRpcOptions
-  ) => CloneableUnaryCall<ReportUsageEventRequest, apiService.EmptyResponse>;
+  reportUsageEvent: CloneableClient<ITerminalServiceClient>['reportUsageEvent'];
   createConnectMyComputerRole: (
     rootClusterUri: uri.RootClusterUri
   ) => Promise<CreateConnectMyComputerRoleResponse>;
