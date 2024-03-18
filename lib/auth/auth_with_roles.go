@@ -378,13 +378,15 @@ func (a *ServerWithRoles) DeleteIntegration(ctx context.Context, name string) er
 }
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
+func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	igSvc, err := a.integrationsService()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{})
+	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
+		Integration: integration,
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -4661,7 +4663,7 @@ func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, newRecC
 		return trace.Wrap(err)
 	}
 
-	err = a.authServer.SetSessionRecordingConfig(ctx, newRecConfig)
+	_, err = a.authServer.UpsertSessionRecordingConfig(ctx, newRecConfig)
 
 	var msg string
 	if err != nil {
@@ -4706,7 +4708,7 @@ func (a *ServerWithRoles) ResetSessionRecordingConfig(ctx context.Context) error
 		return trace.Wrap(err)
 	}
 
-	err = a.authServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	_, err = a.authServer.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
 
 	var msg string
 	if err != nil {
@@ -4936,9 +4938,6 @@ func (a *ServerWithRoles) AcquireSemaphore(ctx context.Context, params types.Acq
 	if err := a.action(apidefaults.Namespace, types.KindSemaphore, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if a.hasBuiltinRole(types.RoleDiscovery) && params.SemaphoreKind != types.KindAccessGraph {
-		return nil, trace.AccessDenied("discovery service can not create other semaphores")
-	}
 	return a.authServer.AcquireSemaphore(ctx, params)
 }
 
@@ -4946,9 +4945,6 @@ func (a *ServerWithRoles) AcquireSemaphore(ctx context.Context, params types.Acq
 func (a *ServerWithRoles) KeepAliveSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
 	if err := a.action(apidefaults.Namespace, types.KindSemaphore, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
-	}
-	if a.hasBuiltinRole(types.RoleDiscovery) && lease.SemaphoreKind != types.KindAccessGraph {
-		return trace.AccessDenied("discovery service can not create other semaphores")
 	}
 	return a.authServer.KeepAliveSemaphoreLease(ctx, lease)
 }

@@ -2795,13 +2795,30 @@ func (c *Client) GetSessionRecordingConfig(ctx context.Context) (types.SessionRe
 }
 
 // SetSessionRecordingConfig sets session recording configuration.
+// Deprecated: Use UpdateSessionRecordingConfig or UpsertSessionRecordingConfig instead.
 func (c *Client) SetSessionRecordingConfig(ctx context.Context, recConfig types.SessionRecordingConfig) error {
 	recConfigV2, ok := recConfig.(*types.SessionRecordingConfigV2)
 	if !ok {
 		return trace.BadParameter("invalid type %T", recConfig)
 	}
+
 	_, err := c.grpc.SetSessionRecordingConfig(ctx, recConfigV2)
 	return trace.Wrap(err)
+}
+
+// setSessionRecordingConfig sets session recording configuration.
+func (c *Client) setSessionRecordingConfig(ctx context.Context, recConfig types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	recConfigV2, ok := recConfig.(*types.SessionRecordingConfigV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", recConfig)
+	}
+
+	if _, err := c.grpc.SetSessionRecordingConfig(ctx, recConfigV2); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg, err := c.grpc.GetSessionRecordingConfig(ctx, &emptypb.Empty{})
+	return cfg, trace.Wrap(err)
 }
 
 // ResetSessionRecordingConfig resets session recording configuration to defaults.
@@ -2823,6 +2840,11 @@ func (c *Client) UpdateSessionRecordingConfig(ctx context.Context, cfg types.Ses
 	}
 
 	updated, err := c.ClusterConfigClient().UpdateSessionRecordingConfig(ctx, &clusterconfigpb.UpdateSessionRecordingConfigRequest{SessionRecordingConfig: v2})
+	// TODO(tross) DELETE IN v18.0.0
+	if trace.IsNotImplemented(err) {
+		cfg, err = c.setSessionRecordingConfig(ctx, v2)
+		return cfg, trace.Wrap(err)
+	}
 	return updated, trace.Wrap(err)
 }
 
@@ -2834,6 +2856,11 @@ func (c *Client) UpsertSessionRecordingConfig(ctx context.Context, cfg types.Ses
 	}
 
 	updated, err := c.ClusterConfigClient().UpsertSessionRecordingConfig(ctx, &clusterconfigpb.UpsertSessionRecordingConfigRequest{SessionRecordingConfig: v2})
+	// TODO(tross) DELETE IN v18.0.0
+	if trace.IsNotImplemented(err) {
+		cfg, err = c.setSessionRecordingConfig(ctx, v2)
+		return cfg, trace.Wrap(err)
+	}
 	return updated, trace.Wrap(err)
 }
 
@@ -4569,8 +4596,10 @@ func (c *Client) DeleteAllIntegrations(ctx context.Context) error {
 }
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (c *Client) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
-	resp, err := c.integrationsClient().GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{})
+func (c *Client) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
+	resp, err := c.integrationsClient().GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
+		Integration: integration,
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

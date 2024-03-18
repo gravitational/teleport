@@ -71,9 +71,6 @@ type ClusterConfiguration interface {
 	UpdateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error)
 	// UpsertSessionRecordingConfig creates a new session recording config or overwrites the existing session recording.
 	UpsertSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error)
-	// SetSessionRecordingConfig sets SessionRecordingConfig from the backend.
-	// TODO(tross): Deprecate/Remove this once everything is converted to use the new methods.
-	SetSessionRecordingConfig(context.Context, types.SessionRecordingConfig) error
 	// DeleteSessionRecordingConfig deletes SessionRecordingConfig from the backend.
 	DeleteSessionRecordingConfig(ctx context.Context) error
 

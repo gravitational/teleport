@@ -556,14 +556,16 @@ func (s *ClusterConfigurationService) UpsertSessionRecordingConfig(ctx context.C
 		return nil, trace.Wrap(err)
 	}
 
+	rev := cfg.GetRevision()
 	value, err := services.MarshalSessionRecordingConfig(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(clusterConfigPrefix, sessionRecordingPrefix),
-		Value: value,
+		Key:      backend.Key(clusterConfigPrefix, sessionRecordingPrefix),
+		Value:    value,
+		Revision: rev,
 	}
 
 	lease, err := s.Backend.Put(ctx, item)
@@ -573,12 +575,6 @@ func (s *ClusterConfigurationService) UpsertSessionRecordingConfig(ctx context.C
 
 	cfg.SetRevision(lease.Revision)
 	return cfg, nil
-}
-
-// SetSessionRecordingConfig sets session recording config on the backend.
-func (s *ClusterConfigurationService) SetSessionRecordingConfig(ctx context.Context, recConfig types.SessionRecordingConfig) error {
-	_, err := s.UpsertSessionRecordingConfig(ctx, recConfig)
-	return trace.Wrap(err)
 }
 
 // DeleteSessionRecordingConfig deletes SessionRecordingConfig from the backend.

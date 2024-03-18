@@ -29,6 +29,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 )
 
@@ -107,6 +109,12 @@ func updateServiceContainerImage(ctx context.Context, clt DeployServiceClient, l
 
 	registerTaskDefinitionIn, err := generateTaskDefinitionWithImage(taskDefinition, teleportImage, ownershipTags.ToECSTags())
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Ensure that the upgrader variables are set.
+	// These will ensure that the instance reports Teleport upgrader metrics.
+	if err := ensureUpgraderEnvironmentVariables(registerTaskDefinitionIn); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -279,6 +287,36 @@ func generateTaskDefinitionWithImage(taskDefinition *ecsTypes.TaskDefinition, te
 	registerTaskDefinitionIn.Tags = tags
 
 	return registerTaskDefinitionIn, nil
+}
+
+// ensureUpgraderEnvironmentVariables modifies the taskDefinition and ensures that
+// the upgrader specific environment variables are set.
+func ensureUpgraderEnvironmentVariables(taskDefinition *ecs.RegisterTaskDefinitionInput) error {
+	containerDefinitions := []ecsTypes.ContainerDefinition{}
+	for _, containerDefinition := range taskDefinition.ContainerDefinitions {
+		environment := []ecsTypes.KeyValuePair{}
+
+		// Copy non-upgrader specific environemt variables as is
+		for _, env := range containerDefinition.Environment {
+			if aws.ToString(env.Name) == automaticupgrades.EnvUpgrader ||
+				aws.ToString(env.Name) == automaticupgrades.EnvUpgraderVersion {
+				continue
+			}
+			environment = append(environment, env)
+		}
+
+		// Ensure ugprader specific environment variables are set
+		environment = append(environment,
+			ecsTypes.KeyValuePair{
+				Name:  aws.String(automaticupgrades.EnvUpgraderVersion),
+				Value: aws.String(teleport.Version),
+			},
+		)
+		containerDefinition.Environment = environment
+		containerDefinitions = append(containerDefinitions, containerDefinition)
+	}
+	taskDefinition.ContainerDefinitions = containerDefinitions
+	return nil
 }
 
 // generateServiceWithTaskDefinition returns new update service input with the desired task definition

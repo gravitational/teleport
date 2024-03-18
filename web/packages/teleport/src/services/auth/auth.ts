@@ -83,15 +83,6 @@ const auth = {
       .then(makeMfaAuthenticateChallenge);
   },
 
-  // changePasswordBegin retrieves users mfa challenges for their
-  // registered devices after verifying given password from an
-  // authenticated user.
-  mfaChangePasswordBegin(oldPass: string) {
-    return api
-      .post(cfg.api.mfaChangePasswordBegin, { pass: oldPass })
-      .then(makeMfaAuthenticateChallenge);
-  },
-
   login(userId: string, password: string, otpCode: string) {
     const data = {
       user: userId,
@@ -212,26 +203,6 @@ const auth = {
     };
 
     return api.put(cfg.api.changeUserPasswordPath, data);
-  },
-
-  changePasswordWithWebauthn(oldPass: string, newPass: string) {
-    return auth
-      .checkWebauthnSupport()
-      .then(() => api.post(cfg.api.mfaChangePasswordBegin, { pass: oldPass }))
-      .then(res =>
-        navigator.credentials.get({
-          publicKey: makeMfaAuthenticateChallenge(res).webauthnPublicKey,
-        })
-      )
-      .then(res => {
-        const request = {
-          old_password: base64EncodeUnicode(oldPass),
-          new_password: base64EncodeUnicode(newPass),
-          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
-        };
-
-        return api.put(cfg.api.changeUserPasswordPath, request);
-      });
   },
 
   headlessSSOGet(transactionId: string) {
