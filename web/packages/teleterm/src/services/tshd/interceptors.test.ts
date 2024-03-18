@@ -46,7 +46,7 @@ it('do not log sensitive info like password', () => {
     {}
   );
 
-  expect(infoLogger).toHaveBeenCalledWith('LogIn REQUEST:', {
+  expect(infoLogger).toHaveBeenCalledWith('LogIn request:', {
     passw: '~FILTERED~',
     userData: { login: 'admin', password: '~FILTERED~' },
   });
