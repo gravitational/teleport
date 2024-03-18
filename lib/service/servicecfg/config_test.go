@@ -20,6 +20,7 @@ package servicecfg
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"path/filepath"
 	"regexp"
@@ -725,15 +726,19 @@ func TestSetLogLevel(t *testing.T) {
 		},
 	} {
 		t.Run(test.logLevel.String(), func(t *testing.T) {
-			c := MakeDefaultConfig()
-			require.NotNil(t, c)
+			// Create a configuration with local loggers to avoid modifying the
+			// global instances.
+			c := &Config{
+				Log:    logrus.New(),
+				Logger: slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
+			}
+			ApplyDefaults(c)
 
 			c.SetLogLevel(test.logLevel)
 			require.Equal(t, test.logLevel, c.LoggerLevel.Level())
 			require.IsType(t, &logrus.Logger{}, c.Log)
 			l, _ := c.Log.(*logrus.Logger)
 			require.Equal(t, test.expectedLogrusLevel, l.GetLevel())
-			require.Equal(t, test.expectedLogrusLevel, logrus.StandardLogger().GetLevel())
 		})
 	}
 }

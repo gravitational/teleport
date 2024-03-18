@@ -771,9 +771,10 @@ func verifyEnabledService(cfg *Config) error {
 }
 
 // SetLogLevel changes the loggers log level.
+//
+// If called after `config.ApplyFileConfig` or `config.Configure` it will also
+// change the global loggers.
 func (c *Config) SetLogLevel(level slog.Level) {
-	logrusLevel := logutils.SlogLevelToLogrusLevel(level)
-	logrus.SetLevel(logrusLevel)
-	c.Log.SetLevel(logrusLevel)
+	c.Log.SetLevel(logutils.SlogLevelToLogrusLevel(level))
 	c.LoggerLevel.Set(level)
 }
