@@ -60,7 +60,7 @@ export async function retryWithRelogin<T>(
   } catch (error) {
     if (isRetryable(error)) {
       retryableErrorFromActionToRetry = error;
-      logger.info(`Activating relogin on error ${error}`);
+      logger.info(`Activating relogin on error`, error);
     } else {
       throw error;
     }
@@ -94,10 +94,7 @@ export async function retryWithRelogin<T>(
 }
 
 export function isRetryable(error: unknown): boolean {
-  if (isTshdRpcError(error)) {
-    return error.isResolvableWithRelogin;
-  }
-  return false;
+  return isTshdRpcError(error) && error.isResolvableWithRelogin;
 }
 
 // Notice that we don't differentiate between onSuccess and onCancel. In both cases, we're going to

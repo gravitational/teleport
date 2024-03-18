@@ -39,11 +39,7 @@ import * as apiAccessList from 'gen-proto-ts/teleport/accesslist/v1/accesslist_p
 
 import * as uri from 'teleterm/ui/uri';
 
-import {
-  CloneableAbortSignal,
-  CloneableUnaryCall,
-  CloneableRpcOptions,
-} from './cloneableClient';
+import { CloneableAbortSignal, CloneableRpcOptions } from './cloneableClient';
 
 // We want to reexport both the type and the value of UserType. Because it's in a namespace, we have
 // to alias it first to do the reexport.
@@ -51,7 +47,7 @@ import {
 import UserType = apiCluster.LoggedInUser_UserType;
 
 export { UserType };
-export type { CloneableAbortSignal, CloneableUnaryCall, CloneableRpcOptions };
+export type { CloneableAbortSignal, CloneableRpcOptions };
 
 export interface Kube extends apiKube.Kube {
   uri: uri.KubeUri;
