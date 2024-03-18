@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
+	"github.com/gravitational/teleport/integrations/operator/controllers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 )
 
 // githubConnectorClient implements TeleportResourceClient and offers CRUD methods needed to reconcile github_connectors
@@ -58,12 +60,12 @@ func (r githubConnectorClient) Delete(ctx context.Context, name string) error {
 }
 
 // NewGithubConnectorReconciler instantiates a new Kubernetes controller reconciling github_connector resources
-func NewGithubConnectorReconciler(client kclient.Client, tClient *client.Client) (Reconciler, error) {
+func NewGithubConnectorReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
 	githubClient := &githubConnectorClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler, err := NewTeleportResourceReconciler[types.GithubConnector, *resourcesv3.TeleportGithubConnector](
+	resourceReconciler, err := reconcilers.NewTeleportResourceWithoutLabelsReconciler[types.GithubConnector, *resourcesv3.TeleportGithubConnector](
 		client,
 		githubClient,
 	)

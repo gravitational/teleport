@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -79,7 +80,7 @@ type SSHServerWrapperConfig struct {
 // NewSSHServerWrapper creates a [SSHServerWrapper].
 func NewSSHServerWrapper(cfg SSHServerWrapperConfig) *SSHServerWrapper {
 	if cfg.Log == nil {
-		cfg.Log = logrus.WithField(trace.Component, Component)
+		cfg.Log = logrus.WithField(teleport.ComponentKey, Component)
 	}
 
 	return &SSHServerWrapper{

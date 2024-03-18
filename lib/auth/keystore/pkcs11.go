@@ -33,6 +33,7 @@ import (
 	"github.com/miekg/pkcs11"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -91,7 +92,7 @@ func newPKCS11KeyStore(config *PKCS11Config, logger logrus.FieldLogger) (*pkcs11
 		return nil, trace.Wrap(err, "getting PKCS#11 module info")
 	}
 
-	logger = logger.WithFields(logrus.Fields{trace.Component: "PKCS11KeyStore"})
+	logger = logger.WithFields(logrus.Fields{teleport.ComponentKey: "PKCS11KeyStore"})
 
 	return &pkcs11KeyStore{
 		ctx:       ctx,

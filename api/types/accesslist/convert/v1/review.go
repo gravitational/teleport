@@ -76,9 +76,7 @@ func FromReviewProto(msg *accesslistv1.Review) (*accesslist.Review, error) {
 func ToReviewProto(review *accesslist.Review) *accesslistv1.Review {
 	var reviewChanges *accesslistv1.ReviewChanges
 	if review.Spec.Changes.MembershipRequirementsChanged != nil {
-		if reviewChanges == nil {
-			reviewChanges = &accesslistv1.ReviewChanges{}
-		}
+		reviewChanges = &accesslistv1.ReviewChanges{}
 
 		reviewChanges.MembershipRequirementsChanged = &accesslistv1.AccessListRequires{
 			Roles:  review.Spec.Changes.MembershipRequirementsChanged.Roles,

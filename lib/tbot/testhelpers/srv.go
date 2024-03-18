@@ -47,6 +47,8 @@ type DefaultBotConfigOpts struct {
 
 	// Makes the bot accept an Insecure auth or proxy server
 	Insecure bool
+
+	ServiceConfigs botconfig.ServiceConfigs
 }
 
 // DefaultConfig returns a FileConfig to be used in tests, with random listen
@@ -115,7 +117,7 @@ func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileCon
 // MakeDefaultAuthClient reimplements the bare minimum needed to create a
 // default root-level auth client for a Teleport server started by
 // MakeAndRunTestAuthServer.
-func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig) auth.ClientI {
+func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig) *auth.Client {
 	t.Helper()
 
 	cfg := servicecfg.MakeDefaultConfig()
@@ -161,7 +163,7 @@ func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig
 }
 
 // MakeBot creates a server-side bot and returns joining parameters.
-func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) (*botconfig.OnboardingConfig, *machineidv1pb.Bot) {
+func MakeBot(t *testing.T, client *auth.Client, name string, roles ...string) (*botconfig.OnboardingConfig, *machineidv1pb.Bot) {
 	ctx := context.TODO()
 	t.Helper()
 
@@ -203,7 +205,11 @@ func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) (*
 // - Uses a memory storage destination
 // - Does not verify Proxy WebAPI certificates
 func DefaultBotConfig(
-	t *testing.T, fc *config.FileConfig, onboarding *botconfig.OnboardingConfig, outputs []botconfig.Output, opts DefaultBotConfigOpts,
+	t *testing.T,
+	fc *config.FileConfig,
+	onboarding *botconfig.OnboardingConfig,
+	outputs []botconfig.Output,
+	opts DefaultBotConfigOpts,
 ) *botconfig.BotConfig {
 	t.Helper()
 
@@ -227,6 +233,7 @@ func DefaultBotConfig(
 		// Set Insecure so the bot will trust the Proxy's webapi default signed
 		// certs.
 		Insecure: opts.Insecure,
+		Services: opts.ServiceConfigs,
 	}
 
 	require.NoError(t, cfg.CheckAndSetDefaults())

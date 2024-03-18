@@ -171,7 +171,6 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		}
 		specResource = server.GetDatabase()
 		resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
-
 	case types.KindAppServer, types.KindSAMLIdPServiceProvider, types.KindAppOrSAMLIdPServiceProvider:
 		switch appOrSP := resource.(type) {
 		case types.AppServer:
