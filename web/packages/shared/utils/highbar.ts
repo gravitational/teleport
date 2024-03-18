@@ -110,7 +110,8 @@ export function runOnce<T extends (...args) => any>(func: T) {
   let result;
   return function () {
     if (--n > 0) {
-      result = func.apply(this, arguments);
+      // This implementation does not pass strictBindCallApply check.
+      result = func.apply(this, arguments as any);
     }
     if (n <= 1) {
       func = undefined;
@@ -292,6 +293,7 @@ export function debounce<T extends (...args: any) => any>(
     }
     return result;
   }
+
   debounced.cancel = cancel;
   debounced.flush = flush;
   return debounced;
@@ -327,7 +329,8 @@ export function memoize<T extends (...args: any) => any>(
     if (cache.has(key)) {
       return cache.get(key);
     }
-    const result = func.apply(this, args);
+    // `as any` because the implementation does not pass strictBindCallApply check.
+    const result = func.apply(this, args as any);
     memoized.cache = cache.set(key, result) || cache;
     return result;
   };

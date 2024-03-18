@@ -16,14 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export function isAccessDeniedError(error: Error): boolean {
-  return (error.message as string)?.includes('access denied');
+import { isTshdRpcError } from './cloneableClient';
+
+export function isAccessDeniedError(error: unknown): boolean {
+  // TODO(gzdunek): Replace it with check on the code field.
+  if (isTshdRpcError(error)) {
+    return error.message.includes('access denied');
+  }
+  return false;
 }
 
-export function isNotFoundError(error: Error): boolean {
-  return (error.message as string)?.includes('NOT_FOUND');
+export function isNotFoundError(error: unknown): boolean {
+  if (isTshdRpcError(error)) {
+    return error.code === 'NOT_FOUND';
+  }
+  return false;
 }
 
-export function isUnimplementedError(error: Error): boolean {
-  return (error.message as string)?.includes('UNIMPLEMENTED');
+export function isUnimplementedError(error: unknown): boolean {
+  if (isTshdRpcError(error)) {
+    return error.code === 'UNIMPLEMENTED';
+  }
+  return false;
 }
