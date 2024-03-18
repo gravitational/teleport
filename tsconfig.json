@@ -12,6 +12,7 @@
     "jsx": "react-jsx",
     "module": "esnext",
     "moduleResolution": "bundler",
+    "strictBindCallApply": true,
     "noEmit": true,
     "noEmitHelpers": true,
     "resolveJsonModule": true,

@@ -44,12 +44,12 @@ export function useKeyBasedPagination<T>({
     attempt: Attempt;
     finished: boolean;
     resources: T[];
-    startKey: string | null;
+    startKey: string;
   }>({
     attempt: { status: '', statusText: '' },
     finished: false,
     resources: [],
-    startKey: null,
+    startKey: '',
   });
 
   // Ephemeral state used solely to coordinate fetch calls, doesn't need to
@@ -64,7 +64,7 @@ export function useKeyBasedPagination<T>({
 
     setState({
       attempt: { status: '', statusText: '' },
-      startKey: null,
+      startKey: '',
       finished: false,
       resources: [],
     });

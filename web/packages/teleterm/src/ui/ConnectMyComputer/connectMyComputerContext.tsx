@@ -32,11 +32,12 @@ import {
   useAsync,
   makeEmptyAttempt,
 } from 'shared/hooks/useAsync';
+import { wait } from 'shared/utils/wait';
 
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { Server, TshAbortSignal } from 'teleterm/services/tshd/types';
-import createAbortController from 'teleterm/services/tshd/createAbortController';
+import { Server } from 'teleterm/services/tshd/types';
+import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
 import { isNotFoundError } from 'teleterm/services/tshd/errors';
 import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
@@ -202,12 +203,12 @@ export const ConnectMyComputerContextProvider: FC<
 
       await connectMyComputerService.runAgent(rootClusterUri);
 
-      const abortController = createAbortController();
+      const abortController = new AbortController();
       try {
         const server = await Promise.race([
           connectMyComputerService.waitForNodeToJoin(
             rootClusterUri,
-            abortController.signal
+            cloneAbortSignal(abortController.signal)
           ),
           throwOnAgentProcessErrors(
             mainProcessClient,
@@ -495,7 +496,7 @@ export const useConnectMyComputerContext = () => {
 function throwOnAgentProcessErrors(
   mainProcessClient: MainProcessClient,
   rootClusterUri: RootClusterUri,
-  abortSignal: TshAbortSignal
+  abortSignal: AbortSignal
 ): Promise<never> {
   return new Promise((_, reject) => {
     const rejectOnError = (agentProcessState: AgentProcessState) => {
@@ -514,7 +515,7 @@ function throwOnAgentProcessErrors(
       rootClusterUri,
       rejectOnError
     );
-    abortSignal.addEventListener(() => {
+    abortSignal.addEventListener('abort', () => {
       cleanup();
       reject(
         new DOMException('throwOnAgentProcessErrors was aborted', 'AbortError')
@@ -569,29 +570,4 @@ export class AgentCompatibilityError extends Error {
     super(message);
     this.name = 'AgentCompatibilityError';
   }
-}
-
-/**
- * wait is like wait from the shared package, but it works with TshAbortSignal.
- * TODO(ravicious): Refactor TshAbortSignal so that its interface is the same as AbortSignal.
- * See the comment in createAbortController for more details.
- */
-function wait(ms: number, abortSignal: TshAbortSignal): Promise<void> {
-  if (abortSignal.aborted) {
-    return Promise.reject(new DOMException('Wait was aborted.', 'AbortError'));
-  }
-
-  return new Promise((resolve, reject) => {
-    const abort = () => {
-      clearTimeout(timeout);
-      reject(new DOMException('Wait was aborted.', 'AbortError'));
-    };
-    const done = () => {
-      abortSignal.removeEventListener(abort);
-      resolve();
-    };
-
-    const timeout = setTimeout(done, ms);
-    abortSignal.addEventListener(abort);
-  });
 }
