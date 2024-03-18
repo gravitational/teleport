@@ -99,7 +99,7 @@ test('response error is cloned as an object for a unary call', async () => {
 
   let error: unknown;
   try {
-    // Normally we would simply await `cloned({})`, but jest doesn't support
+    // Normally we would simply await `client.fakeMethod()`, but jest doesn't support
     // thenables https://github.com/jestjs/jest/issues/10501.
     await client.fakeMethod().then();
   } catch (e) {

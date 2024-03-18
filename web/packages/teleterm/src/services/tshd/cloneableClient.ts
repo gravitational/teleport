@@ -33,6 +33,10 @@ import {
  * Can be produced with `cloneAbortSignal()`.
  */
 export type CloneableAbortSignal = AbortSignal & {
+  /**
+   * It's an arbitrary property that lets us distinguish `CloneableAbortSignal`
+   * from `AbortSignal` on type level.
+   */
   canBePassedThroughContextBridge: true;
 };
 
