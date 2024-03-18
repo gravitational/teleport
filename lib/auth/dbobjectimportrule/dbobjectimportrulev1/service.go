@@ -28,9 +28,9 @@ import (
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 )
 
 // Backend interface for manipulating DatabaseObjectImportRule resources.
