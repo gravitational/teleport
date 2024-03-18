@@ -22,7 +22,6 @@ package uds
 
 import (
 	"errors"
-	"syscall"
 
 	"github.com/gravitational/trace"
 )

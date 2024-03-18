@@ -24,6 +24,7 @@ import { RequestState } from 'e-teleport/services/workflow';
 import { SortType } from 'design/DataTable/types';
 import { FileTransferListeners } from 'shared/components/FileTransfer';
 import { NodeSubKind } from 'shared/services';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import * as apiCluster from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import * as apiDb from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import * as apiGateway from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
@@ -391,15 +392,13 @@ export type ReviewAccessRequestParams = {
   reason: string;
   roles: string[];
   id: string;
+  assumeStartTime?: Timestamp;
 };
 
-export type CreateAccessRequestParams = {
-  rootClusterUri: uri.RootClusterUri;
-  reason: string;
-  roles: string[];
-  suggestedReviewers: string[];
-  resourceIds: { kind: ResourceKind; clusterName: string; id: string }[];
-};
+export type CreateAccessRequestParams =
+  apiService.CreateAccessRequestRequest & {
+    rootClusterUri: uri.RootClusterUri;
+  };
 
 export type GetRequestableRolesParams = {
   rootClusterUri: uri.RootClusterUri;

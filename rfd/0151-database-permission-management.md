@@ -1,6 +1,6 @@
 ---
 authors: Krzysztof Skrzętnicki (krzysztof.skrzetnicki@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 151 - Database Permission Management
@@ -43,12 +43,51 @@ expected values for object names are specified as a list, while the matching
 uses glob-like semantics, with `*` matching any set of characters. Empty list of
 names matches nothing, while an empty scope matches everything.
 
+The labels applied by the import rules can reference the object properties, like
+`schema` or `database`, to populate the labels with dynamic, object-dependent
+values.
+
 #### Examples
 
-The `widget-prod` import rule applies to databases with `env: prod` label. It
-has the priority 10. If there is a database object that matches the clauses in
-`spec.mappings.match`, the import rule will apply the specified labels to the
-database object (`env: prod`, `product: WidgetMaster3000`).
+The `import_all_objects` below is a catch-all import rule which tags all objects
+in all databases with values taken from database object spec. This also a
+default import rule that will be created on startup if there are no other rules
+present.
+
+```yaml
+kind: db_object_import_rule
+metadata:
+  name: import_all_objects
+  namespace: default
+spec:
+  database_labels:
+    - name: '*'
+      values:
+        - '*'
+  mappings:
+    - add_labels:
+        database: '{{obj.database}}'
+        kind: '{{obj.object_kind}}'
+        name: '{{obj.name}}'
+        protocol: '{{obj.protocol}}'
+        schema: '{{obj.schema}}'
+        service_name: '{{obj.database_service_name}}'
+      match:
+        procedure_names:
+          - '*'
+        table_names:
+          - '*'
+        view_names:
+          - '*'
+version: v1
+```
+
+As another example, the `widget-prod` import rule applies to databases with
+`env: prod` label. It has the priority 10. If there is a database object that
+matches the clauses in `spec.mappings.match`, the import rule will apply the
+specified labels to the database object (`env: prod`,
+`product: WidgetMaster3000`). The `local_id` label references multiple values,
+which will be concatenated to produce a single string.
 
 ```yaml
 kind: db_object_import_rule
@@ -57,7 +96,7 @@ metadata:
   name: rule_widget_prod
 spec:
   priority: 10
-  db_labels:
+  database_labels:
     env: prod
   mappings:
     - scope:
@@ -78,6 +117,7 @@ spec:
       add_labels:
         env: prod
         product: WidgetMaster3000
+        schema_with_prefix: 'schema-{{obj.schema}}'
 ```
 
 There is a Postgres database with a matching labels. Parsing the schema, a
@@ -132,7 +172,7 @@ version: v1
 metadata:
   name: mark_confidential
 spec:
-  db_labels:
+  database_labels:
     env: prod
   mappings:
     - scope:
@@ -159,7 +199,7 @@ version: v1
 metadata:
   name: import_all_staging_tables
 spec:
-  db_labels:
+  database_labels:
     env: staging
   mappings:
     - add_labels:
@@ -182,7 +222,7 @@ version: v1
 metadata:
   name: import_specific_tables
 spec:
-  db_labels:
+  database_labels:
     env: dev
   mappings:
     - add_labels:
@@ -284,7 +324,7 @@ kind: db_object_import_rule
 metadata:
   name: object-kind
 spec:
-  db_labels:
+  database_labels:
     '*': '*'
   mappings:
     - add_labels:

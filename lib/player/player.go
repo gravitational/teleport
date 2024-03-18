@@ -30,6 +30,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 )
@@ -108,7 +109,7 @@ func New(cfg *Config) (*Player, error) {
 
 	var log logrus.FieldLogger = cfg.Log
 	if log == nil {
-		log = logrus.New().WithField(trace.Component, "player")
+		log = logrus.New().WithField(teleport.ComponentKey, "player")
 	}
 
 	p := &Player{

@@ -302,7 +302,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	s := &Server{
 		c: c,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentApp,
+			teleport.ComponentKey: teleport.ComponentApp,
 		}),
 		heartbeats:    make(map[string]*srv.Heartbeat),
 		dynamicLabels: make(map[string]*labels.Dynamic),

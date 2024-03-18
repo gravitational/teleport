@@ -341,7 +341,7 @@ type TOTPRegisterChallenge struct {
 // initClient creates a new client to the HTTPS web proxy.
 func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeaders map[string]string, opts ...roundtrip.ClientParam) (*WebClient, *url.URL, error) {
 	log := logrus.WithFields(logrus.Fields{
-		trace.Component: teleport.ComponentClient,
+		teleport.ComponentKey: teleport.ComponentClient,
 	})
 	log.Debugf("HTTPS client init(proxyAddr=%v, insecure=%v, extraHeaders=%v)", proxyAddr, insecure, extraHeaders)
 

@@ -781,7 +781,7 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 					},
 				})
 				require.NoError(t, err)
-				err = srv.Auth().SetAuthPreference(ctx, ap)
+				_, err = srv.Auth().UpsertAuthPreference(ctx, ap)
 				require.NoError(t, err)
 
 				return &proto.CompleteAccountRecoveryRequest{
@@ -805,7 +805,7 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 					SecondFactor: constants.SecondFactorOTP,
 				})
 				require.NoError(t, err)
-				err = srv.Auth().SetAuthPreference(ctx, ap)
+				_, err = srv.Auth().UpsertAuthPreference(ctx, ap)
 				require.NoError(t, err)
 
 				return &proto.CompleteAccountRecoveryRequest{
@@ -1111,7 +1111,7 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = srv.Auth().SetAuthPreference(ctx, ap)
+	_, err = srv.Auth().UpsertAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
 	cases := []struct {
@@ -1216,7 +1216,7 @@ func TestGetAccountRecoveryCodes(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPreference)
+	_, err = srv.Auth().UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
 	u, err := createUserWithSecondFactors(srv)
@@ -1278,7 +1278,7 @@ func createUserWithSecondFactors(testServer *TestTLSServer) (*userAuthCreds, err
 	}
 
 	authServer := testServer.Auth()
-	if err := authServer.SetAuthPreference(ctx, ap); err != nil {
+	if _, err = authServer.UpsertAuthPreference(ctx, ap); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

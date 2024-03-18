@@ -14,19 +14,22 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package permissions
+package databaseobjectimportrule
 
 import (
+	"maps"
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/defaults"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	databaseobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/databaseobject"
-	"github.com/gravitational/teleport/api/types/databaseobjectimportrule"
 	"github.com/gravitational/teleport/api/types/label"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
 )
 
 func TestApplyDatabaseObjectImportRules(t *testing.T) {
@@ -56,16 +59,31 @@ func TestApplyDatabaseObjectImportRules(t *testing.T) {
 	}
 
 	mkImportRule := func(name string, spec *databaseobjectimportrulev1.DatabaseObjectImportRuleSpec) *databaseobjectimportrulev1.DatabaseObjectImportRule {
-		out, err := databaseobjectimportrule.NewDatabaseObjectImportRule(name, spec)
+		out, err := NewDatabaseObjectImportRule(name, spec)
 		require.NoError(t, err)
 		return out
 	}
+
+	mkImportRuleNoValidation := func(name string, spec *databaseobjectimportrulev1.DatabaseObjectImportRuleSpec) *databaseobjectimportrulev1.DatabaseObjectImportRule {
+		out := &databaseobjectimportrulev1.DatabaseObjectImportRule{
+			Kind:    types.KindDatabaseObjectImportRule,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name:      name,
+				Namespace: defaults.Namespace,
+			},
+			Spec: spec,
+		}
+		return out
+	}
+
 	tests := []struct {
 		name     string
 		rules    []*databaseobjectimportrulev1.DatabaseObjectImportRule
 		database types.Database
 		objs     []*dbobjectv1.DatabaseObject
 		want     []*dbobjectv1.DatabaseObject
+		errCount int
 	}{
 		{
 			name:     "empty inputs",
@@ -173,15 +191,73 @@ func TestApplyDatabaseObjectImportRules(t *testing.T) {
 				}),
 			},
 		},
+		{
+			name: "errors are counted",
+			rules: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
+				mkImportRule("foo", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+					Priority:       10,
+					DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
+					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
+						{
+							Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+								TableNames: []string{"*"},
+							},
+							AddLabels: map[string]string{
+								"dev_access":    "rw",
+								"flag_from_dev": "dummy",
+							},
+						},
+					},
+				}),
+
+				mkImportRuleNoValidation("bar", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+					Priority:       20,
+					DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
+					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
+						{
+							Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+								TableNames: []string{"*"},
+							},
+							AddLabels: map[string]string{
+								"dev_access":     "ro",
+								"flag_from_prod": "dummy",
+							},
+						},
+						{
+							Match:     &databaseobjectimportrulev1.DatabaseObjectImportMatch{TableNames: []string{"bar", "baz"}},
+							AddLabels: map[string]string{"error label": "{{foo()}}"},
+						},
+					},
+				}),
+			},
+			database: mkDatabase("dummy", map[string]string{}),
+			objs: []*dbobjectv1.DatabaseObject{
+				mkDatabaseObject("foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
+				mkDatabaseObject("bar", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
+				mkDatabaseObject("baz", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
+			},
+			want: []*dbobjectv1.DatabaseObject{
+				mkDatabaseObject("foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}, func(db *dbobjectv1.DatabaseObject) error {
+					db.Metadata.Labels = map[string]string{
+						"dev_access":     "ro",
+						"flag_from_dev":  "dummy",
+						"flag_from_prod": "dummy",
+					}
+					return nil
+				}),
+			},
+			errCount: 2,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out := ApplyDatabaseObjectImportRules(tt.rules, tt.database, tt.objs)
+			out, errCount := ApplyDatabaseObjectImportRules(logrus.StandardLogger(), tt.rules, tt.database, tt.objs)
 			require.Len(t, out, len(tt.want))
 			for i, obj := range out {
 				require.Equal(t, tt.want[i].String(), obj.String())
 			}
+			require.Equal(t, tt.errCount, errCount)
 		})
 	}
 }
@@ -401,6 +477,229 @@ func Test_databaseObjectScopeMatch(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.want, databaseObjectScopeMatch(tt.scope, spec))
+		})
+	}
+}
+
+func Test_applyMappingToObject(t *testing.T) {
+	spec := &dbobjectv1.DatabaseObjectSpec{
+		Database:            "db3",
+		DatabaseServiceName: "service3",
+		Protocol:            "postgres",
+		ObjectKind:          ObjectKindTable,
+		Name:                "object3",
+		Schema:              "schema3",
+	}
+
+	tests := []struct {
+		name       string
+		mapping    *databaseobjectimportrulev1.DatabaseObjectImportRuleMapping
+		labels     map[string]string
+		wantLabels map[string]string
+		wantMatch  bool
+		wantError  bool
+	}{
+		{
+			name: "simple templates",
+			mapping: &databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
+				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+					TableNames: []string{"*"},
+				},
+				AddLabels: map[string]string{
+					"plain_label":           "rw",
+					"protocol":              "{{obj.protocol}}",
+					"database_service_name": "{{obj.database_service_name}}",
+					"object_kind":           "{{obj.object_kind}}",
+					"database":              "{{obj.database}}",
+					"schema":                "{{obj.schema}}",
+					"name":                  "{{obj.name}}",
+				},
+			},
+			labels: map[string]string{},
+			wantLabels: map[string]string{
+				"plain_label":           "rw",
+				"protocol":              "postgres",
+				"database_service_name": "service3",
+				"object_kind":           "table",
+				"database":              "db3",
+				"schema":                "schema3",
+				"name":                  "object3",
+			},
+			wantMatch: true,
+		},
+		{
+			name: "add prefix",
+			mapping: &databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
+				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+					TableNames: []string{"*"},
+				},
+				AddLabels: map[string]string{
+					"plain_label": "rw",
+					"tag":         "db-{{obj.object_kind}}",
+				},
+			},
+			labels: map[string]string{},
+			wantLabels: map[string]string{
+				"plain_label": "rw",
+				"tag":         "db-table",
+			},
+			wantMatch: true,
+		},
+		{
+			name: "spaces are trimmed prefix",
+			mapping: &databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
+				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+					TableNames: []string{"*"},
+				},
+				AddLabels: map[string]string{
+					"plain_label": "rw",
+					"tag":         "  db-{{   obj.object_kind }}-bar  ",
+				},
+			},
+			labels: map[string]string{},
+			wantLabels: map[string]string{
+				"plain_label": "rw",
+				"tag":         "db-table-bar",
+			},
+			wantMatch: true,
+		},
+		{
+			name: "invalid object is rejected",
+			mapping: &databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
+				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+					TableNames: []string{"*"},
+				},
+				AddLabels: map[string]string{
+					"plain_label": "rw",
+					"tag":         "db-{{obj.invalid}}",
+				},
+			},
+			labels:    map[string]string{},
+			wantError: true,
+		},
+		{
+			name: "invalid namespace is rejected",
+			mapping: &databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
+				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+					TableNames: []string{"*"},
+				},
+				AddLabels: map[string]string{
+					"plain_label": "rw",
+					"tag":         "db-{{wrong.object_kind}}",
+				},
+			},
+			labels:    map[string]string{},
+			wantError: true,
+		},
+		{
+			name: "empty template is rejected",
+			mapping: &databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
+				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+					TableNames: []string{"*"},
+				},
+				AddLabels: map[string]string{
+					"plain_label": "rw",
+					"tag":         "db-{{}}",
+				},
+			},
+			labels:    map[string]string{},
+			wantError: true,
+		},
+		{
+			name: "multi template is rejected",
+			mapping: &databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
+				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+					TableNames: []string{"*"},
+				},
+				AddLabels: map[string]string{
+					"plain_label": "rw",
+					"tag":         "db-{{obj.object_kind obj.object_kind}}",
+				},
+			},
+			labels:    map[string]string{},
+			wantError: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			labels := maps.Clone(tt.labels)
+			match, err := applyMappingToObject(tt.mapping, spec, labels)
+			if tt.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.wantMatch, match)
+				require.Equal(t, tt.wantLabels, labels)
+			}
+		})
+	}
+}
+
+func Test_splitExpression(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		want    []eval
+		wantErr bool
+	}{
+		{
+			name:    "empty string",
+			value:   "",
+			want:    []eval{literal{text: ""}},
+			wantErr: false,
+		},
+		{
+			name:    "literal",
+			value:   "literal",
+			want:    []eval{literal{text: "literal"}},
+			wantErr: false,
+		},
+		{
+			name:    "literal with whitespace",
+			value:   "      literal   ",
+			want:    []eval{literal{text: "literal"}},
+			wantErr: false,
+		},
+		{
+			name:    "prefix, expr, suffix",
+			value:   "prefix-{{expr}}-suffix",
+			want:    []eval{literal{text: "prefix-"}, expression{text: "expr"}, literal{text: "-suffix"}},
+			wantErr: false,
+		},
+		{
+			name:    "prefix, expr, suffix with extra whitespace",
+			value:   "    prefix-{{expr}}-suffix        ",
+			want:    []eval{literal{text: "prefix-"}, expression{text: "expr"}, literal{text: "-suffix"}},
+			wantErr: false,
+		},
+		{
+			name:    "unmatched {{",
+			value:   "foo bar {{ baz",
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "unmatched }}",
+			value:   "foo bar }} baz",
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "multiple templates",
+			value:   "foo {{bar}} {{baz}}",
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := splitExpression(tt.value)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.want, got)
+			}
 		})
 	}
 }
