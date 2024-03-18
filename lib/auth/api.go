@@ -758,7 +758,7 @@ type DiscoveryAccessPoint interface {
 	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
 
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context) (string, error)
+	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
 
 	// EnrollEKSClusters enrolls EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.
 	EnrollEKSClusters(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
@@ -1330,8 +1330,8 @@ func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.Subm
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
-	return w.NoCache.GenerateAWSOIDCToken(ctx)
+func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
+	return w.NoCache.GenerateAWSOIDCToken(ctx, integration)
 }
 
 // EnrollEKSClusters enrolls EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.

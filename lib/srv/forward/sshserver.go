@@ -671,7 +671,7 @@ func (s *Server) sendSSHPublicKeyToTarget(ctx context.Context) (ssh.Signer, erro
 		return nil, trace.BadParameter("missing aws cloud metadata")
 	}
 
-	token, err := s.authClient.GenerateAWSOIDCToken(ctx)
+	token, err := s.authClient.GenerateAWSOIDCToken(ctx, awsInfo.Integration)
 	if err != nil {
 		return nil, trace.BadParameter("failed to generate aws token: %v", err)
 	}
