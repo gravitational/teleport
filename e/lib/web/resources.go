@@ -161,6 +161,7 @@ func upsertSAMLIdPServiceProvider(ctx context.Context, clt resourcesAPIGetter, r
 			EntityID:         req.EntityID,
 			ACSURL:           req.ACSURL,
 			AttributeMapping: req.AttributeMapping,
+			Preset:           req.Preset,
 		},
 	}
 	if err := sp.CheckAndSetDefaults(); err != nil {

@@ -15,4 +15,7 @@ type CreateSAMLIdPServiceProviderRequest struct {
 	ACSURL string `json:"acsURL,omitempty"`
 	// AttributeMapping maps custom user attributes for SAML response.
 	AttributeMapping []*types.SAMLAttributeMapping `json:"attributeMapping,omitempty"`
+	// Preset is used to define service provider profile that will have a custom behavior
+	// processed by Teleport.
+	Preset string `json:"preset,omitempty"`
 }

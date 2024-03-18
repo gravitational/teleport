@@ -273,6 +273,7 @@ func TestUpsertSAMLIdpServiceProvider_InvalidInputs(t *testing.T) {
 		acsURL           string
 		attributeMapping []*types.SAMLAttributeMapping
 		errVal           string
+		preset           string
 	}{
 		{
 			name:             "missing app name",
@@ -328,6 +329,15 @@ func TestUpsertSAMLIdpServiceProvider_InvalidInputs(t *testing.T) {
 			attributeMapping: []*types.SAMLAttributeMapping{{Name: "roles", NameFormat: "", Value: "user.spec.roles"}, {Name: "roles", NameFormat: "", Value: "user.spec.roles"}},
 			errVal:           types.ErrDuplicateAttributeName.Message,
 		},
+		{
+			name:             "unsupported preset name",
+			appName:          "newSAMLApp",
+			entityDescriptor: "",
+			entityID:         "https://example.com/saml/metadata",
+			acsURL:           "https://example.com/saml/metadata",
+			preset:           "unsupported-preset",
+			errVal:           types.ErrUnsupportedPresetName.Message,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -341,6 +351,7 @@ func TestUpsertSAMLIdpServiceProvider_InvalidInputs(t *testing.T) {
 					EntityID:         tc.entityID,
 					ACSURL:           tc.acsURL,
 					AttributeMapping: tc.attributeMapping,
+					Preset:           tc.preset,
 				})
 			require.ErrorContains(t, err, tc.errVal)
 		})
