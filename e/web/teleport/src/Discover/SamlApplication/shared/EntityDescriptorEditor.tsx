@@ -28,7 +28,7 @@ export function AddEntityDescriptor({
   );
 }
 
-function EntityDescriptorEditor({
+export function EntityDescriptorEditor({
   spConfig,
   setSPConfig,
 }: {

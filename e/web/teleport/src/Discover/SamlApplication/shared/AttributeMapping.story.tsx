@@ -4,8 +4,7 @@ import Validation from 'shared/components/Validation';
 import { AttributeMapping } from './AttributeMapping';
 
 export default {
-  title:
-    'TeleportE/Discover/SAML Application/AddServiceProvider/AttributeMapping',
+  title: 'TeleportE/Discover/SAML Application/shared/AttributeMapping',
 };
 
 export const Default = () => {

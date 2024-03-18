@@ -1,3 +1,3 @@
 export { AddServiceProvider } from './AddServiceProvider';
-export { AddEntityDescriptor } from './AddServiceProvider/EntityDescriptorEditor';
+export { AddEntityDescriptor } from '../shared/EntityDescriptorEditor';
 export { DownloadMetadata } from './DownloadMetadata';

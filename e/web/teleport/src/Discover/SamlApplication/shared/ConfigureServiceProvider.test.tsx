@@ -10,9 +10,10 @@ import {
 import { AgentMeta } from 'teleport/Discover/useDiscover';
 
 import {
-  ServiceProvider,
+  ConfigureServiceProvider,
+  AddMetadataGeneric,
   ErrMissingEntityIDOrACSURL,
-} from './AddServiceProvider';
+} from './ConfigureServiceProvider';
 
 import type { AttributeMapping } from 'e-teleport/services/idp/types';
 
@@ -27,7 +28,7 @@ const testED = `<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" v
 const entityDescriptorLabelText =
   "Paste Service Provider entity descriptor's XML content. Please refer to your Service Provider's documentation for instructions on how to obtain the entity descriptor.";
 
-describe('add SAML app service provider', () => {
+describe('configure SAML service provider', () => {
   afterEach(() => {
     jest.clearAllMocks();
     cleanup();
@@ -99,7 +100,7 @@ describe('add SAML app service provider', () => {
       const user = userEvent.setup();
       const onSubmit = jest.fn();
       render(
-        <ServiceProvider
+        <ConfigureServiceProvider
           header="samlAppHeader"
           subtitle="samlAppSubtitle"
           attempt={{ status: '' }}
@@ -108,6 +109,7 @@ describe('add SAML app service provider', () => {
           createSP={onSubmit}
           prevStep={() => null}
           nextStep={() => null}
+          SpMetadataConfigComponent={AddMetadataGeneric}
         />
       );
 
@@ -154,7 +156,7 @@ describe('add SAML app service provider', () => {
   );
 });
 
-describe('add SAML app service provider with errors', () => {
+describe('configure SAML service provider with errors', () => {
   afterEach(() => {
     jest.clearAllMocks();
     cleanup();
@@ -230,7 +232,7 @@ describe('add SAML app service provider with errors', () => {
       const user = userEvent.setup();
       const onSubmit = jest.fn();
       render(
-        <ServiceProvider
+        <ConfigureServiceProvider
           header="samlAppHeader"
           subtitle="samlAppSubtitle"
           attempt={{ status: '' }}
@@ -239,6 +241,7 @@ describe('add SAML app service provider with errors', () => {
           createSP={onSubmit}
           prevStep={() => null}
           nextStep={() => null}
+          SpMetadataConfigComponent={AddMetadataGeneric}
         />
       );
 
@@ -324,7 +327,7 @@ describe('add another attribute mapping with errors', () => {
     const user = userEvent.setup();
     const onSubmit = jest.fn();
     render(
-      <ServiceProvider
+      <ConfigureServiceProvider
         header="samlAppHeader"
         subtitle="samlAppSubtitle"
         attempt={{ status: '' }}
@@ -333,6 +336,7 @@ describe('add another attribute mapping with errors', () => {
         createSP={onSubmit}
         prevStep={() => null}
         nextStep={() => null}
+        SpMetadataConfigComponent={AddMetadataGeneric}
       />
     );
 

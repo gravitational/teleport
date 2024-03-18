@@ -1,60 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, Text } from 'design';
 import { Danger } from 'design/Alert';
-import useAttempt, { State as AttemptState } from 'shared/hooks/useAttemptNext';
-import FieldInput from 'shared/components/FieldInput';
+
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
+import { State as AttemptState } from 'shared/hooks/useAttemptNext';
 
-import { AgentMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {
-  HeaderSubtitle,
-  Header,
   ActionButtons,
+  Header,
+  HeaderSubtitle,
   StyledBox,
 } from 'teleport/Discover/Shared';
 
-import useTeleportE from 'e-teleport/useTeleportE';
+import FieldInput from 'shared/components/FieldInput';
 
-import { AddEntityDescriptor } from './EntityDescriptorEditor';
+import { AgentMeta } from 'teleport/Discover/useDiscover';
+
 import { AttributeMapping } from './AttributeMapping';
+import { AddEntityDescriptor } from './EntityDescriptorEditor';
 
 import type {
   AttributeMapping as AttributeMappingType,
   CreateSamlIdpServiceProviderRequest,
 } from 'e-teleport/services/idp/types';
 
-export function Container() {
-  const { idpService } = useTeleportE();
-  const { attempt, run } = useAttempt('');
-  const { prevStep, nextStep, updateAgentMeta, agentMeta } = useDiscover();
-
-  const createSP = (spConfig: CreateSamlIdpServiceProviderRequest) => {
-    run(() => idpService.createSamlIdpServiceProvider(spConfig));
-  };
-
-  const header: React.ReactNode = 'Add Service Provider To Teleport';
-  const subtitle: React.ReactNode =
-    "Please refer to your Service Provider's documentation for instruction's on how to obtain the Entity ID and ACS URL.";
-
-  return (
-    <ServiceProvider
-      header={header}
-      subtitle={subtitle}
-      attempt={attempt}
-      createSP={createSP}
-      prevStep={prevStep}
-      nextStep={nextStep}
-      updateAgentMeta={updateAgentMeta}
-      agentMeta={agentMeta}
-    />
-  );
-}
-
 /**
- * ServiceProvider is used for adding a generic SAML app as well as specific ones such as Grafana SAML app.
+ * ConfigureServiceProvider is used for adding a generic SAML app as well as specific ones such as Grafana SAML app.
  */
-export function ServiceProvider({
+export function ConfigureServiceProvider({
   header,
   subtitle,
   attempt,
@@ -63,7 +37,8 @@ export function ServiceProvider({
   updateAgentMeta,
   nextStep,
   prevStep,
-}: SPProps) {
+  SpMetadataConfigComponent,
+}: ConfigureServiceProviderProps) {
   const [spConfig, setSPConfig] = useState<CreateSamlIdpServiceProviderRequest>(
     {
       name: '',
@@ -158,7 +133,7 @@ export function ServiceProvider({
         <Validation>
           {({ validator }) => (
             <>
-              <SAMLGeneralConfig
+              <SpMetadataConfigComponent
                 spConfig={spConfig}
                 setSPConfig={setSPConfig}
                 attempt={attempt}
@@ -185,25 +160,11 @@ export function ServiceProvider({
   );
 }
 
-export type SPProps = {
-  header: React.ReactNode;
-  subtitle: React.ReactNode;
-  attempt: AttemptState['attempt'];
-  createSP: (spConfig: CreateSamlIdpServiceProviderRequest) => void;
-  agentMeta: AgentMeta;
-  updateAgentMeta: (meta: AgentMeta) => void;
-  prevStep: () => void;
-  nextStep: () => void;
-};
-
-export const ErrMissingEntityIDOrACSURL =
-  'Either Entity ID and ACS URL or Entity descriptor should be provided';
-
-export function SAMLGeneralConfig({
+export function AddMetadataGeneric({
   setSPConfig,
   spConfig,
   attempt,
-}: SAMLGeneralConfig) {
+}: SamlGenericMetadataConfig) {
   return (
     <StyledBox>
       <Text bold>Enter the SAML App Service Provider's Metadata</Text>
@@ -254,7 +215,22 @@ export function SAMLGeneralConfig({
   );
 }
 
-type SAMLGeneralConfig = {
+export type ConfigureServiceProviderProps = {
+  header: React.ReactNode;
+  subtitle: React.ReactNode;
+  attempt: AttemptState['attempt'];
+  createSP: (spConfig: CreateSamlIdpServiceProviderRequest) => void;
+  agentMeta: AgentMeta;
+  updateAgentMeta: (meta: AgentMeta) => void;
+  prevStep: () => void;
+  nextStep: () => void;
+  SpMetadataConfigComponent: (props: SamlGenericMetadataConfig) => JSX.Element;
+};
+
+export const ErrMissingEntityIDOrACSURL =
+  'Either Entity ID and ACS URL or Entity descriptor should be provided';
+
+export type SamlGenericMetadataConfig = {
   setSPConfig: (CreateSamlIdpServiceProviderRequest) => void;
   spConfig: CreateSamlIdpServiceProviderRequest;
   attempt: AttemptState['attempt'];

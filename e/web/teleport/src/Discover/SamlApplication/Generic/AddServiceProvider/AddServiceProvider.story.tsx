@@ -3,7 +3,12 @@ import { MemoryRouter } from 'react-router';
 
 import { AgentMeta } from 'teleport/Discover/useDiscover';
 
-import { ServiceProvider, SPProps } from './AddServiceProvider';
+// import { ServiceProvider, SPProps } from './AddServiceProvider';
+import {
+  ConfigureServiceProvider,
+  AddMetadataGeneric,
+  ConfigureServiceProviderProps,
+} from '../../shared/ConfigureServiceProvider';
 
 export default {
   title: 'TeleportE/Discover/SAML Application/AddServiceProvider',
@@ -12,7 +17,7 @@ export default {
 export const Default = () => {
   return (
     <MemoryRouter>
-      <ServiceProvider {...props} attempt={{ status: '' }} />
+      <ConfigureServiceProvider {...props} attempt={{ status: '' }} />
     </MemoryRouter>
   );
 };
@@ -20,7 +25,7 @@ export const Default = () => {
 export const Processing = () => {
   return (
     <MemoryRouter>
-      <ServiceProvider {...props} attempt={{ status: 'processing' }} />
+      <ConfigureServiceProvider {...props} attempt={{ status: 'processing' }} />
     </MemoryRouter>
   );
 };
@@ -28,7 +33,7 @@ export const Processing = () => {
 export const Failed = () => {
   return (
     <MemoryRouter>
-      <ServiceProvider
+      <ConfigureServiceProvider
         {...props}
         attempt={{
           status: 'failed',
@@ -39,7 +44,7 @@ export const Failed = () => {
   );
 };
 
-const props: SPProps = {
+const props: ConfigureServiceProviderProps = {
   header: 'Add Service Provider To Teleport',
   subtitle:
     "Please refer to your Service Provider's documentation for instruction's on how to obtain the Entity ID and ACS URL.",
@@ -52,4 +57,5 @@ const props: SPProps = {
   createSP: () => null,
   nextStep: () => null,
   prevStep: () => null,
+  SpMetadataConfigComponent: AddMetadataGeneric,
 };

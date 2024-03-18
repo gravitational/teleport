@@ -3,10 +3,10 @@ import { DiscoverEvent } from 'teleport/services/userEvent';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { SamlServiceProviderPreset } from 'teleport/Discover/SelectResource/types';
 
-import { DownloadMetadata, AddServiceProvider } from './SamlApp';
+import { DownloadMetadata, AddServiceProvider } from './Generic';
 import { Finished } from './Finished';
 
-import { DownloadMetadataGrafana, AddGrafanaSaml } from './SamlAppGrafana';
+import { DownloadMetadataGrafana, AddGrafanaSaml } from './Grafana';
 
 export const SamlApplicationResource: ResourceViewConfig = {
   kind: ResourceKind.SamlApplication,

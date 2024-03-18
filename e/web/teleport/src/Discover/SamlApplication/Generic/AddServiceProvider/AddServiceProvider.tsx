@@ -1,12 +1,14 @@
 import React from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { Mark } from 'teleport/Discover/Shared';
 import { useDiscover } from 'teleport/Discover/useDiscover';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 
-import { ServiceProvider } from '../../SamlApp/AddServiceProvider';
+import {
+  ConfigureServiceProvider,
+  AddMetadataGeneric,
+} from '../../shared/ConfigureServiceProvider';
 
 import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
 
@@ -19,18 +21,12 @@ export function Container() {
     run(() => idpService.createSamlIdpServiceProvider(spConfig));
   };
 
-  const header: React.ReactNode = 'Add Grafana SAML Configuration to Teleport';
-  const subtitle: React.ReactNode = (
-    <>
-      Enter a name for the integration and paste your Grafana host's entity
-      descriptor XML content. <br />
-      You can find your entity descriptor at{' '}
-      <Mark>https://{`<your-grafana-url>`}/saml/metadata</Mark>.
-    </>
-  );
+  const header: React.ReactNode = 'Add Service Provider To Teleport';
+  const subtitle: React.ReactNode =
+    "Please refer to your Service Provider's documentation for instruction's on how to obtain the Entity ID and ACS URL.";
 
   return (
-    <ServiceProvider
+    <ConfigureServiceProvider
       header={header}
       subtitle={subtitle}
       attempt={attempt}
@@ -39,6 +35,7 @@ export function Container() {
       nextStep={nextStep}
       updateAgentMeta={updateAgentMeta}
       agentMeta={agentMeta}
+      SpMetadataConfigComponent={AddMetadataGeneric}
     />
   );
 }
