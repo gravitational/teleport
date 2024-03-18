@@ -38,6 +38,7 @@ import { Auth2faType } from 'shared/services';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 import styled from 'styled-components';
 
+import { DialogHeader } from 'teleport/Account/DialogHeader';
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import { DeviceUsage } from 'teleport/services/mfa';
@@ -455,6 +456,9 @@ export function SaveDeviceStep({
     setAuthCode(e.target.value);
   };
 
+  const label =
+    usage === 'passwordless' ? 'Passkey Nickname' : 'MFA Method Name';
+
   return (
     <div ref={refCallback} data-testid="save-step">
       <DialogHeader
@@ -472,12 +476,8 @@ export function SaveDeviceStep({
         {({ validator }) => (
           <form onSubmit={e => onSave(e, validator)}>
             <FieldInput
-              label={
-                usage === 'passwordless'
-                  ? 'Passkey Nickname'
-                  : 'MFA Method Name'
-              }
-              rule={requiredField('Passkey nickname is required')}
+              label={label}
+              rule={requiredField(`${label} is required`)}
               value={deviceName}
               placeholder="ex. my-macbookpro"
               autoFocus
@@ -512,25 +512,6 @@ export function SaveDeviceStep({
         )}
       </Validation>
     </div>
-  );
-}
-
-function DialogHeader({
-  stepIndex,
-  flowLength,
-  title,
-}: {
-  stepIndex: number;
-  flowLength: number;
-  title: string;
-}) {
-  return (
-    <Box mb={4}>
-      <Text typography="body1">
-        Step {stepIndex + 1} of {flowLength}
-      </Text>
-      <Text typography="h4">{title}</Text>
-    </Box>
   );
 }
 

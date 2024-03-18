@@ -123,14 +123,20 @@ export function useUserTraits() {
   ) {
     switch (resourceSpec.kind) {
       case ResourceKind.Kubernetes:
-        const newDynamicKubeUsers = new Set<string>();
+        let newDynamicKubeUsers = new Set<string>();
+        if (wantAutoDiscover) {
+          newDynamicKubeUsers = new Set(dynamicTraits.kubeUsers);
+        }
         traitOpts.kubeUsers.forEach(o => {
           if (!staticTraits.kubeUsers.includes(o.value)) {
             newDynamicKubeUsers.add(o.value);
           }
         });
 
-        const newDynamicKubeGroups = new Set<string>();
+        let newDynamicKubeGroups = new Set<string>();
+        if (wantAutoDiscover) {
+          newDynamicKubeGroups = new Set(dynamicTraits.kubeGroups);
+        }
         traitOpts.kubeGroups.forEach(o => {
           if (!staticTraits.kubeGroups.includes(o.value)) {
             newDynamicKubeGroups.add(o.value);

@@ -135,6 +135,17 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, rootAuthClient auth.C
 
 	request.SetRequestReason(req.Reason)
 	request.SetSuggestedReviewers(req.SuggestedReviewers)
+	request.SetDryRun(req.DryRun)
+
+	if req.MaxDuration != nil {
+		request.SetMaxDuration(req.MaxDuration.AsTime())
+	}
+	if req.RequestTtl != nil {
+		request.SetExpiry(req.RequestTtl.AsTime())
+	}
+	if req.GetAssumeStartTime() != nil {
+		request.SetAssumeStartTime(req.AssumeStartTime.AsTime())
+	}
 
 	var reqOut types.AccessRequest
 	err = AddMetadataToRetryableError(ctx, func() error {
@@ -163,13 +174,20 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, rootAuthClient auth.C
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
+		var assumeStartTimePtr *time.Time
+		if req.AssumeStartTime != nil {
+			assumeStartTime := req.AssumeStartTime.AsTime()
+			assumeStartTimePtr = &assumeStartTime
+		}
+
 		reviewSubmission := types.AccessReviewSubmission{
 			RequestID: req.AccessRequestId,
 			Review: types.AccessReview{
-				Roles:         req.Roles,
-				ProposedState: reviewState,
-				Reason:        req.Reason,
-				Created:       time.Now(),
+				Roles:           req.Roles,
+				ProposedState:   reviewState,
+				Reason:          req.Reason,
+				Created:         time.Now(),
+				AssumeStartTime: assumeStartTimePtr,
 			},
 		}
 

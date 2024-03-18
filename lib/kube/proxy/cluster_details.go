@@ -21,6 +21,7 @@ package proxy
 import (
 	"context"
 	"encoding/base64"
+	"strings"
 	"sync"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -52,7 +54,7 @@ type kubeDetails struct {
 	// kubeCluster is the dynamic kube_cluster or a static generated from kubeconfig and that only has the name populated.
 	kubeCluster types.KubeCluster
 
-	// rwMu is the mutex to protect the kubeCodecs and rbacSupportedTypes.
+	// rwMu is the mutex to protect the kubeCodecs, gvkSupportedResources, and rbacSupportedTypes.
 	rwMu sync.RWMutex
 	// kubeCodecs is the codec factory for the cluster resources.
 	// The codec factory includes the default resources and the namespaced resources
@@ -64,6 +66,9 @@ type kubeDetails struct {
 	// The list is updated periodically to include the latest custom resources
 	// that are added to the cluster.
 	rbacSupportedTypes rbacSupportedResources
+	// gvkSupportedResources is the list of registered API path resources and their
+	// GVK definition.
+	gvkSupportedResources gvkSupportedResources
 	// isClusterOffline is true if the cluster is offline.
 	// An offline cluster will not be able to serve any requests until it comes back online.
 	// The cluster is marked as offline if the cluster schema cannot be created
@@ -121,7 +126,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 	}
 	var isClusterOffline bool
 	// Create the codec factory and the list of supported types for RBAC.
-	codecFactory, rbacSupportedTypes, err := newClusterSchemaBuilder(cfg.log, creds.getKubeClient())
+	codecFactory, rbacSupportedTypes, gvkSupportedRes, err := newClusterSchemaBuilder(cfg.log, creds.getKubeClient())
 	if err != nil {
 		cfg.log.WithError(err).Warn("Failed to create cluster schema. Possibly the cluster is offline.")
 		// If the cluster is offline, we will not be able to create the codec factory
@@ -133,13 +138,14 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 
 	ctx, cancel := context.WithCancel(ctx)
 	k := &kubeDetails{
-		kubeCreds:          creds,
-		dynamicLabels:      dynLabels,
-		kubeCluster:        cfg.cluster,
-		kubeCodecs:         codecFactory,
-		rbacSupportedTypes: rbacSupportedTypes,
-		cancelFunc:         cancel,
-		isClusterOffline:   isClusterOffline,
+		kubeCreds:             creds,
+		dynamicLabels:         dynLabels,
+		kubeCluster:           cfg.cluster,
+		kubeCodecs:            codecFactory,
+		rbacSupportedTypes:    rbacSupportedTypes,
+		cancelFunc:            cancel,
+		isClusterOffline:      isClusterOffline,
+		gvkSupportedResources: gvkSupportedRes,
 	}
 
 	k.wg.Add(1)
@@ -153,7 +159,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 			case <-ctx.Done():
 				return
 			case <-ticker.Chan():
-				codecFactory, rbacSupportedTypes, err := newClusterSchemaBuilder(cfg.log, creds.getKubeClient())
+				codecFactory, rbacSupportedTypes, gvkSupportedResources, err := newClusterSchemaBuilder(cfg.log, creds.getKubeClient())
 				if err != nil {
 					cfg.log.WithError(err).Error("Failed to update cluster schema")
 					continue
@@ -162,6 +168,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 				k.rwMu.Lock()
 				k.kubeCodecs = codecFactory
 				k.rbacSupportedTypes = rbacSupportedTypes
+				k.gvkSupportedResources = gvkSupportedResources
 				k.isClusterOffline = false
 				k.rwMu.Unlock()
 			}
@@ -191,6 +198,21 @@ func (k *kubeDetails) getClusterSupportedResources() (*serializer.CodecFactory, 
 		return nil, nil, trace.ConnectionProblem(nil, "kubernetes cluster %q is offline", k.kubeCluster.GetName())
 	}
 	return &(k.kubeCodecs), k.rbacSupportedTypes, nil
+}
+
+// getObjectGVK returns the default GVK (if any) registered for the specified request path.
+func (k *kubeDetails) getObjectGVK(resource apiResource) *schema.GroupVersionKind {
+	k.rwMu.RLock()
+	defer k.rwMu.RUnlock()
+	// kube doesn't use core but teleport does.
+	if resource.apiGroup == "core" {
+		resource.apiGroup = ""
+	}
+	return k.gvkSupportedResources[gvkSupportedResourcesKey{
+		name:     strings.Split(resource.resourceKind, "/")[0],
+		apiGroup: resource.apiGroup,
+		version:  resource.apiGroupVersion,
+	}]
 }
 
 // getKubeClusterCredentials generates kube credentials for dynamic clusters.

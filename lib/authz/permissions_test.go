@@ -562,6 +562,16 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 			},
 			wantAdminActionAuthorized: false,
 		}, {
+			name: "NOK local user mfa verified private key policy",
+			user: LocalUser{
+				Username: localUser.GetName(),
+				Identity: tlsca.Identity{
+					Username:         localUser.GetName(),
+					PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				},
+			},
+			wantAdminActionAuthorized: false,
+		}, {
 			// edge case for the admin role check.
 			name: "NOK local user with host-like username",
 			user: LocalUser{
@@ -612,16 +622,6 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 			},
 			withMFA:                   validMFAWithReuse,
 			allowedReusedMFA:          true,
-			wantAdminActionAuthorized: true,
-		}, {
-			name: "OK local user mfa verified private key policy",
-			user: LocalUser{
-				Username: localUser.GetName(),
-				Identity: tlsca.Identity{
-					Username:         localUser.GetName(),
-					PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
-				},
-			},
 			wantAdminActionAuthorized: true,
 		}, {
 			name: "OK admin",

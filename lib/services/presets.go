@@ -626,7 +626,7 @@ func defaultAllowAccessRequestConditions(enterprise bool) map[string]*types.Acce
 				SearchAsRoles: []string{
 					teleport.SystemOktaAccessRoleName,
 				},
-				MaxDuration: types.NewDuration(maxAccessDuration),
+				MaxDuration: types.NewDuration(MaxAccessDuration),
 			},
 		}
 	}

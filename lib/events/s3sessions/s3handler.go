@@ -157,8 +157,7 @@ func (s *Config) CheckAndSetDefaults() error {
 	}
 	if s.Session == nil {
 		awsConfig := aws.Config{
-			EC2MetadataEnableFallback: aws.Bool(false),
-			UseFIPSEndpoint:           events.FIPSProtoStateToAWSState(s.UseFIPSEndpoint),
+			UseFIPSEndpoint: events.FIPSProtoStateToAWSState(s.UseFIPSEndpoint),
 		}
 		if s.Region != "" {
 			awsConfig.Region = aws.String(s.Region)

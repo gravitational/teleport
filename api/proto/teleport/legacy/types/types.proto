@@ -5953,12 +5953,15 @@ message SAMLIdPServiceProviderSpecV1 {
   string EntityID = 2 [(gogoproto.jsontag) = "entity_id"];
   // ACSURL is the endpoint where SAML authentication response will be redirected.
   string ACSURL = 3 [(gogoproto.jsontag) = "acs_url"];
-  // AttributeMapping is used to map Service Provider requested attributes to
+  // AttributeMapping is used to map service provider requested attributes to
   // username, role and traits in Teleport.
   repeated SAMLAttributeMapping AttributeMapping = 4 [(gogoproto.jsontag) = "attribute_mapping"];
+  // Preset is used to define service provider profile that will have a custom behavior
+  // processed by Teleport.
+  string Preset = 5 [(gogoproto.jsontag) = "preset"];
 }
 
-// SAMLAttributeMapping represents SAML Service Provider requested attribute
+// SAMLAttributeMapping represents SAML service provider requested attribute
 // name, format and its values.
 message SAMLAttributeMapping {
   //  name is an attribute name.
@@ -6617,4 +6620,20 @@ message OktaOptions {
     (gogoproto.jsontag) = "sync_period,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+}
+
+// AccessGraphSync is a configuration for Access Graph service.
+message AccessGraphSync {
+  // AWS is a configuration for AWS Access Graph service poll service.
+  repeated AccessGraphAWSSync AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+}
+
+// AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
+message AccessGraphAWSSync {
+  // Regions are AWS regions to import resources from.
+  repeated string Regions = 1 [(gogoproto.jsontag) = "regions,omitempty"];
+  // AssumeRoleARN is the AWS role to assume for database discovery.
+  AssumeRole AssumeRole = 3 [(gogoproto.jsontag) = "assume_role,omitempty"];
+  // Integration is the integration name used to generate credentials to interact with AWS APIs.
+  string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
 }

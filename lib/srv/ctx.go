@@ -412,18 +412,18 @@ type ServerContext struct {
 	// recordNonInteractiveSession enables non-interactive session recording. Used by Assist.
 	recordNonInteractiveSession bool
 
-	// ChannelType holds the type of the channel. For example "session" or
+	// ExecType holds the type of the channel or request. For example "session" or
 	// "direct-tcpip". Used to create correct subcommand during re-exec.
-	ChannelType string
+	ExecType string
 
 	// SrcAddr is the source address of the request. This the originator IP
-	// address and port in an SSH "direct-tcpip" request. This value is only
-	// populated for port forwarding requests.
+	// address and port in an SSH "direct-tcpip" or "tcpip-forward" request. This
+	// value is only populated for port forwarding requests.
 	SrcAddr string
 
 	// DstAddr is the destination address of the request. This is the host and
-	// port to connect to in a "direct-tcpip" request. This value is only
-	// populated for port forwarding requests.
+	// port to connect to in a "direct-tcpip" or "tcpip-forward" request. This
+	// value is only populated for port forwarding requests.
 	DstAddr string
 
 	// allowFileCopying controls if remote file operations via SCP/SFTP are allowed
@@ -452,6 +452,10 @@ type ServerContext struct {
 
 	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
 	UserCreatedByTeleport bool
+
+	// approvedFileReq is an approved file transfer request that will only be
+	// set when the session's pending file transfer request is approved.
+	approvedFileReq *FileTransferRequest
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -1379,4 +1383,43 @@ func (c *ServerContext) GetSessionMetadata() apievents.SessionMetadata {
 		WithMFA:          c.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
 		PrivateKeyPolicy: c.Identity.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy],
 	}
+}
+
+func (c *ServerContext) GetPortForwardEvent() apievents.PortForward {
+	sconn := c.ConnectionContext.ServerConn
+	return apievents.PortForward{
+		Metadata: apievents.Metadata{
+			Type: events.PortForwardEvent,
+			Code: events.PortForwardCode,
+		},
+		UserMetadata: c.Identity.GetUserMetadata(),
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			LocalAddr:  sconn.LocalAddr().String(),
+			RemoteAddr: sconn.RemoteAddr().String(),
+		},
+		Addr: c.DstAddr,
+		Status: apievents.Status{
+			Success: true,
+		},
+	}
+}
+
+func (c *ServerContext) setApprovedFileTransferRequest(req *FileTransferRequest) {
+	c.mu.Lock()
+	c.approvedFileReq = req
+	c.mu.Unlock()
+}
+
+// ConsumeApprovedFileTransferRequest will return the approved file transfer
+// request for this session if there is one present. Note that if an
+// approved request is returned future calls to this method will return
+// nil to prevent an approved request getting reused incorrectly.
+func (c *ServerContext) ConsumeApprovedFileTransferRequest() *FileTransferRequest {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	req := c.approvedFileReq
+	c.approvedFileReq = nil
+
+	return req
 }

@@ -93,7 +93,7 @@ export const formatters: Formatters = {
     type: 'access_request.search',
     desc: 'Resource Access Search',
     format: ({ user, resource_type, search_as_roles }) =>
-      `User [${user}] searched for resource type [${resource_type}] with role(s) [${search_as_roles}]`,
+      `User [${user}] searched for resource type [${resource_type}] with role(s) [${truncateStr(search_as_roles.join(','), 80)}]`,
   },
   [eventCodes.SESSION_COMMAND]: {
     type: 'session.command',
