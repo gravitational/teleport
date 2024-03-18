@@ -51,4 +51,32 @@ It's worth noting that the SPIFFE ID contained within a SVID is not secret and
 is exposed to workloads that connect and that you connect out to. So avoid
 placing sensitive information within the SPIFFE ID.
 
-## Integrating SPIFFE with your services
+## Integrating SPIFFE with your workloads
+
+One challenge with successfully implementing SPIFFE is determining how you will
+integrate your workloads with it. Integration typically has two parts,
+configuring your workload to obtain a SVID for the purposes of making calls and
+configuring your workload to obtain and use the trust bundle to validate SVIDs
+from other workloads.
+
+### SPIFFE SDKs and the `spiffe-workload-api` Service
+
+The most native way to integrate with SPIFFE is to use the SPIFFE SDKs. These
+manage the process of obtaining SVIDs and trust bundles for you, and manage
+using the SVIDs when making calls, and validating the SVIDs when receiving
+calls.
+
+The Workload API endpoint is used by the SPIFFE SDKs to request the SVIDs
+and trust bundles from the `tbot` agent.
+
+The SPIFFE SDKs are available in a number of languages:
+
+- [Go (Official)](https://github.com/spiffe/go-spiffe)
+- [Java (Official)](https://github.com/spiffe/java-spiffe)
+- [Python (Community)](https://github.com/HewlettPackard/py-spiffe)
+- [C/C++ (Community)](https://github.com/HewlettPackard/c-spiffe)
+
+To configure the SPIFFE Workload API, follow the instructions in
+[Getting Started with Workload Identity](./getting-started.mdx).
+
+### Proxy
