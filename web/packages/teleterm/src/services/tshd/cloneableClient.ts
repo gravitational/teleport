@@ -276,18 +276,18 @@ export function isTshdRpcError(error: unknown): error is TshdRpcError {
 }
 
 function cloneError(error: unknown): TshdRpcError | Error | unknown {
+  if (error instanceof RpcError) {
+    return {
+      name: 'TshdRpcError',
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause,
+      code: error.code,
+      isResolvableWithRelogin: error.meta['is-resolvable-with-relogin'] === '1',
+    } satisfies TshdRpcError;
+  }
+
   if (error instanceof Error) {
-    if (error.name === 'RpcError') {
-      const e = error as RpcError;
-      return {
-        name: 'TshdRpcError',
-        message: e.message,
-        stack: e.stack,
-        cause: e.cause,
-        code: e.code,
-        isResolvableWithRelogin: e.meta['is-resolvable-with-relogin'] === '1',
-      } satisfies TshdRpcError;
-    }
     return {
       name: error.name,
       message: error.message,
