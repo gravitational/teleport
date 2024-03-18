@@ -57,11 +57,6 @@ type AccessListMemberSpec struct {
 
 	// IneligibleStatus describes the reason why this member is not eligible.
 	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
-
-	// Membership indicates how the user the user acquired membership; either
-	// `Explicit` (i.e. being explicitly added to a list) or `Implicit` (by
-	// matching the requirements of an AccessList with Implicit membership.
-	Membership Inclusion `json:"membership" yaml:"membership"`
 }
 
 // NewAccessListMember will create a new access listm member.
@@ -95,19 +90,12 @@ func (a *AccessListMember) CheckAndSetDefaults() error {
 		return trace.BadParameter("member name is missing")
 	}
 
-	var err error
-	if a.Spec.Membership, err = checkInclusion(a.Spec.Membership); err != nil {
-		return trace.Wrap(err, "membership")
+	if a.Spec.Joined.IsZero() || a.Spec.Joined.Unix() == 0 {
+		return trace.BadParameter("member %s: joined field empty or missing", a.Spec.Name)
 	}
 
-	if a.Spec.Membership == InclusionExplicit {
-		if a.Spec.Joined.IsZero() || a.Spec.Joined.Unix() == 0 {
-			return trace.BadParameter("member %s: joined field empty or missing", a.Spec.Name)
-		}
-
-		if a.Spec.AddedBy == "" {
-			return trace.BadParameter("member %s: added_by field is empty", a.Spec.Name)
-		}
+	if a.Spec.AddedBy == "" {
+		return trace.BadParameter("member %s: added_by field is empty", a.Spec.Name)
 	}
 
 	return nil
@@ -117,4 +105,14 @@ func (a *AccessListMember) CheckAndSetDefaults() error {
 // and should be removed when possible.
 func (a *AccessListMember) GetMetadata() types.Metadata {
 	return legacy.FromHeaderMetadata(a.Metadata)
+}
+
+// IsEqual defines AccessListMember equality for use with
+// `services.CompareResources()` (and hence the services.Reconciler).
+//
+// For the purposes of reconciliation, we only care that the user and target
+// AccessList match.
+func (a *AccessListMember) IsEqual(other *AccessListMember) bool {
+	return a.Spec.Name == other.Spec.Name &&
+		a.Spec.AccessList == other.Spec.AccessList
 }

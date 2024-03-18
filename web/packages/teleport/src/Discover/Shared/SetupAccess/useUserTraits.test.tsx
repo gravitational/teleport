@@ -143,6 +143,87 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     ]);
   });
 
+  test('kubernetes with auto discover preserves existing + new dynamic traits', async () => {
+    const discoverCtx = defaultDiscoverContext({
+      resourceSpec: defaultResourceSpec(ResourceKind.Kubernetes),
+    });
+    discoverCtx.agentMeta = {
+      ...discoverCtx.agentMeta,
+      ...getMeta(ResourceKind.Kubernetes),
+      autoDiscovery: {
+        config: { name: '', discoveryGroup: '', aws: [] },
+        requiredVpcsAndSubnets: {},
+      },
+    };
+
+    const { result } = renderHook(() => useUserTraits(), {
+      wrapper: wrapperFn(discoverCtx, teleCtx),
+    });
+
+    await waitFor(() =>
+      expect(result.current.dynamicTraits.kubeUsers).toHaveLength(2)
+    );
+
+    expect(result.current.dynamicTraits.kubeGroups).toHaveLength(2);
+
+    // Should not be setting statics.
+    expect(result.current.staticTraits.kubeUsers).toHaveLength(0);
+    expect(result.current.staticTraits.kubeGroups).toHaveLength(0);
+
+    const addedTraitsOpts = {
+      kubeUsers: [
+        {
+          isFixed: false,
+          label: 'dynamicKbUser3',
+          value: 'dynamicKbUser3',
+        },
+        {
+          isFixed: false,
+          label: 'dynamicKbUser4',
+          value: 'dynamicKbUser4',
+        },
+        // duplicate
+        {
+          isFixed: false,
+          label: 'dynamicKbUser4',
+          value: 'dynamicKbUser4',
+        },
+      ],
+      kubeGroups: [
+        {
+          isFixed: false,
+          label: 'dynamicKbGroup3',
+          value: 'dynamicKbGroup3',
+        },
+        {
+          isFixed: false,
+          label: 'dynamicKbGroup4',
+          value: 'dynamicKbGroup4',
+        },
+      ],
+    };
+
+    act(() => {
+      result.current.onProceed(addedTraitsOpts);
+    });
+
+    await waitFor(() => {
+      expect(teleCtx.userService.reloadUser).toHaveBeenCalledTimes(1);
+    });
+
+    // Test that we are updating the user with the correct traits.
+    const mockUser = getMockUser();
+    const { kubeUsers, kubeGroups } = result.current.dynamicTraits;
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
+      ...mockUser,
+      traits: {
+        ...result.current.dynamicTraits,
+        kubeGroups: [...kubeGroups, 'dynamicKbGroup3', 'dynamicKbGroup4'],
+        kubeUsers: [...kubeUsers, 'dynamicKbUser3', 'dynamicKbUser4'],
+      },
+    });
+  });
+
   test('database', async () => {
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: defaultResourceSpec(ResourceKind.Database),
@@ -453,7 +534,7 @@ function getMockUser() {
       databaseUsers: ['dynamicDbUser1', 'dynamicDbUser2'],
       databaseNames: ['dynamicDbName1', 'dynamicDbName2'],
       kubeUsers: ['dynamicKbUser1', 'dynamicKbUser2'],
-      kubeGroups: ['dynamicKbGroup1', 'dynamicKbGroup1'],
+      kubeGroups: ['dynamicKbGroup1', 'dynamicKbGroup2'],
       windowsLogins: [],
       awsRoleArns: [],
     },

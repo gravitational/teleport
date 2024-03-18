@@ -29,6 +29,13 @@ import (
 )
 
 const (
+	// EnvUpgrader environment variable specifies the external upgrader type
+	// Ex: unit, kube
+	EnvUpgrader = "TELEPORT_EXT_UPGRADER"
+	// EnvUpgraderVersion environment variable specifies the external upgrader version
+	// Ex: v14.3.6
+	EnvUpgraderVersion = "TELEPORT_EXT_UPGRADER_VERSION"
+
 	// automaticUpgradesEnvar defines the env var to lookup when deciding whether to enable AutomaticUpgrades feature.
 	automaticUpgradesEnvar = "TELEPORT_AUTOMATIC_UPGRADES"
 
@@ -67,7 +74,7 @@ func GetChannel() string {
 
 // GetUpgraderVersion returns the teleport upgrader version
 func GetUpgraderVersion(ctx context.Context) string {
-	if os.Getenv("TELEPORT_EXT_UPGRADER") == "unit" {
+	if os.Getenv(EnvUpgrader) == "unit" {
 		out, err := exec.CommandContext(ctx, teleportUpgradeScript, "version").Output()
 		if err != nil {
 			log.WithError(err).Debug("Failed to exec /usr/sbin/teleport-upgrade version command.")
@@ -77,5 +84,5 @@ func GetUpgraderVersion(ctx context.Context) string {
 			}
 		}
 	}
-	return os.Getenv("TELEPORT_EXT_UPGRADER_VERSION")
+	return os.Getenv(EnvUpgraderVersion)
 }

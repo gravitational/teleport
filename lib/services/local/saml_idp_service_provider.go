@@ -80,7 +80,7 @@ func NewSAMLIdPServiceProviderService(backend backend.Backend, opts ...SAMLIdPOp
 
 	samlSPService := &SAMLIdPServiceProviderService{
 		svc: *svc,
-		log: logrus.WithFields(logrus.Fields{trace.Component: "saml-idp"}),
+		log: logrus.WithFields(logrus.Fields{teleport.ComponentKey: "saml-idp"}),
 	}
 
 	for _, opt := range opts {

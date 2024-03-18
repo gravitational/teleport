@@ -176,7 +176,7 @@ func (b *Bot) Run(ctx context.Context) error {
 		reloadBroadcaster: reloadBroadcaster,
 		resolver:          resolver,
 		log: b.log.WithField(
-			trace.Component, teleport.Component(componentTBot, "identity"),
+			teleport.ComponentKey, teleport.Component(componentTBot, "identity"),
 		),
 	}
 	// Initialize bot's own identity. This will load from disk, or fetch a new
@@ -197,7 +197,7 @@ func (b *Bot) Run(ctx context.Context) error {
 			diagAddr:     b.cfg.DiagAddr,
 			pprofEnabled: b.cfg.Debug,
 			log: b.log.WithField(
-				trace.Component, teleport.Component(componentTBot, "diagnostics"),
+				teleport.ComponentKey, teleport.Component(componentTBot, "diagnostics"),
 			),
 		})
 	}
@@ -207,7 +207,7 @@ func (b *Bot) Run(ctx context.Context) error {
 		cfg:            b.cfg,
 		resolver:       resolver,
 		log: b.log.WithField(
-			trace.Component, teleport.Component(componentTBot, "outputs"),
+			teleport.ComponentKey, teleport.Component(componentTBot, "outputs"),
 		),
 		reloadBroadcaster: reloadBroadcaster,
 	})
@@ -215,7 +215,7 @@ func (b *Bot) Run(ctx context.Context) error {
 		getBotIdentity: b.botIdentitySvc.GetIdentity,
 		botClient:      b.botIdentitySvc.GetClient(),
 		log: b.log.WithField(
-			trace.Component, teleport.Component(componentTBot, "ca-rotation"),
+			teleport.ComponentKey, teleport.Component(componentTBot, "ca-rotation"),
 		),
 		reloadBroadcaster: reloadBroadcaster,
 	})
@@ -242,7 +242,7 @@ func (b *Bot) Run(ctx context.Context) error {
 				},
 			}
 			svc.log = b.log.WithField(
-				trace.Component, teleport.Component(componentTBot, "svc", svc.String()),
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
 			services = append(services, svc)
 		case *config.ExampleService:

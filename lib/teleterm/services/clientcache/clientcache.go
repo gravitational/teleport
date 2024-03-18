@@ -18,12 +18,14 @@ package clientcache
 
 import (
 	"context"
+	"slices"
 	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/singleflight"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -51,7 +53,7 @@ type Config struct {
 
 func (c *Config) checkAndSetDefaults() {
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "clientcache")
+		c.Log = logrus.WithField(teleport.ComponentKey, "clientcache")
 	}
 }
 
@@ -88,11 +90,9 @@ func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.Pr
 		// We'll save the client in the cache, so we don't have to
 		// build a new connection next time.
 		// All cached clients will be closed when the daemon exits.
-		if err := c.addToCache(clusterURI, newProxyClient); err != nil {
-			return nil, trace.NewAggregate(err, newProxyClient.Close())
-		}
+		c.addToCache(clusterURI, newProxyClient)
 
-		c.cfg.Log.WithField("cluster", clusterURI).Info("Added client to cache.")
+		c.cfg.Log.WithField("cluster", clusterURI.String()).Info("Added client to cache.")
 
 		return newProxyClient, nil
 	})
@@ -117,7 +117,7 @@ func (c *Cache) ClearForRoot(clusterURI uri.ResourceURI) error {
 	rootClusterURI := clusterURI.GetRootClusterURI()
 	var (
 		errors  []error
-		deleted []uri.ResourceURI
+		deleted []string
 	)
 
 	for resourceURI, clt := range c.clients {
@@ -125,12 +125,14 @@ func (c *Cache) ClearForRoot(clusterURI uri.ResourceURI) error {
 			if err := clt.Close(); err != nil {
 				errors = append(errors, err)
 			}
-			deleted = append(deleted, resourceURI.GetClusterURI())
+			deleted = append(deleted, resourceURI.GetClusterURI().String())
 			delete(c.clients, resourceURI)
 		}
 	}
 
-	c.cfg.Log.WithFields(logrus.Fields{"cluster": rootClusterURI, "clients": deleted}).Info("Invalidated cached clients for root cluster.")
+	c.cfg.Log.WithFields(
+		logrus.Fields{"cluster": rootClusterURI.String(), "clients": deleted},
+	).Info("Invalidated cached clients for root cluster.")
 
 	return trace.NewAggregate(errors...)
 
@@ -152,14 +154,10 @@ func (c *Cache) Clear() error {
 	return trace.NewAggregate(errors...)
 }
 
-func (c *Cache) addToCache(clusterURI uri.ResourceURI, proxyClient *client.ProxyClient) error {
+func (c *Cache) addToCache(clusterURI uri.ResourceURI, proxyClient *client.ProxyClient) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	var err error
-	if c.clients[clusterURI] != nil {
-		err = c.clients[clusterURI].Close()
-	}
 	c.clients[clusterURI] = proxyClient
 
 	// This goroutine removes the connection from the cache when
@@ -175,9 +173,9 @@ func (c *Cache) addToCache(clusterURI uri.ResourceURI, proxyClient *client.Proxy
 		}
 
 		delete(c.clients, clusterURI)
-		c.cfg.Log.WithField("cluster", clusterURI).WithError(err).Info("Connection has been closed, removed client from cache.")
+		c.cfg.Log.WithField("cluster", clusterURI.String()).WithError(err).
+			Info("Connection has been closed, removed client from cache.")
 	}()
-	return trace.Wrap(err)
 }
 
 func (c *Cache) getFromCache(clusterURI uri.ResourceURI) *client.ProxyClient {
@@ -186,4 +184,86 @@ func (c *Cache) getFromCache(clusterURI uri.ResourceURI) *client.ProxyClient {
 
 	clt := c.clients[clusterURI]
 	return clt
+}
+
+// NoCache is a client cache implementation that returns a new client
+// on each call to Get.
+//
+// ClearForRoot and Clear still work as expected.
+type NoCache struct {
+	mu       sync.Mutex
+	resolver clusters.Resolver
+	clients  []noCacheClient
+}
+
+type noCacheClient struct {
+	uri    uri.ResourceURI
+	client *client.ProxyClient
+}
+
+func NewNoCache(resolver clusters.Resolver) *NoCache {
+	return &NoCache{
+		resolver: resolver,
+	}
+}
+
+func (c *NoCache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
+	_, clusterClient, err := c.resolver.ResolveCluster(clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	//nolint:staticcheck // SA1019. TODO(gzdunek): Update to use client.ClusterClient.
+	newProxyClient, err := clusterClient.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	c.mu.Lock()
+	c.clients = append(c.clients, noCacheClient{
+		uri:    clusterURI,
+		client: newProxyClient,
+	})
+	c.mu.Unlock()
+
+	return newProxyClient, nil
+}
+
+func (c *NoCache) ClearForRoot(clusterURI uri.ResourceURI) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	rootClusterURI := clusterURI.GetRootClusterURI()
+	var (
+		errors []error
+	)
+
+	c.clients = slices.DeleteFunc(c.clients, func(ncc noCacheClient) bool {
+		belongsToCluster := ncc.uri.GetRootClusterURI() == rootClusterURI
+
+		if belongsToCluster {
+			if err := ncc.client.Close(); err != nil {
+				errors = append(errors, err)
+			}
+		}
+
+		return belongsToCluster
+	})
+
+	return trace.NewAggregate(errors...)
+}
+
+func (c *NoCache) Clear() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var errors []error
+	for _, ncc := range c.clients {
+		if err := ncc.client.Close(); err != nil {
+			errors = append(errors, err)
+		}
+	}
+	c.clients = nil
+
+	return trace.NewAggregate(errors...)
 }

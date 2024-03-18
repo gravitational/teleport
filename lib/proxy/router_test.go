@@ -480,7 +480,7 @@ type fakeConn struct {
 func TestRouter_DialHost(t *testing.T) {
 	t.Parallel()
 
-	logger := utils.NewLoggerForTests().WithField(trace.Component, "test")
+	logger := utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test")
 
 	srv := &types.ServerV2{
 		Kind:    types.KindNode,
@@ -654,7 +654,7 @@ func TestRouter_DialSite(t *testing.T) {
 	t.Parallel()
 
 	const cluster = "test"
-	logger := utils.NewLoggerForTests().WithField(trace.Component, cluster)
+	logger := utils.NewLoggerForTests().WithField(teleport.ComponentKey, cluster)
 
 	cases := []struct {
 		name      string
