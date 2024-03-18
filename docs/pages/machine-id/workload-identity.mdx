@@ -9,16 +9,18 @@ improving the feature and would love to hear your feedback. We currently do
 not recommend using this feature in production.
 </Admonition>
 
-Teleport's Workload Identity is a solution for issuing flexible short-lived
-identities intended for workloads. It is compatible with the industry-standard
-SPIFFE specification meaning that it can be used in place of other SPIFFE
-compatible identity providers.
+Teleport's Workload Identity issues flexible short-lived identities intended
+for workloads. It is compatible with the industry-standard SPIFFE specification
+meaning that it can be used in place of other SPIFFE compatible identity
+providers.
 
 Teleport's Workload Identity brings a number of Teleport features you are
 already familiar with, such as:
 
-- Rich auditing
-- .. TODO: Why use our SPIFFE implementation? ..
+- Rich auditing of the issuance of SPIFFE SVIDs.
+- Powerful RBAC for limiting access to SPIFFE IDs to specific machines and
+  users.
+- Easy rotation and management of the SPIFFE CA.
 
 ## Overview
 
@@ -31,7 +33,7 @@ SPIFFE sets out:
 
 - A format for uniquely specifying an identity, the SPIFFE ID.
 - Standards for encoding the SPIFFE ID into verifiable documents, the SVID.
-- Processes for securely validating a SVID as legitimate.
+- Processes that workloads should use to validate a received SVID.
 - A set of APIs that workloads can use to request SVIDS, the Workload API.
 
 The open nature and popularity of SPIFFE make it a great choice as a foundation
@@ -77,8 +79,8 @@ The SPIFFE ID may be a unique identifier for a workload, but provides no way
 for a workload to verifiably prove its identity. This is where the Secure
 Verifiable Identity Documents (SVIDs) come in.
 
-The SVID is a document that encodes the SPIFFE ID and some form of cryptographic
-proof which allows the SVID to be verified as issued by a trusted authority.
+The SVID is a document that encodes the SPIFFE ID and a cryptographic proof
+which allows the SVID to be verified as issued by a trusted authority.
 
 SPIFFE sets out two formats for SVIDs:
 
@@ -88,30 +90,47 @@ SPIFFE sets out two formats for SVIDs:
 - JWT-SVID: These are JWT tokens that include the SPIFFE ID as the `sub` claim.
   These are signed by a trusted authority within the trust domain.
 
-The data needed to verify an SVID is known as the trust bundle. This is a set of
-certificates belonging to the trusted authorities within the trust domain.
-
-Teleport Workload Identity currently only supports X.509 SVIDs. These are issued
-by the Auth Server and signed using the cluster's `spiffe` CA.
+The data needed by a workload to verify a SVID is known as the trust bundle.
+This is a set of certificates belonging to the trusted authorities within the
+trust domain.
 
 ### Workload API
 
 ### Teleport's Workload Identity
 
-Teleport's Workload Identity is an implementation of a SPIFFE.
+Teleport's Workload Identity is an implementation of SPIFFE. Each Teleport
+cluster acts as a SPIFFE trust domain, with the Auth Server as a certificate
+authority for issuing SVIDs.
 
-Each Teleport cluster acts as a SPIFFE trust domain.
+Teleport's RBAC system is used to control which Bots and Users are able to
+request a SVID for a given SPIFFE ID. Roles can specify which SPIFFE IDs can
+be issued and this role is then granted to the Bot or User. For example:
 
-The SPIFFE Workload API is implemented as a service within the `tbot` agent.
-The ability to issue SVIDs is granted to the Bot associated with `tbot` through
-Teleport's Roles.
+```yaml
+kind: role
+version: v6
+metadata:
+  name: europe-foo-svid-issuer
+spec:
+  allow:
+    spiffe:
+    - path: "/region/europe/svc/foo"
+```
+
+The SPIFFE Workload API is implemented as a configurable service within the
+`tbot` agent. The `tbot` agent should be installed close to the workloads that
+need to request SVIDs, and they can then use the Workload API exposed by `tbot`
+to fetch SVIDs and Trust Bundles.
+
+Teleport's Workload Identity currently only supports issuing X.509-SVIDs.
 
 ## Next Steps
 
 - [Getting Started](./workload-identity/getting-started.mdx): How to configure Teleport for Workload Identity.
 - [Best Practices](./workload-identity/best-practices.mdx): Best practices for using Workload Identity in Production.
-- [TSH Support](./workload-identity/tsh.mdx): How to use `tsh` with Workload Identity.
+- [TSH Support](./workload-identity/tsh.mdx): How to use `tsh` with Workload Identity to issue SVIDs to users.
 
 ### Other Resources
 
 - [SPIFFE Specification](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE.md): The official SPIFFE specification. Useful for understanding the SPIFFE ID and SVID formats.
+- [Solving The Bottom Turtle](https://spiffe.io/pdf/Solving-the-bottom-turtle-SPIFFE-SPIRE-Book.pdf): A great book covering the fundamentals and details of SPIFFE.
