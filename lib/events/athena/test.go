@@ -326,7 +326,7 @@ func (ac *AthenaContext) setupInfraWithCleanup(t *testing.T, ctx context.Context
 		if errors.As(err, &notFound) {
 			_, err = s3Client.CreateBucket(ctx, &s3.CreateBucketInput{
 				Bucket:                     aws.String(ac.bucketForEvents),
-				ObjectLockEnabledForBucket: true,
+				ObjectLockEnabledForBucket: aws.Bool(true),
 				CreateBucketConfiguration: &s3Types.CreateBucketConfiguration{
 					LocationConstraint: s3Types.BucketLocationConstraint(awsCfg.Region),
 				},
@@ -338,7 +338,7 @@ func (ac *AthenaContext) setupInfraWithCleanup(t *testing.T, ctx context.Context
 					ObjectLockEnabled: s3Types.ObjectLockEnabledEnabled,
 					Rule: &s3Types.ObjectLockRule{
 						DefaultRetention: &s3Types.DefaultRetention{
-							Days: 1,
+							Days: aws.Int32(1),
 							Mode: s3Types.ObjectLockRetentionModeGovernance,
 						},
 					},
@@ -376,7 +376,7 @@ func (ac *AthenaContext) setupInfraWithCleanup(t *testing.T, ctx context.Context
 				{
 					Status: s3Types.ExpirationStatusEnabled,
 					Expiration: &s3Types.LifecycleExpiration{
-						Days: 1,
+						Days: aws.Int32(1),
 					},
 					// Prefix is required field, empty means set to whole bucket.
 					Prefix: aws.String(""),
