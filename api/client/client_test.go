@@ -30,7 +30,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -43,9 +42,6 @@ import (
 
 func TestMain(m *testing.M) {
 	flag.Parse()
-	if testing.Verbose() {
-		logrus.SetLevel(logrus.DebugLevel)
-	}
 	os.Exit(m.Run())
 }
 

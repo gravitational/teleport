@@ -18,15 +18,16 @@ package types
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -298,7 +299,7 @@ func (c *AuthPreferenceV2) GetPreferredLocalMFA() constants.SecondFactorType {
 		}
 		return constants.SecondFactorOTP
 	default:
-		log.Warnf("Unexpected second_factor setting: %v", sf)
+		slog.WarnContext(context.Background(), "Found unknown second_factor setting", "second_factor", sf)
 		return "" // Unsure, say nothing.
 	}
 }
@@ -323,7 +324,7 @@ func (c *AuthPreferenceV2) IsSecondFactorWebauthnAllowed() bool {
 	case trace.IsNotFound(err): // OK, expected to happen in some cases.
 		return false
 	case err != nil:
-		log.WithError(err).Warnf("Got unexpected error when reading Webauthn config")
+		slog.WarnContext(context.Background(), "Got unexpected error when reading Webauthn config", "error", err)
 		return false
 	}
 
@@ -568,10 +569,11 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	if c.Spec.SecondFactor == constants.SecondFactorU2F {
-		log.Warnf(`` +
+		const deprecationMessage = `` +
 			`Second Factor "u2f" is deprecated and marked for removal, using "webauthn" instead. ` +
 			`Please update your configuration to use WebAuthn. ` +
-			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`)
+			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`
+		slog.WarnContext(context.Background(), deprecationMessage)
 		c.Spec.SecondFactor = constants.SecondFactorWebauthn
 	}
 
@@ -775,7 +777,7 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 		default:
 			return trace.BadParameter("failed to infer webauthn RPID from U2F App ID (%q)", u.AppID)
 		}
-		log.Infof("WebAuthn: RPID inferred from U2F configuration: %q", rpID)
+		slog.InfoContext(context.Background(), "WebAuthn: RPID inferred from U2F configuration", "rpid", rpID)
 		w.RPID = rpID
 	default:
 		return trace.BadParameter("webauthn configuration missing rp_id")
@@ -784,7 +786,7 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 	// AttestationAllowedCAs.
 	switch {
 	case u != nil && len(u.DeviceAttestationCAs) > 0 && len(w.AttestationAllowedCAs) == 0 && len(w.AttestationDeniedCAs) == 0:
-		log.Infof("WebAuthn: using U2F device attestation CAs as allowed CAs")
+		slog.InfoContext(context.Background(), "WebAuthn: using U2F device attestation CAs as allowed CAs")
 		w.AttestationAllowedCAs = u.DeviceAttestationCAs
 	default:
 		for _, pem := range w.AttestationAllowedCAs {
