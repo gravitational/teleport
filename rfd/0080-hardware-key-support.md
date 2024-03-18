@@ -487,23 +487,36 @@ section above for [Web Sessions](#web-sessions) for App Sessions, which are
 essentially just a specific type of Web Session.
 
 Similarly to Web Sessions, App Sessions can be managed entirely by the Proxy and
-Auth services, with the addition of App services. In order to ensure this is the
-case, the endpoints below will be restricted to require `read` or `list` permissions
-for `KindWebSession`. These permissions will only be granted to the Proxy and App
-service roles.
+Auth services. In order to ensure this is the case, `rpc GetAppSession` and
+`rpc ListAppSessions` will be restricted to require `read` or `list` permissions
+for `KindWebSession`. These permissions will only be granted to the Proxy
+Service role.
 
-* `rpc GetAppSession`
-* `rpc ListAppSessions`
+Additionally `rpc CreateAppSession`, which is called using the user's credentials
+rather than the Proxy Service's credentials, will be updated to return only the
+session ID and bearer token, rather than the full Web Session with secrets:
 
-Additionally `rpc CreateAppSession` will be updated to return the App Session
-without secrets. Only the Session ID is needed by the user in order to request
-certificates tied to the App Session with `rpc GenerateUserCerts`. The Proxy
-and App services will still be able to retrieve the secrets with the get/list
-endpoints above.
+```diff
+// CreateAppSessionResponse contains the requested application web session.
+message CreateAppSessionResponse {
+  // Session is the application web session.
++ // TODO (Joerger): DELETE in vX.0.0
+  types.WebSessionV2 Session = 1 [(gogoproto.jsontag) = "session"];
++
++ // SessionID is the App Session UUID. Local clients should request
++ // certs linked to the App Session using this ID so the Proxy can
++ // route the client to the App Session.
++ string SessionID = 2 [(gogoproto.jsontag) = "session_id"];
++
++ // BearerToken is an App Session cookie. Browser-based clients should use
++ // this cookie so the Proxy service can route the client to the App Session.
++ string BearerToken = 3 [(gogoproto.jsontag) = "bearer_token"];
+}
+```
 
 Note: in order to maintain backwards compatibility, `CreateAppSession` will
-still continue to return secrets for 1-2 major versions (as needed) for App
-Sessions *without* a `web_session` attestation.
+still continue to return the full Web Session with secrets for 1-2 major
+versions (as needed) for App Sessions *without* a `web_session` attestation.
 
 Once these changes are complete, the Auth service can begin attesting App
 Sessions with the private key policy `web_session`, allowing users to
@@ -511,7 +524,7 @@ connect to applications with Hardware Key support protections in place.
 The Auth service will require the user to call `CreateAppSession` with
 credentials that meet their hardware key policy requirement.
 
-Note: The Auth service will also attested App Sessions when an attested
+Note: The Auth service will also attest App Sessions when an attested
 Web Session is used with an MFA challenge response. However, this relies
 on Per-session MFA being implemented for App Access. This will be covered
 in a separate RFD and implemented alongside these changes.
