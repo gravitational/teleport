@@ -30,8 +30,3 @@ jobs:
           VERSION: ${{ inputs.version }}
       - name: Test
         run: make -C windowsauth test
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: artifacts
-          path: windowsauth/build/
