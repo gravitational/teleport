@@ -36,7 +36,7 @@ Issue the SVID specifying the output directory using `--out` and the SPIFFE ID
 path as the first argument:
 
 ```sh
-$ tsh workloadid issue --out ./svid /my-svc
+$ tsh svid issue --out ./svid /my-svc
 ```
 
 Additionally, flags can be used to further customize the SVID:
@@ -62,7 +62,7 @@ To use headless authentication, we provide the `--headless` flag, and must
 also specify the `--proxy` and `--user` flags:
 
 ```sh
-$ tsh --proxy=example.teleport.sh --user=example --headless workloadid issue \
+$ tsh --proxy=example.teleport.sh --user=example --headless svid issue \
   --output . \
   /foo
 ```
