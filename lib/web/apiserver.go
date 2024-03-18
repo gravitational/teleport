@@ -807,7 +807,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/mfa/authenticatechallenge", h.WithAuth(h.createAuthenticateChallengeHandle))
 	h.POST("/webapi/mfa/devices", h.WithAuth(h.addMFADeviceHandle))
 	// DEPRECATED in favor of mfa/authenticatechallenge.
-	// TODO(bl-nero): Remove in v17.
+	// TODO(bl-nero): DELETE IN 17.0.0
 	h.POST("/webapi/mfa/authenticatechallenge/password", h.WithAuth(h.createAuthenticateChallengeWithPassword))
 
 	// trusted clusters
