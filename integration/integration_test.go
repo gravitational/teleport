@@ -8244,12 +8244,12 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	sshReq := <-modSSHReqs
+	sshReq := sshRquestIgnoringKeepalives(t, modSSHReqs)
 	var joinEvent apievents.SessionJoin
 	err = json.Unmarshal(sshReq.Payload, &joinEvent)
 	require.NoError(t, err)
 
-	sshReq = <-modSSHReqs
+	sshReq = sshRquestIgnoringKeepalives(t, modSSHReqs)
 	var fileReq apievents.FileTransferRequestEvent
 	err = json.Unmarshal(sshReq.Payload, &fileReq)
 	require.NoError(t, err)
@@ -8258,7 +8258,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// Ignore file transfer request approve event
-	<-modSSHReqs
+	sshRquestIgnoringKeepalives(t, modSSHReqs)
 
 	// Test that only operations needed to complete the download
 	// are allowed
@@ -8313,7 +8313,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	sshReq = <-modSSHReqs
+	sshReq = sshRquestIgnoringKeepalives(t, modSSHReqs)
 	err = json.Unmarshal(sshReq.Payload, &fileReq)
 	require.NoError(t, err)
 
@@ -8321,7 +8321,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// Ignore file transfer request approve event
-	<-modSSHReqs
+	sshRquestIgnoringKeepalives(t, modSSHReqs)
 
 	isNilOrEOFErr(t, transferSess.Close())
 	transferSess, err = peerSSH.NewSession(ctx)
@@ -8364,6 +8364,19 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	wf, err := sftpClient.OpenFile(reqFile, os.O_WRONLY)
 	require.NoError(t, err)
 	require.NoError(t, wf.Close())
+}
+
+func sshRquestIgnoringKeepalives(t *testing.T, ch <-chan *ssh.Request) *ssh.Request {
+	t.Helper()
+
+	for req := range ch {
+		if req.Type != teleport.KeepAliveReqType {
+			return req
+		}
+	}
+
+	t.Fatal("no non-keepalive request received before the request channel closed")
+	return nil
 }
 
 func testSFTP(t *testing.T, suite *integrationTestSuite) {
