@@ -329,7 +329,8 @@ export function memoize<T extends (...args: any) => any>(
     if (cache.has(key)) {
       return cache.get(key);
     }
-    const result = func.apply(this, args);
+    // `as any` because the implementation does not pass strictBindCallApply check.
+    const result = func.apply(this, args as any);
     memoized.cache = cache.set(key, result) || cache;
     return result;
   };
