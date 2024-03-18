@@ -162,6 +162,42 @@ func TestValidateDatabaseObjectImportRule(t *testing.T) {
 			},
 			expectedError: trace.BadParameter("missing mappings"),
 		},
+		{
+			name: "invalid mapping key",
+			rule: &dbobjectimportrulev1.DatabaseObjectImportRule{
+				Kind:    types.KindDatabaseObjectImportRule,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name:      "test",
+					Namespace: defaults.Namespace,
+				},
+				Spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+					DatabaseLabels: label.FromMap(map[string][]string{"key": {"value"}}),
+					Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{
+						AddLabels: map[string]string{"    ": "dummy"},
+					}},
+				},
+			},
+			expectedError: trace.BadParameter("invalid mapping: label name is empty or whitespace"),
+		},
+		{
+			name: "invalid template in mapping",
+			rule: &dbobjectimportrulev1.DatabaseObjectImportRule{
+				Kind:    types.KindDatabaseObjectImportRule,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name:      "test",
+					Namespace: defaults.Namespace,
+				},
+				Spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+					DatabaseLabels: label.FromMap(map[string][]string{"key": {"value"}}),
+					Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{
+						AddLabels: map[string]string{"dummy": "  {{  "},
+					}},
+				},
+			},
+			expectedError: trace.Wrap(trace.BadParameter("\"  {{  \" is using template brackets '{{' or '}}', however expression does not parse, make sure the format is {{expression}}"), "mapping value failed to parse as template"),
+		},
 	}
 
 	for _, tt := range tests {

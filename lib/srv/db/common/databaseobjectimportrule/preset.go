@@ -14,34 +14,36 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package permissions
+package databaseobjectimportrule
 
 import (
 	log "github.com/sirupsen/logrus"
 
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
-	"github.com/gravitational/teleport/api/types/databaseobjectimportrule"
 	"github.com/gravitational/teleport/api/types/label"
 )
 
 // NewPresetImportAllObjectsRule creates new "import_all_objects" database object import rule, which applies `kind: <object kind>` label to all database objects.
 // This is a convenience rule and users are free to modify it to suit their needs.
 func NewPresetImportAllObjectsRule() *dbobjectimportrulev1pb.DatabaseObjectImportRule {
-	rule, err := databaseobjectimportrule.NewDatabaseObjectImportRule("import_all_objects", &dbobjectimportrulev1pb.DatabaseObjectImportRuleSpec{
+	rule, err := NewDatabaseObjectImportRule("import_all_objects", &dbobjectimportrulev1pb.DatabaseObjectImportRuleSpec{
 		Priority:       0,
 		DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
 		Mappings: []*dbobjectimportrulev1pb.DatabaseObjectImportRuleMapping{
 			{
-				Match:     &dbobjectimportrulev1pb.DatabaseObjectImportMatch{TableNames: []string{"*"}},
-				AddLabels: map[string]string{"kind": ObjectKindTable},
-			},
-			{
-				Match:     &dbobjectimportrulev1pb.DatabaseObjectImportMatch{ViewNames: []string{"*"}},
-				AddLabels: map[string]string{"kind": ObjectKindView},
-			},
-			{
-				Match:     &dbobjectimportrulev1pb.DatabaseObjectImportMatch{ProcedureNames: []string{"*"}},
-				AddLabels: map[string]string{"kind": ObjectKindProcedure},
+				Match: &dbobjectimportrulev1pb.DatabaseObjectImportMatch{
+					TableNames:     []string{"*"},
+					ViewNames:      []string{"*"},
+					ProcedureNames: []string{"*"},
+				},
+				AddLabels: map[string]string{
+					"protocol":              "{{obj.protocol}}",
+					"database_service_name": "{{obj.database_service_name}}",
+					"object_kind":           "{{obj.object_kind}}",
+					"database":              "{{obj.database}}",
+					"schema":                "{{obj.schema}}",
+					"name":                  "{{obj.name}}",
+				},
 			},
 		},
 	})

@@ -15,6 +15,8 @@
 package databaseobjectimportrule
 
 import (
+	"strings"
+
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -70,6 +72,17 @@ func ValidateDatabaseObjectImportRule(rule *dbobjectimportrulev1.DatabaseObjectI
 	}
 	if len(rule.Spec.Mappings) == 0 {
 		return trace.BadParameter("missing mappings")
+	}
+	for _, mapping := range rule.Spec.Mappings {
+		for key, template := range mapping.AddLabels {
+			if strings.TrimSpace(key) == "" {
+				return trace.BadParameter("invalid mapping: label name is empty or whitespace")
+			}
+			err := validateTemplate(template)
+			if err != nil {
+				return trace.Wrap(err, "mapping value failed to parse as template")
+			}
+		}
 	}
 	return nil
 }
