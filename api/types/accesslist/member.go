@@ -118,9 +118,6 @@ func (a *AccessListMember) IsEqual(other *AccessListMember) bool {
 		a.Spec.AccessList == other.Spec.AccessList
 }
 
-var _ types.ResourceWithOrigin = (*AccessListMember)(nil)
-var _ types.ResourceWithLabels = (*AccessListMember)(nil)
-
 // MatchSearch goes through select field values of a resource
 // and tries to match against the list of search values.
 func (a *AccessListMember) MatchSearch(values []string) bool {
