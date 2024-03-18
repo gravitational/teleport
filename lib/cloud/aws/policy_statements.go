@@ -23,7 +23,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-var allResources = []string{"*"}
+var wildcard = "*"
+var allResources = []string{wildcard}
 
 // StatementForIAMEditRolePolicy returns a IAM Policy Statement which allows editting Role Policy
 // of the resources.
@@ -164,6 +165,23 @@ func StatementForListRDSDatabases() *Statement {
 			"ec2:DescribeSecurityGroups",
 		},
 		Resources: allResources,
+	}
+}
+
+// StatementForS3BucketPublicRead returns the statement that
+// allows public/anonynous access to s3 bucket/prefix objects.
+func StatementForS3BucketPublicRead(s3bucketName, objectPrefix string) *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Principals: StringOrMap{
+			wildcard: SliceOrString{},
+		},
+		Actions: []string{
+			"s3:GetObject",
+		},
+		Resources: []string{
+			fmt.Sprintf("arn:aws:s3:::%s/%s/*", s3bucketName, objectPrefix),
+		},
 	}
 }
 

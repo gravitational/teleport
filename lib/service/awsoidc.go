@@ -257,7 +257,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 		return nil
 	}
 
-	token, err := updater.AuthClient.GenerateAWSOIDCToken(ctx)
+	token, err := updater.AuthClient.GenerateAWSOIDCToken(ctx, integration.GetName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
