@@ -56,6 +56,9 @@ export type ThemeColors = {
     tonal: {
       primary: string[];
       success: string[];
+      danger: string[];
+      alert: string[];
+      informational: string[];
     };
   };
 
@@ -133,6 +136,12 @@ export type ThemeColors = {
     active: string;
   };
   success: {
+    main: string;
+    hover: string;
+    active: string;
+  };
+
+  accent: {
     main: string;
     hover: string;
     active: string;

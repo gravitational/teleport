@@ -93,6 +93,21 @@ const colors: ThemeColors = {
         'rgba(0, 125, 107, 0.18)',
         'rgba(0, 125, 107, 0.25)',
       ],
+      danger: [
+        'rgba(204, 55, 45, 0.1)',
+        'rgba(204, 55, 45, 0.18)',
+        'rgba(204, 55, 45, 0.25)',
+      ],
+      alert: [
+        'rgba(255, 171, 0, 0.1)',
+        'rgba(255, 171, 0, 0.18)',
+        'rgba(255, 171, 0, 0.25)',
+      ],
+      informational: [
+        'rgba(0, 115, 186, 0.1)',
+        'rgba(0, 115, 186, 0.18)',
+        'rgba(0, 115, 186, 0.25)',
+      ],
     },
   },
 
@@ -164,6 +179,12 @@ const colors: ThemeColors = {
     main: '#FFAB00',
     hover: '#CC8900',
     active: '#996700',
+  },
+
+  accent: {
+    main: 'rgba(0, 115, 186, 1)',
+    hover: 'rgba(0, 92, 149, 1)',
+    active: 'rgba(0, 69, 112, 1)',
   },
 
   notice: {
