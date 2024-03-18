@@ -435,6 +435,9 @@ To make TPM joining FIPS 140 compatible, the following must be completed:
   compliant implementation (e.g boringcrypto) is used for any cryptographic
   operations.
 
+Due to non-compliance, we will reject TPM joining when the Auth Server is
+configured in FIPS mode.
+
 ### Operator Responsibility
 
 One common theme across this RFD is the extent to which the operator is
