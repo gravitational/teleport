@@ -145,7 +145,7 @@ export function ClusterDropdown({
           size="small"
           onClick={handleOpen}
         >
-          {selectedOption.label}
+          Cluster: {selectedOption.label}
           <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
         </ButtonSecondary>
       </HoverTooltip>
