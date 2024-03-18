@@ -145,7 +145,7 @@ export type CloneableRpcOptions = Omit<RpcOptions, 'abort'> & {
  * Describes a client that can be passed over the context bridge.
  * Errors returned from its methods are converted to `TshdRpcError` objects.
  */
-export type CloneableClient<Client extends ServiceInfo> = {
+export type CloneableClient<Client> = {
   [Method in keyof Client]: Client[Method] extends (
     ...args: infer Args
   ) => infer ReturnType
@@ -168,41 +168,25 @@ type CloneableCallTypes<T> =
 
 type ReplaceRpcOptions<T> = T extends RpcOptions ? CloneableRpcOptions : T;
 
-/**
- * A unary RPC call. Can be passed over the context bridge.
- * Errors are converted to `TshdRpcError` objects.
- */
-export type CloneableUnaryCall<I extends object, O extends object> = Pick<
+type CloneableUnaryCall<I extends object, O extends object> = Pick<
   UnaryCall<I, O>,
   'then'
 >;
 
-/**
- * A client streaming RPC call. Can be passed over the context bridge.
- * Errors are converted to `TshdRpcError` objects.
- */
-export type CloneableClientStreamingCall<
-  I extends object,
-  O extends object,
-> = Pick<ClientStreamingCall<I, O>, 'requests' | 'then'>;
+type CloneableClientStreamingCall<I extends object, O extends object> = Pick<
+  ClientStreamingCall<I, O>,
+  'requests' | 'then'
+>;
 
-/**
- * A server streaming RPC call. Can be passed over the context bridge.
- * Errors are converted to `TshdRpcError` objects.
- */
-export type CloneableServerStreamingCall<
-  I extends object,
-  O extends object,
-> = Pick<ServerStreamingCall<I, O>, 'responses' | 'then'>;
+type CloneableServerStreamingCall<I extends object, O extends object> = Pick<
+  ServerStreamingCall<I, O>,
+  'responses' | 'then'
+>;
 
-/**
- * A duplex streaming RPC call. Can be passed over the context bridge.
- * Errors are converted to `TshdRpcError` objects.
- */
-export type CloneableDuplexStreamingCall<
-  I extends object,
-  O extends object,
-> = Pick<DuplexStreamingCall<I, O>, 'requests' | 'responses' | 'then'>;
+type CloneableDuplexStreamingCall<I extends object, O extends object> = Pick<
+  DuplexStreamingCall<I, O>,
+  'requests' | 'responses' | 'then'
+>;
 
 function cloneUnaryCall<I extends object, O extends object>(
   call: (input: I, options?: CloneableRpcOptions) => UnaryCall<I, O>
