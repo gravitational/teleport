@@ -40,8 +40,8 @@ import Validation, { Validator } from 'shared/components/Validation';
 import { requiredRoleArn } from 'shared/components/Validation/rules';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 import { CheckboxInput } from 'design/Checkbox';
-import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { Integration } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
 
