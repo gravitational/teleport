@@ -39,12 +39,18 @@ import * as apiAccessList from 'gen-proto-ts/teleport/accesslist/v1/accesslist_p
 
 import * as uri from 'teleterm/ui/uri';
 
-import { CloneableAbortSignal, CloneableRpcOptions } from './cloneableClient';
+import {
+  CloneableAbortSignal,
+  CloneableRpcOptions,
+  CloneableClient,
+} from './cloneableClient';
 
 // We want to reexport both the type and the value of UserType. Because it's in a namespace, we have
 // to alias it first to do the reexport.
 // https://www.typescriptlang.org/docs/handbook/namespaces.html#aliases
 import UserType = apiCluster.LoggedInUser_UserType;
+
+import type { ITerminalServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
 
 export { UserType };
 export type { CloneableAbortSignal, CloneableRpcOptions };
@@ -222,7 +228,7 @@ export type LoginPasswordlessRequest =
   Partial<apiService.LoginPasswordlessRequest>;
 
 export type TshdClient = {
-  listRootClusters: (abortSignal?: TshAbortSignal) => Promise<Cluster[]>;
+  listRootClusters: (abortSignal?: CloneableAbortSignal) => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: uri.RootClusterUri) => Promise<Cluster[]>;
   getKubes: (params: GetResourcesParams) => Promise<GetKubesResponse>;
   getApps: (params: GetResourcesParams) => Promise<GetAppsResponse>;
@@ -255,7 +261,6 @@ export type TshdClient = {
     clusterUri: uri.RootClusterUri,
     requestId: string
   ) => Promise<void>;
-  createAbortController: () => TshAbortController;
   addRootCluster: (addr: string) => Promise<Cluster>;
 
   listGateways: () => Promise<Gateway[]>;
@@ -275,23 +280,22 @@ export type TshdClient = {
   removeCluster: (clusterUri: uri.RootClusterUri) => Promise<void>;
   loginLocal: (
     params: LoginLocalParams,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => Promise<void>;
   loginSso: (
     params: LoginSsoParams,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => Promise<void>;
   loginPasswordless: (
     params: LoginPasswordlessParams,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => Promise<void>;
   logout: (clusterUri: uri.RootClusterUri) => Promise<void>;
   transferFile: (
     options: FileTransferRequest,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => FileTransferListeners;
-  reportUsageEvent: (event: ReportUsageEventRequest) => Promise<void>;
-
+  reportUsageEvent: CloneableClient<ITerminalServiceClient>['reportUsageEvent'];
   createConnectMyComputerRole: (
     rootClusterUri: uri.RootClusterUri
   ) => Promise<CreateConnectMyComputerRoleResponse>;
@@ -300,7 +304,7 @@ export type TshdClient = {
   ) => Promise<CreateConnectMyComputerNodeTokenResponse>;
   waitForConnectMyComputerNodeJoin: (
     rootClusterUri: uri.RootClusterUri,
-    abortSignal: TshAbortSignal
+    abortSignal: CloneableAbortSignal
   ) => Promise<WaitForConnectMyComputerNodeJoinResponse>;
   deleteConnectMyComputerNode: (
     clusterUri: uri.RootClusterUri
@@ -309,43 +313,32 @@ export type TshdClient = {
 
   updateHeadlessAuthenticationState: (
     params: UpdateHeadlessAuthenticationStateParams,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => Promise<void>;
 
   listUnifiedResources: (
     params: apiService.ListUnifiedResourcesRequest,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => Promise<ListUnifiedResourcesResponse>;
 
   getUserPreferences: (
     params: apiService.GetUserPreferencesRequest,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => Promise<UserPreferences>;
   updateUserPreferences: (
     params: apiService.UpdateUserPreferencesRequest,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => Promise<UserPreferences>;
   getSuggestedAccessLists: (
     params: apiService.GetSuggestedAccessListsRequest,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => Promise<AccessList[]>;
   promoteAccessRequest: (
     params: PromoteAccessRequestParams,
-    abortSignal?: TshAbortSignal
+    abortSignal?: CloneableAbortSignal
   ) => Promise<AccessRequest>;
 
   updateTshdEventsServerAddress: (address: string) => Promise<void>;
-};
-
-export type TshAbortController = {
-  signal: TshAbortSignal;
-  abort(): void;
-};
-
-export type TshAbortSignal = {
-  readonly aborted: boolean;
-  addEventListener(cb: (...args: any[]) => void): void;
-  removeEventListener(cb: (...args: any[]) => void): void;
 };
 
 interface LoginParamsBase {

@@ -60,7 +60,7 @@ export class HeadlessAuthenticationService {
 
   async updateHeadlessAuthenticationState(
     params: types.UpdateHeadlessAuthenticationStateParams,
-    abortSignal: types.TshAbortSignal
+    abortSignal: types.CloneableAbortSignal
   ): Promise<void> {
     return this.tshClient.updateHeadlessAuthenticationState(
       params,
