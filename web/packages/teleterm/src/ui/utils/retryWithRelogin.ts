@@ -60,7 +60,7 @@ export async function retryWithRelogin<T>(
   } catch (error) {
     if (isRetryable(error)) {
       retryableErrorFromActionToRetry = error;
-      logger.info(`Activating relogin on error ${error}`);
+      logger.info(`Activating relogin on error`, error);
     } else {
       throw error;
     }
