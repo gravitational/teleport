@@ -320,7 +320,8 @@ func (m *Manager) matchingProfile(appPublicAddr string) (string, bool, error) {
 		return "", false, trace.Wrap(err, "listing user profiles")
 	}
 	for _, profile := range profiles {
-		if strings.HasSuffix(appPublicAddr, profile) && appPublicAddr != profile {
+		dnsZone := fmt.Sprintf(".%s", profile)
+		if strings.HasSuffix(appPublicAddr, dnsZone) {
 			return profile, true, nil
 		}
 	}
