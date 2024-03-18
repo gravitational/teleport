@@ -94,39 +94,20 @@ jobs:
       - name: Determine Toolchain Versions and cache paths
         run: |
           echo NODE_VERSION=$(make -C build.assets print-node-version) >> $GITHUB_ENV
-          echo RUST_VERSION=$(make -C build.assets print-rust-version) >> $GITHUB_ENV
-          echo WASM_PACK_VERSION=$(make -C build.assets print-wasm-pack-version) >> $GITHUB_ENV
 
       - name: Print versions
         run: |
           echo "make: $(make --version)"
           echo "node: ${NODE_VERSION}"
-          echo "rust: ${RUST_VERSION}"
-          echo "wasm-pack: ${WASM_PACK_VERSION}"
 
       - name: Install Node Toolchain
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      # Python 3.11 is needed until we update to gyp v0.16.1
-      # Related issue: https://github.com/nodejs/node-gyp/issues/2869
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: 3.11
-
       - name: Setup yarn
         run: |
           corepack enable yarn
-
-      - name: Set Rust Version
-        run: |
-          make RUST_VERSION=${RUST_VERSION} rustup-set-version
-
-      - name: Install wasm-pack
-        run: |
-          cargo install wasm-pack --locked --version ${WASM_PACK_VERSION}
 
       - name: Setup keychain
         env:

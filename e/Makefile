@@ -310,7 +310,6 @@ $(RELEASE_DIR):
 export
 release:
 	@echo "---> $(RELEASE_ENT_MESSAGE)"
-	$(MAKE) -C .. ensure-webassets-e
 ifeq ("$(OS)", "darwin")
 	$(MAKE) --no-print-directory release-darwin
 else
