@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -652,6 +653,14 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 		proxySigner:               config.proxySigner,
 	}
 
+	sessionWatcher, err := cache.prepareWebSessionWatcher(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Watch for session updates.
+	go sessionWatcher(ctx)
+
 	// periodically close expired and unused sessions
 	go cache.expireSessions(ctx)
 
@@ -731,6 +740,88 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 		}
 		s.removeSessionContextLocked(c.cfg.Session.GetUser(), c.cfg.Session.GetName())
 		s.log.WithField("ctx", c.String()).Debug("Context expired.")
+	}
+}
+
+// prepareWebSessionWatcher prepares the WebSession watcher for sessionCache and
+// returns a function that executes the watcher loop.
+func (s *sessionCache) prepareWebSessionWatcher(ctx context.Context) (watchFn func(context.Context), err error) {
+	// Watcher not necessary for OSS.
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return func(context.Context) {}, nil
+	}
+
+	watcher, err := s.proxyClient.NewWatcher(ctx, types.Watch{
+		Name: teleport.ComponentWebProxy + ".sessionCache." + types.KindWebSession,
+		Kinds: []types.WatchKind{
+			{
+				Kind: types.KindWebSession,
+				// Watch only for KindWebSession.
+				// SubKinds include KindAppSession, KindSAMLIdPSession, etc.
+				SubKind: types.KindWebSession,
+			},
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return func(ctx context.Context) {
+		s.log.Debug("Starting sessionCache WebSession watcher")
+
+		// Watch sessions. Blocks indefinitely.
+		err := s.watchWebSessions(ctx, watcher)
+
+		switch {
+		case errors.Is(err, context.Canceled):
+			s.log.Debug("Stopped sessionCache WebSession watcher")
+		case err != nil:
+			s.log.
+				WithError(err).
+				Warn("Stopped sessionCache WebSession watcher. This may have an impact in device trust web sessions.")
+		}
+	}, nil
+}
+
+// watchWebSessions is returned wrapped by "watchFn" by [prepareWebSessionWatcher].
+// Do not call it directly.
+//
+// watchWebSessions watches WebSessions and releases any updated sessions.
+// The underlying assumption is that an updated session got its certificates
+// augmented with device trust extensions, so it is cleared in order for the new
+// certificates to be loaded by the Proxy.
+func (s *sessionCache) watchWebSessions(ctx context.Context, watcher types.Watcher) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+
+		case event := <-watcher.Events():
+			s.log.
+				WithField("event", event).
+				Debug("Received sessionCache watcher event")
+
+			if event.Type != types.OpPut {
+				continue // We only care about OpPut at the moment.
+			}
+
+			session, ok := event.Resource.(types.WebSession)
+			if !ok {
+				s.log.
+					WithField("resource_type", fmt.Sprintf("%T", event.Resource)).
+					Warn("sessionCache WebSession watcher received unexpected resource type")
+				continue
+			}
+
+			// If the session got an update, assume it got augmented with device
+			// extensions and clear the cache.
+			// We could be more selective here, but this is good enough.
+			if err := s.releaseResources(session.GetUser(), session.GetName()); err != nil {
+				s.log.
+					WithError(err).
+					Debug("sessionCache WebSession wacher: failed to release updated session.")
+			}
+		}
 	}
 }
 

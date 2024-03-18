@@ -25,11 +25,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/mailgun/holster/v3/clock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 func TestRemoteClientCache(t *testing.T) {
@@ -178,4 +185,89 @@ func TestGetUserClient(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "test", domain)
 	}
+}
+
+func TestSessionCache_watcher(t *testing.T) {
+	// Can't t.Parallel because of modules.SetTestModules.
+
+	// Requires Enterprise to work.
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+
+	webSuite := newWebSuite(t)
+	authServer := webSuite.server.AuthServer.AuthServer
+	authClient := webSuite.proxyClient
+
+	// cancel is used to make sure the sessionCache stops cleanly.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sessionCache, err := newSessionCache(ctx, sessionCacheOptions{
+		proxyClient: authClient,
+		accessPoint: authClient,
+		servers: []utils.NetAddr{
+			// An addr is required but unused.
+			{Addr: "localhost:12345", AddrNetwork: "tcp"}},
+		clock:                     webSuite.clock,
+		sessionLingeringThreshold: 1 * time.Minute,
+	})
+	require.NoError(t, err, "newSessionCache() failed")
+	defer sessionCache.Close()
+
+	// Sanity check active sessions.
+	require.Zero(t,
+		sessionCache.ActiveSessions(),
+		"ActiveSessions() count mismatch")
+
+	// Create realistic keys and certificates, newSessionContextFromSession
+	// requires it.
+	creds, err := cert.GenerateSelfSignedCert(nil /* hostNames */, nil /* ipAddresses */)
+	require.NoError(t, err, "GenerateSelfSignedCert() failed")
+
+	// Create a new "fake" session. We'll update it later and see if the watcher
+	// is triggered.
+	sessionID := uuid.NewString()
+	expires := clock.Now().Add(1 * time.Hour)
+	session, err := types.NewWebSession(sessionID, types.KindWebSession, types.WebSessionSpecV2{
+		User:               "llama", // fake
+		Pub:                []byte(`ceci n'est pas an SSH certificate`),
+		Priv:               creds.PrivateKey,
+		TLSCert:            creds.Cert,
+		BearerToken:        "12345678",
+		BearerTokenExpires: expires,
+		Expires:            expires,
+		IdleTimeout:        types.Duration(1 * time.Hour),
+	})
+	require.NoError(t, err, "NewWebSession() failed")
+
+	// Record session in cache.
+	_, err = sessionCache.newSessionContextFromSession(ctx, session)
+	require.NoError(t, err, "newSessionContextFromSession() failed")
+
+	// Sanity check active sessions.
+	require.Equal(t,
+		1,
+		sessionCache.ActiveSessions(),
+		"ActiveSessions() count mismatch")
+
+	// An update should cause the cache to evict the session.
+	// Certs here don't need to be realistic, they are never parsed.
+	sessionV2 := session.(*types.WebSessionV2)
+	sessionV2.Spec.Pub = []byte(`new SSH certificate`)
+	sessionV2.Spec.TLSCert = []byte(`new X.509 certificate`)
+	require.NoError(t,
+		authServer.WebSessions().Upsert(ctx, sessionV2),
+		"WebSessions.Upsert() failed",
+	)
+
+	// Verify that the session was evicted from the cache.
+	assert.Eventually(t,
+		func() bool {
+			return sessionCache.ActiveSessions() == 0
+		},
+		2*time.Second,        /* waitTime */
+		100*time.Millisecond, /* tick */
+		"sessionCache not evicted before timeout",
+	)
 }
