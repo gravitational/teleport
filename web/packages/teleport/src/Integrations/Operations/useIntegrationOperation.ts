@@ -34,7 +34,11 @@ export function useIntegrationOperation() {
 
   function edit(req: EditableIntegrationFields) {
     return integrationService.updateIntegration(operation.item.name, {
-      awsoidc: { roleArn: req.roleArn },
+      awsoidc: {
+        roleArn: req.roleArn,
+        issuerS3Bucket: req.s3Bucket,
+        issuerS3Prefix: req.s3Prefix,
+      },
     });
   }
 
@@ -56,8 +60,13 @@ export function useIntegrationOperation() {
   };
 }
 
+/**
+ * Currently only integration updateable is aws oidc.
+ */
 export type EditableIntegrationFields = {
   roleArn: string;
+  s3Bucket: string;
+  s3Prefix: string;
 };
 
 export type OperationType = 'create' | 'edit' | 'delete' | 'reset' | 'none';

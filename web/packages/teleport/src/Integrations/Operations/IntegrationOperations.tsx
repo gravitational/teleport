@@ -19,7 +19,7 @@ import React from 'react';
 import { Integration } from 'teleport/services/integrations';
 
 import { DeleteIntegrationDialog } from '../RemoveIntegrationDialog';
-import { EditIntegrationDialog } from '../EditIntegrationDialog';
+import { EditAwsOidcIntegrationDialog } from '../EditAwsOidcIntegrationDialog';
 
 import {
   OperationType,
@@ -53,7 +53,7 @@ export function IntegrationOperations({
 
   if (operation === 'edit') {
     return (
-      <EditIntegrationDialog
+      <EditAwsOidcIntegrationDialog
         integration={integration}
         close={close}
         edit={edit}
