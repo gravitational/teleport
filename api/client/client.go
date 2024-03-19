@@ -2967,6 +2967,15 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 	return resp, nil
 }
 
+// GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
+func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
+	rsp, err := c.ClusterConfigClient().GetClusterAccessGraphConfig(ctx, &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rsp.AccessGraph, nil
+}
+
 // GetInstaller gets all installer script resources
 func (c *Client) GetInstallers(ctx context.Context) ([]types.Installer, error) {
 	resp, err := c.grpc.GetInstallers(ctx, &emptypb.Empty{})
