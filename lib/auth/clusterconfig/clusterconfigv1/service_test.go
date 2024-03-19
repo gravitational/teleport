@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/constants"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -1651,6 +1652,7 @@ type envConfig struct {
 	defaultNetworkingConfig types.ClusterNetworkingConfig
 	defaultRecordingConfig  types.SessionRecordingConfig
 	service                 services.ClusterConfiguration
+	accessGraphConfig       clusterconfigv1.AccessGraphConfig
 }
 type serviceOpt = func(config *envConfig)
 
@@ -1684,6 +1686,12 @@ func withClusterConfigurationService(svc services.ClusterConfiguration) serviceO
 	}
 }
 
+func withAccessGraphConfig(cfg clusterconfigv1.AccessGraphConfig) serviceOpt {
+	return func(config *envConfig) {
+		config.accessGraphConfig = cfg
+	}
+}
+
 type env struct {
 	*clusterconfigv1.Service
 	emitter                 *eventstest.ChannelEmitter
@@ -1713,10 +1721,11 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 	}
 
 	svc, err := clusterconfigv1.NewService(clusterconfigv1.ServiceConfig{
-		Cache:      cfg.service,
-		Backend:    cfg.service,
-		Authorizer: cfg.authorizer,
-		Emitter:    cfg.emitter,
+		Cache:       cfg.service,
+		Backend:     cfg.service,
+		Authorizer:  cfg.authorizer,
+		Emitter:     cfg.emitter,
+		AccessGraph: cfg.accessGraphConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating users service")
@@ -1754,4 +1763,112 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 		defaultRecordingConfig:  defaultSessionRecordingConfig,
 		emitter:                 emitter,
 	}, nil
+}
+
+func TestGetAccessGraphConfig(t *testing.T) {
+	cfgEnabled := clusterconfigv1.AccessGraphConfig{
+		Enabled:  true,
+		Address:  "address",
+		CA:       []byte("ca"),
+		Insecure: true,
+	}
+	cases := []struct {
+		name              string
+		accessGraphConfig clusterconfigv1.AccessGraphConfig
+		role              types.SystemRole
+		testSetup         func(*testing.T)
+		errorAssertion    require.ErrorAssertionFunc
+		responseAssertion *clusterconfigpb.GetClusterAccessGraphConfigResponse
+	}{
+		{
+			name: "unauthorized",
+			role: types.RoleKube,
+			errorAssertion: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected unauthorized user to be prevented from getting auth preferences", err)
+			},
+		},
+		{
+			name:              "authorized proxy with non empty access graph config; Policy module is disabled",
+			role:              types.RoleProxy,
+			accessGraphConfig: cfgEnabled,
+			errorAssertion:    require.NoError,
+			responseAssertion: &clusterconfigpb.GetClusterAccessGraphConfigResponse{
+				AccessGraph: &clusterconfigpb.AccessGraphConfig{
+					Enabled: false,
+				},
+			},
+		},
+		{
+			name: "authorized proxy with non empty access graph config; Policy module is enabled",
+			role: types.RoleProxy,
+			testSetup: func(t *testing.T) {
+				m := modules.TestModules{
+					TestFeatures: modules.Features{
+						Policy: modules.PolicyFeature{
+							Enabled: true,
+						},
+					},
+				}
+				modules.SetTestModules(t, &m)
+			},
+			accessGraphConfig: cfgEnabled,
+			errorAssertion:    require.NoError,
+			responseAssertion: &clusterconfigpb.GetClusterAccessGraphConfigResponse{
+				AccessGraph: &clusterconfigpb.AccessGraphConfig{
+					Enabled:  true,
+					Insecure: true,
+					Address:  "address",
+					Ca:       []byte("ca"),
+				},
+			},
+		},
+		{
+			name: "authorized discovery with non empty access graph config; Policy module is enabled",
+			role: types.RoleDiscovery,
+			testSetup: func(t *testing.T) {
+				m := modules.TestModules{
+					TestFeatures: modules.Features{
+						Policy: modules.PolicyFeature{
+							Enabled: true,
+						},
+					},
+				}
+				modules.SetTestModules(t, &m)
+			},
+			accessGraphConfig: cfgEnabled,
+			errorAssertion:    require.NoError,
+			responseAssertion: &clusterconfigpb.GetClusterAccessGraphConfigResponse{
+				AccessGraph: &clusterconfigpb.AccessGraphConfig{
+					Enabled:  true,
+					Insecure: true,
+					Address:  "address",
+					Ca:       []byte("ca"),
+				},
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			if test.testSetup != nil {
+				test.testSetup(t)
+			}
+			authRoleContext, err := authz.ContextForBuiltinRole(authz.BuiltinRole{
+				Role:     test.role,
+				Username: string(test.role),
+			}, nil)
+			require.NoError(t, err, "creating auth role context")
+			authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return authRoleContext, nil
+			})
+			env, err := newTestEnv(withAuthorizer(authorizer), withAccessGraphConfig(test.accessGraphConfig))
+			require.NoError(t, err, "creating test service")
+
+			got, err := env.GetClusterAccessGraphConfig(context.Background(), &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
+			test.errorAssertion(t, err)
+
+			require.Empty(t, cmp.Diff(test.responseAssertion, got, protocmp.Transform()))
+
+		})
+	}
 }

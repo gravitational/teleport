@@ -4770,6 +4770,7 @@ func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.
 
 type testTLSServerOptions struct {
 	cacheEnabled bool
+	accessGraph  *AccessGraphConfig
 }
 
 type testTLSServerOption func(*testTLSServerOptions)
@@ -4777,6 +4778,12 @@ type testTLSServerOption func(*testTLSServerOptions)
 func withCacheEnabled(enabled bool) testTLSServerOption {
 	return func(options *testTLSServerOptions) {
 		options.cacheEnabled = enabled
+	}
+}
+
+func withAccessGraphConfig(cfg AccessGraphConfig) testTLSServerOption {
+	return func(options *testTLSServerOptions) {
+		options.accessGraph = &cfg
 	}
 }
 
@@ -4794,10 +4801,14 @@ func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *TestTLSServer 
 		Dir:          t.TempDir(),
 		Clock:        clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
 		CacheEnabled: options.cacheEnabled,
+		//AccessGraphConfig: options.accessGraph,
 	})
 	require.NoError(t, err)
-
-	srv, err := as.NewTestTLSServer()
+	var tlsServerOpts []TestTLSServerOption
+	if options.accessGraph != nil {
+		tlsServerOpts = append(tlsServerOpts, WithAccessGraphConfig(*options.accessGraph))
+	}
+	srv, err := as.NewTestTLSServer(tlsServerOpts...)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

@@ -55,20 +55,37 @@ type Backend interface {
 
 // ServiceConfig contain dependencies required to create a [Service].
 type ServiceConfig struct {
-	Cache      Cache
-	Backend    Backend
-	Authorizer authz.Authorizer
-	Emitter    apievents.Emitter
+	Cache       Cache
+	Backend     Backend
+	Authorizer  authz.Authorizer
+	Emitter     apievents.Emitter
+	AccessGraph AccessGraphConfig
+}
+
+// AccessGraphConfig contains the configuration about the access graph service
+// and whether it is enabled or not.
+type AccessGraphConfig struct {
+	// Enabled is a flag that indicates whether the access graph service is enabled.
+	Enabled bool
+	// Address is the address of the access graph service. The address is in the
+	// form of "host:port".
+	Address string
+	// CA is the PEM-encoded CA certificate of the access graph service.
+	CA []byte
+	// Insecure is a flag that indicates whether the access graph service should
+	// skip verifying the server's certificate chain and host name.
+	Insecure bool
 }
 
 // Service implements the teleport.clusterconfig.v1.ClusterConfigService RPC service.
 type Service struct {
 	clusterconfigpb.UnimplementedClusterConfigServiceServer
 
-	cache      Cache
-	backend    Backend
-	authorizer authz.Authorizer
-	emitter    apievents.Emitter
+	cache       Cache
+	backend     Backend
+	authorizer  authz.Authorizer
+	emitter     apievents.Emitter
+	accessGraph AccessGraphConfig
 }
 
 // NewService validates the provided configuration and returns a [Service].
@@ -84,7 +101,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("emitter is required")
 	}
 
-	return &Service{cache: cfg.Cache, backend: cfg.Backend, authorizer: cfg.Authorizer, emitter: cfg.Emitter}, nil
+	return &Service{cache: cfg.Cache, backend: cfg.Backend, authorizer: cfg.Authorizer, emitter: cfg.Emitter, accessGraph: cfg.AccessGraph}, nil
 }
 
 // GetAuthPreference returns the locally cached auth preference.
@@ -767,4 +784,33 @@ func (s *Service) ResetSessionRecordingConfig(ctx context.Context, _ *clustercon
 		return cfgV2, nil
 	}
 	return nil, trace.LimitExceeded("failed to reset networking config within %v iterations", iterationLimit)
+}
+
+func (s *Service) GetClusterAccessGraphConfig(ctx context.Context, _ *clusterconfigpb.GetClusterAccessGraphConfigRequest) (*clusterconfigpb.GetClusterAccessGraphConfigResponse, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.HasBuiltinRole(*authzCtx, string(types.RoleProxy)) && !authz.HasBuiltinRole(*authzCtx, string(types.RoleDiscovery)) {
+		return nil, trace.AccessDenied("this request can be only executed by proxy or discovery services")
+	}
+
+	// If the policy feature is disabled in the license, return a disabled response.
+	if !modules.GetModules().Features().Policy.Enabled && !modules.GetModules().Features().AccessGraph {
+		return &clusterconfigpb.GetClusterAccessGraphConfigResponse{
+			AccessGraph: &clusterconfigpb.AccessGraphConfig{
+				Enabled: false,
+			},
+		}, nil
+	}
+
+	return &clusterconfigpb.GetClusterAccessGraphConfigResponse{
+		AccessGraph: &clusterconfigpb.AccessGraphConfig{
+			Enabled:  s.accessGraph.Enabled,
+			Address:  s.accessGraph.Address,
+			Ca:       s.accessGraph.CA,
+			Insecure: s.accessGraph.Insecure,
+		},
+	}, nil
 }
