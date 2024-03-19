@@ -111,7 +111,6 @@ export function RequestCheckout({
   fetchStatus,
   maxDuration,
   setMaxDuration,
-  requestTTLDurationOptions,
   requestTTL,
   setRequestTTL,
   dryRunResponse,
@@ -341,10 +340,10 @@ export function RequestCheckout({
                         updateReason={updateReason}
                         requireReason={requireReason}
                       />
-                      {dryRunResponse && (
+                      {dryRunResponse && maxDuration && (
                         <AdditionalOptions
                           selectedMaxDurationTimestamp={maxDuration?.value}
-                          requestTTLDurationOptions={requestTTLDurationOptions}
+                          maxDuration={maxDuration}
                           setRequestTTL={setRequestTTL}
                           requestTTL={requestTTL}
                           dryRunResponse={dryRunResponse}

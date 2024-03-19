@@ -19,6 +19,7 @@ export const Loaded = () => {
     props.selectedReviewers
   );
   const [maxDuration, setMaxDuration] = useState<Option<number>>();
+  const [requestTTL, setRequestTTL] = useState<Option<number>>();
 
   return (
     <RequestCheckout
@@ -27,12 +28,15 @@ export const Loaded = () => {
       setSelectedReviewers={setSelectedReviewers}
       maxDuration={maxDuration}
       setMaxDuration={setMaxDuration}
+      requestTTL={requestTTL}
+      setRequestTTL={setRequestTTL}
     />
   );
 };
 export const Empty = () => {
   const [selectedReviewers, setSelectedReviewers] = useState([]);
   const [maxDuration, setMaxDuration] = useState<Option<number>>();
+  const [requestTTL, setRequestTTL] = useState<Option<number>>();
 
   return (
     <RequestCheckout
@@ -42,6 +46,8 @@ export const Empty = () => {
       setSelectedReviewers={setSelectedReviewers}
       maxDuration={maxDuration}
       setMaxDuration={setMaxDuration}
+      requestTTL={requestTTL}
+      setRequestTTL={setRequestTTL}
     />
   );
 };
@@ -164,7 +170,6 @@ const props: RequestCheckoutProps = {
   fetchStatus: 'loaded',
   maxDuration: { value: 0, label: '12 hours' },
   setMaxDuration: () => null,
-  requestTTLDurationOptions: [{ value: 0, label: '' }],
   requestTTL: { value: 0, label: '1 hour' },
   setRequestTTL: () => null,
   dryRunResponse,

@@ -140,7 +140,6 @@ export function AccessRequestCheckout() {
               label: '',
             }}
             setMaxDuration={() => null}
-            requestTTLDurationOptions={[]}
             requestTTL={{
               value: 0,
               label: '',

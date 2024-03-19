@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Flex, Text, ButtonIcon, Box, LabelInput } from 'design';
 import * as Icon from 'design/Icon';
 import Select, { Option } from 'shared/components/Select';
@@ -22,22 +22,48 @@ import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import { AccessRequest } from 'e-teleport/services/workflow';
 import { getFormattedDurationTxt } from 'e-teleport/Workflow/Shared/utils';
+import { getDurationOptionIndexClosestToOneWeek } from 'e-teleport/Workflow/AssumeStartTime/utils';
+
+import { getPendingRequestDurationOptions } from './utils';
 
 export function AdditionalOptions({
   selectedMaxDurationTimestamp,
-  requestTTLDurationOptions,
   setRequestTTL,
   requestTTL,
   dryRunResponse,
+  maxDuration,
 }: {
   selectedMaxDurationTimestamp: number;
-  requestTTLDurationOptions: Option<number>[];
   setRequestTTL(o: Option<number>): void;
   requestTTL: Option<number>;
   dryRunResponse: AccessRequest;
+  maxDuration: Option<number>;
 }) {
+  // Options for extending pending TTL.
+  const [requestTTLDurationOptions, setRequestTTLDurationOptions] = useState<
+    Option<number>[]
+  >([]);
+
   const [expanded, setExpanded] = useState(false);
   const ArrowIcon = expanded ? Icon.ChevronDown : Icon.ChevronRight;
+
+  // With every max duration change, recalculate the pending TTL
+  // options to never succeed the max duration.
+  useEffect(() => {
+    const options = getPendingRequestDurationOptions(
+      dryRunResponse.created,
+      maxDuration.value
+    );
+    setRequestTTLDurationOptions(options);
+
+    if (options.length >= 1) {
+      const index = getDurationOptionIndexClosestToOneWeek(
+        options,
+        dryRunResponse.created
+      );
+      setRequestTTL(options[index]);
+    }
+  }, [maxDuration]);
 
   return (
     <>
@@ -70,8 +96,8 @@ export function AdditionalOptions({
               <Flex alignItems="center">
                 <Text mr={1}>Request expires if not reviewed in</Text>
                 <ToolTipInfo>
-                  The amount of time this request will be in the PENDING state
-                  before it expires.
+                  The request TTL which is the amount of time this request will
+                  be in the PENDING state before it expires.
                 </ToolTipInfo>
               </Flex>
               <Select

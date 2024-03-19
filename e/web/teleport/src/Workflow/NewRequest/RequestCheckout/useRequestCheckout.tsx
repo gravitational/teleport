@@ -2,11 +2,7 @@ import React, { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
-import { differenceInHours, formatDuration } from 'date-fns';
-
 import { Option } from 'shared/components/Select';
-
-import { requestTtlMiddleValues } from 'teleport/AccessRequests/utils';
 
 import Ctx from 'e-teleport/teleportContextE';
 import { CreateRequest } from 'e-teleport/Workflow/Shared/types';
@@ -46,10 +42,6 @@ export function useRequestCheckout({
   // How long the request can be in a PENDING state before it expires.
   const [requestTTL, setRequestTTL] = useState<Option<number>>();
 
-  // Options for extending pending TTL.
-  const [requestTTLDurationOptions, setRequestTTLDurationOptions] = useState<
-    Option<number>[]
-  >([]);
   // The reviewers defined in the users roles (static) and access list owners
   // (dynamic).
   const [suggestedReviewers, setSuggestedReviewers] = useState<string[]>([]);
@@ -100,26 +92,6 @@ export function useRequestCheckout({
           return;
         }
         setDryRunResponse(resp);
-        const created = new Date(resp.created);
-        const requestTTLValues = requestTtlMiddleValues(
-          created,
-          new Date(resp.sessionTTL)
-        ).map(e => ({
-          value: e.timestamp,
-          label: formatDuration(e.duration),
-        }));
-
-        setRequestTTLDurationOptions(requestTTLValues);
-        if (requestTTLValues.length >= 1) {
-          // Get the largest value closest to 24 hours.
-          const index = Math.max(
-            0,
-            requestTTLValues.findLastIndex(
-              value => differenceInHours(created, value.value) <= 24
-            )
-          );
-          setRequestTTL(requestTTLValues[index]);
-        }
 
         const reviewers = resp.reviewers.map(r => r.name).sort();
         setSuggestedReviewers(reviewers);
@@ -236,7 +208,6 @@ export function useRequestCheckout({
     fetchStatus,
     maxDuration,
     setMaxDuration,
-    requestTTLDurationOptions,
     requestTTL,
     setRequestTTL,
     dryRunResponse,

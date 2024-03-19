@@ -148,7 +148,6 @@ const props: RequestCheckoutProps = {
   fetchStatus: 'loaded',
   maxDuration: { value: 0, label: '12 hours' },
   setMaxDuration: () => null,
-  requestTTLDurationOptions: [{ value: 0, label: '' }],
   requestTTL: { value: 0, label: '1 hour' },
   setRequestTTL: () => null,
   dryRunResponse,
