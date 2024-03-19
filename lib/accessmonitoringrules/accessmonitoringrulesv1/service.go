@@ -23,6 +23,7 @@ import (
 
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accessmonitoringrule"
 	conv "github.com/gravitational/teleport/api/types/accessmonitoringrule/convert/v1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
@@ -39,7 +40,8 @@ type ServiceConfig struct {
 
 // Cache is the subset of the cached resources that the service queries.
 type Cache interface {
-	services.AccessMonitoringRules
+	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrule.AccessMonitoringRule, string, error)
+	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrule.AccessMonitoringRule, error)
 }
 
 // Service implements the teleport.accessmonitoringrules.v1.AccessMonitoringRulesService RPC service.
