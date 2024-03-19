@@ -33,6 +33,7 @@ import (
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -2638,6 +2639,36 @@ func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, submission typ
 	return a.authServer.submitAccessReview(ctx, submission, &identity)
 }
 
+func (a *ServerWithRoles) canFilterRequestableRolesByResource(ctx context.Context, req types.AccessCapabilitiesRequest) (bool, error) {
+	if len(req.RequestableResourceIDs) == 0 {
+		return false, nil
+	}
+	currentCluster, err := a.GetClusterName()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	for _, resourceID := range req.RequestableResourceIDs {
+		if resourceID.ClusterName != currentCluster.GetClusterName() {
+			// Requested resource is from another cluster, so we can't know
+			// all of the roles which would grant access to it.
+			return false, nil
+		}
+	}
+
+	resources, err := accessrequest.GetResourcesByResourceIDs(ctx, a, req.RequestableResourceIDs)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	for _, resource := range resources {
+		if err := a.context.CheckAccessToResource(resource, types.VerbRead); err != nil {
+			// User doesn't have read access to one or more resources, so returning
+			// requestable roles that rely on it may leak information.
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
 	// default to checking the capabilities of the caller
 	if req.User == "" {
@@ -2652,6 +2683,14 @@ func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.A
 		if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbList, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	canFilter, err := a.canFilterRequestableRolesByResource(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !canFilter {
+		req.RequestableResourceIDs = nil
 	}
 
 	return a.authServer.GetAccessCapabilities(ctx, req)

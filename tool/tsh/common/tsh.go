@@ -3254,7 +3254,11 @@ func accessRequestForSSH(ctx context.Context, cf *CLIConf, tc *client.TeleportCl
 		Name:        node.GetName(),
 	}}
 	if cf.RequestMode == accessRequestModeRole {
-		resp, err := clt.AuthClient.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
+		rootClient, err := clt.ConnectToRootCluster(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resp, err := rootClient.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
 			RequestableRoles:       true,
 			RequestableResourceIDs: requestResourceIDs,
 			Login:                  tc.HostLogin,
