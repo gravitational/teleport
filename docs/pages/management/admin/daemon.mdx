@@ -141,7 +141,7 @@ $ sudo systemctl reload teleport
 
 This will perform a graceful restart, i.e. the Teleport daemon will fork a new
 process to handle new incoming requests, leaving the old daemon process running
-until existing clients disconnect.
+until existing clients disconnect (with a timeout of 30 hours).
 
 <Admonition title="Upgrading" type="tip">
 

@@ -55,6 +55,8 @@ export enum IntegrationKind {
 }
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
+  issuerS3Prefix: string;
+  issuerS3Bucket: string;
 };
 
 export enum IntegrationStatusCode {
@@ -270,6 +272,8 @@ export type ListAwsRdsDatabaseResponse = {
 export type IntegrationUpdateRequest = {
   awsoidc: {
     roleArn: string;
+    issuerS3Bucket: string;
+    issuerS3Prefix: string;
   };
 };
 
@@ -336,8 +340,6 @@ export type AwsEksCluster = {
 export type EnrollEksClustersRequest = {
   region: string;
   enableAppDiscovery: boolean;
-  joinToken: string;
-  resourceId: string;
   clusterNames: string[];
 };
 

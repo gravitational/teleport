@@ -35,10 +35,6 @@ export const KeysEnum = {
   ACCESS_GRAPH_SQL_ENABLED: 'grv_teleport_access_graph_sql_enabled',
   EXTERNAL_AUDIT_STORAGE_CTA_DISABLED:
     'grv_teleport_external_audit_storage_disabled',
-
-  // TODO(bl-nero): Remove this option once
-  // https://github.com/gravitational/teleport/issues/37616 is resolved.
-  NEW_ADD_AUTH_DEVICE_DIALOG: 'grv_new_add_auth_device_dialog',
 };
 
 // SurveyRequest is the request for sending data to the back end

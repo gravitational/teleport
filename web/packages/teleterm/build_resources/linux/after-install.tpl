@@ -37,7 +37,7 @@ if type update-alternatives 2>/dev/null >&1; then
   if [ -L "$BIN/${executable}" -a -e "$BIN/${executable}" -a "`readlink "$BIN/${executable}"`" != "/etc/alternatives/${executable}" ]; then
     rm -f "$BIN/${executable}"
   fi
-  update-alternatives --install "$BIN/${executable}" "${executable}" "$APP/${executable}" 100
+  update-alternatives --install "$BIN/${executable}" "${executable}" "$APP/${executable}" 100 || ln -sf "$APP/${executable}" "$BIN/${executable}"
 else
   ln -sf "$APP/${executable}" "$BIN/${executable}"
 fi

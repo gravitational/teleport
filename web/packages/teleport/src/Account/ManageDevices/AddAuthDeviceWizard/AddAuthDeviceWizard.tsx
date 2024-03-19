@@ -24,7 +24,6 @@ import Flex from 'design/Flex';
 import * as Icon from 'design/Icon';
 import Image from 'design/Image';
 import Indicator from 'design/Indicator';
-import Link from 'design/Link';
 import { RadioGroup } from 'design/RadioGroup';
 import { StepComponentProps, StepSlider } from 'design/StepSlider';
 import Text from 'design/Text';
@@ -38,6 +37,7 @@ import { Auth2faType } from 'shared/services';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 import styled from 'styled-components';
 
+import { DialogHeader } from 'teleport/Account/DialogHeader';
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import { DeviceUsage } from 'teleport/services/mfa';
@@ -208,10 +208,10 @@ export function ReauthenticateStep({
               />
             )}
             <Flex gap={2}>
-              <ButtonPrimary block={true} type="submit">
+              <ButtonPrimary type="submit" block={true}>
                 Verify my identity
               </ButtonPrimary>
-              <ButtonSecondary block={true} onClick={onClose}>
+              <ButtonSecondary type="button" block={true} onClick={onClose}>
                 Cancel
               </ButtonSecondary>
             </Flex>
@@ -385,12 +385,6 @@ function QrCodeBox({ privilegeToken }: { privilegeToken: string }) {
       </Flex>
       <Text typography="body1" textAlign="center" mt={2}>
         Scan the QR Code with any authenticator app.
-        <br />
-        We recommend{' '}
-        <Link href="https://authy.com/download/" target="_blank">
-          Authy
-        </Link>
-        .
       </Text>
     </Flex>
   );
@@ -455,6 +449,9 @@ export function SaveDeviceStep({
     setAuthCode(e.target.value);
   };
 
+  const label =
+    usage === 'passwordless' ? 'Passkey Nickname' : 'MFA Method Name';
+
   return (
     <div ref={refCallback} data-testid="save-step">
       <DialogHeader
@@ -472,12 +469,8 @@ export function SaveDeviceStep({
         {({ validator }) => (
           <form onSubmit={e => onSave(e, validator)}>
             <FieldInput
-              label={
-                usage === 'passwordless'
-                  ? 'Passkey Nickname'
-                  : 'MFA Method Name'
-              }
-              rule={requiredField('Passkey nickname is required')}
+              label={label}
+              rule={requiredField(`${label} is required`)}
               value={deviceName}
               placeholder="ex. my-macbookpro"
               autoFocus
@@ -499,12 +492,12 @@ export function SaveDeviceStep({
               />
             )}
             <Flex gap={2}>
-              <ButtonPrimary block={true} type="submit">
+              <ButtonPrimary type="submit" block={true}>
                 {usage === 'passwordless'
                   ? 'Save the Passkey'
                   : 'Save the MFA method'}
               </ButtonPrimary>
-              <ButtonSecondary block={true} onClick={prev}>
+              <ButtonSecondary type="button" block={true} onClick={prev}>
                 Back
               </ButtonSecondary>
             </Flex>
@@ -512,25 +505,6 @@ export function SaveDeviceStep({
         )}
       </Validation>
     </div>
-  );
-}
-
-function DialogHeader({
-  stepIndex,
-  flowLength,
-  title,
-}: {
-  stepIndex: number;
-  flowLength: number;
-  title: string;
-}) {
-  return (
-    <Box mb={4}>
-      <Text typography="body1">
-        Step {stepIndex + 1} of {flowLength}
-      </Text>
-      <Text typography="h4">{title}</Text>
-    </Box>
   );
 }
 

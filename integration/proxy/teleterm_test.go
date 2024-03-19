@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/teleterm/services/clientcache"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -197,6 +198,7 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
 			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 		},
+		ClientCache:    clientcache.NewNoCache(storage),
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
 	})
@@ -526,7 +528,7 @@ func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, ro
 	t.Helper()
 
 	// Enable optional MFA.
-	err := authServer.SetAuthPreference(ctx, &types.AuthPreferenceV2{
+	_, err := authServer.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOptional,

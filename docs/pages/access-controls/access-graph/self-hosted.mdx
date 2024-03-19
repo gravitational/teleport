@@ -12,9 +12,9 @@ to collect information about resources and access.
 This guide will help you set up the TAG service
 and enable the Access Graph feature in your Teleport cluster.
 
-Teleport Access Graph is enabled by default for Teleport Team users.
-You can skip the setup process here and start using Access Graph right away
-by signing up for a [Teleport Team trial](https://goteleport.com/signup/).
+Teleport Access Graph is a feature of the [Teleport
+Policy](https://goteleport.com/platform/policy/) product that is only available
+to Teleport Enterprise customers.
 
 ## Prerequisites
 
@@ -41,18 +41,18 @@ The host CA can be retrieved and saved into a file in one of the following ways:
 <Tabs>
 <TabItem label="Via curl">
 ```code
-$ mkdir /etc/access_graph
-$ curl 'https://<Var name="teleport.example.com" />/webapi/auth/export?type=tls-host' > /etc/access_graph/teleport_host_ca.pem
+$ sudo mkdir /etc/access_graph
+$ curl -s 'https://<Var name="teleport.example.com" />/webapi/auth/export?type=tls-host' | sudo tee /etc/access_graph/teleport_host_ca.pem
 ```
 </TabItem>
 
 <TabItem label="Via tctl">
 ```code
-$ mkdir /etc/access_graph
+$ sudo mkdir /etc/access_graph
 $ tsh login --proxy=<Var name="teleport.example.com" />
 $ tctl get cert_authorities --format=json \
     | jq -r '.[] | select(.spec.type == "host") | .spec.active_keys.tls[].cert' \
-    | base64 -d > /etc/access_graph/teleport_host_ca.pem
+    | base64 -d | sudo tee /etc/access_graph/teleport_host_ca.pem
 ```
 </TabItem>
 </Tabs>
@@ -90,7 +90,7 @@ registration_cas:
 Finally, start the TAG service using Docker as follows:
 
 ```console
-$ docker run -v <path-to-config>:/app/config.yaml -v /etc/access_graph:/etc/access_graph public.ecr.aws/gravitational/access-graph:(=access_graph.version=)
+$ docker run -p 50051:50051 -v <path-to-config>:/app/config.yaml -v /etc/access_graph:/etc/access_graph public.ecr.aws/gravitational/access-graph:(=access_graph.version=)
 ```
 
 ## Step 2/3. Update the Teleport Auth Service configuration

@@ -36,7 +36,7 @@ run in a highly available fashion.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
-## Auth Server State
+## Auth Service State
 
 To run multiple instances of the Teleport Auth Service, you must switch to one of
 the high-availability secrets backend listed below first.
@@ -57,7 +57,7 @@ be paid to keeping their configuration identical. Settings like `cluster_name`,
 `tokens`, `storage`, etc. must be the same.
 </Admonition>
 
-## Proxy Server State
+## Proxy Service State
 
 The Teleport Proxy is stateless which makes running multiple instances trivial.
 
@@ -107,7 +107,7 @@ and user records will be stored.
   title="IMPORTANT"
 >
   `etcd` can only currently be used to store Teleport's internal database in a
-  highly-available way. This will allow you to have multiple auth servers in your
+  highly-available way. This will allow you to have multiple Auth Service instances in your
   cluster for an High Availability deployment, but it will not also store Teleport audit events
   for you in the same way that [DynamoDB](#dynamodb) or
   [Firestore](#firestore) will. `etcd` is not designed to handle large volumes of time series data like audit events.
@@ -123,9 +123,9 @@ To configure Teleport for using etcd as a storage backend:
   - You can use [this script provided by
     etcd](https://github.com/etcd-io/etcd/tree/master/hack/tls-setup) if you
     don't already have a TLS setup.
-- Configure all Teleport Auth servers to use etcd in the "storage" section of the config file as shown below.
-- Deploy several auth servers connected to etcd backend.
-- Deploy several Proxy Service instances that have `auth_server` pointed to the auth server to connect to.
+- Configure all Teleport Auth Service instances to use etcd in the "storage" section of the config file as shown below.
+- Deploy several Auth Service instances connected to etcd backend.
+- Deploy several Proxy Service instances that have `auth_server` pointed to the Auth Service to connect to.
 
 ```yaml
 teleport:
@@ -277,6 +277,13 @@ To configure Teleport to use PostgreSQL:
   connect directly to the the Auth Service have the `auth_server` configuration
   setting populated with the address of a load balancer for Auth Service
   instances.
+
+<Admonition
+  type="warning"
+  title="PgBouncer"
+>
+Teleport must connect directly to the Postgres server. `pgbouncer` is incompatible with the Teleport PostgreSQL storage backend.
+</Admonition>
 
 ```yaml
 teleport:
@@ -851,7 +858,7 @@ teleport:
   audit log in DynamoDB and the session recordings **must** be stored in an S3
   bucket, i.e. both `audit_xxx` settings must be present. If they are not set,
   Teleport will default to a local file system for the audit log, i.e.
-  `/var/lib/teleport/log` on an auth server.
+  `/var/lib/teleport/log` on an Auth Service instance.
 
 The optional `GET` parameters shown below control how Teleport interacts with a DynamoDB endpoint.
 
@@ -1200,7 +1207,7 @@ To disable writing to DynamoDB, remove the DynamoDB URL from the
 
 Google Cloud Storage (GCS) can be used as storage for recorded
 sessions. GCS cannot store the audit log or the cluster state. Below is an
-example of how to configure a Teleport auth server to store the recorded
+example of how to configure a Teleport Auth Service to store the recorded
 sessions in a GCS bucket.
 
 ```yaml
@@ -1295,7 +1302,7 @@ teleport:
 - Audit log settings above are optional. If specified, Teleport will store the audit log in Firestore
   and the session recordings **must** be stored in a GCS bucket, i.e. both `audit_xxx` settings must
   be present. If they are not set, Teleport will default to a local filesystem for the audit log, i.e.
-  `/var/lib/teleport/log` on an auth server.
+  `/var/lib/teleport/log` on an Auth Service instance.
 
 ## Azure Blob Storage
 
@@ -1312,7 +1319,7 @@ Azure Blob Storage for session storage is available starting from Teleport
 
 Azure Blob Storage can be used as storage for recorded sessions. Azure Blob
 Storage cannot store the audit log or the cluster state. Below is an example of
-how to configure a Teleport auth server to store the recorded sessions in an
+how to configure a Teleport Auth Service instance to store the recorded sessions in an
 Azure Blob Storage storage account.
 
 ```yaml
@@ -1412,4 +1419,104 @@ teleport:
     type: sqlite
     sync: NORMAL
     journal: WAL
+```
+
+The SQLite backend and other required data will be written to the Teleport data directory.
+By default, Teleport's data directory is `/var/lib/teleport`. To modify
+the location set the `data_dir` value within the Teleport configuration file.
+
+```yaml
+teleport:
+  data_dir: /var/lib/teleport_data
+```
+
+## CockroachDB
+
+<Admonition type="warning" title="Enterprise">
+  Use of the CockroachDB storage backend requires Teleport Enterprise.
+</Admonition>
+
+Teleport can use [CockroachDB](https://www.cockroachlabs.com/) as a storage backend
+to achieve high availability and survive regional failures. You must take steps to 
+protect access to CockroachDB in this configuration because that is where Teleport
+secrets like keys and user records will be stored.
+
+<Admonition
+  type="warning"
+  title="IMPORTANT"
+>
+  CockroachDB can currently only be used to store Teleport's cluster state.
+  It cannot be used for Teleport's audit log in the same way that
+  [DynamoDB](#dynamodb) or [Firestore](#firestore) can.
+</Admonition>
+
+At a minimum you must configure CockroachDB to allow Teleport to create tables.
+Teleport will create the database if given permission to do so but this is not
+required if the database already exists.
+
+```
+CREATE DATABASE database_name;
+CREATE USER database_user;
+GRANT CREATE ON DATABASE database_name TO database_user;
+```
+
+You must also enable change feeds in CockroachDB's cluster settings. Teleport
+will configure this setting itself if granted `SYSTEM MODIFYCLUSTERSETTING`.
+
+```
+SET CLUSTER SETTING kv.rangefeed.enabled = true;
+```
+
+There are several ways to deploy and configure CockroachDB,
+the details of which are not in scope for this guide. To learn about deploying
+CockroachDB, see [CockroachDB's deployment options](https://www.cockroachlabs.com/docs/stable/choose-a-deployment-option).
+To learn about how to configure multi-region survival goals, see
+[multi-region survival goals](https://www.cockroachlabs.com/docs/stable/multiregion-survival-goals).
+
+To configure Teleport to use CockroachDB as a storage backend:
+- Configure all Teleport Auth Service instances to use the CockroachDB backend in the
+  `storage` section of `teleport.yaml` as shown below.
+- Deploy several Auth Service instances connected to the CockroachDB storage backend.
+- Deploy several Proxy Service instances.
+- Make sure that the Proxy Service instances and all Teleport agent services that
+  connect directly to the the Auth Service have the `auth_server` configuration
+  setting populated with the address of a load balancer for Auth Service
+  instances.
+
+```yaml
+teleport:
+  storage:
+    type: cockroachdb
+
+    # conn_string is a required parameter. It is a PostgreSQL connection string used
+    # to connect to CockroachDB using the PostgreSQL wire protocol. Client
+    # parameters may be specified using the URL. For a detailed list of available
+    # parameters see https://www.cockroachlabs.com/docs/stable/connection-parameter
+    #
+    # If your certificates are not stored at the default ~/.postgresql
+    # location, you will need to specify them with the sslcert, sslkey, and
+    # sslrootcert parameters.
+    #
+    # pool_max_conns is an additional parameter that determines the maximum
+    # number of connections in the connection pool used for the cluster state
+    # database (the change feed uses an additional connection), defaulting to
+    # a value that depends on the number of available CPUs.
+    conn_string: postgresql://user_name@database-address/teleport_backend?sslmode=verify-full&pool_max_conns=20
+
+    # change_feed_conn_string is an optional parameter. When unspecified Teleport
+    # will default to using the same value specified for conn_string. It may be used
+    # to configure Teleport to use a different user or connection parameters when
+    # establishing a change feed connection.
+    #
+    # If your certificates are not stored at the default ~/.postgresql
+    # location, you will need to specify them with the sslcert, sslkey, and
+    # sslrootcert parameters.
+    change_feed_conn_string: postgresql://user_name@database-address/teleport_backend?sslmode=verify-full
+
+    # ttl_job_cron is an optional parameter which configures the interval at which CockroachDB will expire backend
+    # items based on their time to live. By default this is configured to run every
+    # 20 minutes. This is used by Teleport to clean up old resources that are no longer
+    # connected to or needed by Teleport. Note that configuring this to run more
+    # frequently may have performance implications for CockroachDB.
+    ttl_job_cron: '*/20 * * * *'
 ```

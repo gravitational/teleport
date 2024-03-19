@@ -22,7 +22,7 @@ import * as stores from './stores/types';
 
 export default function usePageTitle(doc: stores.Document) {
   const title =
-    doc && doc.title ? `${doc.clusterId} • ${doc.title}` : 'Console';
+    doc && doc.title ? `${doc.title} • ${doc.clusterId}` : 'Console';
   React.useEffect(() => {
     document.title = title;
   }, [title]);

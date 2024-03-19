@@ -21,7 +21,7 @@ import {
   Cluster,
   CreateConnectMyComputerRoleResponse,
   Server,
-  TshAbortSignal,
+  CloneableAbortSignal,
   TshdClient,
 } from 'teleterm/services/tshd/types';
 
@@ -101,7 +101,7 @@ export class ConnectMyComputerService {
 
   async waitForNodeToJoin(
     rootClusterUri: uri.RootClusterUri,
-    abortSignal: TshAbortSignal
+    abortSignal: CloneableAbortSignal
   ): Promise<Server> {
     const response = await this.tshClient.waitForConnectMyComputerNodeJoin(
       rootClusterUri,

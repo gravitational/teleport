@@ -98,6 +98,11 @@ message GenerateAWSOIDCTokenRequest {
   //
   // Deprecated: Ignored because value is calculated server side.
   string issuer = 1 [deprecated = true];
+
+  // Integration is the AWS OIDC Integration name.
+  // If not provided, it will use the Teleport's Proxy Public URL as issuer.
+  // Optional.
+  string integration = 2;
 }
 
 // GenerateAWSOIDCTokenResponse contains a signed AWS OIDC Integration token.

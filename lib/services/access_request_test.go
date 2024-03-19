@@ -644,7 +644,7 @@ func TestReviewThresholds(t *testing.T) {
 					propose:         approve,
 					assumeStartTime: clock.Now().UTC().Add(10000 * time.Hour),
 					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
-						require.ErrorIs(tt, err, trace.BadParameter("request start time is after expiry"), i...)
+						require.ErrorContains(tt, err, "assume start time must be prior to access expiry time", i...)
 					},
 				},
 			},
@@ -1608,100 +1608,6 @@ func TestPruneRequestRoles(t *testing.T) {
 	}
 }
 
-// TestRequestTTL verifies that the TTL for the Access Request gets reduced by
-// requested access time and lifetime of the requesting certificate.
-func TestRequestTTL(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-	now := clock.Now().UTC()
-
-	tests := []struct {
-		desc          string
-		expiry        time.Time
-		identity      tlsca.Identity
-		maxSessionTTL time.Duration
-		expectedTTL   time.Duration
-		assertion     require.ErrorAssertionFunc
-	}{
-		{
-			desc:          "access request with ttl, below limit",
-			expiry:        now.Add(8 * time.Hour),
-			identity:      tlsca.Identity{Expires: now.Add(10 * time.Hour)},
-			maxSessionTTL: 10 * time.Hour,
-			expectedTTL:   8 * time.Hour,
-			assertion:     require.NoError,
-		},
-		{
-			desc:          "access request with ttl, above limit",
-			expiry:        now.Add(11 * time.Hour),
-			identity:      tlsca.Identity{Expires: now.Add(10 * time.Hour)},
-			maxSessionTTL: 10 * time.Hour,
-			assertion:     require.Error,
-		},
-		{
-			desc:          "access request without ttl (default ttl)",
-			expiry:        time.Time{},
-			identity:      tlsca.Identity{Expires: now.Add(10 * time.Hour)},
-			maxSessionTTL: 10 * time.Hour,
-			expectedTTL:   defaults.PendingAccessDuration,
-			assertion:     require.NoError,
-		},
-		{
-			desc:          "access request without ttl (default ttl), truncation by identity expiration",
-			expiry:        time.Time{},
-			identity:      tlsca.Identity{Expires: now.Add(12 * time.Minute)},
-			maxSessionTTL: 13 * time.Minute,
-			expectedTTL:   12 * time.Minute,
-			assertion:     require.NoError,
-		},
-		{
-			desc:          "access request without ttl (default ttl), truncation by role max session ttl",
-			expiry:        time.Time{},
-			identity:      tlsca.Identity{Expires: now.Add(14 * time.Hour)},
-			maxSessionTTL: 13 * time.Minute,
-			expectedTTL:   13 * time.Minute,
-			assertion:     require.NoError,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			// Setup test user "foo" and "bar" and the mock auth server that
-			// will return users and roles.
-			uls, err := userloginstate.New(header.Metadata{
-				Name: "foo",
-			}, userloginstate.Spec{
-				Roles: []string{"bar"},
-			})
-			require.NoError(t, err)
-
-			role, err := types.NewRole("bar", types.RoleSpecV6{
-				Options: types.RoleOptions{
-					MaxSessionTTL: types.NewDuration(tt.maxSessionTTL),
-				},
-			})
-			require.NoError(t, err)
-
-			getter := &mockGetter{
-				userStates: map[string]*userloginstate.UserLoginState{"foo": uls},
-				roles:      map[string]types.Role{"bar": role},
-			}
-
-			validator, err := NewRequestValidator(context.Background(), clock, getter, "foo", ExpandVars(true))
-			require.NoError(t, err)
-
-			request, err := types.NewAccessRequest("some-id", "foo", "bar")
-			request.SetExpiry(tt.expiry)
-			require.NoError(t, err)
-
-			ttl, err := validator.requestTTL(context.Background(), tt.identity, request)
-			tt.assertion(t, err)
-			if err == nil {
-				require.Equal(t, tt.expectedTTL, ttl)
-			}
-		})
-	}
-}
-
 // TestSessionTTL verifies that the TTL for elevated access gets reduced by
 // requested access time, lifetime of certificate, and strictest session TTL on
 // any role.
@@ -1897,7 +1803,7 @@ func (mcg mockClusterGetter) GetClusterName(opts ...MarshalOption) (types.Cluste
 	return mcg.localCluster, nil
 }
 
-func (mcg mockClusterGetter) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
+func (mcg mockClusterGetter) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
 	if cluster, ok := mcg.remoteClusters[clusterName]; ok {
 		return cluster, nil
 	}

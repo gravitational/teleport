@@ -83,7 +83,7 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater() error {
 	}
 
 	updater, err := NewDeployServiceUpdater(AWSOIDCDeployServiceUpdaterConfig{
-		Log:                    process.log.WithField(trace.Component, teleport.Component(teleport.ComponentProxy, "aws_oidc_deploy_service_updater")),
+		Log:                    process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentProxy, "aws_oidc_deploy_service_updater")),
 		AuthClient:             authClient,
 		Clock:                  process.Clock,
 		TeleportClusterName:    clusterNameConfig.GetClusterName(),
@@ -94,7 +94,7 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater() error {
 		return trace.Wrap(err)
 	}
 
-	process.log.Infof("The new service has started successfully. Checking for deploy service updates every %v.", updateAWSOIDCDeployServiceInterval)
+	process.logger.InfoContext(process.ExitContext(), "The new service has started successfully.", "update_interval", updateAWSOIDCDeployServiceInterval)
 	return trace.Wrap(updater.Run(process.GracefulExitContext()))
 }
 
@@ -129,7 +129,7 @@ func (cfg *AWSOIDCDeployServiceUpdaterConfig) CheckAndSetDefaults() error {
 	}
 
 	if cfg.Log == nil {
-		cfg.Log = logrus.WithField(trace.Component, teleport.Component(teleport.ComponentProxy, "aws_oidc_deploy_service_updater"))
+		cfg.Log = logrus.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentProxy, "aws_oidc_deploy_service_updater"))
 	}
 
 	if cfg.Clock == nil {
@@ -259,7 +259,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 		return nil
 	}
 
-	token, err := updater.AuthClient.GenerateAWSOIDCToken(ctx)
+	token, err := updater.AuthClient.GenerateAWSOIDCToken(ctx, integration.GetName())
 	if err != nil {
 		return trace.Wrap(err)
 	}

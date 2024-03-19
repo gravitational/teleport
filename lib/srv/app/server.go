@@ -24,6 +24,7 @@ package app
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"net"
 	"net/http"
@@ -301,7 +302,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	s := &Server{
 		c: c,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentApp,
+			teleport.ComponentKey: teleport.ComponentApp,
 		}),
 		heartbeats:    make(map[string]*srv.Heartbeat),
 		dynamicLabels: make(map[string]*labels.Dynamic),
@@ -774,6 +775,10 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 		}
 	}
 
+	// Add user certificate into the context after the monitor connection
+	// initialization to ensure value is present on the context.
+	ctx = authz.ContextWithUserCertificate(ctx, leafCertFromConn(tlsConn))
+
 	// Application access supports plain TCP connections which are handled
 	// differently than HTTP requests from web apps.
 	if app.IsTCP() {
@@ -912,7 +917,7 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request, identity *
 	// minutes. Used to stream session chunks to the Audit Log.
 	ttl := min(identity.Expires.Sub(s.c.Clock.Now()), 5*time.Minute)
 	session, err := utils.FnCacheGetWithTTL(r.Context(), s.cache, identity.RouteToApp.SessionID, ttl, func(ctx context.Context) (*sessionChunk, error) {
-		session, err := s.newSessionChunk(ctx, identity, app, opts...)
+		session, err := s.newSessionChunk(ctx, identity, app, s.sessionStartTime(r.Context()), opts...)
 		return session, trace.Wrap(err)
 	})
 	if err != nil {
@@ -1101,10 +1106,10 @@ func (s *Server) newHTTPServer(clusterName string) *http.Server {
 // newTCPServer creates a server that proxies TCP applications.
 func (s *Server) newTCPServer() (*tcpServer, error) {
 	return &tcpServer{
-		newAudit: func(sessionID string) (common.Audit, error) {
+		newAudit: func(ctx context.Context, sessionID string) (common.Audit, error) {
 			// Audit stream is using server context, not session context,
 			// to make sure that session is uploaded even after it is closed.
-			rec, err := s.newSessionRecorder(s.closeContext, sessionID)
+			rec, err := s.newSessionRecorder(s.closeContext, s.sessionStartTime(ctx), sessionID)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1137,6 +1142,17 @@ func (s *Server) getProxyPort() string {
 		return strconv.Itoa(defaults.HTTPListenPort)
 	}
 	return port
+}
+
+// sessionStartTime fetches the session start time based on the the certificate
+// valid date.
+func (s *Server) sessionStartTime(ctx context.Context) time.Time {
+	if userCert, err := authz.UserCertificateFromContext(ctx); err == nil {
+		return userCert.NotBefore
+	}
+
+	s.log.Warn("Unable to retrieve session start time from certificate.")
+	return time.Time{}
 }
 
 // CopyAndConfigureTLS can be used to copy and modify an existing *tls.Config
@@ -1186,4 +1202,14 @@ func newGetConfigForClientFn(log logrus.FieldLogger, client auth.AccessCache, tl
 		tlsCopy.ClientCAs = pool
 		return tlsCopy, nil
 	}
+}
+
+// leafCertFromConn returns the leaf certificate from the connection.
+func leafCertFromConn(tlsConn *tls.Conn) *x509.Certificate {
+	state := tlsConn.ConnectionState()
+	if len(state.PeerCertificates) == 0 {
+		return nil
+	}
+
+	return state.PeerCertificates[0]
 }

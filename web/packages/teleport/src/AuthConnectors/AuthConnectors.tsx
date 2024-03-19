@@ -36,7 +36,7 @@ import DeleteConnectorDialog from './DeleteConnectorDialog';
 import useAuthConnectors, { State } from './useAuthConnectors';
 import templates from './templates';
 
-export default function Container() {
+export function AuthConnectorsContainer() {
   const state = useAuthConnectors();
   return <AuthConnectors {...state} />;
 }

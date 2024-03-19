@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
@@ -780,7 +781,7 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 					},
 				})
 				require.NoError(t, err)
-				err = srv.Auth().SetAuthPreference(ctx, ap)
+				_, err = srv.Auth().UpsertAuthPreference(ctx, ap)
 				require.NoError(t, err)
 
 				return &proto.CompleteAccountRecoveryRequest{
@@ -804,7 +805,7 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 					SecondFactor: constants.SecondFactorOTP,
 				})
 				require.NoError(t, err)
-				err = srv.Auth().SetAuthPreference(ctx, ap)
+				_, err = srv.Auth().UpsertAuthPreference(ctx, ap)
 				require.NoError(t, err)
 
 				return &proto.CompleteAccountRecoveryRequest{
@@ -1110,7 +1111,7 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = srv.Auth().SetAuthPreference(ctx, ap)
+	_, err = srv.Auth().UpsertAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
 	cases := []struct {
@@ -1215,7 +1216,7 @@ func TestGetAccountRecoveryCodes(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPreference)
+	_, err = srv.Auth().UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
 	u, err := createUserWithSecondFactors(srv)
@@ -1232,10 +1233,14 @@ func TestGetAccountRecoveryCodes(t *testing.T) {
 
 func triggerLoginLock(t *testing.T, srv *Server, username string) {
 	for i := 1; i <= defaults.MaxLoginAttempts; i++ {
-		_, _, _, err := srv.authenticateUser(context.Background(), AuthenticateUserRequest{
-			Username: username,
-			OTP:      &OTPCreds{},
-		})
+		_, _, _, err := srv.authenticateUser(
+			context.Background(),
+			AuthenticateUserRequest{
+				Username: username,
+				OTP:      &OTPCreds{},
+			},
+			mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN},
+		)
 		require.True(t, trace.IsAccessDenied(err))
 
 		// Test last attempt returns locked error.
@@ -1273,7 +1278,7 @@ func createUserWithSecondFactors(testServer *TestTLSServer) (*userAuthCreds, err
 	}
 
 	authServer := testServer.Auth()
-	if err := authServer.SetAuthPreference(ctx, ap); err != nil {
+	if _, err = authServer.UpsertAuthPreference(ctx, ap); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

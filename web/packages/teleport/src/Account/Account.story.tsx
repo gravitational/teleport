@@ -31,7 +31,7 @@ export const LoadedPasskeysOff = () => (
   <Account {...props} canAddPasskeys={false} />
 );
 
-export const LoadedMfaOff = () => <Account {...props} canAddMFA={false} />;
+export const LoadedMfaOff = () => <Account {...props} canAddMfa={false} />;
 
 export const LoadingDevices = () => (
   <Account
@@ -94,8 +94,6 @@ const props: AccountProps = {
   token: '',
   setToken: () => null,
   onAddDevice: () => null,
-  hideAddDevice: () => null,
-  fetchDevices: () => null,
   fetchDevicesAttempt: { status: 'success' },
   createRestrictedTokenAttempt: { status: '' },
   deviceToRemove: null,
@@ -105,12 +103,11 @@ const props: AccountProps = {
   hideReAuthenticate: () => null,
   hideRemoveDevice: () => null,
   isReAuthenticateVisible: false,
-  isAddDeviceVisible: false,
   isRemoveDeviceVisible: false,
   isSso: false,
-  restrictNewDeviceUsage: null,
+  newDeviceUsage: null,
   canAddPasskeys: true,
-  canAddMFA: true,
+  canAddMfa: true,
   devices: [
     {
       id: '1',
@@ -118,7 +115,8 @@ const props: AccountProps = {
       name: 'touch_id',
       registeredDate: new Date(1628799417000),
       lastUsedDate: new Date(1628799417000),
-      residentKey: true,
+      type: 'webauthn',
+      usage: 'passwordless',
     },
     {
       id: '2',
@@ -126,7 +124,8 @@ const props: AccountProps = {
       name: 'solokey',
       registeredDate: new Date(1623722252000),
       lastUsedDate: new Date(1623981452000),
-      residentKey: true,
+      type: 'webauthn',
+      usage: 'passwordless',
     },
     {
       id: '3',
@@ -134,7 +133,8 @@ const props: AccountProps = {
       name: 'backup yubikey',
       registeredDate: new Date(1618711052000),
       lastUsedDate: new Date(1626472652000),
-      residentKey: true,
+      type: 'webauthn',
+      usage: 'passwordless',
     },
     {
       id: '4',
@@ -142,7 +142,8 @@ const props: AccountProps = {
       name: 'yubikey',
       registeredDate: new Date(1612493852000),
       lastUsedDate: new Date(1614481052000),
-      residentKey: true,
+      type: 'webauthn',
+      usage: 'passwordless',
     },
     {
       id: '5',
@@ -150,7 +151,8 @@ const props: AccountProps = {
       name: 'yubikey-mfa',
       registeredDate: new Date(1612493852000),
       lastUsedDate: new Date(1614481052000),
-      residentKey: false,
+      type: 'webauthn',
+      usage: 'mfa',
     },
     {
       id: '6',
@@ -158,11 +160,12 @@ const props: AccountProps = {
       name: 'iphone 12',
       registeredDate: new Date(1628799417000),
       lastUsedDate: new Date(1628799417000),
-      residentKey: false,
+      type: 'totp',
+      usage: 'mfa',
     },
   ],
-  onPasskeyAdded: () => {},
+  onDeviceAdded: () => {},
   isReauthenticationRequired: false,
-  passkeyWizardVisible: false,
-  closePasskeyWizard: () => {},
+  addDeviceWizardVisible: false,
+  closeAddDeviceWizard: () => {},
 };

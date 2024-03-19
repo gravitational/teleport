@@ -37,6 +37,7 @@ type Client struct {
 
 // New creates and connects a new Client based on opts.
 func New(cfg Config) (*Client, error) {
+	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	return nil, errors.New("the real rdpclient.Client implementation was not included in this build")
 }
 

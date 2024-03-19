@@ -202,7 +202,11 @@ func (s *AccessRequestSuite) SetupSuite() {
 	pluginRole, err := types.NewRole("access-plugin", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
-				types.NewRule("access_request", []string{"list", "read"}),
+				// The verb "update" is not required unless the plugin has the ability to approve access requests
+				// The ability to approve an access request is different from the ability to review an access request.
+				// The Jira plugin approves access requests while the pagerduty/snow/opsgenie plugins
+				// submit positive reviews.
+				types.NewRule("access_request", []string{"list", "read", "update"}),
 				types.NewRule("access_plugin_data", []string{"update"}),
 			},
 		},

@@ -222,9 +222,9 @@ func testForwardModes(p *Pack, t *testing.T) {
 		Mode: types.RecordAtProxy,
 	})
 	require.NoError(t, err)
-	err = p.rootCluster.Process.GetAuthServer().SetSessionRecordingConfig(ctx, recConfig)
+	_, err = p.rootCluster.Process.GetAuthServer().UpsertSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
-	err = p.leafCluster.Process.GetAuthServer().SetSessionRecordingConfig(ctx, recConfig)
+	_, err = p.leafCluster.Process.GetAuthServer().UpsertSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	// Requests to root and leaf cluster are successful.
@@ -582,7 +582,7 @@ func testAuditEvents(p *Pack, t *testing.T) {
 			expectedEvent,
 			event,
 			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
-			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time"),
+			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time", "Index"),
 			cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
 		))
 	})

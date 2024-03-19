@@ -130,6 +130,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindUser, RW()),
 					types.NewRule(types.KindRole, RW()),
 					types.NewRule(types.KindBot, RW()),
+					types.NewRule(types.KindDatabaseObjectImportRule, RW()),
 					types.NewRule(types.KindOIDC, RW()),
 					types.NewRule(types.KindSAML, RW()),
 					types.NewRule(types.KindGithub, RW()),
@@ -537,6 +538,7 @@ func NewSystemOktaRequesterRole() types.Role {
 			Description: "Request Okta resources",
 			Labels: map[string]string{
 				types.TeleportInternalResourceType: types.SystemResource,
+				types.OriginLabel:                  types.OriginOkta,
 			},
 		},
 		Spec: types.RoleSpecV6{
@@ -560,6 +562,10 @@ func bootstrapRoleMetadataLabels() map[string]map[string]string {
 		},
 		teleport.PresetAuditorRoleName: {
 			types.TeleportInternalResourceType: types.PresetResource,
+		},
+		teleport.SystemOktaRequesterRoleName: {
+			types.TeleportInternalResourceType: types.SystemResource,
+			types.OriginLabel:                  types.OriginOkta,
 		},
 		// Group access, reviewer and requester are intentionally not added here as there may be
 		// existing customer defined roles that have these labels.
@@ -620,7 +626,7 @@ func defaultAllowAccessRequestConditions(enterprise bool) map[string]*types.Acce
 				SearchAsRoles: []string{
 					teleport.SystemOktaAccessRoleName,
 				},
-				MaxDuration: types.NewDuration(maxAccessDuration),
+				MaxDuration: types.NewDuration(MaxAccessDuration),
 			},
 		}
 	}
@@ -654,6 +660,8 @@ func defaultAllowAccessReviewConditions(enterprise bool) map[string]*types.Acces
 func AddRoleDefaults(role types.Role) (types.Role, error) {
 	changed := false
 
+	oldLabels := role.GetAllLabels()
+
 	// Role labels
 	defaultRoleLabels, ok := bootstrapRoleMetadataLabels()[role.GetName()]
 	if ok {
@@ -674,11 +682,21 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 		}
 	}
 
+	labels := role.GetMetadata().Labels
+	// We're specifically checking the old labels version of the Okta requester role here
+	// because we're bootstrapping new labels onto the role above. By checking the old labels,
+	// we can be assured that we're looking at the role as it existed before bootstrapping. If
+	// the role was user-created, then this won't have the internal-resource type attached,
+	// and we'll skip the rest of adding in default values.
+	if role.GetName() == teleport.SystemOktaRequesterRoleName {
+		labels = oldLabels
+	}
+
 	// Check if the role has a TeleportInternalResourceType attached. We do this after setting the role metadata
 	// labels because we set the role metadata labels for roles that have been well established (access,
 	// editor, auditor) that may not already have this label set, but we don't set it for newer roles
 	// (group-access, reviewer, requester) that may have customer definitions.
-	resourceType := role.GetMetadata().Labels[types.TeleportInternalResourceType]
+	resourceType := labels[types.TeleportInternalResourceType]
 	if resourceType != types.PresetResource && resourceType != types.SystemResource {
 		return nil, trace.AlreadyExists("not modifying user created role")
 	}

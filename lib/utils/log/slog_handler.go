@@ -32,6 +32,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
 )
 
 // TraceLevel is the logging level when set to Trace verbosity.
@@ -91,13 +93,13 @@ type SlogTextHandlerConfig struct {
 // NewSlogTextHandler creates a SlogTextHandler that writes messages to w.
 func NewSlogTextHandler(w io.Writer, cfg SlogTextHandlerConfig) *SlogTextHandler {
 	if cfg.Padding == 0 {
-		cfg.Padding = trace.DefaultComponentPadding
+		cfg.Padding = defaultComponentPadding
 	}
 
 	handler := SlogTextHandler{
 		cfg:           cfg,
-		withCaller:    len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, callerField),
-		withTimestamp: len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, timestampField),
+		withCaller:    len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, CallerField),
+		withTimestamp: len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, TimestampField),
 		out:           w,
 		mu:            &sync.Mutex{},
 	}
@@ -144,7 +146,7 @@ func (s *SlogTextHandler) appendAttr(buf []byte, a slog.Attr) []byte {
 			break
 		}
 
-		if a.Key == trace.ComponentFields {
+		if a.Key == teleport.ComponentFields {
 			switch fields := a.Value.Any().(type) {
 			case map[string]any:
 				for k, v := range fields {
@@ -158,7 +160,7 @@ func (s *SlogTextHandler) appendAttr(buf []byte, a slog.Attr) []byte {
 		}
 
 		if needsQuoting(value) {
-			if a.Key == trace.Component || a.Key == slog.LevelKey || a.Key == callerField || a.Key == slog.MessageKey {
+			if a.Key == teleport.ComponentKey || a.Key == slog.LevelKey || a.Key == CallerField || a.Key == slog.MessageKey {
 				if len(buf) > 0 {
 					buf = fmt.Append(buf, " ")
 				}
@@ -172,7 +174,7 @@ func (s *SlogTextHandler) appendAttr(buf []byte, a slog.Attr) []byte {
 			break
 		}
 
-		if a.Key == trace.Component || a.Key == slog.LevelKey || a.Key == callerField || a.Key == slog.MessageKey {
+		if a.Key == teleport.ComponentKey || a.Key == slog.LevelKey || a.Key == CallerField || a.Key == slog.MessageKey {
 			if len(buf) > 0 {
 				buf = fmt.Append(buf, " ")
 			}
@@ -269,7 +271,7 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 	// fields location in the output message are static.
 	for _, field := range s.cfg.ConfiguredFields {
 		switch field {
-		case levelField:
+		case LevelField:
 			var color int
 			var level string
 			switch r.Level {
@@ -300,23 +302,23 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 				color = noColor
 			}
 
-			level = padMax(level, trace.DefaultLevelPadding)
+			level = padMax(level, defaultLevelPadding)
 			if color == noColor {
 				*buf = s.appendAttr(*buf, slog.String(slog.LevelKey, level))
 			} else {
 				*buf = fmt.Appendf(*buf, " \u001B[%dm%s\u001B[0m", color, level)
 			}
-		case componentField:
+		case ComponentField:
 			// If a component is provided with the attributes, it should be used instead of
 			// the component set on the handler. Note that if there are multiple components
 			// specified in the arguments, the one with the lowest index is used and the others are ignored.
 			// In the example below, the resulting component in the message output would be "alpaca".
 			//
-			//	logger := logger.With(trace.Component, "fish")
-			//	logger.InfoContext(ctx, "llama llama llama", trace.Component, "alpaca", "foo", 123, trace.Component, "shark")
+			//	logger := logger.With(teleport.ComponentKey, "fish")
+			//	logger.InfoContext(ctx, "llama llama llama", teleport.ComponentKey, "alpaca", "foo", 123, teleport.ComponentKey, "shark")
 			component := s.component
 			r.Attrs(func(attr slog.Attr) bool {
-				if attr.Key == trace.Component {
+				if attr.Key == teleport.ComponentKey {
 					component = fmt.Sprintf("[%v]", attr.Value)
 					component = strings.ToUpper(padMax(component, s.cfg.Padding))
 					if component[len(component)-1] != ' ' {
@@ -329,7 +331,7 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 				return true
 			})
 
-			*buf = s.appendAttr(*buf, slog.String(trace.Component, component))
+			*buf = s.appendAttr(*buf, slog.String(teleport.ComponentKey, component))
 		default:
 			if _, ok := knownFormatFields[field]; !ok {
 				return trace.BadParameter("invalid log format key: %v", field)
@@ -351,7 +353,7 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 
 		r.Attrs(func(a slog.Attr) bool {
 			// Skip adding any component attrs since they are processed above.
-			if a.Key == trace.Component {
+			if a.Key == teleport.ComponentKey {
 				return true
 			}
 
@@ -410,13 +412,13 @@ func (s *SlogTextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	// Pre-format the attributes.
 	for _, a := range attrs {
 		switch a.Key {
-		case trace.Component:
+		case teleport.ComponentKey:
 			component = fmt.Sprintf("[%v]", a.Value.String())
 			component = strings.ToUpper(padMax(component, s.cfg.Padding))
 			if component[len(component)-1] != ' ' {
 				component = component[:len(component)-1] + "]"
 			}
-		case trace.ComponentFields:
+		case teleport.ComponentFields:
 			switch fields := a.Value.Any().(type) {
 			case map[string]any:
 				for k, v := range fields {
@@ -472,9 +474,9 @@ type SlogJSONHandler struct {
 
 // NewSlogJSONHandler creates a SlogJSONHandler that outputs to w.
 func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler {
-	withCaller := len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, callerField)
-	withComponent := len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, componentField)
-	withTimestamp := len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, timestampField)
+	withCaller := len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, CallerField)
+	withComponent := len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, ComponentField)
+	withTimestamp := len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, TimestampField)
 
 	return &SlogJSONHandler{
 		JSONHandler: slog.NewJSONHandler(w, &slog.HandlerOptions{
@@ -482,12 +484,12 @@ func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler
 			Level:     cfg.Level,
 			ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 				switch a.Key {
-				case trace.Component:
+				case teleport.ComponentKey:
 					if !withComponent {
 						return slog.Attr{}
 					}
 
-					a.Key = componentField
+					a.Key = ComponentField
 				case slog.LevelKey:
 					var level string
 					switch lvl := a.Value.Any().(slog.Level); lvl {
@@ -518,7 +520,7 @@ func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler
 						return a
 					}
 
-					a.Key = timestampField
+					a.Key = TimestampField
 					a.Value = slog.StringValue(t.Format(time.RFC3339))
 				case slog.MessageKey:
 					a.Key = messageField
@@ -528,7 +530,7 @@ func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler
 					}
 
 					file, line := getCaller(a)
-					a = slog.String(callerField, fmt.Sprintf("%s:%d", file, line))
+					a = slog.String(CallerField, fmt.Sprintf("%s:%d", file, line))
 				}
 
 				return a
@@ -554,4 +556,27 @@ func getCaller(a slog.Attr) (file string, line int) {
 	line = s.Line
 
 	return file, line
+}
+
+type stringerAttr struct {
+	fmt.Stringer
+}
+
+// StringerAttr creates a [slog.LogValuer] that will defer to
+// the provided [fmt.Stringer]. All slog attributes are always evaluated,
+// even if the log event is discarded due to the configured log level.
+// A text [slog.Handler] will try to defer evaluation if the attribute is a
+// [fmt.Stringer], however, the JSON [slog.Handler] only defers to [json.Marshaler].
+// This means that to defer evaluation and creation of the string representation,
+// the object must implement [fmt.Stringer] and [json.Marshaler], otherwise additional
+// and unwanted values may be emitted if the logger is configured to use JSON
+// instead of text. This wrapping mechanism allows a value that implements [fmt.Stringer],
+// to be guaranteed to be lazily constructed and always output the same
+// content regardless of the output format.
+func StringerAttr(s fmt.Stringer) slog.LogValuer {
+	return stringerAttr{Stringer: s}
+}
+
+func (s stringerAttr) LogValue() slog.Value {
+	return slog.StringValue(s.Stringer.String())
 }

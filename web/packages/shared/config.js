@@ -20,6 +20,8 @@ const cfg = {
   dateTimeFormat: 'yyyy-MM-dd HH:mm:ss',
   dateFormat: 'yyyy-MM-dd',
   shortFormat: 'MMM dd, yyyy',
+  // Displays time as 12/25/2024 at 12:00AM
+  dateWithPrefixedTime: `LL/dd/yyyy 'at' h:mma`,
 };
 
 export default cfg;

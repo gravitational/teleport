@@ -21,6 +21,7 @@ import { SendNotificationRequest } from 'teleterm/services/tshdEvents';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { routing } from 'teleterm/ui/uri';
+import { notificationRequestOneOfIsCannotProxyGatewayConnection } from 'teleterm/helpers';
 
 export class TshdNotificationsService {
   constructor(
@@ -29,9 +30,11 @@ export class TshdNotificationsService {
   ) {}
 
   sendNotification(request: SendNotificationRequest) {
-    if (request.cannotProxyGatewayConnection) {
+    if (
+      notificationRequestOneOfIsCannotProxyGatewayConnection(request.subject)
+    ) {
       const { gatewayUri, targetUri, error } =
-        request.cannotProxyGatewayConnection;
+        request.subject.cannotProxyGatewayConnection;
       const gateway = this.clustersService.findGateway(gatewayUri);
       const clusterName = routing.parseClusterName(targetUri);
       let targetName: string;

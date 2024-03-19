@@ -49,7 +49,7 @@ type SSOTestCommand struct {
 	connectorFileName string
 
 	// Handlers is a mapping between auth kind and appropriate handling function
-	Handlers map[string]func(c auth.ClientI, connBytes []byte) (*AuthRequestInfo, error)
+	Handlers map[string]func(c *auth.Client, connBytes []byte) (*AuthRequestInfo, error)
 	// GetDiagInfoFields provides auth kind-specific diagnostic info fields.
 	GetDiagInfoFields map[string]func(diag *types.SSODiagnosticInfo, debug bool) []string
 	// Browser to use in login flow.
@@ -80,7 +80,7 @@ Examples:
 
   > tctl sso configure github ... | tee connector.yaml | tctl sso test`)
 
-	cmd.Handlers = map[string]func(c auth.ClientI, connBytes []byte) (*AuthRequestInfo, error){
+	cmd.Handlers = map[string]func(c *auth.Client, connBytes []byte) (*AuthRequestInfo, error){
 		types.KindGithubConnector: handleGithubConnector,
 	}
 
@@ -99,7 +99,7 @@ func (cmd *SSOTestCommand) getSupportedKinds() []string {
 	return kinds
 }
 
-func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c auth.ClientI) error {
+func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c *auth.Client) error {
 	reader := os.Stdin
 	if cmd.connectorFileName != "" {
 		f, err := utils.OpenFileAllowingUnsafeLinks(cmd.connectorFileName)
@@ -149,7 +149,7 @@ func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c auth.ClientI) e
 
 // TryRun is executed after the CLI parsing is done. The command must
 // determine if selectedCommand belongs to it and return match=true
-func (cmd *SSOTestCommand) TryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error) {
+func (cmd *SSOTestCommand) TryRun(ctx context.Context, selectedCommand string, c *auth.Client) (match bool, err error) {
 	if selectedCommand == cmd.ssoTestCmd.FullCommand() {
 		return true, cmd.ssoTestCommand(ctx, c)
 	}
@@ -166,7 +166,7 @@ type AuthRequestInfo struct {
 	RequestCreateErr error
 }
 
-func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, protocol string, c auth.ClientI, config *client.RedirectorConfig) (*auth.SSHLoginResponse, error) {
+func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, protocol string, c *auth.Client, config *client.RedirectorConfig) (*auth.SSHLoginResponse, error) {
 	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)

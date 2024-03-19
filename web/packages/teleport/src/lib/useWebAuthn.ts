@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Dispatch, SetStateAction } from 'react';
 
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
 import { TermEvent } from 'teleport/lib/term/enums';
@@ -25,7 +25,9 @@ import {
   makeWebauthnAssertionResponse,
 } from 'teleport/services/auth';
 
-export default function useWebAuthn(emitterSender: EventEmitterWebAuthnSender) {
+export default function useWebAuthn(
+  emitterSender: EventEmitterWebAuthnSender
+): WebAuthnState {
   const [state, setState] = useState({
     addMfaToScpUrls: false,
     requested: false,
@@ -96,3 +98,18 @@ export default function useWebAuthn(emitterSender: EventEmitterWebAuthnSender) {
     addMfaToScpUrls: state.addMfaToScpUrls,
   };
 }
+
+export type WebAuthnState = {
+  errorText: string;
+  requested: boolean;
+  authenticate: () => void;
+  setState: Dispatch<
+    SetStateAction<{
+      addMfaToScpUrls: boolean;
+      requested: boolean;
+      errorText: string;
+      publicKey: PublicKeyCredentialRequestOptions;
+    }>
+  >;
+  addMfaToScpUrls: boolean;
+};

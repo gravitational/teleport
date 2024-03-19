@@ -154,7 +154,8 @@ func testDatabaseLogin(t *testing.T) {
 						ExternalID: "123123123",
 						Region:     "us-west-1",
 					},
-				}}
+				},
+			}
 		}),
 	)
 	s.user = alice
@@ -430,11 +431,8 @@ func TestLocalProxyRequirement(t *testing.T) {
 
 	// Log into Teleport cluster.
 	err = Run(context.Background(), []string{
-		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), CliOption(func(cf *CLIConf) error {
-		cf.MockSSOLogin = mockSSOLogin(t, authServer, alice)
-		return nil
-	}))
+		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
 	require.NoError(t, err)
 
 	defaultAuthPref, err := authServer.GetAuthPreference(ctx)
@@ -487,9 +485,11 @@ func TestLocalProxyRequirement(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			require.NoError(t, authServer.SetAuthPreference(ctx, tt.clusterAuthPref))
+			_, err = authServer.UpsertAuthPreference(ctx, tt.clusterAuthPref)
+			require.NoError(t, err)
 			t.Cleanup(func() {
-				require.NoError(t, authServer.SetAuthPreference(ctx, defaultAuthPref))
+				_, err = authServer.UpsertAuthPreference(ctx, defaultAuthPref)
+				require.NoError(t, err)
 			})
 			cf := &CLIConf{
 				Context:         ctx,

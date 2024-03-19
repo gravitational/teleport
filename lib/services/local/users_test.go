@@ -53,7 +53,7 @@ func newIdentityService(t *testing.T, clock clockwork.Clock) *local.IdentityServ
 	t.Helper()
 	backend, err := memory.New(memory.Config{
 		Context: context.Background(),
-		Clock:   clockwork.NewFakeClock(),
+		Clock:   clock,
 	})
 	require.NoError(t, err)
 	return local.NewIdentityService(backend)
@@ -1131,6 +1131,23 @@ func TestIdentityService_ListUsers(t *testing.T) {
 		}
 	}
 
+	slices.SortFunc(retrieved, func(a, b types.User) int {
+		return strings.Compare(a.GetName(), b.GetName())
+	})
+	require.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.SortSlices(devicesSort)), "not all users returned from listing operation")
+
+	ssoUser := expectedUsers[2]
+	expectedUsers = slices.Delete(expectedUsers, 2, 3)
+	ssoUser.SetExpiry(clock.Now().UTC().Add(time.Minute))
+
+	_, err = identity.UpsertUser(ctx, ssoUser)
+	assert.NoError(t, err, "failed to upsert SSO user")
+
+	clock.Advance(time.Hour)
+
+	retrieved, next, err = identity.ListUsers(ctx, 0, "", true)
+	assert.NoError(t, err, "got an error while listing over an expired user")
+	assert.Empty(t, next, "next page token returned from listing all users")
 	slices.SortFunc(retrieved, func(a, b types.User) int {
 		return strings.Compare(a.GetName(), b.GetName())
 	})
