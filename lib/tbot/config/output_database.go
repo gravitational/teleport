@@ -19,9 +19,9 @@ package config
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/types"

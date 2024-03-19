@@ -36,6 +36,7 @@ import (
 	"math/big"
 	insecurerand "math/rand"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -53,7 +54,6 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -529,8 +529,8 @@ func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (r *Services) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
-	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx)
+func (r *Services) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
+	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, integration)
 }
 
 // OktaClient returns the okta client.
@@ -1203,7 +1203,6 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 	skipControlPlane := modules.GetModules().Features().Cloud
 
 	// set up aggregators for our periodics
-	imp := newInstanceMetricsPeriodic()
 	uep := newUpgradeEnrollPeriodic()
 
 	// stream all instances to all aggregators
@@ -1216,7 +1215,6 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 			}
 		}
 
-		imp.VisitInstance(instances.Item())
 		uep.VisitInstance(instances.Item())
 	}
 
@@ -1225,21 +1223,7 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 		return
 	}
 
-	// set instance metric values
-	totalInstancesMetric.Set(float64(imp.TotalInstances()))
-	enrolledInUpgradesMetric.Set(float64(imp.TotalEnrolledInUpgrades()))
-
-	// reset upgrader counts
-	upgraderCountsMetric.Reset()
-
-	for upgraderType, upgraderVersions := range imp.upgraderCounts {
-		for version, count := range upgraderVersions {
-			upgraderCountsMetric.With(prometheus.Labels{
-				teleport.TagUpgrader: upgraderType,
-				teleport.TagVersion:  version,
-			}).Set(float64(count))
-		}
-	}
+	a.updateUpdaterVersionMetrics()
 
 	// create/delete upgrade enroll prompt as appropriate
 	enrollMsg, shouldPrompt := uep.GenerateEnrollPrompt()
@@ -1422,6 +1406,32 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 		err := a.DeleteClusterAlert(ctx, secAlertID)
 		if err != nil && !trace.IsNotFound(err) {
 			log.Warnf("Failed to delete %s alert: %v", secAlertID, err)
+		}
+	}
+}
+
+// updateUpdaterVersionMetrics leverages the inventory control stream to report the
+// number of teleport updaters installed and their versions. To get an accurate representation
+// of versions in an entire cluster the metric must be aggregated with all auth instances.
+func (a *Server) updateUpdaterVersionMetrics() {
+	imp := newInstanceMetricsPeriodic()
+
+	// record versions for all connected resources
+	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+		imp.VisitInstance(handle.Hello())
+	})
+
+	totalInstancesMetric.Set(float64(imp.TotalInstances()))
+	enrolledInUpgradesMetric.Set(float64(imp.TotalEnrolledInUpgrades()))
+
+	// reset the gauges so that any versions that fall off are removed from exported metrics
+	upgraderCountsMetric.Reset()
+	for upgraderType, upgraderVersions := range imp.upgraderCounts {
+		for version, count := range upgraderVersions {
+			upgraderCountsMetric.With(prometheus.Labels{
+				teleport.TagUpgrader: upgraderType,
+				teleport.TagVersion:  version,
+			}).Set(float64(count))
 		}
 	}
 }
@@ -2968,7 +2978,7 @@ func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.upsertWebSession(ctx, user, sess); err != nil {
+	if err := a.upsertWebSession(ctx, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess.WithoutSecrets(), nil
@@ -3623,7 +3633,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 
 	sess.SetConsumedAccessRequestID(req.AccessRequestID)
 
-	if err := a.upsertWebSession(ctx, req.User, sess); err != nil {
+	if err := a.upsertWebSession(ctx, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4338,6 +4348,68 @@ func (a *Server) DeleteNamespace(namespace string) error {
 		return trace.BadParameter("can't delete namespace %v that has %v registered nodes", namespace, len(nodes))
 	}
 	return a.Services.DeleteNamespace(namespace)
+}
+
+// IterateRoles is a helper used to read a page of roles with a custom matcher, used by access-control logic to handle
+// per-resource read permissions.
+func (a *Server) IterateRoles(ctx context.Context, req *proto.ListRolesRequest, match func(*types.RoleV6) (bool, error)) ([]*types.RoleV6, string, error) {
+	const maxIterations = 100_000
+
+	if req.Limit == 0 {
+		req.Limit = apidefaults.DefaultChunkSize
+	}
+
+	req.Limit++
+	defer func() {
+		req.Limit--
+	}()
+
+	var filtered []*types.RoleV6
+	var iterations int
+
+Outer:
+	for {
+		iterations++
+		if iterations > maxIterations {
+			return nil, "", trace.Errorf("too many role page iterations (%d), this is likely a bug", iterations)
+		}
+
+		rsp, err := a.Cache.ListRoles(ctx, req)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+	Inner:
+		for _, role := range rsp.Roles {
+			ok, err := match(role)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			if !ok {
+				continue Inner
+			}
+
+			filtered = append(filtered, role)
+			if len(filtered) == int(req.Limit) {
+				break Outer
+			}
+		}
+
+		req.StartKey = rsp.NextKey
+
+		if req.StartKey == "" {
+			break Outer
+		}
+	}
+
+	var nextKey string
+	if len(filtered) == int(req.Limit) {
+		nextKey = filtered[req.Limit-1].GetName()
+		filtered = filtered[:req.Limit-1]
+	}
+
+	return filtered, nextKey, nil
 }
 
 func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (types.AccessRequest, error) {
@@ -5864,7 +5936,7 @@ func (a *Server) validateMFAAuthResponse(
 	}
 }
 
-func (a *Server) upsertWebSession(ctx context.Context, user string, session types.WebSession) error {
+func (a *Server) upsertWebSession(ctx context.Context, session types.WebSession) error {
 	if err := a.WebSessions().Upsert(ctx, session); err != nil {
 		return trace.Wrap(err)
 	}
@@ -5951,7 +6023,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 		}
 		keySet.SSH = append(keySet.SSH, sshKeyPair)
 		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-	case types.DatabaseCA:
+	case types.DatabaseCA, types.DatabaseClientCA:
 		// Database CA only contains TLS cert.
 		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
 		if err != nil {

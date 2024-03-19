@@ -45,7 +45,7 @@ import (
 // $ tctl idp oidc <command> [<args> ...]
 type subcommandRunner interface {
 	initialize(parent *kingpin.CmdClause, cfg *servicecfg.Config)
-	tryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error)
+	tryRun(ctx context.Context, selectedCommand string, c *auth.Client) (match bool, err error)
 }
 
 // IdPCommand implements all commands under "tctl idp".
@@ -79,7 +79,7 @@ Examples:
 }
 
 // TryRun calls tryRun for each subcommand, and returns (false, nil) if none of them match.
-func (i *IdPCommand) TryRun(ctx context.Context, cmd string, c auth.ClientI) (match bool, err error) {
+func (i *IdPCommand) TryRun(ctx context.Context, cmd string, c *auth.Client) (match bool, err error) {
 	for _, subcommandRunner := range i.subcommandRunners {
 		match, err = subcommandRunner.tryRun(ctx, cmd, c)
 		if err != nil {
@@ -121,7 +121,7 @@ Examples:
 	s.testAttributeMapping.cmd = testAttrMap
 }
 
-func (s *samlIdPCommand) tryRun(ctx context.Context, cmd string, c auth.ClientI) (match bool, err error) {
+func (s *samlIdPCommand) tryRun(ctx context.Context, cmd string, c *auth.Client) (match bool, err error) {
 	switch cmd {
 	case s.testAttributeMapping.cmd.FullCommand():
 		return true, trace.Wrap(s.testAttributeMapping.run(ctx, c))
@@ -139,7 +139,7 @@ type testAttributeMapping struct {
 	outFormat       string
 }
 
-func (t *testAttributeMapping) run(ctx context.Context, c auth.ClientI) error {
+func (t *testAttributeMapping) run(ctx context.Context, c *auth.Client) error {
 	serviceProvider, err := parseSPFile(t.serviceProvider)
 	if err != nil {
 		return trace.Wrap(err)
@@ -217,7 +217,7 @@ func parseSPFile(fileName string) (types.SAMLIdPServiceProviderV1, error) {
 }
 
 // getUsersFromAPIOrFile parses user from spec file. If file is not found, it fetches user from backend.
-func getUsersFromAPIOrFile(ctx context.Context, usernamesOrFileNames []string, c auth.ClientI) ([]*types.UserV2, error) {
+func getUsersFromAPIOrFile(ctx context.Context, usernamesOrFileNames []string, c *auth.Client) ([]*types.UserV2, error) {
 	flattenedUsernamesOrFileNames := flattenSlice(usernamesOrFileNames)
 	var users []*types.UserV2
 

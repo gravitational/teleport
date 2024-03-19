@@ -1008,8 +1008,11 @@ func (e certAuthorityExecutor) getAll(ctx context.Context, cache *Cache, loadSec
 		cas, err := cache.Trust.GetCertAuthorities(ctx, caType, loadSecrets)
 		// if caType was added in this major version we might get a BadParameter
 		// error if we're connecting to an older upstream that doesn't know about it
-		if err != nil && !(caType.NewlyAdded() && trace.IsBadParameter(err)) {
-			return nil, trace.Wrap(err)
+		if err != nil {
+			if !(types.IsUnsupportedAuthorityErr(err) && caType.NewlyAdded()) {
+				return nil, trace.Wrap(err)
+			}
+			continue
 		}
 
 		// this can be removed once we get the ability to fetch CAs with a filter,
@@ -1219,6 +1222,7 @@ func (roleExecutor) getReader(cache *Cache, cacheOK bool) roleGetter {
 type roleGetter interface {
 	GetRoles(ctx context.Context) ([]types.Role, error)
 	GetRole(ctx context.Context, name string) (types.Role, error)
+	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
 }
 
 var _ executor[types.Role, roleGetter] = roleExecutor{}
@@ -2702,6 +2706,7 @@ func (accessListMemberExecutor) getReader(cache *Cache, cacheOK bool) accessList
 }
 
 type accessListMembersGetter interface {
+	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error)
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 }

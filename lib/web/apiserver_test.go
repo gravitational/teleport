@@ -24,7 +24,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base32"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -40,6 +39,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -64,7 +64,6 @@ import (
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -642,9 +641,8 @@ type authPack struct {
 // user, otp token, created web session and authenticated client.
 func (s *WebSuite) authPack(t *testing.T, user string, roles ...string) *authPack {
 	login := s.user
-	pass := "abc123"
-	rawSecret := "def456"
-	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
+	pass := "abcdef123456"
+	otpSecret := newOTPSharedSecret()
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
@@ -656,40 +654,32 @@ func (s *WebSuite) authPack(t *testing.T, user string, roles ...string) *authPac
 
 	s.createUser(t, user, login, pass, otpSecret, roles...)
 
-	// create a valid otp token
-	validToken, err := totp.GenerateCode(otpSecret, s.clock.Now())
-	require.NoError(t, err)
+	ctx := context.Background()
+	sessionResp, httpResp := loginWebOTP(t, ctx, loginWebOTPParams{
+		webClient: s.client(t),
+		clock:     s.clock,
+		user:      user,
+		password:  pass,
+		otpSecret: otpSecret,
+	})
 
-	clt := s.client(t)
-	req := CreateSessionReq{
-		User:              user,
-		Pass:              pass,
-		SecondFactorToken: validToken,
-	}
-
-	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
-	re, err := s.login(clt, csrfToken, csrfToken, req)
-	require.NoError(t, err)
-
-	var rawSess *CreateSessionResponse
-	require.NoError(t, json.Unmarshal(re.Bytes(), &rawSess))
-
-	sess, err := rawSess.response()
+	sess, err := sessionResp.response()
 	require.NoError(t, err)
 
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	clt = s.client(t, roundtrip.BearerAuth(sess.Token), roundtrip.CookieJar(jar))
-	jar.SetCookies(s.url(), re.Cookies())
+	clt := s.client(t, roundtrip.BearerAuth(sess.Token), roundtrip.CookieJar(jar))
+	jar.SetCookies(s.url(), httpResp.Cookies())
 
 	return &authPack{
 		otpSecret: otpSecret,
 		user:      user,
 		login:     login,
+		password:  pass,
 		session:   sess,
 		clt:       clt,
-		cookies:   re.Cookies(),
+		cookies:   httpResp.Cookies(),
 	}
 }
 
@@ -736,7 +726,8 @@ func (s *WebSuite) authPackWithMFA(t *testing.T, name string, roles ...types.Rol
 
 	device.SetPasswordless()
 
-	ccr, err := device.SignCredentialCreation("https://localhost", cc)
+	const rpID = "localhost"
+	ccr, err := device.SignCredentialCreation("https://"+rpID, cc)
 	require.NoError(t, err)
 
 	_, err = s.server.Auth().ChangeUserAuthentication(s.ctx, &authproto.ChangeUserAuthenticationRequest{
@@ -750,31 +741,30 @@ func (s *WebSuite) authPackWithMFA(t *testing.T, name string, roles ...types.Rol
 	})
 	require.NoError(t, err)
 
-	beginReq := &client.MFAChallengeRequest{
-		User: name,
-		Pass: password,
-	}
-	re, err := s.loginMFA(clt, beginReq, device)
-	require.NoError(t, err)
+	ctx := context.Background()
+	sessionResp, httpResp := loginWebMFA(ctx, t, loginWebMFAParams{
+		webClient:     clt,
+		rpID:          rpID,
+		user:          name,
+		password:      password,
+		authenticator: device,
+	})
 
-	var rawSess *CreateSessionResponse
-	require.NoError(t, json.Unmarshal(re.Bytes(), &rawSess))
-
-	sess, err := rawSess.response()
+	sess, err := sessionResp.response()
 	require.NoError(t, err)
 
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
 	clt = s.client(t, roundtrip.BearerAuth(sess.Token), roundtrip.CookieJar(jar))
-	jar.SetCookies(s.url(), re.Cookies())
+	jar.SetCookies(s.url(), httpResp.Cookies())
 
 	return &authPack{
 		user:    name,
 		login:   s.user,
 		session: sess,
 		clt:     clt,
-		cookies: re.Cookies(),
+		cookies: httpResp.Cookies(),
 		device:  &auth.TestDevice{Key: device},
 	}
 }
@@ -924,18 +914,9 @@ func TestCSRF(t *testing.T) {
 
 	// create a valid user
 	user := "csrfuser"
-	pass := "abc123"
-	otpSecret := base32.StdEncoding.EncodeToString([]byte("def456"))
+	pass := "abcdef123456"
+	otpSecret := newOTPSharedSecret()
 	s.createUser(t, user, user, pass, otpSecret)
-
-	// create a valid login form request
-	validToken, err := totp.GenerateCode(otpSecret, time.Now())
-	require.NoError(t, err)
-	loginForm := CreateSessionReq{
-		User:              user,
-		Pass:              pass,
-		SecondFactorToken: validToken,
-	}
 
 	encodedToken1 := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
 	encodedToken2 := "bf355921bbf3ef3672a03e410d4194077dfa5fe863c652521763b3e7f81e7b11"
@@ -947,16 +928,28 @@ func TestCSRF(t *testing.T) {
 	}
 
 	clt := s.client(t)
+	ctx := context.Background()
 
 	// valid
-	_, err = s.login(clt, encodedToken1, encodedToken1, loginForm)
-	require.NoError(t, err)
+	validReq := loginWebOTPParams{
+		webClient:  clt,
+		clock:      s.clock,
+		user:       user,
+		password:   pass,
+		otpSecret:  otpSecret,
+		cookieCSRF: &encodedToken1,
+		headerCSRF: &encodedToken1,
+	}
+	loginWebOTP(t, ctx, validReq)
 
 	// invalid
 	for i := range invalid {
-		_, err := s.login(clt, invalid[i].cookieToken, invalid[i].reqToken, loginForm)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err))
+		req := validReq
+		req.cookieCSRF = &invalid[i].cookieToken
+		req.headerCSRF = &invalid[i].reqToken
+		httpResp, _, err := rawLoginWebOTP(ctx, req)
+		require.NoError(t, err, "Login via /webapi/sessions/new failed unexpectedly")
+		assert.Equal(t, http.StatusForbidden, httpResp.StatusCode, "HTTP status code mismatch")
 	}
 }
 
@@ -971,8 +964,8 @@ func TestPasswordChange(t *testing.T) {
 	require.NoError(t, err)
 
 	req := changePasswordReq{
-		OldPassword:       []byte("abc123"),
-		NewPassword:       []byte("abc1234"),
+		OldPassword:       []byte(pack.password),
+		NewPassword:       []byte("defabc12345678"),
 		SecondFactorToken: validToken,
 	}
 
@@ -1005,61 +998,95 @@ func TestValidateBearerToken(t *testing.T) {
 func TestWebSessionsBadInput(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	user := "bob"
-	pass := "abc123"
-	rawSecret := "def456"
-	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
-	err := s.server.Auth().UpsertPassword(user, []byte(pass))
+	authServer := s.server.Auth()
+	clock := s.clock
+	ctx := context.Background()
+
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOTP,
+	})
+	require.NoError(t, err, "NewAuthPreference failed")
+	require.NoError(t,
+		authServer.SetAuthPreference(ctx, authPref),
+		"SetAuthPreference failed",
+	)
+
+	const user = "bob"
+	const pass = "abcdef123456"
+	otpSecret := newOTPSharedSecret()
+	badSecret := newOTPSharedSecret()
+
+	err = authServer.UpsertPassword(user, []byte(pass))
 	require.NoError(t, err)
 
 	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
 	require.NoError(t, err)
-	err = s.server.Auth().UpsertMFADevice(context.Background(), user, dev)
-	require.NoError(t, err)
-
-	// create valid token
-	validToken, err := totp.GenerateCode(otpSecret, time.Now())
+	err = authServer.UpsertMFADevice(context.Background(), user, dev)
 	require.NoError(t, err)
 
 	clt := s.client(t)
 
-	reqs := []CreateSessionReq{
-		// empty request
-		{},
-		// missing user
+	tests := []struct {
+		name                  string
+		user, pass, otpSecret string
+	}{
 		{
-			Pass:              pass,
-			SecondFactorToken: validToken,
+			name: "empty request",
 		},
-		// missing pass
 		{
-			User:              user,
-			SecondFactorToken: validToken,
+			name:      "missing user",
+			pass:      pass,
+			otpSecret: otpSecret,
 		},
-		// bad pass
 		{
-			User:              user,
-			Pass:              "bla bla",
-			SecondFactorToken: validToken,
+			name:      "missing pass",
+			user:      user,
+			otpSecret: otpSecret,
 		},
-		// bad otp token
 		{
-			User:              user,
-			Pass:              pass,
-			SecondFactorToken: "bad token",
+			name:      "bad pass",
+			user:      user,
+			pass:      "bla bla",
+			otpSecret: otpSecret,
 		},
-		// missing otp token
 		{
-			User: user,
-			Pass: pass,
+			name:      "bad otp token",
+			user:      user,
+			pass:      pass,
+			otpSecret: badSecret,
+		},
+		{
+			name: "missing otp token",
+			user: user,
+			pass: pass,
 		},
 	}
-	for i, req := range reqs {
-		t.Run(fmt.Sprintf("tc %v", i), func(t *testing.T) {
-			_, err := clt.PostJSON(s.ctx, clt.Endpoint("webapi", "sessions", "web"), req)
-			require.Error(t, err)
-			require.True(t, trace.IsAccessDenied(err))
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			clock.Advance(1 * time.Minute) // Avoid OTP clashes.
+
+			httpResp, body, err := rawLoginWebOTP(ctx, loginWebOTPParams{
+				webClient: clt,
+				clock:     clock,
+				user:      test.user,
+				password:  test.pass,
+				otpSecret: test.otpSecret,
+			})
+			require.NoError(t, err, "HTTP request errored unexpectedly")
+
+			// Assert HTTP response code.
+			assert.Equal(t, http.StatusForbidden, httpResp.StatusCode, "HTTP status mismatch")
+
+			// Assert body error message.
+			var resp httpErrorResponse
+			require.NoError(t,
+				json.Unmarshal(body, &resp),
+				"HTTP error response unmarshal",
+			)
+			const invalidCredentialsMessage = "invalid credentials"
+			assert.Contains(t, resp.Error.Message, invalidCredentialsMessage, "HTTP error message mismatch")
 		})
 	}
 }
@@ -2299,7 +2326,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 
 			dev := tc.registerDevice(t, ctx, clt)
 
-			ws := proxy.makeDesktopSession(t, pack, session.NewID(), env.server.TLS.Listener.Addr())
+			ws := proxy.makeDesktopSession(t, pack)
 			tc.mfaHandler(t, ws, dev)
 
 			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws})
@@ -2523,30 +2550,24 @@ func TestLogin_PrivateKeyEnabledError(t *testing.T) {
 	require.NoError(t, err)
 
 	// create user
-	s.createUser(t, "user1", "root", "password", "")
-
-	loginReq, err := json.Marshal(CreateSessionReq{
-		User: "user1",
-		Pass: "password",
-	})
-	require.NoError(t, err)
+	const user = "user1"
+	const pass = "password1234"
+	s.createUser(t, user, "root", pass, "")
 
 	clt := s.client(t)
-	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(loginReq))
-	require.NoError(t, err)
-	ua := "test-ua"
-	req.Header.Set("User-Agent", ua)
-	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
-	addCSRFCookieToReq(req, csrfToken)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set(csrf.HeaderName, csrfToken)
+	ctx := context.Background()
 
-	re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
-		return clt.Client.HTTPClient().Do(req)
+	const ua = "test-ua"
+	_, body, err := rawLoginWebOTP(ctx, loginWebOTPParams{
+		webClient: clt,
+		user:      user,
+		password:  pass,
+		userAgent: ua,
 	})
 	require.NoError(t, err)
+
 	var resErr httpErrorResponse
-	require.NoError(t, json.Unmarshal(re.Bytes(), &resErr))
+	require.NoError(t, json.Unmarshal(body, &resErr))
 	require.Contains(t, resErr.Error.Message, keys.PrivateKeyPolicyHardwareKeyTouch)
 }
 
@@ -2562,31 +2583,21 @@ func TestLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// create user
-	s.createUser(t, "user1", "root", "password", "")
-
-	loginReq, err := json.Marshal(CreateSessionReq{
-		User: "user1",
-		Pass: "password",
-	})
-	require.NoError(t, err)
+	const user = "user1"
+	const pass = "password1234"
+	s.createUser(t, user, "root", pass, "")
 
 	clt := s.client(t)
-	ua := "test-ua"
-	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(loginReq))
-	require.NoError(t, err)
-	req.Header.Set("User-Agent", ua)
-
-	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
-	addCSRFCookieToReq(req, csrfToken)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set(csrf.HeaderName, csrfToken)
-
-	re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
-		return clt.Client.HTTPClient().Do(req)
-	})
-	require.NoError(t, err)
-
 	ctx := context.Background()
+
+	const ua = "test-ua"
+	sessionResp, httpResp := loginWebOTP(t, ctx, loginWebOTPParams{
+		webClient: clt,
+		user:      user,
+		password:  pass,
+		userAgent: ua,
+	})
+
 	events, _, err := s.server.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
 		From:       s.clock.Now().Add(-time.Hour),
 		To:         s.clock.Now().Add(time.Hour),
@@ -2600,11 +2611,9 @@ func TestLogin(t *testing.T) {
 	require.Equal(t, ua, event.UserAgent)
 	require.True(t, strings.HasPrefix(event.RemoteAddr, "127.0.0.1:"))
 
-	var rawSess *CreateSessionResponse
-	require.NoError(t, json.Unmarshal(re.Bytes(), &rawSess))
-	cookies := re.Cookies()
+	cookies := httpResp.Cookies()
 	require.Len(t, cookies, 1)
-	require.NotEmpty(t, rawSess.SessionExpires)
+	require.NotEmpty(t, sessionResp.SessionExpires)
 
 	// now make sure we are logged in by calling authenticated method
 	// we need to supply both session cookie and bearer token for
@@ -2612,10 +2621,10 @@ func TestLogin(t *testing.T) {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	clt = s.client(t, roundtrip.BearerAuth(rawSess.Token), roundtrip.CookieJar(jar))
-	jar.SetCookies(s.url(), re.Cookies())
+	clt = s.client(t, roundtrip.BearerAuth(sessionResp.Token), roundtrip.CookieJar(jar))
+	jar.SetCookies(s.url(), cookies)
 
-	re, err = clt.Get(s.ctx, clt.Endpoint("webapi", "sites"), url.Values{})
+	re, err := clt.Get(s.ctx, clt.Endpoint("webapi", "sites"), url.Values{})
 	require.NoError(t, err)
 
 	var clusters []ui.Cluster
@@ -2624,7 +2633,7 @@ func TestLogin(t *testing.T) {
 	// in absence of session cookie or bearer auth the same request fill fail
 
 	// no session cookie:
-	clt = s.client(t, roundtrip.BearerAuth(rawSess.Token))
+	clt = s.client(t, roundtrip.BearerAuth(sessionResp.Token))
 	_, err = clt.Get(s.ctx, clt.Endpoint("webapi", "sites"), url.Values{})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
@@ -2790,11 +2799,13 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			require.Contains(t, responseString, "stable/cloud")
 			require.NotContains(t, responseString, "stable/v")
 			require.Contains(t, responseString, ""+
-				"  PACKAGE_LIST=\"teleport-ent jq\"\n"+
-				"  # shellcheck disable=SC2050\n"+
-				"  if [ \"true\" = \"true\" ]; then\n"+
-				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-ent-updater\"\n"+
-				"  fi",
+				"    # shellcheck disable=SC2050\n"+
+				"    if [ \"true\" = \"true\" ]; then\n"+
+				"      # automatic upgrades\n",
+			)
+			require.Contains(t, responseString, ""+
+				"  TELEPORT_PACKAGE=\"teleport-ent\"\n"+
+				"  TELEPORT_UPDATER_PACKAGE=\"teleport-ent-updater\"\n",
 			)
 		})
 
@@ -2808,11 +2819,13 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			require.Contains(t, responseString, "stable/cloud")
 			require.NotContains(t, responseString, "stable/v")
 			require.Contains(t, responseString, ""+
-				"  PACKAGE_LIST=\"jq teleport-ent\"\n"+
-				"  # shellcheck disable=SC2050\n"+
-				"  if [[ \"true\" == \"true\" ]]; then\n"+
-				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-ent-updater\"\n"+
-				"  fi\n",
+				"    # shellcheck disable=SC2050\n"+
+				"    if [ \"true\" = \"true\" ]; then\n"+
+				"      # automatic upgrades\n",
+			)
+			require.Contains(t, responseString, ""+
+				"  TELEPORT_PACKAGE=\"teleport-ent\"\n"+
+				"  TELEPORT_UPDATER_PACKAGE=\"teleport-ent-updater\"\n",
 			)
 		})
 	})
@@ -2923,11 +2936,13 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			require.NotContains(t, responseString, "stable/cloud")
 			require.Contains(t, responseString, "stable/v")
 			require.Contains(t, responseString, ""+
-				"  PACKAGE_LIST=\"teleport jq\"\n"+
-				"  # shellcheck disable=SC2050\n"+
-				"  if [ \"false\" = \"true\" ]; then\n"+
-				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-updater\"\n"+
-				"  fi",
+				"    # shellcheck disable=SC2050\n"+
+				"    if [ \"false\" = \"true\" ]; then\n"+
+				"      # automatic upgrades\n",
+			)
+			require.Contains(t, responseString, ""+
+				"  TELEPORT_PACKAGE=\"teleport\"\n"+
+				"  TELEPORT_UPDATER_PACKAGE=\"teleport-updater\"\n",
 			)
 		})
 		t.Run("default-agentless-installer", func(t *testing.T) {
@@ -2940,11 +2955,13 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			require.NotContains(t, responseString, "stable/cloud")
 			require.Contains(t, responseString, "stable/v")
 			require.Contains(t, responseString, ""+
-				"  PACKAGE_LIST=\"jq teleport\"\n"+
-				"  # shellcheck disable=SC2050\n"+
-				"  if [[ \"false\" == \"true\" ]]; then\n"+
-				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-updater\"\n"+
-				"  fi\n",
+				"    # shellcheck disable=SC2050\n"+
+				"    if [ \"false\" = \"true\" ]; then\n"+
+				"      # automatic upgrades\n",
+			)
+			require.Contains(t, responseString, ""+
+				"  TELEPORT_PACKAGE=\"teleport\"\n"+
+				"  TELEPORT_UPDATER_PACKAGE=\"teleport-updater\"\n",
 			)
 		})
 	})
@@ -3880,6 +3897,24 @@ func TestAuthExport(t *testing.T) {
 			assertBody:     validateTLSCertificatePEMFunc,
 		},
 		{
+			name:           "db-der",
+			authType:       "db-der",
+			expectedStatus: http.StatusOK,
+			assertBody:     validateTLSCertificateDERFunc,
+		},
+		{
+			name:           "db-client",
+			authType:       "db-client",
+			expectedStatus: http.StatusOK,
+			assertBody:     validateTLSCertificatePEMFunc,
+		},
+		{
+			name:           "db-client-der",
+			authType:       "db-client-der",
+			expectedStatus: http.StatusOK,
+			assertBody:     validateTLSCertificateDERFunc,
+		},
+		{
 			name:           "tls",
 			authType:       "tls",
 			expectedStatus: http.StatusOK,
@@ -4595,13 +4630,13 @@ func TestGetWebConfig(t *testing.T) {
 			StaticVersion: testVersion,
 		},
 	}
-	require.NoError(t, channels.CheckAndSetDefaults(authproto.Features{AutomaticUpgrades: true, Cloud: true}))
+	require.NoError(t, channels.CheckAndSetDefaults())
 	env.proxies[0].handler.handler.cfg.AutomaticUpgradesChannels = channels
 
 	expectedCfg.IsCloud = true
 	expectedCfg.IsUsageBasedBilling = true
 	expectedCfg.AutomaticUpgrades = true
-	expectedCfg.AutomaticUpgradesTargetVersion = teleport.Version
+	expectedCfg.AutomaticUpgradesTargetVersion = "v" + teleport.Version
 	expectedCfg.AssistEnabled = false
 
 	// request and verify enabled features are enabled.
@@ -4849,7 +4884,7 @@ func TestDeleteMFA(t *testing.T) {
 		devName := devName
 		t.Run(devName, func(t *testing.T) {
 			t.Parallel()
-			otpSecret := base32.StdEncoding.EncodeToString([]byte(devName))
+			otpSecret := newOTPSharedSecret()
 			dev, err := services.NewTOTPDevice(devName, otpSecret, env.clock.Now())
 			require.NoError(t, err)
 			err = env.server.Auth().UpsertMFADevice(ctx, pack.user, dev)
@@ -7558,71 +7593,6 @@ func (c *TestWebClient) RoundTrip(fn roundtrip.RoundTripFn) (*roundtrip.Response
 	return resp, err
 }
 
-func (s *WebSuite) login(clt *TestWebClient, cookieToken string, reqToken string, reqData interface{}) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
-		data, err := json.Marshal(reqData)
-		if err != nil {
-			return nil, err
-		}
-		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(data))
-		if err != nil {
-			return nil, err
-		}
-		addCSRFCookieToReq(req, cookieToken)
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set(csrf.HeaderName, reqToken)
-		return clt.HTTPClient().Do(req)
-	}))
-}
-
-func (s *WebSuite) loginMFA(clt *TestWebClient, reqData *client.MFAChallengeRequest, device *mocku2f.Key) (*roundtrip.Response, error) {
-	resp, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
-		data, err := json.Marshal(reqData)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "mfa", "login", "begin"), bytes.NewBuffer(data))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-		resp, err := clt.HTTPClient().Do(req)
-		return resp, trace.Wrap(err)
-	}))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var challenge client.MFAAuthenticateChallenge
-	err = json.Unmarshal(resp.Bytes(), &challenge)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	car, err := device.SignAssertion("https://localhost", challenge.WebauthnChallenge)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
-		respData := &client.AuthenticateWebUserRequest{
-			User:                      reqData.User,
-			WebauthnAssertionResponse: car,
-		}
-		data, err := json.Marshal(respData)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "mfa", "login", "finishsession"), bytes.NewBuffer(data))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-		resp, err := clt.HTTPClient().Do(req)
-		return resp, trace.Wrap(err)
-	}))
-}
-
 func (s *WebSuite) url() *url.URL {
 	u, err := url.Parse("https://" + s.webServer.Listener.Addr().String())
 	if err != nil {
@@ -8130,7 +8100,7 @@ func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Ro
 	require.NoError(t, err)
 	loginUser := u.Username
 
-	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
+	otpSecret := newOTPSharedSecret()
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
@@ -8143,31 +8113,22 @@ func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Ro
 
 	r.createUser(context.Background(), t, teleportUser, loginUser, pass, otpSecret, roles)
 
-	// create a valid otp token
-	validToken, err := totp.GenerateCode(otpSecret, r.clock.Now())
-	require.NoError(t, err)
+	sessionResp, httpResp := loginWebOTP(t, ctx, loginWebOTPParams{
+		webClient: r.newClient(t),
+		clock:     r.clock,
+		user:      teleportUser,
+		password:  pass,
+		otpSecret: otpSecret,
+	})
 
-	clt := r.newClient(t)
-	req := CreateSessionReq{
-		User:              teleportUser,
-		Pass:              pass,
-		SecondFactorToken: validToken,
-	}
-
-	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
-	resp := login(t, clt, csrfToken, csrfToken, req)
-
-	var rawSession *CreateSessionResponse
-	require.NoError(t, json.Unmarshal(resp.Bytes(), &rawSession))
-
-	session, err := rawSession.response()
+	session, err := sessionResp.response()
 	require.NoError(t, err)
 
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	clt = r.newClient(t, roundtrip.BearerAuth(session.Token), roundtrip.CookieJar(jar))
-	jar.SetCookies(&r.webURL, resp.Cookies())
+	clt := r.newClient(t, roundtrip.BearerAuth(session.Token), roundtrip.CookieJar(jar))
+	jar.SetCookies(&r.webURL, httpResp.Cookies())
 
 	return &authPack{
 		otpSecret: otpSecret,
@@ -8175,7 +8136,7 @@ func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Ro
 		login:     loginUser,
 		session:   session,
 		clt:       clt,
-		cookies:   resp.Cookies(),
+		cookies:   httpResp.Cookies(),
 		password:  pass,
 	}
 }
@@ -8346,7 +8307,7 @@ func makeAuthReqOverWS(ws *websocket.Conn, token string) error {
 	return nil
 }
 
-func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID session.ID, addr net.Addr) *websocket.Conn {
+func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack) *websocket.Conn {
 	u := url.URL{
 		Host:   r.webURL.Host,
 		Scheme: client.WSS,
@@ -8380,25 +8341,6 @@ func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID s
 		require.NoError(t, resp.Body.Close())
 	})
 	return ws
-}
-
-func login(t *testing.T, clt *TestWebClient, cookieToken, reqToken string, reqData interface{}) *roundtrip.Response {
-	resp, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
-		data, err := json.Marshal(reqData)
-		if err != nil {
-			return nil, err
-		}
-		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(data))
-		if err != nil {
-			return nil, err
-		}
-		addCSRFCookieToReq(req, cookieToken)
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set(csrf.HeaderName, reqToken)
-		return clt.HTTPClient().Do(req)
-	}))
-	require.NoError(t, err)
-	return resp
 }
 
 func validateTerminalStream(t *testing.T, ws *websocket.Conn) {
@@ -9357,7 +9299,7 @@ func TestWebSocketAuthenticateRequest(t *testing.T) {
 					return
 				}
 				t.Cleanup(func() { ws.Close() })
-				if err == nil && tc.serverExpectError != "" {
+				if tc.serverExpectError != "" {
 					t.Errorf("expected error, got nil")
 					return
 				}

@@ -159,6 +159,11 @@ func TestGenericCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
+	// Count all resources.
+	count, err := service.CountResources(ctx)
+	require.NoError(t, err)
+	require.Equal(t, uint(2), count)
+
 	// Fetch a list of all resources
 	allResources, err := service.GetResources(ctx)
 	require.NoError(t, err)
@@ -205,6 +210,11 @@ func TestGenericCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff([]*testResource{r2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
+
+	// Make sure count is updated.
+	count, err = service.CountResources(ctx)
+	require.NoError(t, err)
+	require.Equal(t, uint(1), count)
 
 	// Upsert a resource (create).
 	r1, err = service.UpsertResource(ctx, r1)
@@ -267,6 +277,11 @@ func TestGenericCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, out)
+
+	// Make sure count is updated.
+	count, err = service.CountResources(ctx)
+	require.NoError(t, err)
+	require.Equal(t, uint(0), count)
 }
 
 func TestGenericListResourcesReturnNextResource(t *testing.T) {

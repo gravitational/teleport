@@ -99,7 +99,7 @@ func (s *Service) ListDiscoveryConfigs(ctx context.Context, req *discoveryconfig
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindDiscoveryConfig, types.VerbRead, types.VerbList); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -126,7 +126,7 @@ func (s *Service) GetDiscoveryConfig(ctx context.Context, req *discoveryconfigv1
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindDiscoveryConfig, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -145,7 +145,7 @@ func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindDiscoveryConfig, types.VerbCreate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -169,7 +169,7 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindDiscoveryConfig, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -193,7 +193,7 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindDiscoveryConfig, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -217,7 +217,7 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindDiscoveryConfig, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -235,7 +235,7 @@ func (s *Service) DeleteAllDiscoveryConfigs(ctx context.Context, _ *discoverycon
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindDiscoveryConfig, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

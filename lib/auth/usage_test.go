@@ -16,6 +16,7 @@ package auth
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -23,7 +24,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"

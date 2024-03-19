@@ -750,7 +750,7 @@ type DiscoveryAccessPoint interface {
 	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
 
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context) (string, error)
+	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -951,6 +951,9 @@ type Cache interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
+	// ListRoles is a paginated role getter.
+	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
+
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
 
@@ -1079,6 +1082,8 @@ type Cache interface {
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 
+	// CountAccessListMembers will count all access list members.
+	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error)
 	// ListAccessListMembers returns a paginated list of all access list members.
 	// May return a DynamicAccessListError if the requested access list has an
 	// implicit member list and the underlying implementation does not have
@@ -1311,8 +1316,8 @@ func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.Subm
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
-	return w.NoCache.GenerateAWSOIDCToken(ctx)
+func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
+	return w.NoCache.GenerateAWSOIDCToken(ctx, integration)
 }
 
 // Close closes all associated resources

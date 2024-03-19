@@ -22,10 +22,10 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"text/tabwriter"
 
-	"golang.org/x/exp/slices"
 	"golang.org/x/term"
 )
 

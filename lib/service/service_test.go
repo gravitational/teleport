@@ -993,9 +993,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 
 	// Set the Node's major version to be greater than the Auth Service's,
 	// which should make the version check fail.
-	currentVersion, err := semver.NewVersion(teleport.Version)
-	require.NoError(t, err)
-	currentVersion.Major++
+	currentVersion := semver.Version{Major: teleport.SemVersion.Major + 1}
 	nodeCfg.Testing.TeleportVersion = currentVersion.String()
 
 	t.Run("with version check", func(t *testing.T) {
@@ -1018,7 +1016,7 @@ func testVersionCheck(t *testing.T, nodeCfg *servicecfg.Config, skipVersionCheck
 		require.NoError(t, err)
 		require.NotNil(t, c)
 	} else {
-		require.True(t, trace.IsNotImplemented(err))
+		require.ErrorAs(t, err, &invalidVersionErr{})
 		require.Nil(t, c)
 	}
 

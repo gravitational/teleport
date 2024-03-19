@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -38,7 +39,6 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
@@ -1079,7 +1079,7 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 }
 
 // TestGenerateDatabaseCert makes sure users and services with appropriate
-// permissions can generate certificates for self-hosted databases.
+// permissions can generate database certificates.
 func TestGenerateDatabaseCert(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -1099,22 +1099,26 @@ func TestGenerateDatabaseCert(t *testing.T) {
 	require.NoError(t, srv.Auth().UpsertRole(ctx, roleDb))
 
 	tests := []struct {
-		desc     string
-		identity TestIdentity
-		err      string
+		desc      string
+		identity  TestIdentity
+		requester proto.DatabaseCertRequest_Requester
+		err       string
 	}{
 		{
-			desc:     "user can't sign database certs",
-			identity: TestUser(userWithoutAccess.GetName()),
-			err:      "access denied",
+			desc:      "user can't sign database certs",
+			identity:  TestUser(userWithoutAccess.GetName()),
+			requester: proto.DatabaseCertRequest_TCTL,
+			err:       "access denied",
 		},
 		{
-			desc:     "user can impersonate Db and sign database certs",
-			identity: TestUser(userImpersonateDb.GetName()),
+			desc:      "user can impersonate Db and sign database certs",
+			identity:  TestUser(userImpersonateDb.GetName()),
+			requester: proto.DatabaseCertRequest_TCTL,
 		},
 		{
-			desc:     "built-in admin can sign database certs",
-			identity: TestAdmin(),
+			desc:      "built-in admin can sign database certs",
+			identity:  TestAdmin(),
+			requester: proto.DatabaseCertRequest_TCTL,
 		},
 		{
 			desc:     "database service can sign database certs",
@@ -1134,7 +1138,7 @@ func TestGenerateDatabaseCert(t *testing.T) {
 			client, err := srv.NewClient(test.identity)
 			require.NoError(t, err)
 
-			_, err = client.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{CSR: csr})
+			_, err = client.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{CSR: csr, RequesterName: test.requester})
 			if test.err != "" {
 				require.ErrorContains(t, err, test.err)
 			} else {
@@ -1453,7 +1457,7 @@ func BenchmarkListNodes(b *testing.B) {
 		b.Run(tc.desc, func(b *testing.B) {
 			benchmarkListNodes(
 				b, ctx,
-				nodeCount, roleCount, hiddenNodes,
+				nodeCount, hiddenNodes,
 				srv,
 				ids,
 				tc.editRole,
@@ -1464,7 +1468,7 @@ func BenchmarkListNodes(b *testing.B) {
 
 func benchmarkListNodes(
 	b *testing.B, ctx context.Context,
-	nodeCount, roleCount, hiddenNodes int,
+	nodeCount, hiddenNodes int,
 	srv *TestTLSServer,
 	ids []string,
 	editRole func(r types.Role, id string),
@@ -4709,7 +4713,7 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 		b.Run(tc.desc, func(b *testing.B) {
 			benchmarkListUnifiedResources(
 				b, ctx,
-				nodeCount, roleCount, hiddenNodes,
+				nodeCount, hiddenNodes,
 				srv,
 				ids,
 				tc.editRole,
@@ -4720,7 +4724,7 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 
 func benchmarkListUnifiedResources(
 	b *testing.B, ctx context.Context,
-	nodeCount, roleCount, hiddenNodes int,
+	nodeCount, hiddenNodes int,
 	srv *TestTLSServer,
 	ids []string,
 	editRole func(r types.Role, id string),
@@ -5302,7 +5306,7 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 				require.NoError(t, client.Close())
 			})
 
-			modifyAndWaitForEvent(t, tc.ErrAssertion, client, srv, tc.EventCode, func() error {
+			modifyAndWaitForEvent(t, tc.ErrAssertion, srv, tc.EventCode, func() error {
 				return client.CreateSAMLIdPServiceProvider(ctx, tc.SP)
 			})
 		})
@@ -5396,7 +5400,7 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 				require.NoError(t, client.Close())
 			})
 
-			modifyAndWaitForEvent(t, tc.ErrAssertion, client, srv, tc.EventCode, func() error {
+			modifyAndWaitForEvent(t, tc.ErrAssertion, srv, tc.EventCode, func() error {
 				return client.UpdateSAMLIdPServiceProvider(ctx, tc.SP)
 			})
 		})
@@ -5425,7 +5429,7 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 	// No permissions delete
 	client, err := srv.NewClient(TestUser(noAccessUser))
 	require.NoError(t, err)
-	modifyAndWaitForEvent(t, require.Error, client, srv, events.SAMLIdPServiceProviderDeleteFailureCode, func() error {
+	modifyAndWaitForEvent(t, require.Error, srv, events.SAMLIdPServiceProviderDeleteFailureCode, func() error {
 		return client.DeleteSAMLIdPServiceProvider(ctx, sp.GetName())
 	})
 
@@ -5433,14 +5437,14 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 	client, err = srv.NewClient(TestUser(user))
 	require.NoError(t, err)
 
-	modifyAndWaitForEvent(t, require.NoError, client, srv, events.SAMLIdPServiceProviderDeleteCode, func() error {
+	modifyAndWaitForEvent(t, require.NoError, srv, events.SAMLIdPServiceProviderDeleteCode, func() error {
 		return client.DeleteSAMLIdPServiceProvider(ctx, sp.GetName())
 	})
 
 	require.NoError(t, client.CreateSAMLIdPServiceProvider(ctx, sp))
 
 	// Non-existent delete
-	modifyAndWaitForEvent(t, require.Error, client, srv, events.SAMLIdPServiceProviderDeleteFailureCode, func() error {
+	modifyAndWaitForEvent(t, require.Error, srv, events.SAMLIdPServiceProviderDeleteFailureCode, func() error {
 		return client.DeleteSAMLIdPServiceProvider(ctx, "nonexistent")
 	})
 }
@@ -5481,7 +5485,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 	client, err := srv.NewClient(TestUser(noAccessUser))
 	require.NoError(t, err)
 
-	modifyAndWaitForEvent(t, require.Error, client, srv, events.SAMLIdPServiceProviderDeleteAllFailureCode, func() error {
+	modifyAndWaitForEvent(t, require.Error, srv, events.SAMLIdPServiceProviderDeleteAllFailureCode, func() error {
 		return client.DeleteAllSAMLIdPServiceProviders(ctx)
 	})
 
@@ -5489,7 +5493,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 	client, err = srv.NewClient(TestUser(user))
 	require.NoError(t, err)
 
-	modifyAndWaitForEvent(t, require.NoError, client, srv, events.SAMLIdPServiceProviderDeleteAllCode, func() error {
+	modifyAndWaitForEvent(t, require.NoError, srv, events.SAMLIdPServiceProviderDeleteAllCode, func() error {
 		return client.DeleteAllSAMLIdPServiceProviders(ctx)
 	})
 }
@@ -5534,7 +5538,7 @@ func createSAMLIdPTestUsers(t *testing.T, server *Server) (string, string) {
 }
 
 // modifyAndWaitForEvent performs the function fn() and then waits for the given event.
-func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, client *Client, srv *TestTLSServer, eventCode string, fn func() error) apievents.AuditEvent {
+func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, srv *TestTLSServer, eventCode string, fn func() error) apievents.AuditEvent {
 	// Make sure we ignore events after consuming this one.
 	defer func() {
 		srv.AuthServer.AuthServer.emitter = events.NewDiscardEmitter()

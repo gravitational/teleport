@@ -190,6 +190,21 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	dbClientCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.DatabaseClientCA,
+		ClusterName: s.SiteName,
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{
+				Key:     s.PrivKey,
+				KeyType: types.PrivateKeyType_RAW,
+				Cert:    s.TLSCACert,
+			}},
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	osshCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.OpenSSHCA,
 		ClusterName: s.SiteName,
@@ -205,7 +220,7 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return []types.CertAuthority{hostCA, userCA, dbCA, osshCA}, nil
+	return []types.CertAuthority{hostCA, userCA, dbCA, dbClientCA, osshCA}, nil
 }
 
 func (s *InstanceSecrets) AllowedLogins() []string {
@@ -612,6 +627,7 @@ func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *servicecfg.Config) er
 			// allow tests to forward agent, still needs to be passed in client
 			roleOptions := role.GetOptions()
 			roleOptions.ForwardAgent = types.NewBool(true)
+			roleOptions.PermitX11Forwarding = types.NewBool(true)
 			role.SetOptions(roleOptions)
 
 			err = auth.UpsertRole(ctx, role)

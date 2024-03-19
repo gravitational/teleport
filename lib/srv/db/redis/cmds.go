@@ -22,11 +22,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/redis/go-redis/v9"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"

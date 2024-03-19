@@ -804,8 +804,9 @@ type ClientI interface {
 	// sessions created by the SAML identity provider.
 	CreateSAMLIdPSession(context.Context, types.CreateSAMLIdPSessionRequest) (types.WebSession, error)
 
-	// GenerateDatabaseCert generates client certificate used by a database
-	// service to authenticate with the database instance.
+	// GenerateDatabaseCert generates a client certificate used by a database
+	// service to authenticate with the database instance, or a server certificate
+	// for configuring a self-hosted database, depending on the requester_name.
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
 
 	// GetWebSession queries the existing web session described with req.
@@ -817,7 +818,7 @@ type ClientI interface {
 	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
 
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context) (string, error)
+	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
 
 	// ResetAuthPreference resets cluster auth preference to defaults.
 	ResetAuthPreference(ctx context.Context) error

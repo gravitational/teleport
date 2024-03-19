@@ -1557,8 +1557,9 @@ func (c *Client) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	return resp, nil
 }
 
-// GenerateDatabaseCert generates client certificate used by a database
-// service to authenticate with the database instance.
+// GenerateDatabaseCert generates a client certificate used by a database
+// service to authenticate with the database instance, or a server certificate
+// for configuring a self-hosted database, depending on the requester_name.
 func (c *Client) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	resp, err := c.grpc.GenerateDatabaseCert(ctx, req)
 	if err != nil {
@@ -1581,6 +1582,35 @@ func (c *Client) GetRole(ctx context.Context, name string) (types.Role, error) {
 
 // GetRoles returns a list of roles
 func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
+	var roles []types.Role
+	var req proto.ListRolesRequest
+	for {
+		rsp, err := c.ListRoles(ctx, &req)
+		if err != nil {
+			if trace.IsNotImplemented(err) {
+				// fallback to calling the old non-paginated role API.
+				roles, err = c.getRoles(ctx)
+				return roles, trace.Wrap(err)
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		for _, r := range rsp.Roles {
+			roles = append(roles, r)
+		}
+		req.StartKey = rsp.NextKey
+		if req.StartKey == "" {
+			break
+		}
+	}
+
+	return roles, nil
+}
+
+// getRoles calls the old non-paginated GetRoles method.
+//
+// DELETE IN 17.0
+func (c *Client) getRoles(ctx context.Context) ([]types.Role, error) {
 	resp, err := c.grpc.GetRoles(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1590,6 +1620,16 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 		roles = append(roles, role)
 	}
 	return roles, nil
+}
+
+// ListRoles is a paginated role getter.
+func (c *Client) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	rsp, err := c.grpc.ListRoles(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rsp, nil
 }
 
 // UpsertRole creates or updates role
@@ -4014,8 +4054,10 @@ func (c *Client) DeleteAllIntegrations(ctx context.Context) error {
 }
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (c *Client) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
-	resp, err := c.integrationsClient().GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{})
+func (c *Client) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
+	resp, err := c.integrationsClient().GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
+		Integration: integration,
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

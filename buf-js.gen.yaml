@@ -14,7 +14,7 @@ plugins:
     opt: grpc_js
     path: grpc_tools_node_protoc_plugin
 
-  # https://github.com/agreatfool/grpc_tools_node_protoc_ts/tree/v5.0.1
+  # https://github.com/agreatfool/grpc_tools_node_protoc_ts/tree/v5.3.2
   - name: ts
     strategy: all
     out: gen/proto/js

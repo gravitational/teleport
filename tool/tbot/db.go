@@ -52,7 +52,7 @@ func onDBCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	args := []string{"-i", identityPath, "db", "--proxy=" + cf.Proxy}
+	args := []string{"-i", identityPath, "db", "--proxy=" + cf.ProxyServer}
 	if cf.Cluster != "" {
 		// If we caught --cluster in our args, pass it through.
 		args = append(args, "--cluster="+cf.Cluster)

@@ -21,7 +21,7 @@ export enum NavigationCategory {
 
 export enum ManagementSection {
   Access = 'Access Management',
-  Identity = 'Identity Governance & Security',
+  Identity = 'Identity',
   Activity = 'Activity',
   Billing = 'Usage & Billing',
   Clusters = 'Clusters',

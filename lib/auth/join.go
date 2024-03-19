@@ -22,10 +22,10 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport/api/client/proto"

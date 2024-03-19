@@ -27,6 +27,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -35,7 +36,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
@@ -1469,6 +1469,9 @@ type Discovery struct {
 	// KubernetesMatchers are used to match services inside Kubernetes cluster for auto discovery
 	KubernetesMatchers []KubernetesMatcher `yaml:"kubernetes,omitempty"`
 
+	// AccessGraph is used to configure the cloud sync into AccessGraph.
+	AccessGraph *AccessGraphSync `yaml:"access_graph,omitempty"`
+
 	// DiscoveryGroup is the name of the discovery group that the current
 	// discovery service is a part of.
 	// It is used to filter out discovered resources that belong to another
@@ -1499,6 +1502,23 @@ type GCPMatcher struct {
 	// InstallParams sets the join method when installing on
 	// discovered GCP VMs.
 	InstallParams *InstallParams `yaml:"install,omitempty"`
+}
+
+// AccessGraphSync represents the configuration for the AccessGraph Sync service.
+type AccessGraphSync struct {
+	// AWS is the AWS configuration for the AccessGraph Sync service.
+	AWS []AccessGraphAWSSync `yaml:"aws,omitempty"`
+}
+
+// AccessGraphAWSSync represents the configuration for the AWS AccessGraph Sync service.
+type AccessGraphAWSSync struct {
+	// Regions are AWS regions to poll for resources.
+	Regions []string `yaml:"regions,omitempty"`
+	// AssumeRoleARN is the AWS role to assume for database discovery.
+	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
+	// ExternalID is the AWS external ID to use when assuming a role for
+	// database discovery in an external AWS account.
+	ExternalID string `yaml:"external_id,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -1556,6 +1576,10 @@ type BPF struct {
 
 	// CgroupPath controls where cgroupv2 hierarchy is mounted.
 	CgroupPath string `yaml:"cgroup_path"`
+
+	// RootPath root directory for the Teleport cgroups.
+	// Optional, defaults to /teleport
+	RootPath string `yaml:"root_path"`
 }
 
 // Parse will parse the enhanced session recording configuration.
@@ -1567,6 +1591,7 @@ func (b *BPF) Parse() *servicecfg.BPFConfig {
 		DiskBufferSize:    b.DiskBufferSize,
 		NetworkBufferSize: b.NetworkBufferSize,
 		CgroupPath:        b.CgroupPath,
+		RootPath:          b.RootPath,
 	}
 }
 

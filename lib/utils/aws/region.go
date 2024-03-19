@@ -17,11 +17,11 @@ limitations under the License.
 package aws
 
 import (
+	"slices"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 )
 
 // IsKnownRegion returns true if provided region is one of the "well-known"

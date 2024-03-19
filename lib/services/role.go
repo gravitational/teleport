@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -33,7 +34,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -2759,7 +2759,7 @@ func (set RoleSet) String() string {
 // kind that the current user can access?".
 // GuessIfAccessIsPossible is used, mainly, for UI decisions ("should the tab
 // for resource X appear"?). Most callers should use CheckAccessToRule instead.
-func (set RoleSet) GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
+func (set RoleSet) GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string) error {
 	// "Where" clause are handled differently by the method:
 	// - "allow" rules have their "where" clause always match, as it's assumed
 	//   that there could be a resource that matches it.
@@ -2772,7 +2772,6 @@ func (set RoleSet) GuessIfAccessIsPossible(ctx RuleContext, namespace string, re
 		verb:       verb,
 		allowWhere: boolParser(true),  // always matches
 		denyWhere:  boolParser(false), // never matches
-		silent:     silent,
 	})
 }
 
@@ -2787,7 +2786,7 @@ func (p boolParser) Parse(string) (interface{}, error) {
 // CheckAccessToRule checks if the RoleSet provides access in the given
 // namespace to the specified resource and verb.
 // silent controls whether the access violations are logged.
-func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
+func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string) error {
 	whereParser, err := NewWhereParser(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2800,7 +2799,6 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 		verb:       verb,
 		allowWhere: whereParser,
 		denyWhere:  whereParser,
-		silent:     silent,
 	})
 }
 
@@ -2846,7 +2844,6 @@ type checkAccessParams struct {
 	resource              string
 	verb                  string
 	allowWhere, denyWhere predicate.Parser
-	silent                bool
 }
 
 type accessExplicitlyDenied struct {
@@ -2900,12 +2897,10 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 				return trace.Wrap(err)
 			}
 			if matched {
-				if !p.silent {
-					log.WithFields(log.Fields{
-						trace.Component: teleport.ComponentRBAC,
-					}).Infof("Access to %v %v in namespace %v denied to %v: deny rule matched.",
-						p.verb, p.resource, p.namespace, role.GetName())
-				}
+				log.WithFields(log.Fields{
+					trace.Component: teleport.ComponentRBAC,
+				}).Tracef("Access to %v %v in namespace %v denied to %v: deny rule matched.",
+					p.verb, p.resource, p.namespace, role.GetName())
 				return trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
 			}
 		}
@@ -2925,12 +2920,10 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 		}
 	}
 
-	if !p.silent {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Infof("Access to %v %v in namespace %v denied to %v: no allow rule matched.",
-			p.verb, p.resource, p.namespace, set)
-	}
+	log.WithFields(log.Fields{
+		trace.Component: teleport.ComponentRBAC,
+	}).Tracef("Access to %v %v in namespace %v denied to %v: no allow rule matched.",
+		p.verb, p.resource, p.namespace, set)
 
 	// At this point no deny rule has matched and there are no more unknown
 	// errors, so this is only an implicit denial.
@@ -3122,26 +3115,13 @@ const (
 	MFARequiredPerRole MFARequired = "per-role"
 )
 
-// SortedRoles sorts roles by name
-type SortedRoles []types.Role
-
-// Len returns length of a role list
-func (s SortedRoles) Len() int {
-	return len(s)
-}
-
-// Less compares roles by name
-func (s SortedRoles) Less(i, j int) bool {
-	return s[i].GetName() < s[j].GetName()
-}
-
-// Swap swaps two roles in a list
-func (s SortedRoles) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
 // UnmarshalRole unmarshals the Role resource from JSON.
 func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
+	return UnmarshalRoleV6(bytes, opts...)
+}
+
+// UnmarshalRoleV6 unmarshals the RoleV6 resource from JSON.
+func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error) {
 	var h types.ResourceHeader
 	err := json.Unmarshal(bytes, &h)
 	if err != nil {

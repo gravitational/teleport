@@ -17,8 +17,9 @@ limitations under the License.
 package usagereporter
 
 import (
+	"slices"
+
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"

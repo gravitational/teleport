@@ -130,8 +130,8 @@ buildbox:
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg GOLANGCI_LINT_VERSION=$(GOLANGCI_LINT_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg BUF_VERSION=$(BUF_VERSION) \
@@ -163,7 +163,6 @@ buildbox-centos7:
 		--build-arg TARGETARCH=$(HOST_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
@@ -183,7 +182,6 @@ buildbox-centos7-fips:
 		--build-arg TARGETARCH=$(HOST_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
@@ -315,12 +313,14 @@ test-helm-update-snapshots:
 .PHONY:integration
 integration: buildbox
 	docker run \
+		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		make -C $(SRCDIR) FLAGS='-cover' integration
 
 .PHONY:integration-root
 integration-root: buildbox
 	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
+		--env TELEPORT_XAUTH_TEST="yes" \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-root"
 
 .PHONY:integration-kube
@@ -517,18 +517,25 @@ print-go-version:
 	@echo $(GOLANG_VERSION)
 
 #
+# Print the golangci-lint version used by Teleport.
+#
+.PHONY:print-golangci-lint-version
+print-golangci-lint-version:
+	@echo $(GOLANGCI_LINT_VERSION)
+
+#
+# Print the Buf version used by Teleport.
+#
+.PHONY:print-buf-version
+print-buf-version:
+	@echo $(BUF_VERSION)
+
+#
 # Print the Rust version used to build Teleport.
 #
 .PHONY:print-rust-version
 print-rust-version:
 	@echo $(RUST_VERSION)
-
-#
-# Print the wasm-pack version used to build Teleport.
-#
-.PHONY:print-wasm-pack-version
-print-wasm-pack-version:
-	@echo $(WASM_PACK_VERSION)
 
 #
 # Print the Node version used to build Teleport Connect.

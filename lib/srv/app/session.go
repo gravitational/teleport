@@ -90,7 +90,7 @@ type sessionOpt func(context.Context, *sessionChunk, *tlsca.Identity, types.Appl
 // The session chunk is created with inflight=1,
 // and as such expects `release()` to eventually be called
 // by the caller of this function.
-func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, app types.Application, opts ...sessionOpt) (*sessionChunk, error) {
+func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, app types.Application, startTime time.Time, opts ...sessionOpt) (*sessionChunk, error) {
 	sess := &sessionChunk{
 		id:           uuid.New().String(),
 		closeC:       make(chan struct{}),
@@ -110,7 +110,7 @@ func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, 
 	// Create the stream writer that will write this chunk to the audit log.
 	// Audit stream is using server context, not session context,
 	// to make sure that session is uploaded even after it is closed.
-	rec, err := s.newSessionRecorder(s.closeContext, sess.id)
+	rec, err := s.newSessionRecorder(s.closeContext, startTime, sess.id)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -293,7 +293,7 @@ func (s *Server) onSessionExpired(ctx context.Context, key, expired any) {
 // newSessionRecorder creates a session stream that will be used to record
 // requests that occur within this session chunk and upload the recording
 // to the Auth server.
-func (s *Server) newSessionRecorder(ctx context.Context, chunkID string) (events.SessionPreparerRecorder, error) {
+func (s *Server) newSessionRecorder(ctx context.Context, startTime time.Time, chunkID string) (events.SessionPreparerRecorder, error) {
 	recConfig, err := s.c.AccessPoint.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -315,6 +315,7 @@ func (s *Server) newSessionRecorder(ctx context.Context, chunkID string) (events
 		DataDir:      s.c.DataDir,
 		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentApp),
 		Context:      ctx,
+		StartTime:    startTime,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

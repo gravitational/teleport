@@ -16,10 +16,10 @@ package web
 
 import (
 	"net/http"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/connectmycomputer"

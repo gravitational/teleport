@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -280,6 +281,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, log utils.Logger) *ser
 	config.Proxy.DisableReverseTunnel = true
 	config.Proxy.SSHAddr.Addr = "localhost:0"
 	config.Proxy.WebAddr.Addr = "localhost:0"
+	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	return config
 }

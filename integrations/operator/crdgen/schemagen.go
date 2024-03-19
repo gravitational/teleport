@@ -19,11 +19,11 @@ package main
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/dustin/go-humanize/english"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	crdtools "sigs.k8s.io/controller-tools/pkg/crd"

@@ -54,7 +54,7 @@ func onProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 
 	// TODO(timothyb89):  We could consider supporting a --cluster passthrough
 	//  here as in `tbot db ...`.
-	args := []string{"-i", identityPath, "proxy", "--proxy=" + cf.Proxy}
+	args := []string{"-i", identityPath, "proxy", "--proxy=" + cf.ProxyServer}
 	args = append(args, cf.RemainingArgs...)
 
 	// Pass through the debug flag, and prepend to satisfy argument ordering

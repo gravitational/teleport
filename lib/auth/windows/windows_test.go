@@ -157,7 +157,7 @@ func TestCRLDN(t *testing.T) {
 		{
 			name:        "database CA",
 			clusterName: "cluster.goteleport.com",
-			caType:      types.DatabaseCA,
+			caType:      types.DatabaseClientCA,
 			crlDN:       "CN=cluster.goteleport.com,CN=TeleportDB,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
 		},
 		{

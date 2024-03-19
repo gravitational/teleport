@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -33,7 +34,6 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	dockerterm "github.com/moby/term"
-	"golang.org/x/exp/slices"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -725,7 +725,12 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 				if cf.MockSSOLogin != nil {
 					lockTimeout = utils.FSLockRetryDelay
 				}
-				unlockKubeCred, err = takeKubeCredLock(cf.Context, cf.HomePath, cf.Proxy, lockTimeout)
+				proxy := cf.Proxy
+				// if proxy is empty, fallback to WebProxyAddr
+				if proxy == "" {
+					proxy = tc.WebProxyAddr
+				}
+				unlockKubeCred, err = takeKubeCredLock(cf.Context, cf.HomePath, proxy, lockTimeout)
 				return trace.Wrap(err)
 			},
 		),

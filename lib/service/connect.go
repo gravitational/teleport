@@ -19,6 +19,8 @@ package service
 import (
 	"context"
 	"crypto/tls"
+	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
@@ -76,37 +78,18 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 				return nil, trace.BadParameter("reconnectToAuthService got a connector with no client, this is a logic error")
 			}
 
-			// If connected, make sure the connector's client works by using
-			// a call that should succeed at all times (Ping).
-			pingResponse, pingErr := connector.Client.Ping(process.ExitContext())
-			if pingErr == nil {
-				// Return a helpful message and don't retry if ping was successful but auth server is too old.
-				// Auth is not going to get any younger.
-				if compareErr := process.authServerTooOld(&pingResponse); compareErr != nil {
-					return nil, trace.Wrap(compareErr)
+			return connector, nil
+		} else {
+			switch {
+			case errors.As(connectErr, &invalidVersionErr{}):
+				return nil, trace.Wrap(connectErr)
+			case role == types.RoleNode && strings.Contains(connectErr.Error(), auth.TokenExpiredOrNotFound):
+				process.log.Error("Can not join the cluster as node, the token expired or not found. Regenerate the token and try again.")
+			default:
+				process.log.Errorf("%v failed to establish connection to cluster: %v.", role, connectErr)
+				if process.Config.Version == defaults.TeleportConfigVersionV3 && process.Config.ProxyServer.IsEmpty() {
+					process.log.Errorf("Check to see if the config has auth_server pointing to a Teleport Proxy. If it does, use proxy_server instead of auth_server.")
 				}
-
-				// Set cluster features and return successfully with a working connector.
-				process.setClusterFeatures(pingResponse.GetServerFeatures())
-				process.log.Infof("%v: features loaded from auth server: %+v", role, pingResponse.GetServerFeatures())
-				process.setAuthSubjectiveAddr(pingResponse.RemoteAddr)
-				return connector, nil
-			}
-
-			// Ping failed, close the client and continue the loop.
-			process.log.Debugf("Connected client %v failed to execute test call: %v. Node or proxy credentials are out of sync.", role, pingErr)
-			if err := connector.Close(); err != nil {
-				process.log.Debugf("Failed to close the client: %v.", err)
-			}
-		}
-
-		switch {
-		case role == types.RoleNode && connectErr != nil && strings.Contains(connectErr.Error(), auth.TokenExpiredOrNotFound):
-			process.log.Error("Can not join the cluster as node, the token expired or not found. Regenerate the token and try again.")
-		case connectErr != nil:
-			process.log.Errorf("%v failed to establish connection to cluster: %v.", role, connectErr)
-			if process.Config.Version == defaults.TeleportConfigVersionV3 && process.Config.ProxyServer.IsEmpty() {
-				process.log.Errorf("Check to see if the config has auth_server pointing to a Teleport Proxy. If it does, use proxy_server instead of auth_server.")
 			}
 		}
 
@@ -129,6 +112,15 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 	}
 }
 
+type invalidVersionErr struct {
+	ClusterMajorVersion int64
+	LocalMajorVersion   int64
+}
+
+func (i invalidVersionErr) Error() string {
+	return fmt.Sprintf("Teleport instance is too new. This instance is running v%d. The auth server is running v%d and only supports instances on v%d or v%d. To connect anyway pass the --skip-version-check flag.", i.LocalMajorVersion, i.ClusterMajorVersion, i.ClusterMajorVersion, i.ClusterMajorVersion-1)
+}
+
 func (process *TeleportProcess) authServerTooOld(resp *proto.PingResponse) error {
 	serverVersion, err := semver.NewVersion(resp.ServerVersion)
 	if err != nil {
@@ -149,7 +141,7 @@ func (process *TeleportProcess) authServerTooOld(resp *proto.PingResponse) error
 			process.log.Warnf("Teleport instance is too new. This instance is running v%d. The auth server is running v%d and only supports instances on v%d or v%d.", teleportVersion.Major, serverVersion.Major, serverVersion.Major, serverVersion.Major-1)
 			return nil
 		}
-		return trace.NotImplemented("Teleport instance is too new. This instance is running v%d. The auth server is running v%d and only supports instances on v%d or v%d. To connect anyway pass the --skip-version-check flag.", teleportVersion.Major, serverVersion.Major, serverVersion.Major, serverVersion.Major-1)
+		return trace.Wrap(invalidVersionErr{ClusterMajorVersion: serverVersion.Major, LocalMajorVersion: teleportVersion.Major})
 	}
 
 	return nil
@@ -206,7 +198,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 			}, nil
 		}
 		process.log.Infof("Connecting to the cluster %v with TLS client certificate.", identity.ClusterName)
-		clt, reused, err := process.getClient(identity)
+		connector, err := process.getConnector(identity, identity)
 		if err != nil {
 			// In the event that a user is attempting to connect a machine to
 			// a different cluster it will give a cryptic warning about an
@@ -219,12 +211,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 			}
 			return nil, trace.Wrap(err)
 		}
-		return &Connector{
-			Client:         clt,
-			ReusedClient:   reused,
-			ClientIdentity: identity,
-			ServerIdentity: identity,
-		}, nil
+		return connector, nil
 	case types.RotationStateInProgress:
 		switch rotation.Phase {
 		case types.RotationPhaseInit:
@@ -236,16 +223,8 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 					ServerIdentity: identity,
 				}, nil
 			}
-			clt, reused, err := process.getClient(identity)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &Connector{
-				Client:         clt,
-				ReusedClient:   reused,
-				ClientIdentity: identity,
-				ServerIdentity: identity,
-			}, nil
+			connector, err := process.getConnector(identity, identity)
+			return connector, trace.Wrap(err)
 		case types.RotationPhaseUpdateClients:
 			// Clients should use updated credentials,
 			// while servers should use old credentials to answer auth requests.
@@ -259,16 +238,8 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 					ServerIdentity: identity,
 				}, nil
 			}
-			clt, reused, err := process.getClient(newIdentity)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &Connector{
-				Client:         clt,
-				ReusedClient:   reused,
-				ClientIdentity: newIdentity,
-				ServerIdentity: identity,
-			}, nil
+			connector, err := process.getConnector(newIdentity, identity)
+			return connector, trace.Wrap(err)
 		case types.RotationPhaseUpdateServers:
 			// Servers and clients are using new identity credentials, but the
 			// identity is still set up to trust the old certificate authority certificates.
@@ -282,16 +253,8 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 					ServerIdentity: newIdentity,
 				}, nil
 			}
-			clt, reused, err := process.getClient(newIdentity)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &Connector{
-				Client:         clt,
-				ReusedClient:   reused,
-				ClientIdentity: newIdentity,
-				ServerIdentity: newIdentity,
-			}, nil
+			connector, err := process.getConnector(newIdentity, newIdentity)
+			return connector, trace.Wrap(err)
 		case types.RotationPhaseRollback:
 			// In rollback phase, clients and servers should switch back
 			// to the old certificate authority-issued credentials,
@@ -303,16 +266,8 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 					ServerIdentity: identity,
 				}, nil
 			}
-			clt, reused, err := process.getClient(identity)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &Connector{
-				Client:         clt,
-				ReusedClient:   reused,
-				ClientIdentity: identity,
-				ServerIdentity: identity,
-			}, nil
+			connector, err := process.getConnector(identity, identity)
+			return connector, trace.Wrap(err)
 		default:
 			return nil, trace.BadParameter("unsupported rotation phase: %q", rotation.Phase)
 		}
@@ -523,15 +478,9 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			ServerIdentity: identity,
 		}
 	} else {
-		clt, reused, err := process.getClient(identity)
+		connector, err = process.getConnector(identity, identity)
 		if err != nil {
 			return nil, trace.Wrap(err)
-		}
-		connector = &Connector{
-			ClientIdentity: identity,
-			ServerIdentity: identity,
-			Client:         clt,
-			ReusedClient:   reused,
 		}
 	}
 
@@ -1042,28 +991,50 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 	}
 }
 
-// getClient gets an appropriate client for the given identity. The instance client is reused if appropriate, otherwise
-// a new client is created. Reused clients should not be closed since they are owned by another service. In practice, the value
-// of 'reused' should just be passed directly to Connector.ReusedClient when building the connector of this client. Connector.Close
-// will handle closure correctly as long as this value is set.
-func (process *TeleportProcess) getClient(identity *auth.Identity) (clt *auth.Client, reused bool, err error) {
-	if identity.ID.Role != types.RoleInstance {
+// getConnector gets an appropriate [Connector] for the given identity. The returned [Connector] is backed by the
+// instance client is reused if appropriate, otherwise a new client is created.
+func (process *TeleportProcess) getConnector(clientIdentity, serverIdentity *auth.Identity) (*Connector, error) {
+	if clientIdentity.ID.Role != types.RoleInstance {
 		// non-instance roles should wait to see if the instance client can be reused
 		// before acquiring their own client.
 		if conn := process.waitForInstanceConnector(); conn != nil && conn.Client != nil {
-			if conn.ClientIdentity.HasSystemRole(identity.ID.Role) {
-				process.log.Infof("Reusing Instance client for %s. additionalSystemRoles=%+v", identity.ID.Role, conn.ClientIdentity.SystemRoles)
-				return conn.Client, true, nil
+			if conn.ClientIdentity.HasSystemRole(clientIdentity.ID.Role) {
+				process.log.Infof("Reusing Instance client for %s. additionalSystemRoles=%+v", clientIdentity.ID.Role, conn.ClientIdentity.SystemRoles)
+				return &Connector{
+					ClientIdentity: clientIdentity,
+					ServerIdentity: serverIdentity,
+					Client:         conn.Client,
+					ReusedClient:   true,
+				}, nil
 			} else {
-				process.log.Warnf("Unable to reuse Instance client for %s. additionalSystemRoles=%+v", identity.ID.Role, conn.ClientIdentity.SystemRoles)
+				process.log.Warnf("Unable to reuse Instance client for %s. additionalSystemRoles=%+v", clientIdentity.ID.Role, conn.ClientIdentity.SystemRoles)
 			}
 		} else {
-			process.log.Warnf("Unable to reuse Instance client for %s. (not available)", identity.ID.Role)
+			process.log.Warnf("Unable to reuse Instance client for %s. (not available)", clientIdentity.ID.Role)
 		}
 	}
 
-	clt, err = process.newClient(identity)
-	return clt, false, err
+	clt, pingResponse, err := process.newClient(clientIdentity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Return a helpful message and don't retry if ping was successful,
+	// but the auth server is too old. Auth is not going to get any younger.
+	if err := process.authServerTooOld(pingResponse); err != nil {
+		return nil, trace.NewAggregate(err, clt.Close())
+	}
+
+	// Set cluster features and return successfully with a working connector.
+	process.setClusterFeatures(pingResponse.GetServerFeatures())
+	process.setAuthSubjectiveAddr(pingResponse.RemoteAddr)
+	process.log.Infof("%v: features loaded from auth server: %+v", clientIdentity.ID.Role, pingResponse.GetServerFeatures())
+
+	return &Connector{
+		ClientIdentity: clientIdentity,
+		ServerIdentity: serverIdentity,
+		Client:         clt,
+	}, nil
 }
 
 // newClient attempts to connect to either the proxy server or auth server
@@ -1071,28 +1042,28 @@ func (process *TeleportProcess) getClient(identity *auth.Identity) (clt *auth.Cl
 // depending on what was specified in the config.
 // For config v1 and v2, it will attempt to direct dial the auth server, and fallback to trying to tunnel
 // to the Auth Server through the proxy.
-func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client, error) {
+func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client, *proto.PingResponse, error) {
 	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	sshClientConfig, err := identity.SSHClientConfig(process.Config.FIPS)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	authServers := process.Config.AuthServerAddresses()
-	connectToAuthServer := func(logger *logrus.Entry) (*auth.Client, error) {
+	connectToAuthServer := func(logger *logrus.Entry) (*auth.Client, *proto.PingResponse, error) {
 		logger.Debug("Attempting to connect to Auth Server directly.")
-		client, err := process.newClientDirect(authServers, tlsConfig, identity.ID.Role)
+		clt, pingResponse, err := process.newClientDirect(authServers, tlsConfig, identity.ID.Role)
 		if err != nil {
 			logger.Debug("Failed to connect to Auth Server directly.")
-			return nil, err
+			return nil, nil, err
 		}
 
 		logger.Debug("Connected to Auth Server with direct connection.")
-		return client, nil
+		return clt, pingResponse, nil
 	}
 
 	switch process.Config.Version {
@@ -1101,14 +1072,14 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 		// if we don't have a proxy address, try to connect to the auth server directly
 		logger := process.log.WithField("auth-addrs", utils.NetAddrsToStrings(authServers))
 
-		directClient, directErr := connectToAuthServer(logger)
+		directClient, resp, directErr := connectToAuthServer(logger)
 		if directErr == nil {
-			return directClient, nil
+			return directClient, resp, nil
 		}
 
 		// Don't attempt to connect through a tunnel as a proxy or auth server.
 		if identity.ID.Role == types.RoleAuth || identity.ID.Role == types.RoleProxy {
-			return nil, trace.Wrap(directErr)
+			return nil, nil, trace.Wrap(directErr)
 		}
 
 		// if that fails, attempt to connect to the auth server through a tunnel
@@ -1116,7 +1087,7 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 		logger.Debug("Attempting to discover reverse tunnel address.")
 		logger.Debug("Attempting to connect to Auth Server through tunnel.")
 
-		tunnelClient, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig)
+		tunnelClient, pingResponse, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig)
 		if err != nil {
 			process.log.Errorf("Node failed to establish connection to Teleport Proxy. We have tried the following endpoints:")
 			process.log.Errorf("- connecting to auth server directly: %v", directErr)
@@ -1126,14 +1097,13 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 			process.log.Errorf("- connecting to auth server through tunnel: %v", err)
 			collectedErrs := trace.NewAggregate(directErr, err)
 			if utils.IsUntrustedCertErr(collectedErrs) {
-				collectedErrs = trace.WrapWithMessage(collectedErrs, utils.SelfSignedCertsMsg)
+				collectedErrs = trace.Wrap(collectedErrs, utils.SelfSignedCertsMsg)
 			}
-			return nil, trace.WrapWithMessage(collectedErrs,
-				"Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
+			return nil, nil, trace.Wrap(collectedErrs, "Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
 		}
 
 		logger.Debug("Connected to Auth Server through tunnel.")
-		return tunnelClient, nil
+		return tunnelClient, pingResponse, nil
 
 	// for config v3, either tunnel to the given proxy server or directly connect to the given auth server
 	case defaults.TeleportConfigVersionV3:
@@ -1142,14 +1112,14 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 			logger := process.log.WithField("proxy-server", proxyServer.String())
 			logger.Debug("Attempting to connect to Auth Server through tunnel.")
 
-			tunnelClient, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig)
+			tunnelClient, pingResponse, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig)
 			if err != nil {
-				return nil, trace.Errorf("Failed to connect to Proxy Server through tunnel: %v", err)
+				return nil, nil, trace.Errorf("Failed to connect to Proxy Server through tunnel: %v", err)
 			}
 
 			logger.Debug("Connected to Auth Server through tunnel.")
 
-			return tunnelClient, nil
+			return tunnelClient, pingResponse, nil
 		}
 
 		// if we don't have a proxy address, try to connect to the auth server directly
@@ -1158,10 +1128,10 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 		return connectToAuthServer(logger)
 	}
 
-	return nil, trace.NotImplemented("could not find connection strategy for config version %s", process.Config.Version)
+	return nil, nil, trace.NotImplemented("could not find connection strategy for config version %s", process.Config.Version)
 }
 
-func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {
+func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, *proto.PingResponse, error) {
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              process.resolver,
 		ClientConfig:          sshConfig,
@@ -1170,7 +1140,7 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 		ClusterCAs:            tlsConfig.RootCAs,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	clt, err := auth.NewClient(apiclient.Config{
 		Context: process.ExitContext(),
@@ -1182,23 +1152,20 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 		DialTimeout:          process.Config.Testing.ClientTimeout,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	// Check connectivity to cluster. If the request fails, unwrap the error to
-	// get the underlying error.
-	_, err = clt.GetDomainName(process.ExitContext())
+	// If connected, make sure the connector's client works by using
+	// a call that should succeed at all times (Ping).
+	resp, err := clt.Ping(process.ExitContext())
 	if err != nil {
-		if err2 := clt.Close(); err2 != nil {
-			process.log.WithError(err2).Warn("Failed to close Auth Server tunnel client.")
-		}
-		return nil, trace.Unwrap(err)
+		return nil, nil, trace.NewAggregate(err, clt.Close())
 	}
 
-	return clt, nil
+	return clt, &resp, nil
 }
 
-func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tlsConfig *tls.Config, role types.SystemRole) (*auth.Client, error) {
+func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tlsConfig *tls.Config, role types.SystemRole) (*auth.Client, *proto.PingResponse, error) {
 	var cltParams []roundtrip.ClientParam
 	if process.Config.Testing.ClientTimeout != 0 {
 		cltParams = []roundtrip.ClientParam{
@@ -1211,7 +1178,7 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 	if role == types.RoleProxy {
 		grpcMetrics := metrics.CreateGRPCClientMetrics(process.Config.Metrics.GRPCClientLatency, prometheus.Labels{teleport.TagClient: "teleport-proxy"})
 		if err := metrics.RegisterPrometheusCollectors(grpcMetrics); err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 		dialOpts = append(dialOpts, []grpc.DialOption{
 			grpc.WithUnaryInterceptor(om.UnaryClientInterceptor(grpcMetrics)),
@@ -1230,15 +1197,15 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 		DialOpts:             dialOpts,
 	}, cltParams...)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	if _, err := clt.GetDomainName(process.ExitContext()); err != nil {
-		if err2 := clt.Close(); err2 != nil {
-			process.log.WithError(err2).Warn("Failed to close direct Auth Server client.")
-		}
-		return nil, trace.Wrap(err)
+	// If connected, make sure the connector's client works by using
+	// a call that should succeed at all times (Ping).
+	resp, err := clt.Ping(process.ExitContext())
+	if err != nil {
+		return nil, nil, trace.NewAggregate(err, clt.Close())
 	}
 
-	return clt, nil
+	return clt, &resp, nil
 }

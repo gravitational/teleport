@@ -10,29 +10,22 @@ import * as google_protobuf_timestamp_pb from "google-protobuf/google/protobuf/t
 export class Metadata extends jspb.Message { 
     getName(): string;
     setName(value: string): Metadata;
-
     getNamespace(): string;
     setNamespace(value: string): Metadata;
-
     getDescription(): string;
     setDescription(value: string): Metadata;
 
-
     getLabelsMap(): jspb.Map<string, string>;
     clearLabelsMap(): void;
-
 
     hasExpires(): boolean;
     clearExpires(): void;
     getExpires(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setExpires(value?: google_protobuf_timestamp_pb.Timestamp): Metadata;
-
     getId(): number;
     setId(value: number): Metadata;
-
     getRevision(): string;
     setRevision(value: string): Metadata;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Metadata.AsObject;

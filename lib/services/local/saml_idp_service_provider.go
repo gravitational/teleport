@@ -110,13 +110,14 @@ func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProvider(ctx context.Co
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
 	if sp.GetEntityDescriptor() == "" {
+		// fetchAndSetEntityDescriptor is expected to return error if it fails
+		// to fetch a valid entity descriptor.
 		if err := s.fetchAndSetEntityDescriptor(sp); err != nil {
+			s.log.Debugf("Failed to fetch entity descriptor from %q. %v.", sp.GetEntityID(), err)
 			// We aren't interested in checking error type as any occurrence of error mean entity descriptor was not set.
-			// But a debug log should be helpful to indicate source of error.
-			s.log.Debugf("Failed to fetch entity descriptor from %s. %s.", sp.GetEntityID(), err.Error())
-
 			if err := s.generateAndSetEntityDescriptor(sp); err != nil {
-				return trace.BadParameter("could not generate entity descriptor with given entity_id and acs_url.")
+				return trace.BadParameter("could not generate entity descriptor with given entity_id %q and acs_url %q: %v",
+					sp.GetEntityID(), sp.GetACSURL(), err)
 			}
 		}
 	}
@@ -254,7 +255,7 @@ func (s *SAMLIdPServiceProviderService) fetchAndSetEntityDescriptor(sp types.SAM
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return trace.Wrap(trace.ReadError(resp.StatusCode, nil))
+		return trace.Wrap(trace.BadParameter("unexpected response status: %q", resp.StatusCode))
 	}
 
 	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
@@ -275,7 +276,7 @@ func (s *SAMLIdPServiceProviderService) fetchAndSetEntityDescriptor(sp types.SAM
 // generateAndSetEntityDescriptor generates and sets Service Provider entity descriptor
 // with ACS URL, Entity ID and unspecified NameID format.
 func (s *SAMLIdPServiceProviderService) generateAndSetEntityDescriptor(sp types.SAMLIdPServiceProvider) error {
-	s.log.Infof("Generating a default entity_descriptor with entity_id %s and acs_url %s.", sp.GetEntityID(), sp.GetACSURL())
+	s.log.Infof("Generating a default entity_descriptor with entity_id %q and acs_url %q.", sp.GetEntityID(), sp.GetACSURL())
 
 	acsURL, err := url.Parse(sp.GetACSURL())
 	if err != nil {

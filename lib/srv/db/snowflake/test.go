@@ -187,14 +187,14 @@ func (s *TestServer) handleToken(w http.ResponseWriter, r *http.Request) {
 	s.authorizationToken = "sessionToken-123"
 }
 
-// verifyJWT verifies the provided JWT token. It checks if the token was signed with the Database CA
+// verifyJWT verifies the provided JWT token. It checks if the token was signed with the Database Client CA
 // and asserts token claims.
 func (s *TestServer) verifyJWT(ctx context.Context, accName, loginName, token string) error {
 	clusterName := "root.example.com"
 
 	caCert, err := s.cfg.AuthClient.GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: clusterName,
-		Type:       types.DatabaseCA,
+		Type:       types.DatabaseClientCA,
 	}, false)
 	if err != nil {
 		return trace.Wrap(err)

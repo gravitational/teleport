@@ -284,9 +284,9 @@ While we encourage Teleport users to authenticate via their single sign-on
 provider, local users are a reliable fallback for cases when the SSO provider is
 down. 
 
-To demonstrate how to create a local user and authenticate to Teleport in order
-to access your Kubernetes cluster, let's create a local user who has access to
-Kubernetes group `system:masters` via the Teleport role `member`.
+In this section, we will  create a local user who has access to Kubernetes group
+`system:masters` via the Teleport role `member`. This user also has the built-in
+`access` and `editor` roles for administrative privileges.
 
 (!docs/pages/includes/kubernetes-access/member-role.mdx!)
 
@@ -301,7 +301,7 @@ Kubernetes group `system:masters` via the Teleport role `member`.
 1. Create the user and generate an invite link:
 
    ```code
-   $ kubectl exec -ti deployment/teleport-cluster-auth -- tctl users add <Var name="myuser" /> --roles=member
+   $ kubectl exec -ti deployment/teleport-cluster-auth -- tctl users add <Var name="myuser" /> --roles=member,access,editor
    User "myuser" has been created but requires a password. Share this URL with the user to
    complete user setup, link is valid for 1h:
    

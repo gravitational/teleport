@@ -10,30 +10,22 @@ import * as teleport_lib_teleterm_v1_label_pb from "../../../../teleport/lib/tel
 export class Database extends jspb.Message { 
     getUri(): string;
     setUri(value: string): Database;
-
     getName(): string;
     setName(value: string): Database;
-
     getDesc(): string;
     setDesc(value: string): Database;
-
     getProtocol(): string;
     setProtocol(value: string): Database;
-
     getType(): string;
     setType(value: string): Database;
-
     getHostname(): string;
     setHostname(value: string): Database;
-
     getAddr(): string;
     setAddr(value: string): Database;
-
     clearLabelsList(): void;
     getLabelsList(): Array<teleport_lib_teleterm_v1_label_pb.Label>;
     setLabelsList(value: Array<teleport_lib_teleterm_v1_label_pb.Label>): Database;
     addLabels(value?: teleport_lib_teleterm_v1_label_pb.Label, index?: number): teleport_lib_teleterm_v1_label_pb.Label;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Database.AsObject;

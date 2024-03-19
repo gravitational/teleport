@@ -20,19 +20,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/auth"
 )
 
 // debouncer accepts a duration, and a function. When `attempt` is called on
@@ -128,9 +127,8 @@ const caRotationRetryBackoff = time.Second * 2
 type caRotationService struct {
 	log               logrus.FieldLogger
 	reloadBroadcaster *channelBroadcaster
-	cfg               *config.BotConfig
-	botIdentitySrc    botIdentitySrc
-	resolver          reversetunnelclient.Resolver
+	botClient         *auth.Client
+	getBotIdentity    getBotIdentityFn
 }
 
 func (s *caRotationService) String() string {
@@ -187,15 +185,9 @@ func (s *caRotationService) Run(ctx context.Context) error {
 func (s *caRotationService) watchCARotations(ctx context.Context, queueReload func()) error {
 	s.log.Debugf("Attempting to establish watch for CA events")
 
-	ident := s.botIdentitySrc.BotIdentity()
-	client, err := clientForIdentity(ctx, s.log, s.cfg, ident, s.resolver)
-	if err != nil {
-		return trace.Wrap(err, "creating client for ca watcher")
-	}
-	defer client.Close()
-
+	ident := s.getBotIdentity()
 	clusterName := ident.ClusterName
-	watcher, err := client.NewWatcher(ctx, types.Watch{
+	watcher, err := s.botClient.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{
 			Kind: types.KindCertAuthority,
 			Filter: types.CertAuthorityFilter{

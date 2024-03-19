@@ -120,6 +120,8 @@ $ tsh db logout my-redshift
 
 (!docs/pages/includes/database-access/aws-troubleshooting-max-policy-size.mdx!)
 
+(!docs/pages/includes/database-access/pg-cancel-request-limitation.mdx PIDQuery="SELECT pid,starttime,duration,trim(user_name) AS user,trim(query) AS query FROM stv_recents WHERE status = 'Running';"!)
+
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)

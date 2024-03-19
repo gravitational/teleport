@@ -18,9 +18,9 @@ package usagereporter
 
 import (
 	"encoding/json"
+	"slices"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 )

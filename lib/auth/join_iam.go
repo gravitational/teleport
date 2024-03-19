@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	awssdk "github.com/aws/aws-sdk-go/aws"
@@ -32,7 +33,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -235,7 +235,7 @@ func arnMatches(pattern, arn string) (bool, error) {
 
 // checkIAMAllowRules checks if the given identity matches any of the given
 // allowRules.
-func checkIAMAllowRules(identity *awsIdentity, allowRules []*types.TokenRule) error {
+func checkIAMAllowRules(identity *awsIdentity, token string, allowRules []*types.TokenRule) error {
 	for _, rule := range allowRules {
 		// if this rule specifies an AWS account, the identity must match
 		if len(rule.AWSAccount) > 0 {
@@ -258,7 +258,7 @@ func checkIAMAllowRules(identity *awsIdentity, allowRules []*types.TokenRule) er
 		// node identity matches this allow rule
 		return nil
 	}
-	return trace.AccessDenied("instance did not match any allow rules")
+	return trace.AccessDenied("instance %v did not match any allow rules in token %v", identity.Arn, token)
 }
 
 // checkIAMRequest checks if the given request satisfies the token rules and
@@ -293,7 +293,7 @@ func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *pro
 	}
 
 	// check that the node identity matches an allow rule for this token
-	if err := checkIAMAllowRules(identity, provisionToken.GetAllowRules()); err != nil {
+	if err := checkIAMAllowRules(identity, provisionToken.GetName(), provisionToken.GetAllowRules()); err != nil {
 		return trace.Wrap(err)
 	}
 

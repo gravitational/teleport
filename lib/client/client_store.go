@@ -225,7 +225,8 @@ func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 		}
 		status, err := s.ReadProfileStatus(profileName)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			s.log.WithError(err).Warnf("skipping profile %q due to error", profileName)
+			continue
 		}
 		profiles = append(profiles, status)
 	}

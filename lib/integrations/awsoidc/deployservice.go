@@ -19,6 +19,7 @@ package awsoidc
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -27,7 +28,6 @@ import (
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -133,9 +133,6 @@ type DeployServiceRequest struct {
 	// DeploymentJoinTokenName is the Teleport IAM Token to use in the deployed Service.
 	DeploymentJoinTokenName string
 
-	// ProxyServerHostPort is the Teleport Proxy's Public.
-	ProxyServerHostPort string
-
 	// IntegrationName is the integration name.
 	// Used for resource tagging when creating resources in AWS.
 	IntegrationName string
@@ -146,10 +143,6 @@ type DeployServiceRequest struct {
 	// DeploymentMode is the identifier of a deployment mode - which Teleport Services to enable and their configuration.
 	DeploymentMode string
 
-	// DatabaseResourceMatcherLabels contains the set of labels to be used by the DatabaseService.
-	// This is used when the deployment mode creates a Database Service.
-	DatabaseResourceMatcherLabels types.Labels
-
 	// TeleportVersionTag is the version of teleport to install.
 	// Ensure the tag exists in:
 	// public.ecr.aws/gravitational/teleport-distroless:<TeleportVersionTag>
@@ -157,9 +150,9 @@ type DeployServiceRequest struct {
 	// Optional. Defaults to the current version.
 	TeleportVersionTag string
 
-	// DeployServiceConfigString creates a teleport.yaml configuration that the agent
-	// deployed in a ECS Cluster (using Fargate) will use.
-	DeployServiceConfigString func(proxyHostPort, iamToken string, resourceMatcherLabels types.Labels) (string, error)
+	// TeleportConfigString is the `teleport.yaml` configuration for the service to be deployed.
+	// It should be base64 encoded as is expected by the `--config-string` param of `teleport start`.
+	TeleportConfigString string
 }
 
 // normalizeECSResourceName converts a name into a valid ECS Resource Name.
@@ -249,10 +242,6 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 		r.TaskName = &taskName
 	}
 
-	if r.ProxyServerHostPort == "" {
-		return trace.BadParameter("proxy address is required")
-	}
-
 	if r.IntegrationName == "" {
 		return trace.BadParameter("integration name is required")
 	}
@@ -261,12 +250,8 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 		r.ResourceCreationTags = defaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
 	}
 
-	if len(r.DatabaseResourceMatcherLabels) == 0 {
-		return trace.BadParameter("at least one agent matcher label is required")
-	}
-
-	if r.DeployServiceConfigString == nil {
-		return trace.BadParameter("deploy service config is required")
+	if r.TeleportConfigString == "" {
+		return trace.BadParameter("teleport config string is required")
 	}
 
 	return nil
@@ -434,11 +419,6 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 		return nil, trace.Wrap(err)
 	}
 
-	teleportConfigString, err := req.DeployServiceConfigString(req.ProxyServerHostPort, req.DeploymentJoinTokenName, req.DatabaseResourceMatcherLabels)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	upsertTaskReq := upsertTaskRequest{
 		TaskName:             aws.ToString(req.TaskName),
 		TaskRoleARN:          req.TaskRoleARN,
@@ -447,7 +427,7 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 		TeleportVersionTag:   req.TeleportVersionTag,
 		ResourceCreationTags: req.ResourceCreationTags,
 		Region:               req.Region,
-		TeleportConfigB64:    teleportConfigString,
+		TeleportConfigB64:    req.TeleportConfigString,
 	}
 	taskDefinition, err := upsertTask(ctx, clt, upsertTaskReq)
 	if err != nil {

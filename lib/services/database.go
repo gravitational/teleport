@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -45,7 +46,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
@@ -651,7 +651,7 @@ func NewDatabaseFromRDSV2Instance(instance *rdsTypesV2.DBInstance) (types.Databa
 
 	uri := ""
 	if instance.Endpoint != nil && instance.Endpoint.Address != nil {
-		uri = fmt.Sprintf("%s:%d", aws.StringValue(instance.Endpoint.Address), instance.Endpoint.Port)
+		uri = fmt.Sprintf("%s:%d", aws.StringValue(instance.Endpoint.Address), aws.Int32Value(instance.Endpoint.Port))
 	}
 
 	return types.NewDatabaseV3(
@@ -683,7 +683,7 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 			InstanceID: aws.StringValue(rdsInstance.DBInstanceIdentifier),
 			ClusterID:  aws.StringValue(rdsInstance.DBClusterIdentifier),
 			ResourceID: aws.StringValue(rdsInstance.DbiResourceId),
-			IAMAuth:    rdsInstance.IAMDatabaseAuthenticationEnabled,
+			IAMAuth:    aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled),
 			Subnets:    subnets,
 			VPCID:      vpcID,
 		},
@@ -696,7 +696,7 @@ func labelsFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance, meta *types.AWS
 	labels := labelsFromAWSMetadata(meta)
 	labels[types.DiscoveryLabelEngine] = aws.StringValue(rdsInstance.Engine)
 	labels[types.DiscoveryLabelEngineVersion] = aws.StringValue(rdsInstance.EngineVersion)
-	labels[types.DiscoveryLabelEndpointType] = string(RDSEndpointTypeInstance)
+	labels[types.DiscoveryLabelEndpointType] = apiawsutils.RDSEndpointTypeInstance
 	labels[types.DiscoveryLabelStatus] = aws.StringValue(rdsInstance.DBInstanceStatus)
 	if rdsInstance.DBSubnetGroup != nil {
 		labels[types.DiscoveryLabelVPCID] = aws.StringValue(rdsInstance.DBSubnetGroup.VpcId)
@@ -723,7 +723,7 @@ func NewDatabaseFromRDSV2Cluster(cluster *rdsTypesV2.DBCluster, firstInstance *r
 	return types.NewDatabaseV3(
 		setAWSDBName(types.Metadata{
 			Description: fmt.Sprintf("Aurora cluster in %v", metadata.Region),
-			Labels:      labelsFromRDSV2Cluster(cluster, metadata, RDSEndpointTypePrimary, firstInstance),
+			Labels:      labelsFromRDSV2Cluster(cluster, metadata, apiawsutils.RDSEndpointTypePrimary, firstInstance),
 		}, aws.StringValue(cluster.DBClusterIdentifier)),
 		types.DatabaseSpecV3{
 			Protocol: protocol,
@@ -780,11 +780,11 @@ func MetadataFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster, rdsInstance *rds
 
 // labelsFromRDSV2Cluster creates database labels for the provided RDS cluster.
 // It uses aws sdk v2.
-func labelsFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster, meta *types.AWS, endpointType RDSEndpointType, memberInstance *rdsTypesV2.DBInstance) map[string]string {
+func labelsFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster, meta *types.AWS, endpointType string, memberInstance *rdsTypesV2.DBInstance) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
 	labels[types.DiscoveryLabelEngine] = aws.StringValue(rdsCluster.Engine)
 	labels[types.DiscoveryLabelEngineVersion] = aws.StringValue(rdsCluster.EngineVersion)
-	labels[types.DiscoveryLabelEndpointType] = string(endpointType)
+	labels[types.DiscoveryLabelEndpointType] = endpointType
 	labels[types.DiscoveryLabelStatus] = aws.StringValue(rdsCluster.Status)
 	if memberInstance != nil && memberInstance.DBSubnetGroup != nil {
 		labels[types.DiscoveryLabelVPCID] = aws.StringValue(memberInstance.DBSubnetGroup.VpcId)
@@ -805,7 +805,7 @@ func NewDatabaseFromRDSCluster(cluster *rds.DBCluster, memberInstances []*rds.DB
 	return types.NewDatabaseV3(
 		setAWSDBName(types.Metadata{
 			Description: fmt.Sprintf("Aurora cluster in %v", metadata.Region),
-			Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypePrimary, memberInstances),
+			Labels:      labelsFromRDSCluster(cluster, metadata, apiawsutils.RDSEndpointTypePrimary, memberInstances),
 		}, aws.StringValue(cluster.DBClusterIdentifier)),
 		types.DatabaseSpecV3{
 			Protocol: protocol,
@@ -826,9 +826,9 @@ func NewDatabaseFromRDSClusterReaderEndpoint(cluster *rds.DBCluster, memberInsta
 	}
 	return types.NewDatabaseV3(
 		setAWSDBName(types.Metadata{
-			Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, string(RDSEndpointTypeReader)),
-			Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeReader, memberInstances),
-		}, aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeReader)),
+			Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, apiawsutils.RDSEndpointTypeReader),
+			Labels:      labelsFromRDSCluster(cluster, metadata, apiawsutils.RDSEndpointTypeReader, memberInstances),
+		}, aws.StringValue(cluster.DBClusterIdentifier), apiawsutils.RDSEndpointTypeReader),
 		types.DatabaseSpecV3{
 			Protocol: protocol,
 			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.ReaderEndpoint), aws.Int64Value(cluster.Port)),
@@ -864,9 +864,9 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster, memberIns
 
 		database, err := types.NewDatabaseV3(
 			setAWSDBName(types.Metadata{
-				Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, string(RDSEndpointTypeCustom)),
-				Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeCustom, memberInstances),
-			}, aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeCustom), endpointDetails.ClusterCustomEndpointName),
+				Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, apiawsutils.RDSEndpointTypeCustom),
+				Labels:      labelsFromRDSCluster(cluster, metadata, apiawsutils.RDSEndpointTypeCustom, memberInstances),
+			}, aws.StringValue(cluster.DBClusterIdentifier), apiawsutils.RDSEndpointTypeCustom, endpointDetails.ClusterCustomEndpointName),
 			types.DatabaseSpecV3{
 				Protocol: protocol,
 				URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint), aws.Int64Value(cluster.Port)),
@@ -1631,7 +1631,7 @@ func labelsFromRDSInstance(rdsInstance *rds.DBInstance, meta *types.AWS) map[str
 	labels := labelsFromAWSMetadata(meta)
 	labels[types.DiscoveryLabelEngine] = aws.StringValue(rdsInstance.Engine)
 	labels[types.DiscoveryLabelEngineVersion] = aws.StringValue(rdsInstance.EngineVersion)
-	labels[types.DiscoveryLabelEndpointType] = string(RDSEndpointTypeInstance)
+	labels[types.DiscoveryLabelEndpointType] = apiawsutils.RDSEndpointTypeInstance
 	if rdsInstance.DBSubnetGroup != nil {
 		labels[types.DiscoveryLabelVPCID] = aws.StringValue(rdsInstance.DBSubnetGroup.VpcId)
 	}
@@ -1639,11 +1639,11 @@ func labelsFromRDSInstance(rdsInstance *rds.DBInstance, meta *types.AWS) map[str
 }
 
 // labelsFromRDSCluster creates database labels for the provided RDS cluster.
-func labelsFromRDSCluster(rdsCluster *rds.DBCluster, meta *types.AWS, endpointType RDSEndpointType, memberInstances []*rds.DBInstance) map[string]string {
+func labelsFromRDSCluster(rdsCluster *rds.DBCluster, meta *types.AWS, endpointType string, memberInstances []*rds.DBInstance) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
 	labels[types.DiscoveryLabelEngine] = aws.StringValue(rdsCluster.Engine)
 	labels[types.DiscoveryLabelEngineVersion] = aws.StringValue(rdsCluster.EngineVersion)
-	labels[types.DiscoveryLabelEndpointType] = string(endpointType)
+	labels[types.DiscoveryLabelEndpointType] = endpointType
 	if len(memberInstances) > 0 && memberInstances[0].DBSubnetGroup != nil {
 		labels[types.DiscoveryLabelVPCID] = aws.StringValue(memberInstances[0].DBSubnetGroup.VpcId)
 	}
@@ -2020,21 +2020,6 @@ const (
 	RDSEngineAuroraMySQL = "aurora-mysql"
 	// RDSEngineAuroraPostgres is RDS engine name for Aurora Postgres clusters.
 	RDSEngineAuroraPostgres = "aurora-postgresql"
-)
-
-// RDSEndpointType specifies the endpoint type for RDS clusters.
-type RDSEndpointType string
-
-const (
-	// RDSEndpointTypePrimary is the endpoint that specifies the connection for the primary instance of the RDS cluster.
-	RDSEndpointTypePrimary RDSEndpointType = "primary"
-	// RDSEndpointTypeReader is the endpoint that load-balances connections across the Aurora Replicas that are
-	// available in an RDS cluster.
-	RDSEndpointTypeReader RDSEndpointType = "reader"
-	// RDSEndpointTypeCustom is the endpoint that specifies one of the custom endpoints associated with the RDS cluster.
-	RDSEndpointTypeCustom RDSEndpointType = "custom"
-	// RDSEndpointTypeInstance is the endpoint of an RDS DB instance.
-	RDSEndpointTypeInstance RDSEndpointType = "instance"
 )
 
 const (

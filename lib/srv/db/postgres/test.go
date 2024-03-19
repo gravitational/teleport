@@ -404,7 +404,10 @@ func newMultiMessage(rowSize, repeats int) (*multiMessage, error) {
 		return nil, trace.Wrap(err)
 	}
 	message := &pgproto3.DataRow{Values: [][]byte{buf}}
-	encoded := message.Encode(nil)
+	encoded, err := message.Encode(nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	payload := bytes.Repeat(encoded, repeats)
 	return &multiMessage{
 		singleMessage: message,
@@ -416,8 +419,8 @@ func (m *multiMessage) Decode(_ []byte) error {
 	return trace.NotImplemented("Decode is not implemented for multiMessage")
 }
 
-func (m *multiMessage) Encode(dst []byte) []byte {
-	return append(dst, m.payload...)
+func (m *multiMessage) Encode(dst []byte) ([]byte, error) {
+	return append(dst, m.payload...), nil
 }
 
 func (m *multiMessage) Backend() {
@@ -462,7 +465,7 @@ func (s *TestServer) handleBenchmarkQuery(query string, client *pgproto3.Backend
 		return trace.Wrap(err)
 	}
 
-	s.log.Debugf("Responding to query %q, will send %v messages of length %v, total length %v", query, repeats, len(mm.singleMessage.Encode(nil)), len(mm.payload))
+	s.log.Debugf("Responding to query %q, will send %v messages, total length %v", query, repeats, len(mm.payload))
 
 	// preamble
 	err = client.Send(&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{{Name: []byte("dummy")}}})

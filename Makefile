@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=14.3.6
+VERSION=14.3.11
 
 DOCKER_IMAGE ?= teleport
 
@@ -296,8 +296,8 @@ $(BUILDDIR)/tctl:
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
-# NOTE: Any changes to the `tsh` build here must be copied to `windows.go` in Dronegen until
-# 		we can use this Makefile for native Windows builds.
+# NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
+# until we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh: KUBECTL_VERSION ?= $(shell go run ./build.assets/kubectl-version/main.go)
 $(BUILDDIR)/tsh: KUBECTL_SETVERSION ?= -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
@@ -428,7 +428,7 @@ clean-ui:
 
 # RELEASE_DIR is where release artifact files are put, such as tarballs, packages, etc.
 $(RELEASE_DIR):
-	mkdir $@
+	mkdir -p $@
 
 .PHONY:
 export
@@ -475,6 +475,11 @@ build-archive: | $(RELEASE_DIR)
 	echo $(GITTAG) > teleport/VERSION
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	cp $(RELEASE).tar.gz $(RELEASE_DIR)
+	# linux-amd64 generates a centos7-compatible archive. Make a copy with the -centos7 label,
+	# for the releases page. We should probably drop that at some point.
+	$(if $(filter linux-amd64,$(OS)-$(ARCH)), \
+		cp $(RELEASE).tar.gz $(RELEASE_DIR)/$(subst amd64,amd64-centos7,$(RELEASE)).tar.gz \
+	)
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
 
@@ -877,7 +882,7 @@ endif
 test-sh:
 	@if ! type bats 2>&1 >/dev/null; then \
 		echo "Not running 'test-sh' target as 'bats' is not installed."; \
-		if [ "$${DRONE}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
+		if [ "$${CI}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
 		exit 0; \
 	fi; \
 	bats $(BATSFLAGS) ./assets/aws/files/tests
@@ -1046,7 +1051,7 @@ lint-sh:
 lint-helm:
 	@if ! type yamllint 2>&1 >/dev/null; then \
 		echo "Not running 'lint-helm' target as 'yamllint' is not installed."; \
-		if [ "$${DRONE}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
+		if [ "$${CI}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
 		exit 0; \
 	fi; \
 	for CHART in $$(find examples/chart -mindepth 1 -maxdepth 1 -type d); do \
@@ -1129,8 +1134,13 @@ $(VERSRC): Makefile
 # 3. Run `make update-version`
 # 4. Commit version changes to git
 # 5. Make sure it all builds (`make release` or equivalent)
+# 6. Run `make update-tag` to tag repos with $(VERSION)
+# 7. Run `make tag-build` to build the tag on GitHub Actions
+# 8. Run `make tag-publish` after `make-build` tag has completed to
+#    publish the built artifacts.
 #
-# After the above is done, run `make update-tag` and follow your build on Drone.
+# GHA tag builds: https://github.com/gravitational/teleport.e/actions/workflows/tag-build.yaml
+# GHA tag publish: https://github.com/gravitational/teleport.e/actions/workflows/tag-publish.yaml
 .PHONY: update-tag
 update-tag: TAG_REMOTE ?= origin
 update-tag:
@@ -1140,6 +1150,32 @@ update-tag:
 	git tag api/$(GITTAG)
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
 	git push $(TAG_REMOTE) $(GITTAG) && git push $(TAG_REMOTE) api/$(GITTAG)
+
+# Builds a tag build on GitHub Actions.
+# Starts a tag publish run using e/.github/workflows/tag-build.yaml
+# for the tag v$(VERSION).
+.PHONY: tag-build
+tag-build:
+	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
+	gh workflow run tag-build.yaml \
+		--repo gravitational/teleport.e \
+		--ref "v$(VERSION)" \
+		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
+		-f "oss-teleport-ref=v$(VERSION)"
+	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-build.yaml
+
+# Publishes a tag build.
+# Starts a tag publish run using e/.github/workflows/tag-publish.yaml
+# for the tag v$(VERSION).
+.PHONY: tag-publish
+tag-publish:
+	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
+	gh workflow run tag-publish.yaml \
+		--repo gravitational/teleport.e \
+		--ref "v$(VERSION)" \
+		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
+		-f "oss-teleport-ref=v$(VERSION)"
+	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-publish.yaml
 
 .PHONY: test-package
 test-package: remove-temp-files
@@ -1414,18 +1450,6 @@ init-submodules-e:
 	git submodule init e
 	git submodule update
 
-# dronegen generates .drone.yml config
-#
-#    Usage:
-#    - tsh login --proxy=platform.teleport.sh
-#    - tsh apps login drone
-#    - set $DRONE_TOKEN and $DRONE_SERVER (http://localhost:8080)
-#    - tsh proxy app --port=8080 drone
-#    - make dronegen
-.PHONY: dronegen
-dronegen:
-	go run ./dronegen
-
 # backport will automatically create backports for a given PR as long as you have the "gh" tool
 # installed locally. To backport, type "make backport PR=1234 TO=branch/1,branch/2".
 .PHONY: backport
@@ -1462,7 +1486,12 @@ rustup-install-target-toolchain:
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.
 #
+# usage: make changelog
+# usage: make changelog BASE_BRANCH=branch/v13 BASE_TAG=13.2.0
 # usage: BASE_BRANCH=branch/v13 BASE_TAG=13.2.0 make changelog
+#
+# BASE_BRANCH and BASE_TAG will be automatically determined if not specified.
+# See ./build.assets/changelog.sh
 .PHONY: changelog
 changelog:
-	@python3 ./build.assets/changelog.py BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG)
+	@BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG) ./build.assets/changelog.sh

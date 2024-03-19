@@ -27,6 +27,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -36,7 +37,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -554,7 +554,7 @@ func TestKubeSelection(t *testing.T) {
 					cmdRunner = func(cmd *exec.Cmd) error {
 						config := kubeConfigFromCmdEnv(t, cmd)
 						for _, kube := range test.wantProxied {
-							checkKubeLocalProxyConfig(t, s, config, rootClusterName, kube)
+							checkKubeLocalProxyConfig(t, config, rootClusterName, kube)
 						}
 						return nil
 					}

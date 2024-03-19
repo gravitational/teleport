@@ -18,6 +18,9 @@ package integrationv1
 
 import (
 	"context"
+	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -33,21 +36,33 @@ import (
 )
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (s *Service) GenerateAWSOIDCToken(ctx context.Context, _ *integrationpb.GenerateAWSOIDCTokenRequest) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
+func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbUse); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.generateAWSOIDCTokenWithoutAuthZ(ctx)
+
+	var integration types.Integration
+	// Clients in v15 or lower might not send the Integration
+	// All v16+ clients will send the Integration
+	// TODO(marco) DELETE IN v17.0
+	if req.Integration != "" {
+		integration, err = s.cache.GetIntegration(ctx, req.Integration)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return s.generateAWSOIDCTokenWithoutAuthZ(ctx, integration)
 }
 
 // generateAWSOIDCTokenWithoutAuthZ generates a token to be used when executing an AWS OIDC Integration action.
 // Bypasses authz and should only be used by other methods that validate AuthZ.
-func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
+func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context, integration types.Integration) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
 	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -77,9 +92,27 @@ func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context) (*integr
 		return nil, trace.Wrap(err)
 	}
 
-	issuer, err := oidc.IssuerForCluster(ctx, s.cache)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Clients in v15 or lower might not send the Integration
+	// All v16+ clients will send the Integration
+	// TODO(marco) DELETE IN v17.0
+	// Checking for an empty issuer must be kept.
+	var issuer string
+	if integration != nil {
+		issuerS3URI := integration.GetAWSOIDCIntegrationSpec().IssuerS3URI
+		if issuerS3URI != "" {
+			issuerS3URL, err := url.Parse(issuerS3URI)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			prefix := strings.TrimLeft(issuerS3URL.Path, "/")
+			issuer = fmt.Sprintf("https://%s.s3.amazonaws.com/%s", issuerS3URL.Host, prefix)
+		}
+	}
+	if issuer == "" {
+		issuer, err = oidc.IssuerForCluster(ctx, s.cache)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	token, err := privateKey.SignAWSOIDC(jwt.SignParams{
@@ -185,7 +218,7 @@ func (s *AWSOIDCService) awsClientReq(ctx context.Context, integrationName, regi
 		return nil, trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
 	}
 
-	token, err := s.integrationService.generateAWSOIDCTokenWithoutAuthZ(ctx)
+	token, err := s.integrationService.generateAWSOIDCTokenWithoutAuthZ(ctx, integration)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -198,6 +231,114 @@ func (s *AWSOIDCService) awsClientReq(ctx context.Context, integrationName, regi
 	}, nil
 }
 
+// ListEICE returns a paginated list of EC2 Instance Connect Endpoints.
+func (s *AWSOIDCService) ListEICE(ctx context.Context, req *integrationpb.ListEICERequest) (*integrationpb.ListEICEResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listClient, err := awsoidc.NewListEC2ICEClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listResp, err := awsoidc.ListEC2ICE(ctx, listClient, awsoidc.ListEC2ICERequest{
+		Region:    req.Region,
+		VPCIDs:    req.VpcIds,
+		NextToken: req.NextToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	eiceList := make([]*integrationpb.EC2InstanceConnectEndpoint, 0, len(listResp.EC2ICEs))
+	for _, e := range listResp.EC2ICEs {
+		eiceList = append(eiceList, &integrationpb.EC2InstanceConnectEndpoint{
+			Name:          e.Name,
+			State:         e.State,
+			StateMessage:  e.StateMessage,
+			DashboardLink: e.DashboardLink,
+			SubnetId:      e.SubnetID,
+			VpcId:         e.VPCID,
+		})
+	}
+
+	return &integrationpb.ListEICEResponse{
+		NextToken:     listResp.NextToken,
+		Ec2Ices:       eiceList,
+		DashboardLink: listResp.DashboardLink,
+	}, nil
+}
+
+// CreateEICE creates multiple EC2 Instance Connect Endpoint using the provided Subnets and Security Group IDs.
+func (s *AWSOIDCService) CreateEICE(ctx context.Context, req *integrationpb.CreateEICERequest) (*integrationpb.CreateEICEResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	createClient, err := awsoidc.NewCreateEC2ICEClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterName, err := s.cache.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	endpoints := make([]awsoidc.EC2ICEEndpoint, 0, len(req.Endpoints))
+	for _, endpoint := range req.Endpoints {
+		endpoints = append(endpoints, awsoidc.EC2ICEEndpoint{
+			Name:             endpoint.Name,
+			SubnetID:         endpoint.SubnetId,
+			SecurityGroupIDs: endpoint.SecurityGroupIds,
+		})
+	}
+
+	createResp, err := awsoidc.CreateEC2ICE(ctx, createClient, awsoidc.CreateEC2ICERequest{
+		Cluster:         clusterName.GetClusterName(),
+		IntegrationName: req.Integration,
+		Endpoints:       endpoints,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	eiceList := make([]*integrationpb.EC2ICEndpoint, 0, len(createResp.CreatedEndpoints))
+	for _, e := range createResp.CreatedEndpoints {
+		eiceList = append(eiceList, &integrationpb.EC2ICEndpoint{
+			Name:             e.Name,
+			SubnetId:         e.SubnetID,
+			SecurityGroupIds: e.SecurityGroupIDs,
+		})
+	}
+
+	return &integrationpb.CreateEICEResponse{
+		Name:             createResp.Name,
+		CreatedEndpoints: eiceList,
+	}, nil
+}
+
 // ListDatabases returns a paginated list of Databases.
 func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.ListDatabasesRequest) (*integrationpb.ListDatabasesResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -205,7 +346,7 @@ func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.L
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbUse); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -245,6 +386,72 @@ func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.L
 	}, nil
 }
 
+// ListSecurityGroups returns a paginated list of SecurityGroups.
+func (s *AWSOIDCService) ListSecurityGroups(ctx context.Context, req *integrationpb.ListSecurityGroupsRequest) (*integrationpb.ListSecurityGroupsResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listSGsClient, err := awsoidc.NewListSecurityGroupsClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listSGsResp, err := awsoidc.ListSecurityGroups(ctx, listSGsClient, awsoidc.ListSecurityGroupsRequest{
+		VPCID:     req.VpcId,
+		NextToken: req.NextToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sgList := make([]*integrationpb.SecurityGroup, 0, len(listSGsResp.SecurityGroups))
+	for _, sg := range listSGsResp.SecurityGroups {
+		sgList = append(sgList, &integrationpb.SecurityGroup{
+			Name:          sg.Name,
+			Id:            sg.ID,
+			Description:   sg.Description,
+			InboundRules:  convertSecurityGroupRulesToProto(sg.InboundRules),
+			OutboundRules: convertSecurityGroupRulesToProto(sg.OutboundRules),
+		})
+	}
+
+	return &integrationpb.ListSecurityGroupsResponse{
+		SecurityGroups: sgList,
+		NextToken:      listSGsResp.NextToken,
+	}, nil
+}
+
+func convertSecurityGroupRulesToProto(inRules []awsoidc.SecurityGroupRule) []*integrationpb.SecurityGroupRule {
+	out := make([]*integrationpb.SecurityGroupRule, 0, len(inRules))
+	for _, r := range inRules {
+		cidrs := make([]*integrationpb.SecurityGroupRuleCIDR, 0, len(r.CIDRs))
+		for _, cidr := range r.CIDRs {
+			cidrs = append(cidrs, &integrationpb.SecurityGroupRuleCIDR{
+				Cidr:        cidr.CIDR,
+				Description: cidr.Description,
+			})
+		}
+		out = append(out, &integrationpb.SecurityGroupRule{
+			IpProtocol: r.IPProtocol,
+			FromPort:   int32(r.FromPort),
+			ToPort:     int32(r.ToPort),
+			Cidrs:      cidrs,
+		})
+	}
+	return out
+}
+
 // DeployDatabaseService deploys Database Services into Amazon ECS.
 func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integrationpb.DeployDatabaseServiceRequest) (*integrationpb.DeployDatabaseServiceResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -252,7 +459,7 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbUse); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -297,5 +504,101 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 	return &integrationpb.DeployDatabaseServiceResponse{
 		ClusterArn:          deployDBResp.ClusterARN,
 		ClusterDashboardUrl: deployDBResp.ClusterDashboardURL,
+	}, nil
+}
+
+// DeployService deploys Services into Amazon ECS.
+func (s *AWSOIDCService) DeployService(ctx context.Context, req *integrationpb.DeployServiceRequest) (*integrationpb.DeployServiceResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterName, err := s.cache.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, s.cache)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	deployServiceResp, err := awsoidc.DeployService(ctx, deployServiceClient, awsoidc.DeployServiceRequest{
+		DeploymentJoinTokenName: req.DeploymentJoinTokenName,
+		DeploymentMode:          req.DeploymentMode,
+		TeleportConfigString:    req.TeleportConfigString,
+		IntegrationName:         req.Integration,
+		Region:                  req.Region,
+		SecurityGroups:          req.SecurityGroups,
+		SubnetIDs:               req.SubnetIds,
+		TaskRoleARN:             req.TaskRoleArn,
+		TeleportClusterName:     clusterName.GetClusterName(),
+		TeleportVersionTag:      req.TeleportVersion,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &integrationpb.DeployServiceResponse{
+		ClusterArn:          deployServiceResp.ClusterARN,
+		ServiceArn:          deployServiceResp.ServiceARN,
+		TaskDefinitionArn:   deployServiceResp.TaskDefinitionARN,
+		ServiceDashboardUrl: deployServiceResp.ServiceDashboardURL,
+	}, nil
+}
+
+// ListEC2 returns a paginated list of AWS EC2 instances.
+func (s *AWSOIDCService) ListEC2(ctx context.Context, req *integrationpb.ListEC2Request) (*integrationpb.ListEC2Response, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listEC2Client, err := awsoidc.NewListEC2Client(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listEC2Resp, err := awsoidc.ListEC2(ctx, listEC2Client, awsoidc.ListEC2Request{
+		Region:      req.Region,
+		Integration: req.Integration,
+		NextToken:   req.NextToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serverList := make([]*types.ServerV2, 0, len(listEC2Resp.Servers))
+	for _, server := range listEC2Resp.Servers {
+		serverV2, ok := server.(*types.ServerV2)
+		if !ok {
+			s.logger.Warnf("Skipping %s because conversion (%T) to ServerV2 failed: %v", server.GetName(), server, err)
+			continue
+		}
+		serverList = append(serverList, serverV2)
+	}
+
+	return &integrationpb.ListEC2Response{
+		Servers:   serverList,
+		NextToken: listEC2Resp.NextToken,
 	}, nil
 }

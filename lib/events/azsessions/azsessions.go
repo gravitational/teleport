@@ -15,11 +15,13 @@
 package azsessions
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -33,7 +35,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
@@ -320,7 +321,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	// cleaned up before a new attempt
 
 	parts = slices.Clone(parts)
-	slices.SortFunc(parts, func(a, b events.StreamPart) int { return int(a.Number - b.Number) })
+	slices.SortFunc(parts, func(a, b events.StreamPart) int { return cmp.Compare(a.Number, b.Number) })
 
 	partURLs := make([]string, 0, len(parts))
 	for _, part := range parts {
@@ -492,7 +493,7 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 		}
 	}
 
-	slices.SortFunc(parts, func(a, b events.StreamPart) int { return int(a.Number - b.Number) })
+	slices.SortFunc(parts, func(a, b events.StreamPart) int { return cmp.Compare(a.Number, b.Number) })
 
 	return parts, nil
 }

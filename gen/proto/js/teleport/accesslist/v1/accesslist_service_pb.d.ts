@@ -33,7 +33,6 @@ export class GetAccessListsResponse extends jspb.Message {
     setAccessListsList(value: Array<teleport_accesslist_v1_accesslist_pb.AccessList>): GetAccessListsResponse;
     addAccessLists(value?: teleport_accesslist_v1_accesslist_pb.AccessList, index?: number): teleport_accesslist_v1_accesslist_pb.AccessList;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetAccessListsResponse.AsObject;
     static toObject(includeInstance: boolean, msg: GetAccessListsResponse): GetAccessListsResponse.AsObject;
@@ -53,10 +52,8 @@ export namespace GetAccessListsResponse {
 export class ListAccessListsRequest extends jspb.Message { 
     getPageSize(): number;
     setPageSize(value: number): ListAccessListsRequest;
-
     getNextToken(): string;
     setNextToken(value: string): ListAccessListsRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListAccessListsRequest.AsObject;
@@ -80,10 +77,8 @@ export class ListAccessListsResponse extends jspb.Message {
     getAccessListsList(): Array<teleport_accesslist_v1_accesslist_pb.AccessList>;
     setAccessListsList(value: Array<teleport_accesslist_v1_accesslist_pb.AccessList>): ListAccessListsResponse;
     addAccessLists(value?: teleport_accesslist_v1_accesslist_pb.AccessList, index?: number): teleport_accesslist_v1_accesslist_pb.AccessList;
-
     getNextToken(): string;
     setNextToken(value: string): ListAccessListsResponse;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListAccessListsResponse.AsObject;
@@ -105,7 +100,6 @@ export namespace ListAccessListsResponse {
 export class GetAccessListRequest extends jspb.Message { 
     getName(): string;
     setName(value: string): GetAccessListRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetAccessListRequest.AsObject;
@@ -130,7 +124,6 @@ export class UpsertAccessListRequest extends jspb.Message {
     getAccessList(): teleport_accesslist_v1_accesslist_pb.AccessList | undefined;
     setAccessList(value?: teleport_accesslist_v1_accesslist_pb.AccessList): UpsertAccessListRequest;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UpsertAccessListRequest.AsObject;
     static toObject(includeInstance: boolean, msg: UpsertAccessListRequest): UpsertAccessListRequest.AsObject;
@@ -150,7 +143,6 @@ export namespace UpsertAccessListRequest {
 export class DeleteAccessListRequest extends jspb.Message { 
     getName(): string;
     setName(value: string): DeleteAccessListRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DeleteAccessListRequest.AsObject;
@@ -208,7 +200,6 @@ export class GetAccessListsToReviewResponse extends jspb.Message {
     setAccessListsList(value: Array<teleport_accesslist_v1_accesslist_pb.AccessList>): GetAccessListsToReviewResponse;
     addAccessLists(value?: teleport_accesslist_v1_accesslist_pb.AccessList, index?: number): teleport_accesslist_v1_accesslist_pb.AccessList;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetAccessListsToReviewResponse.AsObject;
     static toObject(includeInstance: boolean, msg: GetAccessListsToReviewResponse): GetAccessListsToReviewResponse.AsObject;
@@ -225,16 +216,53 @@ export namespace GetAccessListsToReviewResponse {
     }
 }
 
+export class CountAccessListMembersRequest extends jspb.Message { 
+    getAccessListName(): string;
+    setAccessListName(value: string): CountAccessListMembersRequest;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): CountAccessListMembersRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: CountAccessListMembersRequest): CountAccessListMembersRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: CountAccessListMembersRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): CountAccessListMembersRequest;
+    static deserializeBinaryFromReader(message: CountAccessListMembersRequest, reader: jspb.BinaryReader): CountAccessListMembersRequest;
+}
+
+export namespace CountAccessListMembersRequest {
+    export type AsObject = {
+        accessListName: string,
+    }
+}
+
+export class CountAccessListMembersResponse extends jspb.Message { 
+    getCount(): number;
+    setCount(value: number): CountAccessListMembersResponse;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): CountAccessListMembersResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: CountAccessListMembersResponse): CountAccessListMembersResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: CountAccessListMembersResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): CountAccessListMembersResponse;
+    static deserializeBinaryFromReader(message: CountAccessListMembersResponse, reader: jspb.BinaryReader): CountAccessListMembersResponse;
+}
+
+export namespace CountAccessListMembersResponse {
+    export type AsObject = {
+        count: number,
+    }
+}
+
 export class ListAccessListMembersRequest extends jspb.Message { 
     getPageSize(): number;
     setPageSize(value: number): ListAccessListMembersRequest;
-
     getPageToken(): string;
     setPageToken(value: string): ListAccessListMembersRequest;
-
     getAccessList(): string;
     setAccessList(value: string): ListAccessListMembersRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListAccessListMembersRequest.AsObject;
@@ -259,10 +287,8 @@ export class ListAccessListMembersResponse extends jspb.Message {
     getMembersList(): Array<teleport_accesslist_v1_accesslist_pb.Member>;
     setMembersList(value: Array<teleport_accesslist_v1_accesslist_pb.Member>): ListAccessListMembersResponse;
     addMembers(value?: teleport_accesslist_v1_accesslist_pb.Member, index?: number): teleport_accesslist_v1_accesslist_pb.Member;
-
     getNextPageToken(): string;
     setNextPageToken(value: string): ListAccessListMembersResponse;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListAccessListMembersResponse.AsObject;
@@ -284,10 +310,8 @@ export namespace ListAccessListMembersResponse {
 export class ListAllAccessListMembersRequest extends jspb.Message { 
     getPageSize(): number;
     setPageSize(value: number): ListAllAccessListMembersRequest;
-
     getPageToken(): string;
     setPageToken(value: string): ListAllAccessListMembersRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListAllAccessListMembersRequest.AsObject;
@@ -311,10 +335,8 @@ export class ListAllAccessListMembersResponse extends jspb.Message {
     getMembersList(): Array<teleport_accesslist_v1_accesslist_pb.Member>;
     setMembersList(value: Array<teleport_accesslist_v1_accesslist_pb.Member>): ListAllAccessListMembersResponse;
     addMembers(value?: teleport_accesslist_v1_accesslist_pb.Member, index?: number): teleport_accesslist_v1_accesslist_pb.Member;
-
     getNextPageToken(): string;
     setNextPageToken(value: string): ListAllAccessListMembersResponse;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListAllAccessListMembersResponse.AsObject;
@@ -339,12 +361,10 @@ export class UpsertAccessListWithMembersRequest extends jspb.Message {
     clearAccessList(): void;
     getAccessList(): teleport_accesslist_v1_accesslist_pb.AccessList | undefined;
     setAccessList(value?: teleport_accesslist_v1_accesslist_pb.AccessList): UpsertAccessListWithMembersRequest;
-
     clearMembersList(): void;
     getMembersList(): Array<teleport_accesslist_v1_accesslist_pb.Member>;
     setMembersList(value: Array<teleport_accesslist_v1_accesslist_pb.Member>): UpsertAccessListWithMembersRequest;
     addMembers(value?: teleport_accesslist_v1_accesslist_pb.Member, index?: number): teleport_accesslist_v1_accesslist_pb.Member;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UpsertAccessListWithMembersRequest.AsObject;
@@ -369,12 +389,10 @@ export class UpsertAccessListWithMembersResponse extends jspb.Message {
     clearAccessList(): void;
     getAccessList(): teleport_accesslist_v1_accesslist_pb.AccessList | undefined;
     setAccessList(value?: teleport_accesslist_v1_accesslist_pb.AccessList): UpsertAccessListWithMembersResponse;
-
     clearMembersList(): void;
     getMembersList(): Array<teleport_accesslist_v1_accesslist_pb.Member>;
     setMembersList(value: Array<teleport_accesslist_v1_accesslist_pb.Member>): UpsertAccessListWithMembersResponse;
     addMembers(value?: teleport_accesslist_v1_accesslist_pb.Member, index?: number): teleport_accesslist_v1_accesslist_pb.Member;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UpsertAccessListWithMembersResponse.AsObject;
@@ -396,10 +414,8 @@ export namespace UpsertAccessListWithMembersResponse {
 export class GetAccessListMemberRequest extends jspb.Message { 
     getAccessList(): string;
     setAccessList(value: string): GetAccessListMemberRequest;
-
     getMemberName(): string;
     setMemberName(value: string): GetAccessListMemberRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetAccessListMemberRequest.AsObject;
@@ -425,7 +441,6 @@ export class UpsertAccessListMemberRequest extends jspb.Message {
     getMember(): teleport_accesslist_v1_accesslist_pb.Member | undefined;
     setMember(value?: teleport_accesslist_v1_accesslist_pb.Member): UpsertAccessListMemberRequest;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UpsertAccessListMemberRequest.AsObject;
     static toObject(includeInstance: boolean, msg: UpsertAccessListMemberRequest): UpsertAccessListMemberRequest.AsObject;
@@ -445,10 +460,8 @@ export namespace UpsertAccessListMemberRequest {
 export class DeleteAccessListMemberRequest extends jspb.Message { 
     getAccessList(): string;
     setAccessList(value: string): DeleteAccessListMemberRequest;
-
     getMemberName(): string;
     setMemberName(value: string): DeleteAccessListMemberRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DeleteAccessListMemberRequest.AsObject;
@@ -470,7 +483,6 @@ export namespace DeleteAccessListMemberRequest {
 export class DeleteAllAccessListMembersForAccessListRequest extends jspb.Message { 
     getAccessList(): string;
     setAccessList(value: string): DeleteAllAccessListMembersForAccessListRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DeleteAllAccessListMembersForAccessListRequest.AsObject;
@@ -508,13 +520,10 @@ export namespace DeleteAllAccessListMembersRequest {
 export class ListAccessListReviewsRequest extends jspb.Message { 
     getAccessList(): string;
     setAccessList(value: string): ListAccessListReviewsRequest;
-
     getPageSize(): number;
     setPageSize(value: number): ListAccessListReviewsRequest;
-
     getNextToken(): string;
     setNextToken(value: string): ListAccessListReviewsRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListAccessListReviewsRequest.AsObject;
@@ -539,10 +548,8 @@ export class ListAccessListReviewsResponse extends jspb.Message {
     getReviewsList(): Array<teleport_accesslist_v1_accesslist_pb.Review>;
     setReviewsList(value: Array<teleport_accesslist_v1_accesslist_pb.Review>): ListAccessListReviewsResponse;
     addReviews(value?: teleport_accesslist_v1_accesslist_pb.Review, index?: number): teleport_accesslist_v1_accesslist_pb.Review;
-
     getNextToken(): string;
     setNextToken(value: string): ListAccessListReviewsResponse;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListAccessListReviewsResponse.AsObject;
@@ -564,10 +571,8 @@ export namespace ListAccessListReviewsResponse {
 export class ListAllAccessListReviewsRequest extends jspb.Message { 
     getPageSize(): number;
     setPageSize(value: number): ListAllAccessListReviewsRequest;
-
     getNextToken(): string;
     setNextToken(value: string): ListAllAccessListReviewsRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListAllAccessListReviewsRequest.AsObject;
@@ -591,10 +596,8 @@ export class ListAllAccessListReviewsResponse extends jspb.Message {
     getReviewsList(): Array<teleport_accesslist_v1_accesslist_pb.Review>;
     setReviewsList(value: Array<teleport_accesslist_v1_accesslist_pb.Review>): ListAllAccessListReviewsResponse;
     addReviews(value?: teleport_accesslist_v1_accesslist_pb.Review, index?: number): teleport_accesslist_v1_accesslist_pb.Review;
-
     getNextToken(): string;
     setNextToken(value: string): ListAllAccessListReviewsResponse;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListAllAccessListReviewsResponse.AsObject;
@@ -620,7 +623,6 @@ export class CreateAccessListReviewRequest extends jspb.Message {
     getReview(): teleport_accesslist_v1_accesslist_pb.Review | undefined;
     setReview(value?: teleport_accesslist_v1_accesslist_pb.Review): CreateAccessListReviewRequest;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): CreateAccessListReviewRequest.AsObject;
     static toObject(includeInstance: boolean, msg: CreateAccessListReviewRequest): CreateAccessListReviewRequest.AsObject;
@@ -641,12 +643,10 @@ export class CreateAccessListReviewResponse extends jspb.Message {
     getReviewName(): string;
     setReviewName(value: string): CreateAccessListReviewResponse;
 
-
     hasNextAuditDate(): boolean;
     clearNextAuditDate(): void;
     getNextAuditDate(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setNextAuditDate(value?: google_protobuf_timestamp_pb.Timestamp): CreateAccessListReviewResponse;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): CreateAccessListReviewResponse.AsObject;
@@ -668,10 +668,8 @@ export namespace CreateAccessListReviewResponse {
 export class DeleteAccessListReviewRequest extends jspb.Message { 
     getReviewName(): string;
     setReviewName(value: string): DeleteAccessListReviewRequest;
-
     getAccessListName(): string;
     setAccessListName(value: string): DeleteAccessListReviewRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DeleteAccessListReviewRequest.AsObject;
@@ -693,13 +691,10 @@ export namespace DeleteAccessListReviewRequest {
 export class AccessRequestPromoteRequest extends jspb.Message { 
     getRequestId(): string;
     setRequestId(value: string): AccessRequestPromoteRequest;
-
     getAccessListName(): string;
     setAccessListName(value: string): AccessRequestPromoteRequest;
-
     getReason(): string;
     setReason(value: string): AccessRequestPromoteRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessRequestPromoteRequest.AsObject;
@@ -726,7 +721,6 @@ export class AccessRequestPromoteResponse extends jspb.Message {
     getAccessRequest(): teleport_legacy_types_types_pb.AccessRequestV3 | undefined;
     setAccessRequest(value?: teleport_legacy_types_types_pb.AccessRequestV3): AccessRequestPromoteResponse;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessRequestPromoteResponse.AsObject;
     static toObject(includeInstance: boolean, msg: AccessRequestPromoteResponse): AccessRequestPromoteResponse.AsObject;
@@ -746,7 +740,6 @@ export namespace AccessRequestPromoteResponse {
 export class GetSuggestedAccessListsRequest extends jspb.Message { 
     getAccessRequestId(): string;
     setAccessRequestId(value: string): GetSuggestedAccessListsRequest;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetSuggestedAccessListsRequest.AsObject;
@@ -769,7 +762,6 @@ export class GetSuggestedAccessListsResponse extends jspb.Message {
     getAccessListsList(): Array<teleport_accesslist_v1_accesslist_pb.AccessList>;
     setAccessListsList(value: Array<teleport_accesslist_v1_accesslist_pb.AccessList>): GetSuggestedAccessListsResponse;
     addAccessLists(value?: teleport_accesslist_v1_accesslist_pb.AccessList, index?: number): teleport_accesslist_v1_accesslist_pb.AccessList;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetSuggestedAccessListsResponse.AsObject;

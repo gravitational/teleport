@@ -17,10 +17,10 @@ limitations under the License.
 package utils
 
 import (
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 )

@@ -31,7 +31,7 @@ import (
 )
 
 type tcpServer struct {
-	newAudit func(sessionID string) (common.Audit, error)
+	newAudit func(ctx context.Context, sessionID string) (common.Audit, error)
 	hostID   string
 	log      logrus.FieldLogger
 }
@@ -53,7 +53,7 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		return trace.Wrap(err)
 	}
 
-	audit, err := s.newAudit(identity.RouteToApp.SessionID)
+	audit, err := s.newAudit(ctx, identity.RouteToApp.SessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}

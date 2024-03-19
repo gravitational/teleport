@@ -10,15 +10,12 @@ import * as teleport_lib_teleterm_v1_label_pb from "../../../../teleport/lib/tel
 export class Kube extends jspb.Message { 
     getUri(): string;
     setUri(value: string): Kube;
-
     getName(): string;
     setName(value: string): Kube;
-
     clearLabelsList(): void;
     getLabelsList(): Array<teleport_lib_teleterm_v1_label_pb.Label>;
     setLabelsList(value: Array<teleport_lib_teleterm_v1_label_pb.Label>): Kube;
     addLabels(value?: teleport_lib_teleterm_v1_label_pb.Label, index?: number): teleport_lib_teleterm_v1_label_pb.Label;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Kube.AsObject;

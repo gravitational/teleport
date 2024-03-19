@@ -21,11 +21,11 @@ import (
 	"encoding/binary"
 	"io"
 	"net"
+	"slices"
 	"strconv"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 )

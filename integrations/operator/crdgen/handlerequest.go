@@ -18,12 +18,14 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	gogodesc "github.com/gogo/protobuf/protoc-gen-gogo/descriptor"
 	"github.com/gogo/protobuf/protoc-gen-gogo/generator"
 	gogoplugin "github.com/gogo/protobuf/protoc-gen-gogo/plugin"
-	"github.com/gogo/protobuf/vanity/command"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/pluginpb"
 	"sigs.k8s.io/yaml"
 
 	"github.com/gravitational/teleport/api/types"
@@ -53,7 +55,32 @@ func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {
 		}
 	}
 
-	command.Write(gen.Response)
+	// Convert the gogo response to a regular protobuf response. This allows us
+	// to pack in the SupportedFeatures field, which indicates that the optional
+	// field is supported.
+	response := &pluginpb.CodeGeneratorResponse{}
+	response.Error = gen.Response.Error
+	response.File = make([]*pluginpb.CodeGeneratorResponse_File, 0, len(gen.Response.File))
+	for _, file := range gen.Response.File {
+		response.File = append(response.File, &pluginpb.CodeGeneratorResponse_File{
+			Name:           file.Name,
+			InsertionPoint: file.InsertionPoint,
+			Content:        file.Content,
+		})
+	}
+	features := uint64(pluginpb.CodeGeneratorResponse_FEATURE_PROTO3_OPTIONAL)
+	response.SupportedFeatures = &features
+
+	// Send back the results. The code below was taken from the vanity command,
+	// but it now uses the regular response instead of the gogo specific one.
+	data, err := proto.Marshal(response)
+	if err != nil {
+		return trace.Wrap(err, "failed to marshal output proto")
+	}
+	_, err = os.Stdout.Write(data)
+	if err != nil {
+		return trace.Wrap(err, "failed to write output proto")
+	}
 
 	return nil
 }

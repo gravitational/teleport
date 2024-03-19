@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -30,7 +31,6 @@ import (
 	"github.com/sirupsen/logrus"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
@@ -86,7 +86,7 @@ func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace, re
 	}
 	var errs []error
 	for _, verb := range verbs {
-		errs = append(errs, a.context.Checker.CheckAccessToRule(ctx, namespace, resource, verb, false))
+		errs = append(errs, a.context.Checker.CheckAccessToRule(ctx, namespace, resource, verb))
 	}
 	if err := trace.NewAggregate(errs...); err != nil {
 		return err
@@ -95,17 +95,10 @@ func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace, re
 }
 
 type actionConfig struct {
-	quiet   bool
 	context authz.Context
 }
 
 type actionOption func(*actionConfig)
-
-func quietAction(quiet bool) actionOption {
-	return func(cfg *actionConfig) {
-		cfg.quiet = quiet
-	}
-}
 
 func (a *ServerWithRoles) withOptions(opts ...actionOption) actionConfig {
 	cfg := actionConfig{context: a.context}
@@ -121,7 +114,7 @@ func (c actionConfig) action(namespace, resource string, verbs ...string) error 
 	}
 	var errs []error
 	for _, verb := range verbs {
-		errs = append(errs, c.context.Checker.CheckAccessToRule(&services.Context{User: c.context.User}, namespace, resource, verb, c.quiet))
+		errs = append(errs, c.context.Checker.CheckAccessToRule(&services.Context{User: c.context.User}, namespace, resource, verb))
 	}
 	if err := trace.NewAggregate(errs...); err != nil {
 		return err
@@ -141,7 +134,7 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 		return nil
 	}
 	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User},
-		apidefaults.Namespace, types.KindUser, types.VerbCreate, true)
+		apidefaults.Namespace, types.KindUser, types.VerbCreate)
 }
 
 // authConnectorAction is a special checker that grants access to auth
@@ -149,8 +142,8 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 // If not, it checks if the requester has the meta KindAuthConnector access
 // (which grants access to all connectors).
 func (a *ServerWithRoles) authConnectorAction(namespace string, resource string, verb string) error {
-	if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb, true); err != nil {
-		if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, types.KindAuthConnector, verb, false); err != nil {
+	if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb); err != nil {
+		if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, types.KindAuthConnector, verb); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -160,7 +153,7 @@ func (a *ServerWithRoles) authConnectorAction(namespace string, resource string,
 // actionForListWithCondition extracts a restrictive filter condition to be
 // added to a list query after a simple resource check fails.
 func (a *ServerWithRoles) actionForListWithCondition(namespace, resource, identifier string) (*types.WhereExpr, error) {
-	origErr := a.withOptions(quietAction(true)).action(namespace, resource, types.VerbList)
+	origErr := a.action(namespace, resource, types.VerbList)
 	if origErr == nil || !trace.IsAccessDenied(origErr) {
 		return nil, trace.Wrap(origErr)
 	}
@@ -177,7 +170,7 @@ func (a *ServerWithRoles) actionForListWithCondition(namespace, resource, identi
 // rule context after a simple resource check fails.
 func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string, extendContext func(*services.Context) error) error {
 	ruleCtx := &services.Context{User: a.context.User}
-	origErr := a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb, true)
+	origErr := a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb)
 	if origErr == nil || !trace.IsAccessDenied(origErr) {
 		return trace.Wrap(origErr)
 	}
@@ -186,7 +179,7 @@ func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string
 		// Return the original AccessDenied to avoid leaking information.
 		return trace.Wrap(origErr)
 	}
-	return trace.Wrap(a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb, false))
+	return trace.Wrap(a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb))
 }
 
 // actionForKindSession is a special checker that grants access to session
@@ -391,13 +384,15 @@ func (a *ServerWithRoles) DeleteIntegration(ctx context.Context, name string) er
 }
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
+func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	igSvc, err := a.integrationsService()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{})
+	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
+		Integration: integration,
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -446,13 +441,13 @@ func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles 
 		}
 
 		// Skip past it if there's a deny rule in place blocking access.
-		if err := a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSSHSession, verb, true /* silent */); err != nil {
+		if err := a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSSHSession, verb); err != nil {
 			return false
 		}
 	}
 
 	ruleCtx := &services.Context{User: a.context.User, SessionTracker: tracker}
-	if a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSessionTracker, types.VerbList, true /* silent */) == nil {
+	if a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSessionTracker, types.VerbList) == nil {
 		return true
 	}
 
@@ -1076,7 +1071,7 @@ func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetC
 	// with permissions to view all resources of kind 'cluster_alert' can opt into viewing all alerts
 	// regardless of labels for management/debug purposes.
 	var resourceLevelPermit bool
-	if query.WithUntargeted && a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindClusterAlert, types.VerbRead, types.VerbList) == nil {
+	if query.WithUntargeted && a.action(apidefaults.Namespace, types.KindClusterAlert, types.VerbRead, types.VerbList) == nil {
 		resourceLevelPermit = true
 	}
 
@@ -1115,7 +1110,7 @@ Outer:
 				continue Verbs
 			}
 
-			if a.withOptions(quietAction(true)).action(apidefaults.Namespace, rv[0], rv[1]) == nil {
+			if a.action(apidefaults.Namespace, rv[0], rv[1]) == nil {
 				// user holds at least one of the resource:verb pairs specified by
 				// the verb-permit label.
 				filtered = append(filtered, alert)
@@ -1491,7 +1486,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			actionVerbs = []string{types.VerbList}
 		}
 
-		resourceAccessMap[kind] = a.withOptions(quietAction(true)).action(apidefaults.Namespace, kind, actionVerbs...)
+		resourceAccessMap[kind] = a.action(apidefaults.Namespace, kind, actionVerbs...)
 	}
 
 	// Apply any requested additional search_as_roles and/or preview_as_roles
@@ -2425,7 +2420,7 @@ type accessChecker interface {
 }
 
 func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
-	if err := a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindAccessRequest, types.VerbList, types.VerbRead); err != nil {
+	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbList, types.VerbRead); err != nil {
 		// Users are allowed to read + list their own access requests and
 		// requests they are allowed to review, unless access was *explicitly*
 		// denied. This means deny rules block the action but allow rules are
@@ -2595,12 +2590,12 @@ func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter types.Plugin
 	case types.KindAccessRequest, types.KindAccessList:
 		// for backwards compatibility, we allow list/read against kinds to also grant list/read for
 		// access request related plugin data.
-		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, filter.Kind, types.VerbList) != nil {
+		if a.action(apidefaults.Namespace, filter.Kind, types.VerbList) != nil {
 			if err := a.action(apidefaults.Namespace, types.KindAccessPluginData, types.VerbList); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
-		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, filter.Kind, types.VerbRead) != nil {
+		if a.action(apidefaults.Namespace, filter.Kind, types.VerbRead) != nil {
 			if err := a.action(apidefaults.Namespace, types.KindAccessPluginData, types.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2617,7 +2612,7 @@ func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params types.Plu
 	case types.KindAccessRequest, types.KindAccessList:
 		// for backwards compatibility, we allow update against access requests to also grant update for
 		// access request related plugin data.
-		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, params.Kind, types.VerbUpdate) != nil {
+		if a.action(apidefaults.Namespace, params.Kind, types.VerbUpdate) != nil {
 			if err := a.action(apidefaults.Namespace, types.KindAccessPluginData, types.VerbUpdate); err != nil {
 				return trace.Wrap(err)
 			}
@@ -2775,7 +2770,7 @@ func (a *ServerWithRoles) GenerateHostCert(
 	// to expose cert request fields.
 	// We've only got a single verb to check so luckily it's pretty concise.
 	if err := a.withOptions().context.Checker.CheckAccessToRule(
-		&serviceContext, apidefaults.Namespace, types.KindHostCert, types.VerbCreate, false,
+		&serviceContext, apidefaults.Namespace, types.KindHostCert, types.VerbCreate,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2806,7 +2801,7 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 			log.WithError(err).Warn()
 			return nil, err
 		}
-		return a.desiredAccessInfoForImpersonation(req, user)
+		return a.desiredAccessInfoForImpersonation(user)
 	}
 	if isRoleImpersonation(*req) {
 		if len(req.AccessRequests) > 0 {
@@ -2821,7 +2816,7 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 
 // desiredAccessInfoForImpersonation returns the desired AccessInfo for an
 // impersonation request.
-func (a *ServerWithRoles) desiredAccessInfoForImpersonation(req *proto.UserCertsRequest, user types.User) (*services.AccessInfo, error) {
+func (a *ServerWithRoles) desiredAccessInfoForImpersonation(user types.User) (*services.AccessInfo, error) {
 	return &services.AccessInfo{
 		Roles:  user.GetRoles(),
 		Traits: user.GetTraits(),
@@ -4002,10 +3997,35 @@ func (a *ServerWithRoles) DeleteNamespace(name string) error {
 
 // GetRoles returns a list of roles
 func (a *ServerWithRoles) GetRoles(ctx context.Context) ([]types.Role, error) {
+	// delegate all access-control logic to ListRoles, which will eventually
+	// supplant GetRoles everywhere.
+	var roles []types.Role
+	var req proto.ListRolesRequest
+	for {
+		rsp, err := a.ListRoles(ctx, &req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, r := range rsp.Roles {
+			roles = append(roles, r)
+		}
+		req.StartKey = rsp.NextKey
+		if req.StartKey == "" {
+			break
+		}
+	}
+
+	return roles, nil
+}
+
+// ListRoles is a paginated role getter.
+func (a *ServerWithRoles) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
 	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetRoles(ctx)
+	rsp, err := a.authServer.ListRoles(ctx, req)
+	return rsp, trace.Wrap(err)
 }
 
 // CreateRole not implemented: can only be called locally.
@@ -4911,26 +4931,40 @@ func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.Databa
 	return a.authServer.SignDatabaseCSR(ctx, req)
 }
 
-// GenerateDatabaseCert generates a certificate used by a database service
-// to authenticate with the database instance.
+// GenerateDatabaseCert generates a client certificate used by a database
+// service to authenticate with the database instance, or a server certificate
+// for configuring a self-hosted database, depending on the requester_name.
 //
 // This certificate can be requested by:
 //
 //   - Cluster administrator using "tctl auth sign --format=db" command locally
 //     on the auth server to produce a certificate for configuring a self-hosted
 //     database.
-//   - Remote user using "tctl auth sign --format=db" command with a remote
-//     proxy (e.g. Teleport Cloud), as long as they can impersonate system
-//     role Db.
+//   - Remote user using "tctl auth sign --format=db" command or
+//     /webapi/sites/:site/sign/db with a remote proxy (e.g. Teleport Cloud),
+//     as long as they can impersonate system role Db.
 //   - Database service when initiating connection to a database instance to
 //     produce a client certificate.
-//   - Proxy service when generating mTLS files to a database
 func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-	// Check if the User can `create` DatabaseCertificates
-	err := a.action(apidefaults.Namespace, types.KindDatabaseCertificate, types.VerbCreate)
+	err := a.checkAccessToGenerateDatabaseCert(types.KindDatabaseCertificate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GenerateDatabaseCert(ctx, req)
+}
+
+// checkAccessToGenerateDatabaseCert is a helper for checking db cert gen authz.
+// Requester must have at least one of:
+// - create: database_certificate or database_client_certificate.
+// - built-in Admin or DB role.
+// - allowed to impersonate the built-in DB role.
+func (a *ServerWithRoles) checkAccessToGenerateDatabaseCert(resourceKind string) error {
+	const verb = types.VerbCreate
+	// Check if the User can `create` Database Certificates
+	err := a.action(apidefaults.Namespace, resourceKind, verb)
 	if err != nil {
 		if !trace.IsAccessDenied(err) {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		// Err is access denied, trying the old way
@@ -4940,12 +4974,13 @@ func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.D
 		if !a.hasBuiltinRole(types.RoleDatabase, types.RoleAdmin) {
 			if err := a.canImpersonateBuiltinRole(types.RoleDatabase); err != nil {
 				log.WithError(err).Warnf("User %v tried to generate database certificate but does not have '%s' permission for '%s' kind, nor is allowed to impersonate %q system role",
-					a.context.User.GetName(), types.VerbCreate, types.KindDatabaseCertificate, types.RoleDatabase)
-				return nil, trace.AccessDenied(fmt.Sprintf("access denied. User must have '%s' permission for '%s' kind to generate the certificate ", types.VerbCreate, types.KindDatabaseCertificate))
+					a.context.User.GetName(), verb, resourceKind, types.RoleDatabase)
+				return trace.AccessDenied("access denied. User must have '%s' permission for '%s' kind to generate the certificate ",
+					verb, resourceKind)
 			}
 		}
 	}
-	return a.authServer.GenerateDatabaseCert(ctx, req)
+	return nil
 }
 
 // GenerateSnowflakeJWT generates JWT in the Snowflake required format.
@@ -6332,10 +6367,10 @@ func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *prot
 //
 //   - Windows desktop service when updating the certificate authority contents
 //     on LDAP.
-//   - Cluster administrator using "tctl auth crl --type=db" command locally
+//   - Cluster administrator using "tctl auth crl --type=db_client" command locally
 //     on the auth server to produce revocation list used to be configured on
 //     external services such as Windows certificate store.
-//   - Remote user using "tctl auth crl --type=db" command with a remote
+//   - Remote user using "tctl auth crl --type=db_client" command with a remote
 //     proxy (e.g. Teleport Cloud), as long as they have permission to read
 //     certificate authorities.
 func (a *ServerWithRoles) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
@@ -7034,7 +7069,6 @@ func checkOktaLockTarget(ctx context.Context, authzCtx *authz.Context, users ser
 // checkOktaLockAccess gates access to update operations on lock records based
 // on the origin label on the supplied user record.
 func checkOktaLockAccess(ctx context.Context, authzCtx *authz.Context, locks services.LockGetter, existingLockName string, verb string) error {
-
 	existingLock, err := locks.GetLock(ctx, existingLockName)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)

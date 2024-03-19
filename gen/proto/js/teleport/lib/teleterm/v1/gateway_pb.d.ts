@@ -9,34 +9,25 @@ import * as jspb from "google-protobuf";
 export class Gateway extends jspb.Message { 
     getUri(): string;
     setUri(value: string): Gateway;
-
     getTargetName(): string;
     setTargetName(value: string): Gateway;
-
     getTargetUri(): string;
     setTargetUri(value: string): Gateway;
-
     getTargetUser(): string;
     setTargetUser(value: string): Gateway;
-
     getLocalAddress(): string;
     setLocalAddress(value: string): Gateway;
-
     getLocalPort(): string;
     setLocalPort(value: string): Gateway;
-
     getProtocol(): string;
     setProtocol(value: string): Gateway;
-
     getTargetSubresourceName(): string;
     setTargetSubresourceName(value: string): Gateway;
-
 
     hasGatewayCliCommand(): boolean;
     clearGatewayCliCommand(): void;
     getGatewayCliCommand(): GatewayCLICommand | undefined;
     setGatewayCliCommand(value?: GatewayCLICommand): Gateway;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Gateway.AsObject;
@@ -65,20 +56,16 @@ export namespace Gateway {
 export class GatewayCLICommand extends jspb.Message { 
     getPath(): string;
     setPath(value: string): GatewayCLICommand;
-
     clearArgsList(): void;
     getArgsList(): Array<string>;
     setArgsList(value: Array<string>): GatewayCLICommand;
     addArgs(value: string, index?: number): string;
-
     clearEnvList(): void;
     getEnvList(): Array<string>;
     setEnvList(value: Array<string>): GatewayCLICommand;
     addEnv(value: string, index?: number): string;
-
     getPreview(): string;
     setPreview(value: string): GatewayCLICommand;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GatewayCLICommand.AsObject;

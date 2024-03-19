@@ -31,7 +31,7 @@ func Test_printDatabaseTable(t *testing.T) {
 	t.Parallel()
 
 	rows := []databaseTableRow{
-		databaseTableRow{
+		{
 			Proxy:        "proxy",
 			Cluster:      "cluster1",
 			DisplayName:  "db1",
@@ -43,7 +43,7 @@ func Test_printDatabaseTable(t *testing.T) {
 			Labels:       "Env=dev",
 			Connect:      "tsh db connect db1",
 		},
-		databaseTableRow{
+		{
 			Proxy:         "proxy",
 			Cluster:       "cluster1",
 			DisplayName:   "db2",

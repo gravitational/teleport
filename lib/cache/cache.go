@@ -1885,6 +1885,19 @@ func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return rg.reader.GetRoles(ctx)
 }
 
+// ListRoles is a paginated role getter.
+func (c *Cache) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListRoles")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.roles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListRoles(ctx, req)
+}
+
 // GetRole is a part of auth.Cache implementation
 func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetRole")
@@ -2904,6 +2917,19 @@ func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.Acc
 	}
 	defer rg.Release()
 	return rg.reader.GetAccessList(ctx, name)
+}
+
+// CountAccessListMembers will count all access list members.
+func (c *Cache) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/CountAccessListMembers")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.CountAccessListMembers(ctx, accessListName)
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.

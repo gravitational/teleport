@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -51,12 +52,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -497,6 +498,9 @@ func TestDiscoveryServer(t *testing.T) {
 				Emitter:          tc.emitter,
 				Log:              logger,
 				DiscoveryGroup:   defaultDiscoveryGroup,
+				ClusterFeatures: func() proto.Features {
+					return proto.Features{}
+				},
 			})
 			require.NoError(t, err)
 			server.ec2Installer = installer
@@ -517,7 +521,6 @@ func TestDiscoveryServer(t *testing.T) {
 					instances := installer.GetInstalledInstances()
 					slices.Sort(instances)
 					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.ResourceCreateEventCount()
-
 				}, 5000*time.Millisecond, 50*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
@@ -569,8 +572,10 @@ func TestDiscoveryKubeServices(t *testing.T) {
 	mockKubeServices := []*corev1.Service{
 		newMockKubeService("service1", "ns1", "", map[string]string{"test-label": "testval"}, nil,
 			[]corev1.ServicePort{{Port: 42, Name: "http", Protocol: corev1.ProtocolTCP}}),
-		newMockKubeService("service2", "ns2", "", map[string]string{"test-label": "testval",
-			"test-label2": "testval2"}, nil, []corev1.ServicePort{{Port: 42, Name: "custom", AppProtocol: &appProtocolHTTP, Protocol: corev1.ProtocolTCP}}),
+		newMockKubeService("service2", "ns2", "", map[string]string{
+			"test-label":  "testval",
+			"test-label2": "testval2",
+		}, nil, []corev1.ServicePort{{Port: 42, Name: "custom", AppProtocol: &appProtocolHTTP, Protocol: corev1.ProtocolTCP}}),
 	}
 
 	app1 := mustConvertKubeServiceToApp(t, mainDiscoveryGroup, "http", mockKubeServices[0], mockKubeServices[0].Spec.Ports[0])
@@ -695,6 +700,9 @@ func TestDiscoveryKubeServices(t *testing.T) {
 					Emitter:         authClient,
 					DiscoveryGroup:  mainDiscoveryGroup,
 					protocolChecker: &noopProtocolChecker{},
+					ClusterFeatures: func() proto.Features {
+						return proto.Features{}
+					},
 				})
 
 			require.NoError(t, err)
@@ -717,7 +725,6 @@ func TestDiscoveryKubeServices(t *testing.T) {
 					}
 				}
 				return true
-
 			}, 5*time.Second, 200*time.Millisecond)
 		})
 	}
@@ -1017,6 +1024,9 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 					Emitter:        authClient,
 					Log:            logger,
 					DiscoveryGroup: mainDiscoveryGroup,
+					ClusterFeatures: func() proto.Features {
+						return proto.Features{}
+					},
 				})
 
 			require.NoError(t, err)
@@ -1165,6 +1175,9 @@ func TestDiscoveryServer_New(t *testing.T) {
 					Matchers:        tt.matchers,
 					Emitter:         &mockEmitter{},
 					protocolChecker: &noopProtocolChecker{},
+					ClusterFeatures: func() proto.Features {
+						return proto.Features{}
+					},
 				})
 
 			tt.errAssertion(t, err)
@@ -1746,6 +1759,9 @@ func TestDiscoveryDatabase(t *testing.T) {
 			srv, err := New(
 				authz.ContextWithUser(ctx, identity.I),
 				&Config{
+					ClusterFeatures: func() proto.Features {
+						return proto.Features{}
+					},
 					IntegrationOnlyCredentials: integrationOnlyCredential,
 					CloudClients:               testCloudClients,
 					KubernetesClient:           fake.NewSimpleClientset(),
@@ -1853,6 +1869,9 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	srv, err := New(
 		authz.ContextWithUser(ctx, identity.I),
 		&Config{
+			ClusterFeatures: func() proto.Features {
+				return proto.Features{}
+			},
 			CloudClients:     testCloudClients,
 			KubernetesClient: fake.NewSimpleClientset(),
 			AccessPoint:      tlsServer.Auth(),
@@ -2282,7 +2301,10 @@ func TestAzureVMDiscovery(t *testing.T) {
 			}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
-				CloudClients:     testCloudClients,
+				CloudClients: testCloudClients,
+				ClusterFeatures: func() proto.Features {
+					return proto.Features{}
+				},
 				KubernetesClient: fake.NewSimpleClientset(),
 				AccessPoint:      tlsServer.Auth(),
 				Matchers:         tc.staticMatchers,
@@ -2542,7 +2564,10 @@ func TestGCPVMDiscovery(t *testing.T) {
 			}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
-				CloudClients:     testCloudClients,
+				CloudClients: testCloudClients,
+				ClusterFeatures: func() proto.Features {
+					return proto.Features{}
+				},
 				KubernetesClient: fake.NewSimpleClientset(),
 				AccessPoint:      tlsServer.Auth(),
 				Matchers:         tc.staticMatchers,
@@ -2582,7 +2607,6 @@ func TestGCPVMDiscovery(t *testing.T) {
 					return len(installer.GetInstalledInstances()) > 0 || reporter.ResourceCreateEventCount() > 0
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
-
 		})
 	}
 }
@@ -2595,6 +2619,9 @@ func TestServer_onCreate(t *testing.T) {
 	accessPoint := &fakeAccessPoint{}
 	s := &Server{
 		Config: &Config{
+			ClusterFeatures: func() proto.Features {
+				return proto.Features{}
+			},
 			AccessPoint: accessPoint,
 			Log:         logrus.New(),
 		},
@@ -2641,6 +2668,9 @@ func TestEmitUsageEvents(t *testing.T) {
 	server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 		CloudClients: &testClients,
 		AccessPoint:  tlsServer.Auth(),
+		ClusterFeatures: func() proto.Features {
+			return proto.Features{}
+		},
 		Matchers: Matchers{
 			Azure: []types.AzureMatcher{{
 				Types:          []string{"vm"},
@@ -2712,11 +2742,9 @@ func (f *fakeAccessPoint) NewWatcher(ctx context.Context, watch types.Watch) (ty
 	return newFakeWatcher(), nil
 }
 
-type fakeWatcher struct {
-}
+type fakeWatcher struct{}
 
 func newFakeWatcher() fakeWatcher {
-
 	return fakeWatcher{}
 }
 

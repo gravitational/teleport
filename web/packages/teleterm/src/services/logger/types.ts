@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { KeepLastChunks } from './keepLastChunks';
+
 import type { ChildProcess } from 'node:child_process';
 
 export interface Logger {
@@ -27,5 +29,8 @@ export interface LoggerService {
 }
 
 export interface NodeLoggerService extends LoggerService {
-  pipeProcessOutputIntoLogger(childProcess: ChildProcess): void;
+  pipeProcessOutputIntoLogger(
+    childProcess: ChildProcess,
+    lastLogs?: KeepLastChunks<string>
+  ): void;
 }

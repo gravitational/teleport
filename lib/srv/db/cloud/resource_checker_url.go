@@ -21,12 +21,12 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"slices"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"

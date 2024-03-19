@@ -19,10 +19,10 @@ package oneoff
 import (
 	"bytes"
 	_ "embed"
+	"slices"
 	"text/template"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"

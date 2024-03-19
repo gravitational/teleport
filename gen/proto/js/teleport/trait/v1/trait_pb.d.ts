@@ -9,12 +9,10 @@ import * as jspb from "google-protobuf";
 export class Trait extends jspb.Message { 
     getKey(): string;
     setKey(value: string): Trait;
-
     clearValuesList(): void;
     getValuesList(): Array<string>;
     setValuesList(value: Array<string>): Trait;
     addValues(value: string, index?: number): string;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Trait.AsObject;

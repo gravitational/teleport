@@ -17,6 +17,7 @@ package peer
 import (
 	"crypto/tls"
 	"errors"
+	"math"
 	"net"
 	"time"
 
@@ -31,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -142,7 +142,15 @@ func NewServer(config ServerConfig) (*Server, error) {
 			MinTime:             peerKeepAlive,
 			PermitWithoutStream: true,
 		}),
-		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
+
+		// the proxy peering server uses transport authentication to verify that
+		// the client is another Teleport proxy, and the proxy peering service
+		// is intended for mass connection routing (spawning an unbounded amount
+		// of streams of unbounded duration), so adding a limit on concurrent
+		// streams (for example to prevent CVE-2023-44487, see
+		// https://github.com/grpc/grpc-go/pull/6703 ) is unnecessary and
+		// counterproductive to the functionality of proxy peering
+		grpc.MaxConcurrentStreams(math.MaxUint32),
 	)
 
 	proto.RegisterProxyServiceServer(server, config.service)

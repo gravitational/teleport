@@ -32,6 +32,9 @@ type BPFConfig struct {
 
 	// CgroupPath is where the cgroupv2 hierarchy is mounted.
 	CgroupPath string
+
+	// RootPath root directory for the Teleport cgroups.
+	RootPath string
 }
 
 // CheckAndSetDefaults checks BPF configuration.

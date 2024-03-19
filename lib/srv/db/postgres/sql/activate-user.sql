@@ -11,7 +11,7 @@ BEGIN
         -- If the user has active connections, make sure the provided roles
         -- match what the user currently has.
         IF EXISTS (SELECT usename FROM pg_stat_activity WHERE usename = username) THEN
-            SELECT CAST(array_agg(rolname) as varchar[]) INTO cur_roles FROM pg_auth_members JOIN pg_roles ON roleid = oid WHERE member=(SELECT oid FROM pg_roles WHERE rolname = username) AND rolname != 'teleport-auto-user';
+            SELECT CAST(array_agg(rolname) as varchar[]) INTO cur_roles FROM pg_auth_members JOIN pg_roles ON roleid = pg_roles.oid WHERE member=(SELECT oid FROM pg_roles WHERE rolname = username) AND rolname != 'teleport-auto-user';
             -- "a <@ b" checks if all unique elements in "a" are contained by
             -- "b". Using length check plus "contains" check to avoid sorting.
             IF ARRAY_LENGTH(roles, 1) = ARRAY_LENGTH(cur_roles, 1) AND roles <@ cur_roles THEN

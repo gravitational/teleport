@@ -16,8 +16,7 @@ package typical_test
 
 import (
 	"fmt"
-
-	"golang.org/x/exp/slices"
+	"slices"
 
 	"github.com/gravitational/teleport/lib/utils/typical"
 )

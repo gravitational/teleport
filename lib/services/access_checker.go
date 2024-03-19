@@ -18,13 +18,13 @@ package services
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -57,7 +57,7 @@ type AccessChecker interface {
 	CheckAccessToRemoteCluster(cluster types.RemoteCluster) error
 
 	// CheckAccessToRule checks access to a rule within a namespace.
-	CheckAccessToRule(context RuleContext, namespace string, rule string, verb string, silent bool) error
+	CheckAccessToRule(context RuleContext, namespace string, rule string, verb string) error
 
 	// CheckLoginDuration checks if role set can login up to given duration and
 	// returns a combined list of allowed logins.

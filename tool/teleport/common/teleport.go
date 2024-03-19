@@ -64,9 +64,6 @@ type Options struct {
 	// InitOnly when set to true, initializes config and aux
 	// endpoints but does not start the process
 	InitOnly bool
-	// EnableCloudAWSCredCmd enables hidden cloud aws cred command when true.
-	// This command does nothing in OSS.
-	EnableCloudAWSCredCmd bool
 }
 
 // Run inits/starts the process according to the provided options
@@ -468,6 +465,10 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfEICECmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfEICEIAMArguments.Region)
 	integrationConfEICECmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfEICEIAMArguments.Role)
 
+	integrationConfAccessGraphCmd := integrationConfigureCmd.Command("access-graph", "Manages Access Graph configuration.")
+	integrationConfTAGSyncCmd := integrationConfAccessGraphCmd.Command("aws-iam", "Adds required IAM permissions for syncing data into Access Graph service.")
+	integrationConfTAGSyncCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.Role)
+
 	integrationConfAWSOIDCIdPCmd := integrationConfigureCmd.Command("awsoidc-idp", "Creates an IAM IdP (OIDC) in your AWS account to allow the AWS OIDC Integration to access AWS APIs.")
 	integrationConfAWSOIDCIdPCmd.Flag("cluster", "Teleport Cluster name.").Required().StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.Cluster)
@@ -475,8 +476,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		IntegrationConfAWSOIDCIdPArguments.Name)
 	integrationConfAWSOIDCIdPCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.Role)
-	integrationConfAWSOIDCIdPCmd.Flag("proxy-public-url", "Proxy Public URL (eg https://mytenant.teleport.sh).").Required().StringVar(&ccf.
+	integrationConfAWSOIDCIdPCmd.Flag("proxy-public-url", "Proxy Public URL (eg https://mytenant.teleport.sh).").StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL)
+	integrationConfAWSOIDCIdPCmd.Flag("s3-bucket-uri", "The S3 URI(format: s3://<bucket>/<prefix>) used to store the OpenID configuration and public keys. ").StringVar(&ccf.
+		IntegrationConfAWSOIDCIdPArguments.S3BucketURI)
+	integrationConfAWSOIDCIdPCmd.Flag("s3-jwks-base64", `The JWKS base 64 encoded. Required when using the S3 Bucket as the Issuer URL. Format: base64({"keys":[{"kty":"RSA","alg":"RS256","n":"<value of n>","e":"<value of e>","use":"sig","kid":""}]}).`).StringVar(&ccf.
+		IntegrationConfAWSOIDCIdPArguments.S3JWKSContentsB64)
 
 	integrationConfListDatabasesCmd := integrationConfigureCmd.Command("listdatabases-iam", "Adds required IAM permissions to List RDS Databases (Instances and Clusters).")
 	integrationConfListDatabasesCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfListDatabasesIAMArguments.Region)
@@ -494,13 +499,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfExternalAuditCmd.Flag("glue-database", "The name of the Glue database used.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.GlueDatabase)
 	integrationConfExternalAuditCmd.Flag("glue-table", "The name of the Glue table used.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.GlueTable)
 	integrationConfExternalAuditCmd.Flag("aws-partition", "AWS partition (default: aws).").Default("aws").StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Partition)
-
-	if options.EnableCloudAWSCredCmd {
-		cloudAWSCred := app.Command("cloud-aws-cred", "Helper command used by Teleport Cloud to produce credentials.").Hidden()
-		cloudAWSCred.Flag("config",
-			fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
-			Short('c').ExistingFileVar(&ccf.ConfigFile)
-	}
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
@@ -597,15 +595,11 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onIntegrationConfListDatabasesIAM(ccf.IntegrationConfListDatabasesIAMArguments)
 	case integrationConfExternalAuditCmd.FullCommand():
 		err = onIntegrationConfExternalAuditCmd(ccf.IntegrationConfExternalAuditStorageArguments)
+	case integrationConfTAGSyncCmd.FullCommand():
+		err = onIntegrationConfAccessGraphAWSSync(ccf.IntegrationConfAccessGraphAWSSyncArguments)
 	}
 	if err != nil {
 		utils.FatalError(err)
-	}
-
-	if options.EnableCloudAWSCredCmd && command == app.GetCommand("cloud-aws-cred").FullCommand() {
-		if err = config.Configure(&ccf, conf, false); err != nil {
-			utils.FatalError(err)
-		}
 	}
 
 	return app, command, conf
@@ -941,6 +935,9 @@ func onJoinOpenSSH(clf config.CommandLineFlags, conf *servicecfg.Config) error {
 func onIntegrationConfDeployService(params config.IntegrationConfDeployServiceIAM) error {
 	ctx := context.Background()
 
+	// Ensure we print output to the user. LogLevel at this point was set to Error.
+	utils.InitLogger(utils.LoggingForDaemon, log.InfoLevel)
+
 	iamClient, err := awsoidc.NewDeployServiceIAMConfigureClient(ctx, params.Region)
 	if err != nil {
 		return trace.Wrap(err)
@@ -963,6 +960,9 @@ func onIntegrationConfDeployService(params config.IntegrationConfDeployServiceIA
 func onIntegrationConfEICEIAM(params config.IntegrationConfEICEIAM) error {
 	ctx := context.Background()
 
+	// Ensure we print output to the user. LogLevel at this point was set to Error.
+	utils.InitLogger(utils.LoggingForDaemon, log.InfoLevel)
+
 	iamClient, err := awsoidc.NewEICEIAMConfigureClient(ctx, params.Region)
 	if err != nil {
 		return trace.Wrap(err)
@@ -982,6 +982,9 @@ func onIntegrationConfEICEIAM(params config.IntegrationConfEICEIAM) error {
 func onIntegrationConfAWSOIDCIdP(params config.IntegrationConfAWSOIDCIdP) error {
 	ctx := context.Background()
 
+	// Ensure we print output to the user. LogLevel at this point was set to Error.
+	utils.InitLogger(utils.LoggingForDaemon, log.InfoLevel)
+
 	iamClient, err := awsoidc.NewIdPIAMConfigureClient(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -992,6 +995,8 @@ func onIntegrationConfAWSOIDCIdP(params config.IntegrationConfAWSOIDCIdP) error 
 		IntegrationName:    params.Name,
 		IntegrationRole:    params.Role,
 		ProxyPublicAddress: params.ProxyPublicURL,
+		S3BucketLocation:   params.S3BucketURI,
+		S3JWKSContentsB64:  params.S3JWKSContentsB64,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1005,7 +1010,7 @@ func onIntegrationConfListDatabasesIAM(params config.IntegrationConfListDatabase
 
 	// Ensure we show progress to the user.
 	// LogLevel at this point is set to Error.
-	log.SetLevel(log.InfoLevel)
+	utils.InitLogger(utils.LoggingForDaemon, log.InfoLevel)
 
 	if params.Region == "" {
 		return trace.BadParameter("region is required")
@@ -1060,4 +1065,22 @@ func onIntegrationConfExternalAuditCmd(params easconfig.ExternalAuditStorageConf
 		Sts: sts.NewFromConfig(cfg),
 	}
 	return trace.Wrap(awsoidc.ConfigureExternalAuditStorage(ctx, clt, &params))
+}
+
+func onIntegrationConfAccessGraphAWSSync(params config.IntegrationConfAccessGraphAWSSync) error {
+	ctx := context.Background()
+
+	iamClient, err := awsoidc.NewAccessGraphIAMConfigureClient(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = awsoidc.ConfigureAccessGraphSyncIAM(ctx, iamClient, awsoidc.AccessGraphAWSIAMConfigureRequest{
+		IntegrationRole: params.Role,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }

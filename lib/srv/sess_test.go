@@ -139,22 +139,15 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 		name           string
 		expectedResult bool
 		expectedError  string
-		req            *fileTransferRequest
+		req            *FileTransferRequest
 		reqID          string
 		location       string
 	}{
 		{
-			name:           "no file request found with supplied ID",
+			name:           "no pending file request",
 			expectedResult: false,
-			expectedError:  "",
+			expectedError:  "Session does not have a pending file transfer request",
 			reqID:          "",
-			req:            nil,
-		},
-		{
-			name:           "no file request found with supplied ID",
-			expectedResult: false,
-			expectedError:  "File transfer request not found",
-			reqID:          "111",
 			req:            nil,
 		},
 		{
@@ -162,8 +155,9 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			expectedResult: false,
 			expectedError:  "Teleport user does not match original requester",
 			reqID:          "123",
-			req: &fileTransferRequest{
-				requester: "michael",
+			req: &FileTransferRequest{
+				ID:        "123",
+				Requester: "michael",
 				approvers: make(map[string]*party),
 			},
 		},
@@ -173,10 +167,11 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			expectedError:  "requested destination path does not match the current request",
 			reqID:          "123",
 			location:       "~/Downloads",
-			req: &fileTransferRequest{
-				requester: "michael",
+			req: &FileTransferRequest{
+				ID:        "123",
+				Requester: "teleportUser",
 				approvers: make(map[string]*party),
-				location:  "~/badlocation",
+				Location:  "~/badlocation",
 			},
 		},
 		{
@@ -185,10 +180,11 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			expectedError:  "",
 			reqID:          "123",
 			location:       "~/Downloads",
-			req: &fileTransferRequest{
-				requester: "teleportUser",
+			req: &FileTransferRequest{
+				ID:        "123",
+				Requester: "teleportUser",
 				approvers: approvers,
-				location:  "~/Downloads",
+				Location:  "~/Downloads",
 			},
 		},
 	}
@@ -198,16 +194,12 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			// create and add a session to the registry
 			sess, _ := testOpenSession(t, reg, accessRoleSet)
 
-			// create a fileTransferRequest. can be nil
-			sess.fileTransferRequests = map[string]*fileTransferRequest{
-				"123": tt.req,
-			}
+			// create a FileTransferRequest. can be nil
+			sess.fileTransferReq = tt.req
 
 			// new exec request context
 			scx := newTestServerContext(t, reg.Srv, accessRoleSet)
 			scx.SetEnv(string(sftp.ModeratedSessionID), sess.ID())
-			scx.SetEnv(string(sftp.FileTransferRequestID), tt.reqID)
-			scx.SetEnv(sftp.FileTransferDstPath, tt.location)
 			result, err := reg.isApprovedFileTransfer(scx)
 			if err != nil {
 				require.Equal(t, tt.expectedError, err.Error())

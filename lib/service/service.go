@@ -1763,7 +1763,7 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(), emitter),
+		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(process.getClusterFeatures().Cloud), emitter),
 		Clock:       process.Clock,
 		ClusterName: clusterName,
 	})
@@ -2412,7 +2412,7 @@ func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
 // It is caller's responsibility to call Close on the emitter once done.
 func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.AsyncEmitter, error) {
 	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(), clt),
+		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(process.getClusterFeatures().Cloud), clt),
 		Clock: process.Clock,
 	})
 	if err != nil {
@@ -4053,13 +4053,16 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Context:          process.ExitContext(),
 			StaticFS:         fs,
 			ClusterFeatures:  process.getClusterFeatures(),
-			UI:               cfg.Proxy.UI,
-			ProxySettings:    proxySettings,
-			PublicProxyAddr:  process.proxyPublicAddr().Addr,
-			ALPNHandler:      alpnHandlerForWeb.HandleConnection,
-			ProxyKubeAddr:    proxyKubeAddr,
-			TraceClient:      traceClt,
-			Router:           proxyRouter,
+			GetProxyIdentity: func() (*auth.Identity, error) {
+				return process.GetIdentity(types.RoleProxy)
+			},
+			UI:              cfg.Proxy.UI,
+			ProxySettings:   proxySettings,
+			PublicProxyAddr: process.proxyPublicAddr().Addr,
+			ALPNHandler:     alpnHandlerForWeb.HandleConnection,
+			ProxyKubeAddr:   proxyKubeAddr,
+			TraceClient:     traceClt,
+			Router:          proxyRouter,
 			SessionControl: web.SessionControllerFunc(func(ctx context.Context, sctx *web.SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
 				controller := srv.WebSessionController(sessionController)
 				ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)

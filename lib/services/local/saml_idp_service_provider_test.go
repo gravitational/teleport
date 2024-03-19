@@ -321,6 +321,8 @@ func TestCreateSAMLIdPServiceProvider_fetchAndSetEntityDescriptor(t *testing.T) 
 		switch r.RequestURI {
 		case "/status-not-ok":
 			w.WriteHeader(http.StatusNotFound)
+		case "/status-302-found":
+			w.WriteHeader(http.StatusFound)
 		case "/invalid-metadata":
 			fmt.Fprintln(w, "test")
 		default:
@@ -340,6 +342,11 @@ func TestCreateSAMLIdPServiceProvider_fetchAndSetEntityDescriptor(t *testing.T) 
 		{
 			name:     "status not ok",
 			entityID: fmt.Sprintf("%s/status-not-ok", testSPServer.URL),
+			wantErr:  true,
+		},
+		{
+			name:     "status 302 found",
+			entityID: fmt.Sprintf("%s/status-302-found", testSPServer.URL),
 			wantErr:  true,
 		},
 		{

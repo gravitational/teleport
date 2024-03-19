@@ -16,12 +16,12 @@ package utils
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 )

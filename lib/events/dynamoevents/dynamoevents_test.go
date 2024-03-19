@@ -33,10 +33,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -429,6 +431,42 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 			err := test.config.CheckAndSetDefaults()
 			test.assertionFn(t, test.config, err)
 		})
+	}
+}
+
+// TestEmitSessionEventsSameIndex given events that share the same session ID
+// and index, the emit should fail, avoiding any event to get overwritten.
+func TestEmitSessionEventsSameIndex(t *testing.T) {
+	ctx := context.Background()
+	tt := setupDynamoContext(t)
+	sessionID := session.NewID()
+
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 0)))
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 1)))
+	require.Error(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 1)))
+}
+
+func generateEvent(sessionID session.ID, index int64) apievents.AuditEvent {
+	return &apievents.AppSessionChunk{
+		Metadata: apievents.Metadata{
+			Type:        events.AppSessionChunkEvent,
+			Code:        events.AppSessionChunkCode,
+			ClusterName: "root",
+			Index:       index,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerID:        uuid.New().String(),
+			ServerNamespace: apidefaults.Namespace,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: sessionID.String(),
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        "nginx",
+			AppPublicAddr: "https://nginx",
+			AppName:       "nginx",
+		},
+		SessionChunkID: uuid.New().String(),
 	}
 }
 

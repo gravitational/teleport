@@ -196,6 +196,8 @@ prior to logging in as this new IAM role to avoid or resolve user permission iss
 
 (!docs/pages/includes/database-access/aws-troubleshooting.mdx!)
 
+(!docs/pages/includes/database-access/pg-cancel-request-limitation.mdx PIDQuery="SELECT session_id AS pid, database_name,start_time,trim(query_text) AS query FROM SYS_QUERY_HISTORY WHERE status = 'running';"!)
+
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)

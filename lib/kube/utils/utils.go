@@ -19,9 +19,9 @@ package utils
 import (
 	"context"
 	"encoding/hex"
+	"slices"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"

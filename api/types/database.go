@@ -1017,6 +1017,12 @@ func (d *DatabaseV3) GetEndpointType() string {
 		return d.GetAWS().MemoryDB.EndpointType
 	case DatabaseTypeOpenSearch:
 		return d.GetAWS().OpenSearch.EndpointType
+	case DatabaseTypeRDS:
+		// If not available from discovery tags, get the endpoint type from the
+		// URL.
+		if details, err := awsutils.ParseRDSEndpoint(d.GetURI()); err == nil {
+			return details.EndpointType
+		}
 	}
 	return ""
 }

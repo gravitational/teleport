@@ -35,10 +35,12 @@ func TestDatabaseRDSEndpoint(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		name        string
-		spec        DatabaseSpecV3
-		errorCheck  require.ErrorAssertionFunc
-		expectedAWS AWS
+		name                 string
+		labels               map[string]string
+		spec                 DatabaseSpecV3
+		errorCheck           require.ErrorAssertionFunc
+		expectedAWS          AWS
+		expectedEndpointType string
 	}{
 		{
 			name: "aurora instance",
@@ -53,6 +55,7 @@ func TestDatabaseRDSEndpoint(t *testing.T) {
 					InstanceID: "aurora-instance-1",
 				},
 			},
+			expectedEndpointType: "instance",
 		},
 		{
 			name: "invalid account id",
@@ -69,7 +72,7 @@ func TestDatabaseRDSEndpoint(t *testing.T) {
 			name: "valid account id",
 			spec: DatabaseSpecV3{
 				Protocol: "postgres",
-				URI:      "marcotest-db001.abcdefghijklmnop.us-east-1.rds.amazonaws.com:5432",
+				URI:      "marcotest-db001.cluster-ro-abcdefghijklmnop.us-east-1.rds.amazonaws.com:5432",
 				AWS: AWS{
 					AccountID: "123456789012",
 				},
@@ -78,17 +81,52 @@ func TestDatabaseRDSEndpoint(t *testing.T) {
 			expectedAWS: AWS{
 				Region: "us-east-1",
 				RDS: RDS{
-					InstanceID: "marcotest-db001",
+					ClusterID: "marcotest-db001",
 				},
 				AccountID: "123456789012",
 			},
+			expectedEndpointType: "reader",
+		},
+		{
+			name: "discovered instance",
+			labels: map[string]string{
+				"account-id":                        "123456789012",
+				"endpoint-type":                     "primary",
+				"engine":                            "aurora-postgresql",
+				"engine-version":                    "15.2",
+				"region":                            "us-west-1",
+				"teleport.dev/cloud":                "AWS",
+				"teleport.dev/origin":               "cloud",
+				"teleport.internal/discovered-name": "rds",
+			},
+			spec: DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "discovered.rds.com:5432",
+				AWS: AWS{
+					Region: "us-west-1",
+					RDS: RDS{
+						InstanceID: "aurora-instance-1",
+						IAMAuth:    true,
+					},
+				},
+			},
+			errorCheck: require.NoError,
+			expectedAWS: AWS{
+				Region: "us-west-1",
+				RDS: RDS{
+					InstanceID: "aurora-instance-1",
+					IAMAuth:    true,
+				},
+			},
+			expectedEndpointType: "primary",
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			database, err := NewDatabaseV3(
 				Metadata{
-					Name: "rds",
+					Labels: tt.labels,
+					Name:   "rds",
 				},
 				tt.spec,
 			)
@@ -98,6 +136,7 @@ func TestDatabaseRDSEndpoint(t *testing.T) {
 			}
 
 			require.Equal(t, tt.expectedAWS, database.GetAWS())
+			require.Equal(t, tt.expectedEndpointType, database.GetEndpointType())
 		})
 	}
 }

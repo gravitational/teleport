@@ -36,6 +36,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -48,7 +49,6 @@ import (
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	yamlv2 "gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
@@ -5350,4 +5350,63 @@ func Test_formatActiveDB(t *testing.T) {
 			require.Equal(t, test.expect, formatActiveDB(test.active, test.displayName))
 		})
 	}
+}
+
+func TestFlatten(t *testing.T) {
+	// Test setup: create a server and a user
+	home := t.TempDir()
+	identityPath := filepath.Join(t.TempDir(), "identity.pem")
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	connector := mockConnector(t)
+
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Test setup: log in and obtain a valid identity for the user
+	conf := CLIConf{
+		Username:           alice.GetName(),
+		Proxy:              proxyAddr.String(),
+		InsecureSkipVerify: true,
+		IdentityFileOut:    identityPath,
+		IdentityFormat:     identityfile.FormatFile,
+		HomePath:           home,
+		AuthConnector:      connector.GetName(),
+		MockSSOLogin:       mockSSOLogin(t, authServer, alice),
+		Context:            context.Background(),
+	}
+	require.NoError(t, onLogin(&conf))
+
+	// Test setup: validate we got a valid identity
+	_, err = identityfile.KeyFromIdentityFile(identityPath, "proxy.example.com", "")
+	require.NoError(t, err)
+
+	// Test execution: flatten the identity previously obtained in a new home.
+	freshHome := t.TempDir()
+	conf = CLIConf{
+		Proxy:              proxyAddr.String(),
+		InsecureSkipVerify: true,
+		IdentityFileIn:     identityPath,
+		HomePath:           freshHome,
+		Context:            context.Background(),
+	}
+	require.NoError(t, flattenIdentity(&conf))
+
+	// Test execution: validate that the newly created profile can be used to build a valid client.
+	clt, err := makeClient(&conf)
+	require.NoError(t, err)
+
+	_, err = clt.Ping(context.Background())
+	require.NoError(t, err)
+
+	// Test execution: validate that flattening succeeds if a profile already exists.
+	conf.IdentityFileIn = identityPath
+	require.NoError(t, flattenIdentity(&conf), "unexpected error when overwriting a tsh profile")
 }

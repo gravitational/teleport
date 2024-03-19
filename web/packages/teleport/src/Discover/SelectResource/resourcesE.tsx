@@ -29,7 +29,7 @@ export const SAML_APPLICATIONS: ResourceSpec[] = [
     event: DiscoverEventResource.SamlApplication,
   },
   {
-    name: 'SAML Application (Grafana)',
+    name: 'Grafana',
     kind: ResourceKind.SamlApplication,
     keywords: 'saml sso application idp grafana',
     icon: 'Grafana',

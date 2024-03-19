@@ -425,6 +425,14 @@ func (m *mockCache) GetProxies() ([]types.Server, error) {
 	return m.proxies, nil
 }
 
+func (m *mockCache) GetToken(ctx context.Context, token string) (types.ProvisionToken, error) {
+	return nil, nil
+}
+
+func (m *mockCache) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
+	return nil
+}
+
 // GetClusterName returns local auth domain of the current auth server
 func (m *mockCache) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
 	return &types.ClusterNameV2{

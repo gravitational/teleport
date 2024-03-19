@@ -20,12 +20,12 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"golang.org/x/exp/slices"
 
 	tp "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/accessrequest"

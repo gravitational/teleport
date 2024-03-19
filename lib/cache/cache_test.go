@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -32,7 +34,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -2336,6 +2337,25 @@ func TestAccessListMembers(t *testing.T) {
 		},
 		deleteAll: p.accessLists.DeleteAllAccessListMembers,
 	})
+
+	// Verify counting.
+	ctx := context.Background()
+	for i := 0; i < 40; i++ {
+		_, err = p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, al.GetName(), strconv.Itoa(i)))
+		require.NoError(t, err)
+	}
+
+	count, err := p.accessLists.CountAccessListMembers(ctx, al.GetName())
+	require.NoError(t, err)
+	require.Equal(t, uint32(40), count)
+
+	// Eventually, this should be reflected in the cache.
+	require.Eventually(t, func() bool {
+		// Make sure the cache has a single resource in it.
+		count, err := p.cache.CountAccessListMembers(ctx, al.GetName())
+		assert.NoError(t, err)
+		return count == uint32(40)
+	}, time.Second*2, time.Millisecond*250)
 }
 
 // TestAccessListReviews tests that CRUD operations on access list review resources are
