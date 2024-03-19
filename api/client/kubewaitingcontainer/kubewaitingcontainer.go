@@ -34,22 +34,6 @@ func NewClient(grpcClient kubewaitingcontainerpb.KubeWaitingContainersServiceCli
 	}
 }
 
-// KubeWaitingContainerRequest is a request for a specific Kubernetes
-// ephemeral container that is waiting to be created until moderated
-// session conditions are met.
-type KubeWaitingContainerRequest struct {
-	// Username is the Teleport user that attempted to create the container
-	Username string `json:"username" yaml:"username"`
-	// Cluster is the Kubernetes cluster of the container
-	Cluster string `json:"cluster" yaml:"cluster"`
-	// Namespace is the Kubernetes namespace of the container
-	Namespace string `json:"namespace" yaml:"namespace"`
-	// PodName is the parent pod of the container
-	PodName string `json:"pod_name" yaml:"pod_name"`
-	// ContainerName is the name of the container
-	ContainerName string `json:"container_name" yaml:"container_name"`
-}
-
 // ListKubernetesWaitingContainers lists Kubernetes ephemeral
 // containers that are waiting to be created until moderated
 // session conditions are met.
@@ -68,7 +52,7 @@ func (c *Client) ListKubernetesWaitingContainers(ctx context.Context, pageSize i
 // GetKubernetesWaitingContainer returns a Kubernetes ephemeral
 // container that is waiting to be created until moderated
 // session conditions are met.
-func (c *Client) GetKubernetesWaitingContainer(ctx context.Context, req KubeWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+func (c *Client) GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
 	if req.Username == "" {
 		return nil, trace.BadParameter("missing Username")
 	}
@@ -116,7 +100,7 @@ func (c *Client) CreateKubernetesWaitingContainer(ctx context.Context, waitingPo
 // DeleteKubernetesWaitingContainer returns a Kubernetes ephemeral
 // container that is waiting to be created until moderated
 // session conditions are met.
-func (c *Client) DeleteKubernetesWaitingContainer(ctx context.Context, req KubeWaitingContainerRequest) error {
+func (c *Client) DeleteKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest) error {
 	if req.Username == "" {
 		return trace.BadParameter("missing Username")
 	}
