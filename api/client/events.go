@@ -49,9 +49,15 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		}
 		return &out, nil
 	}
-
-	resource := types.UnwrapResource153(in.Resource)
-	switch r := resource.(type) {
+	switch r := in.Resource.(type) {
+	case types.Resource153Unwrapper:
+		r153 := r.Unwrap()
+		switch r := r153.(type) {
+		case *kubewaitingcontainerpb.KubernetesWaitingContainer:
+			out.Resource = &proto.Event_KubernetesWaitingContainer{
+				KubernetesWaitingContainer: r,
+			}
+		}
 	case *types.ResourceHeader:
 		out.Resource = &proto.Event_ResourceHeader{
 			ResourceHeader: r,
@@ -252,10 +258,6 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case *accesslist.Review:
 		out.Resource = &proto.Event_AccessListReview{
 			AccessListReview: accesslistv1conv.ToReviewProto(r),
-		}
-	case *kubewaitingcontainerpb.KubernetesWaitingContainer:
-		out.Resource = &proto.Event_KubernetesWaitingContainer{
-			KubernetesWaitingContainer: r,
 		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
