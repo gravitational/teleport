@@ -215,12 +215,12 @@ test('failed autostart flips the workspace autoStart flag to false', async () =>
     rootCluster
   );
 
-  await waitFor(
-    () =>
+  await waitFor(() =>
+    expect(
       result.current.currentAction.kind === 'download' &&
-      result.current.currentAction.attempt.status === 'error'
+        result.current.currentAction.attempt.status === 'error'
+    ).toBeTruthy()
   );
-
   expect(
     appContext.workspacesService.getConnectMyComputerAutoStart(rootCluster.uri)
   ).toBe(false);
@@ -266,12 +266,12 @@ test('starts the agent automatically if the workspace autoStart flag is true', a
     rootCluster
   );
 
-  await waitFor(
-    () =>
+  await waitFor(() =>
+    expect(
       result.current.currentAction.kind === 'observe-process' &&
-      result.current.currentAction.agentProcessState.status === 'running'
+        result.current.currentAction.agentProcessState.status === 'running'
+    ).toBeTruthy()
   );
-
   expect(
     appContext.connectMyComputerService.downloadAgent
   ).toHaveBeenCalledTimes(1);
