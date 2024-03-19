@@ -20,6 +20,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
@@ -47,27 +48,27 @@ func onSPIFFEInspect(path string) error {
 	if len(res.SVIDs) == 0 {
 		log.Error("No SVIDs received, check your configuration.")
 	} else {
-		log.Info("SVIDS")
+		fmt.Println("SVIDS")
 	}
 	for _, svid := range res.SVIDs {
-		log.Infof("- %s", svid.ID.String())
-		log.Infof("  - Hint: %s", svid.Hint)
-		log.Infof("  - Expiry: %s", svid.Certificates[0].NotAfter)
+		fmt.Printf("- %s\n", svid.ID.String())
+		fmt.Printf("  - Hint: %s\n", svid.Hint)
+		fmt.Printf("  - Expiry: %s\n", svid.Certificates[0].NotAfter)
 		for _, san := range svid.Certificates[0].DNSNames {
-			log.Infof("  - DNS SAN: %s", san)
+			fmt.Printf("  - DNS SAN: %s\n", san)
 		}
 		for _, san := range svid.Certificates[0].IPAddresses {
-			log.Infof("  - IP SAN: %s", san)
+			fmt.Printf("  - IP SAN: %s\n", san)
 		}
 	}
 
 	if res.Bundles.Len() == 0 {
 		log.Error("No trust bundles received, check your configuration.")
 	} else {
-		log.Info("Trust Bundles")
+		fmt.Println("Trust Bundles")
 	}
 	for _, bundle := range res.Bundles.Bundles() {
-		log.Infof("- %s", bundle.TrustDomain())
+		fmt.Printf("- %s\n", bundle.TrustDomain())
 	}
 
 	return nil
