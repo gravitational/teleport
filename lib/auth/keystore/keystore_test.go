@@ -24,7 +24,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
-	"os"
 	"testing"
 	"time"
 
@@ -250,135 +249,143 @@ func TestManager(t *testing.T) {
 	const clusterName = "test-cluster"
 
 	for _, backendDesc := range pack.backends {
-		manager, err := NewManager(ctx, backendDesc.config)
-		require.NoError(t, err)
+		t.Run(backendDesc.name, func(t *testing.T) {
+			manager, err := NewManager(ctx, backendDesc.config)
+			require.NoError(t, err)
 
-		// Delete all keys to clean up the test.
-		t.Cleanup(func() {
-			require.NoError(t, manager.DeleteUnusedKeys(context.Background(), nil /*activeKeys*/))
+			// Delete all keys to clean up the test.
+			t.Cleanup(func() {
+				require.NoError(t, manager.DeleteUnusedKeys(context.Background(), nil /*activeKeys*/))
+			})
+
+			sshKeyPair, err := manager.NewSSHKeyPair(ctx)
+			require.NoError(t, err)
+			require.Equal(t, backendDesc.expectedKeyType, sshKeyPair.PrivateKeyType)
+
+			tlsKeyPair, err := manager.NewTLSKeyPair(ctx, clusterName)
+			require.NoError(t, err)
+			require.Equal(t, backendDesc.expectedKeyType, tlsKeyPair.KeyType)
+
+			jwtKeyPair, err := manager.NewJWTKeyPair(ctx)
+			require.NoError(t, err)
+			require.Equal(t, backendDesc.expectedKeyType, jwtKeyPair.PrivateKeyType)
+
+			// Test a CA with multiple active keypairs. Each element of ActiveKeys
+			// includes a keypair generated above and a PKCS11 keypair with a
+			// different hostID that this manager should not be able to use.
+			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+				Type:        types.HostCA,
+				ClusterName: clusterName,
+				ActiveKeys: types.CAKeySet{
+					SSH: []*types.SSHKeyPair{
+						testPKCS11SSHKeyPair,
+						sshKeyPair,
+					},
+					TLS: []*types.TLSKeyPair{
+						testPKCS11TLSKeyPair,
+						tlsKeyPair,
+					},
+					JWT: []*types.JWTKeyPair{
+						testPKCS11JWTKeyPair,
+						jwtKeyPair,
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			// Test that the manager is able to select the correct key and get a
+			// signer.
+			sshSigner, err := manager.GetSSHSigner(ctx, ca)
+			require.NoError(t, err, trace.DebugReport(err))
+			require.Equal(t, sshKeyPair.PublicKey, ssh.MarshalAuthorizedKey(sshSigner.PublicKey()))
+
+			tlsCert, tlsSigner, err := manager.GetTLSCertAndSigner(ctx, ca)
+			require.NoError(t, err)
+			require.Equal(t, tlsKeyPair.Cert, tlsCert)
+			require.NotNil(t, tlsSigner)
+
+			jwtSigner, err := manager.GetJWTSigner(ctx, ca)
+			require.NoError(t, err, trace.DebugReport(err))
+			pubkeyPem, err := utils.MarshalPublicKey(jwtSigner)
+			require.NoError(t, err)
+			require.Equal(t, jwtKeyPair.PublicKey, pubkeyPem)
+
+			// Test what happens when the CA has only raw keys, which will be the
+			// initial state when migrating from software to a HSM/KMS backend.
+			ca, err = types.NewCertAuthority(types.CertAuthoritySpecV2{
+				Type:        types.HostCA,
+				ClusterName: clusterName,
+				ActiveKeys: types.CAKeySet{
+					SSH: []*types.SSHKeyPair{
+						testRawSSHKeyPair,
+					},
+					TLS: []*types.TLSKeyPair{
+						testRawTLSKeyPair,
+					},
+					JWT: []*types.JWTKeyPair{
+						testRawJWTKeyPair,
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			// Manager should always be able to get a signer for software keys.
+			usableKeysResult, err := manager.HasUsableActiveKeys(ctx, ca)
+			require.NoError(t, err)
+			require.True(t, usableKeysResult.CAHasUsableKeys)
+			if backendDesc.expectedKeyType == types.PrivateKeyType_RAW {
+				require.True(t, usableKeysResult.CAHasPreferredKeyType)
+			} else {
+				require.False(t, usableKeysResult.CAHasPreferredKeyType)
+			}
+
+			sshSigner, err = manager.GetSSHSigner(ctx, ca)
+			require.NoError(t, err)
+			require.NotNil(t, sshSigner)
+
+			tlsCert, tlsSigner, err = manager.GetTLSCertAndSigner(ctx, ca)
+			require.NoError(t, err)
+			require.NotNil(t, tlsCert)
+			require.NotNil(t, tlsSigner)
+
+			jwtSigner, err = manager.GetJWTSigner(ctx, ca)
+			require.NoError(t, err)
+			require.NotNil(t, jwtSigner)
+
+			// Test a CA with only unusable keypairs - PKCS11 keypairs with a
+			// different hostID that this manager should not be able to use.
+			ca, err = types.NewCertAuthority(types.CertAuthoritySpecV2{
+				Type:        types.HostCA,
+				ClusterName: clusterName,
+				ActiveKeys: types.CAKeySet{
+					SSH: []*types.SSHKeyPair{
+						testPKCS11SSHKeyPair,
+					},
+					TLS: []*types.TLSKeyPair{
+						testPKCS11TLSKeyPair,
+					},
+					JWT: []*types.JWTKeyPair{
+						testPKCS11JWTKeyPair,
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			// The manager should not be able to select a key.
+			usableKeysResult, err = manager.HasUsableActiveKeys(ctx, ca)
+			require.NoError(t, err)
+			require.False(t, usableKeysResult.CAHasUsableKeys)
+			require.False(t, usableKeysResult.CAHasPreferredKeyType)
+
+			_, err = manager.GetSSHSigner(ctx, ca)
+			require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
+			_, _, err = manager.GetTLSCertAndSigner(ctx, ca)
+			require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
+			_, err = manager.GetJWTSigner(ctx, ca)
+			require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 		})
-
-		sshKeyPair, err := manager.NewSSHKeyPair(ctx)
-		require.NoError(t, err)
-		require.Equal(t, backendDesc.expectedKeyType, sshKeyPair.PrivateKeyType)
-
-		tlsKeyPair, err := manager.NewTLSKeyPair(ctx, clusterName)
-		require.NoError(t, err)
-		require.Equal(t, backendDesc.expectedKeyType, tlsKeyPair.KeyType)
-
-		jwtKeyPair, err := manager.NewJWTKeyPair(ctx)
-		require.NoError(t, err)
-		require.Equal(t, backendDesc.expectedKeyType, jwtKeyPair.PrivateKeyType)
-
-		// Test a CA with multiple active keypairs. Each element of ActiveKeys
-		// includes a keypair generated above and a PKCS11 keypair with a
-		// different hostID that this manager should not be able to use.
-		ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-			Type:        types.HostCA,
-			ClusterName: clusterName,
-			ActiveKeys: types.CAKeySet{
-				SSH: []*types.SSHKeyPair{
-					testPKCS11SSHKeyPair,
-					sshKeyPair,
-				},
-				TLS: []*types.TLSKeyPair{
-					testPKCS11TLSKeyPair,
-					tlsKeyPair,
-				},
-				JWT: []*types.JWTKeyPair{
-					testPKCS11JWTKeyPair,
-					jwtKeyPair,
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		// Test that the manager is able to select the correct key and get a
-		// signer.
-		sshSigner, err := manager.GetSSHSigner(ctx, ca)
-		require.NoError(t, err, trace.DebugReport(err))
-		require.Equal(t, sshKeyPair.PublicKey, ssh.MarshalAuthorizedKey(sshSigner.PublicKey()))
-
-		tlsCert, tlsSigner, err := manager.GetTLSCertAndSigner(ctx, ca)
-		require.NoError(t, err)
-		require.Equal(t, tlsKeyPair.Cert, tlsCert)
-		require.NotNil(t, tlsSigner)
-
-		jwtSigner, err := manager.GetJWTSigner(ctx, ca)
-		require.NoError(t, err, trace.DebugReport(err))
-		pubkeyPem, err := utils.MarshalPublicKey(jwtSigner)
-		require.NoError(t, err)
-		require.Equal(t, jwtKeyPair.PublicKey, pubkeyPem)
-
-		// Test what happens when the CA has only raw keys, which will be the
-		// initial state when migrating from software to a HSM/KMS backend.
-		ca, err = types.NewCertAuthority(types.CertAuthoritySpecV2{
-			Type:        types.HostCA,
-			ClusterName: clusterName,
-			ActiveKeys: types.CAKeySet{
-				SSH: []*types.SSHKeyPair{
-					testRawSSHKeyPair,
-				},
-				TLS: []*types.TLSKeyPair{
-					testRawTLSKeyPair,
-				},
-				JWT: []*types.JWTKeyPair{
-					testRawJWTKeyPair,
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		// Manager should always be able to get a signer for software keys.
-		hasUsableKeys, err := manager.HasUsableActiveKeys(ctx, ca)
-		require.NoError(t, err)
-		require.True(t, hasUsableKeys)
-
-		sshSigner, err = manager.GetSSHSigner(ctx, ca)
-		require.NoError(t, err)
-		require.NotNil(t, sshSigner)
-
-		tlsCert, tlsSigner, err = manager.GetTLSCertAndSigner(ctx, ca)
-		require.NoError(t, err)
-		require.NotNil(t, tlsCert)
-		require.NotNil(t, tlsSigner)
-
-		jwtSigner, err = manager.GetJWTSigner(ctx, ca)
-		require.NoError(t, err)
-		require.NotNil(t, jwtSigner)
-
-		// Test a CA with only unusable keypairs - PKCS11 keypairs with a
-		// different hostID that this manager should not be able to use.
-		ca, err = types.NewCertAuthority(types.CertAuthoritySpecV2{
-			Type:        types.HostCA,
-			ClusterName: clusterName,
-			ActiveKeys: types.CAKeySet{
-				SSH: []*types.SSHKeyPair{
-					testPKCS11SSHKeyPair,
-				},
-				TLS: []*types.TLSKeyPair{
-					testPKCS11TLSKeyPair,
-				},
-				JWT: []*types.JWTKeyPair{
-					testPKCS11JWTKeyPair,
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		// The manager should not be able to select a key.
-		hasUsableKeys, err = manager.HasUsableActiveKeys(ctx, ca)
-		require.NoError(t, err)
-		require.False(t, hasUsableKeys)
-
-		_, err = manager.GetSSHSigner(ctx, ca)
-		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
-
-		_, _, err = manager.GetTLSCertAndSigner(ctx, ca)
-		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
-
-		_, err = manager.GetJWTSigner(ctx, ca)
-		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 	}
 }
 
@@ -421,8 +428,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		deletionDoesNothing: true,
 	})
 
-	if os.Getenv("SOFTHSM2_PATH") != "" {
-		config := SetupSoftHSMTest(t)
+	if config, ok := softHSMTestConfig(t); ok {
 		config.PKCS11.HostUUID = hostUUID
 		backend, err := newPKCS11KeyStore(&config.PKCS11, logger)
 		require.NoError(t, err)
@@ -435,16 +441,8 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		})
 	}
 
-	if yubiHSMPath := os.Getenv("YUBIHSM_PKCS11_PATH"); yubiHSMPath != "" {
-		slotNumber := 0
-		config := Config{
-			PKCS11: PKCS11Config{
-				Path:       os.Getenv(yubiHSMPath),
-				SlotNumber: &slotNumber,
-				Pin:        "0001password",
-				HostUUID:   hostUUID,
-			},
-		}
+	if config, ok := yubiHSMTestConfig(t); ok {
+		config.PKCS11.HostUUID = hostUUID
 		backend, err := newPKCS11KeyStore(&config.PKCS11, logger)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
@@ -456,15 +454,8 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		})
 	}
 
-	if cloudHSMPin := os.Getenv("CLOUDHSM_PIN"); cloudHSMPin != "" {
-		config := Config{
-			PKCS11: PKCS11Config{
-				Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
-				TokenLabel: "cavium",
-				Pin:        cloudHSMPin,
-				HostUUID:   hostUUID,
-			},
-		}
+	if config, ok := cloudHSMTestConfig(t); ok {
+		config.PKCS11.HostUUID = hostUUID
 		backend, err := newPKCS11KeyStore(&config.PKCS11, logger)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
@@ -476,14 +467,8 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		})
 	}
 
-	if gcpKMSKeyring := os.Getenv("TEST_GCP_KMS_KEYRING"); gcpKMSKeyring != "" {
-		config := Config{
-			GCPKMS: GCPKMSConfig{
-				HostUUID:        hostUUID,
-				ProtectionLevel: "HSM",
-				KeyRing:         gcpKMSKeyring,
-			},
-		}
+	if config, ok := gcpKMSTestConfig(t); ok {
+		config.GCPKMS.HostUUID = hostUUID
 		backend, err := newGCPKMSKeyStore(ctx, &config.GCPKMS, logger)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
@@ -492,7 +477,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 			backend:         backend,
 			expectedKeyType: types.PrivateKeyType_GCP_KMS,
 			unusedRawKey: gcpKMSKeyID{
-				keyVersionName: gcpKMSKeyring + "/cryptoKeys/FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" + keyVersionSuffix,
+				keyVersionName: config.GCPKMS.KeyRing + "/cryptoKeys/FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" + keyVersionSuffix,
 			}.marshal(),
 		})
 	}
@@ -518,16 +503,8 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		}.marshal(),
 	})
 
-	awsKMSAccount := os.Getenv("TEST_AWS_KMS_ACCOUNT")
-	awsKMSRegion := os.Getenv("TEST_AWS_KMS_REGION")
-	if awsKMSAccount != "" && awsKMSRegion != "" {
-		config := Config{
-			AWSKMS: AWSKMSConfig{
-				Cluster:    "test-cluster",
-				AWSAccount: awsKMSAccount,
-				AWSRegion:  awsKMSRegion,
-			},
-		}
+	if config, ok := awsKMSTestConfig(t); ok {
+		config.AWSKMS.clock = clock
 		backend, err := newAWSKMSKeystore(ctx, &config.AWSKMS, logger)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
@@ -539,12 +516,12 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 				arn: arn.ARN{
 					Partition: "aws",
 					Service:   "kms",
-					Region:    awsKMSRegion,
-					AccountID: awsKMSAccount,
+					Region:    config.AWSKMS.AWSRegion,
+					AccountID: config.AWSKMS.AWSAccount,
 					Resource:  "unused",
 				}.String(),
-				account: awsKMSAccount,
-				region:  awsKMSRegion,
+				account: config.AWSKMS.AWSAccount,
+				region:  config.AWSKMS.AWSRegion,
 			}.marshal(),
 		})
 	}

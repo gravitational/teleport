@@ -20,9 +20,9 @@ package local_test
 
 import (
 	"context"
-	"crypto/x509"
 	"encoding/base32"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"slices"
@@ -53,7 +53,7 @@ func newIdentityService(t *testing.T, clock clockwork.Clock) *local.IdentityServ
 	t.Helper()
 	backend, err := memory.New(memory.Config{
 		Context: context.Background(),
-		Clock:   clockwork.NewFakeClock(),
+		Clock:   clock,
 	})
 	require.NoError(t, err)
 	return local.NewIdentityService(backend)
@@ -209,67 +209,6 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 		require.NoError(t, err)
 		_, err = identity.GetRecoveryCodes(ctx, username, true /* withSecrets */)
 		require.True(t, trace.IsNotFound(err))
-	})
-}
-
-func TestRecoveryAttemptsCRUD(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
-	identity := newIdentityService(t, clock)
-
-	// Predefine times for equality check.
-	time1 := clock.Now()
-	time2 := time1.Add(2 * time.Minute)
-	time3 := time1.Add(4 * time.Minute)
-
-	t.Run("create, get, and delete recovery attempts", func(t *testing.T) {
-		username := "someuser"
-
-		// Test creation of recovery attempt.
-		err := identity.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time3, Expires: time3})
-		require.NoError(t, err)
-		err = identity.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time1, Expires: time3})
-		require.NoError(t, err)
-		err = identity.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time2, Expires: time3})
-		require.NoError(t, err)
-
-		// Test retrieving attempts sorted by oldest to latest.
-		attempts, err := identity.GetUserRecoveryAttempts(ctx, username)
-		require.NoError(t, err)
-		require.Len(t, attempts, 3)
-		require.WithinDuration(t, time1, attempts[0].Time, time.Second)
-		require.WithinDuration(t, time2, attempts[1].Time, time.Second)
-		require.WithinDuration(t, time3, attempts[2].Time, time.Second)
-
-		// Test delete all recovery attempts.
-		err = identity.DeleteUserRecoveryAttempts(ctx, username)
-		require.NoError(t, err)
-		attempts, err = identity.GetUserRecoveryAttempts(ctx, username)
-		require.NoError(t, err)
-		require.Empty(t, attempts)
-	})
-
-	t.Run("deleting user deletes recovery attempts", func(t *testing.T) {
-		username := "someuser2"
-
-		// Create a user, to test deletion of recovery attempts with user.
-		userResource := &types.UserV2{}
-		userResource.SetName(username)
-		_, err := identity.CreateUser(ctx, userResource)
-		require.NoError(t, err)
-
-		err = identity.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time3, Expires: time3})
-		require.NoError(t, err)
-		attempts, err := identity.GetUserRecoveryAttempts(ctx, username)
-		require.NoError(t, err)
-		require.Len(t, attempts, 1)
-
-		err = identity.DeleteUser(ctx, username)
-		require.NoError(t, err)
-		attempts, err = identity.GetUserRecoveryAttempts(ctx, username)
-		require.NoError(t, err)
-		require.Empty(t, attempts)
 	})
 }
 
@@ -903,10 +842,7 @@ Tirv9LjajEBxUnuV+wIDAQAB
 			err := identity.UpsertKeyAttestationData(ctx, attestationData, time.Hour)
 			require.NoError(t, err, "UpsertKeyAttestationData failed")
 
-			pub, err := x509.ParsePKIXPublicKey(pubDer)
-			require.NoError(t, err, "ParsePKIXPublicKey failed")
-
-			retrievedAttestationData, err := identity.GetKeyAttestationData(ctx, pub)
+			retrievedAttestationData, err := identity.GetKeyAttestationData(ctx, pubDer)
 			require.NoError(t, err, "GetKeyAttestationData failed")
 			require.Equal(t, attestationData, retrievedAttestationData, "GetKeyAttestationData mismatch")
 		})
@@ -1199,4 +1135,75 @@ func TestIdentityService_ListUsers(t *testing.T) {
 		return strings.Compare(a.GetName(), b.GetName())
 	})
 	require.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.SortSlices(devicesSort)), "not all users returned from listing operation")
+
+	ssoUser := expectedUsers[2]
+	expectedUsers = slices.Delete(expectedUsers, 2, 3)
+	ssoUser.SetExpiry(clock.Now().UTC().Add(time.Minute))
+
+	_, err = identity.UpsertUser(ctx, ssoUser)
+	assert.NoError(t, err, "failed to upsert SSO user")
+
+	clock.Advance(time.Hour)
+
+	retrieved, next, err = identity.ListUsers(ctx, 0, "", true)
+	assert.NoError(t, err, "got an error while listing over an expired user")
+	assert.Empty(t, next, "next page token returned from listing all users")
+	slices.SortFunc(retrieved, func(a, b types.User) int {
+		return strings.Compare(a.GetName(), b.GetName())
+	})
+	require.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.SortSlices(devicesSort)), "not all users returned from listing operation")
+}
+
+func TestCompareAndSwapUser(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+	ctx := context.Background()
+
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+
+	bob1, err := types.NewUser("bob")
+	require.NoError(err)
+	bob1.SetLogins([]string{"bob"})
+
+	bob2, err := types.NewUser("bob")
+	require.NoError(err)
+	bob2.SetLogins([]string{"bob", "alice"})
+
+	require.False(services.UsersEquals(bob1, bob2))
+
+	currentBob, err := identity.UpsertUser(ctx, bob1)
+	require.NoError(err)
+	require.True(services.UsersEquals(currentBob, bob1))
+
+	currentBob, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(err)
+	require.True(services.UsersEquals(currentBob, bob1))
+
+	err = identity.CompareAndSwapUser(ctx, bob2, bob1)
+	require.NoError(err)
+
+	currentBob, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(err)
+	require.True(services.UsersEquals(currentBob, bob2))
+
+	item, err := identity.Backend.Get(ctx, backend.Key(local.WebPrefix, local.UsersPrefix, "bob", local.ParamsPrefix))
+	require.NoError(err)
+	var m map[string]any
+	require.NoError(json.Unmarshal(item.Value, &m))
+	m["deprecated_field"] = 42
+	item.Value, err = json.Marshal(m)
+	require.NoError(err)
+	_, err = identity.Backend.Put(ctx, *item)
+	require.NoError(err)
+
+	currentBob, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(err)
+	require.True(services.UsersEquals(currentBob, bob2))
+
+	err = identity.CompareAndSwapUser(ctx, bob1, bob2)
+	require.NoError(err)
+
+	currentBob, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(err)
+	require.True(services.UsersEquals(currentBob, bob1))
 }

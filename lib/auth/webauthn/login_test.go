@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -118,7 +120,9 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 			}
 
 			// 1st step of the login ceremony.
-			assertion, err := webLogin.Begin(ctx, user)
+			assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			})
 			require.NoError(t, err)
 			// We care about a few specific settings, for everything else defaults are
 			// OK.
@@ -146,15 +150,17 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 
 			// 2nd and last step of the login ceremony.
 			beforeLastUsed := time.Now().Add(-1 * time.Second)
-			loginDevice, err := webLogin.Finish(ctx, user, assertionResp)
+			loginData, err := webLogin.Finish(ctx, user, assertionResp, &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			})
 			require.NoError(t, err)
 			// Last used time and counter are updated.
-			require.True(t, beforeLastUsed.Before(loginDevice.LastUsed))
-			require.Equal(t, wantCounter, getSignatureCounter(loginDevice))
+			require.True(t, beforeLastUsed.Before(loginData.Device.LastUsed))
+			require.Equal(t, wantCounter, getSignatureCounter(loginData.Device))
 			// Did we update the device in storage?
 			require.NotEmpty(t, identity.UpdatedDevices)
 			got := identity.UpdatedDevices[len(identity.UpdatedDevices)-1]
-			if diff := cmp.Diff(loginDevice, got); diff != "" {
+			if diff := cmp.Diff(loginData.Device, got); diff != "" {
 				t.Errorf("Updated device mismatch (-want +got):\n%s", diff)
 			}
 			// Did we delete the challenge?
@@ -220,7 +226,9 @@ func TestLoginFlow_Begin_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := webLogin.Begin(ctx, test.user)
+			_, err := webLogin.Begin(ctx, test.user, &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			})
 			require.True(t, test.assertErrType(err), "got err = %v, want BadParameter", err)
 			require.Contains(t, err.Error(), test.wantErr)
 		})
@@ -258,7 +266,9 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 		Webauthn: webConfig,
 		Identity: identity,
 	}
-	assertion, err := webLogin.Begin(ctx, user)
+	assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
+		Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+	})
 	require.NoError(t, err)
 	okResp, err := key.SignAssertion(webOrigin, assertion)
 	require.NoError(t, err)
@@ -287,7 +297,9 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 			name: "NOK assertion with bad origin",
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
-				assertion, err := webLogin.Begin(ctx, user)
+				assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				})
 				require.NoError(t, err)
 				resp, err := key.SignAssertion("https://badorigin.com", assertion)
 				require.NoError(t, err)
@@ -298,7 +310,9 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 			name: "NOK assertion with bad RPID",
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
-				assertion, err := webLogin.Begin(ctx, user)
+				assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				})
 				require.NoError(t, err)
 				assertion.Response.RelyingPartyID = "badrpid.com"
 
@@ -311,7 +325,9 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 			name: "NOK assertion signed by unknown device",
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
-				assertion, err := webLogin.Begin(ctx, user)
+				assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				})
 				require.NoError(t, err)
 
 				unknownKey, err := mocku2f.Create()
@@ -328,7 +344,9 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 			name: "NOK assertion with invalid signature",
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
-				assertion, err := webLogin.Begin(ctx, user)
+				assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				})
 				require.NoError(t, err)
 				// Flip a challenge bit, this should be enough to consistently fail
 				// signature checking.
@@ -342,7 +360,9 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := webLogin.Finish(ctx, test.user, test.createResp())
+			_, err := webLogin.Finish(ctx, test.user, test.createResp(), &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			})
 			require.Error(t, err)
 		})
 	}
@@ -421,11 +441,14 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 				AllowCredentials: [][]uint8{}, // aka unset
 				ResidentKey:      false,       // irrelevant for login
 				UserVerification: string(protocol.VerificationRequired),
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+				},
 			}
 			if diff := cmp.Diff(wantSD, sd); diff != "" {
 				t.Fatalf("SessionData mismatch (-want +got):\n%s", diff)
 			}
-
 			// User interaction would happen here.
 			assertionResp, err := test.key.SignAssertion(test.origin, assertion)
 			require.NoError(t, err)
@@ -436,10 +459,10 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 			assertionResp.AssertionResponse.UserHandle = wla.UserID
 
 			// 2nd and last step of the login ceremony.
-			mfaDevice, user, err := webLogin.Finish(ctx, assertionResp)
+			loginData, err := webLogin.Finish(ctx, assertionResp)
 			require.NoError(t, err)
-			require.NotNil(t, mfaDevice)
-			require.Equal(t, test.user, user)
+			require.NotNil(t, loginData.Device)
+			require.Equal(t, test.user, loginData.User)
 		})
 	}
 }
@@ -498,7 +521,7 @@ func TestPasswordlessFlow_Finish_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, _, err := webLogin.Finish(ctx, test.createResp())
+			_, err := webLogin.Finish(ctx, test.createResp())
 			require.True(t, test.assertErrType(err), "assertErrType failed, err = %v", err)
 			require.Contains(t, err.Error(), test.wantErrMsg)
 		})
@@ -565,7 +588,9 @@ func TestCredentialRPID(t *testing.T) {
 			Identity: identity,
 		}
 
-		_, err := webLogin.Begin(ctx, user)
+		_, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+		})
 		assert.NoError(t, err, "Begin failed, expected assertion for `dev1`")
 	})
 
@@ -575,15 +600,19 @@ func TestCredentialRPID(t *testing.T) {
 			Identity: identity,
 		}
 
-		assertion, err := webLogin.Begin(ctx, user)
+		assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+		})
 		require.NoError(t, err, "Begin failed")
 
 		car, err := dev1Key.SignAssertion(origin, assertion)
 		require.NoError(t, err, "SignAssertion failed")
 
-		mfaDev, err := webLogin.Finish(ctx, user, car)
+		loginData, err := webLogin.Finish(ctx, user, car, &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+		})
 		require.NoError(t, err, "Finish failed")
-		assert.Equal(t, rpID, mfaDev.GetWebauthn().CredentialRpId, "CredentialRpId mismatch")
+		assert.Equal(t, rpID, loginData.Device.GetWebauthn().CredentialRpId, "CredentialRpId mismatch")
 	})
 
 	t.Run("login doesn't issue challenges for the wrong RPIDs", func(t *testing.T) {
@@ -592,7 +621,9 @@ func TestCredentialRPID(t *testing.T) {
 			Identity: identity,
 		}
 
-		_, err := webLogin.Begin(ctx, user)
+		_, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+		})
 		assert.ErrorIs(t, err, wanlib.ErrInvalidCredentials, "Begin error mismatch")
 	})
 
@@ -609,7 +640,9 @@ func TestCredentialRPID(t *testing.T) {
 			Webauthn: webOtherRP,
 			Identity: identity,
 		}
-		assertion, err := webLogin.Begin(ctx, user)
+		assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+		})
 		require.NoError(t, err, "Begin failed, expected assertion for device `other1`")
 
 		// Verify that we got the correct device.
@@ -619,6 +652,374 @@ func TestCredentialRPID(t *testing.T) {
 			assertion.Response.AllowedCredentials[0].CredentialID,
 			"Expected key handle for device `other1`")
 	})
+}
+
+func TestLoginFlow_scopeAndReuse(t *testing.T) {
+	// webUser gets a newly registered device and a webID.
+	const webUser = "llama"
+	webIdentity := newFakeIdentity(webUser)
+	webConfig := &types.Webauthn{RPID: "example.com"}
+
+	const webOrigin = "https://example.com"
+	ctx := context.Background()
+
+	// Register a Webauthn device.
+	// Last registration step creates the user webID and adds the new device to
+	// identity.
+	webKey, err := mocku2f.Create()
+	require.NoError(t, err)
+	webKey.PreferRPID = true // Webauthn-registered device
+	webRegistration := &wanlib.RegistrationFlow{
+		Webauthn: webConfig,
+		Identity: webIdentity,
+	}
+	cc, err := webRegistration.Begin(ctx, webUser, false /* passwordless */)
+	require.NoError(t, err)
+	ccr, err := webKey.SignCredentialCreation(webOrigin, cc)
+	require.NoError(t, err)
+	device, err := webRegistration.Finish(ctx, wanlib.RegisterResponse{
+		User:             webUser,
+		DeviceName:       "webauthn1",
+		CreationResponse: ccr,
+	})
+	require.NoError(t, err)
+
+	t.Run("Begin", func(t *testing.T) {
+		tests := []struct {
+			name         string
+			challengeExt *mfav1.ChallengeExtensions
+			assertErr    require.ErrorAssertionFunc
+		}{
+			{
+				name:         "NOK challenge extensions not provided",
+				challengeExt: nil,
+				assertErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %T", err)
+					require.ErrorContains(t, err, "extensions must be supplied")
+				},
+			},
+			{
+				name: "NOK reuse not allowed for scope",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				},
+				assertErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %T", err)
+					require.ErrorContains(t, err, "cannot allow reuse")
+				},
+			},
+			{
+				name: "NOK scope PASSWORDLESS_LOGIN not allowed",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
+				},
+				assertErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %T", err)
+					require.ErrorContains(t, err, "passwordless challenge scope")
+				},
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				user := webUser
+
+				webLogin := &wanlib.LoginFlow{
+					Webauthn: webConfig,
+					Identity: webIdentity,
+				}
+
+				_, err := webLogin.Begin(ctx, user, test.challengeExt)
+				if test.assertErr != nil {
+					test.assertErr(t, err)
+					return
+				}
+				require.NoError(t, err)
+			})
+		}
+	})
+
+	t.Run("Finish", func(t *testing.T) {
+		tests := []struct {
+			name         string
+			challengeExt *mfav1.ChallengeExtensions
+			requiredExt  *mfav1.ChallengeExtensions
+			assertErr    require.ErrorAssertionFunc
+		}{
+			{
+				name: "NOK required challenge extensions not provided",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				},
+				requiredExt: nil,
+				assertErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %T", err)
+					require.ErrorContains(t, err, "extensions must be supplied")
+				},
+			}, {
+				name: "NOK scope not satisfied",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				},
+				requiredExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				},
+				assertErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.True(t, trace.IsAccessDenied(err), "expected access denied err but got %T", err)
+					require.ErrorContains(t, err, "is not satisfied")
+				},
+			}, {
+				// Old clients do not yet provide a scope, so we only enforce scope
+				// opportunistically during login finish.
+				// TODO(Joerger): DELETE IN v16.0.0 - change to NOK
+				name: "OK scope not specified",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
+				},
+				requiredExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				},
+			}, {
+				name: "OK scope not required",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				},
+				requiredExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
+				},
+			}, {
+				name: "OK required scope satisfied",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				},
+				requiredExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				},
+			}, {
+				name: "NOK reuse requested but not allowed",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				},
+				requiredExt: &mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+				},
+				assertErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.True(t, trace.IsAccessDenied(err), "expected access denied err but got %T", err)
+					require.ErrorContains(t, err, "reuse is not permitted")
+				},
+			}, {
+				name: "OK reuse not requested but allowed",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+				},
+				requiredExt: &mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				},
+			}, {
+				name: "OK reuse requested and allowed",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				},
+				requiredExt: &mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				},
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				identity := webIdentity
+				user := webUser
+
+				webLogin := &wanlib.LoginFlow{
+					Webauthn: webConfig,
+					Identity: webIdentity,
+				}
+
+				assertion, err := webLogin.Begin(ctx, user, test.challengeExt)
+				require.NoError(t, err)
+
+				assertionResp, err := webKey.SignAssertion(webOrigin, assertion)
+				require.NoError(t, err)
+
+				loginData, err := webLogin.Finish(ctx, user, assertionResp, test.requiredExt)
+				if test.assertErr != nil {
+					test.assertErr(t, err)
+					return
+				}
+
+				require.NoError(t, err)
+				require.Equal(t, &wanlib.LoginData{
+					Device:     device,
+					User:       user,
+					AllowReuse: loginData.AllowReuse,
+				}, loginData)
+
+				// Session data should only be deleted if reuse was not requested on begin.
+				if test.challengeExt.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+					require.NotEmpty(t, identity.SessionData)
+				} else {
+					require.Empty(t, identity.SessionData)
+				}
+			})
+		}
+	})
+}
+
+func TestLoginFlow_userVerification(t *testing.T) {
+	// Prepare a user and a pair of registered devices.
+	mfaDev, err := mocku2f.Create()
+	require.NoError(t, err)
+
+	pwdlessDev, err := mocku2f.Create()
+	require.NoError(t, err)
+	pwdlessDev.IgnoreAllowedCredentials = true // passwordless settings
+	pwdlessDev.SetUV = true
+	pwdlessDev.AllowResidentKey = true
+
+	const user = "llama"
+	const origin = "https://example.com"
+	webIdentity := newFakeIdentity(user)
+	webConfig := &types.Webauthn{RPID: "example.com"}
+
+	ctx := context.Background()
+	register := func(t *testing.T, dev *mocku2f.Key, rr wanlib.RegisterResponse) {
+		webRegistration := &wanlib.RegistrationFlow{
+			Webauthn: webConfig,
+			Identity: webIdentity,
+		}
+
+		cc, err := webRegistration.Begin(ctx, rr.User, rr.Passwordless)
+		require.NoError(t, err)
+
+		ccr, err := dev.SignCredentialCreation(origin, cc)
+		require.NoError(t, err)
+		rr.CreationResponse = ccr
+
+		_, err = webRegistration.Finish(ctx, rr)
+		require.NoError(t, err)
+	}
+
+	// Register devices. They are "persisted" in the fake identify.
+	register(t, mfaDev, wanlib.RegisterResponse{
+		User:       user,
+		DeviceName: "mfa",
+	})
+	register(t, pwdlessDev, wanlib.RegisterResponse{
+		User:         user,
+		DeviceName:   "pwdless",
+		Passwordless: true,
+	})
+
+	tests := []struct {
+		name                      string
+		exts, requiredExts        *mfav1.ChallengeExtensions
+		dev                       *mocku2f.Key
+		wantAssertionVerification string
+		wantErr                   string
+	}{
+		{
+			name: "mfaDev fails mismatched UserVerification",
+			exts: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				// User verification wrongly not required here!
+			},
+			requiredExts: &mfav1.ChallengeExtensions{
+				Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				UserVerificationRequirement: string(protocol.VerificationRequired),
+			},
+			dev:     mfaDev,
+			wantErr: "authenticator response",
+		},
+		{
+			name: "pwdlessDev succeeds mismatched UserVerification",
+			exts: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				// User verification wrongly not required here!
+			},
+			requiredExts: &mfav1.ChallengeExtensions{
+				Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				UserVerificationRequirement: string(protocol.VerificationRequired),
+			},
+			dev: pwdlessDev, // Returns UV=1 regardless of requests.
+		},
+		{
+			name: "verification preferred",
+			exts: &mfav1.ChallengeExtensions{
+				Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				UserVerificationRequirement: string(protocol.VerificationPreferred),
+			},
+			requiredExts: &mfav1.ChallengeExtensions{
+				Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				UserVerificationRequirement: string(protocol.VerificationPreferred),
+			},
+			dev:                       mfaDev, // Not capable of UV, but still allowed by settings.
+			wantAssertionVerification: string(protocol.VerificationPreferred),
+		},
+		{
+			name: "verification required",
+			exts: &mfav1.ChallengeExtensions{
+				Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				UserVerificationRequirement: string(protocol.VerificationRequired),
+			},
+			requiredExts: &mfav1.ChallengeExtensions{
+				Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				UserVerificationRequirement: string(protocol.VerificationRequired),
+			},
+			dev:                       pwdlessDev, // Capable of UV.
+			wantAssertionVerification: string(protocol.VerificationRequired),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Reset before test.
+			webIdentity.SessionData = make(map[string]*wantypes.SessionData)
+
+			lf := &wanlib.LoginFlow{
+				Webauthn: webConfig,
+				Identity: webIdentity,
+			}
+
+			assertion, err := lf.Begin(ctx, user, test.exts)
+			require.NoError(t, err, "lf.Begin")
+
+			if test.wantAssertionVerification != "" {
+				// Verify assertion.
+				assert.Equal(t,
+					test.wantAssertionVerification,
+					string(assertion.Response.UserVerification),
+					"assertion.Response.UserVerification mismatch")
+
+				// Verify stored session data.
+				if assert.Len(t, webIdentity.SessionData, 1, "stored SessionData mismatch") {
+					// Verify our single SD instance.
+					// We don't care about the key, just the value.
+					for _, sd := range webIdentity.SessionData {
+						assert.Equal(t,
+							test.wantAssertionVerification,
+							sd.UserVerification,
+							"stored SessionData.UserVerification mismatch")
+						break // Only one key anyway.
+					}
+				}
+			}
+
+			assertionResp, err := test.dev.SignAssertion(origin, assertion)
+			require.NoError(t, err, "dev.SignAssertion")
+
+			_, err = lf.Finish(ctx, user, assertionResp, test.requiredExts)
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "lf.Finish error mismatch")
+			} else {
+				assert.NoError(t, err, "lf.Finish")
+			}
+		})
+	}
 }
 
 type fakeIdentity struct {
@@ -647,7 +1048,8 @@ func newFakeIdentity(user string, devices ...*types.MFADevice) *fakeIdentity {
 }
 
 func (f *fakeIdentity) GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
-	return f.User.GetLocalAuth().MFA, nil
+	// Return a defensive copy of the slice, the caller might modify it.
+	return slices.Clone(f.User.GetLocalAuth().MFA), nil
 }
 
 func (f *fakeIdentity) UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {

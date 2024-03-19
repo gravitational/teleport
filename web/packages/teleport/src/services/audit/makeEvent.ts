@@ -93,7 +93,7 @@ export const formatters: Formatters = {
     type: 'access_request.search',
     desc: 'Resource Access Search',
     format: ({ user, resource_type, search_as_roles }) =>
-      `User [${user}] searched for resource type [${resource_type}] with role(s) [${search_as_roles}]`,
+      `User [${user}] searched for resource type [${resource_type}] with role(s) [${truncateStr(search_as_roles.join(','), 80)}]`,
   },
   [eventCodes.SESSION_COMMAND]: {
     type: 'session.command',
@@ -280,6 +280,14 @@ export const formatters: Formatters = {
       `File upload to node [${
         rest['server_hostname'] || rest['addr.local']
       }] failed [${exitError}]`,
+  },
+  [eventCodes.SCP_DISALLOWED]: {
+    type: 'scp',
+    desc: 'SCP Disallowed',
+    format: ({ user, ...rest }) =>
+      `User [${user}] SCP file transfer on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }] blocked`,
   },
   [eventCodes.SFTP_OPEN]: {
     type: 'sftp',
@@ -569,6 +577,30 @@ export const formatters: Formatters = {
         rest['server_hostname'] || rest['addr.local']
       }]: [${error}]`,
   },
+  [eventCodes.SFTP_LINK]: {
+    type: 'sftp',
+    desc: 'SFTP Link',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] created hard link [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_LINK_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Link Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to create hard link [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
+  [eventCodes.SFTP_DISALLOWED]: {
+    type: 'sftp',
+    desc: 'SFTP Disallowed',
+    format: ({ user, ...rest }) =>
+      `User [${user}] was blocked from creating an SFTP session on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
   [eventCodes.SESSION_JOIN]: {
     type: 'session.join',
     desc: 'User Joined',
@@ -742,6 +774,22 @@ export const formatters: Formatters = {
     desc: 'Headless Login Rejected',
     format: ({ user }) => `User [${user}] rejected headless login request`,
   },
+  [eventCodes.CREATE_MFA_AUTH_CHALLENGE]: {
+    type: 'mfa_auth_challenge.create',
+    desc: 'MFA Authentication Attempt',
+    format: ({ user }) =>
+      `User [${user}] requested an MFA authentication challenge`,
+  },
+  [eventCodes.VALIDATE_MFA_AUTH_RESPONSE]: {
+    type: 'mfa_auth_challenge.validate',
+    desc: 'MFA Authentication Success',
+    format: ({ user }) => `User [${user}] completed MFA authentication`,
+  },
+  [eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE]: {
+    type: 'mfa_auth_challenge.validate',
+    desc: 'MFA Authentication Failure',
+    format: ({ user }) => `User [${user}] failed MFA authentication`,
+  },
   [eventCodes.ROLE_CREATED]: {
     type: 'role.created',
     desc: 'User Role Created',
@@ -847,10 +895,26 @@ export const formatters: Formatters = {
       )}] in database [${db_name}] on [${db_service}] failed`,
   },
   [eventCodes.DATABASE_SESSION_MALFORMED_PACKET]: {
-    type: 'db.session.malformed_packet"',
+    type: 'db.session.malformed_packet',
     desc: 'Database Malformed Packet',
     format: ({ user, db_service, db_name }) =>
       `Received malformed packet from [${user}] in [${db_name}] on database [${db_service}]`,
+  },
+  [eventCodes.DATABASE_SESSION_PERMISSIONS_UPDATE]: {
+    type: ' db.session.permissions.update',
+    desc: 'Database Permissions Update',
+    format: ({ user, db_service, db_name, permission_summary }) => {
+      console.log(permission_summary);
+      const summary = permission_summary
+        .map(p => {
+          const details = Object.entries(p.counts)
+            .map(([key, value]) => `${key}:${value}`)
+            .join(',');
+          return `${p.permission}:${details}`;
+        })
+        .join('; ');
+      return `User permissions [${user}] in [${db_name}] on database [${db_service}]: ${summary}`;
+    },
   },
   [eventCodes.DATABASE_CREATED]: {
     type: 'db.create',
@@ -1503,6 +1567,16 @@ export const formatters: Formatters = {
     format: ({ name, source, user }) =>
       `Okta assignment [${name}], source [${source}], user [${user}] cleanup has failed`,
   },
+  [eventCodes.OKTA_ACCESS_LIST_SYNC]: {
+    type: 'okta.access_list.sync',
+    desc: 'Okta access list synchronization completed',
+    format: () => `Okta access list synchronization successfully completed`,
+  },
+  [eventCodes.OKTA_ACCESS_LIST_SYNC_FAILURE]: {
+    type: 'okta.access_list.sync',
+    desc: 'Okta access list synchronization failed',
+    format: () => `Okta access list synchronization failed`,
+  },
   [eventCodes.ACCESS_LIST_CREATE]: {
     type: 'access_list.create',
     desc: 'Access list created',
@@ -1637,6 +1711,18 @@ export const formatters: Formatters = {
     desc: 'External Audit Storage Disabled',
     format: ({ updated_by }) =>
       `User [${updated_by}] disabled External Audit Storage`,
+  },
+  [eventCodes.SPIFFE_SVID_ISSUED]: {
+    type: 'spiffe.svid.issued',
+    desc: 'SPIFFE SVID Issued',
+    format: ({ user, spiffe_id }) =>
+      `User [${user}] issued SPIFFE SVID [${spiffe_id}]`,
+  },
+  [eventCodes.SPIFFE_SVID_ISSUED_FAILURE]: {
+    type: 'spiffe.svid.issued',
+    desc: 'SPIFFE SVID Issued Failure',
+    format: ({ user, spiffe_id }) =>
+      `User [${user}] failed to issue SPIFFE SVID [${spiffe_id}]`,
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',

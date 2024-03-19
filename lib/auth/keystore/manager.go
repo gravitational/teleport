@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -89,6 +90,10 @@ type backend interface {
 	// 2. Created in the backend by this Teleport cluster.
 	// 3. Each backend may apply extra restrictions to which keys may be deleted.
 	deleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error
+
+	// keyTypeDescription returns a human-readable description of the types of
+	// keys this backend uses.
+	keyTypeDescription() string
 }
 
 // Config holds configuration parameters for the keystore. A software keystore
@@ -371,50 +376,96 @@ func (m *Manager) NewJWTKeyPair(ctx context.Context) (*types.JWTKeyPair, error) 
 	}, nil
 }
 
+// UsableKeysResult holds the result of a call to HasUsableActiveKeys or
+// HasUsableAdditionalTrustedKeys.
+type UsableKeysResult struct {
+	// CAHasPreferredKeyType is true if the CA contains any key matching the key
+	// type the keystore is currently configured to use when generating new
+	// keys.
+	CAHasPreferredKeyType bool
+	// CAHasUsableKeys is true if the CA contains any key that the keystore as
+	// currently configured can use for signatures.
+	CAHasUsableKeys bool
+	// PreferredKeyType is a description of the key type the keystore is
+	// currently configured to use when generating new keys.
+	PreferredKeyType string
+	// CAKeyTypes is a list of descriptions of all the keys types currently
+	// stored in the CA. It is only guaranteed to be valid if
+	// CAHasPreferredKeyType is false.
+	CAKeyTypes []string
+}
+
 // HasUsableActiveKeys returns true if the given CA has any usable active keys.
-func (m *Manager) HasUsableActiveKeys(ctx context.Context, ca types.CertAuthority) (bool, error) {
-	usable, err := m.hasUsableKeys(ctx, ca.GetActiveKeys())
-	return usable, trace.Wrap(err)
+func (m *Manager) HasUsableActiveKeys(ctx context.Context, ca types.CertAuthority) (*UsableKeysResult, error) {
+	return m.hasUsableKeys(ctx, ca.GetActiveKeys())
 }
 
 // HasUsableActiveKeys returns true if the given CA has any usable additional
 // trusted keys.
-func (m *Manager) HasUsableAdditionalKeys(ctx context.Context, ca types.CertAuthority) (bool, error) {
-	usable, err := m.hasUsableKeys(ctx, ca.GetAdditionalTrustedKeys())
-	return usable, trace.Wrap(err)
+func (m *Manager) HasUsableAdditionalKeys(ctx context.Context, ca types.CertAuthority) (*UsableKeysResult, error) {
+	return m.hasUsableKeys(ctx, ca.GetAdditionalTrustedKeys())
 }
 
-func (m *Manager) hasUsableKeys(ctx context.Context, keySet types.CAKeySet) (bool, error) {
-	for _, backend := range m.usableSigningBackends {
+func (m *Manager) hasUsableKeys(ctx context.Context, keySet types.CAKeySet) (*UsableKeysResult, error) {
+	result := &UsableKeysResult{
+		PreferredKeyType: m.backendForNewKeys.keyTypeDescription(),
+	}
+	var allRawKeys [][]byte
+	for i, backend := range m.usableSigningBackends {
+		preferredBackend := i == 0
 		for _, sshKeyPair := range keySet.SSH {
 			usable, err := backend.canSignWithKey(ctx, sshKeyPair.PrivateKey, sshKeyPair.PrivateKeyType)
 			if err != nil {
-				return false, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			if usable {
-				return true, nil
+				result.CAHasUsableKeys = true
+				if preferredBackend {
+					result.CAHasPreferredKeyType = true
+					return result, nil
+				}
 			}
+			allRawKeys = append(allRawKeys, sshKeyPair.PrivateKey)
 		}
 		for _, tlsKeyPair := range keySet.TLS {
 			usable, err := backend.canSignWithKey(ctx, tlsKeyPair.Key, tlsKeyPair.KeyType)
 			if err != nil {
-				return false, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			if usable {
-				return true, nil
+				result.CAHasUsableKeys = true
+				if preferredBackend {
+					result.CAHasPreferredKeyType = true
+					return result, nil
+				}
 			}
+			allRawKeys = append(allRawKeys, tlsKeyPair.Key)
 		}
 		for _, jwtKeyPair := range keySet.JWT {
 			usable, err := backend.canSignWithKey(ctx, jwtKeyPair.PrivateKey, jwtKeyPair.PrivateKeyType)
 			if err != nil {
-				return false, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			if usable {
-				return true, nil
+				result.CAHasUsableKeys = true
+				if preferredBackend {
+					result.CAHasPreferredKeyType = true
+					return result, nil
+				}
 			}
+			allRawKeys = append(allRawKeys, jwtKeyPair.PrivateKey)
 		}
 	}
-	return false, nil
+	caKeyTypes := make(map[string]struct{})
+	for _, rawKey := range allRawKeys {
+		desc, err := keyDescription(rawKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		caKeyTypes[desc] = struct{}{}
+	}
+	result.CAKeyTypes = maps.Keys(caKeyTypes)
+	return result, nil
 }
 
 func (m *Manager) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
@@ -433,4 +484,33 @@ func keyType(key []byte) types.PrivateKeyType {
 		return types.PrivateKeyType_AWS_KMS
 	}
 	return types.PrivateKeyType_RAW
+}
+
+func keyDescription(key []byte) (string, error) {
+	switch keyType(key) {
+	case types.PrivateKeyType_PKCS11:
+		keyID, err := parsePKCS11KeyID(key)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return "PKCS#11 HSM keys created by " + keyID.HostID, nil
+	case types.PrivateKeyType_GCP_KMS:
+		keyID, err := parseGCPKMSKeyID(key)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		keyring, err := keyID.keyring()
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return "GCP KMS keys in keyring " + keyring, nil
+	case types.PrivateKeyType_AWS_KMS:
+		keyID, err := parseAWSKMSKeyID(key)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return "AWS KMS keys in account " + keyID.account + " and region " + keyID.region, nil
+	default:
+		return "raw software keys", nil
+	}
 }

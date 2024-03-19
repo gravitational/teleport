@@ -25,6 +25,7 @@ import init, {
 
 import { WebsocketCloseCode, TermEvent } from 'teleport/lib/term/enums';
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 import Codec, {
   MessageType,
@@ -53,6 +54,7 @@ import type {
   SharedDirectoryCreateResponse,
   SharedDirectoryDeleteResponse,
   FileSystemObject,
+  SyncKeys,
 } from './codec';
 import type { WebauthnAssertionResponse } from 'teleport/services/auth';
 
@@ -69,9 +71,12 @@ export enum TdpClientEvent {
   TDP_WARNING = 'tdp warning',
   // CLIENT_WARNING represents a warning event that isn't a TDP_WARNING
   CLIENT_WARNING = 'client warning',
+  // TDP_INFO corresponds with the TDP info message
+  TDP_INFO = 'tdp info',
   WS_OPEN = 'ws open',
   WS_CLOSE = 'ws close',
   RESET = 'reset',
+  POINTER = 'pointer',
 }
 
 export enum LogType {
@@ -84,12 +89,12 @@ export enum LogType {
 }
 
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
-// sending client commands, and recieving and processing server messages. Its creator is responsible for
+// sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
 // For convenience, this can be done in one fell swoop by calling Client.shutdown().
 export default class Client extends EventEmitterWebAuthnSender {
   protected codec: Codec;
-  protected socket: WebSocket | undefined;
+  protected socket: AuthenticatedWebSocket | undefined;
   private socketAddr: string;
   private sdManager: SharedDirectoryManager;
   private fastPathProcessor: FastPathProcessor | undefined;
@@ -113,7 +118,7 @@ export default class Client extends EventEmitterWebAuthnSender {
   async connect(spec?: ClientScreenSpec) {
     await this.initWasm();
 
-    this.socket = new WebSocket(this.socketAddr);
+    this.socket = new AuthenticatedWebSocket(this.socketAddr);
     this.socket.binaryType = 'arraybuffer';
 
     this.socket.onopen = () => {
@@ -132,7 +137,12 @@ export default class Client extends EventEmitterWebAuthnSender {
     // prior to a socket 'close' event (https://stackoverflow.com/a/40084550/6277051).
     // Therefore, we can rely on our onclose handler to account for any websocket errors.
     this.socket.onerror = null;
-    this.socket.onclose = () => {
+    this.socket.onclose = ev => {
+      let message = 'session disconnected';
+      if (ev.code !== WebsocketCloseCode.NORMAL) {
+        this.logger.error(`websocket closed with error code: ${ev.code}`);
+        message = `connection closed with websocket error`;
+      }
       this.logger.info('websocket is closed');
 
       // Clean up all of our socket's listeners and the socket itself.
@@ -141,7 +151,7 @@ export default class Client extends EventEmitterWebAuthnSender {
       this.socket.onclose = null;
       this.socket = null;
 
-      this.emit(TdpClientEvent.WS_CLOSE);
+      this.emit(TdpClientEvent.WS_CLOSE, message);
     };
   }
 
@@ -292,6 +302,8 @@ export default class Client extends EventEmitterWebAuthnSender {
       );
     } else if (notification.severity === Severity.Warning) {
       this.handleWarning(notification.message, TdpClientEvent.TDP_WARNING);
+    } else {
+      this.handleInfo(notification.message);
     }
   }
 
@@ -346,6 +358,9 @@ export default class Client extends EventEmitterWebAuthnSender {
         },
         (responseFrame: ArrayBuffer) => {
           this.sendRDPResponsePDU(responseFrame);
+        },
+        (data: ImageData | boolean, hotspot_x?: number, hotspot_y?: number) => {
+          this.emit(TdpClientEvent.POINTER, { data, hotspot_x, hotspot_y });
         }
       );
     } catch (e) {
@@ -596,9 +611,11 @@ export default class Client extends EventEmitterWebAuthnSender {
   }
 
   sendKeyboardInput(code: string, state: ButtonState) {
-    // Only send message if key is recognized, otherwise do nothing.
-    const msg = this.codec.encodeKeyboardInput(code, state);
-    if (msg) this.send(msg);
+    this.codec.encodeKeyboardInput(code, state).forEach(msg => this.send(msg));
+  }
+
+  sendSyncKeys(syncKeys: SyncKeys) {
+    this.send(this.codec.encodeSyncKeys(syncKeys));
   }
 
   sendClipboardData(clipboardData: ClipboardData) {
@@ -692,6 +709,11 @@ export default class Client extends EventEmitterWebAuthnSender {
   ) {
     this.logger.warn(warning);
     this.emit(warnType, warning);
+  }
+
+  private handleInfo(info: string) {
+    this.logger.info(info);
+    this.emit(TdpClientEvent.TDP_INFO, info);
   }
 
   // Ensures full cleanup of this object.

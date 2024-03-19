@@ -49,10 +49,12 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	dbobjectimportrulev12 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	discoveryconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -66,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
+	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule"
@@ -332,9 +335,6 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 				}
 			}
 			g.Debugf("Completed stream for session %v", sessionID)
-			if err != nil {
-				return trace.Wrap(err)
-			}
 			return nil
 		} else if flushAndClose := request.GetFlushAndCloseStream(); flushAndClose != nil {
 			if eventStream == nil {
@@ -2280,6 +2280,32 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *emptypb.Empty) (*authpb.Ge
 	}, nil
 }
 
+// ListRoles is a paginated role getter.
+func (g *GRPCServer) ListRoles(ctx context.Context, req *authpb.ListRolesRequest) (*authpb.ListRolesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := auth.ServerWithRoles.ListRoles(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	downgradedRoles := rsp.Roles[:0]
+	for _, role := range rsp.Roles {
+		downgraded, err := maybeDowngradeRole(ctx, role)
+		if err != nil {
+			log.Warnf("Failed to downgrade role %q, this is a bug and may result in spurious access denied errors. err=%q", role.GetName(), err)
+			continue
+		}
+		downgradedRoles = append(downgradedRoles, downgraded)
+	}
+	rsp.Roles = downgradedRoles
+
+	return rsp, nil
+}
+
 // CreateRole creates a new role.
 func (g *GRPCServer) CreateRole(ctx context.Context, req *authpb.CreateRoleRequest) (*types.RoleV6, error) {
 	auth, err := g.authenticate(ctx)
@@ -2394,8 +2420,8 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *authpb.DeleteRoleReque
 func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authpb.AuthService_MaintainSessionPresenceServer, challengeReq *authpb.PresenceMFAChallengeRequest) error {
 	user := actx.User.GetName()
 
-	const passwordless = false
-	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, passwordless)
+	chalExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
+	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, chalExt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2417,7 +2443,7 @@ func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authp
 		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", challengeResp)
 	}
 
-	if _, _, err := actx.authServer.ValidateMFAAuthResponse(ctx, challengeResp, user, passwordless); err != nil {
+	if _, err := actx.authServer.ValidateMFAAuthResponse(ctx, challengeResp, user, chalExt); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2551,8 +2577,8 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream authpb.AuthService_AddM
 	ctx := stream.Context()
 
 	// Note: authChallenge may be empty if this user has no existing MFA devices.
-	const passwordless = false
-	authChallenge, err := auth.mfaAuthChallenge(ctx, user, passwordless)
+	chalExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES}
+	authChallenge, err := auth.mfaAuthChallenge(ctx, user, chalExt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2573,7 +2599,7 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream authpb.AuthService_AddM
 	}
 	// Only validate if there was a challenge.
 	if authChallenge.TOTP != nil || authChallenge.WebauthnChallenge != nil {
-		if _, _, err := auth.ValidateMFAAuthResponse(ctx, authResp, user, passwordless); err != nil {
+		if _, err := auth.ValidateMFAAuthResponse(ctx, authResp, user, chalExt); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2694,8 +2720,8 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream authpb.AuthService_D
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 
-	const passwordless = false
-	authChallenge, err := auth.mfaAuthChallenge(ctx, user, passwordless)
+	chalExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES}
+	authChallenge, err := auth.mfaAuthChallenge(ctx, user, chalExt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2715,7 +2741,7 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream authpb.AuthService_D
 	if authResp == nil {
 		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", req)
 	}
-	if _, _, err := auth.ValidateMFAAuthResponse(ctx, authResp, user, passwordless); err != nil {
+	if _, err := auth.ValidateMFAAuthResponse(ctx, authResp, user, chalExt); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -2925,8 +2951,8 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream authpb.AuthServic
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 
-	const passwordless = false
-	challenge, err := auth.mfaAuthChallenge(ctx, user, passwordless)
+	chalExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
+	challenge, err := auth.mfaAuthChallenge(ctx, user, chalExt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2951,11 +2977,11 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream authpb.AuthServic
 	if authResp == nil {
 		return nil, trace.BadParameter("expected MFAAuthenticateResponse, got %T", req.Request)
 	}
-	mfaDev, _, err := auth.ValidateMFAAuthResponse(ctx, authResp, user, passwordless)
+	mfaData, err := auth.ValidateMFAAuthResponse(ctx, authResp, user, chalExt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return mfaDev, nil
+	return mfaData.Device, nil
 }
 
 func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req authpb.UserCertsRequest, mfaDev *types.MFADevice) (*authpb.SingleUseUserCert, error) {
@@ -5648,9 +5674,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		),
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	usersService, err := usersv1.NewService(usersv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5676,6 +5699,28 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err, "creating bot service")
 	}
 	machineidv1pb.RegisterBotServiceServer(server, botService)
+
+	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating database objectImportRule service")
+	}
+	dbobjectimportrulev12.RegisterDatabaseObjectImportRuleServiceServer(server, dbObjectImportRuleService)
+
+	workloadIdentityService, err := machineidv1.NewWorkloadIdentityService(machineidv1.WorkloadIdentityServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Cache:      cfg.AuthServer.Cache,
+		Reporter:   cfg.AuthServer.Services.UsageReporter,
+		Emitter:    cfg.Emitter,
+		Clock:      cfg.AuthServer.GetClock(),
+		KeyStore:   cfg.AuthServer.keyStore,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating workload identity service")
+	}
+	machineidv1pb.RegisterWorkloadIdentityServiceServer(server, workloadIdentityService)
 
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
@@ -5734,16 +5779,28 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	oktapb.RegisterOktaServiceServer(server, oktaServiceServer)
 
 	integrationServiceServer, err := integrationService.NewService(&integrationService.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer.Services,
-		Cache:      cfg.AuthServer.Cache,
-		Clock:      cfg.AuthServer.clock,
-		CAGetter:   cfg.AuthServer,
+		Authorizer:      cfg.Authorizer,
+		Backend:         cfg.AuthServer.Services,
+		Cache:           cfg.AuthServer.Cache,
+		KeyStoreManager: cfg.AuthServer.GetKeyStore(),
+		Clock:           cfg.AuthServer.clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	integrationpb.RegisterIntegrationServiceServer(server, integrationServiceServer)
+
+	integrationAWSOIDCServiceServer, err := integrationService.NewAWSOIDCService(&integrationService.AWSOIDCServiceConfig{
+		Authorizer:            cfg.Authorizer,
+		IntegrationService:    integrationServiceServer,
+		Cache:                 cfg.AuthServer,
+		ProxyPublicAddrGetter: cfg.AuthServer.getProxyPublicAddr,
+		Clock:                 cfg.AuthServer.clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	integrationpb.RegisterAWSOIDCServiceServer(server, integrationAWSOIDCServiceServer)
 
 	discoveryConfig, err := discoveryconfigv1.NewService(discoveryconfigv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5827,7 +5884,7 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 	// HTTPS server expects auth context to be set by the auth middleware
 	authContext, err := g.Authorizer.Authorize(ctx)
 	if err != nil {
-		return nil, authz.ConvertAuthorizerError(ctx, g.Logger, err)
+		return nil, trace.Wrap(err)
 	}
 	return &grpcContext{
 		Context: authContext,
@@ -5873,8 +5930,8 @@ func (g *GRPCServer) GetUnstructuredEvents(ctx context.Context, req *auditlogpb.
 	}, nil
 }
 
-// StreamUnstructuredSessionEventsServer streams all events from a given session recording as an unstructured format.
-func (g *GRPCServer) StreamUnstructuredSessionEventsServer(req *auditlogpb.StreamUnstructuredSessionEventsRequest, stream auditlogpb.AuditLogService_StreamUnstructuredSessionEventsServer) error {
+// StreamUnstructuredSessionEvents streams all events from a given session recording as an unstructured format.
+func (g *GRPCServer) StreamUnstructuredSessionEvents(req *auditlogpb.StreamUnstructuredSessionEventsRequest, stream auditlogpb.AuditLogService_StreamUnstructuredSessionEventsServer) error {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
 		return trace.Wrap(err)

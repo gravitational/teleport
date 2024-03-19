@@ -28,15 +28,15 @@ import (
 
 func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 	testcases := []struct {
-		desc        string
-		token       *ProvisionTokenV2
-		expected    *ProvisionTokenV2
-		expectedErr error
+		desc     string
+		token    *ProvisionTokenV2
+		expected *ProvisionTokenV2
+		wantErr  bool
 	}{
 		{
-			desc:        "empty",
-			token:       &ProvisionTokenV2{},
-			expectedErr: &trace.BadParameterError{},
+			desc:    "empty",
+			token:   &ProvisionTokenV2{},
+			wantErr: true,
 		},
 		{
 			desc: "missing roles",
@@ -45,7 +45,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					Name: "test",
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "invalid role",
@@ -57,7 +57,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					Roles: []SystemRole{RoleNode, "not a role"},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "simple token",
@@ -158,7 +158,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					JoinMethod: "ec2",
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "ec2 method with aws_arn",
@@ -177,7 +177,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "ec2 method empty rule",
@@ -191,7 +191,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					Allow:      []*TokenRule{{}},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "iam method",
@@ -237,7 +237,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "iam method with aws_regions",
@@ -256,7 +256,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "github valid",
@@ -316,7 +316,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "github slug and ghes set",
@@ -338,7 +338,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "circleci valid",
@@ -375,7 +375,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "circleci and no org id",
@@ -395,7 +395,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "circleci allow rule blank",
@@ -413,7 +413,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "kubernetes: in_cluster defaults",
@@ -516,7 +516,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "kubernetes: missing static_jwks.jwks",
@@ -538,7 +538,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "kubernetes: wrong service account name",
@@ -558,7 +558,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "kubernetes: allow rule blank",
@@ -576,7 +576,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "gitlab empty allow rules",
@@ -592,7 +592,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "gitlab missing config",
@@ -606,7 +606,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					GitLab:     nil,
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "gitlab empty allow rule",
@@ -624,7 +624,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "gitlab defaults",
@@ -724,7 +724,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "spacelift",
@@ -781,7 +781,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "spacelift rule missing fields",
@@ -798,7 +798,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "spacelift missing hostname",
@@ -818,7 +818,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "spacelift incorrect hostname",
@@ -839,7 +839,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "gcp method",
@@ -899,18 +899,22 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 	}
 
 	for _, tc := range testcases {
 		t.Run(tc.desc, func(t *testing.T) {
 			err := tc.token.CheckAndSetDefaults()
-			if tc.expectedErr != nil {
-				require.ErrorAs(t, err, &tc.expectedErr)
+			if tc.wantErr {
+				require.Error(t, err)
+				require.True(t,
+					trace.IsBadParameter(err),
+					"want BadParameter, got %v (%T)", err, trace.Unwrap(err))
 				return
 			}
 			require.NoError(t, err)
+
 			if tc.expected != nil {
 				require.Equal(t, tc.expected, tc.token)
 			}

@@ -120,14 +120,18 @@ func awsEKSDiscoveryMatchedCluster(t *testing.T) {
 		return err == nil && len(kubeServers) == 1
 	}, 2*time.Minute, time.Second, "wait for the kubernetes service to create a KubernetesServer")
 
+	clusters, err := authC.GetKubernetesClusters(context.Background())
+	require.NoError(t, err)
+
 	// kubeClient is a Kubernetes client for the user created above
 	// that will be used to verify that the user can access the cluster and
 	// the permissions are correct.
 	kubeClient, _, err := kube.ProxyClient(kube.ProxyConfig{
-		T:          teleport,
-		Username:   username,
-		KubeUsers:  kubeUsers,
-		KubeGroups: kubeGroups,
+		T:           teleport,
+		Username:    username,
+		KubeUsers:   kubeUsers,
+		KubeGroups:  kubeGroups,
+		KubeCluster: clusters[0].GetName(),
 	})
 	require.NoError(t, err)
 

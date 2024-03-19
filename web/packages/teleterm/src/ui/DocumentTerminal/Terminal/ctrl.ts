@@ -41,7 +41,10 @@ export default class TtyTerminal {
   private logger = new Logger('lib/term/terminal');
   private removePtyProcessOnDataListener: () => void;
 
-  constructor(private ptyProcess: IPtyProcess, private options: Options) {
+  constructor(
+    private ptyProcess: IPtyProcess,
+    private options: Options
+  ) {
     this.el = options.el;
     this.term = null;
 

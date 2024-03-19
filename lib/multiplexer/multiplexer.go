@@ -75,6 +75,14 @@ const (
 // We define our own version to not create dependency on the 'services' package, which causes circular references
 type CertAuthorityGetter = func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
+type (
+	// PreDetectFunc is used in [Mux]'s [Config] as the PreDetect hook.
+	PreDetectFunc = func(net.Conn) (PostDetectFunc, error)
+
+	// PostDetectFunc is optionally returned by a [PreDetectFunc].
+	PostDetectFunc = func(*Conn) net.Conn
+)
+
 // Config is a multiplexer config
 type Config struct {
 	// Listener is listener to multiplex connection on
@@ -101,11 +109,14 @@ type Config struct {
 	// missing required PROXY header. This is needed since all connections in tests are self connections.
 	IgnoreSelfConnections bool
 
-	// FixedHeader contains data that's sent to the client at the beginning of
-	// every connection, before protocol detection happens. An equal amount of
-	// data is then skipped from the connection when the application writes into
-	// it. Mostly useful for SSH servers.
-	FixedHeader string
+	// PreDetect, if set, is called on each incoming connection before protocol
+	// detection; the returned [PostDetectFunc] (if any) will then be called
+	// after protocol detection, and will have the ability to modify or wrap the
+	// [*Conn] before it's passed to the listener; if the PostDetectFunc returns
+	// a nil [net.Conn], the connection will not be handled any further by the
+	// multiplexer, and it's the responsibility of the PostDetectFunc to arrange
+	// for it to be eventually closed.
+	PreDetect PreDetectFunc
 }
 
 // CheckAndSetDefaults verifies configuration and sets defaults
@@ -291,10 +302,17 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 		return
 	}
 
-	if m.FixedHeader != "" {
-		if _, err := conn.Write([]byte(m.FixedHeader)); err != nil {
+	var postDetect PostDetectFunc
+	if m.PreDetect != nil {
+		var err error
+		postDetect, err = m.PreDetect(conn)
+		if err != nil {
 			if !utils.IsOKNetworkError(err) {
-				m.WithError(err).Warn("Failed to send connection header.")
+				m.WithFields(log.Fields{
+					"src_addr":   conn.RemoteAddr(),
+					"dst_addr":   conn.LocalAddr(),
+					log.ErrorKey: err,
+				}).Warn("Failed to send early data.")
 			}
 			conn.Close()
 			return
@@ -335,7 +353,16 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 		return
 	}
 
-	listener.HandleConnection(m.context, connWrapper)
+	conn = connWrapper
+	if postDetect != nil {
+		conn = postDetect(connWrapper)
+		if conn == nil {
+			// the post detect hook hijacked the connection or had an error
+			return
+		}
+	}
+
+	listener.HandleConnection(m.context, conn)
 }
 
 // JWTPROXYSigner provides ability to created JWT for signed PROXY headers.
@@ -585,11 +612,10 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			}
 
 			return &Conn{
-				protocol:       proto,
-				Conn:           conn,
-				reader:         reader,
-				proxyLine:      proxyLine,
-				alreadyWritten: []byte(m.FixedHeader),
+				protocol:  proto,
+				Conn:      conn,
+				reader:    reader,
+				proxyLine: proxyLine,
 			}, nil
 		}
 	}

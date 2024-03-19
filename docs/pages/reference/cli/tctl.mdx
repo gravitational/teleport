@@ -248,7 +248,8 @@ Lists cluster alerts. This command can also be invoked as `tctl alerts ls`.
 
 ## tctl auth export
 
-Export public cluster (CA) keys to stdout:
+Exports public cluster CA certificates. This is useful for configuring
+external systems to trust certificates issued by Teleport.
 
 ```code
 $ tctl auth export [<flags>]
@@ -281,7 +282,7 @@ $ tctl auth export
 # Filter by fingerprint
 $ tctl auth export --fingerprint=SHA256:8xu5kh1CbHCZRrGuitbQd4hM+d9V+I7YA1mUwA/2tAo
 # Export tls certs only
-$ tctl auth export --type tls
+$ tctl auth export --type=tls-host
 ```
 
 ## tctl auth rotate
@@ -405,6 +406,15 @@ $ tctl bots add <name> [<flags>]
 | `--logins` | none | Comma-separated list of allowed SSH logins to set Bot's login trait to. | Optional. Specifies the values that should be configured as the Bot's logins trait for the purpose of role templating. |
 | `--token` | none | String name of an existing join token. | Optional. Specifies an existing join token to be used rather than creating one as part of the Bot creation. |
 | `--ttl` | 15m | Duration. | Optional. Overrides the TTL of the token that will be created if `--token` is not specified. |
+| `--format` | `text` | `text`, `json` | If set to `json`, return new bot information as a machine-readable JSON string. |
+
+### Examples
+
+Create a new bot named `example` that may assume the `access` role and log in as `root`:
+
+```code
+$ tctl bots add example --roles=access --logins=root
+```
 
 ### Global flags
 
@@ -435,6 +445,49 @@ $ tctl bots rm <name> [<flags>]
 ### Arguments
 
 - `<name>` - name of Machine ID Bot to delete.
+
+### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+## tctl bots update
+
+Update a Machine ID bot:
+
+```code
+$ tctl bots update <bot> [<flags>]
+```
+
+### Arguments
+
+- `<name>` - The name of the bot to update
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--add-roles` | none | Comma-separated list of roles the bot may assume | Appends the given roles to the existing roles the bot may assume. |
+| `--set-roles` | none | Comma-separated list of roles the bot may assume | Replaces the bots's current roles with the list provided. |
+| `--add-logins` | none | Comma-separated list of allowed Unix logins | Appends the given logins to the bot's current allowed logins. |
+| `--set-logins` | none | Comma-separated list of allowed Unix logins | Replaces the bot's current allowed logins with the given list. |
+
+### Examples
+
+Replace the bot `example` roles and add a new allowed Unix login:
+
+```code
+$ tctl bots update example --add-logins=root --set-roles=access
+```
+
+Remove all implicitly allowed Unix logins from a bot named `example` by passing
+an empty list:
+
+```code
+$ tctl bots update example --set-logins=,
+```
+
+Note that the bot may still be granted additional logins via roles.
 
 ### Global flags
 
@@ -1492,5 +1545,3 @@ Print the version of your `tctl` binary:
 ```code
 tctl version
 ```
-
-

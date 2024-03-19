@@ -30,11 +30,11 @@ import { UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 
 import {
-  UnifiedResourcePreferences,
   DefaultTab,
-  ViewMode,
   LabelsViewMode,
-} from 'shared/services/unifiedResourcePreferences';
+  UnifiedResourcePreferences,
+  ViewMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { makeErrorAttempt, makeProcessingAttempt } from 'shared/hooks/useAsync';
 
@@ -97,9 +97,9 @@ const story = ({
   };
   return () => {
     const [userPrefs, setUserPrefs] = useState<UnifiedResourcePreferences>({
-      defaultTab: DefaultTab.DEFAULT_TAB_ALL,
-      viewMode: ViewMode.VIEW_MODE_CARD,
-      labelsViewMode: LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
+      defaultTab: DefaultTab.ALL,
+      viewMode: ViewMode.CARD,
+      labelsViewMode: LabelsViewMode.COLLAPSED,
     });
     const { fetch, attempt, resources } = useUnifiedResourcesFetch({
       fetchFunc,

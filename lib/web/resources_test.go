@@ -289,12 +289,12 @@ version: v2
 
 	item, err := ui.NewResourceItem(cluster)
 	require.NoError(t, err)
-	require.Equal(t, item, &ui.ResourceItem{
+	require.Equal(t, &ui.ResourceItem{
 		ID:      "trusted_cluster:tcName",
 		Kind:    types.KindTrustedCluster,
 		Name:    "tcName",
 		Content: contents,
-	})
+	}, item)
 }
 
 func TestGetRoles(t *testing.T) {

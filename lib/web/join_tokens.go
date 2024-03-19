@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/modules"
@@ -163,7 +162,7 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 			}, nil
 		}
 	default:
-		tokenName, err = utils.CryptoRandomHex(auth.TokenLenBytes)
+		tokenName, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -535,7 +534,7 @@ func validateJoinToken(token string) error {
 	if err != nil {
 		return trace.BadParameter("invalid token %q", token)
 	}
-	if len(decodedToken) != auth.TokenLenBytes {
+	if len(decodedToken) != defaults.TokenLenBytes {
 		return trace.BadParameter("invalid token %q", decodedToken)
 	}
 

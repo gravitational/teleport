@@ -25,9 +25,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -85,10 +85,7 @@ func (s sortedLabels) Less(i, j int) bool {
 	labelA := strings.ToLower(s[i].Name)
 	labelB := strings.ToLower(s[j].Name)
 
-	// types.CloudLabelPrefixes are label names that we want to always be at the end of
-	// the sorted labels list to reduce visual clutter. This will generally be automatically
-	// discovered cloud provider labels such as azure/aks-managed-createOperationID=123123123123
-	for _, sortName := range types.CloudLabelPrefixes {
+	for _, sortName := range types.BackSortedLabelPrefixes {
 		name := strings.ToLower(sortName)
 		if strings.Contains(labelA, name) && !strings.Contains(labelB, name) {
 			return false // labelA should be at the end
@@ -198,7 +195,7 @@ func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChe
 }
 
 // MakeEKSClusters creates EKS objects for the web UI.
-func MakeEKSClusters(clusters []awsoidc.EKSCluster) []EKSCluster {
+func MakeEKSClusters(clusters []*integrationv1.EKSCluster) []EKSCluster {
 	uiEKSClusters := make([]EKSCluster, 0, len(clusters))
 
 	for _, cluster := range clusters {
@@ -402,7 +399,7 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 }
 
 // MakeDatabases creates database objects.
-func MakeDatabases(databases []types.Database, dbUsers, dbNames []string) []Database {
+func MakeDatabases(databases []*types.DatabaseV3, dbUsers, dbNames []string) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
 		db := MakeDatabase(database, dbUsers, dbNames)

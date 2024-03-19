@@ -27,7 +27,7 @@ import { GatewayCLICommand } from './types';
  * include just the args.
  */
 export function getCliCommandArgs(cliCommand: GatewayCLICommand): string[] {
-  const [, ...args] = cliCommand.argsList;
+  const [, ...args] = cliCommand.args;
   return args;
 }
 
@@ -36,7 +36,7 @@ export function getCliCommandArgs(cliCommand: GatewayCLICommand): string[] {
  * We are safe to use this as the presentational command name.
  */
 export function getCliCommandArgv0(cliCommand: GatewayCLICommand): string {
-  return cliCommand.argsList[0];
+  return cliCommand.args[0];
 }
 
 /**
@@ -48,7 +48,7 @@ export function getCliCommandEnv(
   cliCommand: GatewayCLICommand
 ): Record<string, string> {
   return Object.fromEntries(
-    cliCommand.envList.map(nameEqualsValue => nameEqualsValue.split('='))
+    cliCommand.env.map(nameEqualsValue => nameEqualsValue.split('='))
   );
 }
 

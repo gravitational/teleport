@@ -38,6 +38,7 @@ func (h *Handler) desktopPlaybackHandle(
 	p httprouter.Params,
 	sctx *SessionContext,
 	site reversetunnelclient.RemoteSite,
+	ws *websocket.Conn,
 ) (interface{}, error) {
 	sID := p.ByName("sid")
 	if sID == "" {
@@ -48,16 +49,6 @@ func (h *Handler) desktopPlaybackHandle(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  4096,
-		WriteBufferSize: 4096,
-	}
-	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer ws.Close()
 
 	player, err := player.New(&player.Config{
 		Clock:     h.clock,

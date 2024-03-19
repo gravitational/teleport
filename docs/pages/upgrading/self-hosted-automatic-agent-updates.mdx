@@ -9,7 +9,7 @@ clusters.
 
 Teleport agents run an **upgrader** that queries a **version server** to
 determine whether they are out of date. This guide describes how to set up your
-infrastructure to support automatic upgrades. If you are a Teleport Cloud user
+infrastructure to support automatic updates. If you are a Teleport Cloud user
 or run a version server already, return to the [Upgrading](../upgrading.mdx)
 menu for the appropriate next steps to upgrade Teleport.
 
@@ -17,7 +17,7 @@ The [Automatic Update Architecture](../architecture/agent-update-management.mdx)
 guide explains how automatic agent upgrades work in more detail.
 
 <Admonition type="warning">
-Systemd agents enrolled into automatic upgrades can only install versions
+Systemd agents enrolled into automatic updates can only install versions
 present in their package repositories. As Teleport 14 won't be published to
 `stable/v13`, those agents will require manual intervention to be upgraded to
 the next major version (adding a new APT/YUM/zypper repo for `stable/v14`).
@@ -31,6 +31,8 @@ Teleport v13.3.2 forward, including future major releases.
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components of your cluster.
 - Self-hosted Teleport cluster v13.0 or higher.
+- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 The version server must be hosted on a webserver with trusted TLS certificates
 and reachable by all agents. You must have either:
@@ -248,8 +250,9 @@ roles provide this ability, so you will need to create one.
    version: v7
    metadata:
      name: cmc-editor
-   allow:
-     rules:
+   spec:
+     allow:
+       rules:
        - resources: ['cluster_maintenance_config']
          verbs: ['create', 'read', 'update', 'delete']
    ```
@@ -278,12 +281,12 @@ $ tctl create cmc.yaml
 maintenance window has been updated
 ```
 
-## Step 4/5. Enroll Kubernetes agents in automatic upgrades
+## Step 4/5. Enroll Kubernetes agents in automatic updates
 
 Now that you have deployed a version server, you can enroll agents in automatic
 upgrades. This guide begins with agents deployed on Kubernetes. If all of your
 agents run on Linux servers, you can skip to [Step
-5](#step-55-enroll-linux-agents-in-automatic-upgrades).
+5](#step-55-enroll-linux-agents-in-automatic-updates).
 
 ### Install the agent upgrader Helm chart
 
@@ -356,15 +359,15 @@ until the next reconciliation, you can trigger an event.
    $ kubectl -n <Var name="teleport" /> annotate statefulset/<Var name="teleport-agent" /> 'debug.teleport.dev/trigger-event=1'
    ```
 
-1. To suspend automatic upgrades for an agent, annotate the agent deployment
+1. To suspend automatic updates for an agent, annotate the agent deployment
    with `teleport.dev/skipreconcile: "true"`, either by setting the
    `annotations.deployment` value in Helm, or by patching the deployment
    directly with `kubectl`.
 
-## Step 5/5. Enroll Linux agents in automatic upgrades
+## Step 5/5. Enroll Linux agents in automatic updates
 
 This section shows you how to enroll Teleport agents running on Linux virtual or
-bare-metal machines into automatic upgrades.
+bare-metal machines into automatic updates.
 
 Follow these instructions on each of your Teleport agents.
 
@@ -384,7 +387,7 @@ Follow these instructions on each of your Teleport agents.
    it is up to date.
    
 1. If the repository was added, make sure the Teleport binary installed on the
-   agent can run the automatic upgrader:
+   agent can run the automatic updater:
 
    ```code
    $ which teleport-upgrade || echo "Install the upgrader"
@@ -453,7 +456,7 @@ Follow these instructions on each of your Teleport agents.
    $ sudo teleport-upgrade run
    ```
 
-1. To suspend automatic upgrades, disable the systemd timer:
+1. To suspend automatic updates, disable the systemd timer:
 
    ```code
    $ sudo systemctl disable --now teleport-upgrade.timer

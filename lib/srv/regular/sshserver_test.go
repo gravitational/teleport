@@ -19,6 +19,7 @@
 package regular
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -45,6 +46,7 @@ import (
 	"github.com/mailgun/timetools"
 	"github.com/moby/term"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -254,7 +256,8 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		sshSrv.Wait()
 	})
 
-	require.NoError(t, sshSrv.heartbeat.ForceSend(time.Second))
+	_, err = testServer.Auth().UpsertNode(ctx, sshSrv.getServerInfo())
+	require.NoError(t, err)
 
 	sshSrvAddress := sshSrv.Addr()
 	_, sshSrvPort, err := net.SplitHostPort(sshSrvAddress)
@@ -326,18 +329,35 @@ func TestTerminalSizeRequest(t *testing.T) {
 
 		require.NoError(t, se.Shell(ctx))
 
-		expectedSize := term.Winsize{Height: 100, Width: 200}
-		require.NoError(t, se.WindowChange(ctx, int(expectedSize.Height), int(expectedSize.Width)))
-
 		sessions, err := f.ssh.srv.termHandlers.SessionRegistry.SessionTrackerService.GetActiveSessionTrackers(ctx)
 		require.NoError(t, err)
 		require.Len(t, sessions, 1)
 
-		ok, resp, err := f.ssh.clt.SendRequest(ctx, teleport.TerminalSizeRequest, true, []byte(sessions[0].GetSessionID()))
+		sessionID := sessions[0].GetSessionID()
+
+		expectedSize := term.Winsize{Height: 100, Width: 200}
+
+		// Explicitly set the window size to the expected value.
+		require.NoError(t, se.WindowChange(ctx, int(expectedSize.Height), int(expectedSize.Width)))
+
+		// Wait for the window change request to be reflected in the session before
+		// initiating the client request for the window size to prevent flakiness.
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			size, err := f.ssh.srv.termHandlers.SessionRegistry.GetTerminalSize(sessionID)
+			if assert.NoError(t, err) {
+				return
+			}
+			assert.Empty(t, cmp.Diff(expectedSize, size, cmp.AllowUnexported(term.Winsize{})))
+		}, 10*time.Second, 100*time.Millisecond)
+
+		// Send a request for the window size now that we know the window change
+		// request was honored.
+		ok, resp, err := f.ssh.clt.SendRequest(ctx, teleport.TerminalSizeRequest, true, []byte(sessionID))
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.NotNil(t, resp)
 
+		// Assert that the window size matches the expected dimensions.
 		var ws term.Winsize
 		require.NoError(t, json.Unmarshal(resp, &ws))
 		require.Empty(t, cmp.Diff(expectedSize, ws, cmp.AllowUnexported(term.Winsize{})))
@@ -680,6 +700,51 @@ func TestDirectTCPIP(t *testing.T) {
 		//nolint:bodyclose // We expect an error here, no need to close.
 		_, err := httpClientUsingSessionJoin.Get(ts.URL)
 		require.ErrorContains(t, err, "ssh: rejected: administratively prohibited (attempted direct-tcpip channel open in join-only mode")
+	})
+}
+
+// TestTCPIPForward ensures that the server can create a listener from a
+// "tcpip-forward" request and do remote port forwarding.
+func TestTCPIPForward(t *testing.T) {
+	t.Parallel()
+	f := newFixtureWithoutDiskBasedLogging(t)
+
+	// Request a listener from the server.
+	listener, err := f.ssh.clt.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	// Start up a test server that uses the port forwarded listener.
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "hello, world")
+	}))
+	t.Cleanup(ts.Close)
+	ts.Listener = listener
+	ts.Start()
+
+	// Dial the test server over the SSH connection.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	t.Cleanup(cancel)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL, &bytes.Buffer{})
+	require.NoError(t, err)
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, resp.Body.Close())
+	})
+
+	// Make sure the response is what was expected.
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, []byte("hello, world\n"), body)
+
+	t.Run("SessionJoinPrincipal cannot use tcpip-forward", func(t *testing.T) {
+		// Ensure that ssh client using SessionJoinPrincipal as Login, cannot
+		// connect using "tcpip-forward".
+		ctx := context.Background()
+		cliUsingSessionJoin := f.newSSHClient(ctx, t, &user.User{Username: teleport.SSHSessionJoinPrincipal})
+		_, err := cliUsingSessionJoin.Listen("tcp", "127.0.0.1:0")
+		require.ErrorContains(t, err, "ssh: tcpip-forward request denied by peer")
 	})
 }
 

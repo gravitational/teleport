@@ -24,8 +24,10 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -90,10 +92,6 @@ type accessPoint interface {
 
 	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
 	services.ConnectionDiagnosticTraceAppender
-
-	// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
-	// Returns the device used to solve the challenge (if applicable) and the username.
-	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error)
 }
 
 // ReadNodeAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -701,6 +699,8 @@ type ReadDiscoveryAccessPoint interface {
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// GetKubernetesServers returns all registered kubernetes servers.
+	GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error)
 
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
@@ -758,7 +758,13 @@ type DiscoveryAccessPoint interface {
 	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
 
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error)
+	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
+
+	// EnrollEKSClusters enrolls EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.
+	EnrollEKSClusters(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
+
+	// Ping gets basic info about the auth server.
+	Ping(context.Context) (proto.PingResponse, error)
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -959,6 +965,9 @@ type Cache interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
+	// ListRoles is a paginated role getter.
+	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
+
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
 
@@ -976,6 +985,9 @@ type Cache interface {
 
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
+
+	// ListAppSessions returns a page of application web sessions.
+	ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
 
 	// GetSnowflakeSession gets a Snowflake web session.
 	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
@@ -1084,6 +1096,8 @@ type Cache interface {
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 
+	// CountAccessListMembers will count all access list members.
+	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error)
 	// ListAccessListMembers returns a paginated list of all access list members.
 	// May return a DynamicAccessListError if the requested access list has an
 	// implicit member list and the underlying implementation does not have
@@ -1316,8 +1330,18 @@ func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.Subm
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
-	return w.NoCache.GenerateAWSOIDCToken(ctx, req)
+func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
+	return w.NoCache.GenerateAWSOIDCToken(ctx, integration)
+}
+
+// EnrollEKSClusters enrolls EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.
+func (w *DiscoveryWrapper) EnrollEKSClusters(ctx context.Context, req *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
+	return w.NoCache.EnrollEKSClusters(ctx, req)
+}
+
+// Ping gets basic info about the auth server.
+func (w *DiscoveryWrapper) Ping(ctx context.Context) (proto.PingResponse, error) {
+	return w.NoCache.Ping(ctx)
 }
 
 // Close closes all associated resources

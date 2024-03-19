@@ -29,7 +29,6 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -40,10 +39,12 @@ import (
 // Deprecated: Switch to [BotService.ListBots].
 func (bs *BotService) GetBotUsersLegacy(ctx context.Context) ([]types.User, error) {
 	bs.logger.Warn("Deprecated GetBotUsers RPC called. Upgrade your client. From V16.0.0, this will fail!")
-	_, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindUser, types.VerbList, types.VerbRead,
-	)
+	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -103,7 +104,7 @@ func (bs *BotService) checkOrCreateBotToken(ctx context.Context, req *proto.Crea
 		return token, nil
 	}
 
-	tokenName, err := utils.CryptoRandomHex(16)
+	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

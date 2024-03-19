@@ -854,6 +854,9 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	tdpConn.OnSend = s.makeTDPSendHandler(ctx, recorder, delay, tdpConn, audit)
 	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, recorder, delay, tdpConn, audit)
 
+	width, height := desktop.GetScreenSize()
+
+	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	rdpc, err := rdpclient.New(rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
@@ -866,6 +869,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		AllowClipboard:        authCtx.Checker.DesktopClipboard(),
 		AllowDirectorySharing: authCtx.Checker.DesktopDirectorySharing(),
 		ShowDesktopWallpaper:  s.cfg.ShowDesktopWallpaper,
+		Width:                 width,
+		Height:                height,
 	})
 	// before we check the error above, we grab the windows user so that
 	// future audit events include the proper username
@@ -874,6 +879,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		windowsUser = rdpc.GetClientUsername()
 		audit.windowsUser = windowsUser
 	}
+	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	if err != nil {
 		startEvent := audit.makeSessionStart(err)
 		s.record(ctx, recorder, startEvent)
@@ -901,10 +907,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		TeleportUser:          identity.Username,
 		ServerID:              s.cfg.Heartbeat.HostUUID,
 		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
-		MessageWriter: &monitorErrorSender{
-			log:     log,
-			tdpConn: tdpConn,
-		},
+		MessageWriter:         &monitorErrorSender{tdpConn: tdpConn},
 	}
 
 	// UpdateClientActivity before starting monitor to
@@ -1302,15 +1305,12 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 // monitor disconnect messages back to the frontend
 // over the tdp.Conn
 type monitorErrorSender struct {
-	log     logrus.FieldLogger
 	tdpConn *tdp.Conn
 }
 
 func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
 	if err := m.tdpConn.SendNotification(s, tdp.SeverityError); err != nil {
-		errMsg := fmt.Sprintf("Failed to send TDP error message %v: %v", s, err)
-		m.log.Error(errMsg)
-		return 0, trace.Errorf(errMsg)
+		return 0, trace.Wrap(err, "sending TDP error message")
 	}
 
 	return len(s), nil

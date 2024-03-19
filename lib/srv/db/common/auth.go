@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
@@ -376,6 +375,11 @@ func (a *dbAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) 
 		return "", trace.Wrap(err)
 	}
 	a.cfg.Log.Debugf("Generating GCP auth token for %s.", sessionCtx)
+
+	serviceAccountName := sessionCtx.DatabaseUser
+	if !strings.HasSuffix(serviceAccountName, ".gserviceaccount.com") {
+		serviceAccountName = serviceAccountName + ".gserviceaccount.com"
+	}
 	resp, err := gcpIAM.GenerateAccessToken(ctx,
 		&gcpcredentialspb.GenerateAccessTokenRequest{
 			// From GenerateAccessToken docs:
@@ -383,7 +387,7 @@ func (a *dbAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) 
 			// The resource name of the service account for which the credentials
 			// are requested, in the following format:
 			//   projects/-/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}
-			Name: fmt.Sprintf("projects/-/serviceAccounts/%v.gserviceaccount.com", sessionCtx.DatabaseUser),
+			Name: fmt.Sprintf("projects/-/serviceAccounts/%v", serviceAccountName),
 			// From GenerateAccessToken docs:
 			//
 			// Code to identify the scopes to be included in the OAuth 2.0 access
@@ -417,7 +421,7 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 		return "", trace.Wrap(err)
 	}
 	a.cfg.Log.Debugf("Generating GCP user password for %s.", sessionCtx)
-	token, err := utils.CryptoRandomHex(libauth.TokenLenBytes)
+	token, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -449,12 +453,19 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL gcp.SQLAdminClient, user *sqladmin.User) error {
 	err := gcpCloudSQL.UpdateUser(ctx, sessionCtx.Database, sessionCtx.DatabaseUser, user)
 	if err != nil {
+		// Note that mysql client has a 1024 char limit for displaying errors
+		// so we need to keep the message short when possible. This message
+		// does get cut off when sessionCtx.DatabaseUser or err is long.
 		return trace.AccessDenied(`Could not update Cloud SQL user %q password:
 
   %v
 
-Make sure Teleport db service has "Cloud SQL Admin" GCP IAM role, or
-"cloudsql.users.update" IAM permission.
+If the db user uses IAM authentication, please use the full service account email
+ID as "--db-user", or grant the Teleport Database Service the
+"cloudsql.users.get" IAM permission so it can discover the user type.
+
+If the db user uses passwords, make sure Teleport Database Service has "Cloud
+SQL Admin" GCP IAM role, or "cloudsql.users.update" IAM permission.
 `, sessionCtx.DatabaseUser, err)
 	}
 	return nil

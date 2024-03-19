@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -33,20 +34,34 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	// fastShutdownTimeout is how long we're going to wait before connections
+	// are forcibly terminated during a fast shutdown.
+	fastShutdownTimeout = time.Second * 3
+
+	// fastShutdownGrace is how long we're going to wait for the shutdown
+	// procedure to complete after the fastShutdownTimeout is hit.
+	fastShutdownGrace = time.Second * 2
+)
+
 // printShutdownStatus prints running services until shut down
 func (process *TeleportProcess) printShutdownStatus(ctx context.Context) {
-	t := time.NewTicker(defaults.HighResReportingPeriod)
+	statusInterval := defaults.HighResPollingPeriod
+	t := time.NewTimer(statusInterval)
 	defer t.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			statusInterval = min(statusInterval*2, defaults.LowResPollingPeriod)
+			t.Reset(statusInterval)
 			process.log.Infof("Waiting for services: %v to finish.", process.Supervisor.Services())
 		}
 	}
@@ -64,7 +79,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 		syscall.SIGUSR1, // log process diagnostic info
 		syscall.SIGUSR2, // initiate process restart procedure
 		syscall.SIGHUP,  // graceful restart procedure
-		syscall.SIGCHLD, // collect child status
 	)
 	defer signal.Stop(sigC)
 
@@ -81,19 +95,31 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 		case signal := <-sigC:
 			switch signal {
 			case syscall.SIGQUIT:
-				process.Shutdown(ctx)
+				timeoutCtx, cancel := context.WithTimeout(ctx, apidefaults.MaxCertDuration)
+				defer cancel()
+				process.Shutdown(timeoutCtx)
 				process.log.Infof("All services stopped, exiting.")
 				return nil
 			case syscall.SIGTERM, syscall.SIGINT:
-				timeout := getShutdownTimeout(process.log)
-				cancelCtx, cancelFunc := context.WithTimeout(ctx, timeout)
-				process.log.Infof("Got signal %q, exiting within %vs.", signal, timeout.Seconds())
+				process.log.Infof("Got signal %q, exiting within %s.", signal, fastShutdownTimeout)
+				// we run the shutdown in a goroutine so we can return and exit
+				// the process even if Shutdown takes longer to return than we
+				// expected (due to bugs, for example)
+				shutdownDone := make(chan struct{})
 				go func() {
-					defer cancelFunc()
-					process.Shutdown(cancelCtx)
+					defer close(shutdownDone)
+					timeoutCtx, cancel := context.WithTimeout(ctx, fastShutdownTimeout)
+					defer cancel()
+					process.Shutdown(timeoutCtx)
 				}()
-				<-cancelCtx.Done()
-				process.log.Infof("All services stopped or timeout passed, exiting immediately.")
+				graceTimer := time.NewTimer(fastShutdownTimeout + fastShutdownGrace)
+				defer graceTimer.Stop()
+				select {
+				case <-graceTimer.C:
+					process.log.Warn("Shutdown still hasn't completed, exiting anyway.")
+				case <-shutdownDone:
+					process.log.Info("All services stopped, exiting.")
+				}
 				return nil
 			case syscall.SIGUSR1:
 				// All programs placed diagnostics on the standard output.
@@ -121,15 +147,25 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 					continue
 				}
 				process.log.Infof("Successfully started new process, shutting down gracefully.")
-				process.Shutdown(ctx)
+				timeoutCtx, cancel := context.WithTimeout(ctx, apidefaults.MaxCertDuration)
+				defer cancel()
+				process.Shutdown(timeoutCtx)
 				process.log.Infof("All services stopped, exiting.")
 				return nil
-			case syscall.SIGCHLD:
-				process.collectStatuses()
 			default:
 				process.log.Infof("Ignoring %q.", signal)
 			}
 		case <-process.ReloadContext().Done():
+			// it's fine to signal.Stop the same channel multiple times, and
+			// after the function returns we're guaranteed to have restored the
+			// default handlers for the signals and that no more signals are
+			// pushed into the channel
+			signal.Stop(sigC)
+			if len(sigC) > 0 {
+				// exhaust all signals before the internal reload, so we don't
+				// miss signals to exit or to graceful restart instead
+				continue
+			}
 			process.log.Infof("Exiting signal handler: process has started internal reload.")
 			return ErrTeleportReloading
 		case <-process.ExitContext().Done():
@@ -158,31 +194,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 			process.log.Warningf("Non-critical service %v has exited with error %v, continuing to operate.", se.Service, se.Error)
 		}
 	}
-}
-
-const defaultShutdownTimeout = time.Second * 3
-const maxShutdownTimeout = time.Minute * 10
-
-func getShutdownTimeout(log logrus.FieldLogger) time.Duration {
-	timeout := defaultShutdownTimeout
-
-	// read undocumented env var TELEPORT_UNSTABLE_SHUTDOWN_TIMEOUT.
-	// TODO(Tener): DELETE IN 15.0. after ironing out all possible shutdown bugs.
-	override := os.Getenv("TELEPORT_UNSTABLE_SHUTDOWN_TIMEOUT")
-	if override != "" {
-		t, err := time.ParseDuration(override)
-		if err != nil {
-			log.Warnf("Cannot parse timeout override %q, using default instead.", override)
-		}
-		if err == nil {
-			if t > maxShutdownTimeout {
-				log.Warnf("Timeout override %q exceeds maximum value, reducing.", override)
-				t = maxShutdownTimeout
-			}
-			timeout = t
-		}
-	}
-	return timeout
 }
 
 // ErrTeleportReloading is returned when signal waiter exits
@@ -528,85 +539,33 @@ func (process *TeleportProcess) forkChild() error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	process.pushForkedPID(p.Pid)
-	log.WithFields(logrus.Fields{"pid": p.Pid}).Infof("Forked new child process.")
+	log.WithField("pid", p.Pid).Infof("Forked new child process.")
+	log = process.log.WithField("pid", p.Pid)
 
-	messageReceived, cancel := context.WithCancel(context.TODO())
-	defer cancel()
+	process.forkedTeleportCount.Add(1)
 	go func() {
-		data := make([]byte, 1024)
-		len, err := readPipe.Read(data)
+		defer process.forkedTeleportCount.Add(-1)
+		state, err := p.Wait()
 		if err != nil {
-			log.Debug("Failed to read from pipe")
+			log.WithError(err).
+				Error("Failed waiting for forked Teleport process.")
 			return
 		}
-		log.Infof("Received message from pid %v: %v", p.Pid, string(data[:len]))
-		cancel()
+		log.WithField("status", state.String()).Warn("Forked Teleport process has exited.")
 	}()
 
-	select {
-	case <-time.After(signalPipeTimeout):
-		return trace.BadParameter("Failed waiting from process")
-	case <-messageReceived.Done():
-		log.WithFields(logrus.Fields{"pid": p.Pid}).Infof("Child process signals success.")
+	_ = writePipe.Close()
+	readPipe.SetReadDeadline(time.Now().Add(signalPipeTimeout))
+	buf := make([]byte, 1024)
+	// we require at least one byte from the child, otherwise we can't
+	// distinguish the child dying (and closing the pipe) and a deliberate close
+	// without data; conversely, we don't care if we get an I/O or timeout error
+	// if we know that the child has sent at least one byte
+	n, err := io.ReadAtLeast(readPipe, buf, 1)
+	if err != nil {
+		return trace.Wrap(err, "waiting for forked Teleport process to signal successful start")
 	}
+	log.WithField("data", string(buf[:n])).Infof("Forked Teleport process signaled successful start.")
 
 	return nil
-}
-
-// collectStatuses attempts to collect exit statuses from
-// forked teleport child processes.
-// If forked teleport process exited with an error during graceful
-// restart, parent process has to collect the child process status
-// otherwise the child process will become a zombie process.
-// Call Wait4(-1) is trying to collect status of any child
-// leads to warnings in logs, because other parts of the program could
-// have tried to collect the status of this process.
-// Instead this logic tries to collect statuses of the processes
-// forked during restart procedure.
-func (process *TeleportProcess) collectStatuses() {
-	pids := process.getForkedPIDs()
-	if len(pids) == 0 {
-		return
-	}
-	for _, pid := range pids {
-		var wait syscall.WaitStatus
-		rpid, err := syscall.Wait4(pid, &wait, syscall.WNOHANG, nil)
-		if err != nil {
-			process.log.Errorf("Wait call failed: %v.", err)
-			continue
-		}
-		if rpid == pid {
-			process.popForkedPID(pid)
-			process.log.Warningf("Forked teleport process %v has exited with status: %v.", pid, wait.ExitStatus())
-		}
-	}
-}
-
-func (process *TeleportProcess) pushForkedPID(pid int) {
-	process.Lock()
-	defer process.Unlock()
-	process.forkedPIDs = append(process.forkedPIDs, pid)
-}
-
-func (process *TeleportProcess) popForkedPID(pid int) {
-	process.Lock()
-	defer process.Unlock()
-	for i, p := range process.forkedPIDs {
-		if p == pid {
-			process.forkedPIDs = append(process.forkedPIDs[:i], process.forkedPIDs[i+1:]...)
-			return
-		}
-	}
-}
-
-func (process *TeleportProcess) getForkedPIDs() []int {
-	process.Lock()
-	defer process.Unlock()
-	if len(process.forkedPIDs) == 0 {
-		return nil
-	}
-	out := make([]int, len(process.forkedPIDs))
-	copy(out, process.forkedPIDs)
-	return out
 }

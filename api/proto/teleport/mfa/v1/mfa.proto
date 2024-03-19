@@ -34,6 +34,13 @@ message ChallengeExtensions {
   // Note that reuse is only permitted for specific actions by the discretion
   // of the server. See the server implementation for details.
   ChallengeAllowReuse allow_reuse = 2;
+  // User verification requirement for the challenge.
+  //
+  // * https://www.w3.org/TR/webauthn-2/#enum-userVerificationRequirement.
+  // * https://pkg.go.dev/github.com/go-webauthn/webauthn/protocol#UserVerificationRequirement.
+  //
+  // Optional. Empty is equivalent to "discouraged".
+  string user_verification_requirement = 3;
 }
 
 // ChallengeScope is a scope authorized by an MFA challenge resolution.
@@ -59,6 +66,8 @@ enum ChallengeScope {
   // more precise scope. Instead, new scopes should be added. This scope may
   // also be split into multiple smaller scopes in the future.
   CHALLENGE_SCOPE_ADMIN_ACTION = 7;
+  // Used for changing user's password.
+  CHALLENGE_SCOPE_CHANGE_PASSWORD = 8;
 }
 
 // ChallengeAllowReuse determines whether an MFA challenge response can be used

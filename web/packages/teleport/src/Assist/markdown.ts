@@ -304,8 +304,14 @@ export const markdownCSS = css`
   kbd {
     display: inline-block;
     padding: 3px 5px;
-    font: 11px ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas,
-      Liberation Mono, monospace;
+    font:
+      11px ui-monospace,
+      SFMono-Regular,
+      SF Mono,
+      Menlo,
+      Consolas,
+      Liberation Mono,
+      monospace;
     line-height: 10px;
     color: var(--color-fg-default);
     vertical-align: middle;
@@ -394,16 +400,28 @@ export const markdownCSS = css`
   tt,
   code,
   samp {
-    font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas,
-      Liberation Mono, monospace;
+    font-family:
+      ui-monospace,
+      SFMono-Regular,
+      SF Mono,
+      Menlo,
+      Consolas,
+      Liberation Mono,
+      monospace;
     font-size: 12px;
   }
 
   pre {
     margin-top: 0;
     margin-bottom: 0;
-    font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas,
-      Liberation Mono, monospace;
+    font-family:
+      ui-monospace,
+      SFMono-Regular,
+      SF Mono,
+      Menlo,
+      Consolas,
+      Liberation Mono,
+      monospace;
     font-size: 12px;
     word-wrap: normal;
   }

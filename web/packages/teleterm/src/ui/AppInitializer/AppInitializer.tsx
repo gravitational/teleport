@@ -36,11 +36,8 @@ export const AppInitializer = () => {
   const initializeApp = useCallback(async () => {
     try {
       await appContext.pullInitialState();
-
       setShouldShowUi(true);
-
       await showStartupModalsAndNotifications(appContext);
-
       appContext.mainProcessClient.signalUserInterfaceReadiness({
         success: true,
       });

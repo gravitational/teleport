@@ -263,7 +263,7 @@ type WebSessionBenchmark struct {
 	servers []types.Server
 }
 
-func (s *WebSessionBenchmark) Config(ctx context.Context, tc *client.TeleportClient, cfg *Config) error {
+func (s *WebSessionBenchmark) ConfigOverride(ctx context.Context, tc *client.TeleportClient, cfg *Config) error {
 	servers, err := getServers(ctx, tc)
 	if err != nil {
 		return trace.Wrap(err)

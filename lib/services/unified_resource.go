@@ -392,7 +392,12 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 	case types.AppServer:
 		app := r.GetApp()
 		if app != nil {
-			name = app.GetName()
+			friendlyName := types.FriendlyName(app)
+			if friendlyName != "" {
+				name = friendlyName
+			} else {
+				name = app.GetName()
+			}
 			kind = types.KindApp
 		}
 	case types.SAMLIdPServiceProvider:

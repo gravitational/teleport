@@ -12,6 +12,7 @@
     "jsx": "react-jsx",
     "module": "esnext",
     "moduleResolution": "bundler",
+    "noEmit": true,
     "noEmitHelpers": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
@@ -32,9 +33,9 @@
       "e-teleport/*": ["e/web/teleport/src/*"],
       "e-teleterm/*": ["e/web/teleterm/src/*"],
       "gen-proto-js/*": ["gen/proto/js/*"],
+      "gen-proto-ts/*": ["gen/proto/ts/*"],
       "access-graph": ["e/web/teleport/src/AccessGraph/Loader.tsx"],
-    },
-    "outDir": "dist"
+    }
   },
   "include": [
     "e/web/**/*.ts",

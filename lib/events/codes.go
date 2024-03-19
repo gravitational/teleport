@@ -81,6 +81,14 @@ const (
 	UserHeadlessLoginApprovedFailureCode = "T1013W"
 	// UserHeadlessLoginRejectedCode is an event code for when headless login attempt was rejected.
 	UserHeadlessLoginRejectedCode = "T1014W"
+	// CreateMFAAuthChallenge is an event code for when an MFA auth challenge is created.
+	CreateMFAAuthChallengeCode = "T1015I"
+	// ValidateMFAAuthResponseCode is an event code for when an MFA auth challenge
+	// response is successfully validated.
+	ValidateMFAAuthResponseCode = "T1016I"
+	// VValidateMFAAuthResponseFailureCode is an event code for when an MFA auth challenge
+	// response fails validation.
+	ValidateMFAAuthResponseFailureCode = "T1016W"
 
 	// BillingCardCreateCode is an event code for when a user creates a new credit card.
 	BillingCardCreateCode = "TBL00I"
@@ -143,6 +151,8 @@ const (
 	DatabaseSessionQueryFailedCode = "TDB02W"
 	// DatabaseSessionMalformedPacketCode is the db.session.malformed_packet event code.
 	DatabaseSessionMalformedPacketCode = "TDB06I"
+	// DatabaseSessionPermissionUpdateCode is the db.session.permissions.update event code.
+	DatabaseSessionPermissionUpdateCode = "TDB07I"
 
 	// PostgresParseCode is the db.session.postgres.statements.parse event code.
 	PostgresParseCode = "TPG00I"
@@ -282,6 +292,8 @@ const (
 	// Note: some requests (like exec into a pod) use other codes (like
 	// ExecCode).
 	KubeRequestCode = "T3009I"
+	// SCPDisallowedCode is the SCP disallowed event code.
+	SCPDisallowedCode = "T3010E"
 
 	// KubernetesClusterCreateCode is the kube.create event code.
 	KubernetesClusterCreateCode = "T3010I"
@@ -329,6 +341,7 @@ const (
 	SFTPSymlinkFailureCode  = "TS018E"
 	SFTPLinkCode            = "TS019I"
 	SFTPLinkFailureCode     = "TS019E"
+	SFTPDisallowedCode      = "TS020E"
 
 	// SessionCommandCode is a session command code.
 	SessionCommandCode = "T4000I"
@@ -497,6 +510,12 @@ const (
 	// OktaAssignmentCleanupFailureCode is the Okta assignment cleanup failure code.
 	OktaAssignmentCleanupFailureCode = "TOK005E"
 
+	// OktaAccessListSyncSuccessCode is the Okta access list sync success code.
+	OktaAccessListSyncSuccessCode = "TOK006I"
+
+	// OktaAccessListSyncSuccessCode is the Okta access list sync failure code.
+	OktaAccessListSyncFailureCode = "TOK006E"
+
 	// AccessListCreateSuccessCode is the access list create success code.
 	AccessListCreateSuccessCode = "TAL001I"
 
@@ -555,6 +574,11 @@ const (
 	ExternalAuditStorageEnableCode = "TEA001I"
 	// ExternalAuditStorageDisableCode is the External Audit Storage disabled code.
 	ExternalAuditStorageDisableCode = "TEA002I"
+
+	// SPIFFESVIDIssuedSuccessCode is the SPIFFE SVID issued success code.
+	SPIFFESVIDIssuedSuccessCode = "TSPIFFE000I"
+	// SPIFFESVIDIssuedFailureCode is the SPIFFE SVID issued failure code.
+	SPIFFESVIDIssuedFailureCode = "TSPIFFE000E"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

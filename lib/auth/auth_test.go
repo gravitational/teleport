@@ -45,11 +45,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
@@ -365,8 +367,6 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, wantID, *gotID)
 
-	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
-	// generation.
 	kubeCluster, err := types.NewKubernetesClusterV3(
 		types.Metadata{
 			Name: "root-kube-cluster",
@@ -411,8 +411,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, wantID, *gotID)
 
-	// Login without specifying kube cluster. A registered one should be picked
-	// automatically.
+	// Login without specifying kube cluster. Kube cluster in the certificate should be empty.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username:  user,
@@ -430,16 +429,15 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
 	require.NoError(t, err)
 	wantID = tlsca.Identity{
-		Username:          user,
-		Groups:            []string{role.GetName()},
-		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
-		KubernetesUsers:   []string{user},
-		KubernetesGroups:  []string{"system:masters"},
-		KubernetesCluster: "root-kube-cluster",
-		Expires:           gotTLSCert.NotAfter,
-		RouteToCluster:    s.clusterName.GetClusterName(),
-		TeleportCluster:   s.clusterName.GetClusterName(),
-		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		Username:         user,
+		Groups:           []string{role.GetName()},
+		Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
+		KubernetesUsers:  []string{user},
+		KubernetesGroups: []string{"system:masters"},
+		Expires:          gotTLSCert.NotAfter,
+		RouteToCluster:   s.clusterName.GetClusterName(),
+		TeleportCluster:  s.clusterName.GetClusterName(),
+		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -476,8 +474,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, wantID, *gotID)
 
-	// Login without specifying kube cluster. A registered one should be picked
-	// automatically.
+	// Login without specifying kube cluster. Kube cluster in the certificate should be empty.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username:  user,
@@ -495,16 +492,15 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
 	require.NoError(t, err)
 	wantID = tlsca.Identity{
-		Username:          user,
-		Groups:            []string{role.GetName()},
-		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
-		KubernetesUsers:   []string{user},
-		KubernetesGroups:  []string{"system:masters"},
-		KubernetesCluster: "root-kube-cluster",
-		Expires:           gotTLSCert.NotAfter,
-		RouteToCluster:    s.clusterName.GetClusterName(),
-		TeleportCluster:   s.clusterName.GetClusterName(),
-		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		Username:         user,
+		Groups:           []string{role.GetName()},
+		Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
+		KubernetesUsers:  []string{user},
+		KubernetesGroups: []string{"system:masters"},
+		Expires:          gotTLSCert.NotAfter,
+		RouteToCluster:   s.clusterName.GetClusterName(),
+		TeleportCluster:  s.clusterName.GetClusterName(),
+		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -629,7 +625,12 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 
 	t.Run("locked device password change", func(t *testing.T) {
 		chal, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{},
+			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+				ContextUser: &proto.ContextUser{},
+			},
+			ChallengeExtensions: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD,
+			},
 		})
 		require.NoError(t, err, "CreateAuthenticateChallenge")
 
@@ -736,7 +737,7 @@ func generateTestToken(
 	auth tokenCreatorAndDeleter,
 ) string {
 	t.Helper()
-	token, err := utils.CryptoRandomHex(TokenLenBytes)
+	token, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 	require.NoError(t, err)
 
 	pt, err := types.NewProvisionToken(token, roles, expires)
@@ -1940,9 +1941,18 @@ func parseX509PEMAndIdentity(t *testing.T, rawPEM []byte) (*x509.Certificate, *t
 	return cert, identity
 }
 
+func contextWithGRPCClientUserAgent(ctx context.Context, userAgent string) context.Context {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		md = make(metadata.MD)
+	}
+	md["user-agent"] = append(md["user-agent"], userAgent)
+	return metadata.NewIncomingContext(ctx, md)
+}
+
 func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := contextWithGRPCClientUserAgent(context.Background(), "test-user-agent/1.0")
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
@@ -1973,7 +1983,7 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 		checker:   accessChecker,
 		publicKey: pub,
 	}
-	certs, err := p.a.generateUserCert(certReq)
+	certs, err := p.a.generateUserCert(ctx, certReq)
 	require.NoError(t, err)
 
 	key, err := sshutils.ParseCertificate(certs.SSH)
@@ -1982,6 +1992,31 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	val, ok := key.Extensions[extension.Name]
 	require.True(t, ok)
 	require.Equal(t, extension.Value, val)
+
+	// Validate audit event.
+	lastEvent := p.mockEmitter.LastEvent()
+	require.IsType(t, &apievents.CertificateCreate{}, lastEvent)
+	require.Empty(t, cmp.Diff(
+		&apievents.CertificateCreate{
+			Metadata: apievents.Metadata{
+				Type: events.CertificateCreateEvent,
+				Code: events.CertificateCreateCode,
+			},
+			Identity: &apievents.Identity{
+				User:             "test-user",
+				Roles:            []string{"user:test-user"},
+				RouteToCluster:   "test.localhost",
+				TeleportCluster:  "test.localhost",
+				PrivateKeyPolicy: "none",
+			},
+			CertificateType: events.CertificateTypeUser,
+			ClientMetadata: apievents.ClientMetadata{
+				UserAgent: "test-user-agent/1.0",
+			},
+		},
+		lastEvent.(*apievents.CertificateCreate),
+		cmpopts.IgnoreFields(apievents.Identity{}, "Logins", "Expires"),
+	))
 }
 
 func TestGenerateOpenSSHCert(t *testing.T) {
@@ -2068,7 +2103,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 			CredentialID: "credentialid1",
 		},
 	}
-	_, err = p.a.generateUserCert(certReq)
+	_, err = p.a.generateUserCert(ctx, certReq)
 	require.NoError(t, err)
 
 	testTargets := append(
@@ -2098,7 +2133,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 			case <-time.After(2 * time.Second):
 				t.Fatal("Timeout waiting for lock update.")
 			}
-			_, err = p.a.generateUserCert(certReq)
+			_, err = p.a.generateUserCert(ctx, certReq)
 			require.Error(t, err)
 			require.EqualError(t, err, services.LockInForceAccessDenied(lock).Error())
 		})
@@ -2169,7 +2204,7 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 		publicKey: pub,
 		traits:    accessChecker.Traits(),
 	}
-	resp, err := p.a.generateUserCert(certReq)
+	resp, err := p.a.generateUserCert(ctx, certReq)
 	require.NoError(t, err)
 
 	sshCert, err := sshutils.ParseCertificate(resp.SSH)
@@ -2227,7 +2262,7 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 		traits:    accessChecker.Traits(),
 	}
 
-	resp, err = p.a.generateUserCert(certReq)
+	resp, err = p.a.generateUserCert(ctx, certReq)
 	require.NoError(t, err)
 
 	sshCert, err = sshutils.ParseCertificate(resp.SSH)
@@ -2244,6 +2279,179 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 		"uls-trait1": {"value1", "value2"},
 		"uls-trait2": {"value3", "value4"},
 	}, map[string][]string(traits))
+}
+
+func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+
+	user, _, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
+	require.NoError(t, err)
+	user.SetTraits(map[string][]string{
+		// add in other random serial numbers to test comparison logic.
+		"hardware_key_serial_numbers": {"other1", "other2,12345678,other3"},
+		// custom trait name
+		"known_yubikeys": {"13572468"},
+	})
+	_, err = p.a.UpdateUser(ctx, user)
+	require.NoError(t, err)
+
+	accessInfo := services.AccessInfoFromUserState(user)
+	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
+	require.NoError(t, err)
+
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	key, err := keys.NewPrivateKey(priv, nil)
+	require.NoError(t, err)
+
+	require.NoError(t, err)
+	certReq := certRequest{
+		user:      user,
+		checker:   accessChecker,
+		publicKey: key.MarshalSSHPublicKey(),
+	}
+
+	for _, tt := range []struct {
+		name                string
+		cap                 types.AuthPreferenceSpecV2
+		mockAttestationData *keys.AttestationData
+		assertErr           require.ErrorAssertionFunc
+	}{
+		{
+			name: "private key policy satified",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+			},
+			assertErr: require.NoError,
+		}, {
+			name: "no attestation data",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+			},
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, "expected private key policy error but got %v", err)
+				require.True(t, keys.IsPrivateKeyPolicyError(err), "expected private key policy error but got %v", err)
+			},
+		}, {
+			name: "private key policy not satisfied",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
+				SerialNumber:     12345678,
+			},
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, "expected private key policy error but got %v", err)
+				require.True(t, keys.IsPrivateKeyPolicyError(err), "expected private key policy error but got %v", err)
+			},
+		}, {
+			name: "known hardware key",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+				HardwareKey: &types.HardwareKey{
+					SerialNumberValidation: &types.HardwareKeySerialNumberValidation{
+						Enabled: true,
+					},
+				},
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				SerialNumber:     12345678,
+			},
+			assertErr: require.NoError,
+		}, {
+			name: "partial serial number is unknown",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+				HardwareKey: &types.HardwareKey{
+					SerialNumberValidation: &types.HardwareKeySerialNumberValidation{
+						Enabled: true,
+					},
+				},
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				SerialNumber:     1234,
+			},
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got %v", err)
+				require.ErrorContains(t, err, "unknown hardware key")
+			},
+		}, {
+			name: "known hardware key custom trait name",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+				HardwareKey: &types.HardwareKey{
+					SerialNumberValidation: &types.HardwareKeySerialNumberValidation{
+						Enabled:               true,
+						SerialNumberTraitName: "known_yubikeys",
+					},
+				},
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				SerialNumber:     13572468,
+			},
+			assertErr: require.NoError,
+		}, {
+			name: "unknown hardware key",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+				HardwareKey: &types.HardwareKey{
+					SerialNumberValidation: &types.HardwareKeySerialNumberValidation{
+						Enabled: true,
+					},
+				},
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				SerialNumber:     87654321,
+			},
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got %v", err)
+				require.ErrorContains(t, err, "unknown hardware key")
+			},
+		}, {
+			name: "no known hardware keys",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+				HardwareKey: &types.HardwareKey{
+					SerialNumberValidation: &types.HardwareKeySerialNumberValidation{
+						Enabled:               true,
+						SerialNumberTraitName: "none",
+					},
+				},
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				SerialNumber:     12345678,
+			},
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got %v", err)
+				require.ErrorContains(t, err, "no known hardware keys")
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			modules.SetTestModules(t, &modules.TestModules{
+				MockAttestationData: tt.mockAttestationData,
+			})
+
+			authPref, err := types.NewAuthPreference(tt.cap)
+			require.NoError(t, err)
+			err = p.a.SetAuthPreference(ctx, authPref)
+			require.NoError(t, err)
+
+			_, err = p.a.generateUserCert(ctx, certReq)
+			tt.assertErr(t, err)
+		})
+	}
 }
 
 func TestNewWebSession(t *testing.T) {
@@ -2271,7 +2479,7 @@ func TestNewWebSession(t *testing.T) {
 		LoginTime:  p.a.clock.Now().UTC(),
 		SessionTTL: apidefaults.CertDuration,
 	}
-	bearerTokenTTL := min(req.SessionTTL, BearerTokenTTL)
+	bearerTokenTTL := min(req.SessionTTL, defaults.BearerTokenTTL)
 
 	ws, err := p.a.NewWebSession(ctx, req)
 	require.NoError(t, err)

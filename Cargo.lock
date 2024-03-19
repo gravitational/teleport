@@ -170,7 +170,7 @@ version = "0.68.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "726e4313eb6ec35d2730258ad4e15b547ee75d6afaa1361a922e78e59b7d8078"
 dependencies = [
- "bitflags 2.4.1",
+ "bitflags 2.4.2",
  "cexpr",
  "clang-sys",
  "lazy_static",
@@ -198,9 +198,9 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bitflags"
-version = "2.4.1"
+version = "2.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "327762f6e5a765692301e5bb513e0d9fef63be86bbc14528052b1cd3e6f03e07"
+checksum = "ed570934406eb16438a4e976b1b4500774099c13b8cb96eec99f620f05090ddf"
 
 [[package]]
 name = "bitvec"
@@ -234,11 +234,10 @@ dependencies = [
 
 [[package]]
 name = "boring"
-version = "4.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92667e5967bf826198f88dd3e43616973f8902769a6151616a65be1289a3c531"
+version = "4.4.0"
+source = "git+https://github.com/gravitational/boring?rev=605253d99d5e363e178bcf97e1d4622e33844cd5#605253d99d5e363e178bcf97e1d4622e33844cd5"
 dependencies = [
- "bitflags 2.4.1",
+ "bitflags 2.4.2",
  "boring-sys",
  "foreign-types",
  "libc",
@@ -247,9 +246,8 @@ dependencies = [
 
 [[package]]
 name = "boring-sys"
-version = "4.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f04f5e0e2dc8315f68251391a4ac6da54793525c01d0206b10732b71139768cd"
+version = "4.4.0"
+source = "git+https://github.com/gravitational/boring?rev=605253d99d5e363e178bcf97e1d4622e33844cd5#605253d99d5e363e178bcf97e1d4622e33844cd5"
 dependencies = [
  "bindgen",
  "cmake",
@@ -882,9 +880,9 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.2.11"
+version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe9006bed769170c11f845cf00c7c1e9092aeb3f268e007c3e760ac68008070f"
+checksum = "190092ea657667030ac6a35e305e62fc4dd69fd98ac98631e5d3a2b1575a12b5"
 dependencies = [
  "cfg-if",
  "js-sys",
@@ -1163,7 +1161,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-async"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=d24000a2aeab74f2610a0b01c629f7a4ef3c77ef#d24000a2aeab74f2610a0b01c629f7a4ef3c77ef"
+source = "git+https://github.com/Devolutions/IronRDP?rev=c944674ecbb0952f9e7ecb964a6c79cdca669a08#c944674ecbb0952f9e7ecb964a6c79cdca669a08"
 dependencies = [
  "bytes",
  "ironrdp-connector",
@@ -1174,9 +1172,9 @@ dependencies = [
 [[package]]
 name = "ironrdp-cliprdr"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=d24000a2aeab74f2610a0b01c629f7a4ef3c77ef#d24000a2aeab74f2610a0b01c629f7a4ef3c77ef"
+source = "git+https://github.com/Devolutions/IronRDP?rev=c944674ecbb0952f9e7ecb964a6c79cdca669a08#c944674ecbb0952f9e7ecb964a6c79cdca669a08"
 dependencies = [
- "bitflags 2.4.1",
+ "bitflags 2.4.2",
  "ironrdp-pdu",
  "ironrdp-svc",
  "thiserror",
@@ -1186,7 +1184,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-connector"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=d24000a2aeab74f2610a0b01c629f7a4ef3c77ef#d24000a2aeab74f2610a0b01c629f7a4ef3c77ef"
+source = "git+https://github.com/Devolutions/IronRDP?rev=c944674ecbb0952f9e7ecb964a6c79cdca669a08#c944674ecbb0952f9e7ecb964a6c79cdca669a08"
 dependencies = [
  "ironrdp-error",
  "ironrdp-pdu",
@@ -1201,15 +1199,15 @@ dependencies = [
 [[package]]
 name = "ironrdp-error"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=d24000a2aeab74f2610a0b01c629f7a4ef3c77ef#d24000a2aeab74f2610a0b01c629f7a4ef3c77ef"
+source = "git+https://github.com/Devolutions/IronRDP?rev=c944674ecbb0952f9e7ecb964a6c79cdca669a08#c944674ecbb0952f9e7ecb964a6c79cdca669a08"
 
 [[package]]
 name = "ironrdp-graphics"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=d24000a2aeab74f2610a0b01c629f7a4ef3c77ef#d24000a2aeab74f2610a0b01c629f7a4ef3c77ef"
+source = "git+https://github.com/Devolutions/IronRDP?rev=c944674ecbb0952f9e7ecb964a6c79cdca669a08#c944674ecbb0952f9e7ecb964a6c79cdca669a08"
 dependencies = [
  "bit_field",
- "bitflags 2.4.1",
+ "bitflags 2.4.2",
  "bitvec",
  "byteorder",
  "ironrdp-error",
@@ -1223,10 +1221,10 @@ dependencies = [
 [[package]]
 name = "ironrdp-pdu"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=d24000a2aeab74f2610a0b01c629f7a4ef3c77ef#d24000a2aeab74f2610a0b01c629f7a4ef3c77ef"
+source = "git+https://github.com/Devolutions/IronRDP?rev=c944674ecbb0952f9e7ecb964a6c79cdca669a08#c944674ecbb0952f9e7ecb964a6c79cdca669a08"
 dependencies = [
  "bit_field",
- "bitflags 2.4.1",
+ "bitflags 2.4.2",
  "byteorder",
  "der-parser",
  "ironrdp-error",
@@ -1245,9 +1243,9 @@ dependencies = [
 [[package]]
 name = "ironrdp-rdpdr"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=d24000a2aeab74f2610a0b01c629f7a4ef3c77ef#d24000a2aeab74f2610a0b01c629f7a4ef3c77ef"
+source = "git+https://github.com/Devolutions/IronRDP?rev=c944674ecbb0952f9e7ecb964a6c79cdca669a08#c944674ecbb0952f9e7ecb964a6c79cdca669a08"
 dependencies = [
- "bitflags 2.4.1",
+ "bitflags 2.4.2",
  "ironrdp-error",
  "ironrdp-pdu",
  "ironrdp-svc",
@@ -1257,7 +1255,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-rdpsnd"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=d24000a2aeab74f2610a0b01c629f7a4ef3c77ef#d24000a2aeab74f2610a0b01c629f7a4ef3c77ef"
+source = "git+https://github.com/Devolutions/IronRDP?rev=c944674ecbb0952f9e7ecb964a6c79cdca669a08#c944674ecbb0952f9e7ecb964a6c79cdca669a08"
 dependencies = [
  "ironrdp-pdu",
  "ironrdp-svc",
@@ -1266,9 +1264,9 @@ dependencies = [
 [[package]]
 name = "ironrdp-session"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=d24000a2aeab74f2610a0b01c629f7a4ef3c77ef#d24000a2aeab74f2610a0b01c629f7a4ef3c77ef"
+source = "git+https://github.com/Devolutions/IronRDP?rev=c944674ecbb0952f9e7ecb964a6c79cdca669a08#c944674ecbb0952f9e7ecb964a6c79cdca669a08"
 dependencies = [
- "bitflags 2.4.1",
+ "bitflags 2.4.2",
  "ironrdp-connector",
  "ironrdp-error",
  "ironrdp-graphics",
@@ -1280,16 +1278,16 @@ dependencies = [
 [[package]]
 name = "ironrdp-svc"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=d24000a2aeab74f2610a0b01c629f7a4ef3c77ef#d24000a2aeab74f2610a0b01c629f7a4ef3c77ef"
+source = "git+https://github.com/Devolutions/IronRDP?rev=c944674ecbb0952f9e7ecb964a6c79cdca669a08#c944674ecbb0952f9e7ecb964a6c79cdca669a08"
 dependencies = [
- "bitflags 2.4.1",
+ "bitflags 2.4.2",
  "ironrdp-pdu",
 ]
 
 [[package]]
 name = "ironrdp-tls"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=d24000a2aeab74f2610a0b01c629f7a4ef3c77ef#d24000a2aeab74f2610a0b01c629f7a4ef3c77ef"
+source = "git+https://github.com/Devolutions/IronRDP?rev=c944674ecbb0952f9e7ecb964a6c79cdca669a08#c944674ecbb0952f9e7ecb964a6c79cdca669a08"
 dependencies = [
  "tokio",
  "tokio-rustls",
@@ -1299,7 +1297,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-tokio"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=d24000a2aeab74f2610a0b01c629f7a4ef3c77ef#d24000a2aeab74f2610a0b01c629f7a4ef3c77ef"
+source = "git+https://github.com/Devolutions/IronRDP?rev=c944674ecbb0952f9e7ecb964a6c79cdca669a08#c944674ecbb0952f9e7ecb964a6c79cdca669a08"
 dependencies = [
  "bytes",
  "ironrdp-async",
@@ -1344,9 +1342,9 @@ checksum = "af150ab688ff2122fcef229be89cb50dd66af9e01a4ff320cc137eecc9bacc38"
 
 [[package]]
 name = "js-sys"
-version = "0.3.66"
+version = "0.3.67"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cee9c64da59eae3b50095c18d3e74f8b73c0b86d2792824ff01bbce68ba229ca"
+checksum = "9a1d36f1235bc969acba30b7f5990b864423a6068a10f7c90ae8f0112e3a59d1"
 dependencies = [
  "wasm-bindgen",
 ]
@@ -1467,9 +1465,9 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "0.8.9"
+version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3dce281c5e46beae905d4de1870d8b1509a9142b62eedf18b443b011ca8343d0"
+checksum = "a4a650543ca06a924e8b371db273b2756685faae30f8487da1b56505a8f78b0c"
 dependencies = [
  "libc",
  "wasi",
@@ -1524,6 +1522,12 @@ dependencies = [
  "smallvec",
  "zeroize",
 ]
+
+[[package]]
+name = "num-conv"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51d515d32fb182ee37cda2ccdcb92950d6a3c2893aa280e540671c2cd0f3b1d9"
 
 [[package]]
 name = "num-derive"
@@ -1949,7 +1953,7 @@ dependencies = [
 name = "rdp-client"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.1",
+ "bitflags 2.4.2",
  "boring",
  "byteorder",
  "bytes",
@@ -2148,7 +2152,7 @@ version = "0.38.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9470c4bf8246c8daf25f9598dca807fb6510347b1e1cfa55749113850c79d88a"
 dependencies = [
- "bitflags 2.4.1",
+ "bitflags 2.4.2",
  "errno",
  "libc",
  "linux-raw-sys",
@@ -2367,9 +2371,9 @@ dependencies = [
 
 [[package]]
 name = "shlex"
-version = "1.2.0"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7cee0529a6d40f580e7a5e6c495c8fbfe21b7b52795ed4bb5e62cdf92bc6380"
+checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "signal-hook-registry"
@@ -2457,7 +2461,7 @@ source = "git+https://github.com/Devolutions/sspi-rs?rev=d54bdfcafa0e10d9d78224e
 dependencies = [
  "async-dnssd",
  "async-recursion",
- "bitflags 2.4.1",
+ "bitflags 2.4.2",
  "byteorder",
  "cfg-if",
  "crypto-mac",
@@ -2502,7 +2506,7 @@ checksum = "bf9e7d03e3a0314c94b37625112eeaba08068b0ffbb181deefd4c7deae5ba046"
 dependencies = [
  "async-dnssd",
  "async-recursion",
- "bitflags 2.4.1",
+ "bitflags 2.4.2",
  "byteorder",
  "cfg-if",
  "crypto-mac",
@@ -2704,13 +2708,14 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.31"
+version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f657ba42c3f86e7680e53c8cd3af8abbe56b5491790b46e22e19c0d57463583e"
+checksum = "c8248b6521bb14bc45b4067159b9b6ad792e2d6d754d6c41fb50e29fefe38749"
 dependencies = [
  "deranged",
  "itoa",
  "js-sys",
+ "num-conv",
  "powerfmt",
  "serde",
  "time-core",
@@ -2725,10 +2730,11 @@ checksum = "ef927ca75afb808a4d64dd374f00a2adf8d0fcff8e7b184af886c3c87ec4a3f3"
 
 [[package]]
 name = "time-macros"
-version = "0.2.16"
+version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26197e33420244aeb70c3e8c78376ca46571bc4e701e4791c2cd9f57dcb3a43f"
+checksum = "7ba3a3ef41e6672a2f0f001392bb5dcd3ff0a9992d618ca761a11c3121547774"
 dependencies = [
+ "num-conv",
  "time-core",
 ]
 
@@ -2749,9 +2755,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.35.1"
+version = "1.36.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c89b4efa943be685f629b149f53829423f8f5531ea21249408e8e2f8671ec104"
+checksum = "61285f6515fa018fb2d1e46eb21223fff441ee8db5d0f1435e8ab4f5cdb80931"
 dependencies = [
  "backtrace",
  "bytes",
@@ -2768,9 +2774,8 @@ dependencies = [
 
 [[package]]
 name = "tokio-boring"
-version = "4.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db2ca4142b3d45b579a45fc171a04d2f8dde1f5ff76290fd395286bcc5f82f4b"
+version = "4.4.0"
+source = "git+https://github.com/gravitational/boring?rev=605253d99d5e363e178bcf97e1d4622e33844cd5#605253d99d5e363e178bcf97e1d4622e33844cd5"
 dependencies = [
  "boring",
  "boring-sys",
@@ -3004,9 +3009,9 @@ checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.89"
+version = "0.2.91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ed0d4f68a3015cc185aff4db9506a015f4b96f95303897bfa23f846db54064e"
+checksum = "c1e124130aee3fb58c5bdd6b639a0509486b0338acaaae0c84a5124b0f588b7f"
 dependencies = [
  "cfg-if",
  "wasm-bindgen-macro",
@@ -3014,9 +3019,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-backend"
-version = "0.2.89"
+version = "0.2.91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b56f625e64f3a1084ded111c4d5f477df9f8c92df113852fa5a374dbda78826"
+checksum = "c9e7e1900c352b609c8488ad12639a311045f40a35491fb69ba8c12f758af70b"
 dependencies = [
  "bumpalo",
  "log",
@@ -3041,9 +3046,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.89"
+version = "0.2.91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0162dbf37223cd2afce98f3d0785506dcb8d266223983e4b5b525859e6e182b2"
+checksum = "b30af9e2d358182b5c7449424f017eba305ed32a7010509ede96cdc4696c46ed"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -3051,9 +3056,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.89"
+version = "0.2.91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0eb82fcb7930ae6219a7ecfd55b217f5f0893484b7a13022ebb2b2bf20b5283"
+checksum = "642f325be6301eb8107a83d12a8ac6c1e1c54345a7ef1a9261962dfefda09e66"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3064,15 +3069,15 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.89"
+version = "0.2.91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ab9b36309365056cd639da3134bf87fa8f3d86008abf99e612384a6eecd459f"
+checksum = "4f186bd2dcf04330886ce82d6f33dd75a7bfcf69ecf5763b89fcde53b6ac9838"
 
 [[package]]
 name = "web-sys"
-version = "0.3.66"
+version = "0.3.67"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50c24a44ec86bb68fbecd1b3efed7e85ea5621b39b35ef2766b66cd984f8010f"
+checksum = "58cd2333b6e0be7a39605f0e255892fd7418a682d8da8fe042fe25128794d2ed"
 dependencies = [
  "js-sys",
  "wasm-bindgen",

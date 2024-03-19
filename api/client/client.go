@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/scim"
 	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/client/userloginstate"
 	"github.com/gravitational/teleport/api/constants"
@@ -55,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
@@ -479,7 +481,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 			otelUnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 			interceptors.GRPCClientUnaryErrorInterceptor,
-			interceptors.WithMFAUnaryInterceptor(c.performMFACeremony),
+			interceptors.WithMFAUnaryInterceptor(c.PerformMFACeremony),
 			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
@@ -839,6 +841,12 @@ func (c *Client) EmbeddingClient() assist.AssistEmbeddingServiceClient {
 // BotServiceClient returns an unadorned client for the bot service.
 func (c *Client) BotServiceClient() machineidv1pb.BotServiceClient {
 	return machineidv1pb.NewBotServiceClient(c.conn)
+}
+
+// WorkloadIdentityServiceClient returns an unadorned client for the workload
+// identity service.
+func (c *Client) WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient {
+	return machineidv1pb.NewWorkloadIdentityServiceClient(c.conn)
 }
 
 // Ping gets basic info about the auth server.
@@ -1712,6 +1720,35 @@ func (c *Client) GetRole(ctx context.Context, name string) (types.Role, error) {
 
 // GetRoles returns a list of roles
 func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
+	var roles []types.Role
+	var req proto.ListRolesRequest
+	for {
+		rsp, err := c.ListRoles(ctx, &req)
+		if err != nil {
+			if trace.IsNotImplemented(err) {
+				// fallback to calling the old non-paginated role API.
+				roles, err = c.getRoles(ctx)
+				return roles, trace.Wrap(err)
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		for _, r := range rsp.Roles {
+			roles = append(roles, r)
+		}
+		req.StartKey = rsp.NextKey
+		if req.StartKey == "" {
+			break
+		}
+	}
+
+	return roles, nil
+}
+
+// getRoles calls the old non-paginated GetRoles method.
+//
+// DELETE IN 17.0
+func (c *Client) getRoles(ctx context.Context) ([]types.Role, error) {
 	resp, err := c.grpc.GetRoles(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1721,6 +1758,16 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 		roles = append(roles, role)
 	}
 	return roles, nil
+}
+
+// ListRoles is a paginated role getter.
+func (c *Client) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	rsp, err := c.grpc.ListRoles(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rsp, nil
 }
 
 // CreateRole creates a new role.
@@ -2511,7 +2558,17 @@ func (c *Client) StreamUnstructuredSessionEvents(ctx context.Context, sessionID 
 
 	stream, err := c.grpc.StreamUnstructuredSessionEvents(ctx, request)
 	if err != nil {
-		e <- trace.Wrap(trace.Wrap(err))
+		if trace.IsNotImplemented(trace.Wrap(err)) {
+			// If the server does not support the unstructured events API,
+			// fallback to the legacy API.
+			// This code patch shouldn't be triggered because the server
+			// returns the error only if the client calls Recv() on the stream.
+			// However, we keep this code patch here just in case there is a bug
+			// on the client grpc side.
+			c.streamUnstructuredSessionEventsFallback(ctx, sessionID, startIndex, ch, e)
+		} else {
+			e <- trace.Wrap(trace.Wrap(err))
+		}
 		return ch, e
 	}
 	go func() {
@@ -2519,6 +2576,20 @@ func (c *Client) StreamUnstructuredSessionEvents(ctx context.Context, sessionID 
 			event, err := stream.Recv()
 			if err != nil {
 				if err != io.EOF {
+					// If the server does not support the unstructured events API, it will
+					// return an error with code Unimplemented. This error is received
+					// the first time the client calls Recv() on the stream.
+					// If the client receives this error, it should fallback to the legacy
+					// API that spins another goroutine to convert the events to the
+					// unstructured format and sends them to the channel ch.
+					// Once we decide to spin the goroutine, we can leave this loop without
+					// reporting any error to the caller.
+					if trace.IsNotImplemented(trace.Wrap(err)) {
+						// If the server does not support the unstructured events API,
+						// fallback to the legacy API.
+						go c.streamUnstructuredSessionEventsFallback(ctx, sessionID, startIndex, ch, e)
+						return
+					}
 					e <- trace.Wrap(trace.Wrap(err))
 				} else {
 					close(ch)
@@ -2536,6 +2607,64 @@ func (c *Client) StreamUnstructuredSessionEvents(ctx context.Context, sessionID 
 	}()
 
 	return ch, e
+}
+
+// streamUnstructuredSessionEventsFallback is a fallback implementation of the
+// StreamUnstructuredSessionEvents method that is used when the server does not
+// support the unstructured events API. This method uses the old API to stream
+// events from the server and converts them to the unstructured format. This
+// method converts the events at event handler plugin side, which can cause
+// the plugin to miss some events if the plugin is not updated to the latest
+// version.
+// NOTE(tigrato): This code was reintroduced in 15.0.0 because the gRPC method was renamed
+// incorrectly in 13.1-14.3 which caused the server to return Unimplemented
+// error to the client and the client to fallback to the legacy API.
+// TODO(tigrato): DELETE IN 16.0.0
+func (c *Client) streamUnstructuredSessionEventsFallback(ctx context.Context, sessionID string, startIndex int64, ch chan *auditlogpb.EventUnstructured, e chan error) {
+	request := &proto.StreamSessionEventsRequest{
+		SessionID:  sessionID,
+		StartIndex: int32(startIndex),
+	}
+
+	stream, err := c.grpc.StreamSessionEvents(ctx, request)
+	if err != nil {
+		e <- trace.Wrap(err)
+		return
+	}
+
+	go func() {
+		for {
+			oneOf, err := stream.Recv()
+			if err != nil {
+				if err != io.EOF {
+					e <- trace.Wrap(trace.Wrap(err))
+				} else {
+					close(ch)
+				}
+
+				return
+			}
+
+			event, err := events.FromOneOf(*oneOf)
+			if err != nil {
+				e <- trace.Wrap(trace.Wrap(err))
+				return
+			}
+
+			unstructedEvent, err := events.ToUnstructured(event)
+			if err != nil {
+				e <- trace.Wrap(err)
+				return
+			}
+
+			select {
+			case ch <- unstructedEvent:
+			case <-ctx.Done():
+				e <- trace.Wrap(ctx.Err())
+				return
+			}
+		}
+	}()
 }
 
 // SearchSessionEvents allows searching for session events with a full pagination support.
@@ -2621,6 +2750,11 @@ func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// An old server would send PIVSlot instead of HardwareKey.PIVSlot
+	// TODO(Joerger): DELETE IN 17.0.0
+	pref.CheckSetPIVSlot()
+
 	return pref, nil
 }
 
@@ -2630,6 +2764,11 @@ func (c *Client) SetAuthPreference(ctx context.Context, authPref types.AuthPrefe
 	if !ok {
 		return trace.BadParameter("invalid type %T", authPref)
 	}
+
+	// An old server would expect PIVSlot instead of HardwareKey.PIVSlot
+	// TODO(Joerger): DELETE IN 17.0.0
+	authPrefV2.CheckSetPIVSlot()
+
 	_, err := c.grpc.SetAuthPreference(ctx, authPrefV2)
 	return trace.Wrap(err)
 }
@@ -3047,6 +3186,27 @@ func (c *Client) DeleteDatabaseService(ctx context.Context, name string) error {
 func (c *Client) DeleteAllDatabaseServices(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllDatabaseServices(ctx, &proto.DeleteAllDatabaseServicesRequest{})
 	return trace.Wrap(err)
+}
+
+// GetDatabaseObjectImportRules retrieves all database object import rules.
+func (c *Client) GetDatabaseObjectImportRules(ctx context.Context) ([]*dbobjectimportrulev1.DatabaseObjectImportRule, error) {
+	var out []*dbobjectimportrulev1.DatabaseObjectImportRule
+	req := &dbobjectimportrulev1.ListDatabaseObjectImportRulesRequest{}
+	client := c.DatabaseObjectImportRuleClient()
+	for {
+		resp, err := client.ListDatabaseObjectImportRules(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, resp.Rules...)
+
+		if resp.NextPageToken == "" {
+			break
+		}
+		req.PageToken = resp.NextPageToken
+	}
+
+	return out, nil
 }
 
 // GetWindowsDesktopServices returns all registered windows desktop services.
@@ -4180,9 +4340,9 @@ func (c *Client) DeleteAllIntegrations(ctx context.Context) error {
 }
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (c *Client) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
+func (c *Client) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	resp, err := c.integrationsClient().GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
-		Issuer: req.Issuer,
+		Integration: integration,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -4242,12 +4402,21 @@ func (c *Client) OktaClient() *okta.Client {
 	return okta.NewClient(oktapb.NewOktaServiceClient(c.conn))
 }
 
+func (c *Client) SCIMClient() *scim.Client {
+	return scim.NewClientFromConn(c.conn)
+}
+
 // AccessListClient returns an access list client.
 // Clients connecting to  older Teleport versions, still get an access list client
 // when calling this method, but all RPCs will return "not implemented" errors
 // (as per the default gRPC behavior).
 func (c *Client) AccessListClient() *accesslist.Client {
 	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(c.conn))
+}
+
+// DatabaseObjectImportRuleClient returns a client for managing database object import rules.
+func (c *Client) DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient {
+	return dbobjectimportrulev1.NewDatabaseObjectImportRuleServiceClient(c.conn)
 }
 
 // DiscoveryConfigClient returns a DiscoveryConfig client.

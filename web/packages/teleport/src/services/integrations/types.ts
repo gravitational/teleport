@@ -37,7 +37,7 @@ import { Node } from '../nodes';
 export type Integration<
   T extends string = 'integration',
   K extends string = IntegrationKind,
-  S extends Record<string, any> = IntegrationSpecAwsOidc
+  S extends Record<string, any> = IntegrationSpecAwsOidc,
 > = {
   resourceType: T;
   kind: K;
@@ -55,6 +55,8 @@ export enum IntegrationKind {
 }
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
+  issuerS3Prefix: string;
+  issuerS3Bucket: string;
 };
 
 export enum IntegrationStatusCode {
@@ -115,8 +117,8 @@ export type ExternalAuditStorageIntegration = Integration<
   ExternalAuditStorage
 >;
 
-export type Plugin = Integration<'plugin', PluginKind, PluginSpec>;
-export type PluginSpec = Record<string, never>; // currently no 'spec' fields exposed to the frontend
+export type Plugin<T = any> = Integration<'plugin', PluginKind, T>;
+export type PluginSpec = PluginOktaSpec | any; // currently only okta has a plugin spec
 // PluginKind represents the type of the plugin
 // and should be the same value as defined in the backend (check master branch for the latest):
 // https://github.com/gravitational/teleport/blob/a410acef01e0023d41c18ca6b0a7b384d738bb32/api/types/plugin.go#L27
@@ -133,6 +135,25 @@ export type PluginKind =
   | 'okta'
   | 'servicenow'
   | 'jamf';
+
+export type PluginOktaSpec = {
+  // scimBearerToken is the plain text of the bearer token that Okta will use
+  // to authenticate SCIM requests
+  scimBearerToken: string;
+  // oktaAppID is the Okta ID of the SAML App created during the Okta plugin
+  // installation
+  oktaAppId: string;
+  // oktaAppName is the human readable name of the Okta SAML app created
+  // during the Okta plugin installation
+  oktaAppName: string;
+  // teleportSSOConnector is the name of the Teleport SAML SSO connector
+  // created by the plugin during installation
+  teleportSsoConnector: string;
+  // error contains a description of any failures during plugin installation
+  // that were deemed not serious enough to fail the plugin installation, but
+  // may effect the operation of advanced features like User Sync or SCIM.
+  error: string;
+};
 
 export type IntegrationCreateRequest = {
   name: string;
@@ -251,6 +272,8 @@ export type ListAwsRdsDatabaseResponse = {
 export type IntegrationUpdateRequest = {
   awsoidc: {
     roleArn: string;
+    issuerS3Bucket: string;
+    issuerS3Prefix: string;
   };
 };
 
@@ -317,8 +340,6 @@ export type AwsEksCluster = {
 export type EnrollEksClustersRequest = {
   region: string;
   enableAppDiscovery: boolean;
-  joinToken: string;
-  resourceId: string;
   clusterNames: string[];
 };
 

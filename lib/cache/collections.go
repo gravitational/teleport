@@ -1227,6 +1227,7 @@ func (roleExecutor) getReader(cache *Cache, cacheOK bool) roleGetter {
 type roleGetter interface {
 	GetRoles(ctx context.Context) ([]types.Role, error)
 	GetRole(ctx context.Context, name string) (types.Role, error)
+	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
 }
 
 var _ executor[types.Role, roleGetter] = roleExecutor{}
@@ -1466,6 +1467,7 @@ func (appSessionExecutor) getReader(cache *Cache, cacheOK bool) appSessionGetter
 
 type appSessionGetter interface {
 	GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error)
+	ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
 }
 
 var _ executor[types.WebSession, appSessionGetter] = appSessionExecutor{}
@@ -2709,6 +2711,7 @@ func (accessListMemberExecutor) getReader(cache *Cache, cacheOK bool) accessList
 }
 
 type accessListMembersGetter interface {
+	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error)
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 }

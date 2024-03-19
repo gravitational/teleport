@@ -183,6 +183,7 @@ function PrintState(props: {
     <Flex
       flexDirection="column"
       mx="auto"
+      mb="auto"
       alignItems="center"
       css={`
         top: 11%;

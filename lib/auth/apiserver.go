@@ -187,7 +187,7 @@ func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		// HTTPS server expects auth context to be set by the auth middleware
 		authContext, err := s.Authorizer.Authorize(r.Context())
 		if err != nil {
-			return nil, authz.ConvertAuthorizerError(r.Context(), log, err)
+			return nil, trace.Wrap(err)
 		}
 		auth := &ServerWithRoles{
 			authServer: s.AuthServer,

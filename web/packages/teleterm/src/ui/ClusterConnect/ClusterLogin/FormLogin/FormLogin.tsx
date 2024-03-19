@@ -39,7 +39,7 @@ export default function LoginForm(props: Props) {
   const {
     loginAttempt,
     onAbort,
-    authProvidersList,
+    authProviders,
     localAuthEnabled = true,
     shouldPromptSsoStatus,
     webauthnLogin,
@@ -53,7 +53,7 @@ export default function LoginForm(props: Props) {
     return <PromptSsoStatus onCancel={onAbort} />;
   }
 
-  const ssoEnabled = authProvidersList?.length > 0;
+  const ssoEnabled = authProviders?.length > 0;
 
   // If local auth was not enabled, disregard any primary auth type config
   // and display sso providers if any.
@@ -107,7 +107,7 @@ const Primary = ({
   hasTransitionEnded,
   ...otherProps
 }: Props & StepComponentProps) => {
-  const ssoEnabled = otherProps.authProvidersList?.length > 0;
+  const ssoEnabled = otherProps.authProviders?.length > 0;
   let otherOptionsAvailable = true;
   let $primary;
 
@@ -161,7 +161,7 @@ const Secondary = ({
   refCallback,
   ...otherProps
 }: Props & StepComponentProps) => {
-  const ssoEnabled = otherProps.authProvidersList?.length > 0;
+  const ssoEnabled = otherProps.authProviders?.length > 0;
   const { primaryAuthType, allowPasswordless } = otherProps;
 
   let $secondary;

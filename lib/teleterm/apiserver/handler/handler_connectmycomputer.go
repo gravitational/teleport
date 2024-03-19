@@ -46,11 +46,6 @@ func (s *Handler) CreateConnectMyComputerNodeToken(ctx context.Context, req *api
 	return response, nil
 }
 
-func (s *Handler) DeleteConnectMyComputerToken(ctx context.Context, req *api.DeleteConnectMyComputerTokenRequest) (*api.DeleteConnectMyComputerTokenResponse, error) {
-	res, err := s.DaemonService.DeleteConnectMyComputerToken(ctx, req)
-	return res, trace.Wrap(err)
-}
-
 func (s *Handler) WaitForConnectMyComputerNodeJoin(ctx context.Context, req *api.WaitForConnectMyComputerNodeJoinRequest) (*api.WaitForConnectMyComputerNodeJoinResponse, error) {
 	// The Electron app aborts the request after a timeout that's much shorter. However, we're going
 	// to add an internal timeout as well to protect from requests hanging forever if a client doesn't

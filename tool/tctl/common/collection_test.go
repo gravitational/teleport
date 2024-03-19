@@ -29,7 +29,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api"
+	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/databaseobjectimportrule"
+	"github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/tool/common"
 )
@@ -247,6 +250,52 @@ func testDatabaseServerCollection_writeText(t *testing.T) {
 			)
 			return table.AsBuffer().String()
 		},
+	}
+	test.run(t)
+}
+
+func TestDatabaseImportRuleCollection_writeText(t *testing.T) {
+	mkRule := func(name string) *dbobjectimportrulev1.DatabaseObjectImportRule {
+		r, err := databaseobjectimportrule.NewDatabaseObjectImportRule(name, &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+			Priority: 123,
+			DatabaseLabels: label.FromMap(map[string][]string{
+				"foo":   {"bar"},
+				"beast": {"dragon", "phoenix"},
+			}),
+			Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{
+				{
+					Match: &dbobjectimportrulev1.DatabaseObjectImportMatch{
+						TableNames: []string{"dummy"},
+					},
+					AddLabels: map[string]string{
+						"dummy_table": "true",
+						"another":     "label"},
+				},
+			},
+		})
+		require.NoError(t, err)
+		return r
+	}
+
+	rules := []*dbobjectimportrulev1.DatabaseObjectImportRule{
+		mkRule("rule_1"),
+		mkRule("rule_2"),
+		mkRule("rule_3"),
+	}
+
+	table := asciitable.MakeTable(
+		[]string{"Name", "Priority", "Mapping Count", "DB Label Count"},
+		[]string{"rule_1", "123", "1", "2"},
+		[]string{"rule_2", "123", "1", "2"},
+		[]string{"rule_3", "123", "1", "2"},
+	)
+
+	formatted := table.AsBuffer().String()
+
+	test := writeTextTest{
+		collection:          &databaseObjectImportRuleCollection{rules},
+		wantVerboseTable:    func() string { return formatted },
+		wantNonVerboseTable: func() string { return formatted },
 	}
 	test.run(t)
 }

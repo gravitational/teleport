@@ -62,13 +62,14 @@ import (
 
 // CommandOptions controls how the SSH command is built.
 type CommandOptions struct {
-	ForwardAgent bool
-	ForcePTY     bool
-	ControlPath  string
-	SocketPath   string
-	ProxyPort    string
-	NodePort     string
-	Command      string
+	ForwardAgent  bool
+	ForcePTY      bool
+	X11Forwarding bool
+	ControlPath   string
+	SocketPath    string
+	ProxyPort     string
+	NodePort      string
+	Command       string
 }
 
 // ExternalSSHCommand runs an external SSH command (if an external ssh binary
@@ -87,6 +88,10 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 		execArgs = append(execArgs, "-oControlPersist=1s")
 		execArgs = append(execArgs, "-oConnectTimeout=2")
 		execArgs = append(execArgs, fmt.Sprintf("-oControlPath=%v", o.ControlPath))
+	}
+
+	if o.X11Forwarding {
+		execArgs = append(execArgs, "-X")
 	}
 
 	// The -tt flag is used to force PTY allocation. It's often used by

@@ -329,6 +329,15 @@ func (s KubeServers) Less(i, j int) bool {
 // Swap swaps two kube servers.
 func (s KubeServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
+// ToMap returns these kubernetes clusters as a map keyed by cluster name.
+func (s KubeServers) ToMap() map[string]KubeServer {
+	m := make(map[string]KubeServer, len(s))
+	for _, kubeServer := range s {
+		m[kubeServer.GetName()] = kubeServer
+	}
+	return m
+}
+
 // SortByCustom custom sorts by given sort criteria.
 func (s KubeServers) SortByCustom(sortBy SortBy) error {
 	if sortBy.Field == "" {

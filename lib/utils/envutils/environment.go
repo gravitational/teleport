@@ -21,6 +21,7 @@ package envutils
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -43,10 +44,14 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 	}
 	defer file.Close()
 
+	return readEnvironment(file)
+}
+
+func readEnvironment(r io.Reader) ([]string, error) {
 	var lineno int
 	env := &SafeEnv{}
 
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 
@@ -54,7 +59,7 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 		// https://github.com/openssh/openssh-portable/blob/master/session.c#L873-L874
 		lineno = lineno + 1
 		if lineno > teleport.MaxEnvironmentFileLines {
-			log.Warnf("Too many lines in environment file %v, returning first %v lines", filename, teleport.MaxEnvironmentFileLines)
+			log.Warnf("Too many lines in environment file, returning first %v lines", teleport.MaxEnvironmentFileLines)
 			return *env, nil
 		}
 
@@ -66,7 +71,7 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 		// split on first =, if not found, log it and continue
 		idx := strings.Index(line, "=")
 		if idx == -1 {
-			log.Debugf("Bad line %v while reading %v: no = separator found", lineno, filename)
+			log.Debugf("Bad line %v while reading environment file: no = separator found", lineno)
 			continue
 		}
 
@@ -74,7 +79,7 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 		key := line[:idx]
 		value := line[idx+1:]
 		if strings.TrimSpace(key) == "" {
-			log.Debugf("Bad line %v while reading %v: key without name", lineno, filename)
+			log.Debugf("Bad line %v while reading environment file: key without name", lineno)
 			continue
 		}
 
@@ -82,9 +87,8 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 		env.AddTrusted(key, value)
 	}
 
-	err = scanner.Err()
-	if err != nil {
-		log.Warnf("Unable to read environment file %v: %v, skipping", filename, err)
+	if err := scanner.Err(); err != nil {
+		log.Warnf("Unable to read environment file: %v", err)
 		return []string{}, nil
 	}
 

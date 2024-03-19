@@ -37,6 +37,10 @@ const GlobalStyle = createGlobalStyle`
     font-family: ${props => props.theme.font};
   }
 
+  input {
+    accent-color: ${props => props.theme.colors.brand};
+  }
+
   // custom scrollbars with the ability to use the default scrollbar behavior via adding the attribute [data-scrollbar=default]
   :not([data-scrollbar="default"])::-webkit-scrollbar {
     width: 8px;

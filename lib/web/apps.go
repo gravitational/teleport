@@ -360,7 +360,7 @@ func (h *Handler) resolveApp(ctx context.Context, clt app.Getter, proxy reverset
 		return nil, trace.Wrap(err)
 	}
 
-	fqdn := ui.AssembleAppFQDN(h.auth.clusterName, h.proxyDNSName(), appClusterName, server.GetApp())
+	fqdn := utils.AssembleAppFQDN(h.auth.clusterName, h.proxyDNSName(), appClusterName, server.GetApp())
 
 	return &resolveAppResult{
 		ServerID:    server.GetName(),

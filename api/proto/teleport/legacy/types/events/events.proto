@@ -1231,6 +1231,64 @@ message UserLogin {
   repeated string AppliedLoginRules = 9 [(gogoproto.jsontag) = "applied_login_rules,omitempty"];
 }
 
+// CreateMFAAuthChallenge records the creation of an MFA auth challenge.
+message CreateMFAAuthChallenge {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Scope is the authorization scope for this MFA challenge.
+  // Only applies to WebAuthn challenges.
+  string ChallengeScope = 3 [(gogoproto.jsontag) = "challenge_scope"];
+
+  // ChallengeAllowReuse defines whether the MFA challenge allows reuse.
+  bool ChallengeAllowReuse = 4 [(gogoproto.jsontag) = "challenge_allow_reuse"];
+}
+
+// ValidateMFAAuthResponse records the validation of an MFA auth callenge response.
+message ValidateMFAAuthResponse {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status contains common command or operation status fields
+  Status Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // MFADevice is the MFA device used.
+  MFADeviceMetadata MFADevice = 4 [(gogoproto.jsontag) = "mfa_device,omitempty"];
+
+  // ChallengeScope is the authorization scope of the MFA challenge used for authentication.
+  // Only applies to WebAuthn challenges.
+  string ChallengeScope = 5 [(gogoproto.jsontag) = "challenge_scope"];
+
+  // ChallengeAllowReuse defines whether the MFA challenge used for authentication can be reused.
+  bool ChallengeAllowReuse = 6 [(gogoproto.jsontag) = "challenge_allow_reuse"];
+}
+
 // ResourceMetadata is a common resource metadata
 message ResourceMetadata {
   // ResourceName is a resource name
@@ -2998,6 +3056,47 @@ message DatabaseSessionQuery {
   ];
 }
 
+// DatabasePermissionUpdate is emitted when a user database permissions are updated.
+message DatabasePermissionUpdate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Database contains database related metadata.
+  DatabaseMetadata Database = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // PermissionSummary is a summary of applied permissions.
+  repeated DatabasePermissionEntry PermissionSummary = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "permission_summary"
+  ];
+}
+
+// DatabasePermissionEntry is a summary of permissions, scoped to a particular permission.
+message DatabasePermissionEntry {
+  // Permission is a particular database-level permission, e.g. "SELECT".
+  string Permission = 1 [(gogoproto.jsontag) = "permission"];
+  // Counts stores information how many objects of particular kind (e.g. "table") were affected.
+  map<string, int32> Counts = 2 [(gogoproto.jsontag) = "counts"];
+}
+
 // PostgresParse is emitted when a Postgres client creates a prepared statement
 // using extended query protocol.
 message PostgresParse {
@@ -3514,6 +3613,13 @@ message CertificateCreate {
 
   // Identity is the identity associated with the certificate, as interpreted by Teleport.
   Identity Identity = 3 [(gogoproto.jsontag) = "identity"];
+
+  // Client is the common client event metadata
+  ClientMetadata Client = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // RenewableCertificateGenerationMismatch is emitted when a renewable
@@ -3863,6 +3969,11 @@ message OneOf {
     events.BotCreate BotCreate = 143;
     events.BotDelete BotDelete = 144;
     events.BotUpdate BotUpdate = 145;
+    events.CreateMFAAuthChallenge CreateMFAAuthChallenge = 146;
+    events.ValidateMFAAuthResponse ValidateMFAAuthResponse = 147;
+    events.OktaAccessListSync OktaAccessListSync = 148;
+    events.DatabasePermissionUpdate DatabasePermissionUpdate = 149;
+    events.SPIFFESVIDIssued SPIFFESVIDIssued = 150;
   }
 }
 
@@ -5724,4 +5835,78 @@ message ExternalAuditStorageDetails {
   string policy_name = 10;
   // Region is the AWS region where the infrastructure is hosted.
   string region = 11;
+}
+
+// OktaAccessListSync records an access list sync event.
+message OktaAccessListSync {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status contains common command or operation status fields.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // NumAppFilters is the number of application filters used for this sync.
+  int32 num_app_filters = 3;
+
+  // NumGroupFilters is the number of group filters used for this sync.
+  int32 num_group_filters = 4;
+
+  // NumApps is the number of apps that were synchronized from this sync event.
+  int32 num_apps = 5;
+
+  // NumGroups is the number of groups that were synchronized from this sync event.
+  int32 num_groups = 6;
+
+  // NumRoles are the number of roles that were created/updated.
+  int32 numRoles = 7;
+
+  // NumAccessLists are the number of access lists that were created/updated.
+  int32 numAccessLists = 8;
+
+  // NumAccessListMembers are the number of access list members that were created/updated.
+  int32 numAccessListMembers = 9;
+}
+
+// SPIFFESVIDIssued is an event recorded when a SPIFFE SVID is issued.
+message SPIFFESVIDIssued {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SPIFFEID is the SPIFFE ID of the issued SVID
+  string SPIFFEID = 4 [(gogoproto.jsontag) = "spiffe_id"];
+  // DNSSANs is the list of DNS SANs in the issued SVID
+  repeated string DNSSANs = 5 [(gogoproto.jsontag) = "dns_sans"];
+  // IPSANs is the list of IP SANs in the issued SVID
+  repeated string IPSANs = 6 [(gogoproto.jsontag) = "ip_sans"];
+  // SVIDType is `jwt` or `x509
+  string SVIDType = 7 [(gogoproto.jsontag) = "svid_type"];
+  // SerialNumber is the serial number of the issued SVID
+  string SerialNumber = 8 [(gogoproto.jsontag) = "serial_number"];
+  // Hint is the hint of the issued SVID
+  string Hint = 9 [(gogoproto.jsontag) = "hint"];
 }

@@ -27,7 +27,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -172,10 +171,6 @@ type testClient struct {
 	services.Trust
 	services.RoleGetter
 	services.UserGetter
-}
-
-func (c *testClient) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
-	return nil, "", nil
 }
 
 func initSvc(t *testing.T, kind string) (context.Context, *Service) {

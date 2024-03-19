@@ -76,9 +76,8 @@ export function DocumentTerminal(props: {
           }
           transferHandlers={{
             getDownloader: async (sourcePath, abortController) => {
-              const fileDialog = await ctx.mainProcessClient.showFileSaveDialog(
-                sourcePath
-              );
+              const fileDialog =
+                await ctx.mainProcessClient.showFileSaveDialog(sourcePath);
               if (fileDialog.canceled) {
                 return;
               }

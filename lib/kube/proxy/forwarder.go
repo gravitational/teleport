@@ -71,7 +71,6 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -521,7 +520,7 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 
 	userContext, err := f.cfg.Authz.Authorize(ctx)
 	if err != nil {
-		return nil, authz.ConvertAuthorizerError(ctx, f.log, err)
+		return nil, trace.Wrap(err)
 	}
 
 	authContext, err := f.setupContext(ctx, *userContext, req, isRemoteUser)
@@ -739,29 +738,14 @@ func (f *Forwarder) setupContext(
 		return nil, trace.AccessDenied("access denied: remote user can not access remote cluster")
 	}
 
-	kubeCluster := identity.KubernetesCluster
-	// Only set a default kube cluster if the user is not accessing a specific cluster.
-	// The check for kubeCluster != "" is happens in the next code section.
-	if !isRemoteCluster && kubeCluster == "" {
-		kc, err := kubeutils.CheckOrSetKubeCluster(ctx, f.cfg.CachingAuthClient, identity.KubernetesCluster, teleportClusterName)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-			// Fallback for old clusters and old user certs. Assume that the
-			// user is trying to access the default cluster name.
-			kubeCluster = teleportClusterName
-		} else {
-			kubeCluster = kc
-		}
-	}
-
 	var (
 		kubeServers  []types.KubeServer
 		kubeResource *types.KubernetesResource
 		apiResource  apiResource
 		err          error
 	)
+
+	kubeCluster := identity.KubernetesCluster
 	// Only check k8s principals for local clusters.
 	//
 	// For remote clusters, everything will be remapped to new roles on the
@@ -769,7 +753,7 @@ func (f *Forwarder) setupContext(
 	if !isRemoteCluster {
 		kubeServers, err = f.getKubernetesServersForKubeCluster(ctx, kubeCluster)
 		if err != nil || len(kubeServers) == 0 {
-			return nil, trace.NotFound("cluster %q not found", kubeCluster)
+			return nil, trace.NotFound("Kubernetes cluster %q not found", kubeCluster)
 		}
 	}
 	if f.isLocalKubeCluster(isRemoteCluster, kubeCluster) {

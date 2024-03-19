@@ -72,8 +72,8 @@ main() {
   echoed buf generate --template=buf-connect-go.gen.yaml \
     --path=proto/prehog/
 
-  # Generate JS protos.
-  [[ $skip_js -eq 0 ]] && echoed buf generate --template=buf-js.gen.yaml \
+  # Generate TS protos.
+  [[ $skip_js -eq 0 ]] && echoed buf generate --template=buf-ts.gen.yaml \
     --path=proto/prehog/ \
     --path=proto/teleport/lib/teleterm/ \
     --path=api/proto/teleport/userpreferences/ \

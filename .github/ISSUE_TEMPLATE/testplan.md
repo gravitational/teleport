@@ -195,6 +195,10 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] tsh ssh -L \<node-remote-cluster\>
   - [ ] tsh ssh -L \<agentless-node\>
   - [ ] tsh ssh -L \<agentless-node-remote-cluster\>
+  - [ ] tsh ssh -R \<regular-node\>
+  - [ ] tsh ssh -R \<node-remote-cluster\>
+  - [ ] tsh ssh -R \<agentless-node\>
+  - [ ] tsh ssh -R \<agentless-node-remote-cluster\>
   - [ ] tsh ls
   - [ ] tsh clusters
 
@@ -220,6 +224,10 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] ssh -L \<node-remote-cluster\>
   - [ ] ssh -L \<agentless-node\>
   - [ ] ssh -L \<agentless-node-remote-cluster\>
+  - [ ] ssh -R \<regular-node\>
+  - [ ] ssh -R \<node-remote-cluster\>
+  - [ ] ssh -R \<agentless-node\>
+  - [ ] ssh -R \<agentless-node-remote-cluster\>
 
 - [ ] Verify proxy jump functionality
   Log into leaf cluster via root, shut down the root proxy and verify proxy jump works.
@@ -764,6 +772,37 @@ Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in you
   - [ ] Migrating a software cluster to GCP KMS works
   - [ ] CA rotation works
 
+Run the full test suite with each HSM/KMS:
+
+```shell
+$ make run-etcd # in background shell
+$
+$ # test YubiHSM
+$ yubihsm-connector -d # in a background shell
+$ cat /etc/yubihsm_pkcs11.conf
+# /etc/yubihsm_pkcs11.conf
+connector = http://127.0.0.1:12345
+debug
+$ TELEPORT_TEST_YUBIHSM_PKCS11_PATH=/usr/local/lib/pkcs11/yubihsm_pkcs11.dylib TELEPORT_TEST_YUBIHSM_PIN=0001password YUBIHSM_PKCS11_CONF=/etc/yubihsm_pkcs11.conf go test ./lib/auth/keystore -v --count 1
+$ TELEPORT_TEST_YUBIHSM_PKCS11_PATH=/usr/local/lib/pkcs11/yubihsm_pkcs11.dylib TELEPORT_TEST_YUBIHSM_PIN=0001password YUBIHSM_PKCS11_CONF=/etc/yubihsm_pkcs11.conf TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1 --timeout 20m # this takes ~12 minutes
+$
+$ # test AWS KMS
+$ # login in to AWS locally
+$ AWS_ACCOUNT="$(aws sts get-caller-identity | jq -r '.Account')"
+$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_REGION=us-west-2 go test ./lib/auth/keystore -v --count 1
+$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_REGION=us-west-2 TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1
+$
+$ # test AWS CloudHSM
+$ # set up the CloudHSM cluster and run this on an EC2 that can reach it
+$ TELEPORT_TEST_CLOUDHSM_PIN="<CU_username>:<CU_password>" go test ./lib/auth/keystore -v --count 1
+$ TELEPORT_TEST_CLOUDHSM_PIN="<CU_username>:<CU_password>" TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1
+$
+$ # test GCP KMS
+$ # login in to GCP locally
+$ TELEPORT_TEST_GCP_KMS_KEYRING=projects/<account>/locations/us-west3/keyRings/<keyring> go test ./lib/auth/keystore -v --count 1
+$ TELEPORT_TEST_GCP_KMS_KEYRING=projects/<account>/locations/us-west3/keyRings/<keyring> TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1
+```
+
 ## Moderated session
 
 Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator).
@@ -1178,7 +1217,7 @@ tsh bench web sessions --max=5000 --web user ls
         - [ ] A folder from inside the shared directory can be copy-pasted to another folder inside shared directory (and its contents retained)
   - RBAC
     - [ ] Give the user one role that explicitly disables directory sharing (`desktop_directory_sharing: false`) and confirm that the option to share a directory doesn't appear in the menu
-- Per-Session MFA (try webauthn on each of Chrome, Safari, and Firefox; u2f only works with Firefox)
+- Per-Session MFA
   - [ ] Attempting to start a session no keys registered shows an error message
   - [ ] Attempting to start a session with a webauthn registered pops up the "Verify Your Identity" dialog
     - [ ] Hitting "Cancel" shows an error message
@@ -1222,6 +1261,10 @@ tsh bench web sessions --max=5000 --web user ls
   - Set up Teleport in a trusted cluster configuration where the root and leaf cluster has a w_d_s connected via tunnel (w_d_s running as a separate process)
     - [ ] Confirm that windows desktop sessions can be made on root cluster
     - [ ] Confirm that windows desktop sessions can be made on leaf cluster
+- Screen size
+    - [ ] Desktops that specify a fixed `screen_size` in their spec always use the same screen size.
+    - [ ] Desktops sessions for desktops which specify a fixed `screen_size` do not resize automatically.
+    - [ ] Attempting to register a desktop with a `screen_size` dimension larger than 8192 fails.
 - Non-AD setup
   - [ ] Installer in GUI mode finishes successfully on instance that is not part of domain
   - [ ] Installer works correctly invoked from command line
@@ -1346,6 +1389,29 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] Database
   - [ ] Windows Desktop
   - [ ] App Access
+
+## SSH Connection Resumption
+
+Verify that SSH works, and that resumable SSH is not interrupted across a Teleport Cloud tenant upgrade.
+|   | Standard node | Non-resuming node | Peered node | Agentless node |
+|---|---|---|---|---|
+| `tsh ssh` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh --no-resume` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| Teleport Connect | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| Web UI (not resuming) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| OpenSSH (standard `tsh config`) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| OpenSSH (changing `ProxyCommand` to `tsh proxy ssh --no-resume`) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+
+Verify that SSH works, and that resumable SSH is not interrupted across a control plane restart (of either the root or the leaf cluster).
+
+|   | Tunnel node | Direct dial node |
+|---|---|---|
+| `tsh ssh` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh --no-resume` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh` (from a root cluster) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh --no-resume` (from a root cluster) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| OpenSSH (without `ProxyCommand`) | n/a | <ul><li> [ ] </ul></li> |
+| OpenSSH's `ssh-keyscan` | n/a | <ul><li> [ ] </ul></li> |
 
 ## EC2 Discovery
 

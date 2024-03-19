@@ -73,8 +73,8 @@ func (f *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) 
 	}
 
 	return &authz.Context{
-		Checker:               f.checker,
-		AdminActionAuthorized: true,
+		Checker:              f.checker,
+		AdminActionAuthState: authz.AdminActionAuthMFAVerified,
 	}, nil
 }
 
@@ -106,7 +106,7 @@ type fakeChecker struct {
 	checks []check
 }
 
-func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, rule string, verb string, silent bool) error {
+func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, rule string, verb string) error {
 	c := check{rule, verb}
 	f.checks = append(f.checks, c)
 	if f.allow[c] {

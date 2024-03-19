@@ -507,35 +507,39 @@ func (l *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 
 	i.Revision = backend.CreateRevision()
 	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
-		created := l.clock.Now().UTC()
-		recordID := id(created)
-		if !l.EventsOff {
-			stmt, err := tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value, kv_revision) values(?, ?, ?, ?, ?, ?, ?)")
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			defer stmt.Close()
-
-			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(i.Key), recordID, expires(i.Expires), i.Value, i.Revision); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		stmt, err := tx.PrepareContext(ctx, "INSERT OR REPLACE INTO kv(key, modified, expires, value, revision) values(?, ?, ?, ?, ?)")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer stmt.Close()
-
-		if _, err := stmt.ExecContext(ctx, string(i.Key), recordID, expires(i.Expires), i.Value, i.Revision); err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
+		return l.putInTransaction(ctx, i, tx)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return backend.NewLease(i), nil
+}
+
+func (l *Backend) putInTransaction(ctx context.Context, i backend.Item, tx *sql.Tx) error {
+	created := l.clock.Now().UTC()
+	recordID := id(created)
+	if !l.EventsOff {
+		stmt, err := tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value, kv_revision) values(?, ?, ?, ?, ?, ?, ?)")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer stmt.Close()
+
+		if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(i.Key), recordID, expires(i.Expires), i.Value, i.Revision); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	stmt, err := tx.PrepareContext(ctx, "INSERT OR REPLACE INTO kv(key, modified, expires, value, revision) values(?, ?, ?, ?, ?)")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer stmt.Close()
+
+	if _, err := stmt.ExecContext(ctx, string(i.Key), recordID, expires(i.Expires), i.Value, i.Revision); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // Update updates value in the backend

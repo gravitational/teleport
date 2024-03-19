@@ -19,6 +19,9 @@
 package ui
 
 import (
+	"net/url"
+	"strings"
+
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -29,6 +32,26 @@ import (
 type IntegrationAWSOIDCSpec struct {
 	// RoleARN is the role associated with the integration when SubKind is `aws-oidc`
 	RoleARN string `json:"roleArn,omitempty"`
+
+	// IssuerS3Bucket is the Issuer configured in AWS using an S3 Bucket.
+	IssuerS3Bucket string `json:"issuerS3Bucket,omitempty"`
+	// IssuerS3Prefix is the prefix for the bucket above.
+	IssuerS3Prefix string `json:"issuerS3Prefix,omitempty"`
+}
+
+// CheckAndSetDefaults for the aws oidc integration spec.
+func (r *IntegrationAWSOIDCSpec) CheckAndSetDefaults() error {
+	if r.RoleARN == "" {
+		return trace.BadParameter("missing awsoidc.roleArn field")
+	}
+	if r.IssuerS3Bucket == "" {
+		return trace.BadParameter("missing awsoidc.issuerS3Bucket field")
+	}
+	if r.IssuerS3Prefix == "" {
+		return trace.BadParameter("missing awsoidc.issuerS3Prefix field")
+	}
+
+	return nil
 }
 
 // Integration describes Integration fields
@@ -52,8 +75,10 @@ func (r *Integration) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing subKind")
 	}
 
-	if r.AWSOIDC != nil && r.AWSOIDC.RoleARN == "" {
-		return trace.BadParameter("missing awsoidc.roleArn field")
+	if r.AWSOIDC != nil {
+		if err := r.AWSOIDC.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -67,8 +92,10 @@ type UpdateIntegrationRequest struct {
 
 // CheckAndSetDefaults checks if the provided values are valid.
 func (r *UpdateIntegrationRequest) CheckAndSetDefaults() error {
-	if r.AWSOIDC != nil && r.AWSOIDC.RoleARN == "" {
-		return trace.BadParameter("missing awsoidc.roleArn field")
+	if r.AWSOIDC != nil {
+		if err := r.AWSOIDC.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -79,31 +106,43 @@ func (r *UpdateIntegrationRequest) CheckAndSetDefaults() error {
 // a `nextToken` is provided and should be used to obtain the next page (as a query param `startKey`)
 type IntegrationsListResponse struct {
 	// Items is a list of resources retrieved.
-	Items []Integration `json:"items"`
+	Items []*Integration `json:"items"`
 	// NextKey is the position to resume listing events.
 	NextKey string `json:"nextKey"`
 }
 
 // MakeIntegrations creates a UI list of Integrations.
-func MakeIntegrations(igs []types.Integration) []Integration {
-	uiList := make([]Integration, 0, len(igs))
+func MakeIntegrations(igs []types.Integration) ([]*Integration, error) {
+	uiList := make([]*Integration, 0, len(igs))
 
 	for _, ig := range igs {
-		uiList = append(uiList, MakeIntegration(ig))
+		uiIg, err := MakeIntegration(ig)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		uiList = append(uiList, uiIg)
 	}
 
-	return uiList
+	return uiList, nil
 }
 
 // MakeIntegration creates a UI Integration representation.
-func MakeIntegration(ig types.Integration) Integration {
-	return Integration{
+func MakeIntegration(ig types.Integration) (*Integration, error) {
+	issuerS3BucketURL, err := url.Parse(ig.GetAWSOIDCIntegrationSpec().IssuerS3URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	prefix := strings.TrimLeft(issuerS3BucketURL.Path, "/")
+
+	return &Integration{
 		Name:    ig.GetName(),
 		SubKind: ig.GetSubKind(),
 		AWSOIDC: &IntegrationAWSOIDCSpec{
-			RoleARN: ig.GetAWSOIDCIntegrationSpec().RoleARN,
+			RoleARN:        ig.GetAWSOIDCIntegrationSpec().RoleARN,
+			IssuerS3Bucket: issuerS3BucketURL.Host,
+			IssuerS3Prefix: prefix,
 		},
-	}
+	}, nil
 }
 
 // AWSOIDCListDatabasesRequest is a request to ListDatabases using the AWS OIDC Integration.
@@ -146,21 +185,6 @@ type AWSOIDCDeployServiceRequest struct {
 	// SecurityGroups to apply to the service's network configuration.
 	// If empty, the default security group for the VPC is going to be used.
 	SecurityGroups []string `json:"securityGroups"`
-
-	// ClusterName is the ECS Cluster to be used.
-	// Optional.
-	// Defaults to <teleport-cluster-name>-teleport, eg. acme-teleport
-	ClusterName *string `json:"clusterName"`
-
-	// ServiceName is the ECS Service that should be used.
-	// Optional.
-	// Defaults to <teleport-cluster-name>-teleport-service, eg acme-teleport-service
-	ServiceName *string `json:"serviceName"`
-
-	// TaskName is the ECS Task Definition family name.
-	// Optional.
-	// Defaults to <teleport-cluster-name>-teleport-<deployment-mode>, eg acme-teleport-database-service
-	TaskName *string `json:"taskName"`
 
 	// TaskRoleARN is the AWS Role's ARN used within the Task execution.
 	// Ensure the AWS Client's Role has `iam:PassRole` for this Role's ARN.

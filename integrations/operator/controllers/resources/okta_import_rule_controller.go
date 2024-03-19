@@ -58,15 +58,15 @@ func (r oktaImportRuleClient) Delete(ctx context.Context, name string) error {
 }
 
 // NewOktaImportRuleReconciler instantiates a new Kubernetes controller reconciling okta_import_rule resources
-func NewOktaImportRuleReconciler(client kclient.Client, tClient *client.Client) *TeleportResourceReconciler[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule] {
+func NewOktaImportRuleReconciler(client kclient.Client, tClient *client.Client) (Reconciler, error) {
 	oktaImportRuleClient := &oktaImportRuleClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler := NewTeleportResourceReconciler[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule](
+	resourceReconciler, err := NewTeleportResourceReconciler[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule](
 		client,
 		oktaImportRuleClient,
 	)
 
-	return resourceReconciler
+	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
 }

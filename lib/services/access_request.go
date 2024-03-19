@@ -49,7 +49,7 @@ const day = 24 * time.Hour
 
 // maxAccessDuration is the maximum duration that an access request can be
 // granted for.
-const maxAccessDuration = 7 * day
+const MaxAccessDuration = 14 * day
 
 // ValidateAccessRequest validates the AccessRequest and sets default values
 func ValidateAccessRequest(ar types.AccessRequest) error {
@@ -368,8 +368,8 @@ func ValidateAccessPredicates(role types.Role) error {
 	}
 
 	if maxDuration := role.GetAccessRequestConditions(types.Allow).MaxDuration; maxDuration.Duration() != 0 &&
-		maxDuration.Duration() > maxAccessDuration {
-		return trace.BadParameter("max access duration must be less or equal 7 days")
+		maxDuration.Duration() > MaxAccessDuration {
+		return trace.BadParameter("max access duration must be less than or equal to %v", MaxAccessDuration)
 	}
 
 	return nil
@@ -416,6 +416,13 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 
 	req.SetReviews(append(req.GetReviews(), rev))
 
+	if rev.AssumeStartTime != nil {
+		if err := types.ValidateAssumeStartTime(*rev.AssumeStartTime, req.GetAccessExpiry(), req.GetCreationTime()); err != nil {
+			return trace.Wrap(err)
+		}
+		req.SetAssumeStartTime(*rev.AssumeStartTime)
+	}
+
 	// request is still pending, so check to see if this
 	// review introduces a state-transition.
 	res, err := calculateReviewBasedResolution(req)
@@ -435,9 +442,6 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 		req.SetPromotedAccessListTitle(rev.GetAccessListTitle())
 	}
 	req.SetExpiry(req.GetAccessExpiry())
-	if rev.AssumeStartTime != nil {
-		req.SetAssumeStartTime(*rev.AssumeStartTime)
-	}
 	return nil
 }
 
@@ -1209,6 +1213,13 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		req.SetAccessExpiry(accessTTL)
 		// Adjusted max access duration is equal to the access expiry time.
 		req.SetMaxDuration(accessTTL)
+
+		if req.GetAssumeStartTime() != nil {
+			assumeStartTime := *req.GetAssumeStartTime()
+			if err := types.ValidateAssumeStartTime(assumeStartTime, accessTTL, req.GetCreationTime()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
 	}
 
 	return nil
@@ -1226,17 +1237,16 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (
 
 	maxDuration := maxDurationTime.Sub(req.GetCreationTime())
 
-	// For dry run requests, the max_duration is set to 7 days.
+	// For dry run requests, use the maximum possible duration.
 	// This prevents the time drift that can occur as the value is set on the client side.
-	// TODO(jakule): Replace with MaxAccessDuration that is a duration (5h, 4d etc), and not a point in time.
 	if req.GetDryRun() {
-		maxDuration = maxAccessDuration
+		maxDuration = MaxAccessDuration
 	} else if maxDuration < 0 {
 		return 0, trace.BadParameter("invalid maxDuration: must be greater than creation time")
 	}
 
-	if maxDuration > maxAccessDuration {
-		return 0, trace.BadParameter("max_duration must be less or equal 7 days")
+	if maxDuration > MaxAccessDuration {
+		return 0, trace.BadParameter("max_duration must be less than or equal to %v", MaxAccessDuration)
 	}
 
 	minAdjDuration := maxDuration

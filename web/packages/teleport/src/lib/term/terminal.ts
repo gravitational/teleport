@@ -53,7 +53,10 @@ export default class TtyTerminal {
   _webglAddon: WebglAddon;
   _canvasAddon = new CanvasAddon();
 
-  constructor(tty: Tty, private options: Options) {
+  constructor(
+    tty: Tty,
+    private options: Options
+  ) {
     const { el, scrollBack, fontFamily, fontSize } = options;
     this._el = el;
     this._fontFamily = fontFamily || undefined;

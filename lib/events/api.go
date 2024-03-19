@@ -424,6 +424,9 @@ const (
 	// DatabaseSessionStartEvent is emitted when a database client attempts
 	// to connect to a database.
 	DatabaseSessionStartEvent = "db.session.start"
+	// DatabaseSessionPermissionsUpdateEvent is emitted when a database client
+	// is assigned new granular database permissions after being created.
+	DatabaseSessionPermissionsUpdateEvent = "db.session.permissions.update"
 	// DatabaseSessionEndEvent is emitted when a database client disconnects
 	// from a database.
 	DatabaseSessionEndEvent = "db.session.end"
@@ -433,6 +436,7 @@ const (
 	// DatabaseSessionQueryFailedEvent is emitted when database client's request
 	// to execute a database query/command was unsuccessful.
 	DatabaseSessionQueryFailedEvent = "db.session.query.failed"
+
 	// DatabaseSessionPostgresParseEvent is emitted when a Postgres client
 	// creates a prepared statement using extended query protocol.
 	DatabaseSessionPostgresParseEvent = "db.session.postgres.statements.parse"
@@ -677,6 +681,9 @@ const (
 	// OktaAssignmentCleanupEvent is emitted when an assignment is cleaned up.
 	OktaAssignmentCleanupEvent = "okta.assignment.cleanup"
 
+	// OktaAccessListSyncEvent is emitted when an access list synchronization has completed.
+	OktaAccessListSyncEvent = "okta.access_list.sync"
+
 	// AccessListCreateEvent is emitted when an access list is created.
 	AccessListCreateEvent = "access_list.create"
 
@@ -716,6 +723,15 @@ const (
 	// ExternalAuditStorageDisableEvent is emitted when External Audit Storage is
 	// disabled.
 	ExternalAuditStorageDisableEvent = "external_audit_storage.disable"
+
+	// CreateMFAAuthChallengeEvent is emitted when an MFA auth challenge is created.
+	CreateMFAAuthChallengeEvent = "mfa_auth_challenge.create"
+
+	// ValidateMFAAuthResponseEvent is emitted when an MFA auth challenge is validated.
+	ValidateMFAAuthResponseEvent = "mfa_auth_challenge.validate"
+
+	// SPIFFESVIDIssuedEvent is emitted when a SPIFFE SVID is issued.
+	SPIFFESVIDIssuedEvent = "spiffe.svid.issued"
 )
 
 const (

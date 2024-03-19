@@ -58,10 +58,6 @@ const (
 	challengeHeaderKey = "x-teleport-challenge"
 )
 
-var (
-	authTeleportVersion = semver.New(teleport.Version)
-)
-
 // validateSTSHost returns an error if the given stsHost is not a valid regional
 // endpoint for the AWS STS service, or nil if it is valid. If fips is true, the
 // endpoint must be a valid FIPS endpoint.
@@ -241,7 +237,7 @@ func arnMatches(pattern, arn string) (bool, error) {
 
 // checkIAMAllowRules checks if the given identity matches any of the given
 // allowRules.
-func checkIAMAllowRules(identity *awsIdentity, allowRules []*types.TokenRule) error {
+func checkIAMAllowRules(identity *awsIdentity, token string, allowRules []*types.TokenRule) error {
 	for _, rule := range allowRules {
 		// if this rule specifies an AWS account, the identity must match
 		if len(rule.AWSAccount) > 0 {
@@ -264,7 +260,7 @@ func checkIAMAllowRules(identity *awsIdentity, allowRules []*types.TokenRule) er
 		// node identity matches this allow rule
 		return nil
 	}
-	return trace.AccessDenied("instance did not match any allow rules")
+	return trace.AccessDenied("instance %v did not match any allow rules in token %v", identity.Arn, token)
 }
 
 // checkIAMRequest checks if the given request satisfies the token rules and
@@ -299,7 +295,7 @@ func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *pro
 	}
 
 	// check that the node identity matches an allow rule for this token
-	if err := checkIAMAllowRules(identity, provisionToken.GetAllowRules()); err != nil {
+	if err := checkIAMAllowRules(identity, provisionToken.GetName(), provisionToken.GetAllowRules()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -318,7 +314,7 @@ type iamRegisterConfig struct {
 
 func defaultIAMRegisterConfig(fips bool) *iamRegisterConfig {
 	return &iamRegisterConfig{
-		authVersion: authTeleportVersion,
+		authVersion: teleport.SemVersion,
 		fips:        fips,
 	}
 }
@@ -441,9 +437,8 @@ func createSignedSTSIdentityRequest(ctx context.Context, challenge string, opts 
 
 func newSTSClient(ctx context.Context, cfg *stsIdentityRequestConfig) (*sts.STS, error) {
 	awsConfig := awssdk.Config{
-		EC2MetadataEnableFallback: awssdk.Bool(false),
-		UseFIPSEndpoint:           cfg.fipsEndpointOption,
-		STSRegionalEndpoint:       cfg.regionalEndpointOption,
+		UseFIPSEndpoint:     cfg.fipsEndpointOption,
+		STSRegionalEndpoint: cfg.regionalEndpointOption,
 	}
 	sess, err := session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,

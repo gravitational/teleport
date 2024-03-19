@@ -103,10 +103,16 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             show_desktop_wallpaper: params.show_desktop_wallpaper,
         },
     ) {
-        Ok(_) => CGOResult {
+        Ok(res) => CGOResult {
             err_code: CGOErrCode::ErrCodeSuccess,
-            message: ptr::null_mut(),
+            message: match res {
+                Some(reason) => CString::new(reason.description().to_string())
+                    .map(|c| c.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                None => ptr::null_mut(),
+            },
         },
+
         Err(e) => {
             error!("client_run failed: {:?}", e);
             CGOResult {
@@ -159,8 +165,7 @@ pub unsafe extern "C" fn client_stop(cgo_handle: CgoHandle) -> CGOErrCode {
 ///
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 ///
 /// data MUST be a valid pointer.
 /// (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
@@ -190,8 +195,7 @@ pub unsafe extern "C" fn client_update_clipboard(
 ///
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 ///
 /// sd_announce.name MUST be a non-null pointer to a C-style null terminated string.
 #[no_mangle]
@@ -212,8 +216,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_announce(
 ///
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 ///
 /// res.fso.path MUST be a non-null pointer to a C-style null terminated string.
 #[no_mangle]
@@ -234,8 +237,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_info_response(
 ///
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_sd_create_response(
     cgo_handle: CgoHandle,
@@ -254,8 +256,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_create_response(
 ///
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_sd_delete_response(
     cgo_handle: CgoHandle,
@@ -272,8 +273,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_delete_response(
 ///
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 ///
 /// res.fso_list MUST be a valid pointer
 /// (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
@@ -297,7 +297,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_list_response(
 ///
 /// # Safety
 ///
-/// client_ptr must be a valid pointer
+/// `cgo_handle` must be a valid handle.
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_sd_read_response(
     cgo_handle: CgoHandle,
@@ -316,7 +316,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_read_response(
 ///
 /// # Safety
 ///
-/// client_ptr must be a valid pointer
+/// `cgo_handle` must be a valid handle.
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_sd_write_response(
     cgo_handle: CgoHandle,
@@ -334,8 +334,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_write_response(
 ///
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_sd_move_response(
     cgo_handle: CgoHandle,
@@ -353,11 +352,10 @@ pub unsafe extern "C" fn client_handle_tdp_sd_move_response(
 ///
 /// res is the raw RDP response message to be sent back to the RDP server, without the TDP message type or
 /// array length header.
-///n
+///
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
     cgo_handle: CgoHandle,
@@ -374,8 +372,7 @@ pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
 
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 #[no_mangle]
 pub unsafe extern "C" fn client_write_rdp_pointer(
     cgo_handle: CgoHandle,
@@ -390,8 +387,7 @@ pub unsafe extern "C" fn client_write_rdp_pointer(
 
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 #[no_mangle]
 pub unsafe extern "C" fn client_write_rdp_keyboard(
     cgo_handle: CgoHandle,
@@ -401,6 +397,21 @@ pub unsafe extern "C" fn client_write_rdp_keyboard(
         cgo_handle,
         "client_write_rdp_keyboard",
         move |client_handle| client_handle.write_rdp_key(key),
+    )
+}
+
+/// # Safety
+///
+/// `cgo_handle` must be a valid handle.
+#[no_mangle]
+pub unsafe extern "C" fn client_write_rdp_sync_keys(
+    cgo_handle: CgoHandle,
+    keys: CGOSyncKeys,
+) -> CGOErrCode {
+    handle_operation(
+        cgo_handle,
+        "client_write_rdp_sync_keys",
+        move |client_handle| client_handle.write_rdp_sync_keys(keys),
     )
 }
 
@@ -465,6 +476,15 @@ pub struct CGOMousePointerEvent {
     pub down: bool,
     pub wheel: CGOPointerWheel,
     pub wheel_delta: i16,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
+pub struct CGOSyncKeys {
+    pub scroll_lock_down: bool,
+    pub num_lock_down: bool,
+    pub caps_lock_down: bool,
+    pub kana_lock_down: bool,
 }
 
 #[repr(C)]

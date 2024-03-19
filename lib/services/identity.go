@@ -266,20 +266,11 @@ type Identity interface {
 	// GetRecoveryCodes gets a user's recovery codes.
 	GetRecoveryCodes(ctx context.Context, user string, withSecrets bool) (*types.RecoveryCodesV1, error)
 
-	// CreateUserRecoveryAttempt logs user recovery attempt.
-	CreateUserRecoveryAttempt(ctx context.Context, user string, attempt *types.RecoveryAttempt) error
-
-	// GetUserRecoveryAttempts returns user recovery attempts sorted by oldest to latest time.
-	GetUserRecoveryAttempts(ctx context.Context, user string) ([]*types.RecoveryAttempt, error)
-
-	// DeleteUserRecoveryAttempts removes all recovery attempts of a user.
-	DeleteUserRecoveryAttempts(ctx context.Context, user string) error
-
 	// UpsertKeyAttestationData upserts a verified public key attestation response.
 	UpsertKeyAttestationData(ctx context.Context, attestationData *keys.AttestationData, ttl time.Duration) error
 
 	// GetKeyAttestationData gets a verified public key attestation response.
-	GetKeyAttestationData(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationData, error)
+	GetKeyAttestationData(ctx context.Context, pubDer []byte) (*keys.AttestationData, error)
 
 	HeadlessAuthenticationService
 

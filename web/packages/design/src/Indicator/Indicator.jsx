@@ -22,6 +22,7 @@ import styled from 'styled-components';
 import PropTypes from 'prop-types';
 
 import { Spinner as SpinnerIcon } from '../Icon';
+import { rotate360 } from '../keyframes';
 
 const DelayValueMap = {
   none: 0,
@@ -57,7 +58,7 @@ class Indicator extends React.Component {
       return null;
     }
 
-    return <StyledSpinner {...this.props} />;
+    return <StyledSpinner {...this.props} data-testid="indicator" />;
   }
 }
 
@@ -74,20 +75,11 @@ const StyledSpinner = styled(SpinnerIcon)`
   display: inline-block;
 
   svg {
-    animation: anim-rotate 1.5s infinite linear;
+    animation: ${rotate360} 1.5s infinite linear;
     ${({ size = '48px' }) => `
     height: ${size};
     width: ${size};
   `}
-  }
-
-  @keyframes anim-rotate {
-    0% {
-      transform: rotate(0);
-    }
-    100% {
-      transform: rotate(360deg);
-    }
   }
 `;
 

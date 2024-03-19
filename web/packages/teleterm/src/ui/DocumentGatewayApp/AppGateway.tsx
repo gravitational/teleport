@@ -18,14 +18,23 @@
 
 import { useMemo, useRef } from 'react';
 
-import { Flex, Text, ButtonSecondary, Link, Box, Alert } from 'design';
+import {
+  Flex,
+  Text,
+  ButtonSecondary,
+  Link,
+  Box,
+  Alert,
+  Indicator,
+} from 'design';
 
 import Validation from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
+import { TextSelectCopy } from 'shared/components/TextSelectCopy';
+
 import { Gateway } from 'teleterm/services/tshd/types';
-import { CliCommand } from 'teleterm/ui/DocumentGateway/CliCommand';
 
 import { PortFieldInput } from '../components/FieldInputs';
 
@@ -35,10 +44,8 @@ export function AppGateway(props: {
   changePort(port: string): void;
   changePortAttempt: Attempt<void>;
   disconnect(): void;
-  copyCliCommandToClipboard(): void;
 }) {
   const formRef = useRef<HTMLFormElement>();
-  const cliCommandPreview = props.gateway.gatewayCliCommand.preview;
 
   const { changePort } = props;
   const handleChangePort = useMemo(() => {
@@ -48,6 +55,8 @@ export function AppGateway(props: {
       }
     }, 1000);
   }, [changePort]);
+
+  const link = `${props.gateway.protocol.toLowerCase()}://${props.gateway.localAddress}:${props.gateway.localPort}`;
 
   return (
     <Box maxWidth="680px" width="100%" mx="auto" mt="4" px="5">
@@ -62,7 +71,7 @@ export function AppGateway(props: {
           Close Connection
         </ButtonSecondary>
       </Flex>
-      <Flex as="form" ref={formRef}>
+      <Flex as="form" ref={formRef} gap={2}>
         <Validation>
           <PortFieldInput
             label="Port"
@@ -71,34 +80,28 @@ export function AppGateway(props: {
             mb={2}
           />
         </Validation>
+        {props.changePortAttempt.status === 'processing' && (
+          <Indicator
+            size="large"
+            pt={3} // aligns the spinner to be at the center of the port input
+            css={`
+              display: flex;
+            `}
+          />
+        )}
       </Flex>
-      {cliCommandPreview && (
-        <CliCommand
-          cliCommand={cliCommandPreview}
-          isLoading={props.changePortAttempt.status === 'processing'}
-          buttonText="Copy"
-          onButtonClick={props.copyCliCommandToClipboard}
-        />
-      )}
+      <Text>Access the app at:</Text>
+      <TextSelectCopy my={1} text={link} bash={false} />
       {props.changePortAttempt.status === 'error' && (
         <Alert>
           Could not change the port number: {props.changePortAttempt.statusText}
         </Alert>
       )}
       <Text>
-        Access the app at{' '}
-        <code>
-          {props.gateway.protocol.toLowerCase()}://{props.gateway.localAddress}:
-          {props.gateway.localPort}
-        </code>
-        .
-      </Text>
-      <Text>
         The connection is made through an authenticated proxy so no extra
         credentials are necessary. See{' '}
-        {/*TODO(gzdunek): Replace with Teleport Connect App access docs.*/}
         <Link
-          href="https://goteleport.com/docs/application-access/guides/tcp/#step-34-start-app-proxy"
+          href="https://goteleport.com/docs/connect-your-client/teleport-connect/#connecting-to-an-application"
           target="_blank"
         >
           the documentation

@@ -79,8 +79,7 @@ export function ResultList<T>(props: ResultListProps<T>) {
   useEffect(() => {
     // This needs to happen directly in `useEffect` because it gives us a guarantee
     // that activeIndex matches the activeItemRef.
-    // `false` - bottom of the element will be aligned to the bottom of the visible area of the scrollable ancestor
-    activeItemRef.current?.scrollIntoView(false);
+    activeItemRef.current?.scrollIntoView({ block: 'nearest' });
 
     const handleArrowKey = (e: KeyboardEvent, nudge: number) => {
       const next = getNext(activeItemIndex + nudge, items.length);

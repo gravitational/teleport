@@ -236,7 +236,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				cfg.TableName = "table with space"
 				return cfg
 			},
-			wantErr: "TableName can contains only alphanumeric or underscore character",
+			wantErr: "TableName can only contain alphanumeric or underscore character",
 		},
 		{
 			name: "missing topicARN",

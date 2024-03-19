@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -34,8 +35,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -73,10 +74,11 @@ type DeviceAuthorizationOpts struct {
 
 // AuthorizerOpts holds creation options for [NewAuthorizer].
 type AuthorizerOpts struct {
-	ClusterName string
-	AccessPoint AuthorizerAccessPoint
-	LockWatcher *services.LockWatcher
-	Logger      logrus.FieldLogger
+	ClusterName      string
+	AccessPoint      AuthorizerAccessPoint
+	MFAAuthenticator MFAAuthenticator
+	LockWatcher      *services.LockWatcher
+	Logger           logrus.FieldLogger
 
 	// DeviceAuthorization holds Device Trust authorization options.
 	//
@@ -98,9 +100,11 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 	if logger == nil {
 		logger = logrus.WithFields(logrus.Fields{trace.Component: "authorizer"})
 	}
+
 	return &authorizer{
 		clusterName:             opts.ClusterName,
 		accessPoint:             opts.AccessPoint,
+		mfaAuthenticator:        opts.MFAAuthenticator,
 		lockWatcher:             opts.LockWatcher,
 		logger:                  logger,
 		disableGlobalDeviceMode: opts.DeviceAuthorization.DisableGlobalMode,
@@ -150,18 +154,32 @@ type AuthorizerAccessPoint interface {
 
 	// GetSessionRecordingConfig returns session recording configuration.
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+}
 
-	// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
-	// Returns the device used to solve the challenge (if applicable) and the username.
-	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error)
+// MFAAuthenticator authenticates MFA responses.
+type MFAAuthenticator interface {
+	// ValidateMFAAuthResponse validates an MFA challenge response.
+	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredExtensions *mfav1.ChallengeExtensions) (*MFAAuthData, error)
+}
+
+// MFAAuthData contains a user's MFA authentication data for a validated MFA response.
+type MFAAuthData struct {
+	// User is the authenticated Teleport User.
+	User string
+	// Device is the user's MFA device used to authenticate.
+	Device *types.MFADevice
+	// AllowReuse determines whether the MFA challenge response used to authenticate
+	// can be reused. AllowReuse MFAAuthData may be denied for specific actions.
+	AllowReuse mfav1.ChallengeAllowReuse
 }
 
 // authorizer creates new local authorizer
 type authorizer struct {
-	clusterName string
-	accessPoint AuthorizerAccessPoint
-	lockWatcher *services.LockWatcher
-	logger      logrus.FieldLogger
+	clusterName      string
+	accessPoint      AuthorizerAccessPoint
+	mfaAuthenticator MFAAuthenticator
+	lockWatcher      *services.LockWatcher
+	logger           logrus.FieldLogger
 
 	disableGlobalDeviceMode bool
 	disableRoleDeviceMode   bool
@@ -190,11 +208,26 @@ type Context struct {
 	// Inherited from the authorizer that creates the context.
 	disableDeviceRoleMode bool
 
-	// AdminActionVerified is whether this auth request is verified for admin actions. This
-	// either means that the request was MFA verified through the context or Hardware Key support,
-	// or the identity does not require admin MFA (built in roles, bot impersonated user, etc).
-	AdminActionAuthorized bool
+	// AdminActionAuthState is the state of admin action authorization for this auth context.
+	AdminActionAuthState AdminActionAuthState
 }
+
+// AdminActionAuthState is an admin action authorization state.
+type AdminActionAuthState int
+
+const (
+	// AdminActionAuthUnauthorized admin action is not authorized.
+	AdminActionAuthUnauthorized AdminActionAuthState = iota
+	// AdminActionAuthNotRequired admin action authorization is not authorized.
+	// This state is used for non-user cases, like internal service roles or Machine ID.
+	AdminActionAuthNotRequired
+	// AdminActionAuthMFAVerified admin action is authorized with MFA verification.
+	AdminActionAuthMFAVerified
+	// AdminActionAuthMFAVerifiedWithReuse admin action is authorized with MFA verification.
+	// The MFA challenged used for verification allows reuse, which may be denied by some
+	// admin actions.
+	AdminActionAuthMFAVerifiedWithReuse
+)
 
 // GetUserMetadata returns information about the authenticated identity
 // to be included in audit events.
@@ -291,7 +324,13 @@ func (c *Context) GetAccessState(authPref types.AuthPreference) services.AccessS
 }
 
 // Authorize authorizes user based on identity supplied via context
-func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
+func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error) {
+	defer func() {
+		if err != nil {
+			err = a.convertAuthorizerError(err)
+		}
+	}()
+
 	if ctx == nil {
 		return nil, trace.AccessDenied("missing authentication context")
 	}
@@ -376,39 +415,54 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 
 // checkAdminActionVerification checks if this auth request is verified for admin actions.
 func (a *authorizer) checkAdminActionVerification(ctx context.Context, authContext *Context) error {
-	if err := a.authorizeAdminAction(ctx, authContext); err != nil {
-		if trace.IsNotFound(err) {
-			// missing MFA verification should be a noop.
-			return nil
-		}
-		return trace.Wrap(err)
-	}
-
-	authContext.AdminActionAuthorized = true
-	return nil
-}
-
-func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Context) error {
-	// Builtin roles do not require MFA to perform admin actions.
-	switch authContext.Identity.(type) {
-	case BuiltinRole, RemoteBuiltinRole:
-		return nil
-	}
-
-	authpref, err := a.accessPoint.GetAuthPreference(ctx)
+	required, err := a.isAdminActionAuthorizationRequired(ctx, authContext)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Admin actions do not require MFA when Webauthn is not enabled.
-	if authpref.GetPreferredLocalMFA() != constants.SecondFactorWebauthn {
+	if !required {
+		authContext.AdminActionAuthState = AdminActionAuthNotRequired
 		return nil
+	}
+
+	if err := a.authorizeAdminAction(ctx, authContext); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, authContext *Context) (bool, error) {
+	// Provide a way to turn off admin MFA requirements in case expected functionality
+	// is disrupted by this requirement, such as for integrations essential to a user
+	// which do not yet make use of a machine ID / AdminRole impersonated identity.
+	//
+	// TODO(Joerger): once we have fully transitioned to requiring machine ID for
+	// integrations and ironed out any bugs with admin MFA, this env var should be removed.
+	if os.Getenv("TELEPORT_UNSTABLE_DISABLE_MFA_ADMIN_ACTIONS") == "yes" {
+		return false, nil
+	}
+
+	// Builtin roles do not require MFA to perform admin actions.
+	switch authContext.Identity.(type) {
+	case BuiltinRole, RemoteBuiltinRole:
+		return false, nil
+	}
+
+	authpref, err := a.accessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	// Check if this cluster enforces MFA for admin actions.
+	if !authpref.IsAdminActionMFAEnforced() {
+		return false, nil
 	}
 
 	// Skip MFA check if the user is a Bot.
 	if user, err := a.accessPoint.GetUser(ctx, authContext.Identity.GetIdentity().Username, false); err == nil && user.IsBot() {
 		a.logger.Debugf("Skipping admin action MFA check for bot identity: %v", authContext.Identity.GetIdentity())
-		return nil
+		return false, nil
 	}
 
 	// Skip MFA if the identity is being impersonated by the Bot or Admin built in role.
@@ -416,7 +470,7 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 		impersonatorUser, err := a.accessPoint.GetUser(ctx, impersonator, false)
 		if err == nil && impersonatorUser.IsBot() {
 			a.logger.Debugf("Skipping admin action MFA check for bot-impersonated identity: %v", authContext.Identity.GetIdentity())
-			return nil
+			return false, nil
 		}
 
 		// If we don't find a user matching the impersonator, it may be the admin role impersonating.
@@ -426,28 +480,71 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 			if hostFQDNParts[1] == a.clusterName {
 				if _, err := uuid.Parse(hostFQDNParts[0]); err == nil {
 					a.logger.Debugf("Skipping admin action MFA check for admin-impersonated identity: %v", authContext.Identity.GetIdentity())
-					return nil
+					return false, nil
 				}
 			}
 		}
 	}
 
-	// Certain hardware-key based private key policies require MFA for each request.
-	if authContext.Identity.GetIdentity().PrivateKeyPolicy.MFAVerified() {
-		return nil
-	}
+	return true, nil
+}
 
+func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Context) error {
 	// MFA is required to be passed through the request context.
 	mfaResp, err := mfa.CredentialsFromContext(ctx)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			// missing MFA verification should be a noop.
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	if a.mfaAuthenticator == nil {
+		return trace.Errorf("failed to validate MFA auth response, authorizer missing mfaAuthenticator field")
+	}
+
+	requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION}
+	mfaData, err := a.mfaAuthenticator.ValidateMFAAuthResponse(ctx, mfaResp, authContext.User.GetName(), requiredExt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if _, _, err := a.accessPoint.ValidateMFAAuthResponse(ctx, mfaResp, authContext.User.GetName(), false); err != nil {
-		return trace.Wrap(err)
+	authContext.AdminActionAuthState = AdminActionAuthMFAVerified
+	if mfaData.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+		authContext.AdminActionAuthState = AdminActionAuthMFAVerifiedWithReuse
 	}
 
 	return nil
+}
+
+// convertAuthorizerError will take an authorizer error and convert it into an error easily
+// handled by gRPC services.
+func (a *authorizer) convertAuthorizerError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	// propagate connection problem error so we can differentiate
+	// between connection failed and access denied
+	case trace.IsConnectionProblem(err):
+		return trace.ConnectionProblem(err, "failed to connect to the database")
+	case trace.IsNotFound(err):
+		// user not found, wrap error with access denied
+		return trace.Wrap(err, "access denied")
+	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch) || errors.Is(err, ErrIPPinningNotAllowed):
+		a.logger.Warn(err)
+		return trace.Wrap(err)
+	case trace.IsAccessDenied(err):
+		// don't print stack trace, just log the warning
+		a.logger.Warn(err)
+	case keys.IsPrivateKeyPolicyError(err):
+		// private key policy errors should be returned to the client
+		// unaltered so that they know to reauthenticate with a valid key.
+		return trace.Unwrap(err)
+	default:
+		a.logger.WithError(err).Warn("Suppressing unknown authz error.")
+	}
+	return trace.AccessDenied("access denied")
 }
 
 // ErrIPPinningMissing is returned when user cert should be pinned but isn't.
@@ -530,7 +627,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 
 	// The user is prefixed with "remote-" and suffixed with cluster name with
 	// the hope that it does not match a real local user.
-	user, err := types.NewUser(fmt.Sprintf("remote-%v-%v", u.Username, u.ClusterName))
+	user, err := types.NewUser(services.UsernameForRemoteCluster(u.Username, u.ClusterName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -891,6 +988,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+						types.NewRule(types.KindDatabaseObjectImportRule, services.RO()),
 					},
 				},
 			})
@@ -1007,12 +1105,14 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindNode, services.RO()),
+						types.NewRule(types.KindKubeServer, services.RO()),
 						types.NewRule(types.KindKubernetesCluster, services.RW()),
 						types.NewRule(types.KindDatabase, services.RW()),
 						types.NewRule(types.KindServerInfo, services.RW()),
 						types.NewRule(types.KindApp, services.RW()),
 						types.NewRule(types.KindDiscoveryConfig, services.RO()),
 						types.NewRule(types.KindIntegration, append(services.RO(), types.VerbUse)),
+						types.NewRule(types.KindSemaphore, services.RW()),
 					},
 					// Discovery service should only access kubes/apps/dbs that originated from discovery.
 					KubernetesLabels: types.Labels{types.OriginLabel: []string{types.OriginCloud}},
@@ -1117,8 +1217,8 @@ func ContextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig
 		Checker:               checker,
 		Identity:              r,
 		UnmappedIdentity:      r,
-		disableDeviceRoleMode: true, // Builtin roles skip device trust.
-		AdminActionAuthorized: true, // builtin roles skip mfa for admin actions.
+		disableDeviceRoleMode: true,                       // Builtin roles skip device trust.
+		AdminActionAuthState:  AdminActionAuthNotRequired, // builtin roles skip mfa for admin actions.
 	}, nil
 }
 
@@ -1269,83 +1369,67 @@ func ClientUserMetadataWithUser(ctx context.Context, user string) apievents.User
 	return meta
 }
 
-// ConvertAuthorizerError will take an authorizer error and convert it into an error easily
-// handled by gRPC services.
-func ConvertAuthorizerError(ctx context.Context, log logrus.FieldLogger, err error) error {
-	switch {
-	case err == nil:
-		return nil
-	// propagate connection problem error so we can differentiate
-	// between connection failed and access denied
-	case trace.IsConnectionProblem(err):
-		return trace.ConnectionProblem(err, "failed to connect to the database")
-	case trace.IsNotFound(err):
-		// user not found, wrap error with access denied
-		return trace.Wrap(err, "access denied")
-	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch) || errors.Is(err, ErrIPPinningNotAllowed):
-		log.Warn(err)
-		return trace.Wrap(err)
-	case trace.IsAccessDenied(err):
-		// don't print stack trace, just log the warning
-		log.Warn(err)
-	case keys.IsPrivateKeyPolicyError(err):
-		// private key policy errors should be returned to the client
-		// unaltered so that they know to reauthenticate with a valid key.
-		return trace.Unwrap(err)
-	default:
-		log.WithError(err).Warn("Suppressing unknown authz error.")
+// CheckAccessToKind will ensure that the user has access to the given verbs for the given kind.
+func (c *Context) CheckAccessToKind(kind string, verb string, additionalVerbs ...string) error {
+	ruleCtx := &services.Context{
+		User: c.User,
 	}
-	return trace.AccessDenied("access denied")
+
+	return c.CheckAccessToRule(ruleCtx, kind, verb, additionalVerbs...)
 }
 
-// AuthorizeResourceWithVerbs will ensure that the user has access to the given verbs for the given kind.
-func AuthorizeResourceWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer Authorizer, quiet bool, resource types.Resource, verbs ...string) (*Context, error) {
-	authCtx, err := authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, ConvertAuthorizerError(ctx, log, err)
-	}
-
+// CheckAccessToResource will ensure that the user has access to the given verbs for the given resource.
+func (c *Context) CheckAccessToResource(resource types.Resource, verb string, additionalVerbs ...string) error {
 	ruleCtx := &services.Context{
-		User:     authCtx.User,
+		User:     c.User,
 		Resource: resource,
 	}
 
-	return AuthorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, resource.GetKind(), verbs...)
+	return c.CheckAccessToRule(ruleCtx, resource.GetKind(), verb, additionalVerbs...)
 }
 
-// AuthorizeWithVerbs will ensure that the user has access to the given verbs for the given kind.
-func AuthorizeWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer Authorizer, quiet bool, kind string, verbs ...string) (*Context, error) {
-	authCtx, err := authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, ConvertAuthorizerError(ctx, log, err)
+// CheckAccessToRule will ensure that the user has access to the given verbs for the given [services.Context] and kind.
+// Prefer to use [Context.CheckAccessToKind] or [Context.CheckAccessToResource] for common checks.
+func (c *Context) CheckAccessToRule(ruleCtx *services.Context, kind string, verb string, additionalVerbs ...string) error {
+	var errs []error
+	for _, verb := range append(additionalVerbs, verb) {
+		if err := c.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, kind, verb); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
-	ruleCtx := &services.Context{
-		User: authCtx.User,
-	}
-
-	return AuthorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, kind, verbs...)
-}
-
-// AuthorizeContextWithVerbs will ensure that the user has access to the given verbs for the given services.context.
-func AuthorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, authCtx *Context, quiet bool, ruleCtx *services.Context, kind string, verbs ...string) (*Context, error) {
-	errs := make([]error, len(verbs))
-	for i, verb := range verbs {
-		errs[i] = authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, kind, verb, quiet)
-	}
-
-	if err := trace.NewAggregate(errs...); err != nil {
-		return nil, err
-	}
-	return authCtx, nil
+	return trace.NewAggregate(errs...)
 }
 
 // AuthorizeAdminAction will ensure that the user is authorized to perform admin actions.
+// TODO(Joerger): replace with authCtx.AuthorizeAdminAction
 func AuthorizeAdminAction(ctx context.Context, authCtx *Context) error {
-	if !authCtx.AdminActionAuthorized {
-		return trace.Wrap(&mfa.ErrAdminActionMFARequired)
+	return authCtx.AuthorizeAdminAction()
+}
+
+// AuthorizeAdminActionAllowReusedMFA will ensure that the user is authorized to perform
+// admin actions. Additionally, MFA challenges that allow reuse will be accepted.
+// TODO(Joerger): replace with authCtx.AuthorizeAdminActionAllowReusedMFA
+func AuthorizeAdminActionAllowReusedMFA(ctx context.Context, authCtx *Context) error {
+	return authCtx.AuthorizeAdminActionAllowReusedMFA()
+}
+
+// AuthorizeAdminAction will ensure that the user is authorized to perform admin actions.
+func (c *Context) AuthorizeAdminAction() error {
+	switch c.AdminActionAuthState {
+	case AdminActionAuthMFAVerified, AdminActionAuthNotRequired:
+		return nil
 	}
-	return nil
+	return trace.Wrap(&mfa.ErrAdminActionMFARequired)
+}
+
+// AuthorizeAdminActionAllowReusedMFA will ensure that the user is authorized to perform
+// admin actions. Additionally, MFA challenges that allow reuse will be accepted.
+func (c *Context) AuthorizeAdminActionAllowReusedMFA() error {
+	if c.AdminActionAuthState == AdminActionAuthMFAVerifiedWithReuse {
+		return nil
+	}
+	return c.AuthorizeAdminAction()
 }
 
 // LocalUser is a local user

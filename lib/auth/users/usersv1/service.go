@@ -128,7 +128,7 @@ func currentUserAction(authzContext authz.Context, username string) error {
 		return nil
 	}
 	return authzContext.Checker.CheckAccessToRule(&services.Context{User: authzContext.User},
-		apidefaults.Namespace, types.KindUser, types.VerbCreate, true)
+		apidefaults.Namespace, types.KindUser, types.VerbCreate)
 }
 
 func (s *Service) getCurrentUser(ctx context.Context, authCtx *authz.Context) (*types.UserV2, error) {
@@ -192,7 +192,7 @@ func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*us
 		// their own info.
 		if err := currentUserAction(*authCtx, req.Name); err != nil {
 			// not current user, perform normal permission check.
-			if _, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbRead); err != nil {
+			if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
@@ -213,16 +213,21 @@ func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*us
 }
 
 func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest) (*userspb.CreateUserResponse, error) {
-	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbCreate)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err = okta.CheckOrigin(authzCtx, req.User); err != nil {
+	// Support reused MFA for bulk tctl create requests and chained invite commands (CreateResetPasswordToken).
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = okta.CheckOrigin(authCtx, req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -236,7 +241,7 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 
 	if req.User.GetCreatedBy().IsEmpty() {
 		req.User.SetCreatedBy(types.CreatedBy{
-			User: types.UserRef{Name: authzCtx.User.GetName()},
+			User: types.UserRef{Name: authCtx.User.GetName()},
 			Time: s.clock.Now().UTC(),
 		})
 	}
@@ -256,7 +261,7 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 			Type: events.UserCreateEvent,
 			Code: events.UserCreateCode,
 		},
-		UserMetadata: authzCtx.GetUserMetadata(),
+		UserMetadata: authCtx.GetUserMetadata(),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    created.GetName(),
 			Expires: created.Expiry(),
@@ -280,16 +285,21 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 }
 
 func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest) (*userspb.UpdateUserResponse, error) {
-	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbUpdate)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err = okta.CheckOrigin(authzCtx, req.User); err != nil {
+	// Allow reused MFA responses to allow Updating a user after get (WebUI).
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = okta.CheckOrigin(authCtx, req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -317,7 +327,7 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		req.User.SetCreatedBy(prevUser.GetCreatedBy())
 	}
 
-	if err = okta.CheckAccess(authzCtx, prevUser, types.VerbUpdate); err != nil {
+	if err = okta.CheckAccess(authCtx, prevUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -336,7 +346,7 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 			Type: events.UserUpdatedEvent,
 			Code: events.UserUpdateCode,
 		},
-		UserMetadata: authzCtx.GetUserMetadata(),
+		UserMetadata: authCtx.GetUserMetadata(),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    updated.GetName(),
 			Expires: updated.Expiry(),
@@ -362,12 +372,17 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 }
 
 func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest) (*userspb.UpsertUserResponse, error) {
-	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbCreate, types.VerbUpdate)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Support reused MFA for bulk tctl create requests.
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -381,7 +396,7 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 
 	if createdBy := req.User.GetCreatedBy(); createdBy.IsEmpty() {
 		req.User.SetCreatedBy(types.CreatedBy{
-			User: types.UserRef{Name: authzCtx.User.GetName()},
+			User: types.UserRef{Name: authCtx.User.GetName()},
 		})
 	}
 
@@ -398,11 +413,11 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		verb = types.VerbCreate
 	}
 
-	if err = okta.CheckOrigin(authzCtx, req.User); err != nil {
+	if err = okta.CheckOrigin(authCtx, req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err = okta.CheckAccess(authzCtx, prevUser, verb); err != nil {
+	if err = okta.CheckAccess(authCtx, prevUser, verb); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -421,7 +436,7 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 			Type: events.UserCreateEvent,
 			Code: events.UserCreateCode,
 		},
-		UserMetadata: authzCtx.GetUserMetadata(),
+		UserMetadata: authCtx.GetUserMetadata(),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    upserted.GetName(),
 			Expires: upserted.Expiry(),
@@ -447,12 +462,16 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 }
 
 func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest) (*emptypb.Empty, error) {
-	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbDelete)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -465,7 +484,7 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 		omitEditorEvent = true
 	}
 
-	if err = okta.CheckAccess(authzCtx, prevUser, types.VerbDelete); err != nil {
+	if err = okta.CheckAccess(authCtx, prevUser, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -537,7 +556,7 @@ func (s *Service) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) 
 			return nil, trace.AccessDenied("this request can be only executed by an admin")
 		}
 	} else {
-		if _, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbList, types.VerbRead); err != nil {
+		if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbList, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

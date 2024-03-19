@@ -21,7 +21,6 @@ package local
 import (
 	"bytes"
 	"context"
-	"crypto"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
@@ -94,78 +93,60 @@ func (s *IdentityService) listUsersWithSecrets(ctx context.Context, pageSize int
 	rangeStream := backend.StreamRange(ctx, s.Backend, rangeStart, rangeEnd, limit)
 
 	var (
-		out      []types.User
-		prevUser string
-		items    userItems
+		out []types.User
+
+		name  string
+		items userItems
 	)
 	for rangeStream.Next() {
 		item := rangeStream.Item()
 
-		name, suffix, err := splitUsernameAndSuffix(string(item.Key))
+		itemName, suffix, err := splitUsernameAndSuffix(string(item.Key))
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 
-		if prevUser == "" {
-			prevUser = name
+		if itemName == name {
+			items.Set(suffix, item)
+			continue
 		}
 
-		if name != prevUser {
-			user, err := userFromUserItems(prevUser, items)
+		// we exclude user item sets that don't have a /params subitem because
+		// SSO users have an expiration time on /params but their /mfa devices
+		// are persistent
+		if items.complete() {
+			user, err := userFromUserItems(name, items)
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
-
 			out = append(out, user)
 
-			prevUser = name
-			items = userItems{}
+			if len(out) >= pageSize {
+				if err := rangeStream.Done(); err != nil {
+					return nil, "", trace.Wrap(err)
+				}
 
-			if len(out) == pageSize {
-				break
+				return out, nextUserToken(user), nil
 			}
 		}
 
+		name = itemName
+		items = userItems{}
 		items.Set(suffix, item)
 	}
-
-	next := rangeStream.Next()
-
-	if len(out) == 0 {
-		// When there is only a single user the transition logic to detect when a user
-		// is complete will never be hit. If the stream is exhausted and the items have
-		// processed a user resource then return it.
-		if !next && items.complete() {
-			user, err := userFromUserItems(prevUser, items)
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-
-			out = append(out, user)
-		}
-	} else {
-		// If there are no more users it is possible that the previous user being processed
-		// was never added to out because there was no additional user to transition to.
-		// Add the user from the collected items and return the full output.
-		if len(out) != pageSize && out[len(out)-1].GetName() != prevUser {
-			user, err := userFromUserItems(prevUser, items)
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-
-			out = append(out, user)
-		}
+	if err := rangeStream.Done(); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
-	var nextToken string
-	// If the stream has more data or while processing the stream the last user
-	// caused a transition but was not added to out we want to send a token so
-	// that the final user may be returned in the next page.
-	if next || len(out) > 0 && out[len(out)-1].GetName() != prevUser {
-		nextToken = nextUserToken(out[len(out)-1])
+	if items.complete() {
+		user, err := userFromUserItems(name, items)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		out = append(out, user)
 	}
 
-	return out, nextToken, trace.Wrap(rangeStream.Done())
+	return out, "", nil
 }
 
 // nextUserToken returns the last token for the given user. This
@@ -441,58 +422,77 @@ func (s *IdentityService) UpsertUser(ctx context.Context, user types.User) (type
 	return user, nil
 }
 
-// CompareAndSwapUser updates a user, but fails if the value (as exists in the
-// backend) differs from the provided `existing` value. If the existing value
+// CompareAndSwapUser updates a user, but fails if the user (as exists in the
+// backend) differs from the provided `existing` user. If the existing user
 // matches, returns no error, otherwise returns `trace.CompareFailed`.
 func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing types.User) error {
+	if new.GetName() != existing.GetName() {
+		return trace.BadParameter("name mismatch between new and existing user")
+	}
 	if err := services.ValidateUser(new); err != nil {
 		return trace.Wrap(err)
 	}
 
-	newRaw, ok := new.WithoutSecrets().(types.User)
+	newWithoutSecrets, ok := new.WithoutSecrets().(types.User)
 	if !ok {
-		return trace.BadParameter("Invalid user type %T", new)
+		return trace.BadParameter("invalid new user type %T (this is a bug)", new)
 	}
-	rev := new.GetRevision()
-	newValue, err := services.MarshalUser(newRaw)
-	if err != nil {
-		return trace.Wrap(err)
+
+	existingWithoutSecrets, ok := existing.WithoutSecrets().(types.User)
+	if !ok {
+		return trace.BadParameter("invalid existing user type %T (this is a bug)", existing)
 	}
-	newItem := backend.Item{
+
+	item := backend.Item{
 		Key:      backend.Key(webPrefix, usersPrefix, new.GetName(), paramsPrefix),
-		Value:    newValue,
+		Value:    nil, // avoid marshaling new until we pass one comparison
 		Expires:  new.Expiry(),
-		ID:       new.GetResourceID(),
-		Revision: rev,
+		Revision: "",
 	}
 
-	existingRaw, ok := existing.WithoutSecrets().(types.User)
-	if !ok {
-		return trace.BadParameter("Invalid user type %T", existing)
-	}
-	existingValue, err := services.MarshalUser(existingRaw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	existingItem := backend.Item{
-		Key:   backend.Key(webPrefix, usersPrefix, existing.GetName(), paramsPrefix),
-		Value: existingValue,
-	}
-
-	_, err = s.CompareAndSwap(ctx, existingItem, newItem)
-	if err != nil {
-		if trace.IsCompareFailed(err) {
-			return trace.CompareFailed("user %v did not match expected existing value", new.GetName())
-		}
-		return trace.Wrap(err)
-	}
-
-	if auth := new.GetLocalAuth(); auth != nil {
-		if err = s.upsertLocalAuthSecrets(ctx, new.GetName(), *auth); err != nil {
+	// one retry because ConditionalUpdate could occasionally spuriously fail,
+	// another retry because a single retry would be weird
+	const iterationLimit = 3
+	for i := 0; i < iterationLimit; i++ {
+		const withoutSecrets = false
+		currentWithoutSecrets, err := s.GetUser(ctx, new.GetName(), withoutSecrets)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return trace.CompareFailed("user %v did not match expected existing value", new.GetName())
+			}
 			return trace.Wrap(err)
 		}
+
+		if !services.UsersEquals(existingWithoutSecrets, currentWithoutSecrets) {
+			return trace.CompareFailed("user %v did not match expected existing value", new.GetName())
+		}
+
+		if item.Value == nil {
+			v, err := services.MarshalUser(newWithoutSecrets)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			item.Value = v
+		}
+
+		item.Revision = currentWithoutSecrets.GetRevision()
+
+		if _, err = s.Backend.ConditionalUpdate(ctx, item); err != nil {
+			if trace.IsCompareFailed(err) {
+				continue
+			}
+			return trace.Wrap(err)
+		}
+
+		if auth := new.GetLocalAuth(); auth != nil {
+			if err = s.upsertLocalAuthSecrets(ctx, new.GetName(), *auth); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
 	}
-	return nil
+
+	return trace.LimitExceeded("failed to update user within %v iterations", iterationLimit)
 }
 
 // GetUser returns a user by name
@@ -1740,83 +1740,6 @@ func (s *IdentityService) UpsertRecoveryCodes(ctx context.Context, user string, 
 	return trace.Wrap(err)
 }
 
-// CreateUserRecoveryAttempt creates new user recovery attempt.
-func (s *IdentityService) CreateUserRecoveryAttempt(ctx context.Context, user string, attempt *types.RecoveryAttempt) error {
-	if user == "" {
-		return trace.BadParameter("missing parameter user")
-	}
-
-	if err := attempt.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	value, err := json.Marshal(attempt)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user, recoveryAttemptsPrefix, uuid.New().String()),
-		Value:   value,
-		Expires: attempt.Expires,
-	}
-
-	_, err = s.Create(ctx, item)
-	return trace.Wrap(err)
-}
-
-// GetUserRecoveryAttempts returns users recovery attempts.
-func (s *IdentityService) GetUserRecoveryAttempts(ctx context.Context, user string) ([]*types.RecoveryAttempt, error) {
-	if user == "" {
-		return nil, trace.BadParameter("missing parameter user")
-	}
-
-	startKey := backend.ExactKey(webPrefix, usersPrefix, user, recoveryAttemptsPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out := make([]*types.RecoveryAttempt, len(result.Items))
-	for i, item := range result.Items {
-		var a types.RecoveryAttempt
-		if err := json.Unmarshal(item.Value, &a); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out[i] = &a
-	}
-
-	sort.Sort(recoveryAttemptsChronologically(out))
-
-	return out, nil
-}
-
-// DeleteUserRecoveryAttempts removes all recovery attempts of a user.
-func (s *IdentityService) DeleteUserRecoveryAttempts(ctx context.Context, user string) error {
-	if user == "" {
-		return trace.BadParameter("missing parameter user")
-	}
-
-	startKey := backend.ExactKey(webPrefix, usersPrefix, user, recoveryAttemptsPrefix)
-	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
-}
-
-// recoveryAttemptsChronologically sorts recovery attempts by oldest to latest time.
-type recoveryAttemptsChronologically []*types.RecoveryAttempt
-
-func (s recoveryAttemptsChronologically) Len() int {
-	return len(s)
-}
-
-// Less stacks latest attempts to the end of the list.
-func (s recoveryAttemptsChronologically) Less(i, j int) bool {
-	return s[i].Time.Before(s[j].Time)
-}
-
-func (s recoveryAttemptsChronologically) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
 // UpsertKeyAttestationData upserts a verified public key attestation response.
 func (s *IdentityService) UpsertKeyAttestationData(ctx context.Context, attestationData *keys.AttestationData, ttl time.Duration) error {
 	value, err := json.Marshal(attestationData)
@@ -1843,14 +1766,9 @@ func (s *IdentityService) UpsertKeyAttestationData(ctx context.Context, attestat
 }
 
 // GetKeyAttestationData gets a verified public key attestation response.
-func (s *IdentityService) GetKeyAttestationData(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationData, error) {
-	if publicKey == nil {
-		return nil, trace.BadParameter("missing parameter publicKey")
-	}
-
-	pubDER, err := x509.MarshalPKIXPublicKey(publicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (s *IdentityService) GetKeyAttestationData(ctx context.Context, pubDER []byte) (*keys.AttestationData, error) {
+	if pubDER == nil {
+		return nil, trace.BadParameter("missing parameter pubDER")
 	}
 
 	key := keyAttestationDataFingerprint(pubDER)
@@ -1895,7 +1813,6 @@ const (
 	webauthnLocalAuthPrefix     = "webauthnlocalauth"
 	webauthnSessionData         = "webauthnsessiondata"
 	recoveryCodesPrefix         = "recoverycodes"
-	recoveryAttemptsPrefix      = "recoveryattempts"
 	attestationsPrefix          = "key_attestations"
 	assistantMessagePrefix      = "assistant_messages"
 	assistantConversationPrefix = "assistant_conversations"

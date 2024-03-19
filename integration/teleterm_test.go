@@ -33,6 +33,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -101,9 +102,9 @@ func TestTeleterm(t *testing.T) {
 		testCreateConnectMyComputerRole(t, pack)
 	})
 
-	t.Run("CreateAndDeleteConnectMyComputerToken", func(t *testing.T) {
+	t.Run("CreateConnectMyComputerToken", func(t *testing.T) {
 		t.Parallel()
-		testCreatingAndDeletingConnectMyComputerToken(t, pack)
+		testCreateConnectMyComputerToken(t, pack)
 	})
 
 	t.Run("WaitForConnectMyComputerNodeJoin", func(t *testing.T) {
@@ -114,6 +115,12 @@ func TestTeleterm(t *testing.T) {
 	t.Run("DeleteConnectMyComputerNode", func(t *testing.T) {
 		t.Parallel()
 		testDeleteConnectMyComputerNode(t, pack)
+	})
+
+	t.Run("TestClientCache", func(t *testing.T) {
+		t.Parallel()
+
+		testClientCache(t, pack, creds)
 	})
 }
 
@@ -332,6 +339,85 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 		"Expected tshdEventService to receive 1 SendPendingHeadlessAuthentication message but got %v",
 		tshdEventsService.sendPendingHeadlessAuthenticationCount.Load(),
 	)
+}
+
+func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
+	ctx := context.Background()
+
+	tc := mustLogin(t, pack.Root.User.GetName(), pack, creds)
+
+	storageFakeClock := clockwork.NewFakeClockAt(time.Now())
+
+	storage, err := clusters.NewStorage(clusters.Config{
+		Dir:                tc.KeysDir,
+		Clock:              storageFakeClock,
+		InsecureSkipVerify: tc.InsecureSkipVerify,
+	})
+	require.NoError(t, err)
+
+	cluster, _, err := storage.Add(ctx, tc.WebProxyAddr)
+	require.NoError(t, err)
+
+	daemonService, err := daemon.New(daemon.Config{
+		Storage: storage,
+		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
+			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+		},
+		KubeconfigsDir: t.TempDir(),
+		AgentsDir:      t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		daemonService.Stop()
+	})
+
+	// Check if parallel calls trying to get a client will return the same one.
+	eg, egCtx := errgroup.WithContext(ctx)
+	blocker := make(chan struct{})
+	const concurrentCalls = 5
+	concurrentCallsForClient := make([]*client.ProxyClient, concurrentCalls)
+	for i := range concurrentCallsForClient {
+		client := &concurrentCallsForClient[i]
+		eg.Go(func() error {
+			<-blocker
+			c, err := daemonService.GetCachedClient(egCtx, cluster.URI)
+			*client = c
+			return err
+		})
+	}
+	// unblock the operation which is still in progress
+	close(blocker)
+	require.NoError(t, eg.Wait())
+	require.Subset(t, concurrentCallsForClient[:1], concurrentCallsForClient[1:])
+
+	// Since we have a client in the cache, it should be returned.
+	secondCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
+	require.NoError(t, err)
+	require.Equal(t, concurrentCallsForClient[0], secondCallForClient)
+
+	// Let's remove the client from the cache.
+	// The call to GetCachedClient will
+	// connect to proxy and return a new client.
+	err = daemonService.ClearCachedClientsForRoot(cluster.URI)
+	require.NoError(t, err)
+	thirdCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
+	require.NoError(t, err)
+	require.NotEqual(t, secondCallForClient, thirdCallForClient)
+
+	// After closing the client (from our or a remote side)
+	// it will be removed from the cache.
+	// The call to GetCachedClient will connect to proxy and return a new client.
+	err = thirdCallForClient.Close()
+	require.NoError(t, err)
+
+	// TODO(gzdunek): Re-enable this test.
+	// This part is flaky, there is no guarantee that the goroutine waiting
+	// for the client to close will be able to remove it from the cache
+	// before we try to get a new client.
+
+	//fourthCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
+	//require.NoError(t, err)
+	//require.NotEqual(t, thirdCallForClient, fourthCallForClient)
 }
 
 func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack) {
@@ -611,7 +697,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 	}
 }
 
-func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers.DatabasePack) {
+func testCreateConnectMyComputerToken(t *testing.T, pack *dbhelpers.DatabasePack) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -687,41 +773,6 @@ func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers
 	require.Equal(t, types.SystemRoles{types.RoleNode}, tokenFromAuthServer.GetRoles())
 	// ...and is valid for no longer than 5 minutes.
 	require.LessOrEqual(t, tokenFromAuthServer.Expiry(), requestCreatedAt.Add(5*time.Minute))
-
-	// watcher waits for the token deletion
-	watcher, err := authServer.NewWatcher(ctx, types.Watch{
-		Kinds: []types.WatchKind{
-			{Kind: types.KindToken},
-		},
-	})
-	require.NoError(t, err)
-	defer watcher.Close()
-
-	select {
-	case <-time.After(time.Second * 10):
-		t.Fatalf("Timeout waiting for event.")
-	case event := <-watcher.Events():
-		if event.Type != types.OpInit {
-			t.Fatalf("Unexpected event type.")
-		}
-		require.Equal(t, types.OpInit, event.Type)
-	case <-watcher.Done():
-		t.Fatal(watcher.Error())
-	}
-
-	// Call DeleteConnectMyComputerToken.
-	_, err = handler.DeleteConnectMyComputerToken(ctx, &api.DeleteConnectMyComputerTokenRequest{
-		RootClusterUri: rootClusterURI,
-		Token:          createdTokenResponse.GetToken(),
-	})
-	require.NoError(t, err)
-
-	waitForResourceToBeDeleted(t, watcher, types.KindToken, createdTokenResponse.GetToken())
-
-	_, err = authServer.GetToken(ctx, createdTokenResponse.GetToken())
-
-	// The token should no longer exist.
-	require.True(t, trace.IsNotFound(err))
 }
 
 func testWaitForConnectMyComputerNodeJoin(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
@@ -928,23 +979,4 @@ func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsServic
 func (c *mockTSHDEventsService) SendPendingHeadlessAuthentication(context.Context, *api.SendPendingHeadlessAuthenticationRequest) (*api.SendPendingHeadlessAuthenticationResponse, error) {
 	c.sendPendingHeadlessAuthenticationCount.Add(1)
 	return &api.SendPendingHeadlessAuthenticationResponse{}, nil
-}
-
-func waitForResourceToBeDeleted(t *testing.T, watcher types.Watcher, kind, name string) {
-	timeout := time.After(time.Second * 15)
-	for {
-		select {
-		case <-timeout:
-			t.Fatalf("Timeout waiting for event.")
-		case event := <-watcher.Events():
-			if event.Type != types.OpDelete {
-				continue
-			}
-			if event.Resource.GetKind() == kind && event.Resource.GetMetadata().Name == name {
-				return
-			}
-		case <-watcher.Done():
-			t.Fatalf("Watcher error %s.", watcher.Error())
-		}
-	}
 }

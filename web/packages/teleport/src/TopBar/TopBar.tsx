@@ -16,16 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { lazy, Suspense, useState } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 import { Link } from 'react-router-dom';
 import { Flex, Image, Text, TopNav } from 'design';
 
 import { matchPath, useHistory } from 'react-router';
 
-import { BrainIcon } from 'design/SVGIcon';
+import { Theme } from 'design/theme/themes/types';
 
-import { ArrowLeft, Download, Server, SlidersVertical } from 'design/Icon';
+import {
+  ArrowLeft,
+  ChatCircleSparkle,
+  Download,
+  Server,
+  SlidersVertical,
+} from 'design/Icon';
 import { HoverTooltip } from 'shared/components/ToolTip';
 
 import useTeleport from 'teleport/useTeleport';
@@ -34,35 +40,63 @@ import { useFeatures } from 'teleport/FeaturesContext';
 import { NavigationCategory } from 'teleport/Navigation/categories';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
-
+import { TeleportFeature } from 'teleport/types';
 import { useLayout } from 'teleport/Main/LayoutContext';
 import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
-import { useUser } from 'teleport/User/UserContext';
-import { ViewMode } from 'teleport/Assist/types';
 
 import { Notifications } from './Notifications';
 import { ButtonIconContainer } from './Shared';
 import logoLight from './logoLight.svg';
 import logoDark from './logoDark.svg';
 
-const Assist = lazy(() => import('teleport/Assist'));
+import type * as history from 'history';
 
-export function TopBar({ CustomLogo }: TopBarProps) {
+function getCategoryForRoute(
+  features: TeleportFeature[],
+  route: history.Location<unknown> | Location
+) {
+  const feature = features
+    .filter(feature => Boolean(feature.route))
+    .find(feature =>
+      matchPath(route.pathname, {
+        path: feature.route.path,
+      })
+    );
+
+  if (!feature) {
+    return;
+  }
+
+  return feature.category;
+}
+
+export function TopBar({ CustomLogo, assistProps }: TopBarProps) {
   const ctx = useTeleport();
-  const { preferences } = useUser();
-  const viewMode = preferences?.assist?.viewMode;
   const { clusterId } = useStickyClusterId();
   const history = useHistory();
   const features = useFeatures();
-  const assistEnabled = ctx.getFeatureFlags().assist && ctx.assistEnabled;
   const topBarLinks = features.filter(
     feature =>
       feature.category === NavigationCategory.Resources && feature.topMenuItem
   );
+  const { currentWidth } = useLayout();
+  const theme: Theme = useTheme();
 
-  const [showAssist, setShowAssist] = useState(false);
+  const [previousManagementRoute, setPreviousManagementRoute] = useState('');
 
-  const { hasDockedElement } = useLayout();
+  const handleLocationChange = useCallback(
+    (next: history.Location<unknown> | Location) => {
+      const category = getCategoryForRoute(features, next);
+      if (category && category === NavigationCategory.Management) {
+        setPreviousManagementRoute(next.pathname);
+      }
+    },
+    [features]
+  );
+
+  useEffect(() => {
+    return history.listen(handleLocationChange);
+  }, [history, handleLocationChange]);
 
   // find active feature
   const feature = features
@@ -89,12 +123,13 @@ export function TopBar({ CustomLogo }: TopBarProps) {
     feature?.category === NavigationCategory.Management;
   const downloadTabSelected =
     history?.location?.pathname === cfg.routes.downloadCenter;
+  const iconSize =
+    currentWidth >= theme.breakpoints.medium
+      ? navigationIconSizeMedium
+      : navigationIconSizeSmall;
 
   return (
-    <TopBarContainer
-      navigationHidden={feature?.hideNavigation}
-      dockedView={showAssist && viewMode === ViewMode.Docked}
-    >
+    <TopBarContainer navigationHidden={feature?.hideNavigation}>
       {!feature?.hideNavigation && (
         <>
           <TeleportLogo CustomLogo={CustomLogo} />
@@ -114,6 +149,7 @@ export function TopBar({ CustomLogo }: TopBarProps) {
                 name="Downloads"
                 to={cfg.routes.downloadCenter}
                 isSelected={downloadTabSelected}
+                size={iconSize}
                 Icon={Download}
               />
             ) : (
@@ -121,23 +157,30 @@ export function TopBar({ CustomLogo }: TopBarProps) {
                 name="Resources"
                 to={cfg.getUnifiedResourcesRoute(clusterId)}
                 isSelected={resourceTabSelected}
+                size={iconSize}
                 Icon={Server}
               />
             )}
             <MainNavItem
               name="Access Management"
-              to={getFirstRouteForCategory(
-                features,
-                NavigationCategory.Management
-              )}
+              to={
+                previousManagementRoute ||
+                getFirstRouteForCategory(
+                  features,
+                  NavigationCategory.Management
+                )
+              }
+              size={iconSize}
               isSelected={managementTabSelected}
               Icon={SlidersVertical}
             />
 
             {topBarLinks.map(({ topMenuItem, navigationItem }) => {
-              const selected = history.location.pathname.includes(
-                navigationItem.getLink(clusterId)
-              );
+              const link = navigationItem.getLink(clusterId);
+              const currentPath = history.location.pathname;
+              const selected =
+                navigationItem.isSelected?.(clusterId, currentPath) ||
+                history.location.pathname.includes(link);
               return (
                 <NavigationButton
                   key={topMenuItem.title}
@@ -152,6 +195,7 @@ export function TopBar({ CustomLogo }: TopBarProps) {
                 >
                   <topMenuItem.icon
                     color={selected ? 'text.main' : 'text.muted'}
+                    size={iconSize}
                   />
                 </NavigationButton>
               );
@@ -165,27 +209,37 @@ export function TopBar({ CustomLogo }: TopBarProps) {
         </ButtonIconContainer>
       )}
       <Flex height="100%" alignItems="center">
-        {!hasDockedElement && assistEnabled && (
-          <ButtonIconContainer onClick={() => setShowAssist(true)}>
-            <BrainIcon />
-          </ButtonIconContainer>
+        {assistProps?.assistEnabled && (
+          <HoverTooltip
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+            tipContent="Teleport Assist"
+            css={`
+              height: 100%;
+            `}
+          >
+            <ButtonIconContainer
+              onClick={() =>
+                assistProps?.setShowAssist(!assistProps?.showAssist)
+              }
+            >
+              <ChatCircleSparkle
+                color={assistProps?.showAssist ? 'text.main' : 'text.muted'}
+                size={iconSize}
+              />
+            </ButtonIconContainer>
+          </HoverTooltip>
         )}
-        <Notifications />
+        <Notifications iconSize={iconSize} />
         <UserMenuNav username={ctx.storeUser.state.username} />
-        {showAssist && (
-          <Suspense fallback={null}>
-            <Assist onClose={() => setShowAssist(false)} />
-          </Suspense>
-        )}
       </Flex>
     </TopBarContainer>
   );
 }
 
-const assistDockedWidth = `width: calc(100% - 520px);`;
 export const TopBarContainer = styled(TopNav)`
   position: absolute;
-  ${props => (props.dockedView ? assistDockedWidth : 'width: 100%;')}
+  width: 100%;
   display: flex;
   justify-content: space-between;
   background: ${p => p.theme.colors.levels.surface};
@@ -193,7 +247,7 @@ export const TopBarContainer = styled(TopNav)`
   overflow-x: none;
   flex-shrink: 0;
   z-index: 10;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.spotBackground[0]};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.spotBackground[1]};
 
   height: ${p => p.theme.topBarHeight[0]}px;
   @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
@@ -202,9 +256,6 @@ export const TopBarContainer = styled(TopNav)`
   @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
     height: ${p => p.theme.topBarHeight[2]}px;
   }
-
-  box-shadow: 0px 1px 3px 0px rgba(0, 0, 0, 0.12),
-    0px 1px 1px 0px rgba(0, 0, 0, 0.14), 0px 2px 1px -1px rgba(0, 0, 0, 0.2);
 `;
 
 const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
@@ -217,18 +268,19 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
       tipContent="Teleport Resources Home"
       css={`
         height: 100%;
+        margin-right: 0px;
+        @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+          margin-right: 76px;
+        }
+        @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+          margin-right: 67px;
+        }
       `}
     >
       <Link
         css={`
           cursor: pointer;
-          height: 100%;
           display: flex;
-          width: 190px;
-          @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
-            width: 256px;
-          }
-
           transition: background-color 0.1s linear;
           &:hover {
             background-color: ${p =>
@@ -247,11 +299,13 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
             alt="teleport logo"
             css={`
               padding-left: ${props => props.theme.space[3]}px;
+              padding-right: ${props => props.theme.space[3]}px;
               height: 18px;
               @media screen and (min-width: ${p =>
-                  p.theme.breakpoints.medium}px) {
+                  p.theme.breakpoints.small}px) {
                 height: 28px;
                 padding-left: ${props => props.theme.space[4]}px;
+                padding-right: ${props => props.theme.space[4]}px;
               }
               @media screen and (min-width: ${p =>
                   p.theme.breakpoints.large}px) {
@@ -265,6 +319,8 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
   );
 };
 
+export const navigationIconSizeSmall = 20;
+export const navigationIconSizeMedium = 24;
 const NavigationButton = ({
   to,
   selected,
@@ -275,11 +331,11 @@ const NavigationButton = ({
   to: string;
   selected: boolean;
   children: React.ReactNode;
-  title: string;
+  title?: string;
 }) => {
   const theme = useTheme();
   const selectedBorder = `2px solid ${theme.colors.brand}`;
-  const selectedBackground = theme.colors.interactive.tonal.primary[0];
+  const selectedBackground = theme.colors.interactive.tonal.neutral[0];
 
   return (
     <HoverTooltip
@@ -293,6 +349,7 @@ const NavigationButton = ({
       <Link
         to={to}
         css={`
+          box-sizing: border-box;
           text-decoration: none;
           color: rgba(0, 0, 0, 0.54);
           height: 100%;
@@ -329,28 +386,37 @@ const NavigationButton = ({
 const MainNavItem = ({
   isSelected,
   to,
+  size,
   name,
   Icon,
 }: {
   isSelected: boolean;
   to: string;
+  size: number;
   name: string;
-  Icon: (props: { color: string }) => JSX.Element;
+  Icon: (props: { color: string; size: number }) => JSX.Element;
 }) => {
+  const { currentWidth } = useLayout();
+  const theme: Theme = useTheme();
+  const mediumAndUp = currentWidth >= theme.breakpoints.medium;
   return (
-    <NavigationButton selected={isSelected} to={to} title={name}>
-      <Icon color={isSelected ? 'text.main' : 'text.muted'} />
+    <NavigationButton
+      selected={isSelected}
+      to={to}
+      title={!mediumAndUp ? name : ''}
+    >
+      <Icon color={isSelected ? 'text.main' : 'text.muted'} size={size} />
       <Text
         ml={3}
-        fontSize={18}
+        fontSize={3}
         fontWeight={500}
+        color={isSelected ? 'text.main' : 'text.muted'}
         css={`
           display: none;
           @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
             display: block;
           }
         `}
-        color={isSelected ? 'text.main' : 'text.muted'}
       >
         {name}
       </Text>
@@ -364,7 +430,14 @@ export type NavigationItem = {
   Icon: JSX.Element;
 };
 
+export type AssistProps = {
+  showAssist: boolean;
+  setShowAssist: (show: boolean) => void;
+  assistEnabled: boolean;
+};
+
 export type TopBarProps = {
   CustomLogo?: () => React.ReactElement;
   showPoweredByLogo?: boolean;
+  assistProps?: AssistProps;
 };

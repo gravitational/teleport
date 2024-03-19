@@ -553,7 +553,11 @@ message Features {
   // IdentityGovernance indicates whether IGS related features are enabled:
   // access list, access request, access monitoring, device trust.
   bool IdentityGovernance = 23 [(gogoproto.jsontag) = "identity_governance,omitempty"];
-  // AccessGraph indicates whether Teleport Access Graph is enabled.
+  // AccessGraph enables the usage of access graph.
+  // NOTE: this is a legacy flag that is currently used to signal
+  // that Access Graph integration is *enabled* on a cluster.
+  // *Access* to the feature is gated on the `Policy` flag.
+  // TODO(justinas): remove this field once "TAG enabled" status is moved to a resource in the backend.
   bool AccessGraph = 24 [(gogoproto.jsontag) = "access_graph,omitempty"];
   // AccessListFeature holds its namesake feature settings.
   AccessListFeature AccessList = 25 [(gogoproto.jsontag) = "access_list,omitempty"];
@@ -561,6 +565,9 @@ message Features {
   AccessMonitoringFeature AccessMonitoring = 26 [(gogoproto.jsontag) = "access_monitoring,omitempty"];
   // ProductType describes the product being used.
   ProductType ProductType = 27 [(gogoproto.jsontag) = "product_type,omitempty"];
+  // Policy enables the Teleport Policy feature set.
+  // At the time of writing, this includes Teleport Access Graph (TAG).
+  PolicyFeature Policy = 28 [(gogoproto.jsontag) = "policy,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -606,6 +613,12 @@ message AccessMonitoringFeature {
   bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
   // Defines the max number of days to include in an access report.
   int32 max_report_range_limit = 2 [(gogoproto.jsontag) = "max_report_range_limit,omitempty"];
+}
+
+// PolicyFeature holds the Teleport Policy feature set settings.
+message PolicyFeature {
+  // True if Teleport Policy is enabled in the license.
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -1063,6 +1076,26 @@ message GetRolesResponse {
   repeated types.RoleV6 Roles = 1;
 }
 
+// ListRolesRequest encodes parameters for paginated role lookup.
+message ListRolesRequest {
+  // Limit is the maximum amount of roles per page.
+  int32 Limit = 1;
+
+  // StartKey is used to resume a query in order to enable pagination.
+  // If the previous response had LastKey set then this should be
+  // set to its value. Otherwise leave empty.
+  string StartKey = 2;
+}
+
+// ListRolesResponse is a page of roles.
+message ListRolesResponse {
+  // Roles is a page of roles.
+  repeated types.RoleV6 Roles = 1;
+
+  // NextKey will serve as the StartKey for the next page of roles.
+  string NextKey = 2;
+}
+
 // Request for CreateRole.
 message CreateRoleRequest {
   // Role to be created.
@@ -1404,6 +1437,8 @@ message IsMFARequiredRequest {
     NodeLogin Node = 3;
     // WindowsDesktop specifies the target Windows Desktop.
     RouteToWindowsDesktop WindowsDesktop = 4;
+    // AdminAction specifies an admin action.
+    AdminAction AdminAction = 5;
   }
 }
 
@@ -1422,6 +1457,12 @@ message NodeLogin {
   string Node = 1;
   // Login is the OS login name.
   string Login = 2;
+}
+
+// AdminAction specifies an admin action.
+message AdminAction {
+  reserved 1;
+  reserved "Name";
 }
 
 // IsMFARequiredResponse is a response for MFA requirement check.
@@ -2838,7 +2879,11 @@ service AuthService {
   // GetRole retrieves a role described by the given request.
   rpc GetRole(GetRoleRequest) returns (types.RoleV6);
   // GetRole retrieves all roles.
+  //
+  // DELETE IN 17.0
   rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
+  // ListRoles is a paginated role getter.
+  rpc ListRoles(ListRolesRequest) returns (ListRolesResponse);
   // CreateRole creates a new role.
   rpc CreateRole(CreateRoleRequest) returns (types.RoleV6);
   // UpdateRole updates an existing role.

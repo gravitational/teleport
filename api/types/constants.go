@@ -180,6 +180,12 @@ const (
 	// KindDatabase is a database resource.
 	KindDatabase = "db"
 
+	// KindDatabaseObjectImportRule is a database object import rule resource.
+	KindDatabaseObjectImportRule = "db_object_import_rule"
+
+	// KindDatabaseObject is a database object resource.
+	KindDatabaseObject = "db_object"
+
 	// KindKubeServer is an kubernetes server resource.
 	KindKubeServer = "kube_server"
 
@@ -826,9 +832,11 @@ const (
 	DiscoveryLabelLDAPPrefix = "ldap/"
 )
 
-// CloudLabelPrefixes are prefixes used by cloud labels, generally added when
-// using automatic discovery
-var CloudLabelPrefixes = []string{CloudAWS, CloudAzure, CloudGCP, DiscoveryLabelLDAPPrefix}
+// BackSortedLabelPrefixes are label names that we want to always be at the end of
+// the sorted labels list to reduce visual clutter. This will generally be automatically
+// discovered cloud provider labels such as azure/aks-managed-createOperationID=123123123123
+// or internal labels
+var BackSortedLabelPrefixes = []string{CloudAWS, CloudAzure, CloudGCP, DiscoveryLabelLDAPPrefix, TeleportNamespace}
 
 const (
 	// TeleportInternalLabelPrefix is the prefix used by all Teleport internal labels. Those labels

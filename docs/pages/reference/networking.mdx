@@ -59,25 +59,30 @@ environment variables when running Teleport. You can also optionally set the
 `NO_PROXY` environment variable to avoid use of the proxy when accessing
 specified hosts/netmasks/ports.
 
-For example, when launching Teleport with `systemd`, you can add
-the following lines to your `systemd` unit file, replacing `proxy.example.com` with
-the address of your proxy.
+By default, Teleport installations based on package managers (such as `apt` and
+`yum`) configure The `teleport` systemd unit to read environment variables from
+the file `/etc/default/teleport`. 
+
+To configure HTTP CONNECT tunneling, you can assign these environment variables
+within `/etc/default/teleport` on machines that run Teleport binaries. Use the
+following example, replacing `proxy.example.com` with the address of your proxy:
 
 ```
-[Service]
-Environment="HTTP_PROXY=http://proxy.example.com:8080/"
-Environment="HTTPS_PROXY=http://proxy.example.com:8080/"
-Environment="NO_PROXY=localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,10.0.0.0/8"
+HTTP_PROXY=http://proxy.example.com:8080/
+HTTPS_PROXY=http://proxy.example.com:8080/
+NO_PROXY=localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,10.0.0.0/8
 ```
 
 When Teleport builds and establishes the reverse tunnel to the main cluster, it will funnel all traffic through the proxy. Specifically, if using the default configuration, Teleport will tunnel ports `3024` (SSH, reverse tunnel) and `3080` (HTTPS, establishing trust) through the proxy.
-If you don't want to proxy some of this traffic (for example, proxying HTTPS but not SSH), assign `NO_PROXY` to the address of the Teleport Proxy Service endpoint you want to exclude from HTTP_CONNECT tunneling in `host:port` format:
+If you don't want to proxy some of this traffic (for example, proxying HTTPS but not SSH), assign `NO_PROXY` to the address of the Teleport Proxy Service endpoint you want to exclude from HTTP_CONNECT tunneling in `host:port` format.
+
+For example, you can modify the environment file at `/etc/default/teleport` on
+each machine that runs a Teleport binary to resemble the following:
 
 ```
-[Service]
-Environment="HTTP_PROXY=http://httpproxy.example.com:8080/"
-Environment="HTTPS_PROXY=http://httpproxy.example.com:8080/"
-Environment="NO_PROXY=teleportproxy.example.com:3024"
+HTTP_PROXY=http://httpproxy.example.com:8080/
+HTTPS_PROXY=http://httpproxy.example.com:8080/
+NO_PROXY=teleportproxy.example.com:3024
 ```
 
 The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format

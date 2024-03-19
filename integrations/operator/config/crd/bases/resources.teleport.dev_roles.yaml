@@ -86,6 +86,28 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_permissions:
+                    description: DatabasePermissions specifies a set of permissions
+                      that will be granted to the database user when using automatic
+                      database user provisioning.
+                    items:
+                      properties:
+                        match:
+                          additionalProperties:
+                            x-kubernetes-preserve-unknown-fields: true
+                          description: Match is a list of object labels that must
+                            be matched for the permission to be granted.
+                          type: object
+                        permissions:
+                          description: Permission is the list of string representations
+                            of the permission to be given, e.g. SELECT, INSERT, UPDATE,
+                            ...
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                      type: object
+                    type: array
                   db_roles:
                     description: DatabaseRoles is a list of databases roles for automatic
                       user creation.
@@ -473,6 +495,49 @@ spec:
                           description: Where specifies optional advanced matcher
                           type: string
                       type: object
+                    type: array
+                  spiffe:
+                    description: SPIFFE is used to allow or deny access to a role
+                      holder to generating a SPIFFE SVID.
+                    items:
+                      properties:
+                        dns_sans:
+                          description: 'DNSSANs specifies matchers for the SPIFFE
+                            ID DNS SANs.  Each requested DNS SAN is compared against
+                            all matchers configured and if any match, the condition
+                            is considered to be met.  The matcher by default allows
+                            ''*'' to be used to indicate zero or more of any character.
+                            Prepend ''^'' and append ''$'' to instead switch to matching
+                            using the Go regex syntax.  Example: *.example.com would
+                            match foo.example.com'
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        ip_sans:
+                          description: 'IPSANs specifies matchers for the SPIFFE ID
+                            IP SANs.  Each requested IP SAN is compared against all
+                            matchers configured and if any match, the condition is
+                            considered to be met.  The matchers should be specified
+                            using CIDR notation, it supports IPv4 and IPv6.  Examples:
+                            - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255 -
+                            10.0.0.42/32 would match only 10.0.0.42'
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        path:
+                          description: 'Path specifies a matcher for the SPIFFE ID
+                            path. It should not include the trust domain and should
+                            start with a leading slash.  The matcher by default allows
+                            ''*'' to be used to indicate zero or more of any character.
+                            Prepend ''^'' and append ''$'' to instead switch to matching
+                            using the Go regex syntax.  Example: - /svc/foo/*/bar
+                            would match /svc/foo/baz/bar - ^\/svc\/foo\/.*\/bar$ would
+                            match /svc/foo/baz/bar'
+                          type: string
+                      type: object
+                    nullable: true
                     type: array
                   windows_desktop_labels:
                     additionalProperties:
@@ -547,6 +612,28 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_permissions:
+                    description: DatabasePermissions specifies a set of permissions
+                      that will be granted to the database user when using automatic
+                      database user provisioning.
+                    items:
+                      properties:
+                        match:
+                          additionalProperties:
+                            x-kubernetes-preserve-unknown-fields: true
+                          description: Match is a list of object labels that must
+                            be matched for the permission to be granted.
+                          type: object
+                        permissions:
+                          description: Permission is the list of string representations
+                            of the permission to be given, e.g. SELECT, INSERT, UPDATE,
+                            ...
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                      type: object
+                    type: array
                   db_roles:
                     description: DatabaseRoles is a list of databases roles for automatic
                       user creation.
@@ -934,6 +1021,49 @@ spec:
                           description: Where specifies optional advanced matcher
                           type: string
                       type: object
+                    type: array
+                  spiffe:
+                    description: SPIFFE is used to allow or deny access to a role
+                      holder to generating a SPIFFE SVID.
+                    items:
+                      properties:
+                        dns_sans:
+                          description: 'DNSSANs specifies matchers for the SPIFFE
+                            ID DNS SANs.  Each requested DNS SAN is compared against
+                            all matchers configured and if any match, the condition
+                            is considered to be met.  The matcher by default allows
+                            ''*'' to be used to indicate zero or more of any character.
+                            Prepend ''^'' and append ''$'' to instead switch to matching
+                            using the Go regex syntax.  Example: *.example.com would
+                            match foo.example.com'
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        ip_sans:
+                          description: 'IPSANs specifies matchers for the SPIFFE ID
+                            IP SANs.  Each requested IP SAN is compared against all
+                            matchers configured and if any match, the condition is
+                            considered to be met.  The matchers should be specified
+                            using CIDR notation, it supports IPv4 and IPv6.  Examples:
+                            - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255 -
+                            10.0.0.42/32 would match only 10.0.0.42'
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        path:
+                          description: 'Path specifies a matcher for the SPIFFE ID
+                            path. It should not include the trust domain and should
+                            start with a leading slash.  The matcher by default allows
+                            ''*'' to be used to indicate zero or more of any character.
+                            Prepend ''^'' and append ''$'' to instead switch to matching
+                            using the Go regex syntax.  Example: - /svc/foo/*/bar
+                            would match /svc/foo/baz/bar - ^\/svc\/foo\/.*\/bar$ would
+                            match /svc/foo/baz/bar'
+                          type: string
+                      type: object
+                    nullable: true
                     type: array
                   windows_desktop_labels:
                     additionalProperties:
@@ -1128,7 +1258,7 @@ spec:
                 type: object
             type: object
           status:
-            description: TeleportRoleStatus defines the observed state of TeleportRole
+            description: Status defines the observed state of the Teleport resource
             properties:
               conditions:
                 description: Conditions represent the latest available observations
@@ -1284,6 +1414,28 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_permissions:
+                    description: DatabasePermissions specifies a set of permissions
+                      that will be granted to the database user when using automatic
+                      database user provisioning.
+                    items:
+                      properties:
+                        match:
+                          additionalProperties:
+                            x-kubernetes-preserve-unknown-fields: true
+                          description: Match is a list of object labels that must
+                            be matched for the permission to be granted.
+                          type: object
+                        permissions:
+                          description: Permission is the list of string representations
+                            of the permission to be given, e.g. SELECT, INSERT, UPDATE,
+                            ...
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                      type: object
+                    type: array
                   db_roles:
                     description: DatabaseRoles is a list of databases roles for automatic
                       user creation.
@@ -1671,6 +1823,49 @@ spec:
                           description: Where specifies optional advanced matcher
                           type: string
                       type: object
+                    type: array
+                  spiffe:
+                    description: SPIFFE is used to allow or deny access to a role
+                      holder to generating a SPIFFE SVID.
+                    items:
+                      properties:
+                        dns_sans:
+                          description: 'DNSSANs specifies matchers for the SPIFFE
+                            ID DNS SANs.  Each requested DNS SAN is compared against
+                            all matchers configured and if any match, the condition
+                            is considered to be met.  The matcher by default allows
+                            ''*'' to be used to indicate zero or more of any character.
+                            Prepend ''^'' and append ''$'' to instead switch to matching
+                            using the Go regex syntax.  Example: *.example.com would
+                            match foo.example.com'
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        ip_sans:
+                          description: 'IPSANs specifies matchers for the SPIFFE ID
+                            IP SANs.  Each requested IP SAN is compared against all
+                            matchers configured and if any match, the condition is
+                            considered to be met.  The matchers should be specified
+                            using CIDR notation, it supports IPv4 and IPv6.  Examples:
+                            - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255 -
+                            10.0.0.42/32 would match only 10.0.0.42'
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        path:
+                          description: 'Path specifies a matcher for the SPIFFE ID
+                            path. It should not include the trust domain and should
+                            start with a leading slash.  The matcher by default allows
+                            ''*'' to be used to indicate zero or more of any character.
+                            Prepend ''^'' and append ''$'' to instead switch to matching
+                            using the Go regex syntax.  Example: - /svc/foo/*/bar
+                            would match /svc/foo/baz/bar - ^\/svc\/foo\/.*\/bar$ would
+                            match /svc/foo/baz/bar'
+                          type: string
+                      type: object
+                    nullable: true
                     type: array
                   windows_desktop_labels:
                     additionalProperties:
@@ -1745,6 +1940,28 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_permissions:
+                    description: DatabasePermissions specifies a set of permissions
+                      that will be granted to the database user when using automatic
+                      database user provisioning.
+                    items:
+                      properties:
+                        match:
+                          additionalProperties:
+                            x-kubernetes-preserve-unknown-fields: true
+                          description: Match is a list of object labels that must
+                            be matched for the permission to be granted.
+                          type: object
+                        permissions:
+                          description: Permission is the list of string representations
+                            of the permission to be given, e.g. SELECT, INSERT, UPDATE,
+                            ...
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                      type: object
+                    type: array
                   db_roles:
                     description: DatabaseRoles is a list of databases roles for automatic
                       user creation.
@@ -2132,6 +2349,49 @@ spec:
                           description: Where specifies optional advanced matcher
                           type: string
                       type: object
+                    type: array
+                  spiffe:
+                    description: SPIFFE is used to allow or deny access to a role
+                      holder to generating a SPIFFE SVID.
+                    items:
+                      properties:
+                        dns_sans:
+                          description: 'DNSSANs specifies matchers for the SPIFFE
+                            ID DNS SANs.  Each requested DNS SAN is compared against
+                            all matchers configured and if any match, the condition
+                            is considered to be met.  The matcher by default allows
+                            ''*'' to be used to indicate zero or more of any character.
+                            Prepend ''^'' and append ''$'' to instead switch to matching
+                            using the Go regex syntax.  Example: *.example.com would
+                            match foo.example.com'
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        ip_sans:
+                          description: 'IPSANs specifies matchers for the SPIFFE ID
+                            IP SANs.  Each requested IP SAN is compared against all
+                            matchers configured and if any match, the condition is
+                            considered to be met.  The matchers should be specified
+                            using CIDR notation, it supports IPv4 and IPv6.  Examples:
+                            - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255 -
+                            10.0.0.42/32 would match only 10.0.0.42'
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        path:
+                          description: 'Path specifies a matcher for the SPIFFE ID
+                            path. It should not include the trust domain and should
+                            start with a leading slash.  The matcher by default allows
+                            ''*'' to be used to indicate zero or more of any character.
+                            Prepend ''^'' and append ''$'' to instead switch to matching
+                            using the Go regex syntax.  Example: - /svc/foo/*/bar
+                            would match /svc/foo/baz/bar - ^\/svc\/foo\/.*\/bar$ would
+                            match /svc/foo/baz/bar'
+                          type: string
+                      type: object
+                    nullable: true
                     type: array
                   windows_desktop_labels:
                     additionalProperties:
@@ -2326,7 +2586,7 @@ spec:
                 type: object
             type: object
           status:
-            description: TeleportRoleStatus defines the observed state of TeleportRole
+            description: Status defines the observed state of the Teleport resource
             properties:
               conditions:
                 description: Conditions represent the latest available observations

@@ -28,51 +28,27 @@ import celebratePamPng from './celebrate-pam.png';
 import type { AgentStepProps } from '../../types';
 
 export function Finished(props: AgentStepProps) {
-  if (props.agentMeta.autoDiscovery) {
-    return (
-      <Container>
-        <Image width="120px" height="120px" src={celebratePamPng} />
-        <Text mt={3} mb={2} typography="h4" bold>
-          Completed Setup
-        </Text>
-        <Text mb={3}>You have completed setup for auto-enrolling.</Text>
-        <Flex>
-          <ButtonPrimary
-            width="270px"
-            size="large"
-            onClick={() => history.push(cfg.routes.root, true)}
-            mr={3}
-          >
-            Browse Existing Resources
-          </ButtonPrimary>
-          <ButtonSecondary
-            width="270px"
-            size="large"
-            onClick={() => history.reload()}
-          >
-            Add Another Resource
-          </ButtonSecondary>
-        </Flex>
-      </Container>
-    );
-  }
+  let title = 'Resource Successfully Added';
+  let resourceText =
+    'You can start accessing this resource right away or add another resource.';
 
-  let resourceText;
-  if (props.agentMeta && props.agentMeta.resourceName) {
-    resourceText = `Resource [${props.agentMeta.resourceName}] has been successfully added to
-        this Teleport Cluster.`;
+  if (props.agentMeta) {
+    if (props.agentMeta.autoDiscovery) {
+      title = 'Completed Setup';
+      resourceText = 'You have completed setup for auto-enrolling.';
+    } else if (props.agentMeta.resourceName) {
+      resourceText = `Resource [${props.agentMeta.resourceName}] has been successfully added to
+      this Teleport Cluster. ${resourceText}`;
+    }
   }
 
   return (
     <Container>
       <Image width="120px" height="120px" src={celebratePamPng} />
       <Text mt={3} mb={2} typography="h4" bold>
-        Resource Successfully Added
+        {title}
       </Text>
-      <Text mb={3}>
-        {resourceText} You can start accessing this resource right away or add
-        another resource.
-      </Text>
+      <Text mb={3}>{resourceText}</Text>
       <Flex>
         <ButtonPrimary
           width="270px"

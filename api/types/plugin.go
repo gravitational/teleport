@@ -442,16 +442,17 @@ func (s *PluginOktaSettings) CheckAndSetDefaults() error {
 		return trace.BadParameter("org_url must be set")
 	}
 
-	// If sync settings is not set, default to an empty config.
+	// If sync settings is not set, upgrade the legacy values to a
+	// to a new SyncSettings block
 	if s.SyncSettings == nil {
-		s.SyncSettings = &PluginOktaSyncSettings{}
-
-		// TODO(mdwn): Remove once modifications have been made in enterprise.
-		s.SyncSettings.SyncUsers = s.EnableUserSync
-		s.SyncSettings.SsoConnectorId = s.SsoConnectorId
+		// TODO(mdwn): Remove upgrade once modifications have been made in enterprise.
+		s.SyncSettings = &PluginOktaSyncSettings{
+			SyncUsers:      s.EnableUserSync,
+			SsoConnectorId: s.SsoConnectorId,
+		}
 	}
 
-	if s.SyncSettings.SyncUsers && s.SsoConnectorId == "" {
+	if s.SyncSettings.SyncUsers && s.SyncSettings.SsoConnectorId == "" {
 		return trace.BadParameter("sso_connector_id must be set when user sync enabled")
 	}
 

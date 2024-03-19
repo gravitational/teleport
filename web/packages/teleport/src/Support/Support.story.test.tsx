@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { render } from 'design/utils/testing';
 
@@ -31,28 +32,48 @@ import {
 } from './Support.story';
 
 test('support OSS', () => {
-  const { container } = render(<SupportOSS />);
+  const { container } = render(
+    <MemoryRouter>
+      <SupportOSS />
+    </MemoryRouter>
+  );
   expect(container.firstChild).toMatchSnapshot();
 });
 
 test('support OSSWithCTA', () => {
-  const { container } = render(<SupportOSSWithCTA />);
+  const { container } = render(
+    <MemoryRouter>
+      <SupportOSSWithCTA />
+    </MemoryRouter>
+  );
   expect(container.firstChild).toMatchSnapshot();
 });
 
 test('support Cloud', () => {
-  const { container } = render(<SupportCloud />);
+  const { container } = render(
+    <MemoryRouter>
+      <SupportCloud />
+    </MemoryRouter>
+  );
   expect(container.firstChild).toMatchSnapshot();
 });
 
 test('support Enterprise', () => {
-  const { container } = render(<SupportEnterprise />);
+  const { container } = render(
+    <MemoryRouter>
+      <SupportEnterprise />
+    </MemoryRouter>
+  );
   expect(container.firstChild).toMatchSnapshot();
 });
 
 test('support Enterprise with CTA', () => {
   cfg.isEnterprise = true;
   cfg.isTeam = true;
-  const { container } = render(<SupportEnterpriseWithCTA />);
+  const { container } = render(
+    <MemoryRouter>
+      <SupportEnterpriseWithCTA />
+    </MemoryRouter>
+  );
   expect(container.firstChild).toMatchSnapshot();
 });

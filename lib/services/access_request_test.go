@@ -316,10 +316,13 @@ func TestReviewThresholds(t *testing.T) {
 		propose types.RequestState
 		// expect is the expected post-review state of the request (defaults to pending)
 		expect types.RequestState
+		// assumeStartTime to apply to review
+		assumeStartTime time.Time
 
 		errCheck require.ErrorAssertionFunc
 	}
 
+	clock := clockwork.NewFakeClock()
 	tts := []struct {
 		// desc is a short description of the test scenario (should be unique)
 		desc string
@@ -328,6 +331,7 @@ func TestReviewThresholds(t *testing.T) {
 		// the roles to be requested (defaults to "dictator")
 		roles   []string
 		reviews []review
+		expiry  time.Time
 	}{
 		{
 			desc:      "populist approval via multi-threshold match",
@@ -626,6 +630,25 @@ func TestReviewThresholds(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc:      "trying to approve a request with assumeStartTime past expiry",
+			requestor: "bob", // permitted by role general
+			expiry:    clock.Now().UTC().Add(8 * time.Hour),
+			reviews: []review{
+				{ // 1 of 2 required approvals
+					author:  g.user(t, "military"),
+					propose: deny,
+				},
+				{ // tries to approve but assumeStartTime is after expiry
+					author:          g.user(t, "military"),
+					propose:         approve,
+					assumeStartTime: clock.Now().UTC().Add(10000 * time.Hour),
+					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+						require.ErrorContains(tt, err, "assume start time must be prior to access expiry time", i...)
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tts {
@@ -641,6 +664,10 @@ func TestReviewThresholds(t *testing.T) {
 			clock := clockwork.NewFakeClock()
 			identity := tlsca.Identity{
 				Expires: clock.Now().UTC().Add(8 * time.Hour),
+			}
+
+			if !tt.expiry.IsZero() {
+				req.SetExpiry(tt.expiry)
 			}
 
 			// perform request validation (necessary in order to initialize internal
@@ -668,8 +695,9 @@ func TestReviewThresholds(t *testing.T) {
 				}
 
 				rev := types.AccessReview{
-					Author:        rt.author,
-					ProposedState: rt.propose,
+					Author:          rt.author,
+					ProposedState:   rt.propose,
+					AssumeStartTime: &rt.assumeStartTime,
 				}
 
 				author, ok := userStates[rt.author]

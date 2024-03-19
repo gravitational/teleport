@@ -353,7 +353,7 @@ By default no devices are forbidden.
 |----------|---------------|-----------|------------------------------------|
 | `string` | `nil`         | no        | `auth_service.proxy_listener_mode` |
 
-`proxyListenerMode` controls proxy TLS routing used by Teleport. Possible values are `multiplex`.
+`proxyListenerMode` controls proxy TLS routing used by Teleport. Possible values are `multiplex`, `separate`.
 
 `values.yaml` example:
 
@@ -990,7 +990,8 @@ is not supported with multiple replicas.
 ### For proxy pods
 
 Proxy pods need to be provided a certificate to be replicated (via either
-`tls.existingSecretName` or `highAvailability.certManager`).
+`tls.existingSecretName` or `highAvailability.certManager`) or be exposed
+via an ingress (`ingress.enabled`).
 If proxy pods are replicable, they will default to 2 replicas,
 even if `highAvailability.replicaCount` is 1. To force a single proxy replica,
 set `proxy.highAvailability.replicaCount: 1`.

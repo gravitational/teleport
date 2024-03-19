@@ -512,7 +512,7 @@ type kubeSessionsCommand struct {
 
 func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 	c := &kubeSessionsCommand{
-		CmdClause: parent.Command("sessions", "Get a list of active Kubernetes sessions."),
+		CmdClause: parent.Command("sessions", "Get a list of active Kubernetes sessions. (DEPRECATED: use tsh sessions ls --kind=kube instead)"),
 	}
 	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
@@ -539,61 +539,8 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	filteredSessions := make([]types.SessionTracker, 0)
-	for _, session := range sessions {
-		if session.GetSessionKind() == types.KubernetesSessionKind {
-			filteredSessions = append(filteredSessions, session)
-		}
-	}
-
-	sort.Slice(filteredSessions, func(i, j int) bool {
-		return filteredSessions[i].GetCreated().Before(filteredSessions[j].GetCreated())
-	})
-
-	format := strings.ToLower(c.format)
-	switch format {
-	case teleport.Text, "":
-		printSessions(cf.Stdout(), filteredSessions)
-	case teleport.JSON, teleport.YAML:
-		out, err := serializeKubeSessions(sessions, format)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Fprintln(cf.Stdout(), out)
-	default:
-		return trace.BadParameter("unsupported format %q", c.format)
-	}
-	return nil
-}
-
-func serializeKubeSessions(sessions []types.SessionTracker, format string) (string, error) {
-	var out []byte
-	var err error
-	if format == teleport.JSON {
-		out, err = utils.FastMarshalIndent(sessions, "", "  ")
-	} else {
-		out, err = yaml.Marshal(sessions)
-	}
-	return string(out), trace.Wrap(err)
-}
-
-func printSessions(output io.Writer, sessions []types.SessionTracker) {
-	table := asciitable.MakeTable([]string{"ID", "State", "Created", "Hostname", "Address", "Login", "Reason", "Command"})
-	for _, s := range sessions {
-		table.AddRow([]string{
-			s.GetSessionID(),
-			s.GetState().String(),
-			s.GetCreated().Format(time.RFC3339),
-			s.GetHostname(),
-			s.GetAddress(),
-			s.GetLogin(),
-			s.GetReason(),
-			strings.Join(s.GetCommand(), " "),
-		})
-	}
-
-	tableOutput := table.AsBuffer().String()
-	fmt.Fprintln(output, tableOutput)
+	filteredSessions := sortAndFilterSessions(sessions, []types.SessionKind{types.KubernetesSessionKind})
+	return trace.Wrap(serializeSessions(filteredSessions, strings.ToLower(c.format), cf.Stdout()))
 }
 
 type kubeCredentialsCommand struct {
@@ -781,7 +728,12 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 				if cf.MockSSOLogin != nil {
 					lockTimeout = utils.FSLockRetryDelay
 				}
-				unlockKubeCred, err = takeKubeCredLock(cf.Context, cf.HomePath, cf.Proxy, lockTimeout)
+				proxy := cf.Proxy
+				// if proxy is empty, fallback to WebProxyAddr
+				if proxy == "" {
+					proxy = tc.WebProxyAddr
+				}
+				unlockKubeCred, err = takeKubeCredLock(cf.Context, cf.HomePath, proxy, lockTimeout)
 				return trace.Wrap(err)
 			},
 		),

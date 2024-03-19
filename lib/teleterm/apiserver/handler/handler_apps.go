@@ -34,7 +34,12 @@ func (s *Handler) GetApps(ctx context.Context, req *api.GetAppsRequest) (*api.Ge
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := cluster.GetApps(ctx, req)
+	proxyClient, err := s.DaemonService.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := cluster.GetApps(ctx, proxyClient.CurrentCluster(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -61,6 +66,16 @@ func (s *Handler) GetApps(ctx context.Context, req *api.GetAppsRequest) (*api.Ge
 
 func newAPIApp(clusterApp clusters.App) *api.App {
 	app := clusterApp.App
+
+	awsRoles := []*api.AWSRole{}
+	for _, role := range clusterApp.AWSRoles {
+		awsRoles = append(awsRoles, &api.AWSRole{
+			Name:    role.Name,
+			Display: role.Display,
+			Arn:     role.ARN,
+		})
+	}
+
 	apiLabels := APILabels{}
 	for name, value := range app.GetAllLabels() {
 		apiLabels = append(apiLabels, &api.Label{
@@ -77,6 +92,8 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 		Desc:         app.GetDescription(),
 		AwsConsole:   app.IsAWSConsole(),
 		PublicAddr:   app.GetPublicAddr(),
+		Fqdn:         clusterApp.FQDN,
+		AwsRoles:     awsRoles,
 		FriendlyName: types.FriendlyName(app),
 		SamlApp:      false,
 		Labels:       apiLabels,

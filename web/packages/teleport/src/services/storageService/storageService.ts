@@ -18,14 +18,20 @@
 
 import { DeprecatedThemeOption } from 'design/theme/types';
 
+import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
+
+import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+
 import { BearerToken } from 'teleport/services/websession';
 import { OnboardDiscover } from 'teleport/services/user';
 
 import {
-  OnboardUserPreferences,
-  ThemePreference,
-  UserPreferences,
-} from 'teleport/services/userPreferences/types';
+  BackendUserPreferences,
+  convertBackendUserPreferences,
+  isBackendUserPreferences,
+} from 'teleport/services/userPreferences/userPreferences';
 
 import { CloudUserInvites, KeysEnum, LocalStorageSurvey } from './types';
 
@@ -56,17 +62,20 @@ export const storageService = {
     window.removeEventListener('storage', fn);
   },
 
+  getParsedJSONValue<T>(key: string, defaultValue: T): T {
+    const item = window.localStorage.getItem(key);
+    if (item) {
+      return JSON.parse(item);
+    }
+    return defaultValue;
+  },
+
   setBearerToken(token: BearerToken) {
     window.localStorage.setItem(KeysEnum.TOKEN, JSON.stringify(token));
   },
 
   getBearerToken(): BearerToken {
-    const item = window.localStorage.getItem(KeysEnum.TOKEN);
-    if (item) {
-      return JSON.parse(item);
-    }
-
-    return null;
+    return this.getParsedJSONValue(KeysEnum.TOKEN, null);
   },
 
   getAccessToken() {
@@ -97,17 +106,23 @@ export const storageService = {
   },
 
   getOnboardDiscover(): OnboardDiscover {
-    const item = window.localStorage.getItem(KeysEnum.DISCOVER);
-    if (item) {
-      return JSON.parse(item);
-    }
-    return null;
+    return this.getParsedJSONValue(KeysEnum.DISCOVER, null);
   },
 
   getUserPreferences(): UserPreferences {
     const preferences = window.localStorage.getItem(KeysEnum.USER_PREFERENCES);
     if (preferences) {
-      return JSON.parse(preferences);
+      const parsed: UserPreferences | BackendUserPreferences =
+        JSON.parse(preferences);
+
+      // TODO(ryan): DELETE in v17: remove reference to `BackendUserPreferences` - all
+      //             locally stored copies of user preferences should be `UserPreferences` by then
+      //             (they are updated on every login)
+      if (isBackendUserPreferences(parsed)) {
+        return convertBackendUserPreferences(parsed);
+      }
+
+      return parsed;
     }
     return null;
   },
@@ -126,11 +141,7 @@ export const storageService = {
   },
 
   getOnboardSurvey(): LocalStorageSurvey {
-    const survey = window.localStorage.getItem(KeysEnum.ONBOARD_SURVEY);
-    if (survey) {
-      return JSON.parse(survey);
-    }
-    return null;
+    return this.getParsedJSONValue(KeysEnum.ONBOARD_SURVEY, null);
   },
 
   setOnboardSurvey(survey: LocalStorageSurvey) {
@@ -144,11 +155,7 @@ export const storageService = {
   },
 
   getCloudUserInvites(): CloudUserInvites {
-    const invites = window.localStorage.getItem(KeysEnum.CLOUD_USER_INVITES);
-    if (invites) {
-      return JSON.parse(invites);
-    }
-    return null;
+    return this.getParsedJSONValue(KeysEnum.CLOUD_USER_INVITES, null);
   },
 
   setCloudUserInvites(invites: CloudUserInvites) {
@@ -161,7 +168,7 @@ export const storageService = {
     window.localStorage.removeItem(KeysEnum.CLOUD_USER_INVITES);
   },
 
-  getThemePreference(): ThemePreference {
+  getThemePreference(): Theme {
     const userPreferences = storageService.getUserPreferences();
     if (userPreferences) {
       return userPreferences.theme;
@@ -169,10 +176,10 @@ export const storageService = {
 
     const theme = this.getDeprecatedThemePreference();
     if (theme) {
-      return theme === 'light' ? ThemePreference.Light : ThemePreference.Dark;
+      return theme === 'light' ? Theme.LIGHT : Theme.DARK;
     }
 
-    return ThemePreference.Light;
+    return Theme.LIGHT;
   },
 
   getOnboardUserPreference(): OnboardUserPreferences {
@@ -222,37 +229,22 @@ export const storageService = {
   },
 
   getFeatureRecommendationStatus(): RecommendFeature {
-    const item = window.localStorage.getItem(KeysEnum.RECOMMEND_FEATURE);
-    if (item) {
-      return JSON.parse(item);
-    }
-    return null;
+    return this.getParsedJSONValue(KeysEnum.RECOMMEND_FEATURE, null);
   },
 
   getAccessGraphEnabled(): boolean {
-    const item = window.localStorage.getItem(KeysEnum.ACCESS_GRAPH_ENABLED);
-    if (item) {
-      return JSON.parse(item);
-    }
-    return false;
+    return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_ENABLED, false);
   },
 
   getAccessGraphSQLEnabled(): boolean {
-    const item = window.localStorage.getItem(KeysEnum.ACCESS_GRAPH_SQL_ENABLED);
-    if (item) {
-      return JSON.parse(item);
-    }
-    return false;
+    return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_SQL_ENABLED, false);
   },
 
   getExternalAuditStorageCtaDisabled(): boolean {
-    const item = window.localStorage.getItem(
-      KeysEnum.EXTERNAL_AUDIT_STORAGE_CTA_DISABLED
+    return this.getParsedJSONValue(
+      KeysEnum.EXTERNAL_AUDIT_STORAGE_CTA_DISABLED,
+      false
     );
-    if (item) {
-      return JSON.parse(item);
-    }
-    return false;
   },
 
   disableExternalAuditStorageCta(): void {

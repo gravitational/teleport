@@ -197,7 +197,8 @@ github:
 
 	tokenName := validRandomResourceName("token-")
 
-	obj := resources.GetUnstructuredObjectFromGVK(teleportTokenGVK)
+	obj, err := resources.GetUnstructuredObjectFromGVK(teleportTokenGVK)
+	require.NoError(t, err)
 	obj.Object["spec"] = tokenManifest
 	obj.SetName(tokenName)
 	obj.SetNamespace(setup.Namespace.Name)

@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -134,6 +135,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 			interactiveCommand: cfg.InteractiveCommand,
 			router:             cfg.Router,
 			tracer:             cfg.tracer,
+			resolver:           cfg.HostNameResolver,
 		},
 		displayLogin:    cfg.DisplayLogin,
 		term:            cfg.Term,
@@ -141,6 +143,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 		participantMode: cfg.ParticipantMode,
 		tracker:         cfg.Tracker,
 		presenceChecker: cfg.PresenceChecker,
+		websocketConn:   cfg.WebsocketConn,
 	}, nil
 }
 
@@ -159,6 +162,9 @@ type TerminalHandlerConfig struct {
 	// Requests that should be made on behalf of the user should
 	// use [UserAuthClient].
 	LocalAccessPoint localAccessPoint
+	// HostNameResolver allows the hostname to be determined from a server UUID
+	// so that a friendly name can be displayed in the console tab.
+	HostNameResolver func(serverID string) (hostname string, err error)
 	// DisplayLogin is the login name to display in the UI.
 	DisplayLogin string
 	// SessionData is the data to send to the client on the initial session creation.
@@ -190,6 +196,8 @@ type TerminalHandlerConfig struct {
 	PresenceChecker PresenceChecker
 	// Clock allows interaction with time.
 	Clock clockwork.Clock
+	// WebsocketConn is the active websocket connection
+	WebsocketConn *websocket.Conn
 }
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
@@ -271,6 +279,8 @@ type sshBaseHandler struct {
 	localAccessPoint localAccessPoint
 	// interactiveCommand is a command to execute.
 	interactiveCommand []string
+	// resolver looks up the hostname for the server UUID.
+	resolver func(serverID string) (hostname string, err error)
 }
 
 // localAccessPoint is a subset of the cache used to look up
@@ -278,7 +288,6 @@ type sshBaseHandler struct {
 type localAccessPoint interface {
 	GetUser(ctx context.Context, username string, withSecrets bool) (types.User, error)
 	GetRole(ctx context.Context, name string) (types.Role, error)
-	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 }
 
 // TerminalHandler connects together an SSH session with a web-based
@@ -316,6 +325,9 @@ type TerminalHandler struct {
 
 	// clock used to interact with time.
 	clock clockwork.Clock
+
+	// websocketConn is the active websocket connection
+	websocketConn *websocket.Conn
 }
 
 // ServeHTTP builds a connection to the remote node and then pumps back two types of
@@ -327,21 +339,9 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	t.ctx.AddClosers(t)
 	defer t.ctx.RemoveCloser(t)
 
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-		CheckOrigin:     func(r *http.Request) bool { return true },
-	}
+	ws := t.websocketConn
 
-	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		errMsg := "Error upgrading to websocket"
-		t.log.WithError(err).Error(errMsg)
-		http.Error(w, errMsg, http.StatusInternalServerError)
-		return
-	}
-
-	err = ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
+	err := ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
 	if err != nil {
 		t.log.WithError(err).Error("Error setting websocket readline")
 		return
@@ -375,11 +375,12 @@ func (t *TerminalHandler) writeSessionData(ctx context.Context) error {
 		// not be ok since this bypasses user RBAC, however, since at this point we have already
 		// established a connection to the target host via the user identity, the user MUST have
 		// access to the target host.
-		server, err := t.localAccessPoint.GetNode(ctx, apidefaults.Namespace, sessionDataTemp.ServerID)
+
+		hostname, err := t.resolver(sessionDataTemp.ServerID)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		sessionDataTemp.ServerHostname = server.GetHostname()
+		sessionDataTemp.ServerHostname = hostname
 
 		sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: sessionDataTemp})
 		if err != nil {
@@ -600,8 +601,11 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 		}),
 		MFAAgainstRoot: t.ctx.cfg.RootClusterName == tc.SiteName,
 		MFARequiredReq: mfaRequiredReq,
-		CertsReq:       certsReq,
-		Key:            key,
+		ChallengeExtensions: mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+		},
+		CertsReq: certsReq,
+		Key:      key,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -927,14 +931,12 @@ func (t *TerminalHandler) streamEvents(ctx context.Context, tc *client.TeleportC
 			logger.Debug("Sending audit event to web client.")
 
 			if err := t.stream.writeAuditEvent(data); err != nil {
-				if err != nil {
-					if errors.Is(err, websocket.ErrCloseSent) {
-						logger.WithError(err).Debug("Websocket was closed, no longer streaming events")
-						return
-					}
-					logger.WithError(err).Error("Unable to send audit event to web client")
-					continue
+				if errors.Is(err, websocket.ErrCloseSent) {
+					logger.WithError(err).Debug("Websocket was closed, no longer streaming events")
+					return
 				}
+				logger.WithError(err).Error("Unable to send audit event to web client")
+				continue
 			}
 
 		// Once the terminal stream is over (and the close envelope has been sent),
@@ -1097,6 +1099,14 @@ func (t *WSStream) writeError(msg string) {
 	}
 }
 
+func isOKWebsocketCloseError(err error) bool {
+	return websocket.IsCloseError(err,
+		websocket.CloseAbnormalClosure,
+		websocket.CloseGoingAway,
+		websocket.CloseNormalClosure,
+	)
+}
+
 func (t *WSStream) processMessages(ctx context.Context) {
 	defer func() {
 		t.close()
@@ -1110,8 +1120,7 @@ func (t *WSStream) processMessages(ctx context.Context) {
 		default:
 			ty, bytes, err := t.ws.ReadMessage()
 			if err != nil {
-				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) ||
-					websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
+				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || isOKWebsocketCloseError(err) {
 					return
 				}
 

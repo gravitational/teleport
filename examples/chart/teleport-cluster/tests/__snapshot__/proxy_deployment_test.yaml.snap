@@ -5,8 +5,15 @@ should provision initContainer correctly when set in values:
       - wait
       - no-resolve
       - RELEASE-NAME-auth-v14.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-alpha.5
+      image: public.ecr.aws/gravitational/teleport-distroless:15.1.8
       name: wait-auth-update
+      resources:
+        limits:
+          cpu: 1
+          memory: 512Mi
+        requests:
+          cpu: 0.1
+          memory: 256Mi
     - args:
       - echo test
       image: alpine
@@ -62,7 +69,7 @@ should set nodeSelector when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-alpha.5
+      image: public.ecr.aws/gravitational/teleport-distroless:15.1.8
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -123,7 +130,7 @@ should set nodeSelector when set in values:
       - wait
       - no-resolve
       - RELEASE-NAME-auth-v14.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-alpha.5
+      image: public.ecr.aws/gravitational/teleport-distroless:15.1.8
       name: wait-auth-update
     nodeSelector:
       environment: security
@@ -166,7 +173,7 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
             values:
             - proxy
         topologyKey: kubernetes.io/hostname
-should set resources when set in values:
+should set resources for wait-auth-update initContainer when set in values:
   1: |
     affinity:
       podAntiAffinity: null
@@ -174,7 +181,7 @@ should set resources when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-alpha.5
+      image: public.ecr.aws/gravitational/teleport-distroless:15.1.8
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -242,8 +249,123 @@ should set resources when set in values:
       - wait
       - no-resolve
       - RELEASE-NAME-auth-v14.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-alpha.5
+      image: public.ecr.aws/gravitational/teleport-distroless:15.1.8
       name: wait-auth-update
+      resources:
+        limits:
+          cpu: 1
+          memory: 512Mi
+        requests:
+          cpu: 0.1
+          memory: 256Mi
+    serviceAccountName: RELEASE-NAME-proxy
+    terminationGracePeriodSeconds: 60
+    volumes:
+    - name: proxy-serviceaccount-token
+      projected:
+        sources:
+        - serviceAccountToken:
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                fieldPath: metadata.namespace
+              path: namespace
+    - configMap:
+        name: RELEASE-NAME-proxy
+      name: config
+    - emptyDir: {}
+      name: data
+should set resources when set in values:
+  1: |
+    affinity:
+      podAntiAffinity: null
+    automountServiceAccountToken: false
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: public.ecr.aws/gravitational/teleport-distroless:15.1.8
+      imagePullPolicy: IfNotPresent
+      lifecycle:
+        preStop:
+          exec:
+            command:
+            - teleport
+            - wait
+            - duration
+            - 30s
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3080
+        name: tls
+        protocol: TCP
+      - containerPort: 3023
+        name: sshproxy
+        protocol: TCP
+      - containerPort: 3024
+        name: sshtun
+        protocol: TCP
+      - containerPort: 3026
+        name: kube
+        protocol: TCP
+      - containerPort: 3036
+        name: mysql
+        protocol: TCP
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      resources:
+        limits:
+          cpu: 2
+          memory: 4Gi
+        requests:
+          cpu: 1
+          memory: 2Gi
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: proxy-serviceaccount-token
+        readOnly: true
+    initContainers:
+    - command:
+      - teleport
+      - wait
+      - no-resolve
+      - RELEASE-NAME-auth-v14.NAMESPACE.svc.cluster.local
+      image: public.ecr.aws/gravitational/teleport-distroless:15.1.8
+      name: wait-auth-update
+      resources:
+        limits:
+          cpu: 1
+          memory: 512Mi
+        requests:
+          cpu: 0.1
+          memory: 256Mi
     serviceAccountName: RELEASE-NAME-proxy
     terminationGracePeriodSeconds: 60
     volumes:
@@ -275,7 +397,7 @@ should set securityContext for initContainers when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-alpha.5
+      image: public.ecr.aws/gravitational/teleport-distroless:15.1.8
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -343,7 +465,7 @@ should set securityContext for initContainers when set in values:
       - wait
       - no-resolve
       - RELEASE-NAME-auth-v14.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-alpha.5
+      image: public.ecr.aws/gravitational/teleport-distroless:15.1.8
       name: wait-auth-update
       securityContext:
         allowPrivilegeEscalation: false
@@ -383,7 +505,7 @@ should set securityContext when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-alpha.5
+      image: public.ecr.aws/gravitational/teleport-distroless:15.1.8
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -451,7 +573,7 @@ should set securityContext when set in values:
       - wait
       - no-resolve
       - RELEASE-NAME-auth-v14.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-alpha.5
+      image: public.ecr.aws/gravitational/teleport-distroless:15.1.8
       name: wait-auth-update
       securityContext:
         allowPrivilegeEscalation: false

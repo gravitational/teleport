@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	eventtypes "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -65,6 +66,66 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+func TestRejectedClients(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_REJECT_OLD_CLIENTS", "yes")
+
+	server, err := NewTestAuthServer(TestAuthServerConfig{
+		Dir:         t.TempDir(),
+		ClusterName: "cluster",
+		Clock:       clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	user, _, err := CreateUserAndRole(server.AuthServer, "user", []string{"role"}, nil)
+	require.NoError(t, err)
+
+	tlsServer, err := server.NewTestTLSServer()
+	require.NoError(t, err)
+	defer tlsServer.Close()
+
+	tlsConfig, err := tlsServer.ClientTLSConfig(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	clt, err := NewClient(client.Config{
+		DialInBackground: true,
+		Addrs:            []string{tlsServer.Addr().String()},
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
+	})
+	require.NoError(t, err)
+	defer clt.Close()
+
+	t.Run("reject old version", func(t *testing.T) {
+		version := teleport.MinClientSemVersion
+		version.Major--
+		ctx := context.WithValue(context.Background(), metadata.DisableInterceptors{}, struct{}{})
+		ctx = metadata.AddMetadataToContext(ctx, map[string]string{
+			metadata.VersionKey: version.String(),
+		})
+		resp, err := clt.Ping(ctx)
+		require.True(t, trace.IsConnectionProblem(err))
+		require.Equal(t, proto.PingResponse{}, resp)
+	})
+
+	t.Run("allow valid versions", func(t *testing.T) {
+		version := teleport.MinClientSemVersion
+		version.Major--
+		for i := 0; i < 5; i++ {
+			version.Major++
+
+			ctx := context.WithValue(context.Background(), metadata.DisableInterceptors{}, struct{}{})
+			ctx = metadata.AddMetadataToContext(ctx, map[string]string{
+				metadata.VersionKey: version.String(),
+			})
+			resp, err := clt.Ping(ctx)
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+		}
+	})
+}
 
 // TestRemoteBuiltinRole tests remote builtin role
 // that gets mapped to remote proxy readonly role
@@ -721,7 +782,7 @@ func TestAppTokenRotation(t *testing.T) {
 				"trait2": {"value3", "value4"},
 				"trait3": nil,
 			},
-			URI:     "http://localhost:8080",
+			URI:     "https://localhost:8080",
 			Expires: clock.Now().Add(1 * time.Minute),
 		})
 	require.NoError(t, err)
@@ -782,7 +843,7 @@ func TestAppTokenRotation(t *testing.T) {
 				"trait2": {"value3", "value4"},
 				"trait3": nil,
 			},
-			URI:     "http://localhost:8080",
+			URI:     "https://localhost:8080",
 			Expires: clock.Now().Add(1 * time.Minute),
 		})
 	require.NoError(t, err)
@@ -863,6 +924,31 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	clt, err := testSrv.NewClient(TestAdmin())
 	require.NoError(t, err)
 
+	publicAddress := "https://localhost:8080"
+
+	issuer := "https://my-bucket.s3.amazonaws.com/prefix"
+
+	proxyServer, err := types.NewServer("proxy-hostname", types.KindProxy, types.ServerSpecV2{
+		PublicAddrs: []string{publicAddress},
+	})
+	require.NoError(t, err)
+
+	err = clt.UpsertProxy(ctx, proxyServer)
+	require.NoError(t, err)
+
+	integrationName := "my-integration"
+
+	ig, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: integrationName},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN:     "arn:aws:iam::123456789012:role/OpsTeam",
+			IssuerS3URI: "s3://my-bucket/prefix",
+		},
+	)
+	require.NoError(t, err)
+	_, err = clt.CreateIntegration(ctx, ig)
+	require.NoError(t, err)
+
 	user1, _, err := CreateUserAndRole(clt, "user1", nil, []types.Rule{
 		types.NewRule(types.KindIntegration, []string{types.VerbUse}),
 	})
@@ -873,11 +959,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 
 	// Create a JWT using the current CA, this will become the "old" CA during
 	// rotation.
-	oldJWT, err := client.GenerateAWSOIDCToken(ctx,
-		types.GenerateAWSOIDCTokenRequest{
-			Issuer: "http://localhost:8080",
-		},
-	)
+	oldJWT, err := client.GenerateAWSOIDCToken(ctx, integrationName)
 	require.NoError(t, err)
 
 	// Check that the "old" CA can be used to verify tokens.
@@ -889,7 +971,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.Len(t, oldCA.GetTrustedJWTKeyPairs(), 1)
 
 	// Verify that the JWT token validates with the JWT authority.
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT, issuer)
 	require.NoError(t, err, clock.Now())
 
 	// Start rotation and move to initial phase. A new CA will be added (for
@@ -913,7 +995,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.Len(t, oldCA.GetTrustedJWTKeyPairs(), 2)
 
 	// Verify that the JWT token validates with the JWT authority.
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT, issuer)
 	require.NoError(t, err)
 
 	// Move rotation into the update client phase. In this phase, requests will
@@ -927,11 +1009,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// New tokens should now fail to validate with the old key.
-	newJWT, err := client.GenerateAWSOIDCToken(ctx,
-		types.GenerateAWSOIDCTokenRequest{
-			Issuer: "http://localhost:8080",
-		},
-	)
+	newJWT, err := client.GenerateAWSOIDCToken(ctx, integrationName)
 	require.NoError(t, err)
 
 	// New tokens will validate with the new key.
@@ -944,9 +1022,9 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 2)
 
 	// Both JWT should now validate.
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT, issuer)
 	require.NoError(t, err)
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT, issuer)
 	require.NoError(t, err)
 
 	// Move rotation into update servers phase.
@@ -968,9 +1046,9 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 2)
 
 	// Both JWT should continue to validate.
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT, issuer)
 	require.NoError(t, err)
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT, issuer)
 	require.NoError(t, err)
 
 	// Complete rotation. The old CA will be removed.
@@ -992,9 +1070,9 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 1)
 
 	// Old token should no longer validate.
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT, issuer)
 	require.Error(t, err)
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT, issuer)
 	require.NoError(t, err)
 }
 
@@ -2572,7 +2650,7 @@ func TestGenerateAppToken(t *testing.T) {
 					"trait2": {"value3", "value4"},
 					"trait3": nil,
 				},
-				URI:     "http://localhost:8080",
+				URI:     "https://localhost:8080",
 				Expires: clock.Now().Add(1 * time.Minute),
 			})
 		require.Equal(t, err != nil, ts.outError, ts.inComment)
@@ -2580,7 +2658,7 @@ func TestGenerateAppToken(t *testing.T) {
 			claims, err := key.Verify(jwt.VerifyParams{
 				Username: "foo@example.com",
 				RawToken: token,
-				URI:      "http://localhost:8080",
+				URI:      "https://localhost:8080",
 			})
 			require.NoError(t, err, ts.inComment)
 			require.Equal(t, "foo@example.com", claims.Username, ts.inComment)
@@ -4579,7 +4657,7 @@ func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyP
 		claims, err := key.Verify(jwt.VerifyParams{
 			RawToken: token,
 			Username: "foo",
-			URI:      "http://localhost:8080",
+			URI:      "https://localhost:8080",
 		})
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
@@ -4591,7 +4669,7 @@ func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyP
 }
 
 // verifyJWTAWSOIDC verifies that the token was signed by one the passed in key pair.
-func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyPair, token string) (*jwt.Claims, error) {
+func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyPair, token, issuer string) (*jwt.Claims, error) {
 	errs := []error{}
 	for _, pair := range pairs {
 		publicKey, err := utils.ParsePublicKey(pair.PublicKey)
@@ -4612,7 +4690,7 @@ func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.
 		}
 		claims, err := key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
 			RawToken: token,
-			Issuer:   "http://localhost:8080",
+			Issuer:   issuer,
 		})
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))

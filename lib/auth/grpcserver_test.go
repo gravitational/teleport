@@ -61,12 +61,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -976,6 +978,119 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	}
 }
 
+// Test that device trust is required for a user registering their first MFA device.
+func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
+	})
+
+	testServer := newTestTLSServer(t)
+
+	ctx := context.Background()
+	authServer := testServer.Auth()
+
+	// Create a user for testing.
+	user, _, err := CreateUserAndRole(testServer.Auth(), "llama", []string{"llama"}, nil)
+	require.NoError(t, err, "CreateUserAndRole failed")
+	username := user.GetName()
+
+	// Create clients with and without device extensions.
+	clientWithoutDevice, err := testServer.NewClient(TestUser(username))
+	require.NoError(t, err, "NewClient failed")
+
+	clientWithDevice, err := testServer.NewClient(
+		TestUserWithDeviceExtensions(username, tlsca.DeviceExtensions{
+			DeviceID:     "deviceid1",
+			AssetTag:     "assettag1",
+			CredentialID: "credentialid1",
+		}))
+	require.NoError(t, err, "NewClient failed")
+
+	// updateAuthPref is a helper used throughout the test.
+	updateAuthPref := func(t *testing.T, modify func(ap types.AuthPreference)) {
+		authPref, err := authServer.GetAuthPreference(ctx)
+		require.NoError(t, err, "GetAuthPreference failed")
+
+		modify(authPref)
+
+		require.NoError(t,
+			authServer.SetAuthPreference(ctx, authPref),
+			"SetAuthPreference failed")
+	}
+
+	// Enable webauthn
+	updateAuthPref(t, func(authPref types.AuthPreference) {
+		authPref.SetSecondFactor(constants.SecondFactorOptional)
+		authPref.SetWebauthn(&types.Webauthn{
+			RPID: "localhost",
+		})
+	})
+
+	assertSuccess := func(t *testing.T, err error) {
+		assert.NoError(t, err)
+	}
+	assertAccessDenied := func(t *testing.T, err error) {
+		assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+		assert.ErrorContains(t, err, dtauthz.ErrTrustedDeviceRequired.Error())
+	}
+
+	tests := []struct {
+		name               string
+		clusterDeviceMode  string
+		client             *Client
+		skipLoginCerts     bool // aka non-MFA issuance.
+		skipSingleUseCerts bool // aka MFA/streaming issuance.
+		assertErr          func(t *testing.T, err error)
+	}{
+		{
+			name:              "mode=optional without extensions",
+			clusterDeviceMode: constants.DeviceTrustModeOptional,
+			client:            clientWithoutDevice,
+			assertErr:         assertSuccess,
+		},
+		{
+			name:              "mode=optional with extensions",
+			clusterDeviceMode: constants.DeviceTrustModeOptional,
+			client:            clientWithDevice,
+			assertErr:         assertSuccess,
+		},
+		{
+			name:              "nok: mode=required without extensions",
+			clusterDeviceMode: constants.DeviceTrustModeRequired,
+			client:            clientWithoutDevice,
+			assertErr:         assertAccessDenied,
+		},
+		{
+			name:              "mode=required with extensions",
+			clusterDeviceMode: constants.DeviceTrustModeRequired,
+			client:            clientWithDevice,
+			assertErr:         assertSuccess,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			updateAuthPref(t, func(ap types.AuthPreference) {
+				ap.SetDeviceTrust(&types.DeviceTrust{
+					Mode: test.clusterDeviceMode,
+				})
+			})
+
+			t.Run("CreatePrivilegeTokenRequest", func(t *testing.T) {
+				_, err := test.client.CreatePrivilegeToken(ctx, &proto.CreatePrivilegeTokenRequest{})
+				test.assertErr(t, err)
+			})
+
+			t.Run("CreateRegisterChallenge", func(t *testing.T) {
+				_, err := test.client.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+					DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+					DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_MFA,
+				})
+				test.assertErr(t, err)
+			})
+		})
+	}
+}
+
 func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
 	database, err := types.NewDatabaseV3(
 		types.Metadata{
@@ -1797,7 +1912,11 @@ var requireMFATypes = []types.RequireMFAType{
 }
 
 func TestIsMFARequired(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	testModules := &modules.TestModules{
+		TestBuildType:       modules.BuildEnterprise,
+		MockAttestationData: &keys.AttestationData{},
+	}
+	modules.SetTestModules(t, testModules)
 
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -1833,8 +1952,6 @@ func TestIsMFARequired(t *testing.T) {
 			for _, roleRequireMFAType := range requireMFATypes {
 				roleRequireMFAType := roleRequireMFAType
 				t.Run(fmt.Sprintf("role=%v", roleRequireMFAType.String()), func(t *testing.T) {
-					t.Parallel()
-
 					user, err := types.NewUser(roleRequireMFAType.String())
 					require.NoError(t, err)
 
@@ -1851,6 +1968,14 @@ func TestIsMFARequired(t *testing.T) {
 					user, err = srv.Auth().UpsertUser(ctx, user)
 					require.NoError(t, err)
 
+					mfaVerifiedByHardwareKey := role.GetPrivateKeyPolicy().MFAVerified() || authPref.GetPrivateKeyPolicy().MFAVerified()
+					if mfaVerifiedByHardwareKey {
+						// Set attestated key policy to the most restrictive hardware key MFA is required.
+						testModules.MockAttestationData.PrivateKeyPolicy = keys.PrivateKeyPolicyHardwareKeyTouchAndPIN
+					} else {
+						testModules.MockAttestationData.PrivateKeyPolicy = keys.PrivateKeyPolicyHardwareKey
+					}
+
 					cl, err := srv.NewClient(TestUser(user.GetName()))
 					require.NoError(t, err)
 
@@ -1864,9 +1989,7 @@ func TestIsMFARequired(t *testing.T) {
 
 					// If auth pref or role require session MFA, and MFA is not already
 					// verified according to private key policy, expect MFA required.
-					wantRequired := (role.GetOptions().RequireMFAType.IsSessionMFARequired() || authPref.GetRequireMFAType().IsSessionMFARequired()) &&
-						!role.GetPrivateKeyPolicy().MFAVerified() &&
-						!authPref.GetPrivateKeyPolicy().MFAVerified()
+					wantRequired := (role.GetOptions().RequireMFAType.IsSessionMFARequired() || authPref.GetRequireMFAType().IsSessionMFARequired()) && !mfaVerifiedByHardwareKey
 					var wantMFARequired proto.MFARequired
 					if wantRequired {
 						wantMFARequired = proto.MFARequired_MFA_REQUIRED_YES

@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { memo } from 'react';
 import styled from 'styled-components';
+
 import * as Icons from 'design/Icon';
 
 import Slider from './Slider';
@@ -33,7 +34,10 @@ export default function ProgressBar(props: ProgressBarProps) {
       <ActionButton onClick={props.toggle} disabled={props.disabled}>
         <Icon />
       </ActionButton>
-      <PlaySpeedSelector onChange={props.onPlaySpeedChange} />
+      <PlaySpeedSelector
+        onChange={props.onPlaySpeedChange}
+        disabled={props.disabled}
+      />
       <TimeText>{props.time}</TimeText>
       <SliderContainer>
         <Slider
@@ -86,27 +90,33 @@ export type ProgressBarProps = {
   onRestart?: () => void;
 };
 
-function PlaySpeedSelector(props: { onChange?: (speed: number) => void }) {
-  if (!props.onChange) {
-    return null;
+const PlaySpeedSelector = memo(
+  (props: { disabled?: boolean; onChange?: (speed: number) => void }) => {
+    if (!props.onChange) {
+      return null;
+    }
+
+    const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+      props.onChange(parseFloat(event.target.value));
+    };
+
+    return (
+      <PlaySpeedSelectorItem
+        disabled={props.disabled}
+        onChange={handleChange}
+        defaultValue={'1.0'}
+      >
+        <option value="0.25">0.25x</option>
+        <option value="0.5">0.5x</option>
+        <option value="1.0">1.0x</option>
+        <option value="2.0">2.0x</option>
+        <option value="4.0">4.0x</option>
+        <option value="8.0">8.0x</option>
+        <option value="16.0">16.0x</option>
+      </PlaySpeedSelectorItem>
+    );
   }
-
-  const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    props.onChange(parseFloat(event.target.value));
-  };
-
-  return (
-    <PlaySpeedSelectorItem onChange={handleChange} defaultValue={'1.0'}>
-      <option value="0.25">0.25x</option>
-      <option value="0.5">0.5x</option>
-      <option value="1.0">1.0x</option>
-      <option value="2.0">2.0x</option>
-      <option value="4.0">4.0x</option>
-      <option value="8.0">8.0x</option>
-      <option value="16.0">16.0x</option>
-    </PlaySpeedSelectorItem>
-  );
-}
+);
 
 const PlaySpeedSelectorItem = styled.select`
   margin-left: 8px;
@@ -193,7 +203,9 @@ const StyledProgessBar = styled.div`
         : props.theme.colors.success.main};
 
     border-radius: 200px;
-    box-shadow: 0 0 4px rgba(0, 0, 0, 0.12), 0 4px 4px rgba(0, 0, 0, 0.24);
+    box-shadow:
+      0 0 4px rgba(0, 0, 0, 0.12),
+      0 4px 4px rgba(0, 0, 0, 0.24);
     width: 16px;
     height: 16px;
     left: -8px;

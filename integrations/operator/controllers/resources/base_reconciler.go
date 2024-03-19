@@ -20,6 +20,7 @@ package resources
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -29,9 +30,18 @@ import (
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// DeletionFinalizer is a name of finalizer added to resource's 'finalizers' field
-// for tracking deletion events.
-const DeletionFinalizer = "resources.teleport.dev/deletion"
+const (
+	// DeletionFinalizer is a name of finalizer added to resource's 'finalizers' field
+	// for tracking deletion events.
+	DeletionFinalizer = "resources.teleport.dev/deletion"
+	// AnnotationFlagIgnore is the Kubernetes annotation containing the "ignore" flag.
+	// When set to true, the operator will not reconcile the CR.
+	AnnotationFlagIgnore = "teleport.dev/ignore"
+	// AnnotationFlagKeep is the Kubernetes annotation containing the "keep" flag.
+	// When set to true, the operator will not delete the Teleport resource if the
+	// CR is deleted.
+	AnnotationFlagKeep = "teleport.dev/keep"
+)
 
 type DeleteExternal func(context.Context, kclient.Object) error
 type UpsertExternal func(context.Context, kclient.Object) error
@@ -79,15 +89,24 @@ func (r ResourceBaseReconciler) Do(ctx context.Context, req ctrl.Request, obj kc
 		return ctrl.Result{}, trace.Wrap(err)
 	}
 
+	if isIgnored(obj) {
+		log.Info(fmt.Sprintf("Resource is flagged with annotation %q, it will not be reconciled.", AnnotationFlagIgnore))
+		return ctrl.Result{}, nil
+	}
+
 	hasDeletionFinalizer := controllerutil.ContainsFinalizer(obj, DeletionFinalizer)
 	isMarkedToBeDeleted := !obj.GetDeletionTimestamp().IsZero()
 
 	// Delete
 	if isMarkedToBeDeleted {
 		if hasDeletionFinalizer {
-			log.Info("deleting object in Teleport")
-			if err := r.DeleteExternal(ctx, obj); err != nil && !trace.IsNotFound(err) {
-				return ctrl.Result{}, trace.Wrap(err)
+			if isKept(obj) {
+				log.Info(fmt.Sprintf("Resource is flagged with annotation %q, it will not be deleted in Teleport.", AnnotationFlagKeep))
+			} else {
+				log.Info("deleting object in Teleport")
+				if err := r.DeleteExternal(ctx, obj); err != nil && !trace.IsNotFound(err) {
+					return ctrl.Result{}, trace.Wrap(err)
+				}
 			}
 
 			log.Info("removing finalizer")
@@ -114,4 +133,14 @@ func (r ResourceBaseReconciler) Do(ctx context.Context, req ctrl.Request, obj kc
 	log.Info("upsert object in Teleport")
 	err := r.UpsertExternal(ctx, obj)
 	return ctrl.Result{}, trace.Wrap(err)
+}
+
+// isIgnored checks if the CR should be ignored
+func isIgnored(obj kclient.Object) bool {
+	return checkAnnotationFlag(obj, AnnotationFlagIgnore, false /* defaults to false */)
+}
+
+// isKept checks if the Teleport resource should be kept if the CR is deleted
+func isKept(obj kclient.Object) bool {
+	return checkAnnotationFlag(obj, AnnotationFlagKeep, false /* defaults to false */)
 }

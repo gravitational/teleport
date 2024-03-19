@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM docker.io/golang:1.21
+FROM docker.io/golang:1.22
 
 # Image layers go from less likely to most likely to change.
 RUN apt-get update && \
@@ -45,6 +45,6 @@ RUN VERSION="$BUF_VERSION"; \
 # branch.
 COPY go.mod go.sum /teleport-module/
 RUN cd /teleport-module; \
-  go install github.com/bufbuild/connect-go/cmd/protoc-gen-connect-go && \
+  go install connectrpc.com/connect/cmd/protoc-gen-connect-go && \
   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc && \
   go install google.golang.org/protobuf/cmd/protoc-gen-go

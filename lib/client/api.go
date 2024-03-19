@@ -58,6 +58,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -126,6 +127,8 @@ const (
 	ForwardAgentYes
 	ForwardAgentLocal
 )
+
+const remoteForwardUnsupportedMessage = "ssh: tcpip-forward request denied by peer"
 
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentClient,
@@ -311,6 +314,10 @@ type Config struct {
 	// port forwarding (parameters to -D ssh flag).
 	DynamicForwardedPorts DynamicForwardedPorts
 
+	// RemoteForwardPorts are the list of ports the remote connection listens on
+	// for remote port forwarding (parameters to -R ssh flag).
+	RemoteForwardPorts ForwardedPorts
+
 	// HostKeyCallback will be called to check host keys of the remote
 	// node, if not specified will be using CheckHostSignature function
 	// that uses local cache to validate hosts
@@ -483,6 +490,9 @@ type Config struct {
 
 	// MFAPromptConstructor is a custom MFA prompt constructor to use when prompting for MFA.
 	MFAPromptConstructor func(cfg *libmfa.PromptConfig) mfa.Prompt
+
+	// DisableSSHResumption disables transparent SSH connection resumption.
+	DisableSSHResumption bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -670,19 +680,42 @@ func WithBeforeLoginHook(fn func() error) RetryWithReloginOption {
 
 // IsErrorResolvableWithRelogin returns true if relogin is attempted on `err`.
 func IsErrorResolvableWithRelogin(err error) bool {
+	// Private key policy errors indicate that the user must login with an
+	// unexpected private key policy requirement satisfied. This can occur
+	// in the following cases:
+	// - User is logging in for the first time, and their strictest private
+	//   key policy requirement is specified in a role.
+	// - User is assuming a role with a stricter private key policy requirement
+	//   than the user's given roles.
+	// - The private key policy in the user's roles or the cluster auth
+	//   preference have been upgraded since the user last logged in, making
+	//   their current login session invalid.
+	if keys.IsPrivateKeyPolicyError(err) {
+		return true
+	}
+
 	// Ignore any failures resulting from RPCs.
 	// These were all materialized as status.Error here before
 	// https://github.com/gravitational/teleport/pull/30578.
 	var remoteErr *interceptors.RemoteError
 	if errors.As(err, &remoteErr) {
-		return false
+		// Exception for the two "retryable" errors that come from RPCs.
+		//
+		// Since Connect no longer checks the user cert before making an RPC,
+		// it has to be able to properly recognize "expired certs" errors
+		// that come from the server (to show a re-login dialog).
+		//
+		// TODO(gzdunek): These manual checks should be replaced with retryable
+		// errors returned explicitly, as described below by codingllama.
+		isClientCredentialsHaveExpired := errors.Is(err, client.ErrClientCredentialsHaveExpired)
+		isTLSExpiredCertificate := strings.Contains(err.Error(), "tls: expired certificate")
+		return isClientCredentialsHaveExpired || isTLSExpiredCertificate
 	}
 
-	return keys.IsPrivateKeyPolicyError(err) ||
-		// TODO(codingllama): Retrying BadParameter is a terrible idea.
-		//  We should fix this and remove the RemoteError condition above as well.
-		//  Any retriable error should be explicitly marked as such.
-		trace.IsBadParameter(err) ||
+	// TODO(codingllama): Retrying BadParameter is a terrible idea.
+	//  We should fix this and remove the RemoteError condition above as well.
+	//  Any retriable error should be explicitly marked as such.
+	return trace.IsBadParameter(err) ||
 		trace.IsTrustError(err) ||
 		utils.IsCertExpiredError(err) ||
 		// Assume that failed handshake is a result of expired credentials.
@@ -1664,7 +1697,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 		// here is intentional. The underlying stream backing the connection will run for the duration of the session
 		// and cause the current span to have a duration longer than just the initial connection. To avoid this the
 		// parent context is used.
-		conn, details, err := clt.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
+		conn, details, err := clt.DialHostWithResumption(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
 		if err != nil {
 			directResultC <- clientRes{err: err}
 			return
@@ -1802,7 +1835,7 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *Cluster
 		return nil, trace.Wrap(err)
 	}
 
-	conn, details, err := clt.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
+	conn, details, err := clt.DialHostWithResumption(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1926,6 +1959,22 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 		}
 		go nodeClient.dynamicListenAndForward(ctx, socket, addr)
 	}
+	for _, fp := range tc.Config.RemoteForwardPorts {
+		addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
+		socket, err := nodeClient.Client.Listen("tcp", addr)
+		if err != nil {
+			// We log the error here instead of returning it to be consistent with
+			// the other port forwarding methods, which don't stop the session
+			// if forwarding fails.
+			message := fmt.Sprintf("Failed to bind on remote host to %v: %v.", addr, err)
+			if strings.Contains(err.Error(), remoteForwardUnsupportedMessage) {
+				message = "Node does not support remote port forwarding (-R)."
+			}
+			log.Error(message)
+		} else {
+			go nodeClient.remoteListenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)), addr)
+		}
+	}
 	return nil
 }
 
@@ -1978,8 +2027,13 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		return trace.Wrap(err)
 	}
 
-	if session.GetSessionKind() != types.SSHSessionKind {
-		return trace.BadParameter("session joining is only supported for ssh sessions, not %q sessions", session.GetSessionKind())
+	switch kind := session.GetSessionKind(); kind {
+	case types.KubernetesSessionKind:
+		return trace.BadParameter("session joining for Kubernetes is supported with the command tsh kube join")
+	case types.SSHSessionKind:
+		// continue
+	default:
+		return trace.BadParameter("session joining is not supported for %v sessions", kind)
 	}
 	if types.IsOpenSSHNodeSubKind(session.GetTargetSubKind()) {
 		return trace.BadParameter("session joining is only supported for Teleport nodes, not OpenSSH nodes")
@@ -4320,24 +4374,28 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 	if tc.CheckVersions {
 		if !utils.MeetsVersion(teleport.Version, pr.MinClientVersion) {
 			fmt.Fprintf(tc.Stderr, `
-			WARNING
-			Detected potentially incompatible client and server versions.
-			Minimum client version supported by the server is %v but you are using %v.
-			Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.
-			Future versions of tsh will fail when incompatible versions are detected.
-			`, pr.MinClientVersion, teleport.Version, pr.MinClientVersion)
+WARNING
+Detected potentially incompatible client and server versions.
+Minimum client version supported by the server is %v but you are using %v.
+Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+				pr.MinClientVersion, teleport.Version, pr.MinClientVersion)
 		}
 
 		// Recent `tsh mfa` changes require at least Teleport v15.
 		const minServerVersion = "15.0.0-aa" // "-aa" matches all development versions
 		if !utils.MeetsVersion(pr.ServerVersion, minServerVersion) {
 			fmt.Fprintf(tc.Stderr, `
-			WARNING
-			Detected incompatible client and server versions.
-			Minimum server version supported by tsh is %v but your server is using %v.
-			Please use a tsh version that matches your server.
-			You may use the --skip-version-check flag to bypass this check.
-			`, minServerVersion, pr.ServerVersion)
+WARNING
+Detected incompatible client and server versions.
+Minimum server version supported by tsh is %v but your server is using %v.
+Please use a tsh version that matches your server.
+You may use the --skip-version-check flag to bypass this check.
+
+`,
+				minServerVersion, pr.ServerVersion)
 		}
 	}
 
@@ -5250,6 +5308,9 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 	chal, err := rootClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
+		},
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_HEADLESS_LOGIN,
 		},
 	})
 	if err != nil {

@@ -73,7 +73,7 @@ func withEditor(editor func(string) error) optionsFunc {
 	}
 }
 
-func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opts ...optionsFunc) auth.ClientI {
+func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opts ...optionsFunc) *auth.Client {
 	var options options
 	for _, v := range opts {
 		v(&options)
@@ -103,7 +103,7 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 
 type cliCommand interface {
 	Initialize(app *kingpin.Application, cfg *servicecfg.Config)
-	TryRun(ctx context.Context, cmd string, client auth.ClientI) (bool, error)
+	TryRun(ctx context.Context, cmd string, client *auth.Client) (bool, error)
 }
 
 func runCommand(t *testing.T, fc *config.FileConfig, cmd cliCommand, args []string, opts ...optionsFunc) error {

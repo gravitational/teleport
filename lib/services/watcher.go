@@ -37,6 +37,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	// smallFanoutCapacity is the default capacity used for the circular event buffer allocated by
+	// resource watchers that implement event fanout.
+	smallFanoutCapacity = 128
+)
+
 // resourceCollector is a generic interface for maintaining an up-to-date view
 // of a resource set being monitored. Used in conjunction with resourceWatcher.
 type resourceCollector interface {
@@ -552,8 +558,10 @@ func NewLockWatcher(ctx context.Context, cfg LockWatcherConfig) (*LockWatcher, e
 	}
 	collector := &lockCollector{
 		LockWatcherConfig: cfg,
-		fanout:            NewFanout(),
-		initializationC:   make(chan struct{}),
+		fanout: NewFanoutV2(FanoutV2Config{
+			Capacity: smallFanoutCapacity,
+		}),
+		initializationC: make(chan struct{}),
 	}
 	// Resource watcher require the fanout to be initialized before passing in.
 	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
@@ -581,7 +589,7 @@ type lockCollector struct {
 	// currentRW is a mutex protecting both current and isStale.
 	currentRW sync.RWMutex
 	// fanout provides support for multiple subscribers to the lock updates.
-	fanout *Fanout
+	fanout *FanoutV2
 	// initializationC is used to check whether the initial sync has completed
 	initializationC chan struct{}
 	once            sync.Once
@@ -1469,10 +1477,12 @@ func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig
 
 	collector := &caCollector{
 		CertAuthorityWatcherConfig: cfg,
-		fanout:                     NewFanout(),
-		cas:                        make(map[types.CertAuthType]map[string]types.CertAuthority, len(cfg.Types)),
-		filter:                     make(types.CertAuthorityFilter, len(cfg.Types)),
-		initializationC:            make(chan struct{}),
+		fanout: NewFanoutV2(FanoutV2Config{
+			Capacity: smallFanoutCapacity,
+		}),
+		cas:             make(map[types.CertAuthType]map[string]types.CertAuthority, len(cfg.Types)),
+		filter:          make(types.CertAuthorityFilter, len(cfg.Types)),
+		initializationC: make(chan struct{}),
 	}
 
 	for _, t := range cfg.Types {
@@ -1499,7 +1509,7 @@ type CertAuthorityWatcher struct {
 // caCollector accompanies resourceWatcher when monitoring cert authority resources.
 type caCollector struct {
 	CertAuthorityWatcherConfig
-	fanout *Fanout
+	fanout *FanoutV2
 
 	// lock protects concurrent access to cas
 	lock sync.RWMutex

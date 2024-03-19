@@ -18,14 +18,15 @@
 
 import { WebauthnAssertionResponse } from '../auth';
 
-export type MfaDevice = {
+export interface MfaDevice {
   id: string;
   name: string;
   description: string;
   registeredDate: Date;
   lastUsedDate: Date;
-  residentKey: boolean;
-};
+  type: DeviceType;
+  usage: DeviceUsage;
+}
 
 export type AddNewTotpDeviceRequest = {
   tokenId: string;
@@ -33,10 +34,18 @@ export type AddNewTotpDeviceRequest = {
   secondFactorToken: string;
 };
 
-export type AddNewHardwareDeviceRequest = {
+export type CreateNewHardwareDeviceRequest = {
   tokenId: string;
-  deviceName: string;
   deviceUsage?: DeviceUsage;
+};
+
+export type AddNewHardwareDeviceRequest = CreateNewHardwareDeviceRequest & {
+  deviceName: string;
+};
+
+export type SaveNewHardwareDeviceRequest = {
+  addRequest: AddNewHardwareDeviceRequest;
+  credential: Credential;
 };
 
 export type DeviceType = 'totp' | 'webauthn';

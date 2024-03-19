@@ -21,6 +21,7 @@ import { MemoryRouter } from 'react-router';
 import { render, screen } from 'design/utils/testing';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
+import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 import { ContextProvider } from 'teleport';
 
 import {
@@ -80,7 +81,9 @@ test('due dates and overdue dates', async () => {
   render(
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
-        <Notifications />
+        <LayoutContextProvider>
+          <Notifications />
+        </LayoutContextProvider>
       </ContextProvider>
     </MemoryRouter>
   );
@@ -109,7 +112,9 @@ test('no notes', async () => {
   render(
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
-        <Notifications />
+        <LayoutContextProvider>
+          <Notifications />
+        </LayoutContextProvider>
       </ContextProvider>
     </MemoryRouter>
   );

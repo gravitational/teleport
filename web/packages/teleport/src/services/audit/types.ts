@@ -27,6 +27,7 @@ export const eventGroupTypes = {
   sftp: 'SFTP',
   subsystem: 'Subsystem Request',
   'user.login': 'User Logins',
+  'spiffe.svid.issued': 'SPIFFE SVID Issuance',
 };
 
 /**
@@ -67,6 +68,7 @@ export const eventCodes = {
   DATABASE_SESSION_STARTED_FAILURE: 'TDB00W',
   DATABASE_SESSION_STARTED: 'TDB00I',
   DATABASE_SESSION_MALFORMED_PACKET: 'TDB06I',
+  DATABASE_SESSION_PERMISSIONS_UPDATE: 'TDB07I',
   DATABASE_CREATED: 'TDB03I',
   DATABASE_UPDATED: 'TDB04I',
   DATABASE_DELETED: 'TDB05I',
@@ -152,6 +154,7 @@ export const eventCodes = {
   SCP_DOWNLOAD: 'T3004I',
   SCP_UPLOAD_FAILURE: 'T3005E',
   SCP_UPLOAD: 'T3005I',
+  SCP_DISALLOWED: 'T3010E',
   SFTP_OPEN_FAILURE: 'TS001E',
   SFTP_OPEN: 'TS001I',
   SFTP_CLOSE_FAILURE: 'TS002E',
@@ -188,6 +191,9 @@ export const eventCodes = {
   SFTP_READLINK: 'TS017I',
   SFTP_SYMLINK_FAILURE: 'TS018E',
   SFTP_SYMLINK: 'TS018I',
+  SFTP_LINK: 'TS019I',
+  SFTP_LINK_FAILURE: 'TS019E',
+  SFTP_DISALLOWED: 'TS020E',
   SESSION_COMMAND: 'T4000I',
   SESSION_DATA: 'T2006I',
   SESSION_DISK: 'T4001I',
@@ -224,6 +230,9 @@ export const eventCodes = {
   USER_HEADLESS_LOGIN_APPROVED: 'T1013I',
   USER_HEADLESS_LOGIN_APPROVEDFAILURE: 'T1013W',
   USER_HEADLESS_LOGIN_REJECTED: 'T1014W',
+  CREATE_MFA_AUTH_CHALLENGE: 'T1015I',
+  VALIDATE_MFA_AUTH_RESPONSE: 'T1016I',
+  VALIDATE_MFA_AUTH_RESPONSEFAILURE: 'T1016W',
   USER_UPDATED: 'T1003I',
   X11_FORWARD: 'T3008I',
   X11_FORWARD_FAILURE: 'T3008W',
@@ -252,6 +261,8 @@ export const eventCodes = {
   OKTA_ASSIGNMENT_PROCESS_FAILURE: 'TOK004E',
   OKTA_ASSIGNMENT_CLEANUP: 'TOK005I',
   OKTA_ASSIGNMENT_CLEANUP_FAILURE: 'TOK005E',
+  OKTA_ACCESS_LIST_SYNC: 'TOK006I',
+  OKTA_ACCESS_LIST_SYNC_FAILURE: 'TOK006E',
   ACCESS_LIST_CREATE: 'TAL001I',
   ACCESS_LIST_CREATE_FAILURE: 'TAL001E',
   ACCESS_LIST_UPDATE: 'TAL002I',
@@ -272,6 +283,8 @@ export const eventCodes = {
   SECURITY_REPORT_RUN: 'SRE002I',
   EXTERNAL_AUDIT_STORAGE_ENABLE: 'TEA001I',
   EXTERNAL_AUDIT_STORAGE_DISABLE: 'TEA002I',
+  SPIFFE_SVID_ISSUED: 'TSPIFFE000I',
+  SPIFFE_SVID_ISSUED_FAILURE: 'TSPIFFE000E',
 } as const;
 
 /**
@@ -292,7 +305,7 @@ export type RawEvents = {
   >;
   [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: RawEvent<
     typeof eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH,
-    { resource_type: string; search_as_roles: string }
+    { resource_type: string; search_as_roles: string[] }
   >;
   [eventCodes.AUTH_ATTEMPT_FAILURE]: RawEventAuthFailure<
     typeof eventCodes.AUTH_ATTEMPT_FAILURE
@@ -402,6 +415,12 @@ export type RawEvents = {
       exitError: string;
     }
   >;
+  [eventCodes.SCP_DISALLOWED]: RawEvent<
+    typeof eventCodes.SCP_DISALLOWED,
+    {
+      user: string;
+    }
+  >;
   [eventCodes.SFTP_OPEN]: RawEventSFTP<typeof eventCodes.SFTP_OPEN>;
   [eventCodes.SFTP_OPEN_FAILURE]: RawEventSFTP<
     typeof eventCodes.SFTP_OPEN_FAILURE
@@ -474,6 +493,11 @@ export type RawEvents = {
   [eventCodes.SFTP_SYMLINK_FAILURE]: RawEventSFTP<
     typeof eventCodes.SFTP_SYMLINK_FAILURE
   >;
+  [eventCodes.SFTP_LINK]: RawEventSFTP<typeof eventCodes.SFTP_LINK>;
+  [eventCodes.SFTP_LINK_FAILURE]: RawEventSFTP<
+    typeof eventCodes.SFTP_LINK_FAILURE
+  >;
+  [eventCodes.SFTP_DISALLOWED]: RawEventSFTP<typeof eventCodes.SFTP_DISALLOWED>;
   [eventCodes.SESSION_COMMAND]: RawEventCommand<
     typeof eventCodes.SESSION_COMMAND
   >;
@@ -742,6 +766,19 @@ export type RawEvents = {
       name: string;
       db_service: string;
       db_name: string;
+    }
+  >;
+  [eventCodes.DATABASE_SESSION_PERMISSIONS_UPDATE]: RawEvent<
+    typeof eventCodes.DATABASE_SESSION_PERMISSIONS_UPDATE,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      db_user: string;
+      permission_summary: {
+        permission: string;
+        counts: { [key: string]: number };
+      }[];
     }
   >;
   [eventCodes.DATABASE_CREATED]: RawEvent<
@@ -1369,6 +1406,12 @@ export type RawEvents = {
       source: string;
     }
   >;
+  [eventCodes.OKTA_ACCESS_LIST_SYNC]: RawEvent<
+    typeof eventCodes.OKTA_ACCESS_LIST_SYNC
+  >;
+  [eventCodes.OKTA_ACCESS_LIST_SYNC_FAILURE]: RawEvent<
+    typeof eventCodes.OKTA_ACCESS_LIST_SYNC_FAILURE
+  >;
   [eventCodes.ACCESS_LIST_CREATE]: RawEvent<
     typeof eventCodes.ACCESS_LIST_CREATE,
     {
@@ -1485,12 +1528,42 @@ export type RawEvents = {
       updated_by: string;
     }
   >;
+  [eventCodes.CREATE_MFA_AUTH_CHALLENGE]: RawEvent<
+    typeof eventCodes.CREATE_MFA_AUTH_CHALLENGE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.VALIDATE_MFA_AUTH_RESPONSE]: RawEvent<
+    typeof eventCodes.VALIDATE_MFA_AUTH_RESPONSE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE]: RawEvent<
+    typeof eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.SPIFFE_SVID_ISSUED]: RawEvent<
+    typeof eventCodes.SPIFFE_SVID_ISSUED,
+    {
+      spiffe_id: string;
+    }
+  >;
+  [eventCodes.SPIFFE_SVID_ISSUED_FAILURE]: RawEvent<
+    typeof eventCodes.SPIFFE_SVID_ISSUED_FAILURE,
+    {
+      spiffe_id: string;
+    }
+  >;
 };
 
 /**
  * Event Code
  */
-export type EventCode = typeof eventCodes[keyof typeof eventCodes];
+export type EventCode = (typeof eventCodes)[keyof typeof eventCodes];
 
 type HasName = {
   name: string;

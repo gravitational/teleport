@@ -186,8 +186,7 @@ func createTransientBucket(ctx context.Context, clt BootstrapS3Client, bucketNam
 					Status: s3types.ExpirationStatusEnabled,
 					ID:     aws.String("ExpireNonCurrentVersionsAndDeleteMarkers"),
 					NoncurrentVersionExpiration: &s3types.NoncurrentVersionExpiration{
-						NewerNoncurrentVersions: aws.Int32(0),
-						NoncurrentDays:          aws.Int32(1),
+						NoncurrentDays: aws.Int32(1),
 					},
 					AbortIncompleteMultipartUpload: &s3types.AbortIncompleteMultipartUpload{
 						DaysAfterInitiation: aws.Int32(7),
@@ -206,7 +205,7 @@ func createTransientBucket(ctx context.Context, clt BootstrapS3Client, bucketNam
 func createBucket(ctx context.Context, clt BootstrapS3Client, bucketName string, region string, objectLock bool) error {
 	_, err := clt.CreateBucket(ctx, &s3.CreateBucketInput{
 		Bucket:                     &bucketName,
-		CreateBucketConfiguration:  createBucketConfiguration(region),
+		CreateBucketConfiguration:  awsutil.CreateBucketConfiguration(region),
 		ObjectLockEnabledForBucket: aws.Bool(objectLock),
 		ACL:                        s3types.BucketCannedACLPrivate,
 		ObjectOwnership:            s3types.ObjectOwnershipBucketOwnerEnforced,
@@ -222,18 +221,6 @@ func createBucket(ctx context.Context, clt BootstrapS3Client, bucketName string,
 		},
 	})
 	return trace.Wrap(awsutil.ConvertS3Error(err), "setting versioning configuration on S3 bucket")
-}
-
-func createBucketConfiguration(region string) *s3types.CreateBucketConfiguration {
-	// No location constraint wanted for us-east-1 because it is the default and
-	// AWS has decided, in all their infinite wisdom, that the CreateBucket API
-	// should fail if you explicitly pass the default location constraint.
-	if region == "us-east-1" {
-		return nil
-	}
-	return &s3types.CreateBucketConfiguration{
-		LocationConstraint: s3types.BucketLocationConstraint(region),
-	}
 }
 
 // createAthenaWorkgroup creates an athena workgroup in which to run athena sql queries.

@@ -19,14 +19,15 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 
+import { AssistViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/assist_pb';
+
 import { useAssist } from 'teleport/Assist/context/AssistContext';
 import { ConversationHistoryItem } from 'teleport/Assist/ConversationHistory/ConversationHistoryItem';
 import { DeleteConversationDialog } from 'teleport/Assist/ConversationHistory/DeleteConversationDialog';
-import { ViewMode } from 'teleport/Assist/types';
 
 interface ConversationHistoryProps {
   onConversationSelect: (id: string) => void;
-  viewMode: ViewMode;
+  viewMode: AssistViewMode;
   onError: (message: string) => void;
 }
 
@@ -58,10 +59,10 @@ const List = styled.ul.attrs({ 'data-scrollbar': 'default' })`
   overflow-y: auto;
 `;
 
-function isExpanded(viewMode: ViewMode) {
+function isExpanded(viewMode: AssistViewMode) {
   return (
-    viewMode === ViewMode.PopupExpanded ||
-    viewMode === ViewMode.PopupExpandedSidebarVisible
+    viewMode === AssistViewMode.POPUP_EXPANDED ||
+    viewMode === AssistViewMode.POPUP_EXPANDED_SIDEBAR_VISIBLE
   );
 }
 

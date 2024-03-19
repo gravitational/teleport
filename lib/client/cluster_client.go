@@ -20,16 +20,20 @@ package client
 
 import (
 	"context"
+	"net"
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -82,6 +86,35 @@ func (c *ClusterClient) ConnectToCluster(ctx context.Context, clusterName string
 func (c *ClusterClient) Close() error {
 	// close auth client first since it is tunneled through the proxy client
 	return trace.NewAggregate(c.AuthClient.Close(), c.ProxyClient.Close())
+}
+
+// DialHostWithResumption is [proxyclient.DialHost] called on the underlying
+// [*proxyclient.Client] of the ClusterClient, but with additional logic that
+// attempts to resume the connection if it's supported by the remote server and
+// if it's not been disabled in the TeleportClient (with a command-line flag,
+// typically).
+func (c *ClusterClient) DialHostWithResumption(ctx context.Context, target, cluster string, keyring agent.ExtendedAgent) (net.Conn, proxyclient.ClusterDetails, error) {
+	conn, details, err := c.ProxyClient.DialHost(ctx, target, cluster, keyring)
+	if err != nil {
+		return nil, proxyclient.ClusterDetails{}, trace.Wrap(err)
+	}
+
+	if c.tc.DisableSSHResumption {
+		return conn, details, nil
+	}
+
+	conn, err = resumption.WrapSSHClientConn(ctx, conn, func(ctx context.Context, hostID string) (net.Conn, error) {
+		// if the connection is being resumed it means that we didn't need the
+		// agent in the first place
+		var noAgent agent.ExtendedAgent
+		conn, _, err := c.ProxyClient.DialHost(ctx, hostID+":0", cluster, noAgent)
+		return conn, err
+	})
+	if err != nil {
+		return nil, proxyclient.ClusterDetails{}, trace.Wrap(err)
+	}
+
+	return conn, details, nil
 }
 
 // ceremonyFailedErr indicates that the mfa ceremony was attempted unsuccessfully.
@@ -226,8 +259,11 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *Clus
 		MFAPrompt:         c.tc.NewMFAPrompt(),
 		MFAAgainstRoot:    c.cluster == rootClient.cluster,
 		MFARequiredReq:    params.isMFARequiredRequest(c.tc.HostLogin),
-		CertsReq:          certsReq,
-		Key:               key,
+		ChallengeExtensions: mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+		},
+		CertsReq: certsReq,
+		Key:      key,
 	})
 	return key, trace.Wrap(err)
 }
@@ -262,6 +298,9 @@ type PerformMFACeremonyParams struct {
 	MFAAgainstRoot bool
 	// MFARequiredReq is the request for the MFA verification check.
 	MFARequiredReq *proto.IsMFARequiredRequest
+	// ChallengeExtensions is used to provide additional extensions to apply to the
+	// MFA challenge used in the ceremony. The scope extension must be supplied.
+	ChallengeExtensions mfav1.ChallengeExtensions
 	// CertsReq is the request for new certificates.
 	CertsReq *proto.UserCertsRequest
 
@@ -313,13 +352,24 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 			ContextUser: &proto.ContextUser{},
 		},
 		MFARequiredCheck: mfaRequiredReq,
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+		},
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
 	log.Debugf("MFA requirement from CreateAuthenticateChallenge, MFARequired=%s", authnChal.GetMFARequired())
 	if authnChal.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
 		return nil, nil, trace.Wrap(services.ErrSessionMFANotRequired)
+	}
+
+	if authnChal.TOTP == nil && authnChal.WebauthnChallenge == nil {
+		// TODO(Joerger): CreateAuthenticateChallenge should return
+		// this error directly instead of an empty challenge, without
+		// regressing https://github.com/gravitational/teleport/issues/36482.
+		return nil, nil, auth.ErrNoMFADevices
 	}
 
 	// Prompt user for solution (eg, security key touch).

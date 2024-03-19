@@ -12,6 +12,10 @@ description: Configure automatic user provisioning for PostgreSQL.
   PostgreSQL](../guides/rds.mdx) database.
 - Ability to connect to and create user accounts in the target database.
 
+<Admonition type="warning" title="RDS compatibility">
+Automatic user provisioning is not compatible with RDS Aurora reader endpoints.
+</Admonition>
+
 ## Step 1/3. Configure database admin
 
 (!docs/pages/includes/database-access/auto-user-provisioning/configure-admin.mdx!)
@@ -28,7 +32,7 @@ authentication:
 
 ```sql
 CREATE USER "teleport-admin" login createrole;
-GRANT rds_iam TO "teleport-admin";
+GRANT rds_iam TO "teleport-admin" WITH ADMIN OPTION;
 ```
 
 Note that the RDS database must have IAM authentication enabled.
@@ -89,6 +93,78 @@ Users created within the database will:
 ### Permission denied for schema public error
 
 (!docs/pages/includes/database-access/auto-user-provisioning/postgres15-grant-create.mdx!)
+
+### User does not have CONNECT privilege error
+
+You may encounter the following error when the admin user or the roles assigned
+to the auto-provisioned user do not have permission to connect to the target
+database:
+
+```shell
+$ tsh db connect --db-name <database> example
+...
+FATAL: permission denied for database "<database>"
+DETAIL: User does not have CONNECT privilege.
+```
+
+Make sure `CONNECT` is granted to the admin user and the respective roles:
+```sql
+GRANT CONNECT ON DATABASE <database> to "teleport-admin";
+GRANT CONNECT ON DATABASE <database> to "reader";
+```
+
+### Cannot execute in a read-only transaction error
+
+You may encounter the following error when connecting to an AWS RDS Aurora
+reader endpoint:
+```shell
+$ tsh db connect --db-name <database> example
+psql: error: connection to server at "localhost" (::1), port 12345 failed: Connection refused
+...
+ERROR: cannot execute CREATE ROLE in a read-only transaction (SQLSTATE 25006)
+```
+
+Database auto-user provisioning is not compatible with RDS Aurora reader
+endpoints. Please use auto-user provisioning on the primary endpoints.
+
+### No schema has been selected error
+
+You may encounter the following error when connecting if the admin user does
+not have `USAGE` permission on the schema:
+```shell
+$ tsh db connect --db-name <database> example
+psql: error: connection to server at "localhost" (::1), port 12345 failed: Connection refused
+...
+ERROR: no schema has been selected to create in (SQLSTATE 3F000)
+```
+
+To fix this, make sure that the admin user is granted `USAGE` and `CREATE` on
+schema `public` in the target database:
+```sql
+GRANT USAGE ON SCHEMA public TO "teleport-admin";
+GRANT CREATE ON SCHEMA public TO "teleport-admin";
+```
+
+### Permission denied to grant role "rds_iam"
+
+You may encounter the following error when connecting to an RDS database:
+```shell
+$ tsh db connect --db-name <database> example
+psql: error: connection to server at "localhost" (::1), port 12345 failed: Connection refused
+...
+ERROR: permission denied to grant role "rds_iam" (SQLSTATE 42501)
+```
+
+This happens when the admin user does not have permission to grant the
+"rds_iam" role to other users. To fix this, grant the "rds_iam" role with the
+`ADMIN` option to the admin user:
+```sql
+GRANT rds_iam TO "teleport-admin" WITH ADMIN OPTION;
+```
+
+### Use your mapped remote username error
+
+(!docs/pages/includes/database-access/auto-user-provisioning/troubleshooting-remote-username.mdx!)
 
 ## Next steps
 

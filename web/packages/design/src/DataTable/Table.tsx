@@ -22,7 +22,13 @@ import { Text, Indicator, Box, Flex } from 'design';
 import * as Icons from 'design/Icon';
 
 import { StyledTable, StyledPanel, StyledTableWrapper } from './StyledTable';
-import { TableProps } from './types';
+import {
+  BasicTableProps,
+  PagedTableProps,
+  SearchableBasicTableProps,
+  ServersideTableProps,
+  TableProps,
+} from './types';
 import { SortHeaderCell, TextCell } from './Cells';
 import { ClientSidePager, ServerSidePager } from './Pager';
 import InputSearch from './InputSearch';
@@ -154,22 +160,28 @@ export function Table<T>({
     );
   }
 
+  const paginationProps: PagedTableProps<T> = {
+    style,
+    className,
+    data: state.data as T[],
+    renderHeaders,
+    renderBody,
+    nextPage,
+    prevPage,
+    pagination: state.pagination,
+    searchValue: state.searchValue,
+    setSearchValue,
+    fetching,
+  };
+
+  if (state.pagination && state.pagination.CustomTable) {
+    return <state.pagination.CustomTable {...paginationProps} />;
+  }
+
   if (state.pagination) {
     return (
       <StyledTableWrapper borderRadius={3}>
-        <PagedTable
-          style={style}
-          className={className}
-          data={state.data}
-          renderHeaders={renderHeaders}
-          renderBody={renderBody}
-          nextPage={nextPage}
-          prevPage={prevPage}
-          pagination={state.pagination}
-          searchValue={state.searchValue}
-          setSearchValue={setSearchValue}
-          fetching={fetching}
-        />
+        <PagedTable {...paginationProps} />
       </StyledTableWrapper>
     );
   }
@@ -414,30 +426,3 @@ const LoadingIndicator = ({ colSpan }: { colSpan: number }) => (
     </tr>
   </tfoot>
 );
-
-type BasicTableProps<T> = {
-  data: T[];
-  renderHeaders: () => JSX.Element;
-  renderBody: (data: T[]) => JSX.Element;
-  className?: string;
-  style?: React.CSSProperties;
-};
-
-type SearchableBasicTableProps<T> = BasicTableProps<T> & {
-  searchValue: string;
-  setSearchValue: (searchValue: string) => void;
-};
-
-type PagedTableProps<T> = SearchableBasicTableProps<T> & {
-  nextPage: () => void;
-  prevPage: () => void;
-  pagination: State<T>['state']['pagination'];
-  fetching?: State<T>['fetching'];
-};
-
-type ServersideTableProps<T> = BasicTableProps<T> & {
-  nextPage: () => void;
-  prevPage: () => void;
-  pagination: State<T>['state']['pagination'];
-  serversideProps: State<T>['serversideProps'];
-};

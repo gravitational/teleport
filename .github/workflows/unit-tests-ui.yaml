@@ -7,11 +7,27 @@ on:
       - '.github/workflows/unit-tests-ui.yaml'
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'gen/proto/ts/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'tsconfig.json'
+      - 'tsconfig.node.json'
+      - 'jest.config.js'
   merge_group:
     paths:
       - '.github/workflows/unit-tests-ui.yaml'
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'gen/proto/ts/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'tsconfig.json'
+      - 'tsconfig.node.json'
+      - 'jest.config.js'
 
 jobs:
   test:
@@ -31,7 +47,7 @@ jobs:
           node --version
 
       - name: Install Yarn dependencies
-        run: yarn --frozen-lockfile
+        run: bash web/packages/build/scripts/yarn-install-frozen-lockfile.sh
 
       - name: Build WASM
         run: yarn build-wasm

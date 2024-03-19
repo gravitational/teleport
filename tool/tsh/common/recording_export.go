@@ -240,7 +240,7 @@ loop:
 	// if we received a session start event but the context is canceled
 	// before we received the screen dimensions, then there's no movie to close
 	if movie == nil {
-		return 0, trace.BadParameter("operation canceled")
+		return 0, ctx.Err()
 	}
 
 	err = movie.Close()

@@ -234,6 +234,37 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			Days:      e.Days,
 			IsSuccess: e.Status.Success,
 		}
+	case *apievents.ValidateMFAAuthResponse:
+		var deviceID, deviceType string
+		if e.MFADevice != nil {
+			deviceID = e.MFADevice.DeviceID
+			deviceType = e.MFADevice.DeviceType
+		}
+		return &MFAAuthenticationEvent{
+			UserName:          e.User,
+			DeviceId:          deviceID,
+			DeviceType:        deviceType,
+			MfaChallengeScope: e.ChallengeScope,
+		}
+	case *apievents.OktaAccessListSync:
+		return &OktaAccessListSyncEvent{
+			NumAppFilters:        e.NumAppFilters,
+			NumGroupFilters:      e.NumGroupFilters,
+			NumApps:              e.NumApps,
+			NumGroups:            e.NumGroups,
+			NumRoles:             e.NumRoles,
+			NumAccessLists:       e.NumAccessLists,
+			NumAccessListMembers: e.NumAccessListMembers,
+		}
+	case *apievents.SPIFFESVIDIssued:
+		return &SPIFFESVIDIssuedEvent{
+			UserName:     e.User,
+			UserKind:     prehogUserKindFromEventKind(e.UserKind),
+			SpiffeId:     e.SPIFFEID,
+			IpSansCount:  int32(len(e.IPSANs)),
+			DnsSansCount: int32(len(e.DNSSANs)),
+			SvidType:     e.SVIDType,
+		}
 	}
 
 	return nil

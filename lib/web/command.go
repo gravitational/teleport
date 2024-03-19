@@ -128,6 +128,7 @@ func (h *Handler) executeCommand(
 	_ httprouter.Params,
 	sessionCtx *SessionContext,
 	site reversetunnelclient.RemoteSite,
+	rawWS *websocket.Conn,
 ) (any, error) {
 	q := r.URL.Query()
 	params := q.Get("params")
@@ -170,20 +171,6 @@ func (h *Handler) executeCommand(
 	}
 
 	clusterName := site.GetName()
-
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-		CheckOrigin:     func(r *http.Request) bool { return true },
-	}
-
-	rawWS, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		errMsg := "Error upgrading to websocket"
-		h.log.WithError(err).Error(errMsg)
-		http.Error(w, errMsg, http.StatusInternalServerError)
-		return nil, nil
-	}
 
 	defer func() {
 		rawWS.WriteMessage(websocket.CloseMessage, nil)
@@ -249,6 +236,9 @@ func (h *Handler) executeCommand(
 			LocalAccessPoint:   h.auth.accessPoint,
 			mfaFuncCache:       mfaCacheFn,
 			buffer:             buffer,
+			HostNameResolver: func(serverID string) (string, error) {
+				return serverID, nil
+			},
 		}
 
 		handler, err := newCommandHandler(ctx, commandHandlerConfig)
@@ -480,6 +470,7 @@ func newCommandHandler(ctx context.Context, cfg CommandHandlerConfig) (*commandH
 			router:             cfg.Router,
 			localAccessPoint:   cfg.LocalAccessPoint,
 			tracer:             cfg.tracer,
+			resolver:           cfg.HostNameResolver,
 		},
 		mfaAuthCache: cfg.mfaFuncCache,
 		buffer:       cfg.buffer,
@@ -512,6 +503,9 @@ type CommandHandlerConfig struct {
 	// Anything requests that should be made on behalf of the user should
 	// use [UserAuthClient].
 	LocalAccessPoint localAccessPoint
+	// HostNameResolver allows the hostname to be determined from a server UUID
+	// so that a friendly name can be displayed in the console tab.
+	HostNameResolver func(serverID string) (hostname string, err error)
 	// tracer is used to create spans
 	tracer oteltrace.Tracer
 	// mfaFuncCache is used to cache the MFA auth method

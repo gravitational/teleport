@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"errors"
 
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
@@ -40,6 +41,10 @@ type PasswordlessIdentity interface {
 }
 
 // PasswordlessFlow provides passwordless authentication.
+//
+// PasswordlessFlow is used mainly for the initial passwordless login.
+// For UV=1 assertions after login, use [LoginFlow.Begin] with the desired
+// [mfav1.ChallengeExtensions.UserVerificationRequirement].
 type PasswordlessFlow struct {
 	Webauthn *types.Webauthn
 	Identity PasswordlessIdentity
@@ -54,19 +59,27 @@ func (f *PasswordlessFlow) Begin(ctx context.Context) (*wantypes.CredentialAsser
 		identity:    passwordlessIdentity{f.Identity},
 		sessionData: (*globalSessionStorage)(f),
 	}
-	return lf.begin(ctx, "" /* user */, true /* passwordless */)
+	chalExt := &mfav1.ChallengeExtensions{
+		Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
+		AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+	}
+	return lf.begin(ctx, "" /* user */, chalExt)
 }
 
 // Finish is the last step of the passwordless login flow.
 // It works similarly to LoginFlow.Finish, but the user identity is established
 // via the response UserHandle, instead of an explicit Teleport username.
-func (f *PasswordlessFlow) Finish(ctx context.Context, resp *wantypes.CredentialAssertionResponse) (*types.MFADevice, string, error) {
+func (f *PasswordlessFlow) Finish(ctx context.Context, resp *wantypes.CredentialAssertionResponse) (*LoginData, error) {
 	lf := &loginFlow{
 		Webauthn:    f.Webauthn,
 		identity:    passwordlessIdentity{f.Identity},
 		sessionData: (*globalSessionStorage)(f),
 	}
-	return lf.finish(ctx, "" /* user */, resp, true /* passwordless */)
+	requiredExt := &mfav1.ChallengeExtensions{
+		Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
+		AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+	}
+	return lf.finish(ctx, "" /* user */, resp, requiredExt)
 }
 
 type passwordlessIdentity struct {

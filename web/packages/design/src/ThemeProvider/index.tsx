@@ -24,19 +24,20 @@ import {
 
 import { KeysEnum, storageService } from 'teleport/services/storageService';
 
-import { ThemePreference } from 'teleport/services/userPreferences/types';
 import cfg from 'teleport/config';
+
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import { darkTheme, lightTheme, bblpTheme } from '../theme';
 
 import { GlobalStyle } from './globals';
 
-function themePreferenceToTheme(themePreference: ThemePreference) {
-  return themePreference === ThemePreference.Light ? lightTheme : darkTheme;
+function themePreferenceToTheme(themePreference: Theme) {
+  return themePreference === Theme.LIGHT ? lightTheme : darkTheme;
 }
 
 const ThemeProvider = props => {
-  const [themePreference, setThemePreference] = useState<ThemePreference>(
+  const [themePreference, setThemePreference] = useState<Theme>(
     storageService.getThemePreference()
   );
 

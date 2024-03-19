@@ -1029,9 +1029,13 @@ type AuthenticationConfig struct {
 	// DefaultSessionTTL is the default cluster max session ttl
 	DefaultSessionTTL types.Duration `yaml:"default_session_ttl"`
 
-	// PIVSlot is a PIV slot that Teleport clients should use instead of the
-	// default based on private key policy. For example, "9a" or "9e".
+	// Deprecated. HardwareKey.PIVSlot should be used instead.
+	// TODO(Joerger): DELETE IN 17.0.0
 	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
+
+	// HardwareKey holds settings related to hardware key support.
+	// Requires Teleport Enterprise.
+	HardwareKey *HardwareKey `yaml:"hardware_key,omitempty"`
 }
 
 // Parse returns valid types.AuthPreference instance.
@@ -1062,7 +1066,17 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		}
 	}
 
+	var h *types.HardwareKey
+	if a.HardwareKey != nil {
+		h, err = a.HardwareKey.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// TODO(Joerger): DELETE IN 17.0.0
 	if a.PIVSlot != "" {
+		log.Warn(`The "piv_slot" setting will be removed in 17.0.0, please set "hardware_key.piv_slot" instead.`)
 		if err = a.PIVSlot.Validate(); err != nil {
 			return nil, trace.Wrap(err, "failed to parse piv_slot")
 		}
@@ -1082,6 +1096,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		DeviceTrust:       dt,
 		DefaultSessionTTL: a.DefaultSessionTTL,
 		PIVSlot:           string(a.PIVSlot),
+		HardwareKey:       h,
 	})
 }
 
@@ -1208,6 +1223,61 @@ func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 		Mode:             dt.Mode,
 		AutoEnroll:       autoEnroll,
 		EKCertAllowedCAs: allowedCAs,
+	}, nil
+}
+
+// HardwareKey holds settings related to hardware key support.
+// Requires Teleport Enterprise.
+type HardwareKey struct {
+	// PIVSlot is a PIV slot that Teleport clients should use instead of the
+	// default based on private key policy. For example, "9a" or "9e".
+	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
+
+	// SerialNumberValidation contains optional settings for hardware key
+	// serial number validation, including whether it is enabled.
+	SerialNumberValidation *HardwareKeySerialNumberValidation `yaml:"serial_number_validation,omitempty"`
+}
+
+func (h *HardwareKey) Parse() (*types.HardwareKey, error) {
+	if h.PIVSlot != "" {
+		if err := h.PIVSlot.Validate(); err != nil {
+			return nil, trace.Wrap(err, "failed to parse hardware_key.piv_slot")
+		}
+	}
+
+	hk := &types.HardwareKey{PIVSlot: string(h.PIVSlot)}
+
+	if h.SerialNumberValidation != nil {
+		var err error
+		hk.SerialNumberValidation, err = h.SerialNumberValidation.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return hk, nil
+}
+
+// HardwareKeySerialNumberValidation holds settings related to hardware key serial number validation.
+// Requires Teleport Enterprise.
+type HardwareKeySerialNumberValidation struct {
+	// Enabled indicates whether hardware key serial number validation is enabled.
+	Enabled string `yaml:"enabled"`
+
+	// SerialNumberTraitName is an optional custom user trait name for hardware key
+	// serial numbers to replace the default: "hardware_key_serial_numbers".
+	SerialNumberTraitName string `yaml:"serial_number_trait_name"`
+}
+
+func (h *HardwareKeySerialNumberValidation) Parse() (*types.HardwareKeySerialNumberValidation, error) {
+	enabled, err := apiutils.ParseBool(h.Enabled)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &types.HardwareKeySerialNumberValidation{
+		Enabled:               enabled,
+		SerialNumberTraitName: h.SerialNumberTraitName,
 	}, nil
 }
 
@@ -1413,6 +1483,9 @@ type Discovery struct {
 	// KubernetesMatchers are used to match services inside Kubernetes cluster for auto discovery
 	KubernetesMatchers []KubernetesMatcher `yaml:"kubernetes,omitempty"`
 
+	// AccessGraph is used to configure the cloud sync into AccessGraph.
+	AccessGraph *AccessGraphSync `yaml:"access_graph,omitempty"`
+
 	// DiscoveryGroup is the name of the discovery group that the current
 	// discovery service is a part of.
 	// It is used to filter out discovered resources that belong to another
@@ -1443,6 +1516,23 @@ type GCPMatcher struct {
 	// InstallParams sets the join method when installing on
 	// discovered GCP VMs.
 	InstallParams *InstallParams `yaml:"install,omitempty"`
+}
+
+// AccessGraphSync represents the configuration for the AccessGraph Sync service.
+type AccessGraphSync struct {
+	// AWS is the AWS configuration for the AccessGraph Sync service.
+	AWS []AccessGraphAWSSync `yaml:"aws,omitempty"`
+}
+
+// AccessGraphAWSSync represents the configuration for the AWS AccessGraph Sync service.
+type AccessGraphAWSSync struct {
+	// Regions are AWS regions to poll for resources.
+	Regions []string `yaml:"regions,omitempty"`
+	// AssumeRoleARN is the AWS role to assume for database discovery.
+	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
+	// ExternalID is the AWS external ID to use when assuming a role for
+	// database discovery in an external AWS account.
+	ExternalID string `yaml:"external_id,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -1500,6 +1590,10 @@ type BPF struct {
 
 	// CgroupPath controls where cgroupv2 hierarchy is mounted.
 	CgroupPath string `yaml:"cgroup_path"`
+
+	// RootPath root directory for the Teleport cgroups.
+	// Optional, defaults to /teleport
+	RootPath string `yaml:"root_path"`
 }
 
 // Parse will parse the enhanced session recording configuration.
@@ -1511,6 +1605,7 @@ func (b *BPF) Parse() *servicecfg.BPFConfig {
 		DiskBufferSize:    b.DiskBufferSize,
 		NetworkBufferSize: b.NetworkBufferSize,
 		CgroupPath:        b.CgroupPath,
+		RootPath:          b.RootPath,
 	}
 }
 
@@ -2368,6 +2463,14 @@ type OktaSync struct {
 
 	// DefaultOwners are the default owners for all imported access lists.
 	DefaultOwners []string `yaml:"default_owners,omitempty"`
+
+	// GroupFilters are filters for which Okta groups to synchronize as access lists.
+	// These are globs/regexes.
+	GroupFilters []string `yaml:"group_filters,omitempty"`
+
+	// AppFilters are filters for which Okta applications to synchronize as access lists.
+	// These are globs/regexes.
+	AppFilters []string `yaml:"app_filters,omitempty"`
 }
 
 func (o *OktaSync) SyncAccessLists() bool {
@@ -2384,10 +2487,26 @@ func (o *OktaSync) Parse() (*servicecfg.OktaSyncSettings, error) {
 		return nil, trace.BadParameter("default owners must be set when access list import is enabled")
 	}
 
+	for _, filter := range o.GroupFilters {
+		_, err := utils.CompileExpression(filter)
+		if err != nil {
+			return nil, trace.Wrap(err, "error parsing group filter: %s", filter)
+		}
+	}
+
+	for _, filter := range o.AppFilters {
+		_, err := utils.CompileExpression(filter)
+		if err != nil {
+			return nil, trace.Wrap(err, "error parsing app filter: %s", filter)
+		}
+	}
+
 	return &servicecfg.OktaSyncSettings{
 		AppGroupSyncPeriod: o.AppGroupSyncPeriod,
 		SyncAccessLists:    o.SyncAccessLists(),
 		DefaultOwners:      o.DefaultOwners,
+		GroupFilters:       o.GroupFilters,
+		AppFilters:         o.AppFilters,
 	}, nil
 }
 

@@ -147,40 +147,9 @@ func (a *AccessListService) GetAccessListsToReview(ctx context.Context) ([]*acce
 
 // UpsertAccessList creates or updates an access list resource.
 func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
-	if accessList.HasImplicitOwnership() {
-		if len(accessList.Spec.Owners) > 0 {
-			return nil, trace.BadParameter("implicit ownership requires empty ownership list")
-		}
-
-		if accessList.Spec.OwnershipRequires.IsEmpty() {
-			return nil, trace.BadParameter("implicit ownership requires ownership requirements")
-		}
-	}
-
-	if accessList.HasImplicitMembership() {
-		if accessList.Spec.MembershipRequires.IsEmpty() {
-			return nil, trace.BadParameter("implicit membership requires membership requirements")
-		}
-	}
-
 	var upserted *accesslist.AccessList
 	upsertWithLockFn := func() error {
 		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-			oldAccessList, err := a.service.GetResource(ctx, accessList.GetName())
-			if err != nil && !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-
-			if oldAccessList != nil {
-				if oldAccessList.Spec.Ownership != accessList.Spec.Ownership {
-					return trace.BadParameter("AccessList ownership cannot be changed")
-				}
-
-				if oldAccessList.Spec.Membership != accessList.Spec.Membership {
-					return trace.BadParameter("AccessList membership cannot be changed")
-				}
-			}
-
 			ownerMap := make(map[string]struct{}, len(accessList.Spec.Owners))
 			for _, owner := range accessList.Spec.Owners {
 				if _, ok := ownerMap[owner.Name]; ok {
@@ -189,6 +158,7 @@ func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *ac
 				ownerMap[owner.Name] = struct{}{}
 			}
 
+			var err error
 			upserted, err = a.service.UpsertResource(ctx, accessList)
 			return trace.Wrap(err)
 		})
@@ -245,22 +215,26 @@ func (a *AccessListService) GetSuggestedAccessLists(ctx context.Context, accessR
 	return nil, trace.NotImplemented("GetSuggestedAccessLists should not be called")
 }
 
+// CountAccessListMembers will count all access list members.
+func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error) {
+	count := uint(0)
+	err := a.service.RunWhileLocked(ctx, lockName(accessListName), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		var err error
+		count, err = a.memberService.WithPrefix(accessListName).CountResources(ctx)
+		return trace.Wrap(err)
+	})
+
+	return uint32(count), trace.Wrap(err)
+}
+
 // ListAccessListMembers returns a paginated list of all access list members.
 func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error) {
 	var members []*accesslist.AccessListMember
-	var al *accesslist.AccessList
 	err := a.service.RunWhileLocked(ctx, lockName(accessListName), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		var err error
-
-		al, err = a.service.GetResource(ctx, accessListName)
+		_, err := a.service.GetResource(ctx, accessListName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		if al.HasImplicitMembership() {
-			return services.ImplicitAccessListError{}
-		}
-
 		members, nextToken, err = a.memberService.WithPrefix(accessListName).ListResources(ctx, pageSize, nextToken)
 		return trace.Wrap(err)
 	})
@@ -271,25 +245,26 @@ func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessLis
 }
 
 // ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
-func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
-	// Locks are not used here as these operations are more likely to be used by the cache.
-	// Lists all access list members for all access lists.
-	return a.memberService.ListResources(ctx, pageSize, nextToken)
+func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+	members, next, err := a.memberService.ListResourcesReturnNextResource(ctx, pageSize, pageToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	var nextKey string
+	if next != nil {
+		nextKey = (*next).Spec.AccessList + string(backend.Separator) + (*next).Metadata.Name
+	}
+	return members, nextKey, nil
 }
 
 // GetAccessListMember returns the specified access list member resource.
 func (a *AccessListService) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
 	var member *accesslist.AccessListMember
 	err := a.service.RunWhileLocked(ctx, lockName(accessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		al, err := a.service.GetResource(ctx, accessList)
+		_, err := a.service.GetResource(ctx, accessList)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		if al.HasImplicitMembership() {
-			return services.ImplicitAccessListError{}
-		}
-
 		member, err = a.memberService.WithPrefix(accessList).GetResource(ctx, memberName)
 		return trace.Wrap(err)
 	})
@@ -300,15 +275,10 @@ func (a *AccessListService) GetAccessListMember(ctx context.Context, accessList 
 func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
 	var upserted *accesslist.AccessListMember
 	err := a.service.RunWhileLocked(ctx, lockName(member.Spec.AccessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		al, err := a.service.GetResource(ctx, member.Spec.AccessList)
+		_, err := a.service.GetResource(ctx, member.Spec.AccessList)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		if al.HasImplicitMembership() {
-			return services.ImplicitAccessListError{}
-		}
-
 		upserted, err = a.memberService.WithPrefix(member.Spec.AccessList).UpsertResource(ctx, member)
 		return trace.Wrap(err)
 	})
@@ -321,15 +291,10 @@ func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *
 // DeleteAccessListMember hard deletes the specified access list member resource.
 func (a *AccessListService) DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error {
 	err := a.service.RunWhileLocked(ctx, lockName(accessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		al, err := a.service.GetResource(ctx, accessList)
+		_, err := a.service.GetResource(ctx, accessList)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		if al.HasImplicitMembership() {
-			return services.ImplicitAccessListError{}
-		}
-
 		return trace.Wrap(a.memberService.WithPrefix(accessList).DeleteResource(ctx, memberName))
 	})
 	return trace.Wrap(err)
@@ -360,28 +325,9 @@ func (a *AccessListService) DeleteAllAccessListMembers(ctx context.Context) erro
 
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.
 func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
-	if accessList.HasImplicitMembership() && len(membersIn) > 0 {
-		return nil, nil, trace.BadParameter("cannot explicitly add members to a list with implicit inclusion")
-	}
-
 	// Double the lock TTL to account for the time it takes to upsert the members.
 	upsertWithLockFn := func() error {
 		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-			oldAccessList, err := a.service.GetResource(ctx, accessList.GetName())
-			if err != nil && !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-
-			if oldAccessList != nil {
-				if oldAccessList.Spec.Ownership != accessList.Spec.Ownership {
-					return trace.BadParameter("AccessList ownership cannot be changed")
-				}
-
-				if oldAccessList.Spec.Membership != accessList.Spec.Membership {
-					return trace.BadParameter("AccessList membership cannot be changed")
-				}
-			}
-
 			// Create a map of the members from the request for easier lookup.
 			membersMap := make(map[string]*accesslist.AccessListMember)
 
@@ -397,6 +343,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 
 			for {
 				// List all members for the access list.
+				var err error
 				members, membersToken, err = a.memberService.WithPrefix(accessList.GetName()).ListResources(ctx, 0 /* default size */, membersToken)
 				if err != nil {
 					return trace.Wrap(err)
@@ -440,6 +387,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 				member.SetRevision(upserted.GetRevision())
 			}
 
+			var err error
 			accessList, err = a.service.UpsertResource(ctx, accessList)
 			return trace.Wrap(err)
 		})
@@ -485,10 +433,16 @@ func (a *AccessListService) ListAccessListReviews(ctx context.Context, accessLis
 }
 
 // ListAllAccessListReviews will list access list reviews for all access lists.
-func (a *AccessListService) ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
-	// Locks are not used here as these operations are more likely to be used by the cache.
-	// Lists all access list reviews for all access lists.
-	return a.reviewService.ListResources(ctx, pageSize, pageToken)
+func (a *AccessListService) ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.Review, string, error) {
+	reviews, next, err := a.reviewService.ListResourcesReturnNextResource(ctx, pageSize, pageToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	var nextKey string
+	if next != nil {
+		nextKey = (*next).Spec.AccessList + string(backend.Separator) + (*next).Metadata.Name
+	}
+	return reviews, nextKey, nil
 }
 
 // CreateAccessListReview will create a new review for an access list.

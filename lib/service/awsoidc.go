@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 const (
@@ -78,11 +77,6 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater() error {
 		return trace.Wrap(err)
 	}
 
-	issuer, err := oidc.IssuerFromPublicAddress(process.proxyPublicAddr().Addr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	clusterNameConfig, err := authClient.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -94,7 +88,6 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater() error {
 		Clock:                  process.Clock,
 		TeleportClusterName:    clusterNameConfig.GetClusterName(),
 		TeleportClusterVersion: resp.GetServerVersion(),
-		AWSOIDCProviderAddr:    issuer,
 		UpgradeChannel:         upgradeChannel,
 	})
 	if err != nil {
@@ -117,8 +110,6 @@ type AWSOIDCDeployServiceUpdaterConfig struct {
 	TeleportClusterName string
 	// TeleportClusterVersion specifies the teleport cluster version
 	TeleportClusterVersion string
-	// AWSOIDCProvderAddr specifies the AWS OIDC provider address used to generate AWS OIDC tokens
-	AWSOIDCProviderAddr string
 	// UpgradeChannel is the channel that serves the version used by the updater.
 	UpgradeChannel *automaticupgrades.Channel
 }
@@ -135,10 +126,6 @@ func (cfg *AWSOIDCDeployServiceUpdaterConfig) CheckAndSetDefaults() error {
 
 	if cfg.TeleportClusterVersion == "" {
 		return trace.BadParameter("teleport cluster version required")
-	}
-
-	if cfg.AWSOIDCProviderAddr == "" {
-		return trace.BadParameter("AWS OIDC provider address required")
 	}
 
 	if cfg.Log == nil {
@@ -272,9 +259,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 		return nil
 	}
 
-	token, err := updater.AuthClient.GenerateAWSOIDCToken(ctx, types.GenerateAWSOIDCTokenRequest{
-		Issuer: updater.AWSOIDCProviderAddr,
-	})
+	token, err := updater.AuthClient.GenerateAWSOIDCToken(ctx, integration.GetName())
 	if err != nil {
 		return trace.Wrap(err)
 	}

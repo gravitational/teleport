@@ -31,15 +31,15 @@ import {
   DbType,
 } from 'shared/services/databases';
 
-import { Flex, ButtonPrimary, Text } from 'design';
+import { Flex, ButtonPrimary, Text, Link } from 'design';
 
 import * as icons from 'design/Icon';
 import Image from 'design/Image';
 import stack from 'design/assets/resources/stack.png';
 
-import { DefaultTab } from 'shared/services/unifiedResourcePreferences';
-
 import { Attempt } from 'shared/hooks/useAsync';
+
+import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import {
   UnifiedResourceResponse,
@@ -64,7 +64,7 @@ import {
   ConnectKubeActionButton,
   ConnectDatabaseActionButton,
   ConnectAppActionButton,
-} from './actionButtons';
+} from './ActionButtons';
 import { useResourcesContext, ResourcesContext } from './resourcesContext';
 import { useUserPreferences } from './useUserPreferences';
 
@@ -73,6 +73,7 @@ export function UnifiedResources(props: {
   docUri: uri.DocumentUri;
   queryParams: DocumentClusterQueryParams;
 }) {
+  const { clustersService } = useAppContext();
   const { userPreferencesAttempt, updateUserPreferences, userPreferences } =
     useUserPreferences(props.clusterUri);
   const { documentsService, rootClusterUri } = useWorkspaceContext();
@@ -85,8 +86,7 @@ export function UnifiedResources(props: {
     () => ({
       kinds: props.queryParams.resourceKinds,
       sort: props.queryParams.sort,
-      pinnedOnly:
-        unifiedResourcePreferences.defaultTab === DefaultTab.DEFAULT_TAB_PINNED,
+      pinnedOnly: unifiedResourcePreferences.defaultTab === DefaultTab.PINNED,
       search: props.queryParams.advancedSearchEnabled
         ? ''
         : props.queryParams.search,
@@ -108,6 +108,11 @@ export function UnifiedResources(props: {
 
   const isRootCluster = props.clusterUri === rootClusterUri;
   const canAddResources = isRootCluster && loggedInUser?.acl?.tokens.create;
+  let discoverUrl: string;
+  if (isRootCluster) {
+    const rootCluster = clustersService.findCluster(rootClusterUri);
+    discoverUrl = `https://${rootCluster.proxyHost}/web/discover`;
+  }
 
   const canUseConnectMyComputer =
     isRootCluster &&
@@ -144,6 +149,7 @@ export function UnifiedResources(props: {
       canUseConnectMyComputer={canUseConnectMyComputer}
       openConnectMyComputerDocument={openConnectMyComputerDocument}
       onResourcesRefreshRequest={onResourcesRefreshRequest}
+      discoverUrl={discoverUrl}
       // Reset the component state when query params object change.
       // JSON.stringify on the same object will always produce the same string.
       key={JSON.stringify(mergedParams)}
@@ -163,6 +169,7 @@ const Resources = memo(
     canUseConnectMyComputer: boolean;
     openConnectMyComputerDocument(): void;
     onResourcesRefreshRequest: ResourcesContext['onResourcesRefreshRequest'];
+    discoverUrl: string;
   }) => {
     const appContext = useAppContext();
 
@@ -182,7 +189,7 @@ const Resources = memo(
                     field: props.queryParams.sort.fieldName,
                   },
                   search: props.queryParams.search,
-                  kindsList: props.queryParams.kinds,
+                  kinds: props.queryParams.kinds,
                   query: props.queryParams.query,
                   pinnedOnly: props.queryParams.pinnedOnly,
                   startKey: paginationParams.startKey,
@@ -220,24 +227,23 @@ const Resources = memo(
       return cleanup;
     }, [onResourcesRefreshRequest, fetch, clear]);
 
-    const resourceIdsList =
-      props.userPreferences.clusterPreferences?.pinnedResources
-        ?.resourceIdsList;
+    const resourceIds =
+      props.userPreferences.clusterPreferences?.pinnedResources?.resourceIds;
     const { updateUserPreferences } = props;
     const pinning = useMemo<UnifiedResourcesPinning>(() => {
-      return resourceIdsList
+      return resourceIds
         ? {
             kind: 'supported',
-            getClusterPinnedResources: async () => resourceIdsList,
+            getClusterPinnedResources: async () => resourceIds,
             updateClusterPinnedResources: pinnedIds =>
               updateUserPreferences({
                 clusterPreferences: {
-                  pinnedResources: { resourceIdsList: pinnedIds },
+                  pinnedResources: { resourceIds: pinnedIds },
                 },
               }),
           }
         : { kind: 'not-supported' };
-    }, [updateUserPreferences, resourceIdsList]);
+    }, [updateUserPreferences, resourceIds]);
 
     return (
       <SharedUnifiedResources
@@ -275,6 +281,7 @@ const Resources = memo(
         NoResources={
           <NoResources
             canCreate={props.canAddResources}
+            discoverUrl={props.discoverUrl}
             canUseConnectMyComputer={props.canUseConnectMyComputer}
             onConnectMyComputerCtaClick={props.openConnectMyComputerDocument}
           />
@@ -293,7 +300,7 @@ const mapToSharedResource = (
       return {
         resource: {
           kind: 'node' as const,
-          labels: server.labelsList,
+          labels: server.labels,
           id: server.name,
           hostname: server.hostname,
           addr: server.addr,
@@ -310,7 +317,7 @@ const mapToSharedResource = (
       return {
         resource: {
           kind: 'db' as const,
-          labels: database.labelsList,
+          labels: database.labels,
           description: database.desc,
           name: database.name,
           type: formatDatabaseInfo(
@@ -330,7 +337,7 @@ const mapToSharedResource = (
       return {
         resource: {
           kind: 'kube_cluster' as const,
-          labels: kube.labelsList,
+          labels: kube.labels,
           name: kube.name,
         },
         ui: {
@@ -344,7 +351,7 @@ const mapToSharedResource = (
       return {
         resource: {
           kind: 'app' as const,
-          labels: app.labelsList,
+          labels: app.labels,
           name: app.name,
           id: app.name,
           addrWithProtocol: app.addrWithProtocol,
@@ -363,6 +370,7 @@ const mapToSharedResource = (
 
 function NoResources(props: {
   canCreate: boolean;
+  discoverUrl: string | undefined;
   canUseConnectMyComputer: boolean;
   onConnectMyComputerCtaClick(): void;
 }) {
@@ -380,6 +388,11 @@ function NoResources(props: {
       </>
     );
   } else {
+    const $discoverLink = (
+      <Link href={props.discoverUrl} target="_blank">
+        the&nbsp;Teleport Web UI
+      </Link>
+    );
     $content = (
       <>
         <Image src={stack} ml="auto" mr="auto" mb={4} height="100px" />
@@ -387,9 +400,17 @@ function NoResources(props: {
           Add your first resource to Teleport
         </Text>
         <Text color="text.slightlyMuted">
-          {props.canUseConnectMyComputer
-            ? 'You can add it in the Teleport Web UI or by connecting your computer to the cluster.'
-            : 'Connect SSH servers, Kubernetes clusters, Databases and more from Teleport Web UI.'}
+          {props.canUseConnectMyComputer ? (
+            <>
+              You can add it in {$discoverLink} or by connecting your computer
+              to the cluster.
+            </>
+          ) : (
+            <>
+              Connect SSH servers, Kubernetes clusters, Databases and more from{' '}
+              {$discoverLink}.
+            </>
+          )}
         </Text>
         {props.canUseConnectMyComputer && (
           <ButtonPrimary

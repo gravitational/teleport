@@ -1467,7 +1467,7 @@ func BenchmarkListNodes(b *testing.B) {
 		b.Run(tc.desc, func(b *testing.B) {
 			benchmarkListNodes(
 				b, ctx,
-				nodeCount, roleCount, hiddenNodes,
+				nodeCount, hiddenNodes,
 				srv,
 				ids,
 				tc.editRole,
@@ -1478,7 +1478,7 @@ func BenchmarkListNodes(b *testing.B) {
 
 func benchmarkListNodes(
 	b *testing.B, ctx context.Context,
-	nodeCount, roleCount, hiddenNodes int,
+	nodeCount, hiddenNodes int,
 	srv *TestTLSServer,
 	ids []string,
 	editRole func(r types.Role, id string),
@@ -1822,9 +1822,9 @@ func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.
 	require.NoError(t, err)
 
 	localUser := authz.LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
-	authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.AuthServer, srv.ClusterName, true /* disableDeviceAuthz */)
+	authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.AuthServer.Services, srv.ClusterName, true /* disableDeviceAuthz */)
 	require.NoError(t, err)
-	authContext.AdminActionAuthorized = true
+	authContext.AdminActionAuthState = authz.AdminActionAuthMFAVerified
 
 	return &ServerWithRoles{
 		authServer: srv.AuthServer,
@@ -2293,7 +2293,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	require.NoError(t, err)
 	servers, err := clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, 1, len(servers))
+	require.Len(t, servers, 1)
 	require.Empty(t, cmp.Diff(testServers[0:1], servers))
 	resp, err := clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -2363,7 +2363,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	require.NoError(t, err)
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, 0, len(servers))
+	require.Empty(t, servers)
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
 	require.Empty(t, resp.Resources)
@@ -2459,7 +2459,7 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	require.NoError(t, err)
 	servers, err := clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, 1, len(servers))
+	require.Len(t, servers, 1)
 	require.Empty(t, cmp.Diff(testAppServers[0:1], servers))
 	resp, err := clt.ListResources(ctx, listRequestAppsOnly)
 	require.NoError(t, err)
@@ -2541,7 +2541,7 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	require.NoError(t, err)
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, 0, len(servers))
+	require.Empty(t, servers)
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
 	require.Empty(t, resp.Resources)
@@ -3488,7 +3488,7 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 
 	desktops, err := clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	require.NoError(t, err)
-	require.EqualValues(t, 1, len(desktops))
+	require.Len(t, desktops, 1)
 	require.Empty(t, cmp.Diff(testDesktops[0:1], desktops))
 
 	resp, err := clt.ListResources(ctx, listRequest)
@@ -3574,7 +3574,7 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 
 	desktops, err = clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	require.NoError(t, err)
-	require.EqualValues(t, 0, len(desktops))
+	require.Empty(t, desktops)
 	require.Empty(t, cmp.Diff([]types.WindowsDesktop{}, desktops))
 
 	resp, err = clt.ListResources(ctx, listRequest)
@@ -4628,6 +4628,35 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 		r := resource.GetDatabaseServer()
 		require.Equal(t, types.KindDatabaseServer, r.GetKind())
 	}
+
+	// Update the roles to prevent access to any resource kinds.
+	role.SetRules(types.Deny, []types.Rule{{Resources: services.UnifiedResourceKinds, Verbs: []string{types.VerbList, types.VerbRead}}})
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// ensure updated roles have propagated to auth cache
+	flushCache(t, srv.Auth())
+
+	// Get a new client to test with the new roles.
+	clt, err = srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// Validate that an error is returned when no kinds are requested.
+	resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		Limit:  20,
+		SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
+	})
+	require.True(t, trace.IsAccessDenied(err))
+	require.Nil(t, resp)
+
+	// Validate that an error is returned when a subset of kinds are requested.
+	resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		Limit:  20,
+		SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
+		Kinds:  []string{types.KindNode, types.KindDatabaseServer},
+	})
+	require.True(t, trace.IsAccessDenied(err))
+	require.Nil(t, resp)
 }
 
 // TestListUnifiedResources_WithPredicate will return resources that match the
@@ -4762,7 +4791,7 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 		b.Run(tc.desc, func(b *testing.B) {
 			benchmarkListUnifiedResources(
 				b, ctx,
-				nodeCount, roleCount, hiddenNodes,
+				nodeCount, hiddenNodes,
 				srv,
 				ids,
 				tc.editRole,
@@ -4773,7 +4802,7 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 
 func benchmarkListUnifiedResources(
 	b *testing.B, ctx context.Context,
-	nodeCount, roleCount, hiddenNodes int,
+	nodeCount, hiddenNodes int,
 	srv *TestTLSServer,
 	ids []string,
 	editRole func(r types.Role, id string),
@@ -5372,7 +5401,7 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 				require.NoError(t, client.Close())
 			})
 
-			modifyAndWaitForEvent(t, tc.ErrAssertion, client, srv, tc.EventCode, func() error {
+			modifyAndWaitForEvent(t, tc.ErrAssertion, srv, tc.EventCode, func() error {
 				return client.CreateSAMLIdPServiceProvider(ctx, tc.SP)
 			})
 		})
@@ -5466,7 +5495,7 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 				require.NoError(t, client.Close())
 			})
 
-			modifyAndWaitForEvent(t, tc.ErrAssertion, client, srv, tc.EventCode, func() error {
+			modifyAndWaitForEvent(t, tc.ErrAssertion, srv, tc.EventCode, func() error {
 				return client.UpdateSAMLIdPServiceProvider(ctx, tc.SP)
 			})
 		})
@@ -5495,7 +5524,7 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 	// No permissions delete
 	client, err := srv.NewClient(TestUser(noAccessUser))
 	require.NoError(t, err)
-	modifyAndWaitForEvent(t, require.Error, client, srv, events.SAMLIdPServiceProviderDeleteFailureCode, func() error {
+	modifyAndWaitForEvent(t, require.Error, srv, events.SAMLIdPServiceProviderDeleteFailureCode, func() error {
 		return client.DeleteSAMLIdPServiceProvider(ctx, sp.GetName())
 	})
 
@@ -5503,14 +5532,14 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 	client, err = srv.NewClient(TestUser(user))
 	require.NoError(t, err)
 
-	modifyAndWaitForEvent(t, require.NoError, client, srv, events.SAMLIdPServiceProviderDeleteCode, func() error {
+	modifyAndWaitForEvent(t, require.NoError, srv, events.SAMLIdPServiceProviderDeleteCode, func() error {
 		return client.DeleteSAMLIdPServiceProvider(ctx, sp.GetName())
 	})
 
 	require.NoError(t, client.CreateSAMLIdPServiceProvider(ctx, sp))
 
 	// Non-existent delete
-	modifyAndWaitForEvent(t, require.Error, client, srv, events.SAMLIdPServiceProviderDeleteFailureCode, func() error {
+	modifyAndWaitForEvent(t, require.Error, srv, events.SAMLIdPServiceProviderDeleteFailureCode, func() error {
 		return client.DeleteSAMLIdPServiceProvider(ctx, "nonexistent")
 	})
 }
@@ -5551,7 +5580,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 	client, err := srv.NewClient(TestUser(noAccessUser))
 	require.NoError(t, err)
 
-	modifyAndWaitForEvent(t, require.Error, client, srv, events.SAMLIdPServiceProviderDeleteAllFailureCode, func() error {
+	modifyAndWaitForEvent(t, require.Error, srv, events.SAMLIdPServiceProviderDeleteAllFailureCode, func() error {
 		return client.DeleteAllSAMLIdPServiceProviders(ctx)
 	})
 
@@ -5559,7 +5588,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 	client, err = srv.NewClient(TestUser(user))
 	require.NoError(t, err)
 
-	modifyAndWaitForEvent(t, require.NoError, client, srv, events.SAMLIdPServiceProviderDeleteAllCode, func() error {
+	modifyAndWaitForEvent(t, require.NoError, srv, events.SAMLIdPServiceProviderDeleteAllCode, func() error {
 		return client.DeleteAllSAMLIdPServiceProviders(ctx)
 	})
 }
@@ -5604,7 +5633,7 @@ func createSAMLIdPTestUsers(t *testing.T, server *Server) (string, string) {
 }
 
 // modifyAndWaitForEvent performs the function fn() and then waits for the given event.
-func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, client *Client, srv *TestTLSServer, eventCode string, fn func() error) apievents.AuditEvent {
+func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, srv *TestTLSServer, eventCode string, fn func() error) apievents.AuditEvent {
 	// Make sure we ignore events after consuming this one.
 	defer func() {
 		srv.AuthServer.AuthServer.emitter = events.NewDiscardEmitter()
@@ -5772,8 +5801,9 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 			withMFA:     true,
 			assertError: require.NoError,
 			assertEvents: func(t *testing.T, emitter *eventstest.MockRecorderEmitter) {
-				require.Len(t, emitter.Events(), 1)
-				require.Equal(t, events.UserHeadlessLoginApprovedCode, emitter.LastEvent().GetCode())
+				require.Len(t, emitter.Events(), 2)
+				require.Equal(t, events.ValidateMFAAuthResponseCode, emitter.Events()[0].GetCode())
+				require.Equal(t, events.UserHeadlessLoginApprovedCode, emitter.Events()[1].GetCode())
 			},
 		}, {
 			name:        "NOK same user approved without mfa",
@@ -5781,8 +5811,9 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 			withMFA:     false,
 			assertError: assertAccessDenied,
 			assertEvents: func(t *testing.T, emitter *eventstest.MockRecorderEmitter) {
-				require.Len(t, emitter.Events(), 1)
-				require.Equal(t, events.UserHeadlessLoginApprovedFailureCode, emitter.LastEvent().GetCode())
+				require.Len(t, emitter.Events(), 2)
+				require.Equal(t, events.ValidateMFAAuthResponseFailureCode, emitter.Events()[0].GetCode())
+				require.Equal(t, events.UserHeadlessLoginApprovedFailureCode, emitter.Events()[1].GetCode())
 			},
 		}, {
 			name:        "NOK not found",
@@ -6599,6 +6630,7 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 	// These will be created during each test, and the watcher will return a subset of the
 	// collected events based on the test's filter.
 	var headlessAuthns []*types.HeadlessAuthentication
+	var headlessEvents []types.Event
 	for _, username := range []string{alice, bob} {
 		for _, state := range []types.HeadlessAuthenticationState{
 			types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED,
@@ -6610,17 +6642,22 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 			require.NoError(t, err)
 			ha.State = state
 			headlessAuthns = append(headlessAuthns, ha)
+			headlessEvents = append(headlessEvents, types.Event{
+				Type:     types.OpPut,
+				Resource: ha,
+			})
 		}
 	}
-	aliceAuthns := headlessAuthns[:4]
-	bobAuthns := headlessAuthns[4:]
+	aliceEvents := headlessEvents[:4]
+	bobEvents := headlessEvents[4:]
 
-	testCases := []struct {
+	testCases := []*struct {
 		name             string
 		identity         TestIdentity
 		filter           types.HeadlessAuthenticationFilter
 		expectWatchError string
-		expectResources  []*types.HeadlessAuthentication
+		expectEvents     []types.Event
+		watcher          types.Watcher
 	}{
 		{
 			name:             "NOK non local users cannot watch headless authentications",
@@ -6647,7 +6684,7 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 			filter: types.HeadlessAuthenticationFilter{
 				Username: alice,
 			},
-			expectResources: aliceAuthns,
+			expectEvents: aliceEvents,
 		},
 		{
 			name:     "OK bob can filter for username=bob",
@@ -6655,7 +6692,7 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 			filter: types.HeadlessAuthenticationFilter{
 				Username: bob,
 			},
-			expectResources: bobAuthns,
+			expectEvents: bobEvents,
 		},
 		{
 			name:     "OK alice can filter for pending requests",
@@ -6664,7 +6701,7 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 				Username: alice,
 				State:    types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING,
 			},
-			expectResources: []*types.HeadlessAuthentication{aliceAuthns[types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING]},
+			expectEvents: []types.Event{aliceEvents[types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING]},
 		},
 		{
 			name:     "OK alice can filter for a specific request",
@@ -6673,71 +6710,87 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 				Username: alice,
 				Name:     headlessAuthns[2].GetName(),
 			},
-			expectResources: aliceAuthns[2:3],
+			expectEvents: aliceEvents[2:3],
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			client, err := srv.NewClient(tc.identity)
-			require.NoError(t, err)
+	// Initialize headless watcher for each test cases.
+	t.Run("init_watchers", func(t *testing.T) {
+		for _, tc := range testCases {
+			tc := tc
 
-			watchCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			defer cancel()
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-			watcher, err := client.NewWatcher(watchCtx, types.Watch{
-				Kinds: []types.WatchKind{
-					{
-						Kind:   types.KindHeadlessAuthentication,
-						Filter: tc.filter.IntoMap(),
-					},
-				},
-			})
-			require.NoError(t, err)
-
-			select {
-			case event := <-watcher.Events():
-				require.Equal(t, types.OpInit, event.Type, "Expected watcher init event but got %v", event)
-			case <-time.After(time.Second):
-				t.Fatal("Failed to receive watcher init event before timeout")
-			case <-watcher.Done():
-				if tc.expectWatchError != "" {
-					require.True(t, trace.IsAccessDenied(watcher.Error()), "Expected access denied error but got %v", err)
-					require.ErrorContains(t, watcher.Error(), tc.expectWatchError)
-					return
-				}
-				t.Fatalf("Watcher unexpectedly closed with error: %v", watcher.Error())
-			}
-
-			for _, ha := range headlessAuthns {
-				err = srv.Auth().UpsertHeadlessAuthentication(ctx, ha)
+				client, err := srv.NewClient(tc.identity)
 				require.NoError(t, err)
-			}
 
-			var expectEvents []types.Event
-			for _, expectResource := range tc.expectResources {
-				expectEvents = append(expectEvents, types.Event{
-					Type:     types.OpPut,
-					Resource: expectResource,
+				watcher, err := client.NewWatcher(ctx, types.Watch{
+					Kinds: []types.WatchKind{
+						{
+							Kind:   types.KindHeadlessAuthentication,
+							Filter: tc.filter.IntoMap(),
+						},
+					},
 				})
-			}
+				require.NoError(t, err)
 
-			var events []types.Event
-		loop:
-			for {
 				select {
 				case event := <-watcher.Events():
-					events = append(events, event)
-				case <-time.After(100 * time.Millisecond):
-					break loop
+					require.Equal(t, types.OpInit, event.Type, "Expected watcher init event but got %v", event)
+				case <-time.After(time.Second):
+					t.Fatal("Failed to receive watcher init event before timeout")
 				case <-watcher.Done():
+					if tc.expectWatchError != "" {
+						require.True(t, trace.IsAccessDenied(watcher.Error()), "Expected access denied error but got %v", err)
+						require.ErrorContains(t, watcher.Error(), tc.expectWatchError)
+						return
+					}
 					t.Fatalf("Watcher unexpectedly closed with error: %v", watcher.Error())
 				}
+
+				// If the watcher was intitialized successfully, attach it to the
+				// test case for the watch_events portion of the test.
+				tc.watcher = watcher
+			})
+		}
+	})
+
+	// Upsert headless requests.
+	for _, ha := range headlessAuthns {
+		err := srv.Auth().UpsertHeadlessAuthentication(ctx, ha)
+		require.NoError(t, err)
+	}
+
+	t.Run("watch_events", func(t *testing.T) {
+		// Check that each watcher captured the expected events.
+		for _, tc := range testCases {
+			tc := tc
+
+			// watcher was not initialized for this test case, skip.
+			if tc.watcher == nil {
+				continue
 			}
 
-			require.Equal(t, expectEvents, events)
-		})
-	}
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var events []types.Event
+			loop:
+				for {
+					select {
+					case event := <-tc.watcher.Events():
+						events = append(events, event)
+					case <-time.After(500 * time.Millisecond):
+						break loop
+					case <-tc.watcher.Done():
+						t.Fatalf("Watcher unexpectedly closed with error: %v", tc.watcher.Error())
+					}
+				}
+				require.Equal(t, tc.expectEvents, events)
+			})
+		}
+	})
 }
 
 // createAppServerOrSPFromAppServer returns a AppServerOrSAMLIdPServiceProvider given an AppServer.
@@ -6872,5 +6925,56 @@ func inlineEventually(t *testing.T, cond func() bool, waitFor time.Duration, tic
 				return
 			}
 		}
+	}
+}
+
+func TestIsMFARequired_AdminAction(t *testing.T) {
+	for _, tt := range []struct {
+		name                 string
+		adminActionAuthState authz.AdminActionAuthState
+		expectResp           *proto.IsMFARequiredResponse
+	}{
+		{
+			name:                 "unauthorized",
+			adminActionAuthState: authz.AdminActionAuthUnauthorized,
+			expectResp: &proto.IsMFARequiredResponse{
+				Required:    true,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+			},
+		}, {
+			name:                 "not required",
+			adminActionAuthState: authz.AdminActionAuthNotRequired,
+			expectResp: &proto.IsMFARequiredResponse{
+				Required:    false,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			},
+		}, {
+			name:                 "mfa verified",
+			adminActionAuthState: authz.AdminActionAuthMFAVerified,
+			expectResp: &proto.IsMFARequiredResponse{
+				Required:    false,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			},
+		}, {
+			name:                 "mfa verified with reuse",
+			adminActionAuthState: authz.AdminActionAuthMFAVerifiedWithReuse,
+			expectResp: &proto.IsMFARequiredResponse{
+				Required:    false,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			server := ServerWithRoles{
+				context: authz.Context{
+					AdminActionAuthState: tt.adminActionAuthState,
+				},
+			}
+			resp, err := server.IsMFARequired(context.Background(), &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_AdminAction{},
+			})
+			require.NoError(t, err)
+			require.Equal(t, tt.expectResp, resp)
+		})
 	}
 }

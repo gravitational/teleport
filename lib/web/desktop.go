@@ -35,6 +35,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -42,6 +43,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -64,6 +66,7 @@ func (h *Handler) desktopConnectHandle(
 	p httprouter.Params,
 	sctx *SessionContext,
 	site reversetunnelclient.RemoteSite,
+	ws *websocket.Conn,
 ) (interface{}, error) {
 	desktopName := p.ByName("desktopName")
 	if desktopName == "" {
@@ -73,7 +76,7 @@ func (h *Handler) desktopConnectHandle(
 	log := sctx.cfg.Log.WithField("desktop-name", desktopName).WithField("cluster-name", site.GetName())
 	log.Debug("New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(w, r, desktopName, site.GetName(), log, sctx, site); err != nil {
+	if err := h.createDesktopConnection(w, r, desktopName, site.GetName(), log, sctx, site, ws); err != nil {
 		// createDesktopConnection makes a best effort attempt to send an error to the user
 		// (via websocket) before terminating the connection. We log the error here, but
 		// return nil because our HTTP middleware will try to write the returned error in JSON
@@ -92,15 +95,8 @@ func (h *Handler) createDesktopConnection(
 	log *logrus.Entry,
 	sctx *SessionContext,
 	site reversetunnelclient.RemoteSite,
+	ws *websocket.Conn,
 ) error {
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-	}
-	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	defer ws.Close()
 
 	sendTDPError := func(err error) error {
@@ -127,7 +123,16 @@ func (h *Handler) createDesktopConnection(
 	if err != nil {
 		return sendTDPError(err)
 	}
-	log.Debugf("Received screen spec: %v\n", screenSpec)
+
+	width, height := screenSpec.Width, screenSpec.Height
+	if width > types.MaxRDPScreenWidth || height > types.MaxRDPScreenHeight {
+		return sendTDPError(trace.BadParameter(
+			"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
+			width, height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight,
+		))
+	}
+
+	log.Debugf("Attempting to connect to desktop using username=%v, width=%v, height=%v\n", username, width, height)
 
 	// Pick a random Windows desktop service as our gateway.
 	// When agent mode is implemented in the service, we'll have to filter out
@@ -174,7 +179,7 @@ func (h *Handler) createDesktopConnection(
 		clientSrcAddr: clientSrcAddr,
 		clientDstAddr: clientDstAddr,
 	}
-	serviceConn, err := c.connectToWindowsService(clusterName, validServiceIDs)
+	serviceConn, version, err := c.connectToWindowsService(clusterName, validServiceIDs)
 	if err != nil {
 		return sendTDPError(trace.Wrap(err, "cannot connect to Windows Desktop Service"))
 	}
@@ -199,7 +204,7 @@ func (h *Handler) createDesktopConnection(
 
 	// proxyWebsocketConn hangs here until connection is closed
 	handleProxyWebsocketConnErr(
-		proxyWebsocketConn(ws, serviceConnTLS), log)
+		proxyWebsocketConn(ws, serviceConnTLS, version), log)
 
 	return nil
 }
@@ -345,8 +350,11 @@ func (h *Handler) performMFACeremony(ctx context.Context, authClient auth.Client
 		MFAPrompt:         promptMFA,
 		MFAAgainstRoot:    true,
 		MFARequiredReq:    nil, // No need to verify.
-		CertsReq:          certsReq,
-		Key:               nil, // We just want the certs.
+		ChallengeExtensions: mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+		},
+		CertsReq: certsReq,
+		Key:      nil, // We just want the certs.
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -381,11 +389,13 @@ type connector struct {
 // connectToWindowsService tries to make a connection to a Windows Desktop Service
 // by trying each of the services provided. It returns an error if it could not connect
 // to any of the services or if it encounters an error that is not a connection problem.
-func (c *connector) connectToWindowsService(clusterName string, desktopServiceIDs []string) (net.Conn, error) {
+func (c *connector) connectToWindowsService(
+	clusterName string,
+	desktopServiceIDs []string) (conn net.Conn, version string, err error) {
 	for _, id := range desktopServiceIDs {
-		conn, err := c.tryConnect(clusterName, id)
+		conn, ver, err := c.tryConnect(clusterName, id)
 		if err != nil && !trace.IsConnectionProblem(err) {
-			return nil, trace.WrapWithMessage(err,
+			return nil, "", trace.WrapWithMessage(err,
 				"error connecting to windows_desktop_service %q", id)
 		}
 		if trace.IsConnectionProblem(err) {
@@ -393,22 +403,25 @@ func (c *connector) connectToWindowsService(clusterName string, desktopServiceID
 			continue
 		}
 		if err == nil {
-			return conn, err
+			return conn, ver, nil
 		}
 	}
-	return nil, trace.Errorf("failed to connect to any windows_desktop_service")
+	return nil, "", trace.Errorf("failed to connect to any windows_desktop_service")
 }
 
-func (c *connector) tryConnect(clusterName, desktopServiceID string) (net.Conn, error) {
+func (c *connector) tryConnect(clusterName, desktopServiceID string) (conn net.Conn, version string, err error) {
 	service, err := c.clt.GetWindowsDesktopService(context.Background(), desktopServiceID)
 	if err != nil {
 		log.Errorf("Error finding service with id %s", desktopServiceID)
-		return nil, trace.NotFound("could not find windows desktop service %s: %v", desktopServiceID, err)
+		return nil, "", trace.NotFound("could not find windows desktop service %s: %v", desktopServiceID, err)
 	}
 
+	ver := service.GetTeleportVersion()
+	*c.log = *c.log.WithField("windows-service-version", ver)
 	*c.log = *c.log.WithField("windows-service-uuid", service.GetName())
 	*c.log = *c.log.WithField("windows-service-addr", service.GetAddr())
-	return c.site.DialTCP(reversetunnelclient.DialParams{
+
+	conn, err = c.site.DialTCP(reversetunnelclient.DialParams{
 		From:                  c.clientSrcAddr,
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
 		ConnType:              types.WindowsDesktopTunnel,
@@ -416,17 +429,25 @@ func (c *connector) tryConnect(clusterName, desktopServiceID string) (net.Conn, 
 		ProxyIDs:              service.GetProxyIDs(),
 		OriginalClientDstAddr: c.clientDstAddr,
 	})
+	return conn, ver, trace.Wrap(err)
 }
 
 // proxyWebsocketConn does a bidrectional copy between the websocket
 // connection to the browser (ws) and the mTLS connection to Windows
 // Desktop Serivce (wds)
-func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
+func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn, wdsVersion string) error {
 	var closeOnce sync.Once
 	close := func() {
 		ws.Close()
 		wds.Close()
 	}
+
+	v, err := semver.NewVersion(wdsVersion)
+	if err != nil {
+		return trace.BadParameter("invalid windows desktop service version  %q: %v", wdsVersion, err)
+	}
+
+	isPre15 := v.Major < 15
 
 	errs := make(chan error, 2)
 
@@ -491,15 +512,34 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 	go func() {
 		defer closeOnce.Do(close)
 
-		// io.Copy is fine here, as the Windows Desktop Service
-		// operates on a stream and doesn't care if TPD messages
-		// are fragmented
-		stream := &WebsocketIO{Conn: ws}
-		_, err := io.Copy(wds, stream)
-		if utils.IsOKNetworkError(err) {
-			err = nil
+		var buf bytes.Buffer
+		for {
+			_, reader, err := ws.NextReader()
+			switch {
+			case utils.IsOKNetworkError(err):
+				errs <- nil
+				return
+			case err != nil:
+				errs <- err
+				return
+			}
+			buf.Reset()
+			if _, err := io.Copy(&buf, reader); err != nil {
+				errs <- err
+				return
+			}
+			// don't pass the sync keys message along to old agents
+			// (they don't support it)
+			b := buf.Bytes()
+			if isPre15 && len(b) > 0 && tdp.MessageType(b[0]) == tdp.TypeSyncKeys {
+				continue
+			}
+
+			if _, err := wds.Write(b); err != nil {
+				errs <- trace.Wrap(err, "sending TDP message to desktop agent")
+				return
+			}
 		}
-		errs <- err
 	}()
 
 	var retErrs []error

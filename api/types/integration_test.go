@@ -31,7 +31,8 @@ func TestIntegrationJSONMarshalCycle(t *testing.T) {
 	ig, err := NewIntegrationAWSOIDC(
 		Metadata{Name: "some-integration"},
 		&AWSOIDCIntegrationSpecV1{
-			RoleARN: "arn:aws:iam::123456789012:role/DevTeams",
+			RoleARN:     "arn:aws:iam::123456789012:role/DevTeams",
+			IssuerS3URI: "s3://my-bucket/my-prefix",
 		},
 	)
 	require.NoError(t, err)
@@ -43,7 +44,7 @@ func TestIntegrationJSONMarshalCycle(t *testing.T) {
 	err = json.Unmarshal(bs, &ig2)
 	require.NoError(t, err)
 
-	require.Equal(t, ig, &ig2)
+	require.Equal(t, &ig2, ig)
 }
 
 func TestIntegrationCheckAndSetDefaults(t *testing.T) {
@@ -65,7 +66,8 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 						Name: name,
 					},
 					&AWSOIDCIntegrationSpecV1{
-						RoleARN: "some arn role",
+						RoleARN:     "some arn role",
+						IssuerS3URI: "s3://my-issuer/my-prefix",
 					},
 				)
 			},
@@ -83,7 +85,8 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 					Spec: IntegrationSpecV1{
 						SubKindSpec: &IntegrationSpecV1_AWSOIDC{
 							AWSOIDC: &AWSOIDCIntegrationSpecV1{
-								RoleARN: "some arn role",
+								RoleARN:     "some arn role",
+								IssuerS3URI: "s3://my-issuer/my-prefix",
 							},
 						},
 					},
@@ -99,6 +102,40 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 						Name: name,
 					},
 					nil,
+				)
+			},
+			expectedErrorIs: func(err error) bool {
+				return trace.IsBadParameter(err)
+			},
+		},
+		{
+			name: "aws-oidc: error when issuer is not a valid url",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationAWSOIDC(
+					Metadata{
+						Name: name,
+					},
+					&AWSOIDCIntegrationSpecV1{
+						RoleARN:     "some-role",
+						IssuerS3URI: "not-a-url",
+					},
+				)
+			},
+			expectedErrorIs: func(err error) bool {
+				return trace.IsBadParameter(err)
+			},
+		},
+		{
+			name: "aws-oidc: issuer is not an s3 url",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationAWSOIDC(
+					Metadata{
+						Name: name,
+					},
+					&AWSOIDCIntegrationSpecV1{
+						RoleARN:     "some-role",
+						IssuerS3URI: "http://localhost:8080",
+					},
 				)
 			},
 			expectedErrorIs: func(err error) bool {

@@ -53,6 +53,7 @@ export function OfflineGateway(props: {
     <Flex
       flexDirection="column"
       mx="auto"
+      mb="auto"
       alignItems="center"
       maxWidth="500px"
       css={`
@@ -73,7 +74,8 @@ export function OfflineGateway(props: {
       )}
       <Flex
         as="form"
-        onSubmit={() => {
+        onSubmit={e => {
+          e.preventDefault();
           setReconnectRequested(true);
           props.reconnect(props.gatewayPort.isSupported ? port : undefined);
         }}

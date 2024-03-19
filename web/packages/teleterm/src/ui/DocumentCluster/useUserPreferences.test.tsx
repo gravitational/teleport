@@ -17,11 +17,12 @@
  */
 
 import { renderHook, act } from '@testing-library/react';
+
 import {
-  ViewMode,
   DefaultTab,
   LabelsViewMode,
-} from 'shared/services/unifiedResourcePreferences';
+  ViewMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
@@ -33,11 +34,11 @@ import { useUserPreferences } from './useUserPreferences';
 
 const cluster = makeRootCluster();
 const preferences: UserPreferences = {
-  clusterPreferences: { pinnedResources: { resourceIdsList: ['abc'] } },
+  clusterPreferences: { pinnedResources: { resourceIds: ['abc'] } },
   unifiedResourcePreferences: {
-    viewMode: ViewMode.VIEW_MODE_CARD,
-    defaultTab: DefaultTab.DEFAULT_TAB_ALL,
-    labelsViewMode: LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
+    viewMode: ViewMode.CARD,
+    defaultTab: DefaultTab.ALL,
+    labelsViewMode: LabelsViewMode.COLLAPSED,
   },
 };
 
@@ -140,9 +141,9 @@ describe('updating preferences', () => {
     const newPreferences: UserPreferences = {
       clusterPreferences: {},
       unifiedResourcePreferences: {
-        viewMode: ViewMode.VIEW_MODE_LIST,
-        defaultTab: DefaultTab.DEFAULT_TAB_PINNED,
-        labelsViewMode: LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
+        viewMode: ViewMode.LIST,
+        defaultTab: DefaultTab.PINNED,
+        labelsViewMode: LabelsViewMode.COLLAPSED,
       },
     };
 
@@ -201,9 +202,9 @@ describe('updating preferences', () => {
     const newPreferences: UserPreferences = {
       clusterPreferences: {},
       unifiedResourcePreferences: {
-        viewMode: ViewMode.VIEW_MODE_LIST,
-        defaultTab: DefaultTab.DEFAULT_TAB_PINNED,
-        labelsViewMode: LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
+        viewMode: ViewMode.LIST,
+        defaultTab: DefaultTab.PINNED,
+        labelsViewMode: LabelsViewMode.COLLAPSED,
       },
     };
 
@@ -232,11 +233,11 @@ describe('updating preferences', () => {
     // (e.g., because they were changed it in the browser in the meantime)
     act(() =>
       resolveUpdateUserPreferencesPromise({
-        clusterPreferences: { pinnedResources: { resourceIdsList: ['abc'] } },
+        clusterPreferences: { pinnedResources: { resourceIds: ['abc'] } },
         unifiedResourcePreferences: {
-          viewMode: ViewMode.VIEW_MODE_CARD,
-          defaultTab: DefaultTab.DEFAULT_TAB_PINNED,
-          labelsViewMode: LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
+          viewMode: ViewMode.CARD,
+          defaultTab: DefaultTab.PINNED,
+          labelsViewMode: LabelsViewMode.COLLAPSED,
         },
       })
     );
@@ -248,7 +249,7 @@ describe('updating preferences', () => {
     );
     expect(
       result.current.userPreferences.clusterPreferences.pinnedResources
-        .resourceIdsList
+        .resourceIds
     ).toEqual(['abc']);
   });
 });

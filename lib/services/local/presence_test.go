@@ -423,7 +423,7 @@ func TestNodeCRUD(t *testing.T) {
 			// Get all nodes, transparently handle limit exceeded errors
 			nodes, err := presence.GetNodes(ctx, apidefaults.Namespace)
 			require.NoError(t, err)
-			require.EqualValues(t, len(nodes), 2)
+			require.Len(t, nodes, 2)
 			require.Empty(t, cmp.Diff([]types.Server{node1, node2}, nodes,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 

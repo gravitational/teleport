@@ -40,10 +40,13 @@ import (
 
 // NewHostUsers initialize a new HostUsers object
 func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid string) HostUsers {
-	// newHostUsersBackend statically returns a valid backend or an error,
-	// resulting in a staticcheck linter error on darwin
-	backend, err := newHostUsersBackend() //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
-	if err != nil {                       //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+	//nolint:staticcheck // SA4023. False positive on macOS.
+	backend, err := newHostUsersBackend()
+	switch {
+	case trace.IsNotImplemented(err):
+		log.Debugf("Skipping host user management: %v", err)
+		return nil
+	case err != nil: //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
 		log.Warnf("Error making new HostUsersBackend: %s", err)
 		return nil
 	}
@@ -58,11 +61,14 @@ func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid stri
 }
 
 func NewHostSudoers(uuid string) HostSudoers {
-	// newHostSudoersBackend statically returns a valid backend or an error,
-	// resulting in a staticcheck linter error on darwin
-	backend, err := newHostSudoersBackend(uuid) //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
-	if err != nil {                             //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
-		log.Warnf("Error making new HostUsersBackend: %s", err)
+	//nolint:staticcheck // SA4023. False positive on macOS.
+	backend, err := newHostSudoersBackend(uuid)
+	switch {
+	case trace.IsNotImplemented(err):
+		log.Debugf("Skipping host sudoers management: %v", err)
+		return nil
+	case err != nil: //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+		log.Warnf("Error making new HostSudoersBackend: %s", err)
 		return nil
 	}
 	return &HostSudoersManagement{

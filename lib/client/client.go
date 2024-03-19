@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -563,8 +564,11 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		MFAPrompt:         mfaPrompt,
 		MFAAgainstRoot:    params.RouteToCluster == rootClusterName,
 		MFARequiredReq:    nil, // No need to check if we got this far.
-		CertsReq:          certsReq,
-		Key:               key,
+		ChallengeExtensions: mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+		},
+		CertsReq: certsReq,
+		Key:      key,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1079,6 +1083,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		PROXYHeaderGetter:          CreatePROXYHeaderGetter(ctx, proxy.teleportClient.PROXYSigner),
 		InsecureAddressDiscovery:   proxy.teleportClient.InsecureSkipVerify,
 		MFAPromptConstructor:       proxy.teleportClient.NewMFAPrompt,
+		DialOpts:                   proxy.teleportClient.DialOpts,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1158,6 +1163,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		MFAPromptConstructor: proxy.teleportClient.NewMFAPrompt,
+		DialOpts:             proxy.teleportClient.DialOpts,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2008,6 +2014,31 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 	}
 
 	log.WithError(ctx.Err()).Infof("Shutting down dynamic port forwarding.")
+}
+
+// remoteListenAndForward requests a listening socket and forwards all incoming
+// commands to the local address through the SSH tunnel.
+func (c *NodeClient) remoteListenAndForward(ctx context.Context, ln net.Listener, localAddr, remoteAddr string) {
+	defer ln.Close()
+	log := log.WithField("localAddr", localAddr).WithField("remoteAddr", remoteAddr)
+	log.Infof("Starting remote port forwarding")
+
+	for ctx.Err() == nil {
+		conn, err := acceptWithContext(ctx, ln)
+		if err != nil {
+			if ctx.Err() == nil {
+				log.WithError(err).Errorf("Remote port forwarding failed.")
+			}
+			continue
+		}
+
+		go func() {
+			if err := proxyConnection(ctx, conn, localAddr, &net.Dialer{}); err != nil {
+				log.WithError(err).Warnf("Failed to proxy connection")
+			}
+		}()
+	}
+	log.WithError(ctx.Err()).Infof("Shutting down remote port forwarding.")
 }
 
 // GetRemoteTerminalSize fetches the terminal size of a given SSH session.

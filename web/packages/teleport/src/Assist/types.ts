@@ -54,7 +54,7 @@ export interface GetConversationsResponse {
       id: string;
       title?: string;
       created_time: string;
-    }
+    },
   ];
 }
 
@@ -274,16 +274,4 @@ export interface ExecuteRemoteCommandPayload {
   login?: string;
   labels?: { key: string; value: string }[];
   nodes?: string[];
-}
-
-export enum ViewMode {
-  Docked = 1,
-  Popup = 2,
-  PopupExpanded = 3,
-  PopupExpandedSidebarVisible = 4,
-}
-
-export interface AssistUserPreferences {
-  preferredLogins: string[];
-  viewMode: ViewMode;
 }

@@ -251,9 +251,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
 	}
 
-	awsConfig := aws.Config{
-		EC2MetadataEnableFallback: aws.Bool(false),
-	}
+	awsConfig := aws.Config{}
 	if cfg.Region != "" {
 		awsConfig.Region = aws.String(cfg.Region)
 	}
@@ -466,6 +464,14 @@ func (b *Backend) getAllRecords(ctx context.Context, startKey []byte, endKey []b
 	return nil, trace.BadParameter("backend entered endless loop")
 }
 
+const (
+	// batchOperationItemsLimit is the maximum number of items that can be put or deleted in a single batch operation.
+	// From https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Limits.html:
+	// A single call to BatchWriteItem can transmit up to 16MB of data over the network,
+	// consisting of up to 25 item put or delete operations.
+	batchOperationItemsLimit = 25
+)
+
 // DeleteRange deletes range of items with keys between startKey and endKey
 func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
 	if len(startKey) == 0 {
@@ -478,7 +484,7 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) erro
 	// keep the very large limit, just in case if someone else
 	// keeps adding records
 	for i := 0; i < backend.DefaultRangeLimit/100; i++ {
-		result, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), 100, nil)
+		result, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), batchOperationItemsLimit, nil)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -519,6 +525,7 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	item := &backend.Item{
 		Key:      trimPrefix(r.FullPath),
 		Value:    r.Value,
@@ -528,6 +535,7 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	if r.Expires != nil {
 		item.Expires = time.Unix(*r.Expires, 0)
 	}
+
 	if item.Revision == "" {
 		item.Revision = backend.BlankRevision
 	}
@@ -631,12 +639,15 @@ func (b *Backend) ConditionalDelete(ctx context.Context, key []byte, rev string)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if rev == backend.BlankRevision {
-		rev = ""
-	}
+
 	input := dynamodb.DeleteItemInput{Key: av, TableName: aws.String(b.TableName)}
-	input.SetConditionExpression("Revision = :rev")
-	input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{":rev": {S: aws.String(rev)}})
+
+	if rev == backend.BlankRevision {
+		input.SetConditionExpression("attribute_not_exists(Revision) AND attribute_exists(FullPath)")
+	} else {
+		input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{":rev": {S: aws.String(rev)}})
+		input.SetConditionExpression("Revision = :rev AND attribute_exists(FullPath)")
+	}
 
 	if _, err = b.svc.DeleteItemWithContext(ctx, &input); err != nil {
 		err = convertError(err)

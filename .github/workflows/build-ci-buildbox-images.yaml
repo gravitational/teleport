@@ -7,7 +7,6 @@ on:
       - build.assets/Dockerfile
       - build.assets/Dockerfile-arm
       - build.assets/Dockerfile-centos7
-      - build.assets/Dockerfile-centos7-fips
       - build.assets/Dockerfile-node
       - build.assets/Makefile
       - build.assets/images.mk
@@ -34,6 +33,8 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+        with:
+          driver: docker
 
       - name: Login to registry
         uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
@@ -60,6 +61,8 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+        with:
+          driver: docker
 
       - name: Login to registry
         uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
@@ -87,6 +90,8 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+        with:
+          driver: docker
 
       - name: Login to registry
         uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
@@ -114,6 +119,8 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+        with:
+          driver: docker
 
       - name: Login to registry
         uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
@@ -140,6 +147,8 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+        with:
+          driver: docker
 
       - name: Login to registry
         uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0

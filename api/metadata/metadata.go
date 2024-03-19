@@ -18,6 +18,8 @@ package metadata
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -94,4 +96,23 @@ func ClientVersionFromContext(ctx context.Context) (string, bool) {
 		return "", false
 	}
 	return versionList[0], true
+}
+
+// WithUserAgentFromTeleportComponent returns a grpc.DialOption that reports
+// the Teleport component and the API version for user agent.
+func WithUserAgentFromTeleportComponent(component string) grpc.DialOption {
+	return grpc.WithUserAgent(fmt.Sprintf("%s/%s", component, api.Version))
+}
+
+// UserAgentFromContext returns the user agent from GRPC client metadata.
+func UserAgentFromContext(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return ""
+	}
+	values := md.Get("user-agent")
+	if len(values) == 0 {
+		return ""
+	}
+	return strings.Join(values, " ")
 }

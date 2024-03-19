@@ -73,8 +73,8 @@ func (a fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
 					},
 				},
 			},
-			Identity:              identity,
-			AdminActionAuthorized: true,
+			Identity:             identity,
+			AdminActionAuthState: authz.AdminActionAuthNotRequired,
 		}, nil
 	}
 
@@ -103,7 +103,7 @@ func (a fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
 				Username: "alice",
 			},
 		},
-		AdminActionAuthorized: true,
+		AdminActionAuthState: authz.AdminActionAuthNotRequired,
 	}, nil
 }
 
@@ -118,7 +118,7 @@ type check struct {
 	kind, verb string
 }
 
-func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, kind string, verb string, silent bool) error {
+func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, kind string, verb string) error {
 	c := check{kind, verb}
 	f.checks = append(f.checks, c)
 
@@ -888,7 +888,7 @@ func TestRBAC(t *testing.T) {
 						Groups: []string{"dev"},
 					},
 				},
-				AdminActionAuthorized: true,
+				AdminActionAuthState: authz.AdminActionAuthNotRequired,
 			}}))
 			require.NoError(t, err, "creating test service")
 

@@ -225,8 +225,8 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
-	return keys.PrivateKeyPolicyNone, nil
+func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+	return nil, trace.NotFound("no attestation data for the given key")
 }
 
 func (p *cliModules) EnableRecoveryCodes() {
@@ -1790,7 +1790,6 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					assert.Equal(t, "error\n", string(contents))
 				}
 			}
-
 		})
 	}
 }
@@ -4463,7 +4462,9 @@ func TestSerializeKubeSessions(t *testing.T) {
 	})
 	require.NoError(t, err)
 	testSerialization(t, expected, func(f string) (string, error) {
-		return serializeKubeSessions([]types.SessionTracker{tracker}, f)
+		var b bytes.Buffer
+		err := serializeSessions([]types.SessionTracker{tracker}, f, &b)
+		return b.String(), err
 	})
 }
 
@@ -5320,7 +5321,7 @@ func TestLogout(t *testing.T) {
 				require.NoError(t, err)
 
 				pubKeyPath := keypaths.PublicKeyPath(homePath, clientKey.ProxyHost, clientKey.Username)
-				err = os.WriteFile(pubKeyPath, ssh.MarshalAuthorizedKey(sshPub), 0600)
+				err = os.WriteFile(pubKeyPath, ssh.MarshalAuthorizedKey(sshPub), 0o600)
 				require.NoError(t, err)
 			},
 		},
@@ -5420,4 +5421,63 @@ func Test_formatActiveDB(t *testing.T) {
 			require.Equal(t, test.expect, formatActiveDB(test.active, test.displayName))
 		})
 	}
+}
+
+func TestFlatten(t *testing.T) {
+	// Test setup: create a server and a user
+	home := t.TempDir()
+	identityPath := filepath.Join(t.TempDir(), "identity.pem")
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	connector := mockConnector(t)
+
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Test setup: log in and obtain a valid identity for the user
+	conf := CLIConf{
+		Username:           alice.GetName(),
+		Proxy:              proxyAddr.String(),
+		InsecureSkipVerify: true,
+		IdentityFileOut:    identityPath,
+		IdentityFormat:     identityfile.FormatFile,
+		HomePath:           home,
+		AuthConnector:      connector.GetName(),
+		MockSSOLogin:       mockSSOLogin(t, authServer, alice),
+		Context:            context.Background(),
+	}
+	require.NoError(t, onLogin(&conf))
+
+	// Test setup: validate we got a valid identity
+	_, err = identityfile.KeyFromIdentityFile(identityPath, "proxy.example.com", "")
+	require.NoError(t, err)
+
+	// Test execution: flatten the identity previously obtained in a new home.
+	freshHome := t.TempDir()
+	conf = CLIConf{
+		Proxy:              proxyAddr.String(),
+		InsecureSkipVerify: true,
+		IdentityFileIn:     identityPath,
+		HomePath:           freshHome,
+		Context:            context.Background(),
+	}
+	require.NoError(t, flattenIdentity(&conf))
+
+	// Test execution: validate that the newly created profile can be used to build a valid client.
+	clt, err := makeClient(&conf)
+	require.NoError(t, err)
+
+	_, err = clt.Ping(context.Background())
+	require.NoError(t, err)
+
+	// Test execution: validate that flattening succeeds if a profile already exists.
+	conf.IdentityFileIn = identityPath
+	require.NoError(t, flattenIdentity(&conf), "unexpected error when overwriting a tsh profile")
 }

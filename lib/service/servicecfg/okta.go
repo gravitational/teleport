@@ -49,4 +49,12 @@ type OktaSyncSettings struct {
 
 	// DefaultOwners are the default owners for all imported access lists.
 	DefaultOwners []string
+
+	// GroupFilters are filters for which Okta groups to synchronize as access lists.
+	// These are globs/regexes.
+	GroupFilters []string
+
+	// AppFilters are filters for which Okta applications to synchronize as access lists.
+	// These are globs/regexes.
+	AppFilters []string
 }

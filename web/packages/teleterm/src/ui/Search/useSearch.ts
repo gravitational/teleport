@@ -277,7 +277,7 @@ function populateMatches(
   const resourceMatches: ResourceMatch<ResourceSearchResult['kind']>[] = [];
 
   terms.forEach(term => {
-    searchResult.resource.labelsList.forEach(label => {
+    searchResult.resource.labels.forEach(label => {
       // indexOf is faster on Chrome than includes or regex.
       // https://jsbench.me/b7lf9kvrux/1
       const nameIndex = label.name.toLocaleLowerCase().indexOf(term);
@@ -328,7 +328,7 @@ function calculateScore(
   let searchResultScore = 0;
 
   const labelMatches = searchResult.labelMatches.map(match => {
-    const label = searchResult.resource.labelsList.find(
+    const label = searchResult.resource.labels.find(
       label => label.name === match.labelName
     );
     let matchedValue: string;

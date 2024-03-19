@@ -87,7 +87,7 @@ export function InProgress() {
     return () => ref.current.abort();
   }, []);
 
-  appContext.connectMyComputerService.downloadAgent = () =>
+  appContext.connectMyComputerService.createRole = () =>
     new Promise(resolve => {
       ref.current.signal.addEventListener('abort', () => resolve(undefined));
     });
@@ -136,7 +136,7 @@ export function NoAccess() {
 
 export function AccessUnknown() {
   const cluster = makeRootCluster();
-  cluster.loggedInUser.userType = UserType.USER_TYPE_UNSPECIFIED;
+  cluster.loggedInUser.userType = UserType.UNSPECIFIED;
   const appContext = new MockAppContext({});
 
   return (

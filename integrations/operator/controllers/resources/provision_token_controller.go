@@ -56,15 +56,15 @@ func (r provisionTokenClient) Delete(ctx context.Context, name string) error {
 }
 
 // NewProvisionTokenReconciler instantiates a new Kubernetes controller reconciling provision token resources
-func NewProvisionTokenReconciler(client kclient.Client, tClient *client.Client) *TeleportResourceReconciler[types.ProvisionToken, *resourcesv2.TeleportProvisionToken] {
+func NewProvisionTokenReconciler(client kclient.Client, tClient *client.Client) (Reconciler, error) {
 	tokenClient := &provisionTokenClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler := NewTeleportResourceReconciler[types.ProvisionToken, *resourcesv2.TeleportProvisionToken](
+	resourceReconciler, err := NewTeleportResourceReconciler[types.ProvisionToken, *resourcesv2.TeleportProvisionToken](
 		client,
 		tokenClient,
 	)
 
-	return resourceReconciler
+	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
 }

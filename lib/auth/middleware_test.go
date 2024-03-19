@@ -31,10 +31,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/metadata"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
@@ -654,4 +658,78 @@ func (h *fakeHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// after the middleware has run.
 	require.Empty(h.t, r.Header.Get(TeleportImpersonateUserHeader))
 	require.Empty(h.t, r.Header.Get(TeleportImpersonateIPHeader))
+}
+
+type fakeConn struct {
+	net.Conn
+}
+
+func (f fakeConn) Close() error {
+	return nil
+}
+
+func TestValidateClientVersion(t *testing.T) {
+	cases := []struct {
+		name          string
+		middleware    Middleware
+		clientVersion string
+		errAssertion  func(t *testing.T, err error)
+	}{
+		{
+			name: "rejection disabled",
+			errAssertion: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:       "rejection enabled and client version not specified",
+			middleware: Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
+			errAssertion: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:          "client rejected",
+			middleware:    Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
+			clientVersion: semver.Version{Major: teleport.SemVersion.Major - 2}.String(),
+			errAssertion: func(t *testing.T, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got %T, expected access denied error", err)
+			},
+		},
+		{
+			name:          "valid client v-1",
+			middleware:    Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
+			clientVersion: semver.Version{Major: teleport.SemVersion.Major - 1}.String(),
+			errAssertion: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:          "valid client v-0",
+			middleware:    Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
+			clientVersion: semver.Version{Major: teleport.SemVersion.Major}.String(),
+			errAssertion: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:          "invalid client version",
+			middleware:    Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
+			clientVersion: "abc123",
+			errAssertion: func(t *testing.T, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got %T, expected access denied error", err)
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			if tt.clientVersion != "" {
+				ctx = metadata.NewIncomingContext(ctx, metadata.New(map[string]string{"version": tt.clientVersion}))
+			}
+
+			tt.errAssertion(t, tt.middleware.ValidateClientVersion(ctx, IdentityInfo{Conn: fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I}))
+		})
+	}
 }
