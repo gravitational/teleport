@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
@@ -144,7 +143,7 @@ type Config struct {
 	// to the Access Graph service.
 	ServerCredentials *tls.Config
 	// AccessGraphConfig is the configuration for the Access Graph client
-	AccessGraphConfig servicecfg.AccessGraphConfig
+	AccessGraphConfig AccessGraphConfig
 
 	// TriggerFetchC is a list of channels that must be notified when a off-band poll must be performed.
 	// This is used to start a polling iteration when a new DiscoveryConfig change is received.
@@ -154,6 +153,21 @@ type Config struct {
 	// clock is passed to watchers to handle poll intervals.
 	// Mostly used in tests.
 	clock clockwork.Clock
+}
+
+// AccessGraphConfig represents TAG server config
+type AccessGraphConfig struct {
+	// Enabled Access Graph reporting enabled
+	Enabled bool
+
+	// Addr of the Access Graph service addr
+	Addr string
+
+	// CA is the CA in PEM format used by the Access Graph service.
+	CA []byte
+
+	// Insecure is true if the connection to the Access Graph service should be insecure
+	Insecure bool
 }
 
 func (c *Config) CheckAndSetDefaults() error {
