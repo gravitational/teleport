@@ -507,6 +507,13 @@ message Features {
   // Policy enables the Teleport Policy feature set.
   // At the time of writing, this includes Teleport Access Graph (TAG).
   PolicyFeature Policy = 28 [(gogoproto.jsontag) = "policy,omitempty"];
+  // TODO: comment fields below
+  bool HasQuestionnaire = 29;
+  bool IsStripeManaged = 30;
+  bool ExternalAuditStorage = 31;
+  bool PremiumSupport = 32;
+  bool JoinActiveSessions = 33;
+  bool IdentityManagement = 34;
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based

@@ -110,6 +110,13 @@ type Features struct {
 	// Policy holds settings for the Teleport Policy feature set.
 	// At the time of writing, this includes Teleport Access Graph (TAG).
 	Policy PolicyFeature
+	// TODO: comment the fields below
+	HasQuestionnaire     bool
+	IsStripeManaged      bool
+	ExternalAuditStorage bool
+	PremiumSupport       bool
+	JoinActiveSessions   bool
+	IdentityManagement   bool
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -199,6 +206,12 @@ func (f Features) ToProto() *proto.Features {
 		Policy: &proto.PolicyFeature{
 			Enabled: f.Policy.Enabled,
 		},
+		HasQuestionnaire:     f.HasQuestionnaire,
+		IsStripeManaged:      f.IsStripeManaged,
+		ExternalAuditStorage: f.ExternalAuditStorage,
+		PremiumSupport:       f.PremiumSupport,
+		JoinActiveSessions:   f.JoinActiveSessions,
+		IdentityManagement:   f.IdentityManagement,
 	}
 }
 
@@ -357,12 +370,13 @@ func (p *defaultModules) Features() Features {
 	})
 
 	return Features{
-		Kubernetes:        true,
-		DB:                true,
-		App:               true,
-		Desktop:           true,
-		AutomaticUpgrades: p.automaticUpgrades,
-		Assist:            true,
+		Kubernetes:         true,
+		DB:                 true,
+		App:                true,
+		Desktop:            true,
+		AutomaticUpgrades:  p.automaticUpgrades,
+		Assist:             true,
+		JoinActiveSessions: true,
 	}
 }
 

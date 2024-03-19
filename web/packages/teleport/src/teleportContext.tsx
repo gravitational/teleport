@@ -71,17 +71,15 @@ class TeleportContext implements types.Context {
   // TODO(mcbattirola): use cluster features instead of only using `isTeam`
   // to determine which feature is locked
   lockedFeatures: types.LockedFeatures = {
-    authConnectors: cfg.isTeam,
-    activeSessions: cfg.isTeam,
-    premiumSupport: cfg.isTeam,
-    externalCloudAudit: cfg.isTeam,
+    authConnectors: !(cfg.oidc && cfg.saml),
+    premiumSupport: !cfg.premiumSupport,
     // Below should be locked for the following cases:
     //  1) is team
     //  2) is not a legacy and igs is not enabled. legacies should have unlimited access.
     accessRequests:
-      cfg.isTeam || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
+      !cfg.accessRequests || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
     trustedDevices:
-      cfg.isTeam || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
+      !cfg.trustedDevices || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
   };
 
   // hasExternalAuditStorage indicates if an account has set up external audit storage. It is used to show or hide the External Audit Storage CTAs.

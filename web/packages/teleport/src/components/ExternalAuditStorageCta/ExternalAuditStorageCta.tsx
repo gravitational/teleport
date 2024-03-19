@@ -31,16 +31,11 @@ import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
 import useTeleport from 'teleport/useTeleport';
 
-import { CtaEvent } from 'teleport/services/userEvent';
-
 import { storageService } from 'teleport/services/storageService';
-
-import { ButtonLockedFeature } from '../ButtonLockedFeature';
 
 export const ExternalAuditStorageCta = () => {
   const [showCta, setShowCta] = useState<boolean>(false);
   const ctx = useTeleport();
-  const featureEnabled = !ctx.lockedFeatures.externalCloudAudit;
   const userHasAccess = ctx.getFeatureFlags().enrollIntegrationsOrPlugins;
 
   useEffect(() => {
@@ -68,17 +63,13 @@ export const ExternalAuditStorageCta = () => {
           <Box>
             <Text bold>External Audit Storage</Text>
             <Text style={{ display: 'inline' }}>
-              {`Connect your own AWS account to store audit logs and session recordings on your own infrastructure${
-                featureEnabled ? '' : ' with Teleport Enterprise'
-              }.`}
+              Connect your own AWS account to store audit logs and session
+              recordings on your own infrastructure.
             </Text>
           </Box>
         </Flex>
         <Flex alignItems="center" minWidth="300px" gap={2}>
-          <CtaButton
-            featureEnabled={featureEnabled}
-            userHasAccess={userHasAccess}
-          />
+          <CtaButton userHasAccess={userHasAccess} />
           <ButtonSecondary onClick={handleDismiss}>Dismiss</ButtonSecondary>
         </Flex>
       </Flex>
@@ -86,19 +77,7 @@ export const ExternalAuditStorageCta = () => {
   );
 };
 
-function CtaButton(props: { featureEnabled: boolean; userHasAccess: boolean }) {
-  if (!props.featureEnabled) {
-    return (
-      <ButtonLockedFeature
-        height="32px"
-        size="medium"
-        event={CtaEvent.CTA_EXTERNAL_AUDIT_STORAGE}
-      >
-        Contact Sales
-      </ButtonLockedFeature>
-    );
-  }
-
+function CtaButton(props: { userHasAccess: boolean }) {
   return (
     <HoverTooltip
       tipContent={

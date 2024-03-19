@@ -85,6 +85,15 @@ type WebConfig struct {
 	// Typically used with feature teasers if feature is not enabled for the
 	// product type eg: Team product contains teasers to upgrade to Enterprise.
 	FeatureLimits FeatureLimits `json:"featureLimits"`
+	// TODO: comment fields below
+	IsStripeManaged      bool `json:"isStripeManaged"`
+	HasQuestionnaire     bool `json:"hasQuestionnaire"`
+	ExternalAuditStorage bool `json:"externalAuditStorage"`
+	PremiumSupport       bool `json:"premiumSupport"`
+	AccessRequests       bool `json:"accessRequests"`
+	TrustedDevices       bool `json:"trustedDevices"`
+	OIDC                 bool `json:"oidc"`
+	SAML                 bool `json:"saml"`
 }
 
 // featureLimits define limits for features.

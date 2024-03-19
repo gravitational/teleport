@@ -39,10 +39,9 @@ describe('externalAuditStorageCta', () => {
 
   type SetupParams = {
     isCloud: boolean;
-    lockedFeature: boolean;
     hasPermission;
   };
-  const setup = ({ isCloud, lockedFeature, hasPermission }: SetupParams) => {
+  const setup = ({ isCloud, hasPermission }: SetupParams) => {
     const noPermAcl = { customAcl: getAcl({ noAccess: true }) };
     const ctx = createTeleportContext(hasPermission ? null : noPermAcl);
     ctx.storeUser.setState({
@@ -51,7 +50,6 @@ describe('externalAuditStorageCta', () => {
     });
 
     cfg.isCloud = isCloud;
-    ctx.lockedFeatures.externalCloudAudit = lockedFeature;
 
     jest
       .spyOn(storageService, 'getExternalAuditStorageCtaDisabled')
@@ -69,31 +67,13 @@ describe('externalAuditStorageCta', () => {
   };
 
   test('renders the CTA', () => {
-    setup({ isCloud: true, lockedFeature: false, hasPermission: true });
+    setup({ isCloud: true, hasPermission: true });
     expect(screen.getByText(/External Audit Storage/)).toBeInTheDocument();
     expect(screen.getByText(/Connect your AWS storage/)).toBeEnabled();
   });
 
-  test('renders nothing on cfg.isCloud=false', () => {
-    const { container } = setup({
-      isCloud: false,
-      lockedFeature: true,
-      hasPermission: true,
-    });
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  test('renders button based on lockedFeatures', () => {
-    setup({ isCloud: true, lockedFeature: false, hasPermission: true });
-    expect(screen.getByText(/Connect your AWS storage/)).toBeInTheDocument();
-    expect(screen.getByText(/Connect your AWS storage/)).toBeEnabled();
-
-    setup({ isCloud: true, lockedFeature: true, hasPermission: true });
-    expect(screen.getByText(/Contact Sales/)).toBeInTheDocument();
-  });
-
   test('renders disabled button if no permissions', () => {
-    setup({ isCloud: true, lockedFeature: false, hasPermission: false });
+    setup({ isCloud: true, hasPermission: false });
     expect(screen.getByText(/Connect your AWS storage/)).toBeInTheDocument();
     // eslint wants us to use `toBeDisabled` instead of toHaveAttribute
     // but this causes the test to fail, since the button is rendered as an anchor tag

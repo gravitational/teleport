@@ -186,11 +186,9 @@ export interface FeatureFlags {
 // LockedFeatures are used for determining which features are disabled in the user's cluster.
 export type LockedFeatures = {
   authConnectors: boolean;
-  activeSessions: boolean;
   accessRequests: boolean;
   premiumSupport: boolean;
   trustedDevices: boolean;
-  externalCloudAudit: boolean;
 };
 
 // RecommendFeature is used for recommending features if its usage status is zero.
