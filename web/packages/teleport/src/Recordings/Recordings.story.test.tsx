@@ -18,15 +18,13 @@
 
 import React from 'react';
 
-import { render } from 'design/utils/testing';
-import { screen } from '@testing-library/react';
+import { render, waitFor } from 'design/utils/testing';
 
 import { Loaded } from './Recordings.story';
 
 test('rendering of Session Recordings', async () => {
   const { container } = render(<Loaded />);
 
-  // wait for Showing 1 - x of y
-  expect(await screen.findByText(/Showing/)).toBeInTheDocument();
+  await waitFor(() => document.querySelector('table'));
   expect(container).toMatchSnapshot();
 });
