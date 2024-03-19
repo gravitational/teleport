@@ -486,7 +486,7 @@ $ kubectl exec -i my-pod -- tctl status
 $ kubectl exec -i my-pod -- tctl create -f < my-local-file.yaml
 
 # retrieving the teleport service config file from the configmap
-$ kubectl -n <namespace> get configmap teleport-cluster-auth -o jsonpath="{.data['teleport\.yaml']}"
+$ kubectl get configmap teleport-cluster-auth -o jsonpath="{.data['teleport\.yaml']}"
 
 # retrieving output via stdout and tar
 $ kubectl exec -i my-pod -- tctl auth sign --user admin --format tls --ttl 10m --tar -o admin| tar xv -C local
