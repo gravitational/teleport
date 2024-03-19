@@ -849,6 +849,10 @@ const (
 	// until a domain name stops resolving. Its main use is to ensure no
 	// auth instances are still running the previous major version.
 	WaitSubCommand = "wait"
+
+	// VnetAdminSetupSubCommand is the sub-command tsh vnet uses to perform
+	// a setup as a privileged user.
+	VnetAdminSetupSubCommand = "vnet-admin-setup"
 )
 
 const (

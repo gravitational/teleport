@@ -18,9 +18,8 @@ package common
 
 import (
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/vnet"
+	"github.com/gravitational/teleport"
 )
 
 type vnetCommands struct {
@@ -41,18 +40,10 @@ type vnetCommand struct {
 	*kingpin.CmdClause
 }
 
-func newVnetCommand(app *kingpin.Application) *vnetCommand {
+func newVnetCommandBase(app *kingpin.Application) *vnetCommand {
 	cmd := app.Command("vnet", "Start Teleport VNet, a virtual network emulator for HTTP and TCP apps.")
 
 	return &vnetCommand{CmdClause: cmd}
-}
-
-func (c *vnetCommand) run(cf *CLIConf) error {
-	tc, err := makeClient(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(vnet.Run(cf.Context, tc))
 }
 
 type vnetAdminSetupCommand struct {
@@ -66,15 +57,11 @@ type vnetAdminSetupCommand struct {
 
 func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 	cmd := &vnetAdminSetupCommand{
-		CmdClause: app.Command(vnet.AdminSetupSubcommand, "Helper to run the vnet setup as root.").Hidden(),
+		CmdClause: app.Command(teleport.VnetAdminSetupSubCommand, "Helper to run the vnet setup as root.").Hidden(),
 	}
 
 	cmd.Flag("socket", "unix socket path").StringVar(&cmd.socketPath)
 	cmd.Flag("pidfile", "pid file path").StringVar(&cmd.pidFilePath)
 
 	return cmd
-}
-
-func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
-	return trace.Wrap(vnet.AdminSubcommand(cf.Context, c.socketPath, c.pidFilePath))
 }

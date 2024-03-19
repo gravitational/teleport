@@ -27,14 +27,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/tun"
-)
-
-const (
-	AdminSetupSubcommand = "vnet-admin-setup"
 )
 
 func CreateAndSetupTUNDevice(ctx context.Context) (tun.Device, func(), error) {
@@ -219,7 +216,7 @@ set executableName to "%s"
 set socketPath to "%s"
 set pidFile to "%s"
 do shell script quoted form of executableName & " %s --socket " & quoted form of socketPath & " --pidfile " & quoted form of pidFile with prompt "%s" with administrator privileges`,
-		executableName, socketPath, pidFile.Name(), AdminSetupSubcommand, prompt)
+		executableName, socketPath, pidFile.Name(), teleport.VnetAdminSetupSubCommand, prompt)
 	cmd := exec.CommandContext(ctx, "osascript", "-e", appleScript)
 	stderr := new(strings.Builder)
 	cmd.Stderr = stderr
