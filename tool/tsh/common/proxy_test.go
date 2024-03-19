@@ -647,9 +647,11 @@ func TestProxySSHJumpHost(t *testing.T) {
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 				withLeafConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 			},
 		},
@@ -658,9 +660,11 @@ func TestProxySSHJumpHost(t *testing.T) {
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 				withLeafConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 			},
 		},
@@ -669,9 +673,11 @@ func TestProxySSHJumpHost(t *testing.T) {
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 				withLeafConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 			},
 		},
@@ -680,9 +686,11 @@ func TestProxySSHJumpHost(t *testing.T) {
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 				withLeafConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 			},
 		},
