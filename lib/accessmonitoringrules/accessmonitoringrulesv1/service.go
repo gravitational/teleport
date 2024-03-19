@@ -141,21 +141,6 @@ func (s *Service) DeleteAccessMonitoringRule(ctx context.Context, req *accessmon
 	return &emptypb.Empty{}, nil
 }
 
-// DeleteAllAccessMonitoringRules deletes all access monitoring rules.
-func (s *Service) DeleteAllAccessMonitoringRules(ctx context.Context) (*emptypb.Empty, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := authCtx.CheckAccessToKind(types.KindAccessMonitoringRule, types.VerbDelete); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := s.backend.DeleteAllAccessMonitoringRules(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &emptypb.Empty{}, nil
-}
-
 // UpsertAccessMonitoringRule upserts the specified access monitoring rule.
 func (s *Service) UpsertAccessMonitoringRule(ctx context.Context, req *accessmonitoringrulesv1.UpsertAccessMonitoringRuleRequest) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)

@@ -23,11 +23,9 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
 	"github.com/gravitational/teleport/api/types/accessmonitoringrule"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
 
 // AccessMonitoringRules is the AccessMonitoringRule service
 type AccessMonitoringRules interface {

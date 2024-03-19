@@ -290,37 +290,6 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 			},
 			ErrAssertion: require.NoError,
 		},
-
-		// Delete all
-		{
-			Name: "remove all AccessMonitoringRules fails when no access",
-			Role: types.RoleSpecV6{},
-			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
-				_, err := resourceSvc.DeleteAllAccessMonitoringRules(ctx)
-				return err
-			},
-			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
-		},
-		{
-			Name: "remove all AccessMonitoringRules",
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{{
-					Resources: []string{types.KindAccessMonitoringRule},
-					Verbs:     []string{types.VerbDelete},
-				}}},
-			},
-			Setup: func(t *testing.T, _ string) {
-				for i := 0; i < 10; i++ {
-					_, err := localClient.CreateAccessMonitoringRule(ctx, sampleAccessMonitoringRuleFn(t, uuid.NewString()))
-					require.NoError(t, err)
-				}
-			},
-			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
-				_, err := resourceSvc.DeleteAllAccessMonitoringRules(ctx)
-				return err
-			},
-			ErrAssertion: require.NoError,
-		},
 	}
 
 	for _, tc := range tt {
