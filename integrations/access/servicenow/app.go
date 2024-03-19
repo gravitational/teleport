@@ -138,7 +138,7 @@ func (a *App) init(ctx context.Context) error {
 	log := logger.Get(ctx)
 
 	var err error
-	a.teleport, err = a.Conf.GetTeleportClient(ctx)
+	a.teleport, err = a.conf.GetTeleportClient(ctx)
 	if err != nil {
 		return trace.Wrap(err, "getting teleport client")
 	}
