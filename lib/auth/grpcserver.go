@@ -5648,6 +5648,12 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	clusterConfigService, err := clusterconfigv1.NewService(clusterconfigv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
+		AccessGraph: clusterconfigv1.AccessGraphConfig{
+			Enabled:  cfg.APIConfig.AccessGraph.Enabled,
+			CA:       cfg.APIConfig.AccessGraph.CA,
+			Address:  cfg.APIConfig.AccessGraph.Address,
+			Insecure: cfg.APIConfig.AccessGraph.Insecure,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

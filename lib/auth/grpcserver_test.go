@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -4711,6 +4712,69 @@ func TestDropDBClientCAEvents(t *testing.T) {
 			}
 			// watcher should see the first event if it wasn't dropped.
 			require.Equal(t, types.DatabaseClientCA, gotCA.GetType(), "db client CA event was not supposed to be dropped")
+		})
+	}
+}
+
+func TestGetAccessGraphConfig(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Policy: modules.PolicyFeature{
+				Enabled: true,
+			},
+		},
+	})
+	server := newTestTLSServer(t,
+		withAccessGraphConfig(AccessGraphConfig{
+			Enabled: true,
+			CA:      []byte("ca"),
+			Address: "addr",
+		}),
+	)
+
+	positiveResponse := &clusterconfigpb.AccessGraphConfig{
+		Enabled: true,
+		Ca:      []byte("ca"),
+		Address: "addr",
+	}
+
+	tests := []struct {
+		desc      string
+		role      types.SystemRole
+		assertErr require.ErrorAssertionFunc
+		expected  *clusterconfigpb.AccessGraphConfig
+	}{
+		{
+			desc:      "admin role can't pull the access graph config",
+			role:      types.RoleAdmin,
+			assertErr: require.Error,
+		},
+		{
+			desc:      "proxy can pull access graph config",
+			role:      types.RoleProxy,
+			assertErr: require.NoError,
+			expected:  positiveResponse,
+		},
+		{
+			desc:      "discovery can pull access graph config",
+			role:      types.RoleDiscovery,
+			assertErr: require.NoError,
+			expected:  positiveResponse,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			client, err := server.NewClient(TestIdentity{
+				I: authz.BuiltinRole{
+					Role:     test.role,
+					Username: server.ClusterName(),
+				},
+			})
+			require.NoError(t, err)
+			rsp, err := client.GetClusterAccessGraphConfig(context.Background())
+			test.assertErr(t, err)
+			require.Empty(t, cmp.Diff(test.expected, rsp, protocmp.Transform()))
 		})
 	}
 }
