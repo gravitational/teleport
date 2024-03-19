@@ -2011,6 +2011,8 @@ func TestMaxDuration(t *testing.T) {
 		"david": {"maxDurationReqRole"},
 	}
 
+	defaultSessionTTL := 8 * time.Hour
+
 	g := getMockGetter(t, roleDesc, userDesc)
 
 	tts := []struct {
@@ -2020,8 +2022,8 @@ func TestMaxDuration(t *testing.T) {
 		requestor string
 		// the roles to be requested (defaults to "dictator")
 		roles []string
-		// maxDuration is the requested maxDuration duration
-		maxDuration time.Duration
+		// requestedMaxDuration is the requested requestedMaxDuration duration
+		requestedMaxDuration time.Duration
 		// expectedAccessDuration is the expected access duration
 		expectedAccessDuration time.Duration
 		// expectedSessionTTL is the expected session TTL
@@ -2030,90 +2032,97 @@ func TestMaxDuration(t *testing.T) {
 		dryRun bool
 	}{
 		{
-			desc:                   "role maxDuration is respected",
+			desc:                   "role max_duration is respected and sessionTTL does not exceed the calculated max duration",
 			requestor:              "alice",
-			roles:                  []string{"requestedRole"},
-			maxDuration:            7 * day,
+			roles:                  []string{"requestedRole"}, // role max_duration capped to 3 days
+			requestedMaxDuration:   7 * day,                   // ignored b/c it's > role max_duration
 			expectedAccessDuration: 3 * day,
-			expectedSessionTTL:     8 * time.Hour,
+			expectedSessionTTL:     8 * time.Hour, // caps to defaultSessionTTL b/c it's < than the expectedAccessDuration
 		},
 		{
-			desc:                   "dry run allows for longer maxDuration then 7d",
+			desc:                   "role max_duration is still respected even with dry run (which requests for longer maxDuration)",
 			requestor:              "alice",
-			roles:                  []string{"requestedRole"},
-			maxDuration:            10 * day,
+			roles:                  []string{"requestedRole"}, // role max_duration capped to 3 days
+			requestedMaxDuration:   10 * day,                  // ignored b/c it's > role max_duration
 			expectedAccessDuration: 3 * day,
 			expectedSessionTTL:     8 * time.Hour,
 			dryRun:                 true,
 		},
 		{
-			desc:                   "maxDuration not set, default maxTTL (8h)",
-			requestor:              "bob",
-			roles:                  []string{"requestedRole"},
-			expectedAccessDuration: 8 * time.Hour,
+			desc:                   "role max_duration is ignored when requestedMaxDuration is not set",
+			requestor:              "alice",
+			roles:                  []string{"requestedRole"}, // role max_duration capped to 3 days
+			expectedAccessDuration: 8 * time.Hour,             // caps to defaultSessionTTL since requestedMaxDuration was not set
 			expectedSessionTTL:     8 * time.Hour,
 		},
 		{
-			desc:                   "maxDuration inside request is respected",
+			desc:                   "when role max_duration is not set: default to defaultSessionTTL when requestedMaxDuration is not set",
 			requestor:              "bob",
-			roles:                  []string{"requestedRole"},
-			maxDuration:            5 * time.Hour,
-			expectedAccessDuration: 8 * time.Hour,
+			roles:                  []string{"requestedRole"}, // role max_duration is not set (0)
+			expectedAccessDuration: 8 * time.Hour,             // caps to defaultSessionTTL since requestedMaxDuration was not set
 			expectedSessionTTL:     8 * time.Hour,
 		},
 		{
-			desc:                   "users with no MaxDuration are constrained by normal maxTTL logic",
+			desc:                   "when role max_duration is not set: requestedMaxDuration is respected when < defaultSessionTTL",
 			requestor:              "bob",
-			roles:                  []string{"requestedRole"},
-			maxDuration:            2 * day,
-			expectedAccessDuration: 8 * time.Hour,
+			roles:                  []string{"requestedRole"}, // role max_duration is not set (0)
+			requestedMaxDuration:   5 * time.Hour,
+			expectedAccessDuration: 5 * time.Hour,
+			expectedSessionTTL:     5 * time.Hour, // capped to expectedAccessDuration because it's < defaultSessionTTL (8h)
+		},
+		{
+			desc:                   "when role max_duration is not set: requestedMaxDuration is ignored if > defaultSessionTTL",
+			requestor:              "bob",
+			roles:                  []string{"requestedRole"}, // role max_duration is not set (0)
+			requestedMaxDuration:   10 * time.Hour,
+			expectedAccessDuration: 8 * time.Hour, // caps to defaultSessionTTL (8h) which is < requestedMaxDuration
 			expectedSessionTTL:     8 * time.Hour,
 		},
 		{
-			desc:                   "maxDuration can't exceed maxTTL by default",
+			desc:                   "when role max_duration is not set: requestedMaxDuration is ignored if > role defined sesssionTTL (6h)",
 			requestor:              "bob",
-			roles:                  []string{"setMaxTTLRole"},
-			maxDuration:            day,
-			expectedAccessDuration: 6 * time.Hour,
+			roles:                  []string{"setMaxTTLRole"}, // role max_duration is not set (0), caps sessionTTL to 6 hours
+			requestedMaxDuration:   day,
+			expectedAccessDuration: 6 * time.Hour, // capped to the lowest sessionTTL found in role (6h) which is < requestedMaxDuration
 			expectedSessionTTL:     6 * time.Hour,
 		},
 		{
-			desc:                   "maxDuration is ignored if max_duration is not set in role",
+			desc:                   "when role max_duration is not set: requestedMaxDuration is respected when < role defined sessionTTL (6h)",
 			requestor:              "bob",
-			roles:                  []string{"setMaxTTLRole"},
-			maxDuration:            2 * time.Hour,
-			expectedAccessDuration: 6 * time.Hour,
-			expectedSessionTTL:     6 * time.Hour,
+			roles:                  []string{"setMaxTTLRole"}, // role max_duration is not set (0), caps sessionTTL to 6 hours
+			requestedMaxDuration:   5 * time.Hour,
+			expectedAccessDuration: 5 * time.Hour, // caps to requestedMaxDuration which is < role defined sessionTTL (6h)
+			expectedSessionTTL:     5 * time.Hour,
 		},
 		{
-			desc:                   "maxDuration can exceed maxTTL if max_duration is set in role",
+			desc:                   "requestedMaxDuration is respected if it's < the max_duration set in role",
 			requestor:              "david",
-			roles:                  []string{"setMaxTTLRole"},
-			maxDuration:            day,
+			roles:                  []string{"setMaxTTLRole"}, // role max_duration capped to default MaxAccessDuration, caps sessionTTL to 6 hours
+			requestedMaxDuration:   day,                       // respected because it's < default const MaxAccessDuration
 			expectedAccessDuration: day,
-			expectedSessionTTL:     6 * time.Hour,
+			expectedSessionTTL:     6 * time.Hour, // capped to the lowest sessionTTL found in role which is < requestedMaxDuration
 		},
 		{
-			desc:                   "maxDuration shorter than maxTTL if max_duration is set in role",
+			desc:                   "expectedSessionTTL does not exceed requestedMaxDuration",
 			requestor:              "david",
-			roles:                  []string{"setMaxTTLRole"},
-			maxDuration:            2 * time.Hour,
+			roles:                  []string{"setMaxTTLRole"}, // caps max_duration to default MaxAccessDuration, caps sessionTTL to 6 hours
+			requestedMaxDuration:   2 * time.Hour,             // respected because it's < default const MaxAccessDuration
 			expectedAccessDuration: 2 * time.Hour,
-			expectedSessionTTL:     2 * time.Hour,
+			expectedSessionTTL:     2 * time.Hour, // capped to requestedMaxDuration because it's < role defined sessionTTL (6h)
 		},
 		{
-			desc:                   "only required roles are considered for maxDuration",
-			requestor:              "carol",
-			roles:                  []string{"requestedRole"},
-			maxDuration:            5 * day,
+			desc:                   "only the assigned role that allows the requested roles are considered for maxDuration",
+			requestor:              "carol",                   // has multiple roles assigned
+			roles:                  []string{"requestedRole"}, // caps max_duration to 3 days
+			requestedMaxDuration:   5 * day,
 			expectedAccessDuration: 3 * day,
 			expectedSessionTTL:     8 * time.Hour,
 		},
 		{
-			desc:                   "only required roles are considered for maxDuration #2",
-			requestor:              "carol",
-			roles:                  []string{"requestedRole2"},
-			maxDuration:            6 * day,
+			desc:                   "only the assigned role that allows the requested roles are considered for maxDuration #2",
+			requestor:              "carol",                    // has multiple roles assigned
+			roles:                  []string{"requestedRole2"}, // caps max_duration to 1 day
+			requestedMaxDuration:   6 * day,
 			expectedAccessDuration: day,
 			expectedSessionTTL:     8 * time.Hour,
 		},
@@ -2130,14 +2139,14 @@ func TestMaxDuration(t *testing.T) {
 			clock := clockwork.NewFakeClock()
 			now := clock.Now().UTC()
 			identity := tlsca.Identity{
-				Expires: now.Add(8 * time.Hour),
+				Expires: now.Add(defaultSessionTTL),
 			}
 
 			validator, err := NewRequestValidator(context.Background(), clock, g, tt.requestor, ExpandVars(true))
 			require.NoError(t, err)
 
 			req.SetCreationTime(now)
-			req.SetMaxDuration(now.Add(tt.maxDuration))
+			req.SetMaxDuration(now.Add(tt.requestedMaxDuration))
 			req.SetDryRun(tt.dryRun)
 
 			require.NoError(t, validator.Validate(context.Background(), req, identity))

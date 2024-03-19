@@ -1194,7 +1194,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 			return trace.Wrap(err)
 		}
 
-		maxDuration, err := m.calculateMaxAccessDuration(req)
+		maxDuration, err := m.calculateMaxAccessDuration(req, sessionTTL)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1242,7 +1242,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 // calculateMaxAccessDuration calculates the maximum time for the access request.
 // The max duration time is the minimum of the max_duration time set on the request
 // and the max_duration time set on the request role.
-func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (time.Duration, error) {
+func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest, sessionTTL time.Duration) (time.Duration, error) {
 	// Check if the maxDuration time is set.
 	maxDurationTime := req.GetMaxDuration()
 	if maxDurationTime.IsZero() {
@@ -1280,6 +1280,14 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (
 		if maxDurationForRole < minAdjDuration {
 			minAdjDuration = maxDurationForRole
 		}
+	}
+
+	// minAdjDuration can end up being 0, if any role does not have
+	// field `max_duration` defined.
+	// In this case, return the smaller value between the sessionTTL
+	// and the requested max duration.
+	if minAdjDuration == 0 && maxDuration < sessionTTL {
+		return maxDuration, nil
 	}
 
 	return minAdjDuration, nil
