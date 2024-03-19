@@ -52,7 +52,7 @@ func withMigrations(m []migration) func(c *applyConfig) {
 }
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentAuth,
+	teleport.ComponentKey: teleport.ComponentAuth,
 })
 
 var tracer = tracing.NewTracer("migrations")

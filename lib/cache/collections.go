@@ -1681,7 +1681,8 @@ func (authPreferenceExecutor) getAll(ctx context.Context, cache *Cache, loadSecr
 }
 
 func (authPreferenceExecutor) upsert(ctx context.Context, cache *Cache, resource types.AuthPreference) error {
-	return cache.clusterConfigCache.SetAuthPreference(ctx, resource)
+	_, err := cache.clusterConfigCache.UpsertAuthPreference(ctx, resource)
+	return trace.Wrap(err)
 }
 
 func (authPreferenceExecutor) deleteAll(ctx context.Context, cache *Cache) error {
@@ -1755,7 +1756,8 @@ func (clusterNetworkingConfigExecutor) getAll(ctx context.Context, cache *Cache,
 }
 
 func (clusterNetworkingConfigExecutor) upsert(ctx context.Context, cache *Cache, resource types.ClusterNetworkingConfig) error {
-	return cache.clusterConfigCache.SetClusterNetworkingConfig(ctx, resource)
+	_, err := cache.clusterConfigCache.UpsertClusterNetworkingConfig(ctx, resource)
+	return trace.Wrap(err)
 }
 
 func (clusterNetworkingConfigExecutor) deleteAll(ctx context.Context, cache *Cache) error {
@@ -1829,7 +1831,8 @@ func (sessionRecordingConfigExecutor) getAll(ctx context.Context, cache *Cache, 
 }
 
 func (sessionRecordingConfigExecutor) upsert(ctx context.Context, cache *Cache, resource types.SessionRecordingConfig) error {
-	return cache.clusterConfigCache.SetSessionRecordingConfig(ctx, resource)
+	_, err := cache.clusterConfigCache.UpsertSessionRecordingConfig(ctx, resource)
+	return trace.Wrap(err)
 }
 
 func (sessionRecordingConfigExecutor) deleteAll(ctx context.Context, cache *Cache) error {

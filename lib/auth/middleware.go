@@ -210,7 +210,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 			},
 		},
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: cfg.Component,
+			teleport.ComponentKey: cfg.Component,
 		}),
 	}
 	server.cfg.TLS.GetConfigForClient = server.GetConfigForClient

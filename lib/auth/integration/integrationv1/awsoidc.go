@@ -20,12 +20,16 @@ package integrationv1
 
 import (
 	"context"
+	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -37,7 +41,7 @@ import (
 )
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (s *Service) GenerateAWSOIDCToken(ctx context.Context, _ *integrationpb.GenerateAWSOIDCTokenRequest) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
+func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -46,12 +50,24 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, _ *integrationpb.Gen
 	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.generateAWSOIDCTokenWithoutAuthZ(ctx)
+
+	var integration types.Integration
+	// Clients in v15 or lower might not send the Integration
+	// All v16+ clients will send the Integration
+	// TODO(marco) DELETE IN v17.0
+	if req.Integration != "" {
+		integration, err = s.cache.GetIntegration(ctx, req.Integration)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return s.generateAWSOIDCTokenWithoutAuthZ(ctx, integration)
 }
 
 // generateAWSOIDCTokenWithoutAuthZ generates a token to be used when executing an AWS OIDC Integration action.
 // Bypasses authz and should only be used by other methods that validate AuthZ.
-func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
+func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context, integration types.Integration) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
 	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -81,9 +97,27 @@ func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context) (*integr
 		return nil, trace.Wrap(err)
 	}
 
-	issuer, err := oidc.IssuerForCluster(ctx, s.cache)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Clients in v15 or lower might not send the Integration
+	// All v16+ clients will send the Integration
+	// TODO(marco) DELETE IN v17.0
+	// Checking for an empty issuer must be kept.
+	var issuer string
+	if integration != nil {
+		issuerS3URI := integration.GetAWSOIDCIntegrationSpec().IssuerS3URI
+		if issuerS3URI != "" {
+			issuerS3URL, err := url.Parse(issuerS3URI)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			prefix := strings.TrimLeft(issuerS3URL.Path, "/")
+			issuer = fmt.Sprintf("https://%s.s3.amazonaws.com/%s", issuerS3URL.Host, prefix)
+		}
+	}
+	if issuer == "" {
+		issuer, err = oidc.IssuerForCluster(ctx, s.cache)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	token, err := privateKey.SignAWSOIDC(jwt.SignParams{
@@ -138,7 +172,7 @@ func (s *AWSOIDCServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if s.Logger == nil {
-		s.Logger = logrus.WithField(trace.Component, "integrations.awsoidc.service")
+		s.Logger = logrus.WithField(teleport.ComponentKey, "integrations.awsoidc.service")
 	}
 
 	return nil
@@ -203,7 +237,7 @@ func (s *AWSOIDCService) awsClientReq(ctx context.Context, integrationName, regi
 		return nil, trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
 	}
 
-	token, err := s.integrationService.generateAWSOIDCTokenWithoutAuthZ(ctx)
+	token, err := s.integrationService.generateAWSOIDCTokenWithoutAuthZ(ctx, integration)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

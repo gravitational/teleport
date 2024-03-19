@@ -116,6 +116,8 @@ type Config struct {
 	AccessPoint auth.DiscoveryAccessPoint
 	// Log is the logger.
 	Log logrus.FieldLogger
+	// ServerID identifies the Teleport instance where this service runs.
+	ServerID string
 	// onDatabaseReconcile is called after each database resource reconciliation.
 	onDatabaseReconcile func()
 	// protocolChecker is used by Kubernetes fetchers to check port's protocol if needed.
@@ -217,7 +219,7 @@ kubernetes matchers are present.`)
 		return trace.BadParameter("cluster features are required")
 	}
 
-	c.Log = c.Log.WithField(trace.Component, teleport.ComponentDiscovery)
+	c.Log = c.Log.WithField(teleport.ComponentKey, teleport.ComponentDiscovery)
 
 	if c.DiscoveryGroup == "" {
 		c.Log.Warn("discovery_service.discovery_group is not set. This field is required for the discovery service to work properly.\n" +

@@ -60,9 +60,6 @@ type ClusterConfiguration interface {
 	UpdateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
 	// UpsertAuthPreference creates a new auth preference or overwrites an existing auth preference.
 	UpsertAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
-	// SetAuthPreference sets types.AuthPreference from the backend.
-	// TODO(tross): Deprecate/Remove this once everything is converted to use the new methods.
-	SetAuthPreference(context.Context, types.AuthPreference) error
 	// DeleteAuthPreference deletes types.AuthPreference from the backend.
 	DeleteAuthPreference(ctx context.Context) error
 
@@ -74,9 +71,6 @@ type ClusterConfiguration interface {
 	UpdateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error)
 	// UpsertSessionRecordingConfig creates a new session recording config or overwrites the existing session recording.
 	UpsertSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error)
-	// SetSessionRecordingConfig sets SessionRecordingConfig from the backend.
-	// TODO(tross): Deprecate/Remove this once everything is converted to use the new methods.
-	SetSessionRecordingConfig(context.Context, types.SessionRecordingConfig) error
 	// DeleteSessionRecordingConfig deletes SessionRecordingConfig from the backend.
 	DeleteSessionRecordingConfig(ctx context.Context) error
 
@@ -102,9 +96,6 @@ type ClusterConfiguration interface {
 	UpdateClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error)
 	// UpsertClusterNetworkingConfig creates a new cluster networking config or overwrites the existing cluster networking config.
 	UpsertClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error)
-	// SetClusterNetworkingConfig sets ClusterNetworkingConfig from the backend.
-	// TODO(tross): Deprecate/Remove this once everything is converted to use the new methods.
-	SetClusterNetworkingConfig(context.Context, types.ClusterNetworkingConfig) error
 	// DeleteClusterNetworkingConfig deletes ClusterNetworkingConfig from the backend.
 	DeleteClusterNetworkingConfig(ctx context.Context) error
 

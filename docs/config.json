@@ -1174,18 +1174,8 @@
           ]
         },
         {
-          "title": "Configuring Access",
-          "slug": "/kubernetes-access/manage-access/",
-          "entries": [
-            {
-              "title": "Setting up Role-Based Access Controls",
-              "slug": "/kubernetes-access/manage-access/rbac/"
-            },
-            {
-              "title": "Federation",
-              "slug": "/kubernetes-access/manage-access/federation/"
-            }
-          ]
+          "title": "Setting up Role-Based Access Controls",
+          "slug": "/kubernetes-access/manage-access/"
         },
         {
           "title": "Access Controls Reference",
@@ -1354,13 +1344,7 @@
         },
         {
           "title": "Access Controls",
-          "slug": "/database-access/rbac/",
-          "entries": [
-            {
-              "title": "RBAC",
-              "slug": "/database-access/rbac/configuring-access/"
-            }
-          ]
+          "slug": "/database-access/rbac/"
         },
         {
           "title": "Automatic User Provisioning",
@@ -1847,7 +1831,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "15.1.1",
+      "version": "15.1.4",
       "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -1906,6 +1890,16 @@
     },
     "terraform": {
       "version": "1.0.0"
+    },
+    "db_ca": {
+      "released_version": "10"
+    },
+    "db_client_ca": {
+      "released_version": {
+        "v13": "13.4.17",
+        "v14": "14.3.7",
+        "v15": "15"
+      }
     }
   },
   "redirects": [
@@ -1915,123 +1909,13 @@
       "permanent": true
     },
     {
-      "source": "/production/",
-      "destination": "/deploy-a-cluster/deployments/",
-      "permanent": true
-    },
-    {
-      "source": "/admin-guide/",
-      "destination": "/management/admin/",
-      "permanent": true
-    },
-    {
-      "source": "/trustedclusters/",
-      "destination": "/management/admin/trustedclusters/",
-      "permanent": true
-    },
-    {
-      "source": "/reference/api/architecture/",
-      "destination": "/api/architecture/",
-      "permanent": true
-    },
-    {
-      "source": "/reference/api/getting-started/",
-      "destination": "/api/getting-started/",
-      "permanent": true
-    },
-    {
-      "source": "/reference/api/introduction/",
-      "destination": "/api/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/metrics-logs-reference/",
-      "destination": "/management/diagnostics/metrics/",
-      "permanent": true
-    },
-    {
-      "source": "/config-reference/",
-      "destination": "/reference/config/",
-      "permanent": true
-    },
-    {
-      "source": "/cli-docs/",
-      "destination": "/reference/cli/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/ssh-kubernetes-fedramp/",
-      "destination": "/access-controls/compliance-frameworks/fedramp/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/ssh-one-login/",
-      "destination": "/access-controls/sso/one-login/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/ssh-okta/",
-      "destination": "/access-controls/sso/okta/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/ssh-google-workspace/",
-      "destination": "/access-controls/sso/google-workspace/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/ssh-azuread/",
-      "destination": "/access-controls/sso/azuread/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/ssh-adfs/",
-      "destination": "/access-controls/sso/adfs/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/ssh-sso/",
-      "destination": "/access-controls/sso/",
-      "permanent": true
-    },
-    {
       "source": "/enterprise/ssh_sso/",
       "destination": "/access-controls/sso/",
       "permanent": true
     },
     {
-      "source": "/enterprise/quickstart-enterprise/",
-      "destination": "/choose-an-edition/teleport-enterprise/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/gcp-guide/",
-      "destination": "/deploy-a-cluster/deployments/gcp/",
-      "permanent": true
-    },
-    {
-      "source": "/ibm-cloud-guide/",
-      "destination": "/deploy-a-cluster/deployments/ibm/",
-      "permanent": true
-    },
-    {
-      "source": "/aws-terraform-guide/",
-      "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
-      "permanent": true
-    },
-    {
       "source": "/aws-terraform/",
       "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/guides/docker-compose/",
-      "destination": "/installation/",
-      "permanent": true
-    },
-    {
-      "source": "/cloud/",
-      "destination": "/choose-an-edition/teleport-cloud/introduction/",
       "permanent": true
     },
     {
@@ -2052,61 +1936,6 @@
     {
       "source": "/kubernetes-access/",
       "destination": "/kubernetes-access/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/ssh-rbac/",
-      "destination": "/access-controls/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/quickstart/",
-      "destination": "/",
-      "permanent": true
-    },
-    {
-      "source": "/preview/database-access/",
-      "destination": "/database-access/",
-      "permanent": true
-    },
-    {
-      "source": "/preview/cloud/",
-      "destination": "/choose-an-edition/teleport-cloud/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-ssh/",
-      "destination": "/kubernetes-access/",
-      "permanent": true
-    },
-    {
-      "source": "/features/ssh-pam/",
-      "destination": "/server-access/guides/ssh-pam/",
-      "permanent": true
-    },
-    {
-      "source": "/openssh-teleport/",
-      "destination": "/server-access/openssh/",
-      "permanent": true
-    },
-    {
-      "source": "/features/enhanced-session-recording/",
-      "destination": "/server-access/guides/bpf-session-recording/",
-      "permanent": true
-    },
-    {
-      "source": "/quickstart-docker/",
-      "destination": "/installation/",
-      "permanent": true
-    },
-    {
-      "source": "/database-access/guides/postgres-aws/",
-      "destination": "/database-access/guides/rds/",
-      "permanent": true
-    },
-    {
-      "source": "/database-access/guides/mysql-aws/",
-      "destination": "/database-access/guides/rds/",
       "permanent": true
     },
     {
@@ -2760,11 +2589,6 @@
       "permanent": true
     },
     {
-      "source": "/kubernetes-access/guides/federation/",
-      "destination": "/kubernetes-access/manage-access/federation/",
-      "permanent": true
-    },
-    {
       "source": "/kubernetes-access/guides/dynamic-registration/",
       "destination": "/kubernetes-access/register-clusters/dynamic-registration/",
       "permanent": true
@@ -3197,6 +3021,16 @@
     {
       "source": "/choose-an-edition/teleport-team/",
       "destination": "/choose-an-edition/teleport-cloud/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/manage-access/rbac/",
+      "destination": "/kubernetes-access/manage-access/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/rbac/configuring-access/",
+      "destination": "/database-access/rbac/",
       "permanent": true
     }
   ]

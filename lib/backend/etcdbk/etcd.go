@@ -279,7 +279,7 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 	}
 
 	b := &EtcdBackend{
-		Entry:       log.WithFields(log.Fields{trace.Component: GetName()}),
+		Entry:       log.WithFields(log.Fields{teleport.ComponentKey: GetName()}),
 		cfg:         cfg,
 		nodes:       cfg.Nodes,
 		cancelC:     make(chan bool, 1),

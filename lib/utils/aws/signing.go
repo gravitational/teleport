@@ -75,8 +75,7 @@ func (s *SigningServiceConfig) CheckAndSetDefaults() error {
 		ses, err := awssession.NewSessionWithOptions(awssession.Options{
 			SharedConfigState: awssession.SharedConfigEnable,
 			Config: aws.Config{
-				EC2MetadataEnableFallback: aws.Bool(false),
-				UseFIPSEndpoint:           useFIPSEndpoint,
+				UseFIPSEndpoint: useFIPSEndpoint,
 			},
 		})
 		if err != nil {

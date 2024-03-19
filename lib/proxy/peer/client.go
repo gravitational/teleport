@@ -103,7 +103,7 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 	}
 
 	c.Log = c.Log.WithField(
-		trace.Component,
+		teleport.ComponentKey,
 		teleport.Component(teleport.ComponentProxyPeer),
 	)
 

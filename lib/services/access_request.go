@@ -48,9 +48,9 @@ const (
 	// A day is sometimes 23 hours, sometimes 25 hours, usually 24 hours.
 	day = 24 * time.Hour
 
-	// maxAccessDuration is the maximum duration that an access request can be
+	// MaxAccessDuration is the maximum duration that an access request can be
 	// granted for.
-	maxAccessDuration = 14 * day
+	MaxAccessDuration = 14 * day
 
 	// requestTTL is the the TTL for an access request, i.e. the amount of time that
 	// the access request can be reviewed. Defaults to 1 week.
@@ -377,8 +377,8 @@ func ValidateAccessPredicates(role types.Role) error {
 	}
 
 	if maxDuration := role.GetAccessRequestConditions(types.Allow).MaxDuration; maxDuration.Duration() != 0 &&
-		maxDuration.Duration() > maxAccessDuration {
-		return trace.BadParameter("max access duration must be less than or equal to %v", maxAccessDuration)
+		maxDuration.Duration() > MaxAccessDuration {
+		return trace.BadParameter("max access duration must be less than or equal to %v", MaxAccessDuration)
 	}
 
 	return nil
@@ -426,8 +426,8 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 	req.SetReviews(append(req.GetReviews(), rev))
 
 	if rev.AssumeStartTime != nil {
-		if rev.AssumeStartTime.After(req.GetAccessExpiry()) {
-			return trace.BadParameter("request start time is after expiry")
+		if err := types.ValidateAssumeStartTime(*rev.AssumeStartTime, req.GetAccessExpiry(), req.GetCreationTime()); err != nil {
+			return trace.Wrap(err)
 		}
 		req.SetAssumeStartTime(*rev.AssumeStartTime)
 	}
@@ -1222,6 +1222,13 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		req.SetAccessExpiry(accessTTL)
 		// Adjusted max access duration is equal to the access expiry time.
 		req.SetMaxDuration(accessTTL)
+
+		if req.GetAssumeStartTime() != nil {
+			assumeStartTime := *req.GetAssumeStartTime()
+			if err := types.ValidateAssumeStartTime(assumeStartTime, accessTTL, req.GetCreationTime()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
 	}
 
 	return nil
@@ -1242,13 +1249,13 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (
 	// For dry run requests, use the maximum possible duration.
 	// This prevents the time drift that can occur as the value is set on the client side.
 	if req.GetDryRun() {
-		maxDuration = maxAccessDuration
+		maxDuration = MaxAccessDuration
 	} else if maxDuration < 0 {
 		return 0, trace.BadParameter("invalid maxDuration: must be greater than creation time")
 	}
 
-	if maxDuration > maxAccessDuration {
-		return 0, trace.BadParameter("max_duration must be less than or equal to %v", maxAccessDuration)
+	if maxDuration > MaxAccessDuration {
+		return 0, trace.BadParameter("max_duration must be less than or equal to %v", MaxAccessDuration)
 	}
 
 	minAdjDuration := maxDuration

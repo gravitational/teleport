@@ -241,9 +241,13 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MFADeviceDelete{}
 	case DeviceEvent: // Kept for backwards compatibility.
 		e = &events.DeviceEvent{}
-	case DeviceCreateEvent, DeviceDeleteEvent, DeviceUpdateEvent,
-		DeviceEnrollEvent, DeviceAuthenticateEvent,
-		DeviceEnrollTokenCreateEvent:
+	case DeviceCreateEvent,
+		DeviceDeleteEvent,
+		DeviceUpdateEvent,
+		DeviceEnrollEvent,
+		DeviceAuthenticateEvent,
+		DeviceEnrollTokenCreateEvent,
+		DeviceWebTokenCreateEvent:
 		e = &events.DeviceEvent2{}
 	case LockCreatedEvent:
 		e = &events.LockCreate{}
@@ -361,6 +365,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.ValidateMFAAuthResponse{}
 	case SPIFFESVIDIssuedEvent:
 		e = &events.SPIFFESVIDIssued{}
+	case AuthPreferenceUpdateEvent:
+		e = &events.AuthPreferenceUpdate{}
+	case ClusterNetworkingConfigUpdateEvent:
+		e = &events.ClusterNetworkingConfigUpdate{}
+	case SessionRecordingConfigUpdateEvent:
+		e = &events.SessionRecordingConfigUpdate{}
 
 	case UnknownEvent:
 		e = &events.Unknown{}
