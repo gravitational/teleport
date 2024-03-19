@@ -168,8 +168,9 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 	return nil
 }
 
-// checkPasswordWOToken checks just password without checking OTP tokens
-// used in case of SSH authentication, when token has been validated.
+// checkPasswordWOToken checks just password without checking OTP tokens. Marks
+// user's password state as SET if necessary.  Used in case of SSH or Web
+// authentication, when token has been validated.
 func (a *Server) checkPasswordWOToken(user string, password []byte) error {
 	const errMsg = "invalid username or password"
 
@@ -193,6 +194,25 @@ func (a *Server) checkPasswordWOToken(user string, password []byte) error {
 	// provided password is "barbaz", which is what fakePasswordHash hashes to.
 	if !userFound {
 		return trace.BadParameter(errMsg)
+	}
+
+	// At this point, we know that the user provided a correct password, so we may
+	// stop worrying about timing attacks against the user existence or password.
+	// Now mark the password state as SET to gradually transition those users for
+	// whom it's not known.
+	_, err = a.UpdateAndSwapUser(context.TODO(), user, true /* withSecrets */, func(u types.User) (bool, error) {
+		if u.GetPasswordState() == types.PasswordState_PASSWORD_STATE_SET {
+			return false, nil
+		}
+		u.SetPasswordState(types.PasswordState_PASSWORD_STATE_SET)
+		return true, nil
+	})
+	if err != nil {
+		// Don't let the password state flag change fail the entire operation.
+		log.
+			WithError(err).
+			WithField("user", user).
+			Warn("Failed to set password state")
 	}
 
 	return nil

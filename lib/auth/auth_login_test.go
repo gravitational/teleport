@@ -777,25 +777,57 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	svr := newTestTLSServer(t)
-	authServer := svr.Auth()
-	mfa := configureForMFA(t, svr)
-	username := mfa.User
-	password := mfa.Password
+	psUnspecified := types.PasswordState_PASSWORD_STATE_UNSPECIFIED
 
 	tests := []struct {
-		name           string
-		solveChallenge func(*proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+		name                 string
+		solveChallenge       func(*configureMFAResp, *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+		initialPasswordState *types.PasswordState
 	}{
-		{name: "OK TOTP device", solveChallenge: mfa.TOTPDev.SolveAuthn},
-		{name: "OK Webauthn device", solveChallenge: mfa.WebDev.SolveAuthn},
+		{
+			name: "OK TOTP device",
+			solveChallenge: func(mfa *configureMFAResp, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				return mfa.TOTPDev.SolveAuthn(c)
+			},
+		},
+		{
+			name: "OK Webauthn device",
+			solveChallenge: func(mfa *configureMFAResp, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				return mfa.WebDev.SolveAuthn(c)
+			},
+		},
+		{
+			name: "OK TOTP device (legacy)",
+			solveChallenge: func(mfa *configureMFAResp, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				return mfa.TOTPDev.SolveAuthn(c)
+			},
+			initialPasswordState: &psUnspecified,
+		},
 	}
 	for _, test := range tests {
 		test := test
+
 		// makeRun is used to test both SSH and Web login by switching the
 		// authenticate function.
 		makeRun := func(authenticate func(*Server, AuthenticateUserRequest) error) func(t *testing.T) {
 			return func(t *testing.T) {
+				svr := newTestTLSServer(t)
+				authServer := svr.Auth()
+				mfa := configureForMFA(t, svr)
+				username := mfa.User
+				password := mfa.Password
+
+				if test.initialPasswordState != nil {
+					// Enforce a specific password state.
+					u, err := authServer.Identity.UpdateAndSwapUser(ctx, username, false, /* withSecrets */
+						func(u types.User) (bool, error) {
+							u.SetPasswordState(*test.initialPasswordState)
+							return true, nil
+						})
+					require.NoError(t, err)
+					assert.Equal(t, *test.initialPasswordState, u.GetPasswordState())
+				}
+
 				// 1st step: acquire challenge
 				challenge, err := authServer.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 					Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
@@ -806,7 +838,7 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 				require.NoError(t, err)
 
 				// Solve challenge (client-side)
-				resp, err := test.solveChallenge(challenge)
+				resp, err := test.solveChallenge(mfa, challenge)
 				authReq := AuthenticateUserRequest{
 					Username:  username,
 					PublicKey: []byte(sshPubKey),
@@ -827,6 +859,11 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 
 				// 2nd step: finish login - either SSH or Web
 				require.NoError(t, authenticate(authServer, authReq))
+
+				// Verify that the password state has been changed.
+				u, err := authServer.GetUser(ctx, username, false /* withSecrets */)
+				require.NoError(t, err)
+				assert.Equal(t, types.PasswordState_PASSWORD_STATE_SET, u.GetPasswordState())
 			}
 		}
 		t.Run(test.name+"/ssh", makeRun(func(s *Server, req AuthenticateUserRequest) error {
