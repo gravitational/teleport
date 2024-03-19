@@ -767,7 +767,7 @@ var _ executor[types.TunnelConnection, tunnelConnectionGetter] = tunnelConnectio
 type remoteClusterExecutor struct{}
 
 func (remoteClusterExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.RemoteCluster, error) {
-	return cache.Presence.GetRemoteClusters()
+	return cache.Presence.GetRemoteClusters(ctx)
 }
 
 func (remoteClusterExecutor) upsert(ctx context.Context, cache *Cache, resource types.RemoteCluster) error {
@@ -778,11 +778,12 @@ func (remoteClusterExecutor) upsert(ctx context.Context, cache *Cache, resource 
 			return trace.Wrap(err)
 		}
 	}
-	return trace.Wrap(cache.presenceCache.CreateRemoteCluster(resource))
+	_, err = cache.presenceCache.CreateRemoteCluster(ctx, resource)
+	return trace.Wrap(err)
 }
 
 func (remoteClusterExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllRemoteClusters()
+	return cache.presenceCache.DeleteAllRemoteClusters(ctx)
 }
 
 func (remoteClusterExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
@@ -799,8 +800,9 @@ func (remoteClusterExecutor) getReader(cache *Cache, cacheOK bool) remoteCluster
 }
 
 type remoteClusterGetter interface {
-	GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error)
-	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
+	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
+	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
+	ListRemoteClusters(ctx context.Context, pageSize int, pageToken string) ([]types.RemoteCluster, string, error)
 }
 
 var _ executor[types.RemoteCluster, remoteClusterGetter] = remoteClusterExecutor{}
@@ -1227,6 +1229,7 @@ func (roleExecutor) getReader(cache *Cache, cacheOK bool) roleGetter {
 type roleGetter interface {
 	GetRoles(ctx context.Context) ([]types.Role, error)
 	GetRole(ctx context.Context, name string) (types.Role, error)
+	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
 }
 
 var _ executor[types.Role, roleGetter] = roleExecutor{}
@@ -1678,7 +1681,8 @@ func (authPreferenceExecutor) getAll(ctx context.Context, cache *Cache, loadSecr
 }
 
 func (authPreferenceExecutor) upsert(ctx context.Context, cache *Cache, resource types.AuthPreference) error {
-	return cache.clusterConfigCache.SetAuthPreference(ctx, resource)
+	_, err := cache.clusterConfigCache.UpsertAuthPreference(ctx, resource)
+	return trace.Wrap(err)
 }
 
 func (authPreferenceExecutor) deleteAll(ctx context.Context, cache *Cache) error {
@@ -1736,7 +1740,7 @@ func (clusterAuditConfigExecutor) getReader(cache *Cache, cacheOK bool) clusterA
 }
 
 type clusterAuditConfigGetter interface {
-	GetClusterAuditConfig(context.Context, ...services.MarshalOption) (types.ClusterAuditConfig, error)
+	GetClusterAuditConfig(context.Context) (types.ClusterAuditConfig, error)
 }
 
 var _ executor[types.ClusterAuditConfig, clusterAuditConfigGetter] = clusterAuditConfigExecutor{}
@@ -1752,7 +1756,8 @@ func (clusterNetworkingConfigExecutor) getAll(ctx context.Context, cache *Cache,
 }
 
 func (clusterNetworkingConfigExecutor) upsert(ctx context.Context, cache *Cache, resource types.ClusterNetworkingConfig) error {
-	return cache.clusterConfigCache.SetClusterNetworkingConfig(ctx, resource)
+	_, err := cache.clusterConfigCache.UpsertClusterNetworkingConfig(ctx, resource)
+	return trace.Wrap(err)
 }
 
 func (clusterNetworkingConfigExecutor) deleteAll(ctx context.Context, cache *Cache) error {
@@ -1773,7 +1778,7 @@ func (clusterNetworkingConfigExecutor) getReader(cache *Cache, cacheOK bool) clu
 }
 
 type clusterNetworkingConfigGetter interface {
-	GetClusterNetworkingConfig(context.Context, ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(context.Context) (types.ClusterNetworkingConfig, error)
 }
 
 var _ executor[types.ClusterNetworkingConfig, clusterNetworkingConfigGetter] = clusterNetworkingConfigExecutor{}
@@ -1826,7 +1831,8 @@ func (sessionRecordingConfigExecutor) getAll(ctx context.Context, cache *Cache, 
 }
 
 func (sessionRecordingConfigExecutor) upsert(ctx context.Context, cache *Cache, resource types.SessionRecordingConfig) error {
-	return cache.clusterConfigCache.SetSessionRecordingConfig(ctx, resource)
+	_, err := cache.clusterConfigCache.UpsertSessionRecordingConfig(ctx, resource)
+	return trace.Wrap(err)
 }
 
 func (sessionRecordingConfigExecutor) deleteAll(ctx context.Context, cache *Cache) error {
@@ -1847,7 +1853,7 @@ func (sessionRecordingConfigExecutor) getReader(cache *Cache, cacheOK bool) sess
 }
 
 type sessionRecordingConfigGetter interface {
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 }
 
 var _ executor[types.SessionRecordingConfig, sessionRecordingConfigGetter] = sessionRecordingConfigExecutor{}
@@ -2710,6 +2716,7 @@ func (accessListMemberExecutor) getReader(cache *Cache, cacheOK bool) accessList
 }
 
 type accessListMembersGetter interface {
+	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error)
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 }

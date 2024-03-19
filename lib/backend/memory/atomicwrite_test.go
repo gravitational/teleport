@@ -30,7 +30,7 @@ import (
 
 // newAtomicWriteTestBackend builds a backend suitable for the atomic write test suite. Once all backends implement AtomicWrite,
 // it will be integrated into the main backend interface and we can get rid of this separate helper.
-func newAtomicWriteTestBackend(options ...test.ConstructionOption) (backend.AtomicWriterBackend, clockwork.FakeClock, error) {
+func newAtomicWriteTestBackend(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
 	cfg, err := test.ApplyOptions(options)
 
 	if err != nil {
@@ -47,7 +47,7 @@ func newAtomicWriteTestBackend(options ...test.ConstructionOption) (backend.Atom
 		case *Memory:
 			return bk, nil, nil
 		case test.AtomicWriteShim:
-			if _, ok := bk.AtomicWriterBackend.(*Memory); !ok {
+			if _, ok := bk.Backend.(*Memory); !ok {
 				return nil, nil, trace.BadParameter("target is not a Memory backend (%T)", cfg.ConcurrentBackend)
 			}
 			return bk, nil, nil

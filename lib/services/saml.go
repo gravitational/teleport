@@ -260,7 +260,7 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 	switch sc.GetProvider() {
 	case teleport.ADFS, teleport.JumpCloud:
 		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentSAML,
+			teleport.ComponentKey: teleport.ComponentSAML,
 		}).Debug("Setting ADFS/JumpCloud values.")
 		if sp.SignAuthnRequests {
 			sp.SignAuthnRequestsCanonicalizer = dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList(dsig.DefaultPrefix)

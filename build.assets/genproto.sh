@@ -72,24 +72,15 @@ main() {
   echoed buf generate --template=buf-connect-go.gen.yaml \
     --path=proto/prehog/
 
-  # Generate JS protos.
-  # TODO(ryan): remove once Connect has migrated to the TS protobufs.
-  [[ $skip_js -eq 0 ]] && echoed buf generate --template=buf-js.gen.yaml \
-    --path=proto/prehog/ \
-    --path=proto/teleport/lib/teleterm/ \
-    --path=api/proto/teleport/userpreferences/ \
-    --path=api/proto/teleport/accesslist/ \
-    --path=api/proto/teleport/trait/ \
-    --path=api/proto/teleport/header/
-
   # Generate TS protos.
   [[ $skip_js -eq 0 ]] && echoed buf generate --template=buf-ts.gen.yaml \
     --path=proto/prehog/ \
     --path=proto/teleport/lib/teleterm/ \
-    --path=api/proto/teleport/userpreferences/ \
     --path=api/proto/teleport/accesslist/ \
+    --path=api/proto/teleport/devicetrust/ \
+    --path=api/proto/teleport/header/ \
     --path=api/proto/teleport/trait/ \
-    --path=api/proto/teleport/header/
+    --path=api/proto/teleport/userpreferences/
 }
 
 main "$@"

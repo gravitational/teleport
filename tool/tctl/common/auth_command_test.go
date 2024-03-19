@@ -380,7 +380,7 @@ func (p *pingSrv) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 }
 
 type mockClient struct {
-	auth.ClientI
+	*auth.Client
 
 	clusterName    types.ClusterName
 	userCerts      *proto.Certs
@@ -404,7 +404,7 @@ func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterNam
 	return c.clusterName, nil
 }
 
-func (c *mockClient) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (c *mockClient) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	if c.networkConfig == nil {
 		return &types.ClusterNetworkingConfigV2{}, nil
 	}
@@ -443,7 +443,7 @@ func (c *mockClient) GetProxies() ([]types.Server, error) {
 	return c.proxies, nil
 }
 
-func (c *mockClient) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+func (c *mockClient) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
 	return c.remoteClusters, nil
 }
 

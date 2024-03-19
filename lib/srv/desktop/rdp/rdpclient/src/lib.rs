@@ -103,10 +103,16 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             show_desktop_wallpaper: params.show_desktop_wallpaper,
         },
     ) {
-        Ok(_) => CGOResult {
+        Ok(res) => CGOResult {
             err_code: CGOErrCode::ErrCodeSuccess,
-            message: ptr::null_mut(),
+            message: match res {
+                Some(reason) => CString::new(reason.description().to_string())
+                    .map(|c| c.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                None => ptr::null_mut(),
+            },
         },
+
         Err(e) => {
             error!("client_run failed: {:?}", e);
             CGOResult {

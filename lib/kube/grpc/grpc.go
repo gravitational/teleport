@@ -28,6 +28,7 @@ import (
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	proto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -118,7 +119,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Log == nil {
 		c.Log = logrus.New()
 	}
-	c.Log = c.Log.WithFields(logrus.Fields{trace.Component: c.Component})
+	c.Log = c.Log.WithFields(logrus.Fields{teleport.ComponentKey: c.Component})
 	return nil
 }
 

@@ -21,21 +21,21 @@ import 'jest-canvas-mock';
 import { render, screen } from 'design/utils/testing';
 
 import {
-  Processing,
+  BothProcessing,
   TdpProcessing,
-  InvalidProcessingState,
+  FetchProcessing,
   ConnectedSettingsFalse,
   ConnectedSettingsTrue,
   Disconnected,
   FetchError,
-  ConnectionError,
+  TdpError,
   UnintendedDisconnect,
   WebAuthnPrompt,
   AnotherSessionActive,
 } from './DesktopSession.story';
 
 test('processing', () => {
-  const { container } = render(<Processing />);
+  const { container } = render(<BothProcessing />);
   expect(container).toMatchSnapshot();
 });
 
@@ -44,9 +44,9 @@ test('tdp processing', () => {
   expect(container).toMatchSnapshot();
 });
 
-test('invalid processing', () => {
-  render(<InvalidProcessingState />);
-  expect(screen.getByTestId('Modal')).toMatchSnapshot();
+test('fetch processing', () => {
+  const { container } = render(<FetchProcessing />);
+  expect(container).toMatchSnapshot();
 });
 
 test('connected settings false', () => {
@@ -70,7 +70,7 @@ test('fetch error', () => {
 });
 
 test('connection error', () => {
-  render(<ConnectionError />);
+  render(<TdpError />);
   expect(screen.getByTestId('Modal')).toMatchSnapshot();
 });
 

@@ -22,6 +22,7 @@ import { FileTransferDirection } from 'gen-proto-ts/teleport/lib/teleterm/v1/ser
 
 import { FileTransferRequest, TshdClient } from 'teleterm/services/tshd/types';
 import { UsageService } from 'teleterm/ui/services/usage';
+import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
 
 export class FileTransferService {
   constructor(
@@ -33,23 +34,10 @@ export class FileTransferService {
     options: FileTransferRequest,
     abortController: AbortController
   ): FileTransferListeners {
-    const abortSignal = {
-      aborted: false,
-      addEventListener: (cb: (...args: any[]) => void) => {
-        abortController.signal.addEventListener('abort', cb);
-      },
-      removeEventListener: (cb: (...args: any[]) => void) => {
-        abortController.signal.removeEventListener('abort', cb);
-      },
-    };
-    abortController.signal.addEventListener(
-      'abort',
-      () => {
-        abortSignal.aborted = true;
-      },
-      { once: true }
+    const listeners = this.tshClient.transferFile(
+      options,
+      cloneAbortSignal(abortController.signal)
     );
-    const listeners = this.tshClient.transferFile(options, abortSignal);
     if (options.direction === FileTransferDirection.DOWNLOAD) {
       this.usageService.captureFileTransferRun(options.serverUri, {
         isUpload: false,

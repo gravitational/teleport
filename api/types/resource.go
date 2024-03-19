@@ -120,6 +120,15 @@ type ResourceWithLabels interface {
 	MatchSearch(searchValues []string) bool
 }
 
+// EnrichedResource is a [ResourceWithLabels] wrapped with
+// additional user-specific information.
+type EnrichedResource struct {
+	// ResourceWithLabels is the underlying resource.
+	ResourceWithLabels
+	// Logins that the user is allowed to access the above resource with.
+	Logins []string
+}
+
 // ResourcesWithLabels is a list of labeled resources.
 type ResourcesWithLabels []ResourceWithLabels
 
@@ -378,6 +387,11 @@ func (h *ResourceHeader) GetAllLabels() map[string]string {
 	return h.Metadata.Labels
 }
 
+// IsEqual determines if two resource header resources are equivalent to one another.
+func (h *ResourceHeader) IsEqual(other *ResourceHeader) bool {
+	return deriveTeleportEqualResourceHeader(h, other)
+}
+
 func (h *ResourceHeader) CheckAndSetDefaults() error {
 	if h.Kind == "" {
 		return trace.BadParameter("resource has an empty Kind field")
@@ -450,6 +464,11 @@ func (m *Metadata) SetOrigin(origin string) {
 		m.Labels = map[string]string{}
 	}
 	m.Labels[OriginLabel] = origin
+}
+
+// IsEqual determines if two metadata resources are equivalent to one another.
+func (m *Metadata) IsEqual(other *Metadata) bool {
+	return deriveTeleportEqualMetadata(m, other)
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults

@@ -16,29 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen, userEvent } from 'design/utils/testing';
+import { render, screen } from 'design/utils/testing';
 import React from 'react';
 
 import { within } from '@testing-library/react';
+import { userEvent, UserEvent } from '@testing-library/user-event';
 
 import TeleportContext from 'teleport/teleportContext';
 import { ContextProvider } from 'teleport';
-import MfaService from 'teleport/services/mfa';
-import cfg from 'teleport/config';
+import MfaService, { DeviceUsage } from 'teleport/services/mfa';
 import auth from 'teleport/services/auth/auth';
 
 import { AddAuthDeviceWizard } from '.';
 
 const dummyCredential: Credential = { id: 'cred-id', type: 'public-key' };
+let ctx: TeleportContext;
+let user: UserEvent;
+let onSuccess: jest.Mock;
 
 beforeEach(() => {
-  jest.replaceProperty(cfg.auth, 'second_factor', 'optional');
+  ctx = new TeleportContext();
+  user = userEvent.setup();
+  onSuccess = jest.fn();
+
   jest
     .spyOn(MfaService.prototype, 'createNewWebAuthnDevice')
     .mockResolvedValueOnce(dummyCredential);
   jest
     .spyOn(MfaService.prototype, 'saveNewWebAuthnDevice')
-    .mockResolvedValueOnce('some-credential');
+    .mockResolvedValueOnce(undefined);
   jest
     .spyOn(auth, 'createPrivilegeTokenWithWebauthn')
     .mockResolvedValueOnce('webauthn-privilege-token');
@@ -47,22 +53,29 @@ beforeEach(() => {
     .mockImplementationOnce(token =>
       Promise.resolve(`totp-privilege-token-${token}`)
     );
+  jest.spyOn(auth, 'createMfaRegistrationChallenge').mockResolvedValueOnce({
+    qrCode: 'dummy-qr-code',
+    webauthnPublicKey: {} as PublicKeyCredentialCreationOptions,
+  });
+  jest
+    .spyOn(MfaService.prototype, 'addNewTotpDevice')
+    .mockResolvedValueOnce(undefined);
 });
 
 afterEach(jest.resetAllMocks);
 
 function TestWizard({
-  ctx,
   privilegeToken,
-  onSuccess,
+  usage,
 }: {
-  ctx: TeleportContext;
   privilegeToken?: string;
-  onSuccess(): void;
+  usage: DeviceUsage;
 }) {
   return (
     <ContextProvider ctx={ctx}>
       <AddAuthDeviceWizard
+        usage={usage}
+        auth2faType="optional"
         privilegeToken={privilegeToken}
         onClose={() => {}}
         onSuccess={onSuccess}
@@ -73,15 +86,8 @@ function TestWizard({
 
 describe('flow without reauthentication', () => {
   test('adds a passkey', async () => {
-    const ctx = new TeleportContext();
-    const user = userEvent.setup();
-    const onSuccess = jest.fn();
     render(
-      <TestWizard
-        ctx={ctx}
-        onSuccess={onSuccess}
-        privilegeToken="privilege-token"
-      />
+      <TestWizard usage="passwordless" privilegeToken="privilege-token" />
     );
 
     const createStep = within(screen.getByTestId('create-step'));
@@ -108,14 +114,67 @@ describe('flow without reauthentication', () => {
     });
     expect(onSuccess).toHaveBeenCalled();
   });
+
+  test('adds a WebAuthn MFA', async () => {
+    render(<TestWizard usage="mfa" privilegeToken="privilege-token" />);
+
+    const createStep = within(screen.getByTestId('create-step'));
+    await user.click(createStep.getByLabelText('Hardware Device'));
+    await user.click(
+      createStep.getByRole('button', { name: 'Create an MFA method' })
+    );
+    expect(ctx.mfaService.createNewWebAuthnDevice).toHaveBeenCalledWith({
+      tokenId: 'privilege-token',
+      deviceUsage: 'mfa',
+    });
+
+    const saveStep = within(screen.getByTestId('save-step'));
+    await user.type(saveStep.getByLabelText('MFA Method Name'), 'new-mfa');
+    await user.click(
+      saveStep.getByRole('button', { name: 'Save the MFA method' })
+    );
+    expect(ctx.mfaService.saveNewWebAuthnDevice).toHaveBeenCalledWith({
+      credential: dummyCredential,
+      addRequest: {
+        deviceName: 'new-mfa',
+        deviceUsage: 'mfa',
+        tokenId: 'privilege-token',
+      },
+    });
+    expect(onSuccess).toHaveBeenCalled();
+  });
+
+  test('adds an authenticator app', async () => {
+    render(<TestWizard usage="mfa" privilegeToken="privilege-token" />);
+
+    const createStep = within(screen.getByTestId('create-step'));
+    await user.click(createStep.getByLabelText('Authenticator App'));
+    expect(createStep.getByRole('img')).toHaveAttribute(
+      'src',
+      'data:image/png;base64,dummy-qr-code'
+    );
+    await user.click(
+      createStep.getByRole('button', { name: 'Create an MFA method' })
+    );
+
+    const saveStep = within(screen.getByTestId('save-step'));
+    await user.type(saveStep.getByLabelText('MFA Method Name'), 'new-mfa');
+    await user.type(saveStep.getByLabelText(/Authenticator Code/), '345678');
+    await user.click(
+      saveStep.getByRole('button', { name: 'Save the MFA method' })
+    );
+    expect(ctx.mfaService.addNewTotpDevice).toHaveBeenCalledWith({
+      tokenId: 'privilege-token',
+      secondFactorToken: '345678',
+      deviceName: 'new-mfa',
+    });
+    expect(onSuccess).toHaveBeenCalled();
+  });
 });
 
 describe('flow with reauthentication', () => {
   test('adds a passkey with WebAuthn reauthentication', async () => {
-    const ctx = new TeleportContext();
-    const user = userEvent.setup();
-    const onSuccess = jest.fn();
-    render(<TestWizard ctx={ctx} onSuccess={onSuccess} />);
+    render(<TestWizard usage="passwordless" />);
 
     const reauthenticateStep = within(
       screen.getByTestId('reauthenticate-step')
@@ -148,10 +207,7 @@ describe('flow with reauthentication', () => {
   });
 
   test('adds a passkey with OTP reauthentication', async () => {
-    const ctx = new TeleportContext();
-    const user = userEvent.setup();
-    const onSuccess = jest.fn();
-    render(<TestWizard ctx={ctx} onSuccess={onSuccess} />);
+    render(<TestWizard usage="passwordless" />);
 
     const reauthenticateStep = within(
       screen.getByTestId('reauthenticate-step')

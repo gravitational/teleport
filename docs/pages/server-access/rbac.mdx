@@ -14,14 +14,6 @@ emergency.*
 For a more general description of Teleport roles and examples see our [Access Controls guides](../access-controls/introduction.mdx), as
 this section focuses on configuring RBAC for servers connected to Teleport.
 
-<Notice type="tip">
-
-Teleport's RBAC system does not extend to OpenSSH servers, as it is not possible
-to apply labels to servers running `sshd`. You must enable access to these
-servers via the Teleport SSH Service instead.
-
-</Notice>
-
 ## Role configuration
 
 Teleport's "role" resource provides the following instruments for restricting

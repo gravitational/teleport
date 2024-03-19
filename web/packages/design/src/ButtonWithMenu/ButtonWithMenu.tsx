@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ReactElement, useRef, useState } from 'react';
+import { ComponentType, ReactElement, useRef, useState } from 'react';
 
 import { ButtonBorder, Flex, Menu, MenuItem } from 'design';
 import * as icons from 'design/Icon';
@@ -48,7 +48,7 @@ import { IconProps } from 'design/Icon/Icon';
 export const ButtonWithMenu = (props: {
   text: string;
   children: MenuItemComponent | MenuItemComponent[];
-  MenuIcon?: React.ComponentType<IconProps>;
+  MenuIcon?: ComponentType<IconProps>;
   [buttonBorderProp: string]: any;
 }) => {
   const {
@@ -84,7 +84,10 @@ export const ButtonWithMenu = (props: {
         `}
         title="Open menu"
       >
-        <MenuIcon size={buttonBorderProps.size} color="text.slightlyMuted" />
+        <MenuIcon
+          size={menuIconSize[buttonBorderProps.size]}
+          color="text.slightlyMuted"
+        />
       </ButtonBorder>
       <Menu
         anchorEl={moreButtonRef.current}
@@ -106,6 +109,12 @@ export const ButtonWithMenu = (props: {
       </Menu>
     </Flex>
   );
+};
+
+const menuIconSize = {
+  large: 28,
+  medium: 24,
+  small: 16,
 };
 
 // TODO(ravicious): At the moment, this doesn't accomplish much – it only prevents ButtonWithMenu

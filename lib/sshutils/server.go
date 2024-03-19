@@ -137,7 +137,7 @@ func SetIngressReporter(service string, r *ingress.Reporter) ServerOption {
 // SetLogger sets the logger for the server
 func SetLogger(logger logrus.FieldLogger) ServerOption {
 	return func(s *Server) error {
-		s.log = logger.WithField(trace.Component, "ssh:"+s.component)
+		s.log = logger.WithField(teleport.ComponentKey, "ssh:"+s.component)
 		return nil
 	}
 }
@@ -205,7 +205,7 @@ func NewServer(
 	closeContext, cancel := context.WithCancel(context.TODO())
 	s := &Server{
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "ssh:" + component,
+			teleport.ComponentKey: "ssh:" + component,
 		}),
 		addr:           a,
 		newChanHandler: h,
@@ -635,7 +635,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			if s.reqHandler != nil {
 				go func(span oteltrace.Span) {
 					defer span.End()
-					s.reqHandler.HandleRequest(ctx, req)
+					s.reqHandler.HandleRequest(ctx, ccx, req)
 				}(span)
 			} else {
 				span.End()
@@ -678,7 +678,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 type RequestHandler interface {
-	HandleRequest(ctx context.Context, r *ssh.Request)
+	HandleRequest(ctx context.Context, ccx *ConnectionContext, r *ssh.Request)
 }
 
 type NewChanHandler interface {

@@ -13,8 +13,7 @@ Teleport role to manage access to Kubernetes clusters you have connected to
 Teleport.
 
 For an example of how to use Teleport roles to manage access to Kubernetes with
-a local `minikube` cluster, see our [RBAC how-to
-guide](./manage-access/rbac.mdx).
+a local `minikube` cluster, see our [RBAC how-to guide](./manage-access.mdx).
 
 ## Role fields for managing Kubernetes access
 
@@ -339,7 +338,7 @@ permissions to a service account.
 <Notice type="tip">
 
 There is usually no need to define these resources manually. The [manual
-methods](./register-clusters.mdx) and [automatic methods](./discovery.mdx) for
+methods](./register-clusters.mdx) and [automatic methods](../auto-discovery/kubernetes.mdx) for
 registering Kubernetes clusters with Teleport include steps for setting up the
 Kubernetes RBAC resources that Teleport needs to allow access to clusters.
 

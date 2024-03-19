@@ -12,9 +12,9 @@ to collect information about resources and access.
 This guide will help you set up the TAG service
 and enable the Access Graph feature in your Teleport cluster.
 
-Teleport Access Graph is enabled by default for Teleport Team users.
-You can skip the setup process here and start using Access Graph right away
-by signing up for a [Teleport Team trial](https://goteleport.com/signup/).
+Teleport Access Graph is a feature of the [Teleport
+Policy](https://goteleport.com/platform/policy/) product that is only available
+to Teleport Enterprise customers.
 
 ## Prerequisites
 
@@ -23,17 +23,17 @@ by signing up for a [Teleport Team trial](https://goteleport.com/signup/).
 - Docker version v(=docker.version=) or later.
 - A PostgreSQL database server v14 or later.
   - Access Graph needs a dedicated [database](https://www.postgresql.org/docs/current/sql-createdatabase.html) to store its data.
-    The user that TAG connects to the database with needs to be an owner of this database, or have similar broad permissions:
+    The user that TAG connects to the database with needs to be the owner of this database, or have similar broad permissions:
     at least the `CREATE TABLE` privilege on the `public` schema, and the `CREATE SCHEMA` privilege.
   - Amazon RDS for PostgreSQL is supported.
 - A TLS certificate for the Access Graph service
   - The TLS certificate must be issued for "server authentication" key usage,
     and must list the IP or DNS name of the TAG service in an X.509 v3 `subjectAltName` extension.
-- The node running the Access Graph service must be reachable from Teleport Auth and Proxy services.
+- The node running the Access Graph service must be reachable from Teleport Auth Service and Proxy Service.
 
 ## Step 1/3. Set up the Teleport Access Graph service
 
-You'll need a copy of your Teleport cluster's host certificate authority (CA) on the machine that hosts the Access Graph service.
+You will need a copy of your Teleport cluster's host certificate authority (CA) on the machine that hosts the Access Graph service.
 TAG requires incoming connections to be authenticated via host certificates that the host CA issues to the Auth Service and Proxy Service.
 
 The host CA can be retrieved and saved into a file in one of the following ways:
@@ -41,18 +41,18 @@ The host CA can be retrieved and saved into a file in one of the following ways:
 <Tabs>
 <TabItem label="Via curl">
 ```code
-$ mkdir /etc/access_graph
-$ curl 'https://<Var name="teleport.example.com" />/webapi/auth/export?type=tls-host' > /etc/access_graph/teleport_host_ca.pem
+$ sudo mkdir /etc/access_graph
+$ curl -s 'https://<Var name="teleport.example.com" />/webapi/auth/export?type=tls-host' | sudo tee /etc/access_graph/teleport_host_ca.pem
 ```
 </TabItem>
 
 <TabItem label="Via tctl">
 ```code
-$ mkdir /etc/access_graph
+$ sudo mkdir /etc/access_graph
 $ tsh login --proxy=<Var name="teleport.example.com" />
 $ tctl get cert_authorities --format=json \
     | jq -r '.[] | select(.spec.type == "host") | .spec.active_keys.tls[].cert' \
-    | base64 -d > /etc/access_graph/teleport_host_ca.pem
+    | base64 -d | sudo tee /etc/access_graph/teleport_host_ca.pem
 ```
 </TabItem>
 </Tabs>
@@ -66,7 +66,7 @@ backend:
     # A stricter `sslmode` value is strongly recommended,
     # e.g. `sslmode=verify-full&sslrootcert=/etc/access_graph/my_postgres_ca.crt`.
     # For a full reference on possible parameters see https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-PARAMKEYWORDS
-    connection: postgres://access_graph_user:mypassword@db.example.com:5432/access_graph_db?sslmode=require
+    connection: postgres://access_graph_user:my_password@db.example.com:5432/access_graph_db?sslmode=require
 
     # When running on Amazon RDS, IAM auth via credentials set in the environment can be used as follows:
     # iam:
@@ -90,7 +90,7 @@ registration_cas:
 Finally, start the TAG service using Docker as follows:
 
 ```console
-$ docker run -v <path-to-config>:/app/config.yaml -v /etc/access_graph:/etc/access_graph public.ecr.aws/gravitational/access-graph:(=access_graph.version=)
+$ docker run -p 50051:50051 -v <path-to-config>:/app/config.yaml -v /etc/access_graph:/etc/access_graph public.ecr.aws/gravitational/access-graph:(=access_graph.version=)
 ```
 
 ## Step 2/3. Update the Teleport Auth Service configuration
@@ -118,7 +118,7 @@ To access the interface, your user must have a role that allows `list` and `read
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: my-role
 spec:

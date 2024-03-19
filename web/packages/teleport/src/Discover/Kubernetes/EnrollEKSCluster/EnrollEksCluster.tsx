@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { Box, ButtonSecondary, ButtonText, Text, Toggle } from 'design';
+import React, { useState, useCallback } from 'react';
+import { Box, ButtonPrimary, ButtonText, Link, Text, Toggle } from 'design';
 import styled from 'styled-components';
 import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
@@ -33,20 +33,33 @@ import {
   AwsEksCluster,
 } from 'teleport/services/integrations';
 
+import {
+  DISCOVERY_GROUP_CLOUD,
+  DEFAULT_DISCOVERY_GROUP_NON_CLOUD,
+  DiscoveryConfig,
+  createDiscoveryConfig,
+} from 'teleport/services/discovery';
 import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
 import { ConfigureIamPerms } from 'teleport/Discover/Shared/Aws/ConfigureIamPerms';
 import { isIamPermError } from 'teleport/Discover/Shared/Aws/error';
 import { AgentStepProps } from 'teleport/Discover/types';
 import useTeleport from 'teleport/useTeleport';
 
-import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { generateCmd } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
 import { Kube } from 'teleport/services/kube';
 
-import { Header, ResourceKind } from '../../Shared';
+import { JoinToken } from 'teleport/services/joinToken';
+import cfg from 'teleport/config';
+
+import {
+  ActionButtons,
+  Header,
+  SelfHostedAutoDiscoverDirections,
+  AutoEnrollDialog,
+} from '../../Shared';
 
 import { ClustersList } from './EksClustersList';
-import { ManualHelmDialog } from './ManualHelmDialog';
+import ManualHelmDialog from './ManualHelmDialog';
 import { EnrollmentDialog } from './EnrollmentDialog';
 import { AgentWaitingDialog } from './AgentWaitingDialog';
 
@@ -76,7 +89,7 @@ type EKSClusterEnrollmentState = {
 };
 
 export function EnrollEksCluster(props: AgentStepProps) {
-  const { agentMeta, emitErrorEvent } = useDiscover();
+  const { agentMeta, updateAgentMeta, emitErrorEvent } = useDiscover();
   const { attempt: fetchClustersAttempt, setAttempt: setFetchClustersAttempt } =
     useAttempt('');
 
@@ -93,17 +106,22 @@ export function EnrollEksCluster(props: AgentStepProps) {
       status: 'notStarted',
     });
   const [isAppDiscoveryEnabled, setAppDiscoveryEnabled] = useState(true);
+  const [isAutoDiscoveryEnabled, setAutoDiscoveryEnabled] = useState(true);
   const [isAgentWaitingDialogShown, setIsAgentWaitingDialogShown] =
     useState(false);
   const [isManualHelmDialogShown, setIsManualHelmDialogShown] = useState(false);
   const [waitingResourceId, setWaitingResourceId] = useState('');
-  const ctx = useTeleport();
+  const [discoveryGroupName, setDiscoveryGroupName] = useState(() =>
+    cfg.isCloud ? '' : DEFAULT_DISCOVERY_GROUP_NON_CLOUD
+  );
+  const [autoDiscoveryCfg, setAutoDiscoveryCfg] = useState<DiscoveryConfig>();
+  const { attempt: autoDiscoverAttempt, setAttempt: setAutoDiscoverAttempt } =
+    useAttempt('');
+  // join token will be set only if user opens ManualHelmDialog,
+  // we delay it to avoid premature admin action MFA confirmation request.
+  const [joinToken, setJoinToken] = useState<JoinToken>(null);
 
-  const { joinToken } = useJoinTokenSuspender([
-    ResourceKind.Kubernetes,
-    ResourceKind.Application,
-    ResourceKind.Discovery,
-  ]);
+  const ctx = useTeleport();
 
   function fetchClustersWithNewRegion(region: Regions) {
     setSelectedRegion(region);
@@ -195,6 +213,52 @@ export function EnrollEksCluster(props: AgentStepProps) {
     });
   }
 
+  async function enableAutoDiscovery() {
+    setAutoDiscoverAttempt({ status: 'processing' });
+
+    let discoveryConfig = autoDiscoveryCfg;
+    if (!discoveryConfig) {
+      try {
+        discoveryConfig = await createDiscoveryConfig(
+          ctx.storeUser.getClusterId(),
+          {
+            name: crypto.randomUUID(),
+            discoveryGroup: cfg.isCloud
+              ? DISCOVERY_GROUP_CLOUD
+              : discoveryGroupName,
+            aws: [
+              {
+                types: ['eks'],
+                regions: [tableData.currRegion],
+                tags: { '*': ['*'] },
+                integration: agentMeta.awsIntegration.name,
+                kubeAppDiscovery: isAppDiscoveryEnabled,
+              },
+            ],
+          }
+        );
+        setAutoDiscoveryCfg(discoveryConfig);
+      } catch (err) {
+        const message = getErrMessage(err);
+        setAutoDiscoverAttempt({
+          status: 'failed',
+          statusText: `failed to create discovery config: ${message}`,
+        });
+
+        emitErrorEvent(`failed to create discovery config: ${message}`);
+      }
+    }
+
+    setAutoDiscoverAttempt({ status: 'success' });
+    updateAgentMeta({
+      ...agentMeta,
+      autoDiscovery: {
+        config: discoveryConfig,
+      },
+      awsRegion: tableData.currRegion,
+    } as EksMeta);
+  }
+
   async function enroll() {
     const integrationName = (agentMeta as EksMeta).awsIntegration.name;
     setEnrollmentState({ status: 'enrolling' });
@@ -205,8 +269,6 @@ export function EnrollEksCluster(props: AgentStepProps) {
         {
           region: selectedRegion,
           enableAppDiscovery: isAppDiscoveryEnabled,
-          joinToken: joinToken.id,
-          resourceId: joinToken.internalResourceId,
           clusterNames: [selectedCluster.name],
         }
       );
@@ -222,7 +284,12 @@ export function EnrollEksCluster(props: AgentStepProps) {
         emitErrorEvent(
           'unknown error: no results came back from enrolling the EKS cluster.'
         );
-      } else if (result.error) {
+      } else if (
+        result.error &&
+        !result.error.message.includes(
+          'teleport-kube-agent is already installed on the cluster'
+        )
+      ) {
         setEnrollmentState({
           status: 'error',
           error: `Cluster enrollment error: ${result.error}`,
@@ -243,7 +310,8 @@ export function EnrollEksCluster(props: AgentStepProps) {
   }
 
   async function handleOnProceed() {
-    props.updateAgentMeta({
+    updateAgentMeta({
+      ...props.agentMeta,
       kube: confirmedCluster,
       resourceName: confirmedCluster.name,
     } as EksMeta);
@@ -252,6 +320,19 @@ export function EnrollEksCluster(props: AgentStepProps) {
   }
 
   const hasIamPermError = isIamPermError(fetchClustersAttempt);
+  const showContent =
+    !hasIamPermError &&
+    tableData.currRegion &&
+    fetchClustersAttempt.status === 'success';
+
+  // (Temp)
+  // Self hosted auto enroll is different from cloud.
+  // For cloud, we already run the discovery service for customer.
+  // For on-prem, user has to run their own discovery service.
+  // We hide the clusters table for on-prem if they are wanting auto discover
+  // because it takes up so much space to give them instructions.
+  // Future work will simply provide user a script so we can show the table then.
+  const showTable = cfg.isCloud || !isAutoDiscoveryEnabled;
 
   const closeEnrollmentDialog = () => {
     setEnrollmentState({ status: 'notStarted' });
@@ -262,23 +343,34 @@ export function EnrollEksCluster(props: AgentStepProps) {
     !selectedCluster ||
     enrollmentState.status !== 'notStarted';
 
-  let command = '';
-  if (selectedCluster) {
-    command = generateCmd({
-      namespace: 'teleport-agent',
-      clusterName: selectedCluster.name,
-      proxyAddr: ctx.storeUser.state.cluster.publicURL,
-      tokenId: joinToken.id,
-      clusterVersion: ctx.storeUser.state.cluster.authVersion,
-      resourceId: joinToken.internalResourceId,
-      isEnterprise: ctx.isEnterprise,
-      isCloud: ctx.isCloud,
-      automaticUpgradesEnabled: ctx.automaticUpgradesEnabled,
-      automaticUpgradesTargetVersion: ctx.automaticUpgradesTargetVersion,
-      joinLabels: [...selectedCluster.labels, ...selectedCluster.joinLabels],
-      disableAppDiscovery: !isAppDiscoveryEnabled,
-    });
-  }
+  const setJoinTokenAndGetCommand = useCallback(
+    (token: JoinToken) => {
+      setJoinToken(token);
+      return generateCmd({
+        namespace: 'teleport-agent',
+        clusterName: selectedCluster.name,
+        proxyAddr: ctx.storeUser.state.cluster.publicURL,
+        clusterVersion: ctx.storeUser.state.cluster.authVersion,
+        tokenId: token.id,
+        resourceId: token.internalResourceId,
+        isEnterprise: ctx.isEnterprise,
+        isCloud: ctx.isCloud,
+        automaticUpgradesEnabled: ctx.automaticUpgradesEnabled,
+        automaticUpgradesTargetVersion: ctx.automaticUpgradesTargetVersion,
+        joinLabels: [...selectedCluster.labels, ...selectedCluster.joinLabels],
+        disableAppDiscovery: !isAppDiscoveryEnabled,
+      });
+    },
+    [
+      ctx.automaticUpgradesEnabled,
+      ctx.automaticUpgradesTargetVersion,
+      ctx.isCloud,
+      ctx.isEnterprise,
+      ctx.storeUser.state.cluster,
+      isAppDiscoveryEnabled,
+      selectedCluster,
+    ]
+  );
 
   return (
     <Box maxWidth="1000px">
@@ -287,6 +379,17 @@ export function EnrollEksCluster(props: AgentStepProps) {
         <Danger mt={3}>{fetchClustersAttempt.statusText}</Danger>
       )}
       <Text mt={4}>
+        <b>Note:</b> EKS enrollment will work only with clusters that have
+        access entries authentication mode enabled, see{' '}
+        <Link
+          href="https://docs.aws.amazon.com/eks/latest/userguide/access-entries.html#authentication-modes"
+          target="_blank"
+          color="text.main"
+        >
+          documentation.
+        </Link>
+      </Text>
+      <Text mt={1}>
         Select the AWS Region you would like to see EKS clusters for:
       </Text>
       <AwsRegionSelector
@@ -295,12 +398,12 @@ export function EnrollEksCluster(props: AgentStepProps) {
         clear={clear}
         disableSelector={fetchClustersAttempt.status === 'processing'}
       />
-      {!hasIamPermError && tableData.currRegion && (
+      {showContent && (
         <>
           <Box mb={2}>
             <Toggle
               isToggled={isAppDiscoveryEnabled}
-              onToggle={() => setAppDiscoveryEnabled(!isAppDiscoveryEnabled)}
+              onToggle={() => setAppDiscoveryEnabled(isEnabled => !isEnabled)}
             >
               <Box ml={2} mr={1}>
                 Enable Kubernetes App Discovery
@@ -311,38 +414,75 @@ export function EnrollEksCluster(props: AgentStepProps) {
                 Kubernetes cluster.
               </ToolTipInfo>
             </Toggle>
-          </Box>
-          <ClustersList
-            items={tableData.items}
-            fetchStatus={tableData.fetchStatus}
-            selectedCluster={selectedCluster}
-            onSelectCluster={setSelectedCluster}
-            fetchNextPage={fetchNextPage}
-          />
-          <StyledBox mb={5} mt={5}>
-            <Text mb={2}>Automatically enroll selected EKS cluster</Text>
-            <ButtonSecondary
-              width="215px"
-              type="submit"
-              onClick={enroll}
-              disabled={enrollmentNotAllowed}
-              mt={2}
-              mb={2}
+            <Toggle
+              isToggled={isAutoDiscoveryEnabled}
+              onToggle={() => setAutoDiscoveryEnabled(isEnabled => !isEnabled)}
             >
-              Enroll EKS Cluster
-            </ButtonSecondary>
-            <Box>
-              <ButtonText
+              <Box ml={2} mr={1}>
+                Auto-enroll all EKS clusters for selected region
+              </Box>
+              <ToolTipInfo>
+                Auto-enroll will automatically identify all EKS clusters from
+                the selected region and register them as Kubernetes resources in
+                your infrastructure.
+              </ToolTipInfo>
+            </Toggle>
+          </Box>
+          {showTable && (
+            <ClustersList
+              items={tableData.items}
+              autoDiscovery={isAutoDiscoveryEnabled}
+              fetchStatus={tableData.fetchStatus}
+              selectedCluster={selectedCluster}
+              onSelectCluster={setSelectedCluster}
+              fetchNextPage={fetchNextPage}
+            />
+          )}
+          {!cfg.isCloud && isAutoDiscoveryEnabled && (
+            <SelfHostedAutoDiscoverDirections
+              clusterPublicUrl={ctx.storeUser.state.cluster.publicURL}
+              discoveryGroupName={discoveryGroupName}
+              setDiscoveryGroupName={setDiscoveryGroupName}
+            />
+          )}
+          {!isAutoDiscoveryEnabled && (
+            <StyledBox mb={5} mt={5}>
+              <Text mb={2}>Automatically enroll selected EKS cluster</Text>
+              <ButtonPrimary
+                width="215px"
+                type="submit"
+                onClick={enroll}
                 disabled={enrollmentNotAllowed}
-                onClick={() => {
-                  setIsManualHelmDialogShown(b => !b);
-                }}
-                pl={0}
+                mt={2}
+                mb={2}
               >
-                Or click here to see instructions for manual enrollment
-              </ButtonText>
-            </Box>
-          </StyledBox>
+                Enroll EKS Cluster
+              </ButtonPrimary>
+              <Box>
+                <ButtonText
+                  disabled={enrollmentNotAllowed}
+                  onClick={() => {
+                    setIsManualHelmDialogShown(b => !b);
+                  }}
+                  pl={0}
+                >
+                  Or enroll manually
+                </ButtonText>
+              </Box>
+            </StyledBox>
+          )}
+          {isAutoDiscoveryEnabled && (
+            <ActionButtons
+              onProceed={enableAutoDiscovery}
+              disableProceed={
+                fetchClustersAttempt.status === 'processing' ||
+                fetchClustersAttempt.status === 'failed' ||
+                (!isAutoDiscoveryEnabled && !selectedCluster) ||
+                hasIamPermError ||
+                (!cfg.isCloud && !discoveryGroupName)
+              }
+            />
+          )}
         </>
       )}
       {hasIamPermError && (
@@ -366,7 +506,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
       )}
       {isManualHelmDialogShown && (
         <ManualHelmDialog
-          command={command}
+          setJoinTokenAndGetCommand={setJoinTokenAndGetCommand}
           cancel={() => setIsManualHelmDialogShown(false)}
           confirmedCommands={() => {
             setEnrollmentState({ status: 'awaitingAgent' });
@@ -377,7 +517,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
       )}
       {isAgentWaitingDialogShown && (
         <AgentWaitingDialog
-          joinResourceId={waitingResourceId || joinToken.internalResourceId}
+          joinResourceId={waitingResourceId || joinToken?.internalResourceId}
           status={enrollmentState.status}
           clusterName={selectedCluster.name}
           updateWaitingResult={(result: Kube) => {
@@ -391,6 +531,16 @@ export function EnrollEksCluster(props: AgentStepProps) {
             setIsAgentWaitingDialogShown(false);
           }}
           next={handleOnProceed}
+        />
+      )}
+      {autoDiscoverAttempt.status !== '' && (
+        <AutoEnrollDialog
+          attempt={autoDiscoverAttempt}
+          next={props.nextStep}
+          close={() => setAutoDiscoverAttempt({ status: '' })}
+          retry={enableAutoDiscovery}
+          region={tableData.currRegion}
+          notifyAboutDelay={true}
         />
       )}
     </Box>

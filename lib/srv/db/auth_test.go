@@ -29,6 +29,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -240,7 +241,7 @@ func newTestAuth(ac common.AuthConfig) (*testAuth, error) {
 	}
 	return &testAuth{
 		Auth:        auth,
-		FieldLogger: logrus.WithField(trace.Component, "auth:test"),
+		FieldLogger: logrus.WithField(teleport.ComponentKey, "auth:test"),
 	}, nil
 }
 

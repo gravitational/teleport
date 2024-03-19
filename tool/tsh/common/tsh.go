@@ -92,7 +92,7 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentTSH,
+	teleport.ComponentKey: teleport.ComponentTSH,
 })
 
 const (
@@ -178,6 +178,8 @@ type CLIConf struct {
 	// DynamicForwardedPorts is port forwarding using SOCKS5. It is similar to
 	// "ssh -D 8080 example.com".
 	DynamicForwardedPorts []string
+	// -R flag for ssh. Remote port forwarding like 'ssh -R 80:localhost:80 -R 443:localhost:443'
+	RemoteForwardPorts []string
 	// ForwardAgent agent to target node. Equivalent of -A for OpenSSH.
 	ForwardAgent bool
 	// ProxyJump is an optional -J flag pointing to the list of jumphosts,
@@ -747,6 +749,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("forward-agent", "Forward agent to target node").Short('A').BoolVar(&cf.ForwardAgent)
 	ssh.Flag("forward", "Forward localhost connections to remote server").Short('L').StringsVar(&cf.LocalForwardPorts)
 	ssh.Flag("dynamic-forward", "Forward localhost connections to remote server using SOCKS5").Short('D').StringsVar(&cf.DynamicForwardedPorts)
+	ssh.Flag("remote-forward", "Forward remote connections to localhost").Short('R').StringsVar(&cf.RemoteForwardPorts)
 	ssh.Flag("local", "Execute command on localhost after connecting to SSH node").Default("false").BoolVar(&cf.LocalExec)
 	ssh.Flag("tty", "Allocate TTY").Short('t').BoolVar(&cf.Interactive)
 	ssh.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -1149,6 +1152,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Device Trust commands.
 	deviceCmd := newDeviceCommand(app)
 
+	workloadIdentityCmd := newSVIDCommands(app)
+
 	vnetCommand := app.Command("vnet", "Start Teleport VNet")
 
 	vnetAdminSetupCommand := app.Command(vnet.AdminSetupSubcommand, "helper to run the vnet setup as root").Hidden()
@@ -1511,6 +1516,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onKubectlCommand(&cf, args, args[idx:])
 	case headlessApprove.FullCommand():
 		err = onHeadlessApprove(&cf)
+	case workloadIdentityCmd.issue.FullCommand():
+		err = workloadIdentityCmd.issue.run(&cf)
 	case vnetCommand.FullCommand():
 		err = onVNet(&cf)
 	case vnetAdminSetupCommand.FullCommand():
@@ -1766,7 +1773,11 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	if cf.IdentityFileIn != "" {
-		return trace.BadParameter("-i flag cannot be used here")
+		err := flattenIdentity(cf)
+		if err != nil {
+			return trace.Wrap(err, "converting identity file into a local profile")
+		}
+		return nil
 	}
 
 	switch cf.IdentityFormat {
@@ -2484,10 +2495,6 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 			return nil, trace.BadParameter("parsing assume-start-time (required format RFC3339 e.g 2023-12-12T23:20:50.52Z): %v", err)
 		}
 
-		if time.Until(assumeStartTime) > constants.MaxAssumeStartDuration {
-			return nil, trace.BadParameter("assume-start-time too far in future: latest date %q",
-				assumeStartTime.Add(constants.MaxAssumeStartDuration).Format(time.RFC3339))
-		}
 		req.SetAssumeStartTime(assumeStartTime)
 	}
 
@@ -3010,7 +3017,7 @@ func onListClusters(cf *CLIConf) error {
 		}
 		defer rootAuthClient.Close()
 
-		leafClusters, err = rootAuthClient.GetRemoteClusters()
+		leafClusters, err = rootAuthClient.GetRemoteClusters(cf.Context)
 		return trace.Wrap(err)
 	})
 	if err != nil {
@@ -3125,7 +3132,9 @@ func onListSessions(cf *CLIConf) error {
 
 func sortAndFilterSessions(sessions []types.SessionTracker, kinds []types.SessionKind) []types.SessionTracker {
 	filtered := slices.DeleteFunc(sessions, func(st types.SessionTracker) bool {
-		return !slices.Contains(kinds, st.GetSessionKind())
+		return !slices.Contains(kinds, st.GetSessionKind()) ||
+			(st.GetState() != types.SessionState_SessionStateRunning &&
+				st.GetState() != types.SessionState_SessionStatePending)
 	})
 	sort.Slice(filtered, func(i, j int) bool {
 		return filtered[i].GetCreated().Before(filtered[j].GetCreated())
@@ -3528,7 +3537,7 @@ func onSCP(cf *CLIConf) error {
 		return tc.SFTP(cf.Context, cf.CopySpec, int(cf.NodePort), opts, cf.Quiet)
 	})
 	// don't print context canceled errors to the user
-	if err == nil || (err != nil && errors.Is(err, context.Canceled)) {
+	if err == nil || errors.Is(err, context.Canceled) {
 		return nil
 	}
 
@@ -3573,15 +3582,16 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 
 	// If we are missing client profile information, ping the webproxy
 	// for proxy info and load it into the client config.
-	if profileError != nil || cf.IdentityFileIn != "" {
+	if profileError != nil || profile.MissingClusterDetails {
 		log.Debug("Pinging the proxy to fetch listening addresses for non-web ports.")
 		_, err := tc.Ping(cf.Context)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		// Identityfile uses a placeholder profile. Save missing profile info.
-		if cf.IdentityFileIn != "" {
+		// This is a placeholder profile created from limited cluster details.
+		// Save missing cluster details gathererd during Ping.
+		if profileError == nil && profile.MissingClusterDetails {
 			if err := tc.SaveProfile(true); err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3652,6 +3662,11 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	dPorts, err := client.ParseDynamicPortForwardSpec(cf.DynamicForwardedPorts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rPorts, err := client.ParsePortForwardSpec(cf.RemoteForwardPorts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3800,6 +3815,9 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 	if len(dPorts) > 0 {
 		c.DynamicForwardedPorts = dPorts
+	}
+	if len(rPorts) > 0 {
+		c.RemoteForwardPorts = rPorts
 	}
 	if cf.SiteName != "" {
 		c.SiteName = cf.SiteName
@@ -4158,6 +4176,38 @@ func refuseArgs(command string, args []string) error {
 	return nil
 }
 
+// flattenIdentity reads an identity file and flattens it into a tsh profile on disk.
+func flattenIdentity(cf *CLIConf) error {
+	// Save the identity file path for later
+	identityFile := cf.IdentityFileIn
+
+	// We clear the identity flag so that the client store will be backed
+	// by the filesystem instead (in ~/.tsh or TELEPORT_HOME).
+	cf.IdentityFileIn = ""
+
+	// Load client config as normal to parse client inputs and add defaults.
+	c, err := loadClientConfigFromCLIConf(cf, cf.Proxy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Proxy address may be loaded from existing tsh profile or from --proxy flag.
+	if c.WebProxyAddr == "" {
+		return trace.BadParameter("No proxy address specified, missed --proxy flag?")
+	}
+
+	// Load the identity file key and partial profile into the client store.
+	if err := identityfile.LoadIdentityFileIntoClientStore(c.ClientStore, identityFile, c.WebProxyAddr, c.SiteName); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("Successfully flattened Identity file %q into a tsh profile.\n", identityFile)
+
+	// onStatus will ping the proxy to fill in cluster profile information missing in the
+	// client store, then print the login status.
+	return trace.Wrap(onStatus(cf))
+}
+
 // onShow reads an identity file (a public SSH key or a cert) and dumps it to stdout
 func onShow(cf *CLIConf) error {
 	key, err := identityfile.KeyFromIdentityFile(cf.IdentityFileIn, cf.Proxy, cf.SiteName)
@@ -4191,7 +4241,7 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 
 	proxyURL := p.getProxyURLLine(isActive, env)
 	cluster := p.getClusterLine(isActive, env)
-	kubeCluster := p.getKubeClusterLine(isActive, env, cluster)
+	kubeCluster := p.getKubeClusterLine(isActive, env)
 	if isActive {
 		prefix = "> "
 	} else {
@@ -4307,12 +4357,12 @@ func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles 
 	if len(accessListsToReview) > 0 {
 		fmt.Printf("Access lists that need to be reviewed:\n")
 		for _, accessList := range accessListsToReview {
-			d := time.Until(accessList.Spec.Audit.NextAuditDate).Round(time.Minute)
 			var msg string
-			if d > 0 {
-				msg = fmt.Sprintf("%v left to review", d.String())
+			nextAuditDate := accessList.Spec.Audit.NextAuditDate.Format(time.DateOnly)
+			if time.Now().After(accessList.Spec.Audit.NextAuditDate) {
+				msg = fmt.Sprintf("review is overdue (%v)", nextAuditDate)
 			} else {
-				msg = fmt.Sprintf("review was required %v ago", (-d).String())
+				msg = fmt.Sprintf("review is required by %v", nextAuditDate)
 			}
 			fmt.Printf("\t%s (%v)\n", accessList.Spec.Title, msg)
 		}
@@ -4482,7 +4532,7 @@ func (p *profileInfo) getClusterLine(isActive bool, env map[string]string) strin
 	return p.Cluster
 }
 
-func (p *profileInfo) getKubeClusterLine(isActive bool, env map[string]string, cluster string) string {
+func (p *profileInfo) getKubeClusterLine(isActive bool, env map[string]string) string {
 	// indicate if active profile kube cluster is shadowed by env vars.
 	if isActive {
 		// check if kube cluster env var is set and no cluster was selected by kube config

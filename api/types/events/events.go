@@ -179,7 +179,7 @@ func ToUnstructured(evt AuditEvent) (*auditlogpb.EventUnstructured, error) {
 	}
 
 	str := &structpb.Struct{}
-	if str.UnmarshalJSON(payload); err != nil {
+	if err := str.UnmarshalJSON(payload); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

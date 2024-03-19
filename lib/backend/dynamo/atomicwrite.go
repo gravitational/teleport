@@ -31,6 +31,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
@@ -245,6 +246,10 @@ TxnLoop:
 			codes = slices.Compact(codes)
 
 			return "", trace.Errorf("unexpected error during atomic write: %v (reason(s): %s)", err, strings.Join(codes, ","))
+		}
+
+		if i > 0 {
+			backend.AtomicWriteContention.WithLabelValues(teleport.ComponentDynamoDB).Add(float64(i))
 		}
 
 		if n := i + 1; n > 2 {

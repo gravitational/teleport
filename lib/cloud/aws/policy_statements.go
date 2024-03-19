@@ -25,7 +25,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-var allResources = []string{"*"}
+var wildcard = "*"
+var allResources = []string{wildcard}
 
 // StatementForIAMEditRolePolicy returns a IAM Policy Statement which allows editting Role Policy
 // of the resources.
@@ -56,6 +57,9 @@ func StatementForECSManageService() *Statement {
 			"ecs:DescribeClusters", "ecs:CreateCluster", "ecs:PutClusterCapacityProviders",
 			"ecs:DescribeServices", "ecs:CreateService", "ecs:UpdateService", "ecs:ListServices",
 			"ecs:RegisterTaskDefinition", "ecs:DescribeTaskDefinition", "ecs:DeregisterTaskDefinition",
+
+			// Required if the account has Resource Tagging Authorization enabled in Amazon ECS.
+			"ecs:TagResource",
 
 			// EC2 DescribeSecurityGroups is required so that the user can list the SG and then pick which ones they want to apply to the ECS Service.
 			"ec2:DescribeSecurityGroups",
@@ -179,6 +183,23 @@ func StatementForListRDSDatabases() *Statement {
 			"ec2:DescribeSecurityGroups",
 		},
 		Resources: allResources,
+	}
+}
+
+// StatementForS3BucketPublicRead returns the statement that
+// allows public/anonynous access to s3 bucket/prefix objects.
+func StatementForS3BucketPublicRead(s3bucketName, objectPrefix string) *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Principals: StringOrMap{
+			wildcard: SliceOrString{},
+		},
+		Actions: []string{
+			"s3:GetObject",
+		},
+		Resources: []string{
+			fmt.Sprintf("arn:aws:s3:::%s/%s/*", s3bucketName, objectPrefix),
+		},
 	}
 }
 
@@ -364,6 +385,9 @@ func StatementAccessGraphAWSSync() *Statement {
 			"iam:ListAttachedGroupPolicies",
 			"iam:GetPolicy",
 			"iam:GetPolicyVersion",
+			"iam:ListRolePolicies",
+			"iam:ListAttachedRolePolicies",
+			"iam:GetRolePolicy",
 		},
 		Resources: allResources,
 	}

@@ -38,6 +38,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -67,7 +68,7 @@ type IdentityService struct {
 func NewIdentityService(backend backend.Backend) *IdentityService {
 	return &IdentityService{
 		Backend: backend,
-		log:     logrus.WithField(trace.Component, "identity"),
+		log:     logrus.WithField(teleport.ComponentKey, "identity"),
 	}
 }
 
@@ -93,78 +94,60 @@ func (s *IdentityService) listUsersWithSecrets(ctx context.Context, pageSize int
 	rangeStream := backend.StreamRange(ctx, s.Backend, rangeStart, rangeEnd, limit)
 
 	var (
-		out      []types.User
-		prevUser string
-		items    userItems
+		out []types.User
+
+		name  string
+		items userItems
 	)
 	for rangeStream.Next() {
 		item := rangeStream.Item()
 
-		name, suffix, err := splitUsernameAndSuffix(string(item.Key))
+		itemName, suffix, err := splitUsernameAndSuffix(string(item.Key))
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 
-		if prevUser == "" {
-			prevUser = name
+		if itemName == name {
+			items.Set(suffix, item)
+			continue
 		}
 
-		if name != prevUser {
-			user, err := userFromUserItems(prevUser, items)
+		// we exclude user item sets that don't have a /params subitem because
+		// SSO users have an expiration time on /params but their /mfa devices
+		// are persistent
+		if items.complete() {
+			user, err := userFromUserItems(name, items)
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
-
 			out = append(out, user)
 
-			prevUser = name
-			items = userItems{}
+			if len(out) >= pageSize {
+				if err := rangeStream.Done(); err != nil {
+					return nil, "", trace.Wrap(err)
+				}
 
-			if len(out) == pageSize {
-				break
+				return out, nextUserToken(user), nil
 			}
 		}
 
+		name = itemName
+		items = userItems{}
 		items.Set(suffix, item)
 	}
-
-	next := rangeStream.Next()
-
-	if len(out) == 0 {
-		// When there is only a single user the transition logic to detect when a user
-		// is complete will never be hit. If the stream is exhausted and the items have
-		// processed a user resource then return it.
-		if !next && items.complete() {
-			user, err := userFromUserItems(prevUser, items)
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-
-			out = append(out, user)
-		}
-	} else {
-		// If there are no more users it is possible that the previous user being processed
-		// was never added to out because there was no additional user to transition to.
-		// Add the user from the collected items and return the full output.
-		if len(out) != pageSize && out[len(out)-1].GetName() != prevUser {
-			user, err := userFromUserItems(prevUser, items)
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-
-			out = append(out, user)
-		}
+	if err := rangeStream.Done(); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
-	var nextToken string
-	// If the stream has more data or while processing the stream the last user
-	// caused a transition but was not added to out we want to send a token so
-	// that the final user may be returned in the next page.
-	if next || len(out) > 0 && out[len(out)-1].GetName() != prevUser {
-		nextToken = nextUserToken(out[len(out)-1])
+	if items.complete() {
+		user, err := userFromUserItems(name, items)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		out = append(out, user)
 	}
 
-	return out, nextToken, trace.Wrap(rangeStream.Done())
+	return out, "", nil
 }
 
 // nextUserToken returns the last token for the given user. This

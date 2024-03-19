@@ -41,6 +41,30 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+func TestGetChartUrl(t *testing.T) {
+	testCases := []struct {
+		version  string
+		expected string
+	}{
+		{
+			version:  "14.3.3",
+			expected: "https://charts.releases.teleport.dev/teleport-kube-agent-14.3.3.tgz",
+		},
+		{
+			version:  "15.0.2",
+			expected: "https://charts.releases.teleport.dev/teleport-kube-agent-15.0.2.tgz",
+		},
+		{
+			version:  "15.0.0-alpha.5",
+			expected: "https://charts.releases.teleport.dev/teleport-kube-agent-15.0.0-alpha.5.tgz",
+		},
+	}
+
+	for _, tt := range testCases {
+		require.Equal(t, tt.expected, getChartURL(tt.version).String())
+	}
+}
+
 func TestEnrollEKSClusters(t *testing.T) {
 	t.Parallel()
 
@@ -97,6 +121,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 	}
 	baseRequest := EnrollEKSClustersRequest{
 		Region:             "us-east-1",
+		AgentVersion:       "1.2.3",
 		EnableAppDiscovery: true,
 	}
 
@@ -251,8 +276,9 @@ func TestEnrollEKSClusters(t *testing.T) {
 				req.ClusterNames = tc.requestClusterNames
 			}
 
-			response := EnrollEKSClusters(
+			response, err := EnrollEKSClusters(
 				ctx, utils.NewLoggerForTests().WithField("test", t.Name()), clock, proxyAddr, credsProvider, tc.enrollClient(t, tc.eksClusters), req)
+			require.NoError(t, err)
 
 			tc.responseCheck(t, response)
 		})
@@ -274,9 +300,9 @@ func TestEnrollEKSClusters(t *testing.T) {
 			return nil, nil
 		}
 
-		response := EnrollEKSClusters(
+		response, err := EnrollEKSClusters(
 			ctx, utils.NewLoggerForTests().WithField("test", t.Name()), clock, proxyAddr, credsProvider, mockClt, req)
-
+		require.NoError(t, err)
 		require.Len(t, response.Results, 1)
 		require.Equal(t, "EKS1", response.Results[0].ClusterName)
 		require.True(t, createCalled)

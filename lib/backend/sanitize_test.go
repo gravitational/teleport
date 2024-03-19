@@ -192,6 +192,10 @@ func (n *nopBackend) KeepAlive(_ context.Context, _ Lease, _ time.Time) error {
 	return nil
 }
 
+func (n *nopBackend) AtomicWrite(_ context.Context, _ []ConditionalAction) (revision string, err error) {
+	return "", nil
+}
+
 func (n *nopBackend) Close() error {
 	return nil
 }

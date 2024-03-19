@@ -48,12 +48,10 @@ type Kube struct {
 }
 
 // GetKubes returns a paginated kubes list
-func (c *Cluster) GetKubes(ctx context.Context, r *api.GetKubesRequest) (*GetKubesResponse, error) {
+func (c *Cluster) GetKubes(ctx context.Context, authClient auth.ClientI, r *api.GetKubesRequest) (*GetKubesResponse, error) {
 	var (
-		page        apiclient.ResourcePage[types.KubeCluster]
-		authClient  auth.ClientI
-		proxyClient *client.ProxyClient
-		err         error
+		page apiclient.ResourcePage[types.KubeCluster]
+		err  error
 	)
 
 	req := &proto.ListResourcesRequest{
@@ -68,19 +66,6 @@ func (c *Cluster) GetKubes(ctx context.Context, r *api.GetKubesRequest) (*GetKub
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
 		page, err = apiclient.GetResourcePage[types.KubeCluster](ctx, authClient, req)
 		if err != nil {
 			return trace.Wrap(err)
@@ -116,22 +101,15 @@ type GetKubesResponse struct {
 }
 
 // reissueKubeCert issue new certificates for kube cluster and saves them to disk.
-func (c *Cluster) reissueKubeCert(ctx context.Context, kubeCluster string) (tls.Certificate, error) {
+func (c *Cluster) reissueKubeCert(ctx context.Context, proxyClient *client.ProxyClient, kubeCluster string) (tls.Certificate, error) {
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
-	err := c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+	err := proxyClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
 	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-
-	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-	proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	defer proxyClient.Close()
 
 	key, err := proxyClient.IssueUserCertsWithMFA(
 		ctx, client.ReissueParams{
@@ -150,7 +128,7 @@ func (c *Cluster) reissueKubeCert(ctx context.Context, kubeCluster string) (tls.
 	// via the RBAC rules, but we also need to make sure that the user has
 	// access to the cluster with at least one kubernetes_user or kubernetes_group
 	// defined.
-	rootClusterName, err := c.clusterClient.RootClusterName(ctx)
+	rootClusterName, err := proxyClient.RootClusterName(ctx)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
@@ -176,30 +154,15 @@ func (c *Cluster) reissueKubeCert(ctx context.Context, kubeCluster string) (tls.
 	return cert, nil
 }
 
-func (c *Cluster) getKube(ctx context.Context, kubeCluster string) (types.KubeCluster, error) {
+func (c *Cluster) getKube(ctx context.Context, authClient auth.ClientI, kubeCluster string) (types.KubeCluster, error) {
 	var kubeClusters []types.KubeCluster
 	err := AddMetadataToRetryableError(ctx, func() error {
-		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err := proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
+		var err error
 		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, authClient, proto.ListResourcesRequest{
 			PredicateExpression: fmt.Sprintf("name == %q", kubeCluster),
 		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
 
-		return nil
+		return trace.Wrap(err)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

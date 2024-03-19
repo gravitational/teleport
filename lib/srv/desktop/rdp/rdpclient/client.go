@@ -72,6 +72,7 @@ import "C"
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"runtime/cgo"
 	"sync"
@@ -253,14 +254,22 @@ func (c *Client) readClientSize() error {
 		}
 
 		if c.requestedWidth > types.MaxRDPScreenWidth || c.requestedHeight > types.MaxRDPScreenHeight {
-			return trace.BadParameter(
+			err = trace.BadParameter(
 				"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
 				s.Width, s.Height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight,
 			)
+			if err := c.sendTDPNotification(err.Error(), tdp.SeverityError); err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(err)
 		}
 
 		return nil
 	}
+}
+
+func (c *Client) sendTDPNotification(message string, severity tdp.Severity) error {
+	return c.cfg.Conn.WriteMessage(tdp.Notification{Message: message, Severity: severity})
 }
 
 func (c *Client) startRustRDP(ctx context.Context) error {
@@ -292,7 +301,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		return trace.BadParameter("user key was nil")
 	}
 
-	if res := C.client_run(
+	res := C.client_run(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
 			go_addr: addr,
@@ -308,13 +317,36 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
 		},
-	); res.err_code != C.ErrCodeSuccess {
-		if res.message == nil {
-			return trace.Errorf("unknown error: %v", res.err_code)
-		}
+	)
+
+	var message string
+	if res.message != nil {
+		message = C.GoString(res.message)
 		defer C.free_string(res.message)
-		return trace.Errorf("%s", C.GoString(res.message))
 	}
+
+	// If the client exited with an error, send a tdp error notification and return it.
+	if res.err_code != C.ErrCodeSuccess {
+		var err error
+
+		if message != "" {
+			err = trace.Errorf("RDP client exited with an error: %v", message)
+		} else {
+			err = trace.Errorf("RDP client exited with an unknown error")
+		}
+
+		c.sendTDPNotification(err.Error(), tdp.SeverityError)
+		return err
+	}
+
+	if message != "" {
+		message = fmt.Sprintf("RDP client exited gracefully with message: %v", message)
+	} else {
+		message = "RDP client exited gracefully"
+	}
+
+	c.cfg.Log.Info(message)
+	c.sendTDPNotification(message, tdp.SeverityInfo)
 
 	return nil
 }

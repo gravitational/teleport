@@ -21,11 +21,17 @@ package postgres
 import (
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
+	"github.com/gravitational/teleport/lib/srv/db/common/permissions"
 )
 
 func Test_prepareRoles(t *testing.T) {
@@ -81,6 +87,126 @@ func Test_prepareRoles(t *testing.T) {
 			actualRoles, err := prepareRoles(sessionCtx)
 			require.NoError(t, err)
 			require.Equal(t, test.expectRoles, actualRoles)
+		})
+	}
+}
+
+func TestCheckPgPermission(t *testing.T) {
+	tests := []struct {
+		name     string
+		perm     string
+		objKind  string
+		checkErr require.ErrorAssertionFunc
+	}{
+		{
+			name:     "valid permission",
+			perm:     "SELECT",
+			objKind:  databaseobjectimportrule.ObjectKindTable,
+			checkErr: require.NoError,
+		},
+		{
+			name:     "whitespace trimmed",
+			perm:     "  SELECT   ",
+			objKind:  databaseobjectimportrule.ObjectKindTable,
+			checkErr: require.NoError,
+		},
+		{
+			name:     "case-insensitive",
+			perm:     "seLEct",
+			objKind:  databaseobjectimportrule.ObjectKindTable,
+			checkErr: require.NoError,
+		},
+		{
+			name:    "invalid permission",
+			perm:    "INVALID",
+			objKind: databaseobjectimportrule.ObjectKindTable,
+			checkErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unrecognized \"table\" Postgres permission: \"INVALID\"")
+			},
+		},
+		{
+			name:    "multiple permissions not allowed",
+			perm:    "SELECT, UPDATE",
+			objKind: databaseobjectimportrule.ObjectKindTable,
+			checkErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unrecognized \"table\" Postgres permission: \"SELECT, UPDATE\"")
+			},
+		},
+		{
+			name:     "permissions for unknown object kinds are ignored",
+			perm:     "invalid",
+			objKind:  "unknown object kind",
+			checkErr: require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.checkErr(t, checkPgPermission(tt.objKind, tt.perm))
+		})
+	}
+}
+
+func TestConvertPermissions(t *testing.T) {
+	mkObject := func(name, schema, kind string) *dbobjectv1.DatabaseObject {
+		obj, err := databaseobject.NewDatabaseObject(name, &dbobjectv1.DatabaseObjectSpec{
+			ObjectKind: kind,
+			Schema:     schema,
+			Name:       name,
+			Protocol:   "postgres",
+		})
+		require.NoError(t, err)
+		return obj
+	}
+
+	// Define test cases
+	tests := []struct {
+		name          string
+		input         permissions.PermissionSet
+		expected      *Permissions
+		expectedError error
+	}{
+		{
+			name: "valid table permissions, ignoring procedure",
+			input: permissions.PermissionSet{
+				"SELECT":  {mkObject("my_table", "public", databaseobjectimportrule.ObjectKindTable)},
+				"INSERT":  {mkObject("other_table", "secret", databaseobjectimportrule.ObjectKindTable)},
+				"EXECUTE": {mkObject("my_proc", "public", databaseobjectimportrule.ObjectKindProcedure)},
+			},
+			expected: &Permissions{
+				Tables: []TablePermission{
+					{
+						Privilege: "SELECT",
+						Schema:    "public",
+						Table:     "my_table",
+					},
+					{
+						Privilege: "INSERT",
+						Schema:    "secret",
+						Table:     "other_table",
+					},
+				},
+			},
+		},
+		{
+			name: "invalid table permissions lead to an error",
+			input: permissions.PermissionSet{
+				"invalid": {mkObject("my_table", "public", databaseobjectimportrule.ObjectKindTable)},
+			},
+			expectedError: trace.BadParameter("unrecognized \"table\" Postgres permission: \"invalid\""),
+		},
+	}
+
+	// Run tests
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := convertPermissions(tt.input)
+			if tt.expectedError != nil {
+				require.ErrorIs(t, err, tt.expectedError)
+			} else {
+				assert.NoError(t, err)
+				require.ElementsMatch(t, tt.expected.Tables, result.Tables)
+			}
 		})
 	}
 }

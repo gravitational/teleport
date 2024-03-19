@@ -112,7 +112,16 @@ func TestEKSFetcher(t *testing.T) {
 			resources, err := fetcher.Get(context.Background())
 			require.NoError(t, err)
 
-			require.Equal(t, tt.want.ToMap(), resources.ToMap())
+			clusters := types.ResourcesWithLabels{}
+			for _, r := range resources {
+				if e, ok := r.(*DiscoveredEKSCluster); ok {
+					clusters = append(clusters, e.GetKubeCluster())
+				} else {
+					clusters = append(clusters, r)
+				}
+			}
+
+			require.Equal(t, tt.want.ToMap(), clusters.ToMap())
 		})
 	}
 }

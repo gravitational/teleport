@@ -67,6 +67,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -88,7 +89,7 @@ func TestMFADeviceManagement(t *testing.T) {
 	})
 	const webOrigin = "https://localhost" // matches RPID above
 	require.NoError(t, err)
-	err = authServer.SetAuthPreference(ctx, authPref)
+	_, err = authServer.UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Create a fake user.
@@ -428,11 +429,13 @@ func TestMFADeviceManagement(t *testing.T) {
 		// Deleting the last passwordless device is only allowed if passwordless is
 		// off, so let's do that.
 		authPref.SetAllowPasswordless(false)
-		require.NoError(t, authServer.SetAuthPreference(ctx, authPref), "SetAuthPreference")
+		authPref, err = authServer.UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err, "UpsertAuthPreference")
 
 		defer func() {
 			authPref.SetAllowPasswordless(true)
-			assert.NoError(t, authServer.SetAuthPreference(ctx, authPref), "Resetting AuthPreference")
+			authPref, err = authServer.UpsertAuthPreference(ctx, authPref)
+			assert.NoError(t, err, "Resetting AuthPreference")
 		}()
 
 		testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
@@ -795,9 +798,8 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 
 		modify(authPref)
 
-		require.NoError(t,
-			authServer.SetAuthPreference(ctx, authPref),
-			"SetAuthPreference failed")
+		_, err = authServer.UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err, "UpsertAuthPreference failed")
 	}
 
 	// Register MFA devices for the user.
@@ -976,6 +978,118 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	}
 }
 
+// Test that device trust is required for a user registering their first MFA device.
+func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
+	})
+
+	testServer := newTestTLSServer(t)
+
+	ctx := context.Background()
+	authServer := testServer.Auth()
+
+	// Create a user for testing.
+	user, _, err := CreateUserAndRole(testServer.Auth(), "llama", []string{"llama"}, nil)
+	require.NoError(t, err, "CreateUserAndRole failed")
+	username := user.GetName()
+
+	// Create clients with and without device extensions.
+	clientWithoutDevice, err := testServer.NewClient(TestUser(username))
+	require.NoError(t, err, "NewClient failed")
+
+	clientWithDevice, err := testServer.NewClient(
+		TestUserWithDeviceExtensions(username, tlsca.DeviceExtensions{
+			DeviceID:     "deviceid1",
+			AssetTag:     "assettag1",
+			CredentialID: "credentialid1",
+		}))
+	require.NoError(t, err, "NewClient failed")
+
+	// updateAuthPref is a helper used throughout the test.
+	updateAuthPref := func(t *testing.T, modify func(ap types.AuthPreference)) {
+		authPref, err := authServer.GetAuthPreference(ctx)
+		require.NoError(t, err, "GetAuthPreference failed")
+
+		modify(authPref)
+
+		_, err = authServer.UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err, "UpsertAuthPreference failed")
+	}
+
+	// Enable webauthn
+	updateAuthPref(t, func(authPref types.AuthPreference) {
+		authPref.SetSecondFactor(constants.SecondFactorOptional)
+		authPref.SetWebauthn(&types.Webauthn{
+			RPID: "localhost",
+		})
+	})
+
+	assertSuccess := func(t *testing.T, err error) {
+		assert.NoError(t, err)
+	}
+	assertAccessDenied := func(t *testing.T, err error) {
+		assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+		assert.ErrorContains(t, err, dtauthz.ErrTrustedDeviceRequired.Error())
+	}
+
+	tests := []struct {
+		name               string
+		clusterDeviceMode  string
+		client             *Client
+		skipLoginCerts     bool // aka non-MFA issuance.
+		skipSingleUseCerts bool // aka MFA/streaming issuance.
+		assertErr          func(t *testing.T, err error)
+	}{
+		{
+			name:              "mode=optional without extensions",
+			clusterDeviceMode: constants.DeviceTrustModeOptional,
+			client:            clientWithoutDevice,
+			assertErr:         assertSuccess,
+		},
+		{
+			name:              "mode=optional with extensions",
+			clusterDeviceMode: constants.DeviceTrustModeOptional,
+			client:            clientWithDevice,
+			assertErr:         assertSuccess,
+		},
+		{
+			name:              "nok: mode=required without extensions",
+			clusterDeviceMode: constants.DeviceTrustModeRequired,
+			client:            clientWithoutDevice,
+			assertErr:         assertAccessDenied,
+		},
+		{
+			name:              "mode=required with extensions",
+			clusterDeviceMode: constants.DeviceTrustModeRequired,
+			client:            clientWithDevice,
+			assertErr:         assertSuccess,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			updateAuthPref(t, func(ap types.AuthPreference) {
+				ap.SetDeviceTrust(&types.DeviceTrust{
+					Mode: test.clusterDeviceMode,
+				})
+			})
+
+			t.Run("CreatePrivilegeTokenRequest", func(t *testing.T) {
+				_, err := test.client.CreatePrivilegeToken(ctx, &proto.CreatePrivilegeTokenRequest{})
+				test.assertErr(t, err)
+			})
+
+			t.Run("CreateRegisterChallenge", func(t *testing.T) {
+				_, err := test.client.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+					DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+					DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_MFA,
+				})
+				test.assertErr(t, err)
+			})
+		})
+	}
+}
+
 func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
 	database, err := types.NewDatabaseV3(
 		types.Metadata{
@@ -1011,7 +1125,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	})
 	const webOrigin = "https://localhost" // matches RPID above
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPref)
+	_, err = srv.Auth().UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Register an SSH node.
@@ -1063,7 +1177,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	require.NoError(t, err)
 
 	// create remote cluster
-	require.NoError(t, srv.Auth().CreateRemoteCluster(leaf))
+	_, err = srv.Auth().CreateRemoteCluster(ctx, leaf)
+	require.NoError(t, err)
 
 	// Create a fake user.
 	user, role, err := CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"}, nil)
@@ -1730,7 +1845,7 @@ func TestIsMFARequired(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-			err = srv.Auth().SetAuthPreference(ctx, authPref)
+			authPref, err = srv.Auth().UpsertAuthPreference(ctx, authPref)
 			require.NoError(t, err)
 
 			for _, roleRequireMFAType := range requireMFATypes {
@@ -1801,7 +1916,7 @@ func TestIsMFARequired_unauthorized(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPref)
+	_, err = srv.Auth().UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Register an SSH node.
@@ -2005,7 +2120,8 @@ func TestAuthPreferenceOriginDynamic(t *testing.T) {
 	setWithOrigin := func(cl *Client, origin string) error {
 		authPref := types.DefaultAuthPreference()
 		authPref.SetOrigin(origin)
-		return cl.SetAuthPreference(ctx, authPref)
+		_, err := cl.UpsertAuthPreference(ctx, authPref)
+		return err
 	}
 
 	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
@@ -2022,7 +2138,8 @@ func TestClusterNetworkingConfigOriginDynamic(t *testing.T) {
 	setWithOrigin := func(cl *Client, origin string) error {
 		netConfig := types.DefaultClusterNetworkingConfig()
 		netConfig.SetOrigin(origin)
-		return cl.SetClusterNetworkingConfig(ctx, netConfig)
+		_, err := cl.UpsertClusterNetworkingConfig(ctx, netConfig)
+		return trace.Wrap(err)
 	}
 
 	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
@@ -2039,7 +2156,8 @@ func TestSessionRecordingConfigOriginDynamic(t *testing.T) {
 	setWithOrigin := func(cl *Client, origin string) error {
 		recConfig := types.DefaultSessionRecordingConfig()
 		recConfig.SetOrigin(origin)
-		return cl.SetSessionRecordingConfig(ctx, recConfig)
+		_, err := cl.UpsertSessionRecordingConfig(ctx, recConfig)
+		return err
 	}
 
 	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
@@ -2216,7 +2334,7 @@ func TestGetSSHTargets(t *testing.T) {
 
 	cnc := types.DefaultClusterNetworkingConfig()
 	cnc.SetCaseInsensitiveRouting(true)
-	err = clt.SetClusterNetworkingConfig(ctx, cnc)
+	_, err = clt.UpsertClusterNetworkingConfig(ctx, cnc)
 	require.NoError(t, err)
 
 	rsp, err = clt.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{

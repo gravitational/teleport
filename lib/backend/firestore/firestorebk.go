@@ -40,6 +40,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -328,7 +329,7 @@ func (opts *Options) checkAndSetDefaults() error {
 // New returns new instance of Firestore backend.
 // It's an implementation of backend API's NewFunc
 func New(ctx context.Context, params backend.Params, options Options) (*Backend, error) {
-	l := log.WithFields(log.Fields{trace.Component: BackendName})
+	l := log.WithFields(log.Fields{teleport.ComponentKey: BackendName})
 	var cfg *backendConfig
 	err := apiutils.ObjectToStruct(params, &cfg)
 	if err != nil {
@@ -1083,7 +1084,7 @@ type indexTask struct {
 // EnsureIndexes is a function used by Firestore events and backend to generate indexes and will block until
 // indexes are reported as created
 func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tuples IndexList, indexParent string) error {
-	l := log.WithFields(log.Fields{trace.Component: BackendName})
+	l := log.WithFields(log.Fields{teleport.ComponentKey: BackendName})
 	var tasks []indexTask
 
 	// create the indexes

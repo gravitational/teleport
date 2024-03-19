@@ -23,6 +23,7 @@ import (
 
 	"golang.org/x/mod/semver"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 )
@@ -114,7 +115,7 @@ func newInstanceMetricsPeriodic() *instanceMetricsPeriodic {
 }
 
 // VisitInstance adds an instance to ongoing aggregations.
-func (i *instanceMetricsPeriodic) VisitInstance(instance types.Instance) {
+func (i *instanceMetricsPeriodic) VisitInstance(instance proto.UpstreamInventoryHello) {
 	i.totalInstances++
 	if upgrader := instance.GetExternalUpgrader(); upgrader != "" {
 		if _, exists := i.upgraderCounts[upgrader]; !exists {

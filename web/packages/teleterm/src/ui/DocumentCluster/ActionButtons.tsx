@@ -19,7 +19,7 @@
 import React from 'react';
 import { MenuLogin, MenuLoginProps } from 'shared/components/MenuLogin';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
-import { ButtonBorder, MenuItem, ButtonWithMenu } from 'design';
+import { ButtonBorder, ButtonWithMenu, MenuItem } from 'design';
 
 import {
   connectToServer,
@@ -79,7 +79,7 @@ export function ConnectServerActionButton(props: {
         horizontal: 'right',
       }}
       anchorOrigin={{
-        vertical: 'center',
+        vertical: 'bottom',
         horizontal: 'right',
       }}
     />
@@ -165,7 +165,7 @@ export function ConnectDatabaseActionButton(props: {
         horizontal: 'right',
       }}
       anchorOrigin={{
-        vertical: 'center',
+        vertical: 'bottom',
         horizontal: 'right',
       }}
     />

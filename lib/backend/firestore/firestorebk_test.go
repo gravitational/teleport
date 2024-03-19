@@ -47,6 +47,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
@@ -328,7 +329,7 @@ func TestDeleteDocuments(t *testing.T) {
 
 			b := &Backend{
 				svc:           client,
-				Entry:         utils.NewLoggerForTests().WithFields(logrus.Fields{trace.Component: BackendName}),
+				Entry:         utils.NewLoggerForTests().WithFields(logrus.Fields{teleport.ComponentKey: BackendName}),
 				clock:         clockwork.NewFakeClock(),
 				clientContext: ctx,
 				clientCancel:  cancel,
