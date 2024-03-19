@@ -1066,6 +1066,6 @@ type ClientI interface {
 	// an MFA challenge response for the user.
 	PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error)
 
-	// GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
+	// GetClusterAccessGraphConfig retrieves the cluster Access Graph configuration from Auth server.
 	GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error)
 }
