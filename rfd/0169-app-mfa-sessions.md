@@ -47,13 +47,27 @@ An App session is a Web Session targeted at a specific application known by the
 Teleport cluster. App Sessions have a UUID, a cookie, a private key, and a TLS
 certificate.
 
-Clients can gain access to an App Session with either the cookie or a TLS
-certificate signed by the Auth server targeting the App Session UUID. The Proxy
-service will authenticate the client's cookie or certificate and proxy them to
-the known application using the App Session's private key and TLS certificate.
-
 In order to pass the Per-session MFA check, the App Session TLS certificate
 must be marked as MFA verified.
+
+Teleport clients have 2 ways to interface with an App Session they've created:
+
+Web clients use the App Session's bearer token and session ID in an HTTP header
+to connect to the Proxy. The Proxy gets the matching App Session, compares the
+client cookie to the expected cookie, and proxies the client to the App service
+using the App Session's credentials.
+
+Direct clients request an additional x509 certificate from the Auth server with
+the `AppSessionIDASN1ExtensionOID` set to match the App Session. This
+certificate is then used to connect to the Proxy. The Proxy checks verifies the
+client certificate, parses the session ID, and retrieves the associated App
+Session before proxying the client to the App service using the App Session's
+credentials.
+
+Note: While it is not completely necessary for the additional x509 certificate
+of direct clients to be MFA verified, they should be in order to signify that
+the associated App Session is MFA verified. In other words, the Auth Server
+should not sign non-MFA verified certs for MFA verified App Sessions.
 
 #### `rpc CreateAppSession`
 
@@ -86,21 +100,17 @@ message CreateAppSessionRequest {
 The TTL of app sessions created with `CreateAppSession` will default to the TTL
 of the user's current certificates. This is the existing behaviour.
 
-Note: this flow will be used by WebUI clients connecting to an Application.
-This also includes Teleport Connect which uses deep links to open Applications
-in the WebUI.
-
 #### `rpc GenerateUserCerts`
 
-Currently, `rpc CreateAppSession` is used by the `tsh` and Teleport Connect
-clients to create an App Session, retrieve it's session ID, and request local
-app certs linked to the session ID. In order to mark both the App Session cert
-and the local app cert as MFA verified, the user would need to perform two MFA
-checks.
+Currently, `rpc CreateAppSession` is used by direct clients to create an App
+Session, retrieve it's session ID, and request local app certs linked to the
+session ID. In order for direct clients to mark both the App Session cert and
+local app cert as MFA verified, the user would need to perform two MFA checks
+and two roundtrips.
 
-This extra round trip and MFA verification should be avoided by allowing clients
-to call `rpc GenerateUserCerts` to generate both the local app cert and App
-Session with a single MFA response. The client only needs the local app cert.
+This should be avoided by allowing clients to call `rpc GenerateUserCerts` to
+generate both the local app cert and App Session with a single MFA response.
+The client only needs the local app cert after all.
 
 The TTL of both the local app cert and the App Session cert will be set to 1
 minute by default. However, the client can set `UserCertsRequest.Requester` to
@@ -130,9 +140,9 @@ message UserCertsRequest {
 }
 ```
 
-Note: `tsh` and Teleport Connect should not store these longer-lived proxy local
-app certs on disk. Instead, they should be held in memory and should be lost once
-the local proxy is closed by the user.
+Note: Clients should not store these longer-lived proxy local app certs on disk.
+Instead, they should be held in memory and should be lost once the local proxy
+is closed by the user.
 
 ### UX
 
@@ -240,8 +250,8 @@ App session secrets and hijack a supposedly MFA verified session, either using
 the bearer token to connect through the proxy or the Proxy secret to try to
 connect directly.
 
-In order to protect this attack vector, users will no longer be allowed to
-read their own App Session secrets. As far as I can tell, we do not support
+In order to protect against this attack vector, users will no longer be allowed
+to read their own App Session secrets. As far as I can tell, we do not support
 clients connecting directly to applications - App Sessions are always proxied
 through the Proxy Service.
 
