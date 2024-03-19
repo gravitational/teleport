@@ -491,16 +491,41 @@ sign-on provider.
 |`{{internal.windows_logins}}`|List of allowed Windows logins for the user.|
 |`{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, the variable is expanded to the value of the "xyz" claim. See the next section for more information on referring to the `external` variable in Teleport roles. |
 
-#### Accessing external traits in Teleport roles
+#### Referring to internal traits in Teleport roles
 
+The `internal` trait namespace includes only the exact internal trait names
+included in the above table.
+They can be set in the `spec.traits` field of the
+[user resource](../reference/resources.mdx#user), or passed from an external
+IdP.
+
+Internal traits may be referenced in built-in roles such as the `access` role,
+and they may be different when a user is accessing a leaf cluster vs a root
+cluster.
+For example, when accessing a leaf cluster, the `logins` trait will be set to
+the complete list of SSH logins allowed for the user, which may include values
+from the user's `logins` trait in the root cluster as well as logins hardcoded
+in roles the user holds in the root cluster.
+
+You can use the following format in your role to reference an internal trait:
+
+```yaml
+logins:
+  - '{{internal.logins}}'
+```
+
+#### Referring to external traits in Teleport roles
+
+For local Teleport users, the `external` trait namespace includes all values
+from the `spec.traits` field of the [user resource](../reference/resources.mdx#user).
 When a user authenticates to Teleport through a single sign-on identity provider
-(IdP), Teleport populates external variables using traits it receives from the
+(IdP), Teleport populates `external` traits using attributes it receives from the
 IdP.
 
 For example, assuming you have the following SAML assertion attribute in your
 response:
 
-```
+```xml
 <Attribute Name="http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname">
         <AttributeValue>firstname.lastname</AttributeValue>
 </Attribute>
@@ -508,7 +533,7 @@ response:
 
 ... you can use the following format in your role:
 
-```
+```yaml
 logins:
    - '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}'
 ```
@@ -592,4 +617,3 @@ within this guide:
 Read the [predicate
 language](../predicate-language.mdx)
 guide for a more in depth explanation of the language.
-
