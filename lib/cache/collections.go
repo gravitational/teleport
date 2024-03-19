@@ -2125,18 +2125,23 @@ func (kubeWaitingContainerExecutor) deleteAll(ctx context.Context, cache *Cache)
 }
 
 func (kubeWaitingContainerExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	wc, ok := types.UnwrapResource153(resource).(*kubewaitingcontainerpb.KubernetesWaitingContainer)
-	if !ok {
-		return trace.BadParameter("unknown KubeWaitingContainer type, expected *kubewaitingcontainerpb.KubernetesWaitingContainer, got %T", resource)
+	switch r := resource.(type) {
+	case types.Resource153Unwrapper:
+		r153 := r.Unwrap()
+		switch wc := r153.(type) {
+		case *kubewaitingcontainerpb.KubernetesWaitingContainer:
+			err := cache.kubeWaitingContsCache.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
+				Username:      wc.Spec.Username,
+				Cluster:       wc.Spec.Cluster,
+				Namespace:     wc.Spec.Namespace,
+				PodName:       wc.Spec.PodName,
+				ContainerName: wc.Spec.ContainerName,
+			})
+			return trace.Wrap(err)
+		}
 	}
-	err := cache.kubeWaitingContsCache.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
-		Username:      wc.Spec.Username,
-		Cluster:       wc.Spec.Cluster,
-		Namespace:     wc.Spec.Namespace,
-		PodName:       wc.Spec.PodName,
-		ContainerName: wc.Spec.ContainerName,
-	})
-	return trace.Wrap(err)
+
+	return trace.BadParameter("unknown KubeWaitingContainer type, expected *kubewaitingcontainerpb.KubernetesWaitingContainer, got %T", resource)
 }
 
 func (kubeWaitingContainerExecutor) isSingleton() bool { return false }
