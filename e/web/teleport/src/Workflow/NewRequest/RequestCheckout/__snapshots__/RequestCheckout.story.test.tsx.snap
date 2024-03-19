@@ -47,10 +47,26 @@ exports[`failed state 1`] = `
 
 .c22 {
   box-sizing: border-box;
-  margin-top: 24px;
+  margin-top: 40px;
 }
 
-.c30 {
+.c24 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
+}
+
+.c25 {
+  box-sizing: border-box;
+  margin-bottom: 8px;
+}
+
+.c29 {
+  box-sizing: border-box;
+  max-width: 270px;
+  min-width: 180px;
+}
+
+.c37 {
   box-sizing: border-box;
   padding: 8px;
   height: 80px;
@@ -61,7 +77,16 @@ exports[`failed state 1`] = `
   border-color: rgba(255,255,255,0.54);
 }
 
-.c32 {
+.c39 {
+  box-sizing: border-box;
+  margin-bottom: 8px;
+  margin-top: 4px;
+  padding-bottom: 8px;
+  height: 34px;
+  border-bottom: 1px solid;
+}
+
+.c42 {
   box-sizing: border-box;
   padding-top: 24px;
   padding-bottom: 24px;
@@ -110,7 +135,7 @@ exports[`failed state 1`] = `
   cursor: auto;
 }
 
-.c34 {
+.c44 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -137,19 +162,57 @@ exports[`failed state 1`] = `
   width: 100%;
 }
 
-.c34:hover,
-.c34:focus {
+.c44:hover,
+.c44:focus {
   background: #B29DFF;
 }
 
-.c34:active {
+.c44:active {
   background: #C5B6FF;
 }
 
-.c34:disabled {
+.c44:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
+}
+
+.c41 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+}
+
+.c41:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c41:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c41:hover:enabled,
+.c41:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c41:active:enabled {
+  background: rgba(255,255,255,0.18);
 }
 
 .c6 {
@@ -159,7 +222,14 @@ exports[`failed state 1`] = `
   margin-right: 16px;
 }
 
-.c27 {
+.c31 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 16px;
+}
+
+.c34 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -191,14 +261,14 @@ exports[`failed state 1`] = `
   margin-right: 8px;
 }
 
-.c25 {
+.c32 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   margin-right: 4px;
 }
 
-.c24 {
+.c28 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -225,6 +295,12 @@ exports[`failed state 1`] = `
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.c26 {
+  display: flex;
+  align-items: end;
+  gap: 8px;
 }
 
 .c9 {
@@ -317,7 +393,7 @@ exports[`failed state 1`] = `
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c29 .react-select-container {
+.c36 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -329,7 +405,7 @@ exports[`failed state 1`] = `
   border-radius: 4px;
 }
 
-.c29 .react-select__control {
+.c36 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
@@ -339,158 +415,177 @@ exports[`failed state 1`] = `
   box-shadow: none;
 }
 
-.c29 .react-select__control .react-select__dropdown-indicator {
+.c36 .react-select__control .react-select__dropdown-indicator {
   color: rgba(255,255,255,0.54);
 }
 
-.c29 .react-select__control:hover,
-.c29 .react-select__control:focus,
-.c29 .react-select__control:active {
+.c36 .react-select__control:hover,
+.c36 .react-select__control:focus,
+.c36 .react-select__control:active {
   border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c29 .react-select__control:hover .react-select__dropdown-indicator,
-.c29 .react-select__control:focus .react-select__dropdown-indicator,
-.c29 .react-select__control:active .react-select__dropdown-indicator {
+.c36 .react-select__control:hover .react-select__dropdown-indicator,
+.c36 .react-select__control:focus .react-select__dropdown-indicator,
+.c36 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c29 .react-select__control .react-select__indicator:hover,
-.c29 .react-select__control .react-select__dropdown-indicator:hover,
-.c29 .react-select__control .react-select__indicator:focus,
-.c29 .react-select__control .react-select__dropdown-indicator:focus,
-.c29 .react-select__control .react-select__indicator:active,
-.c29 .react-select__control .react-select__dropdown-indicator:active {
+.c36 .react-select__control .react-select__indicator:hover,
+.c36 .react-select__control .react-select__dropdown-indicator:hover,
+.c36 .react-select__control .react-select__indicator:focus,
+.c36 .react-select__control .react-select__dropdown-indicator:focus,
+.c36 .react-select__control .react-select__indicator:active,
+.c36 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c29 .react-select__control--is-focused {
+.c36 .react-select__control--is-focused {
   border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c29 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c36 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c29 .react-select__single-value {
+.c36 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c29 .react-select__placeholder {
+.c36 .react-select__placeholder {
   color: rgba(255,255,255,0.54);
 }
 
-.c29 .react-select__multi-value {
+.c36 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c29 .react-select__multi-value .react-select__multi-value__label {
+.c36 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c29 .react-select__multi-value .react-select__multi-value__remove {
+.c36 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c29 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c36 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c29 .react-select__option:hover {
+.c36 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c29 .react-select__option--is-focused {
+.c36 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c29 .react-select__option--is-focused:hover {
+.c36 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c29 .react-select__option--is-selected {
+.c36 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c29 .react-select__option--is-selected:hover {
+.c36 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c29 .react-select__clear-indicator {
+.c36 .react-select__clear-indicator {
   color: rgba(255,255,255,0.72);
 }
 
-.c29 .react-select__clear-indicator:hover,
-.c29 .react-select__clear-indicator:focus {
+.c36 .react-select__clear-indicator:hover,
+.c36 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c29 .react-select__clear-indicator:hover svg,
-.c29 .react-select__clear-indicator:focus svg {
+.c36 .react-select__clear-indicator:hover svg,
+.c36 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c29 .react-select__menu {
+.c36 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
 }
 
-.c29 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c36 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c29 .react-select__indicator-separator {
+.c36 .react-select__indicator-separator {
   display: none;
 }
 
-.c29 .react-select__loading-indicator {
+.c36 .react-select__loading-indicator {
   display: none;
 }
 
-.c29 .react-select__control--is-disabled {
+.c36 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c29 .react-select__control--is-disabled .react-select__single-value,
-.c29 .react-select__control--is-disabled .react-select__placeholder {
+.c36 .react-select__control--is-disabled .react-select__single-value,
+.c36 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c29 .react-select__control--is-disabled .react-select__indicator {
+.c36 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
 
-.c29 .react-select__input {
+.c36 .react-select__input {
   color: #FFFFFF;
 }
 
-.c28 {
+.c35 {
   height: 18px;
   width: 18px;
   color: inherit;
 }
 
-.c26 {
+.c33 {
   vertical-align: middle;
   display: inline-block;
   height: 18px;
 }
 
-.c26:hover {
+.c33:hover {
   cursor: pointer;
+}
+
+.c30 {
+  height: 40px;
+  border: 1px solid rgba(255,255,255,0.54);
+  border-radius: 4px;
+  padding: 0 8px;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.c30:hover {
+  background-color: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.72);
+}
+
+.c27 {
+  position: relative;
 }
 
 .c14 {
@@ -615,6 +710,10 @@ exports[`failed state 1`] = `
   border-color: rgba(255,255,255,0.13);
 }
 
+.c40 {
+  border-color: rgba(255,255,255,0.13);
+}
+
 .c3 {
   position: absolute;
   z-index: 11;
@@ -688,24 +787,24 @@ exports[`failed state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c33 {
+.c43 {
   position: sticky;
   bottom: 0;
   background: #0C143D;
 }
 
-.c31 {
+.c38 {
   outline: none;
   background: transparent;
 }
 
-.c31::placeholder {
+.c38::placeholder {
   color: rgba(255,255,255,0.54);
 }
 
-.c31:hover,
-.c31:focus,
-.c31:active {
+.c38:hover,
+.c38:focus,
+.c38:active {
   border: 1px solid rgba(255,255,255,0.72);
 }
 
@@ -991,7 +1090,7 @@ exports[`failed state 1`] = `
                           autocapitalize="none"
                           autocomplete="off"
                           autocorrect="off"
-                          id="react-select-5-input"
+                          id="react-select-4-input"
                           spellcheck="false"
                           style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
                           tabindex="0"
@@ -1041,7 +1140,7 @@ exports[`failed state 1`] = `
                       <div
                         class="react-select__group-heading css-18ng2q5-group"
                         data="[object Object]"
-                        id="react-select-5-group-1-heading"
+                        id="react-select-4-group-1-heading"
                       >
                         <div
                           class="c1 c15"
@@ -1086,235 +1185,169 @@ exports[`failed state 1`] = `
         <div
           class="c22 c23"
         >
-          <label
+          <div
             class="c24"
-            color="text.slightlyMuted"
-            font-size="0"
           >
             <div
-              class="c1 c5"
+              class="c25 c26"
             >
               <div
-                class="c25"
+                class="c1 c27"
               >
-                Max Access Duration
-              </div>
-              <span
-                class="c26"
-                role="icon"
-              >
-                <span
-                  class="c27 c28"
+                <label
+                  class="c28"
+                  font-size="0"
                 >
-                  <svg
-                    fill="currentColor"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    width="20"
+                  Start Date
+                </label>
+                <div
+                  class="c29 c19 c30"
+                >
+                  Immediately
+                  <span
+                    class="c31 icon icon-calendar"
                   >
-                    <path
-                      d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
-                    />
-                    <path
-                      d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
-                    />
-                    <path
-                      clip-rule="evenodd"
-                      d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
-                      fill-rule="evenodd"
-                    />
-                  </svg>
-                </span>
-              </span>
+                    <svg
+                      fill="currentColor"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      width="24"
+                    >
+                      <path
+                        d="M10.1442 10.612C10.3653 10.7487 10.4999 10.9901 10.4999 11.25V17.25C10.4999 17.6642 10.1641 18 9.74992 18C9.33571 18 8.99992 17.6642 8.99992 17.25V12.4635L8.58533 12.6708C8.21485 12.8561 7.76434 12.7059 7.5791 12.3354C7.39386 11.9649 7.54403 11.5144 7.91451 11.3292L9.41451 10.5792C9.647 10.4629 9.92311 10.4754 10.1442 10.612Z"
+                      />
+                      <path
+                        d="M14.0767 12.0227C14.1762 11.9994 14.2794 11.9967 14.38 12.0147C14.4806 12.0327 14.5764 12.0711 14.6616 12.1275C14.7469 12.1839 14.8196 12.2571 14.8755 12.3426C14.9314 12.4282 14.9693 12.5242 14.9867 12.6249C15.0042 12.7256 15.0009 12.8288 14.977 12.9281C14.9531 13.0273 14.9091 13.121 14.8479 13.2027L12.15 16.7996C11.9796 17.0268 11.9521 17.3309 12.0792 17.585C12.2062 17.8391 12.4659 17.9996 12.75 17.9996H15.75C16.1642 17.9996 16.5 17.6638 16.5 17.2496C16.5 16.8354 16.1642 16.4996 15.75 16.4996H14.2501L16.0483 14.1021C16.2321 13.8568 16.3639 13.5765 16.4355 13.2785C16.5071 12.9804 16.517 12.6709 16.4647 12.3688C16.4124 12.0668 16.2989 11.7786 16.1312 11.522C15.9635 11.2654 15.7451 11.0458 15.4895 10.8766C15.2338 10.7074 14.9463 10.5923 14.6446 10.5382C14.3428 10.4841 14.0332 10.4923 13.7348 10.5622C13.4363 10.6321 13.1553 10.7622 12.9089 10.9446C12.6625 11.127 12.456 11.3578 12.3021 11.6229C12.094 11.9811 12.2158 12.4401 12.574 12.6481C12.9321 12.8562 13.3912 12.7344 13.5992 12.3763C13.6505 12.2879 13.7193 12.211 13.8015 12.1502C13.8836 12.0894 13.9773 12.046 14.0767 12.0227Z"
+                      />
+                      <path
+                        clip-rule="evenodd"
+                        d="M17.25 2.25C17.25 1.83579 16.9142 1.5 16.5 1.5C16.0858 1.5 15.75 1.83579 15.75 2.25V3H8.25V2.25C8.25 1.83579 7.91421 1.5 7.5 1.5C7.08579 1.5 6.75 1.83579 6.75 2.25V3H4.5C3.67157 3 3 3.67157 3 4.5V19.5C3 20.3284 3.67157 21 4.5 21H19.5C20.3284 21 21 20.3284 21 19.5V4.5C21 3.67157 20.3284 3 19.5 3H17.25V2.25ZM19.5 4.5H17.25V5.25C17.25 5.66421 16.9142 6 16.5 6C16.0858 6 15.75 5.66421 15.75 5.25V4.5H8.25V5.25C8.25 5.66421 7.91421 6 7.5 6C7.08579 6 6.75 5.66421 6.75 5.25V4.5H4.5V7.5H19.5V4.5ZM4.5 9H19.5V19.5H4.5V9Z"
+                        fill-rule="evenodd"
+                      />
+                    </svg>
+                  </span>
+                </div>
+              </div>
             </div>
-            <div
-              class="c29"
+            <label
+              class="c28"
+              color="text.slightlyMuted"
+              font-size="0"
             >
               <div
-                class="react-select-container css-2b097c-container"
+                class="c1 c5"
               >
                 <div
-                  class="react-select__control css-yk16xz-control"
+                  class="c32"
+                >
+                  Access Duration
+                </div>
+                <span
+                  class="c33"
+                  role="icon"
+                >
+                  <span
+                    class="c34 c35"
+                  >
+                    <svg
+                      fill="currentColor"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      width="20"
+                    >
+                      <path
+                        d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                      />
+                      <path
+                        d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                      />
+                      <path
+                        clip-rule="evenodd"
+                        d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                        fill-rule="evenodd"
+                      />
+                    </svg>
+                  </span>
+                </span>
+              </div>
+              <div
+                class="c36"
+              >
+                <div
+                  class="react-select-container css-2b097c-container"
                 >
                   <div
-                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                    class="react-select__control css-yk16xz-control"
                   >
                     <div
-                      class="react-select__single-value css-1uccc91-singleValue"
-                    >
-                      12 hours
-                    </div>
-                    <div
-                      class="css-b8ldur-Input"
+                      class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
                     >
                       <div
-                        class="react-select__input"
-                        style="display: inline-block;"
+                        class="react-select__single-value css-1uccc91-singleValue"
                       >
-                        <input
-                          aria-autocomplete="list"
-                          autocapitalize="none"
-                          autocomplete="off"
-                          autocorrect="off"
-                          id="react-select-6-input"
-                          spellcheck="false"
-                          style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
-                          tabindex="0"
-                          type="text"
-                          value=""
-                        />
+                        12 hours
+                      </div>
+                      <div
+                        class="css-b8ldur-Input"
+                      >
                         <div
-                          style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-family: -webkit-small-control; letter-spacing: normal; text-transform: none;"
-                        />
+                          class="react-select__input"
+                          style="display: inline-block;"
+                        >
+                          <input
+                            aria-autocomplete="list"
+                            autocapitalize="none"
+                            autocomplete="off"
+                            autocorrect="off"
+                            id="react-select-5-input"
+                            spellcheck="false"
+                            style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
+                            tabindex="0"
+                            type="text"
+                            value=""
+                          />
+                          <div
+                            style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-family: -webkit-small-control; letter-spacing: normal; text-transform: none;"
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div
-                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-                  >
-                    <span
-                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                    />
                     <div
-                      aria-hidden="true"
-                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                      class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
                     >
-                      <svg
+                      <span
+                        class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                      />
+                      <div
                         aria-hidden="true"
-                        class="css-6q0nyr-Svg"
-                        focusable="false"
-                        height="20"
-                        viewBox="0 0 20 20"
-                        width="20"
+                        class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
                       >
-                        <path
-                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                        />
-                      </svg>
+                        <svg
+                          aria-hidden="true"
+                          class="css-6q0nyr-Svg"
+                          focusable="false"
+                          height="20"
+                          viewBox="0 0 20 20"
+                          width="20"
+                        >
+                          <path
+                            d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                          />
+                        </svg>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </label>
+            </label>
+          </div>
           <label
-            class="c24"
-            color="text.slightlyMuted"
-            font-size="0"
-          >
-            <div
-              class="c1 c5"
-            >
-              <div
-                class="c25"
-              >
-                Request Expiry
-              </div>
-              <span
-                class="c26"
-                role="icon"
-              >
-                <span
-                  class="c27 c28"
-                >
-                  <svg
-                    fill="currentColor"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    width="20"
-                  >
-                    <path
-                      d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
-                    />
-                    <path
-                      d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
-                    />
-                    <path
-                      clip-rule="evenodd"
-                      d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
-                      fill-rule="evenodd"
-                    />
-                  </svg>
-                </span>
-              </span>
-            </div>
-            <div
-              class="c29"
-            >
-              <div
-                class="react-select-container css-2b097c-container"
-              >
-                <div
-                  class="react-select__control css-yk16xz-control"
-                >
-                  <div
-                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
-                  >
-                    <div
-                      class="react-select__single-value css-1uccc91-singleValue"
-                    >
-                      1 hour
-                    </div>
-                    <div
-                      class="css-b8ldur-Input"
-                    >
-                      <div
-                        class="react-select__input"
-                        style="display: inline-block;"
-                      >
-                        <input
-                          aria-autocomplete="list"
-                          autocapitalize="none"
-                          autocomplete="off"
-                          autocorrect="off"
-                          id="react-select-7-input"
-                          spellcheck="false"
-                          style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
-                          tabindex="0"
-                          type="text"
-                          value=""
-                        />
-                        <div
-                          style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-family: -webkit-small-control; letter-spacing: normal; text-transform: none;"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div
-                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-                  >
-                    <span
-                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                    />
-                    <div
-                      aria-hidden="true"
-                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                    >
-                      <svg
-                        aria-hidden="true"
-                        class="css-6q0nyr-Svg"
-                        focusable="false"
-                        height="20"
-                        viewBox="0 0 20 20"
-                        width="20"
-                      >
-                        <path
-                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </label>
-          <label
-            class="c24"
+            class="c28"
             font-size="0"
           >
             Request Reason
             <textarea
-              class="c30 c31"
+              class="c37 c38"
               color="text.main"
               height="80px"
               placeholder="Describe your request... (optional)"
@@ -1322,10 +1355,42 @@ exports[`failed state 1`] = `
             />
           </label>
           <div
-            class="c32 c33"
+            class="c39 c17 c40"
+            height="34px"
+          >
+            <div
+              class="c20"
+              font-size="1"
+            >
+              Additional Options
+            </div>
+            <button
+              class="c41"
+              data-testid="additional-info-btn"
+            >
+              <span
+                class="c34 icon icon-chevronright"
+              >
+                <svg
+                  fill="currentColor"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  width="20"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M8.46967 3.96967C8.76256 3.67678 9.23744 3.67678 9.53033 3.96967L17.0303 11.4697C17.3232 11.7626 17.3232 12.2374 17.0303 12.5303L9.53033 20.0303C9.23744 20.3232 8.76256 20.3232 8.46967 20.0303C8.17678 19.7374 8.17678 19.2626 8.46967 18.9697L15.4393 12L8.46967 5.03033C8.17678 4.73744 8.17678 4.26256 8.46967 3.96967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </div>
+          <div
+            class="c42 c43"
           >
             <button
-              class="c34"
+              class="c44"
               kind="primary"
               width="100%"
             >
@@ -1381,10 +1446,26 @@ exports[`loaded state 1`] = `
 
 .c30 {
   box-sizing: border-box;
-  margin-top: 24px;
+  margin-top: 40px;
+}
+
+.c32 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
+}
+
+.c33 {
+  box-sizing: border-box;
+  margin-bottom: 8px;
 }
 
 .c37 {
+  box-sizing: border-box;
+  max-width: 270px;
+  min-width: 180px;
+}
+
+.c44 {
   box-sizing: border-box;
   padding: 8px;
   height: 80px;
@@ -1395,7 +1476,16 @@ exports[`loaded state 1`] = `
   border-color: rgba(255,255,255,0.54);
 }
 
-.c39 {
+.c46 {
+  box-sizing: border-box;
+  margin-bottom: 8px;
+  margin-top: 4px;
+  padding-bottom: 8px;
+  height: 34px;
+  border-bottom: 1px solid;
+}
+
+.c48 {
   box-sizing: border-box;
   padding-top: 24px;
   padding-bottom: 24px;
@@ -1444,7 +1534,7 @@ exports[`loaded state 1`] = `
   cursor: auto;
 }
 
-.c41 {
+.c50 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1471,16 +1561,16 @@ exports[`loaded state 1`] = `
   width: 100%;
 }
 
-.c41:hover,
-.c41:focus {
+.c50:hover,
+.c50:focus {
   background: #B29DFF;
 }
 
-.c41:active {
+.c50:active {
   background: #C5B6FF;
 }
 
-.c41:disabled {
+.c50:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -1583,6 +1673,13 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
+.c39 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 16px;
+}
+
 .c10 {
   display: inline-flex;
   align-items: center;
@@ -1624,14 +1721,14 @@ exports[`loaded state 1`] = `
   margin: 0px;
 }
 
-.c33 {
+.c40 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   margin-right: 4px;
 }
 
-.c32 {
+.c36 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -1658,6 +1755,12 @@ exports[`loaded state 1`] = `
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.c34 {
+  display: flex;
+  align-items: end;
+  gap: 8px;
 }
 
 .c8 {
@@ -1750,7 +1853,7 @@ exports[`loaded state 1`] = `
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c36 .react-select-container {
+.c43 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -1762,7 +1865,7 @@ exports[`loaded state 1`] = `
   border-radius: 4px;
 }
 
-.c36 .react-select__control {
+.c43 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
@@ -1772,158 +1875,177 @@ exports[`loaded state 1`] = `
   box-shadow: none;
 }
 
-.c36 .react-select__control .react-select__dropdown-indicator {
+.c43 .react-select__control .react-select__dropdown-indicator {
   color: rgba(255,255,255,0.54);
 }
 
-.c36 .react-select__control:hover,
-.c36 .react-select__control:focus,
-.c36 .react-select__control:active {
+.c43 .react-select__control:hover,
+.c43 .react-select__control:focus,
+.c43 .react-select__control:active {
   border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c36 .react-select__control:hover .react-select__dropdown-indicator,
-.c36 .react-select__control:focus .react-select__dropdown-indicator,
-.c36 .react-select__control:active .react-select__dropdown-indicator {
+.c43 .react-select__control:hover .react-select__dropdown-indicator,
+.c43 .react-select__control:focus .react-select__dropdown-indicator,
+.c43 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c36 .react-select__control .react-select__indicator:hover,
-.c36 .react-select__control .react-select__dropdown-indicator:hover,
-.c36 .react-select__control .react-select__indicator:focus,
-.c36 .react-select__control .react-select__dropdown-indicator:focus,
-.c36 .react-select__control .react-select__indicator:active,
-.c36 .react-select__control .react-select__dropdown-indicator:active {
+.c43 .react-select__control .react-select__indicator:hover,
+.c43 .react-select__control .react-select__dropdown-indicator:hover,
+.c43 .react-select__control .react-select__indicator:focus,
+.c43 .react-select__control .react-select__dropdown-indicator:focus,
+.c43 .react-select__control .react-select__indicator:active,
+.c43 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c36 .react-select__control--is-focused {
+.c43 .react-select__control--is-focused {
   border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c36 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c43 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c36 .react-select__single-value {
+.c43 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c36 .react-select__placeholder {
+.c43 .react-select__placeholder {
   color: rgba(255,255,255,0.54);
 }
 
-.c36 .react-select__multi-value {
+.c43 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c36 .react-select__multi-value .react-select__multi-value__label {
+.c43 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c36 .react-select__multi-value .react-select__multi-value__remove {
+.c43 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c36 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c43 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c36 .react-select__option:hover {
+.c43 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c36 .react-select__option--is-focused {
+.c43 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c36 .react-select__option--is-focused:hover {
+.c43 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c36 .react-select__option--is-selected {
+.c43 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c36 .react-select__option--is-selected:hover {
+.c43 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c36 .react-select__clear-indicator {
+.c43 .react-select__clear-indicator {
   color: rgba(255,255,255,0.72);
 }
 
-.c36 .react-select__clear-indicator:hover,
-.c36 .react-select__clear-indicator:focus {
+.c43 .react-select__clear-indicator:hover,
+.c43 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c36 .react-select__clear-indicator:hover svg,
-.c36 .react-select__clear-indicator:focus svg {
+.c43 .react-select__clear-indicator:hover svg,
+.c43 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c36 .react-select__menu {
+.c43 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
 }
 
-.c36 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c43 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c36 .react-select__indicator-separator {
+.c43 .react-select__indicator-separator {
   display: none;
 }
 
-.c36 .react-select__loading-indicator {
+.c43 .react-select__loading-indicator {
   display: none;
 }
 
-.c36 .react-select__control--is-disabled {
+.c43 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c36 .react-select__control--is-disabled .react-select__single-value,
-.c36 .react-select__control--is-disabled .react-select__placeholder {
+.c43 .react-select__control--is-disabled .react-select__single-value,
+.c43 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c36 .react-select__control--is-disabled .react-select__indicator {
+.c43 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
 
-.c36 .react-select__input {
+.c43 .react-select__input {
   color: #FFFFFF;
 }
 
-.c35 {
+.c42 {
   height: 18px;
   width: 18px;
   color: inherit;
 }
 
-.c34 {
+.c41 {
   vertical-align: middle;
   display: inline-block;
   height: 18px;
 }
 
-.c34:hover {
+.c41:hover {
   cursor: pointer;
+}
+
+.c38 {
+  height: 40px;
+  border: 1px solid rgba(255,255,255,0.54);
+  border-radius: 4px;
+  padding: 0 8px;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.c38:hover {
+  background-color: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.72);
+}
+
+.c35 {
+  position: relative;
 }
 
 .c13 {
@@ -2052,6 +2174,10 @@ exports[`loaded state 1`] = `
   border-color: rgba(255,255,255,0.13);
 }
 
+.c47 {
+  border-color: rgba(255,255,255,0.13);
+}
+
 .c3 {
   position: absolute;
   z-index: 11;
@@ -2125,24 +2251,24 @@ exports[`loaded state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c40 {
+.c49 {
   position: sticky;
   bottom: 0;
   background: #0C143D;
 }
 
-.c38 {
+.c45 {
   outline: none;
   background: transparent;
 }
 
-.c38::placeholder {
+.c45::placeholder {
   color: rgba(255,255,255,0.54);
 }
 
-.c38:hover,
-.c38:focus,
-.c38:active {
+.c45:hover,
+.c45:focus,
+.c45:active {
   border: 1px solid rgba(255,255,255,0.72);
 }
 
@@ -2476,7 +2602,7 @@ exports[`loaded state 1`] = `
                       />
                       <div>
                         <div
-                          class="react-select__selected react-select__option react-select__option--is-selected css-9gakcf-option"
+                          class="react-select__selected react-select__option react-select__option--is-focused react-select__option--is-selected css-9gakcf-option"
                           id="react-select-2-option-0-0"
                           tabindex="-1"
                         >
@@ -2804,235 +2930,169 @@ exports[`loaded state 1`] = `
         <div
           class="c30 c31"
         >
-          <label
+          <div
             class="c32"
-            color="text.slightlyMuted"
-            font-size="0"
           >
             <div
-              class="c1 c5"
+              class="c33 c34"
             >
               <div
-                class="c33"
+                class="c1 c35"
               >
-                Max Access Duration
-              </div>
-              <span
-                class="c34"
-                role="icon"
-              >
-                <span
-                  class="c18 c35"
+                <label
+                  class="c36"
+                  font-size="0"
                 >
-                  <svg
-                    fill="currentColor"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    width="20"
+                  Start Date
+                </label>
+                <div
+                  class="c37 c22 c38"
+                >
+                  Immediately
+                  <span
+                    class="c39 icon icon-calendar"
                   >
-                    <path
-                      d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
-                    />
-                    <path
-                      d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
-                    />
-                    <path
-                      clip-rule="evenodd"
-                      d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
-                      fill-rule="evenodd"
-                    />
-                  </svg>
-                </span>
-              </span>
+                    <svg
+                      fill="currentColor"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      width="24"
+                    >
+                      <path
+                        d="M10.1442 10.612C10.3653 10.7487 10.4999 10.9901 10.4999 11.25V17.25C10.4999 17.6642 10.1641 18 9.74992 18C9.33571 18 8.99992 17.6642 8.99992 17.25V12.4635L8.58533 12.6708C8.21485 12.8561 7.76434 12.7059 7.5791 12.3354C7.39386 11.9649 7.54403 11.5144 7.91451 11.3292L9.41451 10.5792C9.647 10.4629 9.92311 10.4754 10.1442 10.612Z"
+                      />
+                      <path
+                        d="M14.0767 12.0227C14.1762 11.9994 14.2794 11.9967 14.38 12.0147C14.4806 12.0327 14.5764 12.0711 14.6616 12.1275C14.7469 12.1839 14.8196 12.2571 14.8755 12.3426C14.9314 12.4282 14.9693 12.5242 14.9867 12.6249C15.0042 12.7256 15.0009 12.8288 14.977 12.9281C14.9531 13.0273 14.9091 13.121 14.8479 13.2027L12.15 16.7996C11.9796 17.0268 11.9521 17.3309 12.0792 17.585C12.2062 17.8391 12.4659 17.9996 12.75 17.9996H15.75C16.1642 17.9996 16.5 17.6638 16.5 17.2496C16.5 16.8354 16.1642 16.4996 15.75 16.4996H14.2501L16.0483 14.1021C16.2321 13.8568 16.3639 13.5765 16.4355 13.2785C16.5071 12.9804 16.517 12.6709 16.4647 12.3688C16.4124 12.0668 16.2989 11.7786 16.1312 11.522C15.9635 11.2654 15.7451 11.0458 15.4895 10.8766C15.2338 10.7074 14.9463 10.5923 14.6446 10.5382C14.3428 10.4841 14.0332 10.4923 13.7348 10.5622C13.4363 10.6321 13.1553 10.7622 12.9089 10.9446C12.6625 11.127 12.456 11.3578 12.3021 11.6229C12.094 11.9811 12.2158 12.4401 12.574 12.6481C12.9321 12.8562 13.3912 12.7344 13.5992 12.3763C13.6505 12.2879 13.7193 12.211 13.8015 12.1502C13.8836 12.0894 13.9773 12.046 14.0767 12.0227Z"
+                      />
+                      <path
+                        clip-rule="evenodd"
+                        d="M17.25 2.25C17.25 1.83579 16.9142 1.5 16.5 1.5C16.0858 1.5 15.75 1.83579 15.75 2.25V3H8.25V2.25C8.25 1.83579 7.91421 1.5 7.5 1.5C7.08579 1.5 6.75 1.83579 6.75 2.25V3H4.5C3.67157 3 3 3.67157 3 4.5V19.5C3 20.3284 3.67157 21 4.5 21H19.5C20.3284 21 21 20.3284 21 19.5V4.5C21 3.67157 20.3284 3 19.5 3H17.25V2.25ZM19.5 4.5H17.25V5.25C17.25 5.66421 16.9142 6 16.5 6C16.0858 6 15.75 5.66421 15.75 5.25V4.5H8.25V5.25C8.25 5.66421 7.91421 6 7.5 6C7.08579 6 6.75 5.66421 6.75 5.25V4.5H4.5V7.5H19.5V4.5ZM4.5 9H19.5V19.5H4.5V9Z"
+                        fill-rule="evenodd"
+                      />
+                    </svg>
+                  </span>
+                </div>
+              </div>
             </div>
-            <div
+            <label
               class="c36"
+              color="text.slightlyMuted"
+              font-size="0"
             >
               <div
-                class="react-select-container css-2b097c-container"
+                class="c1 c5"
               >
                 <div
-                  class="react-select__control css-yk16xz-control"
+                  class="c40"
+                >
+                  Access Duration
+                </div>
+                <span
+                  class="c41"
+                  role="icon"
+                >
+                  <span
+                    class="c18 c42"
+                  >
+                    <svg
+                      fill="currentColor"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      width="20"
+                    >
+                      <path
+                        d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                      />
+                      <path
+                        d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                      />
+                      <path
+                        clip-rule="evenodd"
+                        d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                        fill-rule="evenodd"
+                      />
+                    </svg>
+                  </span>
+                </span>
+              </div>
+              <div
+                class="c43"
+              >
+                <div
+                  class="react-select-container css-2b097c-container"
                 >
                   <div
-                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                    class="react-select__control css-yk16xz-control"
                   >
                     <div
-                      class="react-select__single-value css-1uccc91-singleValue"
-                    >
-                      12 hours
-                    </div>
-                    <div
-                      class="css-b8ldur-Input"
+                      class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
                     >
                       <div
-                        class="react-select__input"
-                        style="display: inline-block;"
+                        class="react-select__single-value css-1uccc91-singleValue"
                       >
-                        <input
-                          aria-autocomplete="list"
-                          autocapitalize="none"
-                          autocomplete="off"
-                          autocorrect="off"
-                          id="react-select-3-input"
-                          spellcheck="false"
-                          style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
-                          tabindex="0"
-                          type="text"
-                          value=""
-                        />
+                        2 days (Max Duration)
+                      </div>
+                      <div
+                        class="css-b8ldur-Input"
+                      >
                         <div
-                          style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-family: -webkit-small-control; letter-spacing: normal; text-transform: none;"
-                        />
+                          class="react-select__input"
+                          style="display: inline-block;"
+                        >
+                          <input
+                            aria-autocomplete="list"
+                            autocapitalize="none"
+                            autocomplete="off"
+                            autocorrect="off"
+                            id="react-select-3-input"
+                            spellcheck="false"
+                            style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
+                            tabindex="0"
+                            type="text"
+                            value=""
+                          />
+                          <div
+                            style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-family: -webkit-small-control; letter-spacing: normal; text-transform: none;"
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div
-                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-                  >
-                    <span
-                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                    />
                     <div
-                      aria-hidden="true"
-                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                      class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
                     >
-                      <svg
+                      <span
+                        class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                      />
+                      <div
                         aria-hidden="true"
-                        class="css-6q0nyr-Svg"
-                        focusable="false"
-                        height="20"
-                        viewBox="0 0 20 20"
-                        width="20"
+                        class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
                       >
-                        <path
-                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                        />
-                      </svg>
+                        <svg
+                          aria-hidden="true"
+                          class="css-6q0nyr-Svg"
+                          focusable="false"
+                          height="20"
+                          viewBox="0 0 20 20"
+                          width="20"
+                        >
+                          <path
+                            d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                          />
+                        </svg>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </label>
+            </label>
+          </div>
           <label
-            class="c32"
-            color="text.slightlyMuted"
-            font-size="0"
-          >
-            <div
-              class="c1 c5"
-            >
-              <div
-                class="c33"
-              >
-                Request Expiry
-              </div>
-              <span
-                class="c34"
-                role="icon"
-              >
-                <span
-                  class="c18 c35"
-                >
-                  <svg
-                    fill="currentColor"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    width="20"
-                  >
-                    <path
-                      d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
-                    />
-                    <path
-                      d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
-                    />
-                    <path
-                      clip-rule="evenodd"
-                      d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
-                      fill-rule="evenodd"
-                    />
-                  </svg>
-                </span>
-              </span>
-            </div>
-            <div
-              class="c36"
-            >
-              <div
-                class="react-select-container css-2b097c-container"
-              >
-                <div
-                  class="react-select__control css-yk16xz-control"
-                >
-                  <div
-                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
-                  >
-                    <div
-                      class="react-select__single-value css-1uccc91-singleValue"
-                    >
-                      1 hour
-                    </div>
-                    <div
-                      class="css-b8ldur-Input"
-                    >
-                      <div
-                        class="react-select__input"
-                        style="display: inline-block;"
-                      >
-                        <input
-                          aria-autocomplete="list"
-                          autocapitalize="none"
-                          autocomplete="off"
-                          autocorrect="off"
-                          id="react-select-4-input"
-                          spellcheck="false"
-                          style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
-                          tabindex="0"
-                          type="text"
-                          value=""
-                        />
-                        <div
-                          style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-family: -webkit-small-control; letter-spacing: normal; text-transform: none;"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div
-                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-                  >
-                    <span
-                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                    />
-                    <div
-                      aria-hidden="true"
-                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                    >
-                      <svg
-                        aria-hidden="true"
-                        class="css-6q0nyr-Svg"
-                        focusable="false"
-                        height="20"
-                        viewBox="0 0 20 20"
-                        width="20"
-                      >
-                        <path
-                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </label>
-          <label
-            class="c32"
+            class="c36"
             font-size="0"
           >
             Request Reason
             <textarea
-              class="c37 c38"
+              class="c44 c45"
               color="text.main"
               height="80px"
               placeholder="Describe your request..."
@@ -3040,10 +3100,42 @@ exports[`loaded state 1`] = `
             />
           </label>
           <div
-            class="c39 c40"
+            class="c46 c14 c47"
+            height="34px"
+          >
+            <div
+              class="c23"
+              font-size="1"
+            >
+              Additional Options
+            </div>
+            <button
+              class="c25"
+              data-testid="additional-info-btn"
+            >
+              <span
+                class="c18 icon icon-chevronright"
+              >
+                <svg
+                  fill="currentColor"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  width="20"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M8.46967 3.96967C8.76256 3.67678 9.23744 3.67678 9.53033 3.96967L17.0303 11.4697C17.3232 11.7626 17.3232 12.2374 17.0303 12.5303L9.53033 20.0303C9.23744 20.3232 8.76256 20.3232 8.46967 20.0303C8.17678 19.7374 8.17678 19.2626 8.46967 18.9697L15.4393 12L8.46967 5.03033C8.17678 4.73744 8.17678 4.26256 8.46967 3.96967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </div>
+          <div
+            class="c48 c49"
           >
             <button
-              class="c41"
+              class="c50"
               kind="primary"
               width="100%"
             >

@@ -242,6 +242,44 @@ export const requestRoleApproved: AccessRequest = {
   resources: [],
 };
 
+export const requestRoleApprovedWithStartTime: AccessRequest = {
+  id: '72de9b90-04fd-5621-a55d-432d9fe56ef2',
+  state: 'APPROVED',
+  user: 'Sam',
+  expires: new Date(0),
+  expiresDuration: '24 hours',
+  created: new Date('12-1-2020'),
+  createdDuration: '2 hours ago',
+  maxDuration: null,
+  maxDurationText: '',
+  requestTTL: new Date(0),
+  requestTTLDuration: '2 hours',
+  sessionTTL: new Date(0),
+  sessionTTLDuration: '',
+  roles: ['kaco', 'ziuzzow', 'admin'],
+  requestReason: '',
+  resolveReason: '',
+  reviews: [
+    {
+      author: 'test-long-user-name@testing.com',
+      createdDuration: '1 minute ago',
+      reason: '',
+      state: 'APPROVED',
+      roles: ['admin'],
+    },
+  ],
+  reviewers: [
+    {
+      name: 'alice',
+      state: 'APPROVED',
+    },
+  ],
+  thresholdNames: ['Default'],
+  resources: [],
+  assumeStartTime: new Date('12-6-9999'),
+  assumeStartTimeDuration: '24 hours from now',
+};
+
 export const requestRolePromoted: AccessRequest = {
   id: '72de9b90-04fd-5621-a55d-432d9fe56ef2',
   state: 'PROMOTED',

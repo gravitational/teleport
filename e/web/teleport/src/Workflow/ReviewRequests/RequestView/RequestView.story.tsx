@@ -20,6 +20,7 @@ import {
   requestSearchPending,
   requestRoleEmpty,
   requestRolePromoted,
+  requestRoleApprovedWithStartTime,
 } from '../../fixtures';
 
 import { RequestView, RequestViewProps } from './RequestView';
@@ -77,6 +78,20 @@ export const LoadedRoleApproved = () => {
     <RequestView
       {...sample}
       fetchRequestAttempt={makeSuccessAttempt(requestRoleApproved)}
+      getFlags={() => flags}
+    />
+  );
+};
+
+export const LoadedRoleApprovedWithStartTime = () => {
+  const flags = {
+    ...sampleFlags,
+    canAssume: true,
+  };
+  return (
+    <RequestView
+      {...sample}
+      fetchRequestAttempt={makeSuccessAttempt(requestRoleApprovedWithStartTime)}
       getFlags={() => flags}
     />
   );

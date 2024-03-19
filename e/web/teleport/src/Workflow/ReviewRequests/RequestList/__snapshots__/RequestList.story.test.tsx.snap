@@ -64,7 +64,7 @@ exports[`loaded state 1`] = `
   cursor: auto;
 }
 
-.c29 {
+.c30 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -91,22 +91,63 @@ exports[`loaded state 1`] = `
   width: 108px;
 }
 
-.c29:hover,
-.c29:focus {
+.c30:hover,
+.c30:focus {
   background: #B29DFF;
 }
 
-.c29:active {
+.c30:active {
   background: #C5B6FF;
 }
 
-.c29:disabled {
+.c30:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c27 {
+.c26 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #000000;
+  background: #9F85FF;
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+}
+
+.c26:hover,
+.c26:focus {
+  background: #B29DFF;
+}
+
+.c26:active {
+  background: #C5B6FF;
+}
+
+.c26:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c29 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -126,21 +167,21 @@ exports[`loaded state 1`] = `
   width: 32px;
 }
 
-.c27:disabled {
+.c29:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c27:disabled {
+.c29:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c27:hover:enabled,
-.c27:focus:enabled {
+.c29:hover:enabled,
+.c29:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c27:active:enabled {
+.c29:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
@@ -229,7 +270,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c25 {
+.c27 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -314,7 +355,7 @@ exports[`loaded state 1`] = `
   font-size: 10px;
 }
 
-.c28 {
+.c25 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -345,14 +386,14 @@ exports[`loaded state 1`] = `
   justify-content: right;
 }
 
+.c9 {
+  display: flex;
+}
+
 .c7 {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-}
-
-.c9 {
-  display: flex;
 }
 
 .c16 {
@@ -521,7 +562,7 @@ exports[`loaded state 1`] = `
   padding-left: 24px;
 }
 
-.c26 {
+.c28 {
   margin: 0 auto;
 }
 
@@ -568,12 +609,12 @@ exports[`loaded state 1`] = `
         </strong>
          - 
         <strong>
-          7
+          8
         </strong>
          of
          
         <strong>
-          7
+          8
         </strong>
       </div>
     </div>
@@ -718,31 +759,6 @@ exports[`loaded state 1`] = `
           <a
             style="display: flex; align-items: center;"
           >
-            Request Reason
-            <span
-              class="c14 icon icon-chevronsvertical"
-              title="sort items"
-            >
-              <svg
-                fill="currentColor"
-                height="24"
-                viewBox="0 0 24 24"
-                width="24"
-              >
-                <path
-                  d="M12.5303 2.46967C12.2374 2.17678 11.7626 2.17678 11.4697 2.46967L6.96967 6.96967C6.67678 7.26256 6.67678 7.73744 6.96967 8.03033C7.26256 8.32322 7.73744 8.32322 8.03033 8.03033L12 4.06066L15.9697 8.03033C16.2626 8.32322 16.7374 8.32322 17.0303 8.03033C17.3232 7.73744 17.3232 7.26256 17.0303 6.96967L12.5303 2.46967Z"
-                />
-                <path
-                  d="M8.03033 15.9697C7.73744 15.6768 7.26256 15.6768 6.96967 15.9697C6.67678 16.2626 6.67678 16.7374 6.96967 17.0303L11.4697 21.5303C11.7626 21.8232 12.2374 21.8232 12.5303 21.5303L17.0303 17.0303C17.3232 16.7374 17.3232 16.2626 17.0303 15.9697C16.7374 15.6768 16.2626 15.6768 15.9697 15.9697L12 19.9393L8.03033 15.9697Z"
-                />
-              </svg>
-            </span>
-          </a>
-        </th>
-        <th>
-          <a
-            style="display: flex; align-items: center;"
-          >
             Created
             <span
               class="c14 icon icon-chevrondown"
@@ -758,6 +774,31 @@ exports[`loaded state 1`] = `
                   clip-rule="evenodd"
                   d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
                   fill-rule="evenodd"
+                />
+              </svg>
+            </span>
+          </a>
+        </th>
+        <th>
+          <a
+            style="display: flex; align-items: center;"
+          >
+            Available
+            <span
+              class="c14 icon icon-chevronsvertical"
+              title="sort items"
+            >
+              <svg
+                fill="currentColor"
+                height="24"
+                viewBox="0 0 24 24"
+                width="24"
+              >
+                <path
+                  d="M12.5303 2.46967C12.2374 2.17678 11.7626 2.17678 11.4697 2.46967L6.96967 6.96967C6.67678 7.26256 6.67678 7.73744 6.96967 8.03033C7.26256 8.32322 7.73744 8.32322 8.03033 8.03033L12 4.06066L15.9697 8.03033C16.2626 8.32322 16.7374 8.32322 17.0303 8.03033C17.3232 7.73744 17.3232 7.26256 17.0303 6.96967L12.5303 2.46967Z"
+                />
+                <path
+                  d="M8.03033 15.9697C7.73744 15.6768 7.26256 15.6768 6.96967 15.9697C6.67678 16.2626 6.67678 16.7374 6.96967 17.0303L11.4697 21.5303C11.7626 21.8232 12.2374 21.8232 12.5303 21.5303L17.0303 17.0303C17.3232 16.7374 17.3232 16.2626 17.0303 15.9697C16.7374 15.6768 16.2626 15.6768 15.9697 15.9697L12 19.9393L8.03033 15.9697Z"
                 />
               </svg>
             </span>
@@ -835,14 +876,11 @@ exports[`loaded state 1`] = `
             admin
           </div>
         </td>
-        <td
-          style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          title="Testing long message format. I am requesting access for the developer role that i will be using to         commit fixes for our production application. I will need access for the         rest of the day to complete my changes."
-        >
-          Testing long message format. I am requesting access for the developer role that i will be using to         commit fixes for our production application. I will need access for the         rest of the day to complete my changes.
-        </td>
         <td>
           1 minute ago
+        </td>
+        <td>
+          24 hours from now
         </td>
         <td>
           2 hours
@@ -962,15 +1000,10 @@ exports[`loaded state 1`] = `
             Some Friendly Name
           </div>
         </td>
-        <td
-          style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          title="Testing long message format. I am requesting access for the developer role that i will be using to         commit fixes for our production application. I will need access for the         rest of the day to complete my changes."
-        >
-          Testing long message format. I am requesting access for the developer role that i will be using to         commit fixes for our production application. I will need access for the         rest of the day to complete my changes.
-        </td>
         <td>
           1 minute ago
         </td>
+        <td />
         <td>
           1 hour
         </td>
@@ -1040,15 +1073,10 @@ exports[`loaded state 1`] = `
             ruhh
           </div>
         </td>
-        <td
-          style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          title="Some short request reason"
-        >
-          Some short request reason
-        </td>
         <td>
           35 minutes ago
         </td>
+        <td />
         <td>
           1 hour
         </td>
@@ -1082,261 +1110,7 @@ exports[`loaded state 1`] = `
             class="c11 c17"
           >
             <span
-              class="c25 icon icon-arrowfatlinesup"
-              color="success.main"
-            >
-              <svg
-                fill="currentColor"
-                height="17"
-                viewBox="0 0 24 24"
-                width="17"
-              >
-                <path
-                  clip-rule="evenodd"
-                  d="M11.4697 1.71967C11.7626 1.42678 12.2375 1.42678 12.5304 1.71967L21.5304 10.7197C21.7449 10.9342 21.809 11.2568 21.6929 11.537C21.5768 11.8173 21.3034 12 21 12H17.25V14.25C17.25 14.6642 16.9142 15 16.5 15H7.50002C7.08581 15 6.75002 14.6642 6.75002 14.25V12H3.00002C2.69668 12 2.4232 11.8173 2.30711 11.537C2.19103 11.2568 2.25519 10.9342 2.46969 10.7197L11.4697 1.71967ZM4.81068 10.5H7.50002C7.91424 10.5 8.25002 10.8358 8.25002 11.25V13.5H15.75V11.25C15.75 10.8358 16.0858 10.5 16.5 10.5H19.1894L12 3.31066L4.81068 10.5Z"
-                  fill-rule="evenodd"
-                />
-                <path
-                  d="M6.75 20.25C6.75 19.8358 7.08579 19.5 7.5 19.5H16.5C16.9142 19.5 17.25 19.8358 17.25 20.25C17.25 20.6642 16.9142 21 16.5 21H7.5C7.08579 21 6.75 20.6642 6.75 20.25Z"
-                />
-                <path
-                  d="M7.5 16.5C7.08579 16.5 6.75 16.8358 6.75 17.25C6.75 17.6642 7.08579 18 7.5 18H16.5C16.9142 18 17.25 17.6642 17.25 17.25C17.25 16.8358 16.9142 16.5 16.5 16.5H7.5Z"
-                />
-              </svg>
-            </span>
-            <div
-              class="c19"
-            >
-              PROMOTED
-            </div>
-          </div>
-        </td>
-        <td
-          style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          title="Sam"
-        >
-          Sam
-        </td>
-        <td>
-          <div
-            class="c20"
-            kind="secondary"
-          >
-            role: 
-            admin
-          </div>
-          <div
-            class="c20"
-            kind="secondary"
-          >
-            role: 
-            kaco
-          </div>
-          <div
-            class="c20"
-            kind="secondary"
-          >
-            role: 
-            ziuzzow
-          </div>
-        </td>
-        <td
-          style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          title="own promoted request"
-        >
-          own promoted request
-        </td>
-        <td>
-          2 hours ago
-        </td>
-        <td />
-        <td
-          align="right"
-        >
-          <div
-            class="c21 c22"
-            width="184px"
-          >
-            <div
-              class="c11 c26"
-            >
-              <button
-                class="c27"
-              >
-                <span
-                  class="c14 icon icon-info"
-                >
-                  <svg
-                    fill="currentColor"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    width="24"
-                  >
-                    <path
-                      d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
-                    />
-                    <path
-                      d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
-                    />
-                    <path
-                      clip-rule="evenodd"
-                      d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
-                      fill-rule="evenodd"
-                    />
-                  </svg>
-                </span>
-              </button>
-            </div>
-            <a
-              class="c23"
-              href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
-              kind="border"
-              ml="3"
-            >
-              View
-            </a>
-          </div>
-        </td>
-      </tr>
-      <tr>
-        <td
-          style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          title="72de9b90-04fd-5621-a55d-432d9fe56ef2"
-        >
-          56ef2
-        </td>
-        <td>
-          <div
-            class="c11 c17"
-          >
-            <span
-              class="c25 icon icon-arrowfatlinesup"
-              color="success.main"
-            >
-              <svg
-                fill="currentColor"
-                height="17"
-                viewBox="0 0 24 24"
-                width="17"
-              >
-                <path
-                  clip-rule="evenodd"
-                  d="M11.4697 1.71967C11.7626 1.42678 12.2375 1.42678 12.5304 1.71967L21.5304 10.7197C21.7449 10.9342 21.809 11.2568 21.6929 11.537C21.5768 11.8173 21.3034 12 21 12H17.25V14.25C17.25 14.6642 16.9142 15 16.5 15H7.50002C7.08581 15 6.75002 14.6642 6.75002 14.25V12H3.00002C2.69668 12 2.4232 11.8173 2.30711 11.537C2.19103 11.2568 2.25519 10.9342 2.46969 10.7197L11.4697 1.71967ZM4.81068 10.5H7.50002C7.91424 10.5 8.25002 10.8358 8.25002 11.25V13.5H15.75V11.25C15.75 10.8358 16.0858 10.5 16.5 10.5H19.1894L12 3.31066L4.81068 10.5Z"
-                  fill-rule="evenodd"
-                />
-                <path
-                  d="M6.75 20.25C6.75 19.8358 7.08579 19.5 7.5 19.5H16.5C16.9142 19.5 17.25 19.8358 17.25 20.25C17.25 20.6642 16.9142 21 16.5 21H7.5C7.08579 21 6.75 20.6642 6.75 20.25Z"
-                />
-                <path
-                  d="M7.5 16.5C7.08579 16.5 6.75 16.8358 6.75 17.25C6.75 17.6642 7.08579 18 7.5 18H16.5C16.9142 18 17.25 17.6642 17.25 17.25C17.25 16.8358 16.9142 16.5 16.5 16.5H7.5Z"
-                />
-              </svg>
-            </span>
-            <div
-              class="c19"
-            >
-              PROMOTED
-            </div>
-          </div>
-        </td>
-        <td
-          style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          title="Sam"
-        >
-          Sam
-        </td>
-        <td>
-          <div
-            class="c20"
-            kind="secondary"
-          >
-            role: 
-            admin
-          </div>
-          <div
-            class="c20"
-            kind="secondary"
-          >
-            role: 
-            kaco
-          </div>
-          <div
-            class="c20"
-            kind="secondary"
-          >
-            role: 
-            ziuzzow
-          </div>
-        </td>
-        <td
-          style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          title=""
-        />
-        <td>
-          2 hours ago
-        </td>
-        <td />
-        <td
-          align="right"
-        >
-          <div
-            class="c21 c22"
-            width="184px"
-          >
-            <div
-              class="c11 c26"
-            >
-              <button
-                class="c27"
-              >
-                <span
-                  class="c14 icon icon-info"
-                >
-                  <svg
-                    fill="currentColor"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    width="24"
-                  >
-                    <path
-                      d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
-                    />
-                    <path
-                      d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
-                    />
-                    <path
-                      clip-rule="evenodd"
-                      d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
-                      fill-rule="evenodd"
-                    />
-                  </svg>
-                </span>
-              </button>
-            </div>
-            <a
-              class="c23"
-              href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
-              kind="border"
-              ml="3"
-            >
-              View
-            </a>
-          </div>
-        </td>
-      </tr>
-      <tr>
-        <td
-          style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          title="72de9b90-04fd-5621-a55d-432d9fe56ef2"
-        >
-          56ef2
-        </td>
-        <td>
-          <div
-            class="c11 c17"
-          >
-            <span
-              class="c28"
+              class="c25"
               font-size="0"
               font-weight="bold"
               kind="success"
@@ -1379,12 +1153,11 @@ exports[`loaded state 1`] = `
             ziuzzow
           </div>
         </td>
-        <td
-          style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          title=""
-        />
         <td>
           2 hours ago
+        </td>
+        <td>
+          24 hours from now
         </td>
         <td>
           2 hours
@@ -1396,8 +1169,345 @@ exports[`loaded state 1`] = `
             class="c21 c22"
             width="184px"
           >
+            <div
+              class="c11 c9"
+            >
+              <button
+                class="c26"
+                disabled=""
+                kind="primary"
+              >
+                Assume Roles
+              </button>
+            </div>
+            <a
+              class="c23"
+              href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
+              kind="border"
+              ml="3"
+            >
+              View
+            </a>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+          title="72de9b90-04fd-5621-a55d-432d9fe56ef2"
+        >
+          56ef2
+        </td>
+        <td>
+          <div
+            class="c11 c17"
+          >
+            <span
+              class="c27 icon icon-arrowfatlinesup"
+              color="success.main"
+            >
+              <svg
+                fill="currentColor"
+                height="17"
+                viewBox="0 0 24 24"
+                width="17"
+              >
+                <path
+                  clip-rule="evenodd"
+                  d="M11.4697 1.71967C11.7626 1.42678 12.2375 1.42678 12.5304 1.71967L21.5304 10.7197C21.7449 10.9342 21.809 11.2568 21.6929 11.537C21.5768 11.8173 21.3034 12 21 12H17.25V14.25C17.25 14.6642 16.9142 15 16.5 15H7.50002C7.08581 15 6.75002 14.6642 6.75002 14.25V12H3.00002C2.69668 12 2.4232 11.8173 2.30711 11.537C2.19103 11.2568 2.25519 10.9342 2.46969 10.7197L11.4697 1.71967ZM4.81068 10.5H7.50002C7.91424 10.5 8.25002 10.8358 8.25002 11.25V13.5H15.75V11.25C15.75 10.8358 16.0858 10.5 16.5 10.5H19.1894L12 3.31066L4.81068 10.5Z"
+                  fill-rule="evenodd"
+                />
+                <path
+                  d="M6.75 20.25C6.75 19.8358 7.08579 19.5 7.5 19.5H16.5C16.9142 19.5 17.25 19.8358 17.25 20.25C17.25 20.6642 16.9142 21 16.5 21H7.5C7.08579 21 6.75 20.6642 6.75 20.25Z"
+                />
+                <path
+                  d="M7.5 16.5C7.08579 16.5 6.75 16.8358 6.75 17.25C6.75 17.6642 7.08579 18 7.5 18H16.5C16.9142 18 17.25 17.6642 17.25 17.25C17.25 16.8358 16.9142 16.5 16.5 16.5H7.5Z"
+                />
+              </svg>
+            </span>
+            <div
+              class="c19"
+            >
+              PROMOTED
+            </div>
+          </div>
+        </td>
+        <td
+          style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+          title="Sam"
+        >
+          Sam
+        </td>
+        <td>
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            role: 
+            admin
+          </div>
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            role: 
+            kaco
+          </div>
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            role: 
+            ziuzzow
+          </div>
+        </td>
+        <td>
+          2 hours ago
+        </td>
+        <td />
+        <td />
+        <td
+          align="right"
+        >
+          <div
+            class="c21 c22"
+            width="184px"
+          >
+            <div
+              class="c11 c28"
+            >
+              <button
+                class="c29"
+              >
+                <span
+                  class="c14 icon icon-info"
+                >
+                  <svg
+                    fill="currentColor"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    width="24"
+                  >
+                    <path
+                      d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                    />
+                    <path
+                      d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                    />
+                    <path
+                      clip-rule="evenodd"
+                      d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
+              </button>
+            </div>
+            <a
+              class="c23"
+              href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
+              kind="border"
+              ml="3"
+            >
+              View
+            </a>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+          title="72de9b90-04fd-5621-a55d-432d9fe56ef2"
+        >
+          56ef2
+        </td>
+        <td>
+          <div
+            class="c11 c17"
+          >
+            <span
+              class="c27 icon icon-arrowfatlinesup"
+              color="success.main"
+            >
+              <svg
+                fill="currentColor"
+                height="17"
+                viewBox="0 0 24 24"
+                width="17"
+              >
+                <path
+                  clip-rule="evenodd"
+                  d="M11.4697 1.71967C11.7626 1.42678 12.2375 1.42678 12.5304 1.71967L21.5304 10.7197C21.7449 10.9342 21.809 11.2568 21.6929 11.537C21.5768 11.8173 21.3034 12 21 12H17.25V14.25C17.25 14.6642 16.9142 15 16.5 15H7.50002C7.08581 15 6.75002 14.6642 6.75002 14.25V12H3.00002C2.69668 12 2.4232 11.8173 2.30711 11.537C2.19103 11.2568 2.25519 10.9342 2.46969 10.7197L11.4697 1.71967ZM4.81068 10.5H7.50002C7.91424 10.5 8.25002 10.8358 8.25002 11.25V13.5H15.75V11.25C15.75 10.8358 16.0858 10.5 16.5 10.5H19.1894L12 3.31066L4.81068 10.5Z"
+                  fill-rule="evenodd"
+                />
+                <path
+                  d="M6.75 20.25C6.75 19.8358 7.08579 19.5 7.5 19.5H16.5C16.9142 19.5 17.25 19.8358 17.25 20.25C17.25 20.6642 16.9142 21 16.5 21H7.5C7.08579 21 6.75 20.6642 6.75 20.25Z"
+                />
+                <path
+                  d="M7.5 16.5C7.08579 16.5 6.75 16.8358 6.75 17.25C6.75 17.6642 7.08579 18 7.5 18H16.5C16.9142 18 17.25 17.6642 17.25 17.25C17.25 16.8358 16.9142 16.5 16.5 16.5H7.5Z"
+                />
+              </svg>
+            </span>
+            <div
+              class="c19"
+            >
+              PROMOTED
+            </div>
+          </div>
+        </td>
+        <td
+          style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+          title="Sam"
+        >
+          Sam
+        </td>
+        <td>
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            role: 
+            admin
+          </div>
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            role: 
+            kaco
+          </div>
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            role: 
+            ziuzzow
+          </div>
+        </td>
+        <td>
+          2 hours ago
+        </td>
+        <td />
+        <td />
+        <td
+          align="right"
+        >
+          <div
+            class="c21 c22"
+            width="184px"
+          >
+            <div
+              class="c11 c28"
+            >
+              <button
+                class="c29"
+              >
+                <span
+                  class="c14 icon icon-info"
+                >
+                  <svg
+                    fill="currentColor"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    width="24"
+                  >
+                    <path
+                      d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                    />
+                    <path
+                      d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                    />
+                    <path
+                      clip-rule="evenodd"
+                      d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
+              </button>
+            </div>
+            <a
+              class="c23"
+              href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
+              kind="border"
+              ml="3"
+            >
+              View
+            </a>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+          title="72de9b90-04fd-5621-a55d-432d9fe56ef2"
+        >
+          56ef2
+        </td>
+        <td>
+          <div
+            class="c11 c17"
+          >
+            <span
+              class="c25"
+              font-size="0"
+              font-weight="bold"
+              kind="success"
+              style="min-height: 10px;"
+              width="10px"
+            />
+            <div
+              class="c19"
+            >
+              APPROVED
+            </div>
+          </div>
+        </td>
+        <td
+          style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+          title="Sam"
+        >
+          Sam
+        </td>
+        <td>
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            role: 
+            admin
+          </div>
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            role: 
+            kaco
+          </div>
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            role: 
+            ziuzzow
+          </div>
+        </td>
+        <td>
+          2 hours ago
+        </td>
+        <td />
+        <td>
+          2 hours
+        </td>
+        <td
+          align="right"
+        >
+          <div
+            class="c21 c22"
+            width="184px"
+          >
             <button
-              class="c29"
+              class="c30"
               disabled=""
               kind="primary"
               width="108px"
@@ -1427,7 +1537,7 @@ exports[`loaded state 1`] = `
             class="c11 c17"
           >
             <span
-              class="c28"
+              class="c25"
               font-size="0"
               font-weight="bold"
               kind="success"
@@ -1470,13 +1580,10 @@ exports[`loaded state 1`] = `
             ziuzzow
           </div>
         </td>
-        <td
-          style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          title=""
-        />
         <td>
           2 hours ago
         </td>
+        <td />
         <td>
           2 hours
         </td>
@@ -1488,7 +1595,7 @@ exports[`loaded state 1`] = `
             width="184px"
           >
             <button
-              class="c29"
+              class="c30"
               kind="primary"
               width="108px"
             >

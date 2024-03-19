@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { render, screen, userEvent, fireEvent } from 'design/utils/testing';
+import { Option } from 'shared/components/Select';
+
+import { dryRunResponse } from 'e-teleport/Workflow/fixtures';
 
 import {
   RequestCheckout as RequestCheckoutComp,
@@ -75,10 +78,37 @@ test('start with suggested reviewers', async () => {
   expect(reviewers.childNodes[1]).toHaveTextContent('llama');
 });
 
+test('assume start time + additional info access request lifetime', () => {
+  jest.useFakeTimers().setSystemTime(dryRunResponse.created);
+  render(<RequestCheckout />);
+
+  const infoBtn = screen.getByTestId('additional-info-btn');
+
+  // Init state.
+  expect(screen.queryByText(/start time/i)).not.toBeInTheDocument();
+  expect(screen.getByText(/access duration/i)).toBeInTheDocument();
+  expect(screen.getAllByText(/2 days/i)).toHaveLength(1);
+  const calendarBtn = screen.getByText(/immediately/i);
+  fireEvent.click(calendarBtn);
+
+  // Expand the additional info box where the access lifetime
+  // gets displayed.
+  fireEvent.click(infoBtn);
+  expect(screen.getByText(/Access Request Lifetime/i)).toBeInTheDocument();
+  expect(screen.getAllByText(/2 days/i)).toHaveLength(2);
+
+  // Changing the "access duration" to a shorter time
+  // should reduce the "access lifetime".
+  fireEvent.keyDown(screen.getAllByText(/2 days/i)[0], { key: 'ArrowDown' });
+  fireEvent.click(screen.getByText(/1 day/i));
+  expect(screen.getAllByText(/1 day/i)).toHaveLength(2);
+});
+
 const RequestCheckout = ({ reviewers = [] }: { reviewers?: string[] }) => {
   const [selectedReviewers, setSelectedReviewers] = useState(() =>
     reviewers.map(r => ({ label: r, value: r, isSelected: true }))
   );
+  const [maxDuration, setMaxDuration] = useState<Option<number>>();
 
   return (
     <div>
@@ -87,6 +117,10 @@ const RequestCheckout = ({ reviewers = [] }: { reviewers?: string[] }) => {
         reviewers={reviewers}
         selectedReviewers={selectedReviewers}
         setSelectedReviewers={setSelectedReviewers}
+        isResourceRequest={true}
+        fetchResourceRequestRolesAttempt={{ status: 'success' }}
+        maxDuration={maxDuration}
+        setMaxDuration={setMaxDuration}
       />
     </div>
   );
@@ -112,10 +146,10 @@ const props: RequestCheckoutProps = {
   selectedResourceRequestRoles: ['admin', 'access'],
   setSelectedResourceRequestRoles: () => null,
   fetchStatus: 'loaded',
-  durationOptions: [{ value: 0, label: '' }],
   maxDuration: { value: 0, label: '12 hours' },
   setMaxDuration: () => null,
   requestTTLDurationOptions: [{ value: 0, label: '' }],
   requestTTL: { value: 0, label: '1 hour' },
   setRequestTTL: () => null,
+  dryRunResponse,
 };

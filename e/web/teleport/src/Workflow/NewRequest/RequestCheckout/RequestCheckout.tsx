@@ -23,21 +23,22 @@ import {
 import Table, { Cell } from 'design/DataTable';
 import { CheckboxInput, CheckboxWrapper } from 'design/Checkbox';
 import Validation, { useRule, Validator } from 'shared/components/Validation';
-import Select, { Option } from 'shared/components/Select';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { pluralize } from 'shared/utils/text';
 import { Danger } from 'design/Alert';
 
-import { ToolTipInfo } from 'shared/components/ToolTip';
-
 import cfg from 'e-teleport/config';
 import useTeleportE from 'e-teleport/useTeleportE';
+import { AssumeStartTime } from 'e-teleport/Workflow/AssumeStartTime/AssumeStartTime';
+import { Start } from 'e-teleport/Workflow/Shared/types';
+import { getStartDateTime } from 'e-teleport/Workflow/Shared/utils';
 
 import { State as NewRequestState } from '../useNewRequest';
 
 import shieldCheck from './shield-check.png';
 import { SelectReviewers } from './SelectReviewers';
 import { State, useRequestCheckout } from './useRequestCheckout';
+import { AdditionalOptions } from './AdditionalOptions';
 
 import type { TransitionStatus } from 'react-transition-group';
 
@@ -108,13 +109,15 @@ export function RequestCheckout({
   selectedResourceRequestRoles,
   setSelectedResourceRequestRoles,
   fetchStatus,
-  durationOptions,
   maxDuration,
   setMaxDuration,
   requestTTLDurationOptions,
   requestTTL,
   setRequestTTL,
+  dryRunResponse,
 }: RequestCheckoutProps) {
+  // Specifies the start date/time a requestor requested for.
+  const [start, setStart] = useState<Start>();
   const [reason, setReason] = useState('');
   const ref = useRef<HTMLDivElement>();
 
@@ -138,12 +141,13 @@ export function RequestCheckout({
       return;
     }
 
-    createRequest(
+    createRequest({
       reason,
-      selectedReviewers.map(r => r.value),
-      maxDuration ? new Date(maxDuration.value) : null,
-      requestTTL ? new Date(requestTTL.value) : null
-    );
+      suggestedReviewers: selectedReviewers.map(r => r.value),
+      maxDuration: maxDuration ? new Date(maxDuration.value) : null,
+      requestTTL: requestTTL ? new Date(requestTTL.value) : null,
+      start: getStartDateTime(start),
+    });
   }
 
   // Listeners are attached to enable overflow on the parent container after
@@ -320,54 +324,32 @@ export function RequestCheckout({
                 </Box>
                 <Validation>
                   {({ validator }) => (
-                    <Flex mt={4} flexDirection="column" gap={1}>
-                      {durationOptions.length > 0 && (
-                        <LabelInput
-                          typography="body2"
-                          color="text.slightlyMuted"
-                        >
-                          <Flex alignItems="center">
-                            <Text mr={1}>Max Access Duration</Text>
-                            <ToolTipInfo>
-                              How long access should be granted for.
-                            </ToolTipInfo>
-                          </Flex>
-
-                          <Select
-                            options={durationOptions}
-                            onChange={(option: Option<number>) =>
-                              setMaxDuration(option)
-                            }
-                            value={maxDuration}
+                    <Flex mt={6} flexDirection="column" gap={1}>
+                      {dryRunResponse && (
+                        <Box mb={1}>
+                          <AssumeStartTime
+                            start={start}
+                            setStart={setStart}
+                            accessRequest={dryRunResponse}
+                            maxDuration={maxDuration}
+                            setMaxDuration={setMaxDuration}
                           />
-                        </LabelInput>
-                      )}
-                      {requestTTLDurationOptions.length > 0 && (
-                        <LabelInput
-                          typography="body2"
-                          color="text.slightlyMuted"
-                        >
-                          <Flex alignItems="center">
-                            <Text mr={1}>Request Expiry</Text>
-                            <ToolTipInfo>
-                              The amount of time this request will be in the
-                              PENDING state before it expires.
-                            </ToolTipInfo>
-                          </Flex>
-                          <Select
-                            options={requestTTLDurationOptions}
-                            onChange={(option: Option<number>) =>
-                              setRequestTTL(option)
-                            }
-                            value={requestTTL}
-                          />
-                        </LabelInput>
+                        </Box>
                       )}
                       <TextBox
                         reason={reason}
                         updateReason={updateReason}
                         requireReason={requireReason}
                       />
+                      {dryRunResponse && (
+                        <AdditionalOptions
+                          selectedMaxDurationTimestamp={maxDuration?.value}
+                          requestTTLDurationOptions={requestTTLDurationOptions}
+                          setRequestTTL={setRequestTTL}
+                          requestTTL={requestTTL}
+                          dryRunResponse={dryRunResponse}
+                        />
+                      )}
                       <Box
                         py={4}
                         css={`

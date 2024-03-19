@@ -125,9 +125,16 @@ export function AccessRequestCheckout() {
             requireReason={false}
             numRequestedResources={requestedCount}
             isResourceRequest={data[0]?.kind !== 'role'}
-            durationOptions={[]}
             fetchStatus={'loaded'}
-            // TODO(atburke): add max duration and request TTL to connect
+            // TODO(lisa): future work, have teleterm make a dry run request
+            // And touch on
+            //  - dryRunResponse
+            //  - maxDuration
+            //  - setMaxDuration
+            //  - requestTTL
+            //  - requestTTLDurationOptions
+            //  - setRequestTTL
+            dryRunResponse={undefined}
             maxDuration={{
               value: 0,
               label: '',

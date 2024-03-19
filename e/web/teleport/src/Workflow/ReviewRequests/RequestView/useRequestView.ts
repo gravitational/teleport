@@ -7,7 +7,8 @@ import history from 'teleport/services/history';
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { AccessRequest } from 'e-teleport/services/workflow';
 import { accessManagementService } from 'e-teleport/services/accessmanagement';
-import { getBaseRequestFlags, reloginWebUi } from 'e-teleport/Workflow/Shared';
+import { getBaseRequestFlags } from 'e-teleport/Workflow/Shared/Shared';
+import { reloginWebUi } from 'e-teleport/Workflow/Shared/utils';
 
 import type { SubmitReview, RequestFlags } from './types';
 
@@ -44,6 +45,7 @@ export default function useRequestView(ctx: TeleportContextE) {
             reason: review.reason,
             roles: fetchRequestAttempt.data.roles,
             id: requestId,
+            assumeStartTime: review.assumeStartTime,
           });
     }
   );

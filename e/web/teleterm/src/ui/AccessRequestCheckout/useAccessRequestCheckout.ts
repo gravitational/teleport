@@ -7,6 +7,7 @@ import { useLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { ReviewerOption } from 'e-teleport/Workflow/NewRequest/RequestCheckout/types';
 import { CreateAccessRequestParams } from 'teleterm/services/tshd/types';
+import { CreateRequest } from 'e-teleport/Workflow/Shared/types';
 
 import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/useNewRequest';
 
@@ -136,12 +137,12 @@ export default function useAccessRequestCheckout() {
     return Object.values(assumed);
   }
 
-  function createRequest(reason: string, suggestedReviewers: string[]) {
+  function createRequest(req: CreateRequest) {
     const data = getPendingAccessRequestsPerResource(pendingAccessRequest);
-    const req: CreateAccessRequestParams = {
+    const params: CreateAccessRequestParams = {
       rootClusterUri,
-      reason,
-      suggestedReviewers,
+      reason: req.reason,
+      suggestedReviewers: req.suggestedReviewers,
       dryRun: false, // TODO(lisa): this field should be determined by caller
       resourceIds: data
         .filter(d => d.kind !== 'role')
@@ -155,12 +156,12 @@ export default function useAccessRequestCheckout() {
     };
 
     // if we have a resource access request, we pass along the selected roles from the checkout
-    if (req.resourceIds.length > 0) {
-      req.roles = selectedResourceRequestRoles;
+    if (params.resourceIds.length > 0) {
+      params.roles = selectedResourceRequestRoles;
     }
     runCreateRequest(() =>
       retryWithRelogin(ctx, clusterUri, () =>
-        ctx.clustersService.createAccessRequest(req).then(() => {
+        ctx.clustersService.createAccessRequest(params).then(() => {
           setRequestedCount(data.length);
           reset();
         })

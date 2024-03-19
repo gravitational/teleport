@@ -8,13 +8,16 @@ import { Attempt as AsyncAttempt } from 'shared/hooks/useAsync';
 
 import { AccessRequest } from 'e-teleport/services/workflow';
 import { formattedName } from 'e-teleport/Workflow/ReviewRequests/formattedName';
-import { ButtonPromotedInfo } from 'e-teleport/Workflow/Shared';
+import {
+  BlockedByStartTimeButton,
+  ButtonPromotedInfo,
+} from 'e-teleport/Workflow/Shared/Shared';
 import {
   renderIdCell,
-  renderReasonCell,
   renderStatusCell,
   renderUserCell,
 } from 'e-teleport/Workflow/ReviewRequests/RequestList/RequestList';
+import { canAssumeNow } from 'e-teleport/services/workflow/makeAccessRequest';
 
 import { makeRow } from '../useAccessRequests';
 
@@ -80,16 +83,18 @@ export function RequestList({
             isNonRender: true,
           },
           {
-            key: 'requestReason',
-            headerText: 'Request Reason',
-            isSortable: true,
-            render: renderReasonCell,
-          },
-          {
             key: 'created',
             headerText: 'Created',
             isSortable: true,
             render: ({ createdDuration }) => <Cell>{createdDuration}</Cell>,
+          },
+          {
+            key: 'assumeStartTime',
+            headerText: 'Available',
+            isSortable: true,
+            render: ({ assumeStartTimeDuration }) => (
+              <Cell>{assumeStartTimeDuration}</Cell>
+            ),
           },
           {
             altKey: 'view-btn',
@@ -138,21 +143,32 @@ const renderActionCell = (
   viewRequest: (id: string) => void,
   assumeAccessList: () => void
 ) => {
+  let assumeBtn;
+  if (request.canAssume) {
+    if (canAssumeNow(request.assumeStartTime)) {
+      assumeBtn = (
+        <ButtonPrimary
+          size="small"
+          disabled={
+            request.isAssumed || assumeRoleAttempt.status === 'processing'
+          }
+          onClick={() => assumeRole(request)}
+          width="108px"
+        >
+          {request.isAssumed ? 'assumed' : 'assume roles'}
+        </ButtonPrimary>
+      );
+    } else {
+      assumeBtn = (
+        <BlockedByStartTimeButton assumeStartTime={request.assumeStartTime} />
+      );
+    }
+  }
+
   return (
     <Cell align="right" style={{ whiteSpace: 'nowrap' }}>
       <Flex alignItems="center" justifyContent="right" width="184px">
-        {request.canAssume && (
-          <ButtonPrimary
-            size="small"
-            disabled={
-              request.isAssumed || assumeRoleAttempt.status === 'processing'
-            }
-            onClick={() => assumeRole(request)}
-            width="108px"
-          >
-            {request.isAssumed ? 'assumed' : 'assume roles'}
-          </ButtonPrimary>
-        )}
+        {assumeBtn}
         {request.isPromoted && (
           <ButtonPromotedInfo
             request={request}

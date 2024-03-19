@@ -1,5 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
+import { format } from 'date-fns';
 import {
   Alert,
   Box,
@@ -19,8 +20,9 @@ import {
 } from 'design/Icon';
 import { TeleportGearIcon } from 'design/SVGIcon';
 import Table from 'design/DataTable';
-
+import { HoverTooltip } from 'shared/components/ToolTip';
 import { hasFinished, Attempt } from 'shared/hooks/useAsync';
+import cfg from 'shared/config';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 import {
@@ -30,7 +32,12 @@ import {
   Resource,
   AccessRequest,
 } from 'e-teleport/services/workflow';
-import { PromotedMessage } from 'e-teleport/Workflow/Shared';
+import {
+  PromotedMessage,
+  getAssumeStartTimeTooltipText,
+} from 'e-teleport/Workflow/Shared/Shared';
+import { canAssumeNow } from 'e-teleport/services/workflow/makeAccessRequest';
+import { getFormattedDurationTxt } from 'e-teleport/Workflow/Shared/utils';
 
 import { formattedName } from '../formattedName';
 
@@ -103,6 +110,45 @@ export function RequestView({
       : fetchRequestAttempt.data;
   const flags = getFlags(request);
 
+  let assumeBtn;
+  if (flags.canAssume) {
+    if (canAssumeNow(request.assumeStartTime)) {
+      assumeBtn = (
+        <ButtonPrimary
+          disabled={
+            flags.isAssumed || assumeRoleAttempt.status === 'processing'
+          }
+          onClick={() => assumeRole(request)}
+          mt={4}
+        >
+          {flags.isAssumed ? 'Assumed' : 'Assume Roles'}
+        </ButtonPrimary>
+      );
+    } else {
+      assumeBtn = (
+        <Box mt={4}>
+          <HoverTooltip
+            tipContent={getAssumeStartTimeTooltipText(request.assumeStartTime)}
+            anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+            transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          >
+            <ButtonPrimary disabled={true}>Assume Roles</ButtonPrimary>
+          </HoverTooltip>
+        </Box>
+      );
+    }
+  }
+
+  let requestedAccessTime = request.expiresDuration;
+  let startingTime = 'now';
+  if (request.assumeStartTime) {
+    startingTime = format(request.assumeStartTime, cfg.dateWithPrefixedTime);
+    requestedAccessTime = getFormattedDurationTxt({
+      start: request.assumeStartTime,
+      end: request.expires,
+    });
+  }
+
   return (
     <>
       {confirmDelete && (
@@ -172,7 +218,9 @@ export function RequestView({
                     is requesting roles:
                   </Text>
                   <RolesRequested roles={request.roles} />
-                  <Text typography="body2">for {request.expiresDuration}</Text>
+                  <Text typography="body2">
+                    for {requestedAccessTime}, starting {startingTime}
+                  </Text>
                 </Flex>
               </Flex>
               <Flex
@@ -180,9 +228,14 @@ export function RequestView({
                 justifyContent="flex-end"
                 flexWrap="wrap-reverse"
                 flex="1"
+                gap={2}
               >
                 {request.requestTTLDuration && request.state === 'PENDING' && (
-                  <RequestTtlLabel ml={4} fontSize={0}>
+                  <RequestTtlLabel
+                    fontSize={0}
+                    css={{ lineHeight: 'normal' }}
+                    ml={1}
+                  >
                     Request expires in {request.requestTTLDuration}
                   </RequestTtlLabel>
                 )}
@@ -191,7 +244,6 @@ export function RequestView({
                   onClick={toggleConfirmDelete}
                   size="small"
                   width="60px"
-                  ml={3}
                 >
                   Delete
                 </ButtonBorder>
@@ -237,17 +289,7 @@ export function RequestView({
               )}
             </TimelineCommentAndReviewsContainer>
           </Box>
-          {flags.canAssume && (
-            <ButtonPrimary
-              disabled={
-                flags.isAssumed || assumeRoleAttempt.status === 'processing'
-              }
-              onClick={() => assumeRole(request)}
-              mt={4}
-            >
-              {flags.isAssumed ? 'assumed' : 'assume roles'}
-            </ButtonPrimary>
-          )}
+          {assumeBtn}
           {request.state === 'PROMOTED' && request.promotedAccessListTitle && (
             <PromotedMessage
               request={request}

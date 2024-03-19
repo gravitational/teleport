@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { MemoryRouter } from 'react-router-dom';
+import { Option } from 'shared/components/Select';
+
+import { dryRunResponse } from 'e-teleport/Workflow/fixtures';
 
 import {
   RequestCheckout,
@@ -15,17 +18,33 @@ export const Loaded = () => {
   const [selectedReviewers, setSelectedReviewers] = useState(
     props.selectedReviewers
   );
+  const [maxDuration, setMaxDuration] = useState<Option<number>>();
+
   return (
     <RequestCheckout
       {...props}
       selectedReviewers={selectedReviewers}
       setSelectedReviewers={setSelectedReviewers}
+      maxDuration={maxDuration}
+      setMaxDuration={setMaxDuration}
     />
   );
 };
-export const Empty = () => (
-  <RequestCheckout {...props} data={[]} selectedReviewers={[]} />
-);
+export const Empty = () => {
+  const [selectedReviewers, setSelectedReviewers] = useState([]);
+  const [maxDuration, setMaxDuration] = useState<Option<number>>();
+
+  return (
+    <RequestCheckout
+      {...props}
+      data={[]}
+      selectedReviewers={selectedReviewers}
+      setSelectedReviewers={setSelectedReviewers}
+      maxDuration={maxDuration}
+      setMaxDuration={setMaxDuration}
+    />
+  );
+};
 
 export const Failed = () => (
   <RequestCheckout
@@ -143,10 +162,10 @@ const props: RequestCheckoutProps = {
   selectedResourceRequestRoles: ['admin', 'access'],
   setSelectedResourceRequestRoles: () => null,
   fetchStatus: 'loaded',
-  durationOptions: [{ value: 0, label: '' }],
   maxDuration: { value: 0, label: '12 hours' },
   setMaxDuration: () => null,
   requestTTLDurationOptions: [{ value: 0, label: '' }],
   requestTTL: { value: 0, label: '1 hour' },
   setRequestTTL: () => null,
+  dryRunResponse,
 };

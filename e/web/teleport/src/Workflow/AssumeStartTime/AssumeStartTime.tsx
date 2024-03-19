@@ -21,6 +21,7 @@ import { getStartDateTime } from '../Shared/utils';
 import {
   getDurationOptionIndexClosestToOneWeek,
   getDurationOptionsFromStartTime,
+  getMaxAssumableDate,
   getTimeOptions,
 } from './utils';
 
@@ -108,8 +109,13 @@ export function AssumeStartTime({
       return;
     }
 
-    updateAccessDuration(selectedDate, updatedTimesOptions[0]);
-    setStart({ ...start, date: selectedDate, time: updatedTimesOptions[0] });
+    const startDate = getStartDateTime({
+      date: selectedDate,
+      time: updatedTimesOptions[0],
+    });
+
+    updateAccessDuration(startDate, updatedTimesOptions[0]);
+    setStart({ date: startDate, time: updatedTimesOptions[0] });
     setShowDayPicker(false);
   }
 
@@ -170,10 +176,7 @@ export function AssumeStartTime({
                 // Disables before today, and after 7th day.
                 disabled={[
                   {
-                    after:
-                      accessRequest.maxDuration.getHours() - 1 > 0
-                        ? accessRequest.maxDuration
-                        : accessRequest.created,
+                    after: getMaxAssumableDate(accessRequest),
                     before: startDate,
                   },
                 ]}

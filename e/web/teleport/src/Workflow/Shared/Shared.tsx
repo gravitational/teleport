@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { ButtonPrimary, Text, Box, ButtonIcon, Menu } from 'design';
 import { Info } from 'design/Icon';
-
-import session from 'teleport/services/websession/websession';
+import { format } from 'date-fns';
+import { HoverTooltip } from 'shared/components/ToolTip';
+import cfg from 'shared/config';
 
 import { AccessRequest } from 'e-teleport/services/workflow';
 import TeleportContextE from 'e-teleport/teleportContextE';
@@ -71,10 +72,6 @@ export function getBaseRequestFlags(
   };
 }
 
-export function reloginWebUi(): void {
-  session.logout();
-}
-
 export const ButtonPromotedInfo = ({
   request,
   ownRequest,
@@ -121,5 +118,28 @@ export const ButtonPromotedInfo = ({
         />
       </Menu>
     </Box>
+  );
+};
+
+export function getAssumeStartTimeTooltipText(startTime: Date) {
+  const formattedDate = format(startTime, cfg.dateWithPrefixedTime);
+  return `Access is not available until the approved time of ${formattedDate}`;
+}
+
+export const BlockedByStartTimeButton = ({
+  assumeStartTime,
+}: {
+  assumeStartTime: Date;
+}) => {
+  return (
+    <HoverTooltip
+      tipContent={getAssumeStartTimeTooltipText(assumeStartTime)}
+      anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+    >
+      <ButtonPrimary disabled={true} size="small">
+        Assume Roles
+      </ButtonPrimary>
+    </HoverTooltip>
   );
 };

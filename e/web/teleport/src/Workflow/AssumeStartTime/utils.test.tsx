@@ -4,6 +4,8 @@ import {
   getStandardHoursAndPostfix,
   getDurationOptionIndexClosestToOneWeek,
   DurationOption,
+  getMaxAssumableDate,
+  OneWeek,
 } from './utils';
 
 describe('getStandardHoursAndPostfix', () => {
@@ -97,4 +99,19 @@ describe('getDurationOptionIndexClosestToOneWeek', () => {
     );
     expect(index).toBe(expectedIndex);
   });
+});
+
+test('getMaxAssumableDate', () => {
+  const created = new Date('2024-02-01T03:00:00.000000Z');
+  jest.useFakeTimers().setSystemTime(created);
+
+  // max date is greater than 1 week added to begin date.
+  let maxDuration = new Date('2024-02-20T03:00:00.000000Z');
+  expect(getMaxAssumableDate({ created, maxDuration })).toEqual(
+    addDays(created, OneWeek)
+  );
+
+  // max date is lesser than 1 week added to begin date.
+  maxDuration = new Date('2024-02-03T03:00:00.000000Z');
+  expect(getMaxAssumableDate({ created, maxDuration })).toEqual(maxDuration);
 });

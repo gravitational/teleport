@@ -4,11 +4,11 @@ import history from 'teleport/services/history';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { AccessRequest } from 'e-teleport/services/workflow';
-import { getBaseRequestFlags } from 'e-teleport/Workflow/Shared';
+import { getBaseRequestFlags } from 'e-teleport/Workflow/Shared/Shared';
 
 export default function useRequestList(ctx: TeleportContextE) {
   const { attempt, run, setAttempt } = useAttempt('processing');
-  const [requests, setRequests] = useState<AccessRequest[]>([]);
+  const [requests, setRequests] = useState<AccessRequestWithFlags[]>([]);
 
   useEffect(() => {
     run(() =>
@@ -19,7 +19,7 @@ export default function useRequestList(ctx: TeleportContextE) {
     );
   }, []);
 
-  function assumeRole(req: Row) {
+  function assumeRole(req: AccessRequestWithFlags) {
     setAttempt({ status: 'processing' });
     ctx.workflowService
       .applyPermission({ requestId: req.id })
@@ -48,5 +48,5 @@ function makeRow(request: AccessRequest, ctx: TeleportContextE) {
   };
 }
 
-export type Row = ReturnType<typeof makeRow>;
+export type AccessRequestWithFlags = ReturnType<typeof makeRow>;
 export type State = ReturnType<typeof useRequestList>;

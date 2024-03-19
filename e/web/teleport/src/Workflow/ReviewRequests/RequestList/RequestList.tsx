@@ -17,11 +17,19 @@ import { ArrowFatLinesUp } from 'design/Icon';
 import useTeleportE from 'e-teleport/useTeleportE';
 import cfg from 'e-teleport/config';
 import { AccessRequest, Resource } from 'e-teleport/services/workflow';
-import { ButtonPromotedInfo, reloginWebUi } from 'e-teleport/Workflow/Shared';
+import {
+  BlockedByStartTimeButton,
+  ButtonPromotedInfo,
+} from 'e-teleport/Workflow/Shared/Shared';
+import { canAssumeNow } from 'e-teleport/services/workflow/makeAccessRequest';
+import { reloginWebUi } from 'e-teleport/Workflow/Shared/utils';
 
 import { formattedName } from '../formattedName';
 
-import useRequestList, { State, Row } from './useRequestList';
+import useRequestList, {
+  State,
+  AccessRequestWithFlags,
+} from './useRequestList';
 
 export default function Container() {
   const ctx = useTeleportE();
@@ -37,7 +45,7 @@ export function RequestList({ attempt, requests = [], assumeRole }: State) {
   // the duration of the default delay moment.
   const [delayIndicator, setDelayIndicator] = useState(true);
 
-  function onAssumeRole(request: Row) {
+  function onAssumeRole(request: AccessRequestWithFlags) {
     setDelayIndicator(false);
     assumeRole(request);
   }
@@ -88,16 +96,18 @@ export function RequestList({ attempt, requests = [], assumeRole }: State) {
               isNonRender: true,
             },
             {
-              key: 'requestReason',
-              headerText: 'Request Reason',
-              isSortable: true,
-              render: renderReasonCell,
-            },
-            {
               key: 'created',
               headerText: 'Created',
               isSortable: true,
               render: ({ createdDuration }) => <Cell>{createdDuration}</Cell>,
+            },
+            {
+              key: 'assumeStartTime',
+              headerText: 'Available',
+              isSortable: true,
+              render: ({ assumeStartTimeDuration }) => (
+                <Cell>{assumeStartTimeDuration}</Cell>
+              ),
             },
             {
               key: 'expires',
@@ -109,7 +119,11 @@ export function RequestList({ attempt, requests = [], assumeRole }: State) {
             },
             {
               altKey: 'view-btn',
-              render: request => renderActionCell(request as Row, onAssumeRole),
+              render: request =>
+                renderActionCell(
+                  request as AccessRequestWithFlags,
+                  onAssumeRole
+                ),
             },
           ]}
           emptyText="No Requests Found"
@@ -144,7 +158,7 @@ export function requestdMatcher(
   }
 }
 
-export const renderUserCell = ({ user }: Row) => {
+export const renderUserCell = ({ user }: AccessRequestWithFlags) => {
   return (
     <Cell
       style={{
@@ -160,7 +174,7 @@ export const renderUserCell = ({ user }: Row) => {
   );
 };
 
-export const renderIdCell = ({ id }: Row) => {
+export const renderIdCell = ({ id }: AccessRequestWithFlags) => {
   return (
     <Cell
       style={{
@@ -176,7 +190,7 @@ export const renderIdCell = ({ id }: Row) => {
   );
 };
 
-export const renderReasonCell = ({ requestReason }: Row) => {
+export const renderReasonCell = ({ requestReason }: AccessRequestWithFlags) => {
   return (
     <Cell
       style={{
@@ -192,7 +206,7 @@ export const renderReasonCell = ({ requestReason }: Row) => {
   );
 };
 
-export const renderStatusCell = ({ state }: Row) => {
+export const renderStatusCell = ({ state }: AccessRequestWithFlags) => {
   if (state === 'PROMOTED') {
     return (
       <Cell>
@@ -227,20 +241,34 @@ export const renderStatusCell = ({ state }: Row) => {
   );
 };
 
-const renderActionCell = (request: Row, assumeRole: (request: Row) => void) => {
+const renderActionCell = (
+  request: AccessRequestWithFlags,
+  assumeRole: (request: AccessRequestWithFlags) => void
+) => {
+  let assumeBtn;
+  if (request.canAssume) {
+    if (canAssumeNow(request.assumeStartTime)) {
+      assumeBtn = (
+        <ButtonPrimary
+          size="small"
+          disabled={request.isAssumed}
+          onClick={() => assumeRole(request)}
+          width="108px"
+        >
+          {request.isAssumed ? 'assumed' : 'assume roles'}
+        </ButtonPrimary>
+      );
+    } else {
+      assumeBtn = (
+        <BlockedByStartTimeButton assumeStartTime={request.assumeStartTime} />
+      );
+    }
+  }
+
   return (
     <Cell align="right">
       <Flex alignItems="center" justifyContent="right" width="184px">
-        {request.canAssume && (
-          <ButtonPrimary
-            size="small"
-            disabled={request.isAssumed}
-            onClick={() => assumeRole(request)}
-            width="108px"
-          >
-            {request.isAssumed ? 'assumed' : 'assume roles'}
-          </ButtonPrimary>
-        )}
+        {assumeBtn}
         {request.isPromoted && (
           <ButtonPromotedInfo
             request={request}
@@ -265,7 +293,7 @@ export const RequestedCell = ({
   roles,
   resources,
   id,
-}: Pick<Row, 'roles' | 'resources' | 'id'>) => {
+}: Pick<AccessRequestWithFlags, 'roles' | 'resources' | 'id'>) => {
   if (resources?.length > 0) {
     return (
       <Cell key={id}>

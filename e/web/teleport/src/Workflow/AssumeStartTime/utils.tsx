@@ -8,6 +8,7 @@ import { Start, TimeOption } from '../Shared/types';
 
 const OneDayInMinutes = 1440; // 24 hours
 const HourInMs = 60 * 60 * 1000;
+export const OneWeek = 7;
 
 // DateTimeLimit defines the earliest a time can start
 // and the latest time can end.
@@ -118,15 +119,17 @@ export function getTimeOptions(
   selectedDate: Date,
   accessRequest: AccessRequest
 ): TimeOption[] {
+  const maxAssumableDate = getMaxAssumableDate(accessRequest);
+
   // `xxxDatePart` is without the time part, eg: 12/15/2024 09:30:00 -> 12/15/2024
   const createdDatePart = accessRequest.created.toDateString();
-  const maxDatePart = accessRequest.maxDuration.toDateString();
+  const maxDatePart = maxAssumableDate.toDateString();
   const startDatePart = selectedDate.toDateString();
 
   // Subtract an hour off the max available time option so user's
   // don't select the shortest time possible.
-  const modifiedMaxDurationHrs = accessRequest.maxDuration.getHours() - 1;
-  const modifiedMaxDuration = new Date(accessRequest.maxDuration).setHours(
+  const modifiedMaxDurationHrs = maxAssumableDate.getHours() - 1;
+  const modifiedMaxDuration = new Date(maxAssumableDate).setHours(
     modifiedMaxDurationHrs
   );
 
@@ -316,4 +319,22 @@ export function getDurationOptionIndexClosestToOneWeek(
   }
 
   return closestIndex;
+}
+
+export function getMaxAssumableDate({
+  created,
+  maxDuration,
+}: {
+  created: Date;
+  maxDuration: Date;
+}) {
+  let maxAssumableDate = addDays(created, OneWeek);
+
+  // Max duration can be greater than one week.
+  // Select the lesser value.
+  if (maxAssumableDate.getTime() > maxDuration.getTime()) {
+    maxAssumableDate = maxDuration;
+  }
+
+  return maxAssumableDate;
 }

@@ -7,7 +7,7 @@ import { render, screen, waitFor, fireEvent } from 'design/utils/testing';
 import historyService from 'teleport/services/history';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
-import { makeAccessRequest } from 'e-teleport/services/workflow';
+import { AccessRequest, makeAccessRequest } from 'e-teleport/services/workflow';
 
 import { Container as WaitingRoom } from './WaitingRoom';
 
@@ -255,10 +255,29 @@ describe('access strategy behavioral testing', () => {
   });
 });
 
-const sampleRequest = makeAccessRequest({
-  created: '2020-11-04T19:02:50.693Z',
-  expires: '2020-11-04T19:02:50.693Z',
-});
+const sampleRequest: AccessRequest = {
+  id: 'e9803adc-3260-4c49-baae-047494da2822',
+  state: 'PENDING',
+  resolveReason: '',
+  requestReason: '',
+  user: 'lisa',
+  roles: ['auditor'],
+  created: new Date('2024-02-15T02:51:12.700088Z'),
+  createdDuration: '',
+  expires: new Date('2024-02-17T02:51:12.70087Z'),
+  expiresDuration: '',
+  maxDuration: new Date('2024-02-17T02:51:12.70087Z'),
+  maxDurationText: '',
+  requestTTL: new Date('2024-02-15T03:51:12.70087Z'),
+  requestTTLDuration: '',
+  sessionTTL: new Date('2024-02-15T14:51:03.999893Z'),
+  sessionTTLDuration: '',
+  reviews: [],
+  reviewers: [],
+  thresholdNames: ['default'],
+  resources: [],
+  assumeStartTime: null,
+};
 
 const sampleContext = (type = '') => ({
   accessStrategy: {
