@@ -2467,6 +2467,9 @@ enum AccessRequestSort {
 
   // STATE sorts access requests by their state (PENDING, APPROVED, etc).
   STATE = 2;
+
+  // USER sorts access requests by their creator's teleport username
+  USER = 3;
 }
 
 // ListAccessRequestsRequest encodes the parameters for a paginated access request lookup.
