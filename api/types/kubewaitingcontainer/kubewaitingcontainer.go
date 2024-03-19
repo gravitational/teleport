@@ -23,15 +23,15 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
 // NewKubeWaitingContainer creates a new Kubernetes ephemeral
 // container that are waiting to be created until moderated
 // session conditions are met.
-func NewKubeWaitingContainer(name string, spec *kubewaitingcontainerv1.KubernetesWaitingContainerSpec) (*kubewaitingcontainerv1.KubernetesWaitingContainer, error) {
-	waitingCont := &kubewaitingcontainerv1.KubernetesWaitingContainer{
+func NewKubeWaitingContainer(name string, spec *kubewaitingcontainerpb.KubernetesWaitingContainerSpec) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+	waitingCont := &kubewaitingcontainerpb.KubernetesWaitingContainer{
 		Kind:    types.KindKubeWaitingContainer,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
@@ -49,7 +49,11 @@ func NewKubeWaitingContainer(name string, spec *kubewaitingcontainerv1.Kubernete
 
 // ValidateKubeWaitingContainer checks that required parameters are set
 // for the specified KubeWaitingContainer
-func ValidateKubeWaitingContainer(k *kubewaitingcontainerv1.KubernetesWaitingContainer) error {
+func ValidateKubeWaitingContainer(k *kubewaitingcontainerpb.KubernetesWaitingContainer) error {
+	if k == nil {
+		return trace.BadParameter("KubernetesWaitingContainer is nil")
+	}
+
 	if k.Spec.Username == "" {
 		return trace.BadParameter("Username is unset")
 	}
