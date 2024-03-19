@@ -702,6 +702,13 @@ func WithLimiterConfig(config *limiter.Config) TestTLSServerOption {
 	}
 }
 
+// WithAccessGraphConfig sets the access graph configuration.
+func WithAccessGraphConfig(config AccessGraphConfig) TestTLSServerOption {
+	return func(cfg *TestTLSServerConfig) {
+		cfg.APIConfig.AccessGraph = config
+	}
+}
+
 // NewRemoteClient creates new client to the remote server using identity
 // generated for this certificate authority
 func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, pool *x509.CertPool) (*Client, error) {
