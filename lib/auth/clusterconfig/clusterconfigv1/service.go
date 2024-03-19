@@ -792,8 +792,8 @@ func (s *Service) GetClusterAccessGraphConfig(ctx context.Context, _ *clustercon
 		return nil, trace.Wrap(err)
 	}
 
-	if !authz.HasBuiltinRole(*authzCtx, string(types.RoleProxy)) && !authz.HasBuiltinRole(*authzCtx, string(types.RoleDiscovery)) {
-		return nil, trace.AccessDenied("this request can be only executed by proxy or discovery services")
+	if !authz.IsLocalOrRemoteService(*authzCtx) {
+		return nil, trace.AccessDenied("this request can be only executed by a Teleport service")
 	}
 
 	// If the policy feature is disabled in the license, return a disabled response.

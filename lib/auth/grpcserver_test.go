@@ -4405,7 +4405,8 @@ func TestGetAccessGraphConfig(t *testing.T) {
 			Address: "addr",
 		}),
 	)
-
+	user, _, err := CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
+	require.NoError(t, err)
 	positiveResponse := &clusterconfigpb.AccessGraphConfig{
 		Enabled: true,
 		Ca:      []byte("ca"),
@@ -4414,24 +4415,32 @@ func TestGetAccessGraphConfig(t *testing.T) {
 
 	tests := []struct {
 		desc      string
-		role      types.SystemRole
+		identity  authz.IdentityGetter
 		assertErr require.ErrorAssertionFunc
 		expected  *clusterconfigpb.AccessGraphConfig
 	}{
 		{
-			desc:      "admin role can't pull the access graph config",
-			role:      types.RoleAdmin,
+			desc: "users can't pull the access graph config",
+			identity: authz.LocalUser{
+				Username: user.GetName(),
+			},
 			assertErr: require.Error,
 		},
 		{
-			desc:      "proxy can pull access graph config",
-			role:      types.RoleProxy,
+			desc: "proxy can pull access graph config",
+			identity: authz.BuiltinRole{
+				Role:     types.RoleProxy,
+				Username: server.ClusterName(),
+			},
 			assertErr: require.NoError,
 			expected:  positiveResponse,
 		},
 		{
-			desc:      "discovery can pull access graph config",
-			role:      types.RoleDiscovery,
+			desc: "discovery can pull access graph config",
+			identity: authz.BuiltinRole{
+				Role:     types.RoleDiscovery,
+				Username: server.ClusterName(),
+			},
 			assertErr: require.NoError,
 			expected:  positiveResponse,
 		},
@@ -4440,10 +4449,7 @@ func TestGetAccessGraphConfig(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			client, err := server.NewClient(TestIdentity{
-				I: authz.BuiltinRole{
-					Role:     test.role,
-					Username: server.ClusterName(),
-				},
+				I: test.identity,
 			})
 			require.NoError(t, err)
 			rsp, err := client.GetClusterAccessGraphConfig(context.Background())

@@ -1781,15 +1781,9 @@ func TestGetAccessGraphConfig(t *testing.T) {
 		responseAssertion *clusterconfigpb.GetClusterAccessGraphConfigResponse
 	}{
 		{
-			name: "unauthorized",
-			role: types.RoleKube,
-			errorAssertion: func(t require.TestingT, err error, _ ...any) {
-				require.True(t, trace.IsAccessDenied(err), "got (%v), expected unauthorized user to be prevented from getting auth preferences", err)
-			},
-		},
-		{
 			name:              "authorized proxy with non empty access graph config; Policy module is disabled",
 			role:              types.RoleProxy,
+			testSetup:         func(t *testing.T) {},
 			accessGraphConfig: cfgEnabled,
 			errorAssertion:    require.NoError,
 			responseAssertion: &clusterconfigpb.GetClusterAccessGraphConfigResponse{
@@ -1850,9 +1844,8 @@ func TestGetAccessGraphConfig(t *testing.T) {
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			if test.testSetup != nil {
-				test.testSetup(t)
-			}
+			test.testSetup(t)
+
 			authRoleContext, err := authz.ContextForBuiltinRole(authz.BuiltinRole{
 				Role:     test.role,
 				Username: string(test.role),
@@ -1868,7 +1861,6 @@ func TestGetAccessGraphConfig(t *testing.T) {
 			test.errorAssertion(t, err)
 
 			require.Empty(t, cmp.Diff(test.responseAssertion, got, protocmp.Transform()))
-
 		})
 	}
 }

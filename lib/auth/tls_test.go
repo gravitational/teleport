@@ -4801,7 +4801,6 @@ func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *TestTLSServer 
 		Dir:          t.TempDir(),
 		Clock:        clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
 		CacheEnabled: options.cacheEnabled,
-		//AccessGraphConfig: options.accessGraph,
 	})
 	require.NoError(t, err)
 	var tlsServerOpts []TestTLSServerOption
