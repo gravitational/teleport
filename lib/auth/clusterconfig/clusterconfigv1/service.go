@@ -22,7 +22,6 @@ import (
 	"github.com/gravitational/trace"
 
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -71,8 +70,8 @@ func (s *Service) GetClusterAccessGraphConfig(ctx context.Context, _ *clustercon
 		return nil, trace.Wrap(err)
 	}
 
-	if !authz.HasBuiltinRole(*authzCtx, string(types.RoleProxy)) && !authz.HasBuiltinRole(*authzCtx, string(types.RoleDiscovery)) {
-		return nil, trace.AccessDenied("this request can be only executed by proxy or discovery services")
+	if !isLocalOrRemoteService(*authzCtx) {
+		return nil, trace.AccessDenied("this request can be only executed by a Teleport service")
 	}
 
 	// If the policy feature is disabled in the license, return a disabled response.
@@ -92,4 +91,14 @@ func (s *Service) GetClusterAccessGraphConfig(ctx context.Context, _ *clustercon
 			Insecure: s.accessGraph.Insecure,
 		},
 	}, nil
+}
+
+// IsLocalOrRemoteService checks if the identity is either a local or remote service.
+func isLocalOrRemoteService(authContext authz.Context) bool {
+	switch authContext.UnmappedIdentity.(type) {
+	case authz.BuiltinRole, authz.RemoteBuiltinRole:
+		return true
+	default:
+		return false
+	}
 }
