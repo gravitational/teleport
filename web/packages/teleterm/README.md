@@ -24,7 +24,7 @@ make build/tsh
 The build output can be found in the `build` directory. The tsh binary will be packed together with
 the Electron app.
 
-Next, we're going to build the Electron app. **This project uses Node.js v16 and Yarn v1.**
+Next, we're going to build the Electron app.
 
 ```bash
 cd teleport
