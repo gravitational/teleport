@@ -359,7 +359,7 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 		for _, recipient := range recipients {
 			rec, err := a.bot.FetchRecipient(ctx, recipient)
 			if err != nil {
-				log.Warning(err)
+				log.Warningf("Failed to fetch Opsgenie recipient: %v", err)
 				continue
 			}
 			recipientSet.Add(*rec)
