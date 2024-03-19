@@ -269,7 +269,7 @@ func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 }
 
 func (a *App) getNotifyServiceNames(req types.AccessRequest) ([]string, error) {
-	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationNotifyServicesLabel]
+	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationNotifySchedulesLabel]
 	if !ok {
 		return nil, trace.NotFound("notify services not specified")
 	}

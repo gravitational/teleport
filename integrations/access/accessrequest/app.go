@@ -352,7 +352,7 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 		recipientSet.Add(common.Recipient{})
 		return recipientSet.ToSlice()
 	case types.PluginTypeOpsgenie:
-		recipients, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationNotifyServicesLabel]
+		recipients, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationNotifySchedulesLabel]
 		if !ok {
 			return recipientSet.ToSlice()
 		}
