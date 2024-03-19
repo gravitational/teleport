@@ -154,6 +154,54 @@ func (c *Client) Close() error {
 	return c.APIClient.Close()
 }
 
+func (c *Client) CreateAuthPreference(context.Context, types.AuthPreference) (types.AuthPreference, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpdateAuthPreference(context.Context, types.AuthPreference) (types.AuthPreference, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpsertAuthPreference(context.Context, types.AuthPreference) (types.AuthPreference, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) CreateSessionRecordingConfig(context.Context, types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpdateSessionRecordingConfig(context.Context, types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpsertSessionRecordingConfig(context.Context, types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) CreateClusterAuditConfig(context.Context, types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpdateClusterAuditConfig(context.Context, types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpsertClusterAuditConfig(context.Context, types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) CreateClusterNetworkingConfig(context.Context, types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpdateClusterNetworkingConfig(ctx context.Context, preference types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpsertClusterNetworkingConfig(ctx context.Context, preference types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
 // CreateCertAuthority not implemented: can only be called locally.
 func (c *Client) CreateCertAuthority(ctx context.Context, ca types.CertAuthority) error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -383,12 +431,12 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context, opts ...services.Mar
 }
 
 // GetClusterNetworkingConfig gets cluster networking configuration.
-func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (c *Client) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	return c.APIClient.GetClusterNetworkingConfig(ctx)
 }
 
 // GetSessionRecordingConfig gets session recording configuration.
-func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+func (c *Client) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
 	return c.APIClient.GetSessionRecordingConfig(ctx)
 }
 

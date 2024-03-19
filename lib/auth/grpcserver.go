@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev12 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	discoveryconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -68,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
+	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
@@ -5687,6 +5689,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	userspb.RegisterUsersServiceServer(server, usersService)
+
 	botService, err := machineidv1.NewBotService(machineidv1.BotServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Cache:      cfg.AuthServer.Cache,
@@ -5837,7 +5841,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	userloginstatev1.RegisterUserLoginStateServiceServer(server, userLoginStateServer)
 
-	userspb.RegisterUsersServiceServer(server, usersService)
+	clusterConfigService, err := clusterconfigv1.NewService(clusterconfigv1.ServiceConfig{
+		Cache:      cfg.AuthServer.Cache,
+		Backend:    cfg.AuthServer.Services,
+		Authorizer: cfg.Authorizer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterconfigpb.RegisterClusterConfigServiceServer(server, clusterConfigService)
 
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all

@@ -47,7 +47,7 @@ type testSite struct {
 	nodes []types.Server
 }
 
-func (t testSite) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (t testSite) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	return t.cfg, nil
 }
 
