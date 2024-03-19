@@ -19,6 +19,10 @@
 package service
 
 import (
+	"context"
+	"os"
+	"time"
+
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -63,7 +67,36 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	var accessGraphCAData []byte
+	if process.Config.AccessGraph.CA != "" {
+		accessGraphCAData, err = os.ReadFile(process.Config.AccessGraph.CA)
+		if err != nil {
+			return trace.Wrap(err, "failed to read access graph CA file")
+		}
+	}
+	accessGraphCfg := discovery.AccessGraphConfig{
+		Enabled:  process.Config.AccessGraph.Enabled,
+		Addr:     process.Config.AccessGraph.Addr,
+		Insecure: process.Config.AccessGraph.Insecure,
+		CA:       accessGraphCAData,
+	}
+	if !accessGraphCfg.Enabled || accessGraphCfg.Addr == "" {
+		logger.Debug("Access graph is disabled or not configured. Falling back to the Auth server's access graph configuration.")
+		ctx, cancel := context.WithTimeout(process.ExitContext(), 5*time.Second)
+		rsp, err := process.getInstanceClient().GetClusterAccessGraphConfig(ctx)
+		cancel()
+		switch {
+		case trace.IsNotImplemented(err):
+			logger.Debug("Auth server does not support access graph's GetClusterAccessGraphConfig RPC")
+		case err != nil:
+			return trace.Wrap(err)
+		default:
+			accessGraphCfg.Enabled = rsp.Enabled
+			accessGraphCfg.Addr = rsp.Address
+			accessGraphCfg.CA = rsp.Ca
+			accessGraphCfg.Insecure = rsp.Insecure
+		}
+	}
 	discoveryService, err := discovery.New(process.ExitContext(), &discovery.Config{
 		IntegrationOnlyCredentials: process.integrationOnlyCredentials(),
 		Matchers: discovery.Matchers{
@@ -82,7 +115,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		ClusterFeatures:   process.getClusterFeatures,
 		PollInterval:      process.Config.Discovery.PollInterval,
 		ServerCredentials: tlsConfig,
-		AccessGraphConfig: process.Config.AccessGraph,
+		AccessGraphConfig: accessGraphCfg,
 	})
 	if err != nil {
 		return trace.Wrap(err)
