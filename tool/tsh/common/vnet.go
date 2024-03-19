@@ -17,12 +17,37 @@
 package common
 
 import (
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/vnet"
 )
 
-func onVNet(cf *CLIConf) error {
+type vnetCommands struct {
+	vnet       *vnetCommand
+	adminSetup *vnetAdminSetupCommand
+}
+
+func newVnetCommands(app *kingpin.Application) vnetCommands {
+	return vnetCommands{
+		vnet: newVnetCommand(app),
+		// This is not a descendant of the vnet command because we want to refer to the admin setup
+		// command using the same string both through app.Command and also exec.Command.
+		adminSetup: newVnetAdminSetupCommand(app),
+	}
+}
+
+type vnetCommand struct {
+	*kingpin.CmdClause
+}
+
+func newVnetCommand(app *kingpin.Application) *vnetCommand {
+	cmd := app.Command("vnet", "Start Teleport VNet, a virtual network emulator for HTTP and TCP apps.")
+
+	return &vnetCommand{CmdClause: cmd}
+}
+
+func (c *vnetCommand) run(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -30,6 +55,26 @@ func onVNet(cf *CLIConf) error {
 	return trace.Wrap(vnet.Run(cf.Context, tc))
 }
 
-func onVNetAdminSetupCommand(cf *CLIConf) error {
-	return trace.Wrap(vnet.AdminSubcommand(cf.Context, cf.socketPath, cf.pidFilePath))
+type vnetAdminSetupCommand struct {
+	*kingpin.CmdClause
+	// socketPath is a path to a socket over which fd of the TUN device is exchanged.
+	socketPath string
+	// pidFilePath is a path to a PID file. Used by the privileged process to clean up DNS config when
+	// the unprivileged process exits.
+	pidFilePath string
+}
+
+func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
+	cmd := &vnetAdminSetupCommand{
+		CmdClause: app.Command(vnet.AdminSetupSubcommand, "Helper to run the vnet setup as root.").Hidden(),
+	}
+
+	cmd.Flag("socket", "unix socket path").StringVar(&cmd.socketPath)
+	cmd.Flag("pidfile", "pid file path").StringVar(&cmd.pidFilePath)
+
+	return cmd
+}
+
+func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
+	return trace.Wrap(vnet.AdminSubcommand(cf.Context, c.socketPath, c.pidFilePath))
 }

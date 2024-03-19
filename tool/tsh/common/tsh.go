@@ -87,7 +87,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	"github.com/gravitational/teleport/lib/utils/mlock"
-	"github.com/gravitational/teleport/lib/vnet"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -517,12 +516,6 @@ type CLIConf struct {
 
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
-
-	// socketPath is a path to a socket.
-	socketPath string
-
-	// pidFilePath is a path to a PID file.
-	pidFilePath string
 }
 
 // Stdout returns the stdout writer.
@@ -1154,11 +1147,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	workloadIdentityCmd := newSVIDCommands(app)
 
-	vnetCommand := app.Command("vnet", "Start Teleport VNet")
-
-	vnetAdminSetupCommand := app.Command(vnet.AdminSetupSubcommand, "helper to run the vnet setup as root").Hidden()
-	vnetAdminSetupCommand.Flag("socket", "unix socket path").StringVar(&cf.socketPath)
-	vnetAdminSetupCommand.Flag("pidfile", "pid file path").StringVar(&cf.pidFilePath)
+	vnetCmd := newVnetCommands(app)
 
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
@@ -1518,10 +1507,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onHeadlessApprove(&cf)
 	case workloadIdentityCmd.issue.FullCommand():
 		err = workloadIdentityCmd.issue.run(&cf)
-	case vnetCommand.FullCommand():
-		err = onVNet(&cf)
-	case vnetAdminSetupCommand.FullCommand():
-		err = onVNetAdminSetupCommand(&cf)
+	case vnetCmd.vnet.FullCommand():
+		err = vnetCmd.vnet.run(&cf)
+	case vnetCmd.adminSetup.FullCommand():
+		err = vnetCmd.adminSetup.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
