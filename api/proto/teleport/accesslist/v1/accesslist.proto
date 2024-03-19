@@ -270,4 +270,28 @@ message ReviewChanges {
 message AccessListStatus {
   // member_count is the number of members in the in the access list.
   optional uint32 member_count = 1;
+
+  // grants_role_friendly_names are the friendly names of the grant roles (if
+  // they exist). This list is guaranteed to be the same length as the roles
+  // list above and will have a 1:1 mapping from roles to its corresponding
+  // friendly name.
+  repeated string grants_role_friendly_names = 2;
+
+  // owner_grants_role_friendly_names are the friendly names of the owner grant
+  // roles (if they exist). This list is guaranteed to be the same length as
+  // the roles list above and will have a 1:1 mapping from roles to its
+  // corresponding friendly name.
+  repeated string owner_grants_role_friendly_names = 3;
+
+  // membership_requires_role_friendly_names are the friendly names of the
+  // membership requires roles (if they exist). This list is guaranteed to be
+  // the same length as the roles list above and will have a 1:1 mapping from
+  // roles to its corresponding friendly name.
+  repeated string membership_requires_role_friendly_names = 4;
+
+  // ownership_requires_role_friendly_names are the friendly names of the
+  // ownership requires roles (if they exist). This list is guaranteed to be
+  // the same length as the roles list above and will have a 1:1 mapping from
+  // roles to its corresponding friendly name.
+  repeated string ownership_requires_role_friendly_names = 5;
 }

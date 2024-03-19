@@ -225,6 +225,22 @@ type Grants struct {
 type Status struct {
 	// MemberCount is the number of members in the access list.
 	MemberCount *uint32
+
+	// GrantsRoleFriendlyNames are the friendly names of the grant roles. Should be a 1:1 mapping
+	// between the grant roles list and this list.
+	GrantsRoleFriendlyNames []string
+
+	// OwnerGrantsRoleFriendlyNames are the friendly names of the owner grant roles. Should be a 1:1 mapping
+	// between the owner grant roles list and this list.
+	OwnerGrantsRoleFriendlyNames []string
+
+	// MembershipRequiresRoleFriendlyNames are the friendly names of the membership requires roles. Should be a 1:1 mapping
+	// between the membership requires roles list and this list.
+	MembershipRequiresRoleFriendlyNames []string
+
+	// OwnershipRequiresRoleFriendlyNames are the friendly names of the ownership requires roles. Should be a 1:1 mapping
+	// between the ownership requires roles list and this list.
+	OwnershipRequiresRoleFriendlyNames []string
 }
 
 // NewAccessList will create a new access list.
@@ -288,6 +304,22 @@ func (a *AccessList) CheckAndSetDefaults() error {
 
 	if len(a.Spec.Grants.Roles) == 0 && len(a.Spec.Grants.Traits) == 0 {
 		return trace.BadParameter("grants must specify at least one role or trait")
+	}
+
+	if a.Status.GrantsRoleFriendlyNames != nil && len(a.Spec.Grants.Roles) != len(a.Status.GrantsRoleFriendlyNames) {
+		return trace.BadParameter("grants role friendly names (length: %d) must be the same length as roles (length: %d)", len(a.Status.GrantsRoleFriendlyNames), len(a.Spec.Grants.Roles))
+	}
+
+	if a.Status.OwnerGrantsRoleFriendlyNames != nil && len(a.Spec.OwnerGrants.Roles) != len(a.Status.OwnerGrantsRoleFriendlyNames) {
+		return trace.BadParameter("owner grants role friendly names (length: %d) must be the same length as roles (length: %d)", len(a.Status.OwnerGrantsRoleFriendlyNames), len(a.Spec.OwnerGrants.Roles))
+	}
+
+	if a.Status.MembershipRequiresRoleFriendlyNames != nil && len(a.Spec.MembershipRequires.Roles) != len(a.Status.MembershipRequiresRoleFriendlyNames) {
+		return trace.BadParameter("membership requires role friendly names (length: %d) must be the same length as roles (length: %d)", len(a.Status.MembershipRequiresRoleFriendlyNames), len(a.Spec.MembershipRequires.Roles))
+	}
+
+	if a.Status.OwnershipRequiresRoleFriendlyNames != nil && len(a.Spec.OwnershipRequires.Roles) != len(a.Status.OwnershipRequiresRoleFriendlyNames) {
+		return trace.BadParameter("ownership requires role friendly names (length: %d) must be the same length as roles (length: %d)", len(a.Status.OwnershipRequiresRoleFriendlyNames), len(a.Spec.OwnershipRequires.Roles))
 	}
 
 	// Deduplicate owners. The backend will currently prevent this, but it's possible that access lists

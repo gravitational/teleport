@@ -130,6 +130,12 @@ export interface AccessRequest {
      * @generated from protobuf field: google.protobuf.Timestamp session_ttl = 18;
      */
     sessionTtl?: Timestamp;
+    /**
+     * the friendly names of the roles requested.
+     *
+     * @generated from protobuf field: repeated string role_friendly_names = 19;
+     */
+    roleFriendlyNames: string[];
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.AccessRequestReview
@@ -246,7 +252,8 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
             { no: 15, name: "assume_start_time", kind: "message", T: () => Timestamp },
             { no: 16, name: "max_duration", kind: "message", T: () => Timestamp },
             { no: 17, name: "request_ttl", kind: "message", T: () => Timestamp },
-            { no: 18, name: "session_ttl", kind: "message", T: () => Timestamp }
+            { no: 18, name: "session_ttl", kind: "message", T: () => Timestamp },
+            { no: 19, name: "role_friendly_names", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AccessRequest>): AccessRequest {
@@ -263,6 +270,7 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
         message.resourceIds = [];
         message.resources = [];
         message.promotedAccessListTitle = "";
+        message.roleFriendlyNames = [];
         if (value !== undefined)
             reflectionMergePartial<AccessRequest>(this, message, value);
         return message;
@@ -325,6 +333,9 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
                     break;
                 case /* google.protobuf.Timestamp session_ttl */ 18:
                     message.sessionTtl = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.sessionTtl);
+                    break;
+                case /* repeated string role_friendly_names */ 19:
+                    message.roleFriendlyNames.push(reader.string());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -392,6 +403,9 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
         /* google.protobuf.Timestamp session_ttl = 18; */
         if (message.sessionTtl)
             Timestamp.internalBinaryWrite(message.sessionTtl, writer.tag(18, WireType.LengthDelimited).fork(), options).join();
+        /* repeated string role_friendly_names = 19; */
+        for (let i = 0; i < message.roleFriendlyNames.length; i++)
+            writer.tag(19, WireType.LengthDelimited).string(message.roleFriendlyNames[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

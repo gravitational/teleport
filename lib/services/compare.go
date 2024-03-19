@@ -44,6 +44,7 @@ func CompareResources[T any](resA, resB T) int {
 			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 			cmpopts.IgnoreFields(types.DatabaseV3{}, "Status"),
 			cmpopts.IgnoreFields(types.UserSpecV2{}, "Status"),
+			cmpopts.IgnoreFields(types.AccessRequestV3{}, "Status"),
 			cmpopts.IgnoreUnexported(headerv1.Metadata{}),
 			cmpopts.EquateEmpty(),
 		)

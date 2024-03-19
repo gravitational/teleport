@@ -56,6 +56,8 @@ message AccessRequest {
   google.protobuf.Timestamp request_ttl = 17;
   // session_ttl indicates how long a certificate for a session should be valid for.
   google.protobuf.Timestamp session_ttl = 18;
+  // the friendly names of the roles requested.
+  repeated string role_friendly_names = 19;
 }
 
 message AccessRequestReview {

@@ -241,7 +241,11 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 	require.NoError(t, err)
 
 	accessList.Status = accesslist.Status{
-		MemberCount: &memberCount,
+		MemberCount:                         &memberCount,
+		GrantsRoleFriendlyNames:             []string{"grole1 friendly", "grole2 friendly"},
+		OwnerGrantsRoleFriendlyNames:        []string{"ogrole1 friendly", "ogrole2 friendly"},
+		MembershipRequiresRoleFriendlyNames: []string{"mrole1 friendly", "mrole2 friendly"},
+		OwnershipRequiresRoleFriendlyNames:  []string{"orole1 friendly", "orole2 friendly"},
 	}
 
 	return accessList

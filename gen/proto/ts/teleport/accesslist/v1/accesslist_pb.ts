@@ -423,6 +423,42 @@ export interface AccessListStatus {
      * @generated from protobuf field: optional uint32 member_count = 1;
      */
     memberCount?: number;
+    /**
+     * grants_role_friendly_names are the friendly names of the grant roles (if
+     * they exist). This list is guaranteed to be the same length as the roles
+     * list above and will have a 1:1 mapping from roles to its corresponding
+     * friendly name.
+     *
+     * @generated from protobuf field: repeated string grants_role_friendly_names = 2;
+     */
+    grantsRoleFriendlyNames: string[];
+    /**
+     * owner_grants_role_friendly_names are the friendly names of the owner grant
+     * roles (if they exist). This list is guaranteed to be the same length as
+     * the roles list above and will have a 1:1 mapping from roles to its
+     * corresponding friendly name.
+     *
+     * @generated from protobuf field: repeated string owner_grants_role_friendly_names = 3;
+     */
+    ownerGrantsRoleFriendlyNames: string[];
+    /**
+     * membership_requires_role_friendly_names are the friendly names of the
+     * membership requires roles (if they exist). This list is guaranteed to be
+     * the same length as the roles list above and will have a 1:1 mapping from
+     * roles to its corresponding friendly name.
+     *
+     * @generated from protobuf field: repeated string membership_requires_role_friendly_names = 4;
+     */
+    membershipRequiresRoleFriendlyNames: string[];
+    /**
+     * ownership_requires_role_friendly_names are the friendly names of the
+     * ownership requires roles (if they exist). This list is guaranteed to be
+     * the same length as the roles list above and will have a 1:1 mapping from
+     * roles to its corresponding friendly name.
+     *
+     * @generated from protobuf field: repeated string ownership_requires_role_friendly_names = 5;
+     */
+    ownershipRequiresRoleFriendlyNames: string[];
 }
 /**
  * ReviewFrequency is the frequency of reviews.
@@ -1357,11 +1393,19 @@ export const ReviewChanges = new ReviewChanges$Type();
 class AccessListStatus$Type extends MessageType<AccessListStatus> {
     constructor() {
         super("teleport.accesslist.v1.AccessListStatus", [
-            { no: 1, name: "member_count", kind: "scalar", opt: true, T: 13 /*ScalarType.UINT32*/ }
+            { no: 1, name: "member_count", kind: "scalar", opt: true, T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "grants_role_friendly_names", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "owner_grants_role_friendly_names", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "membership_requires_role_friendly_names", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "ownership_requires_role_friendly_names", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AccessListStatus>): AccessListStatus {
         const message = globalThis.Object.create((this.messagePrototype!));
+        message.grantsRoleFriendlyNames = [];
+        message.ownerGrantsRoleFriendlyNames = [];
+        message.membershipRequiresRoleFriendlyNames = [];
+        message.ownershipRequiresRoleFriendlyNames = [];
         if (value !== undefined)
             reflectionMergePartial<AccessListStatus>(this, message, value);
         return message;
@@ -1373,6 +1417,18 @@ class AccessListStatus$Type extends MessageType<AccessListStatus> {
             switch (fieldNo) {
                 case /* optional uint32 member_count */ 1:
                     message.memberCount = reader.uint32();
+                    break;
+                case /* repeated string grants_role_friendly_names */ 2:
+                    message.grantsRoleFriendlyNames.push(reader.string());
+                    break;
+                case /* repeated string owner_grants_role_friendly_names */ 3:
+                    message.ownerGrantsRoleFriendlyNames.push(reader.string());
+                    break;
+                case /* repeated string membership_requires_role_friendly_names */ 4:
+                    message.membershipRequiresRoleFriendlyNames.push(reader.string());
+                    break;
+                case /* repeated string ownership_requires_role_friendly_names */ 5:
+                    message.ownershipRequiresRoleFriendlyNames.push(reader.string());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1389,6 +1445,18 @@ class AccessListStatus$Type extends MessageType<AccessListStatus> {
         /* optional uint32 member_count = 1; */
         if (message.memberCount !== undefined)
             writer.tag(1, WireType.Varint).uint32(message.memberCount);
+        /* repeated string grants_role_friendly_names = 2; */
+        for (let i = 0; i < message.grantsRoleFriendlyNames.length; i++)
+            writer.tag(2, WireType.LengthDelimited).string(message.grantsRoleFriendlyNames[i]);
+        /* repeated string owner_grants_role_friendly_names = 3; */
+        for (let i = 0; i < message.ownerGrantsRoleFriendlyNames.length; i++)
+            writer.tag(3, WireType.LengthDelimited).string(message.ownerGrantsRoleFriendlyNames[i]);
+        /* repeated string membership_requires_role_friendly_names = 4; */
+        for (let i = 0; i < message.membershipRequiresRoleFriendlyNames.length; i++)
+            writer.tag(4, WireType.LengthDelimited).string(message.membershipRequiresRoleFriendlyNames[i]);
+        /* repeated string ownership_requires_role_friendly_names = 5; */
+        for (let i = 0; i < message.ownershipRequiresRoleFriendlyNames.length; i++)
+            writer.tag(5, WireType.LengthDelimited).string(message.ownershipRequiresRoleFriendlyNames[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

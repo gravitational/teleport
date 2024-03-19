@@ -16,7 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { generateTshLoginCommand, arrayStrDiff, compareByString } from './util';
+import {
+  generateTshLoginCommand,
+  arrayStrDiff,
+  compareByString,
+  sortRolesAndFriendlyNames,
+} from './util';
 
 let windowSpy;
 
@@ -104,5 +109,52 @@ test('sortByString with objects with string fields', () => {
     { name: 'ape', value: 'kingkong' },
     { name: 'cats', value: 'persian' },
     { name: 'cat', value: 'siamese' },
+  ]);
+});
+
+test('sortRolesAndFriendlyNames with equal array sizes', () => {
+  const roles = ['zrole1', 'crole2', 'brole3'];
+
+  // Should actually be sorted by these display names.
+  const friendlyNames = [
+    'bfriendly name 1',
+    'zfriendly name 2',
+    'afriendly name 3',
+  ];
+
+  const rolesAndFriendlyNames = sortRolesAndFriendlyNames(roles, friendlyNames);
+
+  expect(rolesAndFriendlyNames.roles).toStrictEqual([
+    'brole3',
+    'zrole1',
+    'crole2',
+  ]);
+
+  expect(rolesAndFriendlyNames.friendlyNames).toStrictEqual([
+    'afriendly name 3',
+    'bfriendly name 1',
+    'zfriendly name 2',
+  ]);
+});
+
+test('sortRolesAndFriendlyNames with equal unequal array sizes', () => {
+  const roles = ['zrole1', 'crole2', 'brole3'];
+
+  // Since friendly names isn't the same length as roles, we'll just use roles and
+  // ignore thse friendly names.
+  const friendlyNames = ['bfriendly name 1', 'zfriendly name 2'];
+
+  const rolesAndFriendlyNames = sortRolesAndFriendlyNames(roles, friendlyNames);
+
+  expect(rolesAndFriendlyNames.roles).toStrictEqual([
+    'brole3',
+    'crole2',
+    'zrole1',
+  ]);
+
+  expect(rolesAndFriendlyNames.friendlyNames).toStrictEqual([
+    'brole3',
+    'crole2',
+    'zrole1',
   ]);
 });

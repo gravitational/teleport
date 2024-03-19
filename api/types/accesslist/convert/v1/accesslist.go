@@ -99,6 +99,17 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		*memberCount = *msg.Status.MemberCount
 	}
 
+	var grantsRoleFriendlyNames []string
+	var ownerGrantsRoleFriendlyNames []string
+	var membershipRequiresRoleFriendlyNames []string
+	var ownershipRequiresRoleFriendlyNames []string
+	if msg.Status != nil {
+		grantsRoleFriendlyNames = msg.Status.GrantsRoleFriendlyNames
+		ownerGrantsRoleFriendlyNames = msg.Status.OwnerGrantsRoleFriendlyNames
+		membershipRequiresRoleFriendlyNames = msg.Status.MembershipRequiresRoleFriendlyNames
+		ownershipRequiresRoleFriendlyNames = msg.Status.OwnershipRequiresRoleFriendlyNames
+	}
+
 	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.Spec{
 		Title:       msg.Spec.Title,
 		Description: msg.Spec.Description,
@@ -126,7 +137,11 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		return nil, trace.Wrap(err)
 	}
 	accessList.Status = accesslist.Status{
-		MemberCount: memberCount,
+		MemberCount:                         memberCount,
+		GrantsRoleFriendlyNames:             grantsRoleFriendlyNames,
+		OwnerGrantsRoleFriendlyNames:        ownerGrantsRoleFriendlyNames,
+		MembershipRequiresRoleFriendlyNames: membershipRequiresRoleFriendlyNames,
+		OwnershipRequiresRoleFriendlyNames:  ownershipRequiresRoleFriendlyNames,
 	}
 
 	for _, opt := range opts {
@@ -209,7 +224,11 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 			OwnerGrants: ownerGrants,
 		},
 		Status: &accesslistv1.AccessListStatus{
-			MemberCount: memberCount,
+			MemberCount:                         memberCount,
+			GrantsRoleFriendlyNames:             accessList.Status.GrantsRoleFriendlyNames,
+			OwnerGrantsRoleFriendlyNames:        accessList.Status.OwnerGrantsRoleFriendlyNames,
+			MembershipRequiresRoleFriendlyNames: accessList.Status.MembershipRequiresRoleFriendlyNames,
+			OwnershipRequiresRoleFriendlyNames:  accessList.Status.OwnershipRequiresRoleFriendlyNames,
 		},
 	}
 }

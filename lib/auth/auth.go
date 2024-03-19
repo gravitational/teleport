@@ -4735,7 +4735,17 @@ func (a *Server) ListAccessRequests(ctx context.Context, req *proto.ListAccessRe
 	// immediately after writing, but listing requires support for custom sort orders so we route it to
 	// a special cache. note that the access request cache will still end up forwarding single-request
 	// reads to the real backend due to the read after write issue.
-	return a.AccessRequestCache.ListAccessRequests(ctx, req)
+	resp, err := a.AccessRequestCache.ListAccessRequests(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Add in the role friendly names.
+	for _, accessRequest := range resp.AccessRequests {
+		a.setAccessRequestRoleFriendlyNames(ctx, accessRequest)
+	}
+
+	return resp, nil
 }
 
 // ListMatchingAccessRequests is equivalent to ListAccessRequests except that it adds the ability to provide an arbitrary matcher function. This method
@@ -4745,7 +4755,17 @@ func (a *Server) ListMatchingAccessRequests(ctx context.Context, req *proto.List
 	// immediately after writing, but listing requires support for custom sort orders so we route it to
 	// a special cache. note that the access request cache will still end up forwarding single-request
 	// reads to the real backend due to the read after write issue.
-	return a.AccessRequestCache.ListMatchingAccessRequests(ctx, req, match)
+	resp, err := a.AccessRequestCache.ListMatchingAccessRequests(ctx, req, match)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Add in the role friendly names.
+	for _, accessRequest := range resp.AccessRequests {
+		a.setAccessRequestRoleFriendlyNames(ctx, accessRequest)
+	}
+
+	return resp, nil
 }
 
 func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (types.AccessRequest, error) {
@@ -4803,6 +4823,8 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		req.SetRequestedResourceIDs(requestedResourceIDs)
 	}
 
+	a.setAccessRequestRoleFriendlyNames(ctx, req)
+
 	if req.GetDryRun() {
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
 		// update the request with additional reviewers if possible.
@@ -4855,6 +4877,26 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		strconv.Itoa(len(req.GetRoles())),
 		strconv.Itoa(len(req.GetRequestedResourceIDs()))).Inc()
 	return req, nil
+}
+
+func (a *Server) setAccessRequestRoleFriendlyNames(ctx context.Context, accessRequest types.AccessRequest) {
+	roleFriendlyNames := make([]string, len(accessRequest.GetRoles()))
+	for i, roleName := range accessRequest.GetRoles() {
+		role, err := a.Cache.GetRole(ctx, roleName)
+		if err != nil {
+			log.Debugf("Error getting role %s, unable to calculate friendly name: %v", roleName, err)
+			roleFriendlyNames[i] = roleName
+			continue
+		}
+
+		if friendlyName := types.FriendlyName(role); friendlyName == "" {
+			roleFriendlyNames[i] = roleName
+		} else {
+			roleFriendlyNames[i] = friendlyName
+		}
+	}
+
+	accessRequest.SetRoleFriendlyNames(roleFriendlyNames)
 }
 
 // generateAccessRequestPromotions will return potential access list promotions for an access request. On error, this function will log

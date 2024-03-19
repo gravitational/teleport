@@ -2186,6 +2186,11 @@ message AccessRequestV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // Status is the access request status.
+  AccessRequestStatusV3 Status = 6 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "-"
+  ];
 }
 
 // AccessReviewThreshold describes a filter used to match access reviews,
@@ -2427,6 +2432,13 @@ message AccessRequestSpecV3 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "assume_start_time,omitempty"
   ];
+}
+
+// The status field for access requests.
+message AccessRequestStatusV3 {
+  // RoleFriendlyNames is a list used for role-friendly names. This list should
+  // be the same length as the roles list in the access request.
+  repeated string RoleFriendlyNames = 1 [(gogoproto.jsontag) = "role_friendly_names,omitempty"];
 }
 
 enum AccessRequestScope {

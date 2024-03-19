@@ -38,6 +38,11 @@ type AccessRequest interface {
 	GetRoles() []string
 	// SetRoles overrides the roles being requested by the user
 	SetRoles([]string)
+	// GetRoleFriendlyNames gets the friendly names of the roles being requested by the user.
+	GetRoleFriendlyNames() []string
+	// SetRoleFriendlyNames sets the friendly names of the roles being requested by the user.
+	// Should be the same length as the roles in this request.
+	SetRoleFriendlyNames([]string)
 	// GetState gets the current state of the request
 	GetState() RequestState
 	// SetState sets the approval state of the request
@@ -171,6 +176,23 @@ func (r *AccessRequestV3) GetRoles() []string {
 // SetRoles sets Roles
 func (r *AccessRequestV3) SetRoles(roles []string) {
 	r.Spec.Roles = roles
+}
+
+// GetRoleFriendlyNames gets the friendly names of the roles being requested by the user.
+func (r *AccessRequestV3) GetRoleFriendlyNames() []string {
+	if r.Status == nil {
+		return nil
+	}
+	return r.Status.RoleFriendlyNames
+}
+
+// SetRoleFriendlyNames sets the friendly names of the roles being requested by the user.
+// Should be the same length as the roles in this request.
+func (r *AccessRequestV3) SetRoleFriendlyNames(roleFriendlyNames []string) {
+	if r.Status == nil {
+		r.Status = &AccessRequestStatusV3{}
+	}
+	r.Status.RoleFriendlyNames = roleFriendlyNames
 }
 
 // GetState gets State
