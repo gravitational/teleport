@@ -485,7 +485,7 @@ $ kubectl exec -i my-pod -- tctl status
 # sending local files via stdin
 $ kubectl exec -i my-pod -- tctl create -f < my-local-file.yaml
 
-# retrieving the teleport service config file from a pod
+# retrieving the teleport service config file from the configmap
 $ kubectl -n <namespace> get configmap teleport-cluster-auth -o jsonpath="{.data['teleport\.yaml']}"
 
 # retrieving output via stdout and tar
