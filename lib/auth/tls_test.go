@@ -1238,10 +1238,23 @@ func TestAuthPreferenceSettings(t *testing.T) {
 	clt, err := testSrv.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	suite := &suite.ServicesTestSuite{
-		ConfigS: clt,
-	}
-	suite.AuthPreference(t)
+	ctx := context.Background()
+	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+		Type:                  "local",
+		SecondFactor:          "otp",
+		DisconnectExpiredCert: types.NewBoolOption(true),
+	})
+	require.NoError(t, err)
+
+	err = clt.SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	gotAP, err := clt.GetAuthPreference(ctx)
+	require.NoError(t, err)
+
+	require.Equal(t, "local", gotAP.GetType())
+	require.Equal(t, constants.SecondFactorOTP, gotAP.GetSecondFactor())
+	require.True(t, gotAP.GetDisconnectExpiredCert())
 }
 
 func TestTunnelConnectionsCRUD(t *testing.T) {
