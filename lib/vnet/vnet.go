@@ -44,6 +44,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 	"gvisor.dev/gvisor/pkg/waiter"
 
+	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -149,7 +150,7 @@ func NewManager(ctx context.Context, cfg *Config) (*Manager, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	slog := slog.With(trace.Component, "VNet")
+	slog := slog.With(teleport.ComponentKey, "VNet")
 	ctx, cancel := context.WithCancel(ctx)
 	m := &Manager{
 		tc:            cfg.Client,

@@ -28,9 +28,11 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"golang.org/x/net/dns/dnsmessage"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -59,7 +61,7 @@ func NewServer(slog *slog.Logger, resolver Resolver) (*Server, error) {
 	}
 	return &Server{
 		hostConfFile:   "/etc/resolv.conf",
-		slog:           slog.With(trace.Component, "VNet.DNS"),
+		slog:           slog.With(teleport.ComponentKey, "VNet.DNS"),
 		messageBuffers: messageBuffers,
 		resolver:       resolver,
 		ttlCache:       ttlCache,
