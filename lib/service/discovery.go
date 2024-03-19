@@ -20,11 +20,11 @@ package service
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -75,7 +75,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		process.ExitContext(),
 		process.Config,
 		process.getInstanceClient(),
-		log,
+		logger,
 	)
 	if err != nil {
 		return trace.Wrap(err, "failed to build access graph configuration")
@@ -142,7 +142,7 @@ func (process *TeleportProcess) integrationOnlyCredentials() bool {
 
 // buildAccessGraphFromTAGOrFallbackToAuth builds the AccessGraphConfig from the Teleport Agent configuration or falls back to the Auth server's configuration.
 // If the AccessGraph configuration is not enabled locally, it will fall back to the Auth server's configuration.
-func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servicecfg.Config, client auth.ClientI, logger logrus.FieldLogger) (discovery.AccessGraphConfig, error) {
+func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servicecfg.Config, client auth.ClientI, logger *slog.Logger) (discovery.AccessGraphConfig, error) {
 	var (
 		accessGraphCAData []byte
 		err               error
@@ -163,13 +163,13 @@ func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servic
 		CA:       accessGraphCAData,
 	}
 	if !accessGraphCfg.Enabled {
-		logger.Debug("Access graph is disabled or not configured. Falling back to the Auth server's access graph configuration.")
+		logger.DebugContext(ctx, "Access graph is disabled or not configured. Falling back to the Auth server's access graph configuration.")
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		rsp, err := client.GetClusterAccessGraphConfig(ctx)
 		cancel()
 		switch {
 		case trace.IsNotImplemented(err):
-			logger.Debug("Auth server does not support access graph's GetClusterAccessGraphConfig RPC")
+			logger.DebugContext(ctx, "Auth server does not support access graph's GetClusterAccessGraphConfig RPC")
 		case err != nil:
 			return discovery.AccessGraphConfig{}, trace.Wrap(err)
 		default:
