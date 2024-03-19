@@ -73,7 +73,7 @@ type svidIssueCommand struct {
 
 func newSVIDIssueCommand(parent *kingpin.CmdClause) *svidIssueCommand {
 	cmd := &svidIssueCommand{
-		CmdClause: parent.Command("issue", "Issues a SPIFFE SVID using Teleport Workload Identity and writes it to a local directory."),
+		CmdClause: parent.Command("issue", "Issue a SPIFFE SVID using Teleport Workload Identity and write it to a local directory."),
 	}
 	cmd.Arg("path", "Path to use for the SVID SPIFFE ID. Must have a preceding '/'.").
 		Required().
