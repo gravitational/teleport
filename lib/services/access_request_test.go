@@ -1608,6 +1608,88 @@ func TestPruneRequestRoles(t *testing.T) {
 	}
 }
 
+// TestCalculatePendingRequesetTTL verifies that the TTL for the Access Request is capped to the
+// request's access expiry or capped to the default const requestTTL, whichever is smaller.
+func TestCalculatePendingRequesetTTL(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	now := clock.Now().UTC()
+
+	tests := []struct {
+		desc string
+		// accessExpiryTTL == max access duration.
+		accessExpiryTTL time.Duration
+		// when the access request expires in the PENDING state.
+		requestPendingExpiryTTL time.Duration
+		assertion               require.ErrorAssertionFunc
+	}{
+		{
+			desc:                    "valid: requested ttl < access expiry",
+			accessExpiryTTL:         requestTTL - (3 * day),
+			requestPendingExpiryTTL: requestTTL - (4 * day),
+			assertion:               require.NoError,
+		},
+		{
+			desc:                    "valid: requested ttl == access expiry",
+			accessExpiryTTL:         requestTTL - (3 * day),
+			requestPendingExpiryTTL: requestTTL - (3 * day),
+			assertion:               require.NoError,
+		},
+		{
+			desc:                    "valid: requested ttl == default request ttl",
+			accessExpiryTTL:         requestTTL,
+			requestPendingExpiryTTL: requestTTL,
+			assertion:               require.NoError,
+		},
+		{
+			desc:                    "invalid: requested ttl > access expiry",
+			accessExpiryTTL:         requestTTL - (3 * day),
+			requestPendingExpiryTTL: requestTTL - (2 * day),
+			assertion:               require.Error,
+		},
+		{
+			desc:                    "invalid: requested ttl > default request TTL",
+			accessExpiryTTL:         requestTTL + (1 * day),
+			requestPendingExpiryTTL: requestTTL + (1 * day),
+			assertion:               require.Error,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			// Setup test user "foo" and "bar" and the mock auth server that
+			// will return users and roles.
+			uls, err := userloginstate.New(header.Metadata{
+				Name: "foo",
+			}, userloginstate.Spec{
+				Roles: []string{"bar"},
+			})
+			require.NoError(t, err)
+
+			role, err := types.NewRole("bar", types.RoleSpecV6{})
+			require.NoError(t, err)
+
+			getter := &mockGetter{
+				userStates: map[string]*userloginstate.UserLoginState{"foo": uls},
+				roles:      map[string]types.Role{"bar": role},
+			}
+
+			validator, err := NewRequestValidator(context.Background(), clock, getter, "foo", ExpandVars(true))
+			require.NoError(t, err)
+
+			request, err := types.NewAccessRequest("some-id", "foo", "bar")
+			require.NoError(t, err)
+			request.SetExpiry(now.Add(tt.requestPendingExpiryTTL))
+			request.SetAccessExpiry(now.Add(tt.accessExpiryTTL))
+
+			ttl, err := validator.calculatePendingRequestTTL(context.Background(), tlsca.Identity{}, request)
+			tt.assertion(t, err)
+			if err == nil {
+				require.Equal(t, tt.requestPendingExpiryTTL, ttl)
+			}
+		})
+	}
+}
+
 // TestSessionTTL verifies that the TTL for elevated access gets reduced by
 // requested access time, lifetime of certificate, and strictest session TTL on
 // any role.
