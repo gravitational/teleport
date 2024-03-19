@@ -322,6 +322,66 @@ func TestResourceParser_NameIdentifier(t *testing.T) {
 	require.True(t, match)
 }
 
+func TestResourceParserLabelContains(t *testing.T) {
+	t.Parallel()
+
+	// Server resource should use hostname when using name identifier.
+	server, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
+		Hostname: "server-hostname",
+	}, map[string]string{"ip": "1.2.3.11,1.2.3.101,1.2.3.1"})
+	require.NoError(t, err)
+
+	parser, err := NewResourceParser(server)
+	require.NoError(t, err)
+
+	match, err := parser.EvalBoolPredicate(`contains(labels["ip"], "1.2.3.1")`)
+	require.NoError(t, err)
+	require.True(t, match)
+
+	match, err = parser.EvalBoolPredicate(`contains(labels.ip, "1.2.3.1")`)
+	require.NoError(t, err)
+	require.True(t, match)
+
+	match, err = parser.EvalBoolPredicate(`contains(labels["ip"], "1.2.3.2")`)
+	require.NoError(t, err)
+	require.False(t, match)
+
+	match, err = parser.EvalBoolPredicate(`contains(labels.ip, "1.2.3.2")`)
+	require.NoError(t, err)
+	require.False(t, match)
+}
+
+func BenchmarkContains(b *testing.B) {
+	// Server resource should use hostname when using name identifier.
+	server, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
+		Hostname: "server-hostname",
+	}, map[string]string{"ip": "1.2.3.11,1.2.3.101,1.2.3.1"})
+	require.NoError(b, err)
+
+	b.ResetTimer()
+
+	b.Run("index", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			parser, err := NewResourceParser(server)
+			require.NoError(b, err)
+			match, err := parser.EvalBoolPredicate(`contains(labels["ip"], "1.2.3.1")`)
+			require.NoError(b, err)
+			require.True(b, match)
+		}
+	})
+
+	b.Run("path", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			parser, err := NewResourceParser(server)
+			require.NoError(b, err)
+			match, err := parser.EvalBoolPredicate(`contains(labels.ip, "1.2.3.1")`)
+			require.NoError(b, err)
+			require.True(b, match)
+		}
+	})
+
+}
+
 // TestParserHostCertContext tests set functions with a custom host cert
 // context.
 func TestParserHostCertContext(t *testing.T) {
