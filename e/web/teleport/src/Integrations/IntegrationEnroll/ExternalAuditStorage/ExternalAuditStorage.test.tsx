@@ -99,12 +99,14 @@ describe('externalAuditStorage', () => {
   });
 
   test('renders success message and buttons when activated', async () => {
-    await waitFor(() => setup());
+    setup();
     // click through the flow to activate it
 
     // step 1
     expect(screen.getByText('Step 1: Select Integration')).toBeInTheDocument();
-    const awsDropdown = screen.getByText('Select the AWS Integration to Use');
+    const awsDropdown = await screen.findByText(
+      'Select the AWS Integration to Use'
+    );
     await userEvent.click(awsDropdown);
     const item = screen.getByText('my-custom-aws-integration');
     expect(item).toBeInTheDocument();
@@ -139,13 +141,15 @@ describe('externalAuditStorage', () => {
   });
 
   it('renders warning if a previous draft exists', async () => {
-    await waitFor(() => setup());
+    setup();
     jest
       .spyOn(externalAuditStorageService, 'getDraft')
       .mockResolvedValue(externalAuditStorage);
 
     // go through step 1
-    const awsDropdown = screen.getByText('Select the AWS Integration to Use');
+    const awsDropdown = await screen.findByText(
+      'Select the AWS Integration to Use'
+    );
     await userEvent.click(awsDropdown);
     const item = screen.getByText('my-custom-aws-integration');
     await userEvent.click(item);
@@ -160,13 +164,15 @@ describe('externalAuditStorage', () => {
   });
 
   it('continues the previous draft', async () => {
-    await waitFor(() => setup());
+    setup();
     jest
       .spyOn(externalAuditStorageService, 'getDraft')
       .mockResolvedValue(externalAuditStorage);
 
     // go through step 1
-    const awsDropdown = screen.getByText('Select the AWS Integration to Use');
+    const awsDropdown = await screen.findByText(
+      'Select the AWS Integration to Use'
+    );
     await userEvent.click(awsDropdown);
     const item = screen.getByText('my-custom-aws-integration');
     await userEvent.click(item);

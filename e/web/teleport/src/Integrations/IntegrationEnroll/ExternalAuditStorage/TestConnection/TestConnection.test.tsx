@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router';
 
 import { ContextProvider } from 'teleport';
 
-import { render, screen, userEvent, waitFor } from 'design/utils/testing';
+import { render, screen, userEvent } from 'design/utils/testing';
 import { allAccessAcl } from 'teleport/mocks/contexts';
 
 import TeleportEContext from 'e-teleport/teleportContextE';
@@ -47,7 +47,7 @@ describe('testConnection', () => {
   };
 
   it('calls onTest on button click', async () => {
-    await waitFor(() => setup());
+    setup();
     const testFunction = jest.spyOn(
       externalAuditStorageService,
       'testConnection'
@@ -58,7 +58,7 @@ describe('testConnection', () => {
   });
 
   it('renders diagnostic traces correctly', async () => {
-    await waitFor(() => setup());
+    setup();
     jest
       .spyOn(externalAuditStorageService, 'testConnection')
       .mockResolvedValue({

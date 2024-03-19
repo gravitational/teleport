@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router';
 import { render, screen, fireEvent } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
 import { within, cleanup, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import makeUserContext from 'teleport/services/user/makeUserContext';
 import * as userUserContext from 'teleport/User/UserContext';
@@ -122,9 +123,7 @@ describe('new request behavior', () => {
     fireEvent.focus(inputEl);
     fireEvent.keyDown(inputEl, { key: 'Enter', keyCode: 13 });
 
-    await waitFor(() => {
-      screen.getByText('Proceed to Request');
-    });
+    await screen.findByText('Proceed to Request');
     let rows = screen.getAllByText(/role-/i);
     expect(rows).toHaveLength(
       userContext.accessCapabilities.requestableRoles.length
@@ -215,20 +214,17 @@ describe('new request behavior', () => {
 
     let addrs = await screen.findAllByText('node1-addr');
     // addrs should not increment when the checkout window because we display hostname
-    /* eslint-disable  jest-dom/prefer-in-document */
     expect(addrs).toHaveLength(1);
     const addButtons = await screen.findAllByText(/add to request/i);
 
-    fireEvent.click(addButtons[0]);
-    await waitFor(() => {
-      screen.getByText('Proceed to Request').click();
-    });
+    await userEvent.click(addButtons[0]);
+    const proceedToRequest = await screen.findByText('Proceed to Request');
+    await userEvent.click(proceedToRequest);
 
     expect(screen.getByText('1 Resource Selected')).toBeInTheDocument();
     addrs = await screen.findAllByText('node1-addr');
 
     expect(addrs).toHaveLength(1);
-    /* eslint-enable  jest-dom/prefer-in-document */
   });
 
   test('select all buttons work properly', async () => {
@@ -254,17 +250,15 @@ describe('new request behavior', () => {
     fireEvent.keyDown(inputEl, { key: 'Enter', keyCode: 13 });
 
     expect(screen.getByText('Resources Added (0)')).toBeInTheDocument();
-    await waitFor(() => {
-      screen.getByTestId('select_all').click();
-      screen.getByTestId('add_to_resource').click();
-    });
+    const selectAll = await screen.findByTestId('select_all');
+    await userEvent.click(selectAll);
 
+    const addToResource = await screen.findByTestId('add_to_resource');
+    await userEvent.click(addToResource);
     expect(screen.getByText('Resources Added (2)')).toBeInTheDocument();
 
-    await waitFor(() => {
-      screen.getByText('Proceed to Request').click();
-    });
-
+    const proceedToRequest = await screen.findByText('Proceed to Request');
+    await userEvent.click(proceedToRequest);
     expect(screen.getByText('2 Resources Selected')).toBeInTheDocument();
   });
 

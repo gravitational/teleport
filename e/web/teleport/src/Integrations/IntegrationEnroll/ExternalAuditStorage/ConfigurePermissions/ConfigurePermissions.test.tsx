@@ -1,6 +1,6 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { render, screen, userEvent, waitFor } from 'design/utils/testing';
+import { render, screen, userEvent } from 'design/utils/testing';
 
 import { externalAuditStorage } from 'teleport/Integrations/fixtures';
 
@@ -48,7 +48,7 @@ describe('configurePermissions', () => {
   };
 
   it('renders warning if a previous draft exists', async () => {
-    await waitFor(() => setup());
+    setup();
     jest
       .spyOn(externalAuditStorageService, 'getDraft')
       .mockResolvedValue(externalAuditStorage);
@@ -58,7 +58,7 @@ describe('configurePermissions', () => {
   });
 
   it('renders without the warning if no draft exist', async () => {
-    await waitFor(() => setup());
+    setup();
     await userEvent.click(screen.getByText('Generate Script'));
 
     expect(screen.queryByText(/Draft in progress/)).not.toBeInTheDocument();
@@ -66,7 +66,7 @@ describe('configurePermissions', () => {
   });
 
   it('renders generate script button when script is null', async () => {
-    await waitFor(() => setup());
+    setup();
     expect(screen.getByText(/Generate Script/)).toBeInTheDocument();
   });
 });
