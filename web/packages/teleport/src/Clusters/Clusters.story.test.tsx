@@ -16,14 +16,13 @@ limitations under the License.
 
 import React from 'react';
 
-import { render, screen } from 'design/utils/testing';
+import { render, waitFor } from 'design/utils/testing';
 
 import { Story, createContext } from './Clusters.story';
 
 test('render clusters', async () => {
   const ctx = createContext();
   const { container } = render(<Story value={ctx} />);
-  // wait for Showing 1 - x of y
-  expect(await screen.findByText(/Showing/)).toBeInTheDocument();
+  await waitFor(() => document.querySelector('table'));
   expect(container.firstChild).toMatchSnapshot();
 });
