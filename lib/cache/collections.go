@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client"
-	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -2130,7 +2129,7 @@ func (kubeWaitingContainerExecutor) delete(ctx context.Context, cache *Cache, re
 	if !ok {
 		return trace.BadParameter("unknown KubeWaitingContainer type, expected *kubewaitingcontainerpb.KubernetesWaitingContainer, got %T", resource)
 	}
-	err := cache.kubeWaitingContsCache.DeleteKubernetesWaitingContainer(ctx, kubewaitingcontainerclient.KubeWaitingContainerRequest{
+	err := cache.kubeWaitingContsCache.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
 		Username:      wc.Spec.Username,
 		Cluster:       wc.Spec.Cluster,
 		Namespace:     wc.Spec.Namespace,
@@ -2151,7 +2150,7 @@ func (kubeWaitingContainerExecutor) getReader(cache *Cache, cacheOK bool) kubern
 
 type kubernetesWaitingContainerGetter interface {
 	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
-	GetKubernetesWaitingContainer(ctx context.Context, req kubewaitingcontainerclient.KubeWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
+	GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
 }
 
 var _ executor[*kubewaitingcontainerpb.KubernetesWaitingContainer, kubernetesWaitingContainerGetter] = kubeWaitingContainerExecutor{}

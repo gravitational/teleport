@@ -20,7 +20,6 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -43,7 +42,7 @@ type ServiceConfig struct {
 // session conditions are met.
 type Cache interface {
 	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
-	GetKubernetesWaitingContainer(ctx context.Context, req kubewaitingcontainerclient.KubeWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
+	GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
 }
 
 // Service implements the teleport.kubewaitingcontainer.v1.KubernetesWaitingContainer
@@ -131,7 +130,7 @@ func (s *Service) GetKubernetesWaitingContainer(ctx context.Context, req *kubewa
 		return nil, trace.AccessDenied("unauthorized to read Kubernetes waiting container resources")
 	}
 
-	out, err := s.cache.GetKubernetesWaitingContainer(ctx, kubewaitingcontainerclient.KubeWaitingContainerRequest{
+	out, err := s.cache.GetKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest{
 		Username:      req.Username,
 		Cluster:       req.Cluster,
 		Namespace:     req.Namespace,
@@ -199,7 +198,7 @@ func (s *Service) DeleteKubernetesWaitingContainer(ctx context.Context, req *kub
 		return nil, trace.AccessDenied("unauthorized to delete Kubernetes waiting container resources")
 	}
 
-	return &emptypb.Empty{}, trace.Wrap(s.backend.DeleteKubernetesWaitingContainer(ctx, kubewaitingcontainerclient.KubeWaitingContainerRequest{
+	return &emptypb.Empty{}, trace.Wrap(s.backend.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
 		Username:      req.Username,
 		Cluster:       req.Cluster,
 		Namespace:     req.Namespace,

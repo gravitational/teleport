@@ -3289,7 +3289,7 @@ func (c *Client) ListKubernetesWaitingContainers(ctx context.Context, pageSize i
 // GetKubernetesWaitingContainer returns a Kubernetes ephemeral
 // container that are waiting to be created until moderated
 // session conditions are met.
-func (c *Client) GetKubernetesWaitingContainer(ctx context.Context, req kubewaitingcontainerclient.KubeWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+func (c *Client) GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
 	return c.GetKubernetesWaitingContainerClient().GetKubernetesWaitingContainer(ctx, req)
 }
 
@@ -3303,7 +3303,7 @@ func (c *Client) CreateKubernetesWaitingContainer(ctx context.Context, waitingPo
 // DeleteKubernetesWaitingContainer deletes a Kubernetes ephemeral
 // container that are waiting to be created until moderated
 // session conditions are met.
-func (c *Client) DeleteKubernetesWaitingContainer(ctx context.Context, req kubewaitingcontainerclient.KubeWaitingContainerRequest) error {
+func (c *Client) DeleteKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest) error {
 	return c.GetKubernetesWaitingContainerClient().DeleteKubernetesWaitingContainer(ctx, req)
 }
 

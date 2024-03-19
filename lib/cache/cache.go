@@ -35,7 +35,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
-	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -2261,7 +2260,7 @@ func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize in
 // GetKubernetesWaitingContainer returns a Kubernetes ephemeral
 // container that are waiting to be created until moderated
 // session conditions are met.
-func (c *Cache) GetKubernetesWaitingContainer(ctx context.Context, req kubewaitingcontainerclient.KubeWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+func (c *Cache) GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesWaitingContainer")
 	defer span.End()
 
