@@ -373,6 +373,7 @@ func filterEventSecrets(event types.Event) types.Event {
 	if !ok {
 		return event
 	}
+
 	event.Resource = r.WithoutSecrets()
 	return event
 }
