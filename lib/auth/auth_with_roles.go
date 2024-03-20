@@ -1326,18 +1326,24 @@ func (a *ServerWithRoles) checkUnifiedAccess(resource types.ResourceWithLabels, 
 		return false, trace.Wrap(canAccessErr)
 	}
 
-	if resourceKind != types.KindSAMLIdPServiceProvider {
-		if err := checker.CanAccess(resource); err != nil {
-
-			if trace.IsAccessDenied(err) {
-				return false, nil
-			}
-			return false, trace.Wrap(err)
-		}
+	// Filter first and only check RBAC if there is a match to improve perf.
+	match, err := services.MatchResourceByFilters(resource, filter, nil)
+	if !match || err != nil {
+		return false, trace.Wrap(err)
 	}
 
-	match, err := services.MatchResourceByFilters(resource, filter, nil)
-	return match, trace.Wrap(err)
+	if resourceKind == types.KindSAMLIdPServiceProvider {
+		return true, nil
+	}
+
+	if err := checker.CanAccess(resource); err != nil {
+		if trace.IsAccessDenied(err) {
+			return false, nil
+		}
+		return false, trace.Wrap(err)
+	}
+
+	return true, nil
 }
 
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
