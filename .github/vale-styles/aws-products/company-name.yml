@@ -10,7 +10,7 @@
 #   usage and each value is the correct usage. Each mapping is indented by two
 #   spaces so we can use it as the value of "swap":
 #
-#   jq -r '.[].service_name' < services.json | sort | uniq | grep -E "^(AWS|Amazon)" | gawk '
+#   jq -r '[.[].service_name] | unique | .[]' < services.json | gawk '
 #   /^Amazon/{ print gensub(/Amazon (.*)/,"  \"AWS \\1\"","1") ": " $0 }
 #   /^AWS /{ print gensub(/AWS (.*)/,"  \"Amazon \\1\"","1") ": " $0}'
 extends: substitution
