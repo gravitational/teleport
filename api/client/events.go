@@ -51,8 +51,7 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	}
 	switch r := in.Resource.(type) {
 	case types.Resource153Unwrapper:
-		r153 := r.Unwrap()
-		switch r := r153.(type) {
+		switch r := r.Unwrap().(type) {
 		case *kubewaitingcontainerpb.KubernetesWaitingContainer:
 			out.Resource = &proto.Event_KubernetesWaitingContainer{
 				KubernetesWaitingContainer: r,

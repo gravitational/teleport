@@ -53,6 +53,12 @@ func ValidateKubeWaitingContainer(k *kubewaitingcontainerpb.KubernetesWaitingCon
 	if k == nil {
 		return trace.BadParameter("KubernetesWaitingContainer is nil")
 	}
+	if k.Metadata == nil {
+		return trace.BadParameter("Metadata is nil")
+	}
+	if k.Spec == nil {
+		return trace.BadParameter("Spec is nil")
+	}
 
 	if k.Spec.Username == "" {
 		return trace.BadParameter("Username is unset")
