@@ -383,18 +383,19 @@ func (e *tpmSimulator) authenticate(
 	ctx context.Context,
 	dev *devicepb.Device,
 	stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
-	certs *devicepb.UserCertificates,
+	initTemplate *devicepb.AuthenticateDeviceInit,
 ) (*devicepb.AuthenticateDeviceResponse, error) {
 	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
 		Payload: &devicepb.AuthenticateDeviceRequest_Init{
 			Init: &devicepb.AuthenticateDeviceInit{
-				UserCertificates: certs,
+				UserCertificates: initTemplate.GetUserCertificates(),
 				CredentialId:     e.credentialID,
 				DeviceData: &devicepb.DeviceCollectedData{
 					CollectTime:  timestamppb.Now(),
 					OsType:       dev.OsType,
 					SerialNumber: dev.AssetTag,
 				},
+				DeviceWebToken: initTemplate.GetDeviceWebToken(),
 			},
 		},
 	}); err != nil && !errors.Is(err, io.EOF) {

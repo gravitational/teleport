@@ -2081,7 +2081,7 @@ func contextWithUser(ctx context.Context, user string) context.Context {
 // and [authorizerUserKey]
 // Used by CreateDeviceEnrollToken/auto-enroll tests.
 type userAwareAuthorizer struct {
-	services.AccessChecker // double as an AccessChecker.
+	testenv.NoopChecker
 
 	knownUsers      []string
 	authorizedUsers []string

@@ -27,10 +27,13 @@ type simulator interface {
 	wantCredential() *devicepb.DeviceCredential
 	// authenticate runs the client side element of the device authentication
 	// flow.
+	//
+	// initTemplate is used to supply both UserCertificates and DeviceWebToken,
+	// other fields are overwritten.
 	authenticate(
 		ctx context.Context,
 		dev *devicepb.Device,
 		stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
-		certs *devicepb.UserCertificates,
+		initTemplate *devicepb.AuthenticateDeviceInit,
 	) (*devicepb.AuthenticateDeviceResponse, error)
 }

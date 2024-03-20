@@ -96,6 +96,11 @@ type AuthServer interface {
 	// See [auth.Server.AugmentContextUserCertificates]
 	AugmentContextUserCertificates(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentUserCertificateOpts) (*clientpb.Certs, error)
 
+	// AugmentWebSessionCertificates is a variant of
+	// [AugmentContextUserCertificates] that works directly on the WebSession
+	// certificates.
+	AugmentWebSessionCertificates(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentWebSessionCertificatesOpts) error
+
 	// GetAuthPreference gets the cluster's auth preferences.
 	// This method is not guarded by user permissions.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
@@ -794,6 +799,10 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 		augmentCertsFunc: func(ctx context.Context, opts *auth.AugmentUserCertificateOpts) (*clientpb.Certs, error) {
 			certs, err := s.authServer.AugmentContextUserCertificates(ctx, authCtx, opts)
 			return certs, trace.Wrap(err)
+		},
+		augmentWebFunc: func(ctx context.Context, opts *auth.AugmentWebSessionCertificatesOpts) error {
+			err := s.authServer.AugmentWebSessionCertificates(ctx, authCtx, opts)
+			return trace.Wrap(err)
 		},
 		auditCallback: func(dev *devicepb.Device, err error) {
 			success := err == nil

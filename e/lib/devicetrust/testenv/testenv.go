@@ -40,6 +40,10 @@ const DefaultUser = "llama"
 // [auth.Server.AugmentContextUserCertificates].
 type AugmentContextCertsFunc func(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error)
 
+// AugmentWebSessionCertsFunc mimics the signature of
+// [auth.Server.AugmentWebSessionCertificates].
+type AugmentWebSessionCertsFunc func(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentWebSessionCertificatesOpts) error
+
 // AnonymizeAndSubmitFunc mimics the signature of
 // [auth.Server.AnonymizeAndSubmit].
 type AnonymizeAndSubmitFunc func(event ...usagereporter.Anonymizable)
@@ -54,6 +58,7 @@ type E struct {
 	IdentityService *local.IdentityService
 
 	augmentCertsFunc       AugmentContextCertsFunc
+	augmentWebFunc         AugmentWebSessionCertsFunc
 	authSpec               *types.AuthPreferenceSpecV2
 	anonymizeAndSubmitFunc AnonymizeAndSubmitFunc
 	authorizer             authz.Authorizer
@@ -80,6 +85,11 @@ type Opt func(*E)
 // WithAugmentCertsFunc customizes the [E] augment certs function.
 func WithAugmentCertsFunc(f AugmentContextCertsFunc) Opt {
 	return func(e *E) { e.augmentCertsFunc = f }
+}
+
+// WithAugmentWebFunc customizes the [E] augment web function.
+func WithAugmentWebFunc(f AugmentWebSessionCertsFunc) Opt {
+	return func(e *E) { e.augmentWebFunc = f }
 }
 
 // WithAuthPreferenceSpec customizes the underlying [E] auth preference spec.
@@ -190,6 +200,7 @@ func New(opts ...Opt) (*E, error) {
 		Logger: logger,
 		AuthServer: &fakeAuthServer{
 			augmentFunc:            e.augmentCertsFunc,
+			augmentWebFunc:         e.augmentWebFunc,
 			authSpec:               e.authSpec,
 			anonymizeAndSubmitFunc: e.anonymizeAndSubmitFunc,
 		},
@@ -211,7 +222,10 @@ func New(opts ...Opt) (*E, error) {
 
 	s := grpc.NewServer(
 		// Options below are similar to auth.GRPCServer.
-		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
+		grpc.ChainStreamInterceptor(
+			interceptors.GRPCServerStreamErrorInterceptor,
+			clientSourceAddrInterceptor, // for testing only
+		),
 		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 	)
 	e.closers = append(e.closers, func() error {
@@ -266,12 +280,20 @@ func fakeAnonymizeAndSubmitFunc(event ...usagereporter.Anonymizable) {}
 
 type fakeAuthServer struct {
 	augmentFunc            AugmentContextCertsFunc
+	augmentWebFunc         AugmentWebSessionCertsFunc // may be nil
 	authSpec               *types.AuthPreferenceSpecV2
 	anonymizeAndSubmitFunc AnonymizeAndSubmitFunc
 }
 
 func (s *fakeAuthServer) AugmentContextUserCertificates(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error) {
 	return s.augmentFunc(ctx, authCtx, opts)
+}
+
+func (s *fakeAuthServer) AugmentWebSessionCertificates(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentWebSessionCertificatesOpts) error {
+	if s.augmentWebFunc == nil {
+		return nil
+	}
+	return s.augmentWebFunc(ctx, authCtx, opts)
 }
 
 func (s *fakeAuthServer) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {

@@ -49,7 +49,7 @@ func (e *tpmSimulator) authenticate(
 	ctx context.Context,
 	dev *devicepb.Device,
 	stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
-	certs *devicepb.UserCertificates,
+	initTemplate *devicepb.AuthenticateDeviceInit,
 ) (*devicepb.AuthenticateDeviceResponse, error) {
 	panic("unimplemented")
 }

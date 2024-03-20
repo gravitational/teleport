@@ -2,20 +2,24 @@ package devicetrustv1_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	"github.com/gravitational/teleport/api/client/proto"
+	clientpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -726,7 +730,537 @@ func TestService_AuthenticateDevice_backfillOwner(t *testing.T) {
 	}
 }
 
-func fakeAugmentFunc(_ context.Context, authCtx *authz.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error) {
+func TestService_AuthenticateDevice_webAuthn(t *testing.T) {
+	if tpmSkip != "" {
+		t.Skip(tpmSkip) // tpmsimulator required for this test.
+	}
+
+	enableDeviceWebAuthn(t)
+
+	const userLlama = "llama"
+	const userAlpaca = "alpaca"
+	allUsers := []string{userLlama, userAlpaca}
+	augmentWebFunc := &fakeAugmentWebFunc{}
+	emitter := &keyedEmitter{}
+	env := testenv.NewUsingT(t,
+		testenv.WithAugmentWebFunc(augmentWebFunc.function),
+		testenv.WithAuthorizer(&userAwareAuthorizer{
+			knownUsers:      allUsers,
+			authorizedUsers: allUsers,
+		}),
+		testenv.WithEmitter(emitter),
+	)
+
+	devicesClient := env.DevicesClient
+	service := env.DevicesService
+	ctx := context.Background()
+
+	llamaData := setupUserForDeviceWebAuthn(t, env, setupUserWebAuthnOpts{
+		user: userLlama,
+		devices: []*devicepb.Device{
+			{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "llama-1",
+			},
+			{
+				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+				AssetTag: "llama-2",
+			},
+		},
+	})
+	t.Cleanup(llamaData.Close) // close simulators
+
+	alpacaData := setupUserForDeviceWebAuthn(t, env, setupUserWebAuthnOpts{
+		user: userAlpaca,
+		devices: []*devicepb.Device{
+			{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "alpaca-1",
+			},
+			// Switches owner to "llama" later.
+			{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "alpaca-2",
+			},
+		},
+	})
+	t.Cleanup(alpacaData.Close) // close simulators
+
+	// Change the Owner of the "alpaca-2" device by enrolling it to someone else.
+	devAlpaca2 := &(alpacaData.devices[1])
+	enrollToken, err := devicesClient.CreateDeviceEnrollToken(
+		contextWithUser(ctx, llamaData.user),
+		&devicepb.CreateDeviceEnrollTokenRequest{
+			DeviceId: devAlpaca2.dev.Id,
+		})
+	if err != nil {
+		t.Fatalf("CreateDeviceEnrollToken failed: %v", err)
+	}
+	devAlpaca2.dev.EnrollToken = enrollToken
+	devAlpaca2.dev, err = enrollSimulator(
+		contextWithUser(ctx, llamaData.user), // takes ownership of the device
+		devicesClient,
+		devAlpaca2.sim,
+		devAlpaca2.dev,
+	)
+	if err != nil {
+		t.Fatalf("EnrollDevice failed: %v", err)
+	}
+	// Sanity check that the ownership change did work.
+	if devAlpaca2.dev.Owner != llamaData.user {
+		t.Fatalf("Device %q has an unexpected owner: %q", devAlpaca2.dev.AssetTag, devAlpaca2.dev.Owner)
+	}
+
+	type createTokenData struct {
+		userAgent, clientIP, user string
+	}
+
+	type deviceAuthnData struct {
+		dev *devicepb.Device
+		sim simulator
+	}
+
+	type contextData struct {
+		clientIP, user string
+	}
+
+	validTokenOpts := createTokenData{
+		userAgent: sampleUserAgentMacOS,
+		clientIP:  sampleIP,
+		user:      llamaData.user,
+	}
+	validCtxData := contextData{
+		clientIP: sampleIP,
+		user:     llamaData.user,
+	}
+	validAuthnOpts := deviceAuthnData{
+		dev: llamaData.device.dev,
+		sim: llamaData.device.sim,
+	}
+
+	winTokenOpts := createTokenData{
+		userAgent: sampleUserAgentWindows,
+		clientIP:  sampleIP,
+		user:      llamaData.user,
+	}
+	winAuthnData := deviceAuthnData{
+		dev: llamaData.devices[1].dev,
+		sim: llamaData.devices[1].sim,
+	}
+
+	const invalidTokenMessage = "invalid device web token"
+	const invalidPayloadMessage = "initial payload"
+	tests := []struct {
+		name string
+
+		token       createTokenData
+		modifyToken func(*devicepb.DeviceWebToken) // may be nil
+
+		ctx contextData // used for the AuthenticateDevice ctx
+
+		authn              deviceAuthnData
+		failAugmentWebFunc bool // fails AugmentWebSessionCertificates on Auth
+
+		wantErr              string           // err returned to client
+		wantAuditUserMessage string           // Status.UserMessage written to audit
+		assertErr            func(error) bool // defaults to trace.IsAccessDenied on errors.
+	}{
+		{
+			name:  "ok",
+			token: validTokenOpts,
+			ctx:   validCtxData,
+			authn: validAuthnOpts,
+		},
+		{
+			name:  "ok (TPM)",
+			token: winTokenOpts,
+			ctx:   validCtxData,
+			authn: winAuthnData,
+		},
+
+		// BadParameter variations, likely a programmer error.
+		{
+			name:  "token has empty ID",
+			token: validTokenOpts,
+			modifyToken: func(token *devicepb.DeviceWebToken) {
+				token.Id = ""
+			},
+			ctx:                  validCtxData,
+			authn:                validAuthnOpts,
+			wantErr:              "token ID required",
+			wantAuditUserMessage: invalidPayloadMessage,
+			assertErr:            trace.IsBadParameter,
+		},
+		{
+			name:  "token has empty Token",
+			token: validTokenOpts,
+			modifyToken: func(token *devicepb.DeviceWebToken) {
+				token.Token = ""
+			},
+			ctx:                  validCtxData,
+			authn:                validAuthnOpts,
+			wantErr:              "token required",
+			wantAuditUserMessage: invalidPayloadMessage,
+			assertErr:            trace.IsBadParameter,
+		},
+
+		// "invalid token" errors, aka various failed token checks.
+		{
+			name:  "invalid plaintext token",
+			token: validTokenOpts,
+			modifyToken: func(token *devicepb.DeviceWebToken) {
+				token.Token = base64.RawURLEncoding.EncodeToString([]byte(`not a valid plaintext token`))
+			},
+			ctx:                  validCtxData,
+			authn:                validAuthnOpts,
+			wantErr:              invalidTokenMessage,
+			wantAuditUserMessage: invalidTokenMessage,
+		},
+		{
+			name:                 "fails expected device check (Windows vs macOS)",
+			token:                winTokenOpts, // Windows
+			ctx:                  validCtxData,
+			authn:                validAuthnOpts, // macOS
+			wantErr:              invalidTokenMessage,
+			wantAuditUserMessage: "expected device mismatch",
+		},
+		{
+			name:  "client has wrong IP",
+			token: validTokenOpts,
+			ctx: func() contextData {
+				d := validCtxData
+				d.clientIP = "142.251.129.206" // wrong!
+				return d
+			}(),
+			authn:                validAuthnOpts,
+			wantErr:              invalidTokenMessage,
+			wantAuditUserMessage: "IP mismatch",
+		},
+		{
+			name: "token issued for another user",
+			token: createTokenData{
+				userAgent: sampleUserAgentMacOS, // matches llama's device
+				clientIP:  sampleIP,             // matches ctx IP
+				user:      userAlpaca,
+			},
+			ctx:                  validCtxData,
+			authn:                validAuthnOpts,
+			wantErr:              invalidTokenMessage,
+			wantAuditUserMessage: "user mismatch",
+		},
+		{
+			name: "device has incorrect owner",
+			token: createTokenData{
+				userAgent: sampleUserAgentMacOS, // matches device
+				clientIP:  sampleIP,
+				user:      userAlpaca,
+			},
+			ctx: contextData{
+				clientIP: sampleIP,
+				user:     userAlpaca,
+			},
+			authn: deviceAuthnData{
+				dev: alpacaData.devices[1].dev, // Owner changed to "llama".
+				sim: alpacaData.devices[1].sim,
+			},
+			wantErr:              invalidTokenMessage,
+			wantAuditUserMessage: "owner mismatch",
+		},
+
+		// System error: failure to issue device certificates.
+		{
+			name:                 "WebSession augment fails",
+			token:                validTokenOpts,
+			ctx:                  validCtxData,
+			authn:                validAuthnOpts,
+			failAugmentWebFunc:   true,
+			wantErr:              invalidTokenMessage,
+			wantAuditUserMessage: "failed to issue",
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// We don't need an actual session here, only the Auth server reads it.
+			webSessionID := uuid.NewString()
+
+			// Create the DeviceWebToken, usually done by
+			// auth.Server.AuthenticateWebUser.
+			webToken, err := service.CreateDeviceWebToken(ctx, &devicepb.DeviceWebToken{
+				WebSessionId:     webSessionID,
+				BrowserUserAgent: test.token.userAgent,
+				BrowserIp:        test.token.clientIP,
+				User:             test.token.user,
+			})
+			if err != nil {
+				t.Fatalf("CreateDeviceWebToken failed: %v", err)
+			}
+			if webToken == nil {
+				t.Fatal("CreateDeviceWebToken returned a nil token")
+			}
+
+			// Set the user and IP in the outgoing ctx.
+			outCtx := context.Background()
+			outCtx = contextWithUser(outCtx, test.ctx.user)
+			outCtx = testenv.WithOutgoingClientSourceAddr(
+				outCtx,
+				&net.TCPAddr{
+					IP:   net.ParseIP(test.ctx.clientIP),
+					Port: 12345, // Port is discarded.
+				},
+			)
+
+			// Set the emitter key in the ctx, so we can find the correct audit event
+			// later.
+			outCtx = withOutgoingEmitterKey(outCtx, webSessionID)
+
+			if test.modifyToken != nil {
+				test.modifyToken(webToken)
+			}
+			if test.failAugmentWebFunc {
+				augmentWebFunc.setFailNext(webSessionID)
+			}
+
+			// Authenticate.
+			userCerts, err := authenticateDeviceWeb(
+				outCtx,
+				devicesClient,
+				test.authn.dev, test.authn.sim,
+				webToken,
+			)
+
+			// Assert error type and message.
+			assertErr := test.assertErr
+			if err != nil && assertErr == nil {
+				assertErr = trace.IsAccessDenied
+			}
+			if assertErr != nil && !assertErr(err) {
+				t.Errorf("AuthenticateDevice: assertErr failed: err=%v (%T)", err, trace.Unwrap(err))
+			}
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "AuthenticateDevice error mismatch")
+			}
+			if err != nil {
+				// Assert audit failure.
+				assertEvents(t, emitter.Events(webSessionID), []wantEvent{
+					{
+						Type:     events.DeviceAuthenticateEvent,
+						Code:     events.DeviceAuthenticateCode,
+						WantFail: true,
+					},
+				})
+
+				// Assert audit UserMessage.
+				lastEvent := emitter.LastEvent(webSessionID)
+				var userMessage string
+				if deviceEvent, ok := lastEvent.(*apievents.DeviceEvent2); ok {
+					userMessage = deviceEvent.UserMessage
+				}
+				assert.Contains(t, userMessage, test.wantAuditUserMessage, "AuthenticateDevice: audit Status.UserMessage mismatch")
+
+				return
+			}
+
+			// Assert empty response.
+			if diff := cmp.Diff(&devicepb.UserCertificates{}, userCerts, protocmp.Transform()); diff != "" {
+				t.Errorf("AuthenticateDevice mismatch (-want +got)\n%s", diff)
+			}
+
+			// Assert that it actually called Auth.
+			if got := augmentWebFunc.getNumCalls(webSessionID); got != 1 {
+				t.Errorf("AuthenticateDevice: augmentWebFunc called %d times, want %d", got, 1)
+			}
+
+			// Assert audit success.
+			assertEvents(t, emitter.Events(webSessionID), []wantEvent{
+				{
+					Type: events.DeviceAuthenticateEvent,
+					Code: events.DeviceAuthenticateCode,
+				},
+			})
+		})
+	}
+}
+
+var errFakeAugmentWebFuncFailed = errors.New("failed to augment web session certificates")
+
+type fakeAugmentWebFunc struct {
+	mu       sync.Mutex
+	failNext map[string]bool // key is the sessionID
+	numCalls map[string]int  // key is the sessionID
+}
+
+func (f *fakeAugmentWebFunc) setFailNext(sessionID string) {
+	f.mu.Lock()
+	if f.failNext == nil {
+		f.failNext = make(map[string]bool)
+	}
+	f.failNext[sessionID] = true
+	f.mu.Unlock()
+}
+
+func (f *fakeAugmentWebFunc) getNumCalls(sessionID string) int {
+	f.mu.Lock()
+	val := f.numCalls[sessionID]
+	f.mu.Unlock()
+	return val
+}
+
+// function runs the actual AugmentWebSessionCertificates function.
+func (f *fakeAugmentWebFunc) function(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentWebSessionCertificatesOpts) error {
+	// Run a few basic checks.
+	switch {
+	case authCtx == nil:
+		return errors.New("authCtx required")
+	case opts == nil:
+		return errors.New("opts required")
+	case opts.WebSessionID == "":
+		return errors.New("opts.WebSessionID required")
+	case opts.DeviceExtensions == nil:
+		return errors.New("opts.DeviceExtensions required")
+	}
+	sessionID := opts.WebSessionID
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.numCalls == nil {
+		f.numCalls = make(map[string]int)
+	}
+	f.numCalls[sessionID]++
+
+	if f.failNext[sessionID] {
+		f.failNext[sessionID] = false
+		return errFakeAugmentWebFuncFailed
+	}
+
+	return nil
+}
+
+type setupUserWebAuthnOpts struct {
+	user    string
+	devices []*devicepb.Device // Device templates. Creates a single macOS device if nil.
+}
+
+type deviceWithSim struct {
+	dev    *devicepb.Device
+	sim    simulator
+	closer func()
+}
+
+type userWebAuthnData struct {
+	user    string
+	device  deviceWithSim   // first device in the list, for convenience
+	devices []deviceWithSim // complete list of devices
+}
+
+func (u *userWebAuthnData) Close() {
+	for _, d := range u.devices {
+		if d.closer != nil {
+			d.closer()
+		}
+	}
+}
+
+func setupUserForDeviceWebAuthn(t *testing.T, env *testenv.E, opts setupUserWebAuthnOpts) *userWebAuthnData {
+	devicesClient := env.DevicesClient
+	identity := env.IdentityService
+	ctx := context.Background()
+
+	// Create user.
+	user := opts.user
+	u, err := types.NewUser(user)
+	if err != nil {
+		t.Fatalf("NewUser(%q) failed: %v", user, err)
+	}
+	if _, err := identity.CreateUser(ctx, u); err != nil {
+		t.Fatalf("CreateUser(%q) failed: %v", user, err)
+	}
+	userCtx := contextWithUser(ctx, user)
+
+	var createdDevs []deviceWithSim
+	for _, template := range opts.devices {
+		created, err := devicesClient.CreateDevice(userCtx, &devicepb.CreateDeviceRequest{
+			Device:            template,
+			CreateEnrollToken: true,
+		})
+		if err != nil {
+			t.Fatalf("CreateDevice failed: %v", err)
+		}
+
+		var sim simulator
+		if created.OsType == devicepb.OSType_OS_TYPE_MACOS {
+			sim = newMacOSSimulator(macOSBehavior{})
+		} else {
+			sim = newTPMSimulator(tpmBehavior{})
+		}
+		closer, err := sim.setup()
+		if err != nil {
+			t.Fatalf("sim.setup() failed: %v", err)
+		}
+
+		enrolled, err := enrollSimulator(userCtx, devicesClient, sim, created)
+		if err != nil {
+			t.Fatalf("EnrollDevice failed: %v", err)
+		}
+
+		createdDevs = append(createdDevs, deviceWithSim{
+			dev:    enrolled,
+			sim:    sim,
+			closer: closer,
+		})
+	}
+
+	var dev deviceWithSim
+	if len(createdDevs) > 0 {
+		dev = createdDevs[0]
+	}
+
+	return &userWebAuthnData{
+		user:    user,
+		device:  dev,
+		devices: createdDevs,
+	}
+}
+
+func authenticateDeviceWeb(
+	ctx context.Context,
+	devicesClient devicepb.DeviceTrustServiceClient,
+	dev *devicepb.Device,
+	sim simulator,
+	webToken *devicepb.DeviceWebToken,
+	simOpts ...fakeEnclaveKeySimOpt,
+) (*devicepb.UserCertificates, error) {
+	stream, err := devicesClient.AuthenticateDevice(ctx)
+	if err != nil {
+		return nil, nil
+	}
+
+	resp, err := sim.authenticate(ctx, dev, stream, &devicepb.AuthenticateDeviceInit{
+		UserCertificates: &devicepb.UserCertificates{
+			X509Der:          []byte("ignored input"),
+			SshAuthorizedKey: []byte("other ignored input"),
+		},
+		DeviceWebToken: webToken,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Assert payload type. We want a UserCertificates payload as reply.
+	switch resp.GetPayload().(type) {
+	case *devicepb.AuthenticateDeviceResponse_UserCertificates: // OK
+	default:
+		return nil, fmt.Errorf("unexpected AuthenticateDevice response payload: %T", resp.GetPayload())
+	}
+
+	return resp.GetUserCertificates(), nil
+}
+
+func fakeAugmentFunc(_ context.Context, authCtx *authz.Context, opts *auth.AugmentUserCertificateOpts) (*clientpb.Certs, error) {
 	// Sanity checks.
 	switch {
 	case authCtx == nil:
@@ -759,7 +1293,7 @@ func fakeAugmentFunc(_ context.Context, authCtx *authz.Context, opts *auth.Augme
 		"\n\tcredential=%v>",
 		ext.DeviceID, ext.AssetTag, ext.CredentialID)
 
-	return &proto.Certs{
+	return &clientpb.Certs{
 		SSH: sshCert,
 		TLS: pem.EncodeToMemory(&pem.Block{
 			Type:  "CERTIFICATE",

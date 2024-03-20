@@ -107,7 +107,9 @@ func authenticateSimulator(
 	if initCerts == nil {
 		initCerts = &devicepb.UserCertificates{}
 	}
-	resp, err := sim.authenticate(ctx, dev, stream, initCerts)
+	resp, err := sim.authenticate(ctx, dev, stream, &devicepb.AuthenticateDeviceInit{
+		UserCertificates: initCerts,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err, "simulator authenticate") // Keep the trace error.
 	}

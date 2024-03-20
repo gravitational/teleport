@@ -123,12 +123,13 @@ func (e *macOSSimulator) authenticate(
 	ctx context.Context,
 	dev *devicepb.Device,
 	stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
-	certs *devicepb.UserCertificates,
+	initTemplate *devicepb.AuthenticateDeviceInit,
 ) (*devicepb.AuthenticateDeviceResponse, error) {
 	init := &devicepb.AuthenticateDeviceInit{
-		UserCertificates: certs,
+		UserCertificates: initTemplate.GetUserCertificates(),
 		CredentialId:     e.key.id,
 		DeviceData:       defaultCollectData(dev),
+		DeviceWebToken:   initTemplate.GetDeviceWebToken(),
 	}
 	if e.behavior.modifyAuthenticateDeviceInit != nil {
 		e.behavior.modifyAuthenticateDeviceInit(init)
