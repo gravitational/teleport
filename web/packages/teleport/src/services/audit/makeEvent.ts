@@ -1724,6 +1724,24 @@ export const formatters: Formatters = {
     format: ({ user, spiffe_id }) =>
       `User [${user}] failed to issue SPIFFE SVID [${spiffe_id}]`,
   },
+  [eventCodes.AUTH_PREFERENCE_UPDATE]: {
+    type: 'auth_preference.update',
+    desc: 'Cluster Authentication Preferences Updated',
+    format: ({ user }) =>
+      `User [${user}] updated the cluster authentication preferences`,
+  },
+  [eventCodes.CLUSTER_NETWORKING_CONFIG_UPDATE]: {
+    type: 'cluster_networking_config.update',
+    desc: 'Cluster Networking Configuration Updated',
+    format: ({ user }) =>
+      `User [${user}] updated the cluster networking configuration`,
+  },
+  [eventCodes.SESSION_RECORDING_CONFIG_UPDATE]: {
+    type: 'session_recording_config.update',
+    desc: 'Session Recording Configuration Updated',
+    format: ({ user }) =>
+      `User [${user}] updated the cluster session recording configuration`,
+  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',

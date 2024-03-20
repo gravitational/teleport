@@ -285,6 +285,9 @@ export const eventCodes = {
   EXTERNAL_AUDIT_STORAGE_DISABLE: 'TEA002I',
   SPIFFE_SVID_ISSUED: 'TSPIFFE000I',
   SPIFFE_SVID_ISSUED_FAILURE: 'TSPIFFE000E',
+  AUTH_PREFERENCE_UPDATE: 'TCAUTH001I',
+  CLUSTER_NETWORKING_CONFIG_UPDATE: 'TCNET002I',
+  SESSION_RECORDING_CONFIG_UPDATE: 'TCREC003I',
 } as const;
 
 /**
@@ -1556,6 +1559,24 @@ export type RawEvents = {
     typeof eventCodes.SPIFFE_SVID_ISSUED_FAILURE,
     {
       spiffe_id: string;
+    }
+  >;
+  [eventCodes.AUTH_PREFERENCE_UPDATE]: RawEvent<
+    typeof eventCodes.AUTH_PREFERENCE_UPDATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.CLUSTER_NETWORKING_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.CLUSTER_NETWORKING_CONFIG_UPDATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.SESSION_RECORDING_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.SESSION_RECORDING_CONFIG_UPDATE,
+    {
+      user: string;
     }
   >;
 };
