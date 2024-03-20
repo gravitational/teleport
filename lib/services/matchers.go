@@ -19,7 +19,6 @@
 package services
 
 import (
-	"fmt"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -129,7 +128,7 @@ func MatchResourceLabels(matchers []ResourceMatcher, labels map[string]string) b
 // ResourceSeenKey is used as a key for a map that keeps track
 // of unique resource names and address. Currently "addr"
 // only applies to resource Application.
-type ResourceSeenKey struct{ name, addr string }
+type ResourceSeenKey struct{ name, kind, addr string }
 
 // MatchResourceByFilters returns true if all filter values given matched against the resource.
 //
@@ -144,20 +143,21 @@ type ResourceSeenKey struct{ name, addr string }
 // is not provided but is provided for kind `KubernetesCluster`.
 func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter, seenMap map[ResourceSeenKey]struct{}) (bool, error) {
 	var specResource types.ResourceWithLabels
-	resourceKind := resource.GetKind()
+	kind := resource.GetKind()
 
 	// We assume when filtering for services like KubeService, AppServer, and DatabaseServer
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
-	resourceKey := ResourceSeenKey{}
-	switch resourceKind {
+	key := ResourceSeenKey{
+		kind: kind,
+		name: resource.GetName(),
+	}
+	switch kind {
 	case types.KindNode,
 		types.KindDatabaseService,
 		types.KindKubernetesCluster,
 		types.KindWindowsDesktop, types.KindWindowsDesktopService,
 		types.KindUserGroup:
 		specResource = resource
-		resourceKey.name = fmt.Sprintf("%s/%s", specResource.GetName(), resourceKind)
-
 	case types.KindKubeServer:
 		if seenMap != nil {
 			return false, trace.BadParameter("checking for duplicate matches for resource kind %q is not supported", filter.ResourceKind)
@@ -170,17 +170,17 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 			return false, trace.BadParameter("expected types.DatabaseServer, got %T", resource)
 		}
 		specResource = server.GetDatabase()
-		resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
+		key.name = specResource.GetName()
 	case types.KindAppServer, types.KindSAMLIdPServiceProvider, types.KindAppOrSAMLIdPServiceProvider:
 		switch appOrSP := resource.(type) {
 		case types.AppServer:
 			app := appOrSP.GetApp()
 			specResource = app
-			resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
-			resourceKey.addr = app.GetPublicAddr()
+			key.addr = app.GetPublicAddr()
+			key.name = app.GetName()
 		case types.SAMLIdPServiceProvider:
 			specResource = appOrSP
-			resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
+			key.name = specResource.GetName()
 		default:
 			return false, trace.BadParameter("expected types.SAMLIdPServiceProvider or types.AppServer, got %T", resource)
 		}
@@ -189,10 +189,9 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		// of cases we need to handle. If the resource type didn't match any arm before
 		// and it is not a Kubernetes resource kind, we return an error.
 		if !slices.Contains(types.KubernetesResourcesKinds, filter.ResourceKind) {
-			return false, trace.NotImplemented("filtering for resource kind %q not supported", resourceKind)
+			return false, trace.NotImplemented("filtering for resource kind %q not supported", kind)
 		}
 		specResource = resource
-		resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
 	}
 
 	var match bool
@@ -211,10 +210,10 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 
 	// Deduplicate matches.
 	if match && seenMap != nil {
-		if _, exists := seenMap[resourceKey]; exists {
+		if _, exists := seenMap[key]; exists {
 			return false, nil
 		}
-		seenMap[resourceKey] = struct{}{}
+		seenMap[key] = struct{}{}
 	}
 
 	return match, nil
