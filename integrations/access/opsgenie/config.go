@@ -38,6 +38,9 @@ type Config struct {
 	// AccessTokenProvider provides a method to get the bearer token
 	// for use when authorizing to a 3rd-party provider API.
 	AccessTokenProvider auth.AccessTokenProvider
+
+	// TeleportUserName is the username the plugin issues reviews as.
+	TeleportUserName string
 }
 
 // CheckAndSetDefaults checks the config struct for any logical errors, and sets default values

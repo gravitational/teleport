@@ -39,8 +39,10 @@ import (
 
 const (
 	// alertKeyPrefix is the prefix for Alert's alias field used when creating an Alert.
-	alertKeyPrefix = "teleport-access-request"
-	heartbeatName  = "teleport-access-heartbeat"
+	alertKeyPrefix        = "teleport-access-request"
+	heartbeatName         = "teleport-access-heartbeat"
+	ResponderTypeSchedule = "schedule"
+	ResponderTypeUser     = "user"
 )
 
 var alertBodyTemplate = template.Must(template.New("alert body").Parse(
@@ -135,7 +137,7 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 		Message:     fmt.Sprintf("Access request from %s", reqData.User),
 		Alias:       fmt.Sprintf("%s/%s", alertKeyPrefix, reqID),
 		Description: bodyDetails,
-		Responders:  og.getResponders(reqData),
+		Responders:  og.getScheduleResponders(reqData),
 		Priority:    og.Priority,
 	}
 
@@ -158,7 +160,7 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 	}, nil
 }
 
-func (og Client) getResponders(reqData RequestData) []Responder {
+func (og Client) getScheduleResponders(reqData RequestData) []Responder {
 	schedules := og.DefaultSchedules
 	if reqSchedules, ok := reqData.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationNotifySchedulesLabel]; ok {
 		schedules = reqSchedules
@@ -166,7 +168,7 @@ func (og Client) getResponders(reqData RequestData) []Responder {
 	responders := make([]Responder, 0, len(schedules))
 	for _, s := range schedules {
 		responders = append(responders, Responder{
-			Type: "schedule",
+			Type: ResponderTypeSchedule,
 			ID:   s,
 		})
 	}
@@ -231,6 +233,7 @@ func (og Client) GetOnCall(ctx context.Context, scheduleName string) (Responders
 		SetContext(ctx).
 		SetPathParams(map[string]string{"scheduleName": scheduleName}).
 		SetQueryParams(map[string]string{
+			// This is required to lookup schedules by name (as opposed to lookup by ID)
 			"scheduleIdentifierType": "name",
 			// When flat is enabled it returns the email addresses of on-call participants.
 			"flat": "true",
