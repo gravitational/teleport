@@ -544,21 +544,11 @@ func IsValidLabelKey(s string) bool {
 // Returns true if all search vals were matched (or if nil search vals).
 // Returns false if no or partial match (or nil field values).
 func MatchSearch(fieldVals []string, searchVals []string, customMatch func(val string) bool) bool {
-	caseFoldedFieldVals := make(map[string]string, len(fieldVals))
-
 Outer:
 	for _, searchV := range searchVals {
-		searchV = strings.ToLower(searchV)
-
 		// Iterate through field values to look for a match.
 		for _, fieldV := range fieldVals {
-			f, ok := caseFoldedFieldVals[fieldV]
-			if !ok {
-				f = strings.ToLower(fieldV)
-				caseFoldedFieldVals[fieldV] = f
-			}
-
-			if strings.Contains(f, searchV) {
+			if containsFold(fieldV, searchV) {
 				continue Outer
 			}
 		}
@@ -572,6 +562,22 @@ Outer:
 	}
 
 	return true
+}
+
+func containsFold(s, substr string) bool {
+	if len(s) < len(substr) {
+		return false
+	}
+
+	n := len(s) - len(substr)
+
+	for i := 0; i <= n; i++ {
+		if strings.EqualFold(s[i:i+len(substr)], substr) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func stringCompare(a string, b string, isDesc bool) bool {
