@@ -24,6 +24,7 @@ import (
 	"time"
 
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
@@ -178,16 +179,60 @@ func NewGlobalNotificationCache(cfg NotificationCacheConfig) (*GlobalNotificatio
 	return c, nil
 }
 
+// streamUserNotifications returns a stream with the user-specific notifications in the cache for a specified user sorted from newest to oldest.
+// We use streams here as it's a convenient way for us to construct pages to be returned to the UI one item at a time in combination with global notifications.
+func (c *UserNotificationCache) StreamUserNotifications(ctx context.Context, username string, startKey string) stream.Stream[*notificationsv1.Notification] {
+	if username == "" {
+		return stream.Fail[*notificationsv1.Notification](trace.BadParameter("username is required for fetching user notifications"))
+	}
+
+	cache, err := c.read(ctx)
+	if err != nil {
+		return stream.Fail[*notificationsv1.Notification](trace.Wrap(err))
+	}
+
+	if !cache.HasIndex(notificationKey) {
+		return stream.Fail[*notificationsv1.Notification](trace.Errorf("user notifications cache was not configured with index %q (this is a bug)", notificationKey))
+	}
+
+	if startKey == "" {
+		// If the startKey isn't specified, we get the initial startKey by descending through the user notifications cache until we get the first notification
+		// for this user's username.
+		cache.Descend(notificationKey, "", "", func(notification *notificationsv1.Notification) bool {
+			// If this notification is for the user, we set the startKey to it and exit the traversal.
+			if notification.GetSpec().GetUsername() == username {
+				startKey = GetUserSpecificKey(notification)
+				// Exit traversal.
+				return false
+			}
+
+			return true
+		})
+	}
+
+	notifications := []*notificationsv1.Notification{}
+
+	// We get all the user-specific notifications for this user from the cache up-front, starting with the startKey.
+	cache.Descend(notificationKey, startKey, "", func(n *notificationsv1.Notification) bool {
+		// Once we reach notifications that belong to a different user, it means that this user has no more user-specific notifications and we stop traversing.
+		if n.GetSpec().GetUsername() != username {
+			return false
+		}
+
+		notifications = append(notifications, n)
+		return true
+	})
+
+	return stream.Slice(notifications)
+}
+
 // fetch initializes a sortcache with all existing user-specific notifications. This is used to set up the initialize the primary cache, and
 // to create a temporary cache as a fallback in case the primary cache is ever unhealthy.
 func (c *UserNotificationCache) fetch(ctx context.Context) (*sortcache.SortCache[*notificationsv1.Notification], error) {
 	cache := sortcache.New(sortcache.Config[*notificationsv1.Notification]{
 		Indexes: map[string]func(*notificationsv1.Notification) string{
 			notificationKey: func(n *notificationsv1.Notification) string {
-				username := n.GetSpec().GetUsername()
-				id := n.GetSpec().GetId()
-
-				return fmt.Sprintf("%s/%s", username, id)
+				return GetUserSpecificKey(n)
 			},
 			notificationID: func(n *notificationsv1.Notification) string {
 				return n.GetMetadata().GetName()
@@ -210,6 +255,14 @@ func (c *UserNotificationCache) fetch(ctx context.Context) (*sortcache.SortCache
 	}
 
 	return cache, nil
+}
+
+// GetUserSpecificKey returns the key for a user-specific notification in <username>/<notification uuid> format.
+func GetUserSpecificKey(n *notificationsv1.Notification) string {
+	username := n.GetSpec().GetUsername()
+	id := n.GetSpec().GetId()
+
+	return fmt.Sprintf("%s/%s", username, id)
 }
 
 // read gets a read-only view into a valid cache state. it prefers reading from the primary cache, but will fallback
@@ -240,6 +293,26 @@ func (c *UserNotificationCache) read(ctx context.Context) (*sortcache.SortCache[
 	}
 
 	return temp, trace.Wrap(err)
+}
+
+// streamGlobalNotifications returns a stream with all the global notifications in the cache sorted by newest to oldest.
+func (c *GlobalNotificationCache) StreamGlobalNotifications(ctx context.Context, startKey string) stream.Stream[*notificationsv1.GlobalNotification] {
+	cache, err := c.read(ctx)
+	if err != nil {
+		return stream.Fail[*notificationsv1.GlobalNotification](trace.Wrap(err))
+	}
+
+	if !cache.HasIndex(notificationID) {
+		return stream.Fail[*notificationsv1.GlobalNotification](trace.Errorf("global notifications cache was not configured with index %q (this is a bug)", notificationID))
+	}
+
+	globalNotifications := []*notificationsv1.GlobalNotification{}
+	cache.Descend(notificationID, startKey, "", func(gn *notificationsv1.GlobalNotification) bool {
+		globalNotifications = append(globalNotifications, gn)
+		return true
+	})
+
+	return stream.Slice(globalNotifications)
 }
 
 // fetch initializes a sortcache with all existing global notifications. This is used to set up the initialize the primary cache, and
