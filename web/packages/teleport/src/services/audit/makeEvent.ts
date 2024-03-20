@@ -1305,7 +1305,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.DEVICE_CREATE]: {
     type: 'device.create',
-    desc: 'Device Register',
+    desc: 'Device Registered',
     format: ({ user, status, success }) =>
       success || (status && status.success)
         ? `User [${user}] has registered a device`
@@ -1313,7 +1313,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.DEVICE_DELETE]: {
     type: 'device.delete',
-    desc: 'Device Delete',
+    desc: 'Device Deleted',
     format: ({ user, status, success }) =>
       success || (status && status.success)
         ? `User [${user}] has deleted a device`
@@ -1321,7 +1321,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.DEVICE_AUTHENTICATE]: {
     type: 'device.authenticate',
-    desc: 'Device Authenticate',
+    desc: 'Device Authenticated',
     format: ({ user, status, success }) =>
       success || (status && status.success)
         ? `User [${user}] has successfully authenticated their device`
@@ -1329,7 +1329,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.DEVICE_ENROLL]: {
     type: 'device.enroll',
-    desc: 'Device Enrollment',
+    desc: 'Device Enrolled',
     format: ({ user, status, success }) =>
       success || (status && status.success)
         ? `User [${user}] has successfully enrolled their device`
@@ -1337,7 +1337,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.DEVICE_ENROLL_TOKEN_CREATE]: {
     type: 'device.token.create',
-    desc: 'Device Enroll Token Create',
+    desc: 'Device Enroll Token Created',
     format: ({ user, status, success }) =>
       success || (status && status.success)
         ? `User [${user}] created a device enroll token`
@@ -1353,7 +1353,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.DEVICE_UPDATE]: {
     type: 'device.update',
-    desc: 'Device Update',
+    desc: 'Device Updated',
     format: ({ user, status, success }) =>
       success || (status && status.success)
         ? `User [${user}] has updated a device`
