@@ -824,6 +824,7 @@ type ClientI interface {
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
 	services.Integrations
+	services.KubeWaitingContainer
 	types.Events
 
 	types.WebSessionsGetter
