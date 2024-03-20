@@ -23,14 +23,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
+
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -44,7 +45,7 @@ const (
 
 // NotificationGetter defines the interface for fetching notifications.
 type NotificationGetter interface {
-	// GetUserNotifications returns all user-specific notifications for all users.
+	// GetAllUserNotifications returns all user-specific notifications for all users.
 	GetAllUserNotifications(ctx context.Context) ([]*notificationsv1.Notification, error)
 	// GetAllGlobalNotifications returns all global notifications.
 	GetAllGlobalNotifications(ctx context.Context) ([]*notificationsv1.GlobalNotification, error)

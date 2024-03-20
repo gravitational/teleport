@@ -313,6 +313,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.Notifications == nil {
+		cfg.Notifications, err = local.NewNotificationsService(cfg.Backend, cfg.Clock)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -389,6 +395,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		UserPreferences:           cfg.UserPreferences,
 		PluginData:                cfg.PluginData,
 		KubeWaitingContainer:      cfg.KubeWaitingContainers,
+		Notifications:             cfg.Notifications,
 	}
 
 	as := Server{

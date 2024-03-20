@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -33,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/trace"
 )
 
 type notificationServices struct {
@@ -93,7 +93,7 @@ func newGlobalNotificationPack(t *testing.T) (notificationServices, *services.Gl
 	return svcs, cache
 }
 
-// TestUserNotificationsCache verifies the expected behaviours of the user-specific notifications cache.
+// TestUserNotificationsCache verifies the expected behaviors of the user-specific notifications cache.
 func TestUserNotificationsCache(t *testing.T) {
 	t.Parallel()
 
@@ -311,7 +311,7 @@ func TestUserNotificationsCache(t *testing.T) {
 	require.Equal(t, expected, out)
 }
 
-// TestGlobalNotificationsCache verifies the expected behaviours of the global notifications cache.
+// TestGlobalNotificationsCache verifies the expected behaviors of the global notifications cache.
 func TestGlobalNotificationsCache(t *testing.T) {
 	t.Parallel()
 
