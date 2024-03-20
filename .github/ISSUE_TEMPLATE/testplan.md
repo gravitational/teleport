@@ -212,6 +212,10 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] tsh ssh -L \<node-remote-cluster\>
   - [ ] tsh ssh -L \<agentless-node\>
   - [ ] tsh ssh -L \<agentless-node-remote-cluster\>
+  - [ ] tsh ssh -R \<regular-node\>
+  - [ ] tsh ssh -R \<node-remote-cluster\>
+  - [ ] tsh ssh -R \<agentless-node\>
+  - [ ] tsh ssh -R \<agentless-node-remote-cluster\>
   - [ ] tsh ls
   - [ ] tsh clusters
 
@@ -237,6 +241,10 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] ssh -L \<node-remote-cluster\>
   - [ ] ssh -L \<agentless-node\>
   - [ ] ssh -L \<agentless-node-remote-cluster\>
+  - [ ] ssh -R \<regular-node\>
+  - [ ] ssh -R \<node-remote-cluster\>
+  - [ ] ssh -R \<agentless-node\>
+  - [ ] ssh -R \<agentless-node-remote-cluster\>
 
 - [ ] Verify proxy jump functionality
   Log into leaf cluster via root, shut down the root proxy and verify proxy jump works.
@@ -733,38 +741,17 @@ This feature has additional build requirements, so it should be tested with a pr
 
 #### Server Access
 
-These tests should be carried out sequentially. `tsh` tests should be carried out on Linux, MacOS, and Windows.
+This test should be carried out on Linux, MacOS, and Windows.
 
-1. [ ] `tsh login` as user with [Webauthn](https://goteleport.com/docs/access-controls/guides/webauthn/) login and no hardware key requirement.
-2. [ ] Request a role with `role.role_options.require_session_mfa: hardware_key` - `tsh login --request-roles=hardware_key_required`
-  - [ ] Assuming the role should force automatic re-login with yubikey
-  - [ ] `tsh ssh`
-    - [ ] Requires yubikey to be connected for re-login
-    - [ ] Prompts for per-session MFA
-3. [ ] Request a role with `role.role_options.require_session_mfa: hardware_key_touch` - `tsh login --request-roles=hardware_key_touch_required`
-  - [ ] Assuming the role should force automatic re-login with yubikey
-    - [ ] Prompts for touch if not cached (last touch within 15 seconds)
-  - [ ] `tsh ssh`
-    - [ ] Requires yubikey to be connected for re-login
-    - [ ] Prompts for touch if not cached
-4. [ ] `tsh logout` and `tsh login` as the user with no hardware key requirement.
-5. [ ] Upgrade auth settings to `auth_service.authentication.require_session_mfa: hardware_key`
-  - [ ] Using the existing login session (`tsh ls`) should force automatic re-login with yubikey
-  - [ ] `tsh ssh`
-    - [ ] Requires yubikey to be connected for re-login
-    - [ ] Prompts for per-session MFA
-6. [ ] Upgrade auth settings to `auth_service.authentication.require_session_mfa: hardware_key_touch`
-  - [ ] Using the existing login session (`tsh ls`) should force automatic re-login with yubikey
-    - [ ] Prompts for touch if not cached
-  - [ ] `tsh ssh`
-    - [ ] Requires yubikey to be connected for re-login
-    - [ ] Prompts for touch if not cached
-
-#### Other
-
-Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in your cluster auth settings.
-
+Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in your cluster auth settings and login.
+- [ ] `tsh login`
+  - [ ] Prompts for Yubikey touch with message "Tap your YubiKey" (separate from normal MFA prompt).
+- [ ] Server Access `tsh ssh`
+  - [ ] Requires yubikey to be connected
+  - [ ] Prompts for touch (if not cached)
 - [ ] Database Access: `tsh proxy db --tunnel`
+  - [ ] Requires yubikey to be connected
+  - [ ] Prompts for touch (if not cached)
 
 ### HSM Support
 
@@ -1238,7 +1225,7 @@ tsh bench web sessions --max=5000 --web user ls
         - [ ] A folder from inside the shared directory can be copy-pasted to another folder inside shared directory (and its contents retained)
   - RBAC
     - [ ] Give the user one role that explicitly disables directory sharing (`desktop_directory_sharing: false`) and confirm that the option to share a directory doesn't appear in the menu
-- Per-Session MFA (try webauthn on each of Chrome, Safari, and Firefox; u2f only works with Firefox)
+- Per-Session MFA
   - [ ] Attempting to start a session no keys registered shows an error message
   - [ ] Attempting to start a session with a webauthn registered pops up the "Verify Your Identity" dialog
     - [ ] Hitting "Cancel" shows an error message
@@ -1282,6 +1269,10 @@ tsh bench web sessions --max=5000 --web user ls
   - Set up Teleport in a trusted cluster configuration where the root and leaf cluster has a w_d_s connected via tunnel (w_d_s running as a separate process)
     - [ ] Confirm that windows desktop sessions can be made on root cluster
     - [ ] Confirm that windows desktop sessions can be made on leaf cluster
+- Screen size
+    - [ ] Desktops that specify a fixed `screen_size` in their spec always use the same screen size.
+    - [ ] Desktops sessions for desktops which specify a fixed `screen_size` do not resize automatically.
+    - [ ] Attempting to register a desktop with a `screen_size` dimension larger than 8192 fails.
 - Non-AD setup
   - [ ] Installer in GUI mode finishes successfully on instance that is not part of domain
   - [ ] Installer works correctly invoked from command line
@@ -1412,7 +1403,7 @@ TODO(lxea): replace links with actual docs once merged
 
 ## SSH Connection Resumption
 
-Verify that SSH works, and that resumable SSH is not interrupted across a Teleport Cloud tenant upgrade. 
+Verify that SSH works, and that resumable SSH is not interrupted across a Teleport Cloud tenant upgrade.
 |   | Standard node | Non-resuming node | Peered node | Agentless node |
 |---|---|---|---|---|
 | `tsh ssh` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |

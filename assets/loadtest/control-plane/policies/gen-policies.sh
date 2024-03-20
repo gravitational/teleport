@@ -38,8 +38,8 @@ cat > "$dynamo_policy" <<EOF
                 "dynamodb:UpdateContinuousBackups"
             ],
             "Resource": [
-                "arn:aws:dynamodb:${AWS_REGION}:${ACCOUNT_ID}:table/${CLUSTER_NAME}-backend",
-                "arn:aws:dynamodb:${AWS_REGION}:${ACCOUNT_ID}:table/${CLUSTER_NAME}-backend/stream/*"
+                "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${CLUSTER_NAME}-backend",
+                "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${CLUSTER_NAME}-backend/stream/*"
             ]
         },
         {
@@ -62,8 +62,8 @@ cat > "$dynamo_policy" <<EOF
                 "dynamodb:UpdateContinuousBackups"
             ],
             "Resource": [
-                "arn:aws:dynamodb:${AWS_REGION}:${ACCOUNT_ID}:table/${CLUSTER_NAME}-events",
-                "arn:aws:dynamodb:${AWS_REGION}:${ACCOUNT_ID}:table/${CLUSTER_NAME}-events/index/*"
+                "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${CLUSTER_NAME}-events",
+                "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${CLUSTER_NAME}-events/index/*"
             ]
         }
     ]

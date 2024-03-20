@@ -27,7 +27,7 @@ import (
 	awsV2 "github.com/aws/aws-sdk-go-v2/aws"
 	managerV2 "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	s3v2 "github.com/aws/aws-sdk-go-v2/service/s3"
-	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gravitational/trace"
@@ -59,27 +59,27 @@ func ConvertS3Error(err error, args ...interface{}) error {
 	}
 
 	// SDK v2 errors:
-	var noSuchKey *s3Types.NoSuchKey
+	var noSuchKey *s3types.NoSuchKey
 	if errors.As(err, &noSuchKey) {
 		return trace.NotFound(noSuchKey.Error(), args...)
 	}
-	var noSuchBucket *s3Types.NoSuchBucket
+	var noSuchBucket *s3types.NoSuchBucket
 	if errors.As(err, &noSuchBucket) {
 		return trace.NotFound(noSuchBucket.Error(), args...)
 	}
-	var noSuchUpload *s3Types.NoSuchUpload
+	var noSuchUpload *s3types.NoSuchUpload
 	if errors.As(err, &noSuchUpload) {
 		return trace.NotFound(noSuchUpload.Error(), args...)
 	}
-	var bucketAlreadyExists *s3Types.BucketAlreadyExists
+	var bucketAlreadyExists *s3types.BucketAlreadyExists
 	if errors.As(err, &bucketAlreadyExists) {
 		return trace.AlreadyExists(bucketAlreadyExists.Error(), args...)
 	}
-	var bucketAlreadyOwned *s3Types.BucketAlreadyOwnedByYou
+	var bucketAlreadyOwned *s3types.BucketAlreadyOwnedByYou
 	if errors.As(err, &bucketAlreadyOwned) {
 		return trace.AlreadyExists(bucketAlreadyOwned.Error(), args...)
 	}
-	var notFound *s3Types.NotFound
+	var notFound *s3types.NotFound
 	if errors.As(err, &notFound) {
 		return trace.NotFound(notFound.Error(), args...)
 	}
@@ -146,4 +146,17 @@ func (s *s3V2FileWriter) Close() error {
 	readerErr := <-s.uploadFinisherErrChan
 	rCloseErr := s.pipeReader.Close()
 	return trace.Wrap(trace.NewAggregate(wCloseErr, readerErr, rCloseErr))
+}
+
+// CreateBucketConfiguration creates the default CreateBucketConfiguration.
+func CreateBucketConfiguration(region string) *s3types.CreateBucketConfiguration {
+	// No location constraint wanted for us-east-1 because it is the default and
+	// AWS has decided, in all their infinite wisdom, that the CreateBucket API
+	// should fail if you explicitly pass the default location constraint.
+	if region == "us-east-1" {
+		return nil
+	}
+	return &s3types.CreateBucketConfiguration{
+		LocationConstraint: s3types.BucketLocationConstraint(region),
+	}
 }

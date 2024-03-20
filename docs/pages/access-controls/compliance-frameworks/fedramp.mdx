@@ -32,7 +32,7 @@ government agencies.
 Teleport Enterprise customers can download the custom FIPS package from their
 [Teleport account](https://teleport.sh). Look for `Linux 64-bit (FedRAMP/FIPS)`.
 
-You also can follow the [Installation instructions](../../installation.mdx#installation-instructions) for 
+You also can follow the [Installation instructions](../../installation.mdx#linux) for 
 Teleport Enterprise edition to download and install the appropriate FIPS-compliant binaries for 
 your operating environment and package manager or from compressed archive (tarball).
 
@@ -161,6 +161,21 @@ When using `teleport start --fips`, Teleport will start in FIPS mode.
   always happen.
 - Running commands like `ps aux` can be useful to note that Teleport is running
   in FIPS mode.
+
+
+## Deploy a Teleport Cluster in FIPS mode with Helm
+
+Set the following values in your cluster-values.yaml configuration:
+
+```
+enterpriseImage: public.ecr.aws/gravitational/teleport-ent-fips-distroless
+authentication:
+  localAuth: false
+
+```
+
+As of Teleport version 15, versionOverride and extraArgs no longer need to be set
+in the values file to enable FIPS mode.
 
 ## Default cryptographic algorithms
 

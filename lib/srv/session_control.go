@@ -114,7 +114,7 @@ func (c *SessionControllerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = logrus.WithField(trace.Component, "SessionCtrl")
+		c.Logger = logrus.WithField(teleport.ComponentKey, "SessionCtrl")
 	}
 
 	if c.Clock == nil {

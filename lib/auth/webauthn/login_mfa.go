@@ -22,6 +22,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/gravitational/trace"
+
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -78,6 +80,12 @@ func (l *loginWithDevices) GetMFADevices(_ context.Context, _ string, _ bool) ([
 //  4. Server runs Finish()
 //  5. If all server-side checks are successful, then login/authentication is
 //     complete.
+//
+// LoginFlow is used in the following scenarios:
+//   - Password plus challenge logins
+//   - Presence verification checks (eg, session MFA)
+//   - User verification checks after the initial login (eg, password changes
+//     with only a discoverable credential).
 type LoginFlow struct {
 	U2F      *types.U2F
 	Webauthn *types.Webauthn
@@ -96,10 +104,18 @@ type LoginFlow struct {
 // record. These extensions indicate additional rules/properties of the webauthn
 // challenge that can be validated in the final login step.
 func (f *LoginFlow) Begin(ctx context.Context, user string, challengeExtensions *mfav1.ChallengeExtensions) (*wantypes.CredentialAssertion, error) {
+	// Disallow passwordless through here.
+	// lf.begin() does other challengeExtensions checks, including `nil`.
+	if challengeExtensions != nil && challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN {
+		return nil, trace.BadParameter("passwordless challenge scope is not allowed for MFA flows")
+	}
+
 	lf := &loginFlow{
-		U2F:         f.U2F,
-		Webauthn:    f.Webauthn,
-		identity:    mfaIdentity{f.Identity},
+		U2F:      f.U2F,
+		Webauthn: f.Webauthn,
+		identity: mfaIdentity{f.Identity},
+		// TODO(codingllama): Record session data to distinct scope keys based on
+		//  the actual challenge scope.
 		sessionData: (*userSessionStorage)(f),
 	}
 	return lf.begin(ctx, user, challengeExtensions)

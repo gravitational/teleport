@@ -233,7 +233,7 @@ func (cfg *WindowsServiceConfig) checkAndSetDiscoveryDefaults() error {
 
 func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	if cfg.Log == nil {
-		cfg.Log = logrus.New().WithField(trace.Component, teleport.ComponentWindowsDesktop)
+		cfg.Log = logrus.New().WithField(teleport.ComponentKey, teleport.ComponentWindowsDesktop)
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -854,7 +854,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	delay := timer()
 	tdpConn.OnSend = s.makeTDPSendHandler(ctx, recorder, delay, tdpConn, audit)
 	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, recorder, delay, tdpConn, audit)
-
+	width, height := desktop.GetScreenSize()
+	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	rdpc, err := rdpclient.New(rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
@@ -867,6 +868,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		AllowClipboard:        authCtx.Checker.DesktopClipboard(),
 		AllowDirectorySharing: authCtx.Checker.DesktopDirectorySharing(),
 		ShowDesktopWallpaper:  s.cfg.ShowDesktopWallpaper,
+		Width:                 width,
+		Height:                height,
 	})
 	// before we check the error above, we grab the windows user so that
 	// future audit events include the proper username
@@ -875,6 +878,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		windowsUser = rdpc.GetClientUsername()
 		audit.windowsUser = windowsUser
 	}
+	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	if err != nil {
 		startEvent := audit.makeSessionStart(err)
 		s.record(ctx, recorder, startEvent)

@@ -250,7 +250,20 @@ func TestBotConfig_YAML(t *testing.T) {
 						},
 					},
 				},
-				Services: []bot.Service{
+				Services: []ServiceConfig{
+					&SPIFFEWorkloadAPIService{
+						Listen: "unix:///var/run/spiffe.sock",
+						SVIDs: []SVIDRequest{
+							{
+								Path: "/bar",
+								Hint: "my hint",
+								SANS: SVIDRequestSANs{
+									DNS: []string{"foo.bar"},
+									IP:  []string{"10.0.0.1"},
+								},
+							},
+						},
+					},
 					&ExampleService{
 						Message: "llama",
 					},
@@ -262,6 +275,20 @@ func TestBotConfig_YAML(t *testing.T) {
 			in: BotConfig{
 				Version:         V2,
 				AuthServer:      "example.teleport.sh:443",
+				CertificateTTL:  time.Minute,
+				RenewalInterval: time.Second * 30,
+				Outputs: Outputs{
+					&IdentityOutput{
+						Destination: &DestinationMemory{},
+					},
+				},
+			},
+		},
+		{
+			name: "minimal config using proxy addr",
+			in: BotConfig{
+				Version:         V2,
+				ProxyServer:     "example.teleport.sh:443",
 				CertificateTTL:  time.Minute,
 				RenewalInterval: time.Second * 30,
 				Outputs: Outputs{

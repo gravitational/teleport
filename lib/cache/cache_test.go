@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -1245,7 +1246,7 @@ func TestAuthPreference(t *testing.T) {
 		MessageOfTheDay: "test MOTD",
 	})
 	require.NoError(t, err)
-	err = p.clusterConfigS.SetAuthPreference(ctx, authPref)
+	authPref, err = p.clusterConfigS.UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	select {
@@ -1274,7 +1275,7 @@ func TestClusterNetworkingConfig(t *testing.T) {
 		ClientIdleTimeoutMessage: "test idle timeout message",
 	})
 	require.NoError(t, err)
-	err = p.clusterConfigS.SetClusterNetworkingConfig(ctx, netConfig)
+	_, err = p.clusterConfigS.UpsertClusterNetworkingConfig(ctx, netConfig)
 	require.NoError(t, err)
 
 	select {
@@ -1303,7 +1304,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 		ProxyChecksHostKeys: types.NewBoolOption(true),
 	})
 	require.NoError(t, err)
-	err = p.clusterConfigS.SetSessionRecordingConfig(ctx, recConfig)
+	_, err = p.clusterConfigS.UpsertSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	select {
@@ -1648,19 +1649,25 @@ func TestRemoteClusters(t *testing.T) {
 		newResource: func(name string) (types.RemoteCluster, error) {
 			return types.NewRemoteCluster(name)
 		},
-		create: modifyNoContext(p.presenceS.CreateRemoteCluster),
+		create: func(ctx context.Context, rc types.RemoteCluster) error {
+			_, err := p.presenceS.CreateRemoteCluster(ctx, rc)
+			return err
+		},
 		list: func(ctx context.Context) ([]types.RemoteCluster, error) {
-			return p.presenceS.GetRemoteClusters()
+			return p.presenceS.GetRemoteClusters(ctx)
 		},
 		cacheGet: func(ctx context.Context, name string) (types.RemoteCluster, error) {
-			return p.cache.GetRemoteCluster(name)
+			return p.cache.GetRemoteCluster(ctx, name)
 		},
-		cacheList: func(_ context.Context) ([]types.RemoteCluster, error) {
-			return p.cache.GetRemoteClusters()
+		cacheList: func(ctx context.Context) ([]types.RemoteCluster, error) {
+			return p.cache.GetRemoteClusters(ctx)
 		},
-		update: p.presenceS.UpdateRemoteCluster,
-		deleteAll: func(_ context.Context) error {
-			return p.presenceS.DeleteAllRemoteClusters()
+		update: func(ctx context.Context, rc types.RemoteCluster) error {
+			_, err := p.presenceS.UpdateRemoteCluster(ctx, rc)
+			return err
+		},
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllRemoteClusters(ctx)
 		},
 	})
 }
@@ -2350,6 +2357,25 @@ func TestAccessListMembers(t *testing.T) {
 		},
 		deleteAll: p.accessLists.DeleteAllAccessListMembers,
 	})
+
+	// Verify counting.
+	ctx := context.Background()
+	for i := 0; i < 40; i++ {
+		_, err = p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, al.GetName(), strconv.Itoa(i)))
+		require.NoError(t, err)
+	}
+
+	count, err := p.accessLists.CountAccessListMembers(ctx, al.GetName())
+	require.NoError(t, err)
+	require.Equal(t, uint32(40), count)
+
+	// Eventually, this should be reflected in the cache.
+	require.Eventually(t, func() bool {
+		// Make sure the cache has a single resource in it.
+		count, err := p.cache.CountAccessListMembers(ctx, al.GetName())
+		assert.NoError(t, err)
+		return count == uint32(40)
+	}, time.Second*2, time.Millisecond*250)
 }
 
 // TestAccessListReviews tests that CRUD operations on access list review resources are
@@ -2552,6 +2578,7 @@ func TestRelativeExpiry(t *testing.T) {
 }
 
 func TestRelativeExpiryLimit(t *testing.T) {
+	t.Parallel()
 	const (
 		checkInterval = time.Second
 		nodeCount     = 100
@@ -2569,7 +2596,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 		c.RelativeExpiryCheckInterval = checkInterval
 		c.RelativeExpiryLimit = expiryLimit
 		c.Clock = clock
-		return ForProxy(c)
+		return ForAuth(c)
 	})
 	t.Cleanup(p.Close)
 
@@ -2609,7 +2636,8 @@ func TestRelativeExpiryLimit(t *testing.T) {
 	}
 }
 
-func TestRelativeExpiryOnlyForNodeWatches(t *testing.T) {
+func TestRelativeExpiryOnlyForAuth(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
 	p := newTestPack(t, func(c Config) Config {
 		c.RelativeExpiryCheckInterval = time.Second
@@ -2622,9 +2650,10 @@ func TestRelativeExpiryOnlyForNodeWatches(t *testing.T) {
 	p2 := newTestPack(t, func(c Config) Config {
 		c.RelativeExpiryCheckInterval = time.Second
 		c.Clock = clock
+		c.target = "llama"
 		c.Watches = []types.WatchKind{
 			{Kind: types.KindNamespace},
-			{Kind: types.KindNamespace},
+			{Kind: types.KindNode},
 			{Kind: types.KindCertAuthority},
 		}
 		return c
@@ -2634,8 +2663,9 @@ func TestRelativeExpiryOnlyForNodeWatches(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		clock.Advance(time.Hour * 24)
 		drainEvents(p.eventsC)
-		expectEvent(t, p.eventsC, RelativeExpiry)
+		unexpectedEvent(t, p.eventsC, RelativeExpiry)
 
+		clock.Advance(time.Hour * 24)
 		drainEvents(p2.eventsC)
 		unexpectedEvent(t, p2.eventsC, RelativeExpiry)
 	}

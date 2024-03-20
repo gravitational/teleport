@@ -19,6 +19,7 @@ package types
 import (
 	"encoding/xml"
 	"fmt"
+	"sort"
 
 	"github.com/gravitational/trace"
 
@@ -128,10 +129,16 @@ type SAMLIdPServiceProvider interface {
 	GetACSURL() string
 	// SetACSURL sets the ACS URL.
 	SetACSURL(string)
+	// GetPreset returns the Preset.
+	GetPreset() string
 	// GetAttributeMapping returns Attribute Mapping.
 	GetAttributeMapping() []*SAMLAttributeMapping
 	// SetAttributeMapping sets Attribute Mapping.
 	SetAttributeMapping([]*SAMLAttributeMapping)
+	// GetRelayState returns Relay State.
+	GetRelayState() string
+	// SetRelayState sets Relay State.
+	SetRelayState(string)
 	// Copy returns a copy of this saml idp service provider object.
 	Copy() SAMLIdPServiceProvider
 	// CloneResource returns a copy of the SAMLIdPServiceProvider as a ResourceWithLabels
@@ -192,6 +199,21 @@ func (s *SAMLIdPServiceProviderV1) GetAttributeMapping() []*SAMLAttributeMapping
 // SetAttributeMapping sets Attribute Mapping.
 func (s *SAMLIdPServiceProviderV1) SetAttributeMapping(attrMaps []*SAMLAttributeMapping) {
 	s.Spec.AttributeMapping = attrMaps
+}
+
+// GetPreset returns the Preset.
+func (s *SAMLIdPServiceProviderV1) GetPreset() string {
+	return s.Spec.Preset
+}
+
+// GetRelayState returns Relay State.
+func (s *SAMLIdPServiceProviderV1) GetRelayState() string {
+	return s.Spec.RelayState
+}
+
+// SetRelayState sets Relay State.
+func (s *SAMLIdPServiceProviderV1) SetRelayState(relayState string) {
+	s.Spec.RelayState = relayState
 }
 
 // String returns the SAML IdP service provider string representation.
@@ -264,7 +286,7 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 		attrNames[attributeMap.Name] = struct{}{}
 	}
 
-	if ok := validatePreset(s.Spec.Preset); !ok {
+	if ok := s.checkAndSetPresetDefaults(s.Spec.Preset); !ok {
 		return trace.Wrap(ErrUnsupportedPresetName)
 	}
 
@@ -292,6 +314,25 @@ func (s SAMLIdPServiceProviders) Less(i, j int) bool { return s[i].GetName() < s
 // Swap swaps two service providers.
 func (s SAMLIdPServiceProviders) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
+// SortByCustom sorts SAMLIdPServiceProviders as per the sortBy value.
+// Only ResourceMetadataName field is supported.
+func (s SAMLIdPServiceProviders) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetName(), s[j].GetName(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindSAMLIdPServiceProvider)
+	}
+
+	return nil
+}
+
 // CheckAndSetDefaults check and sets SAMLAttributeMapping default values
 func (am *SAMLAttributeMapping) CheckAndSetDefaults() error {
 	if am.Name == "" {
@@ -316,11 +357,17 @@ func (am *SAMLAttributeMapping) CheckAndSetDefaults() error {
 	return nil
 }
 
-// validatePreset validates SAMLIdPServiceProviderV1 preset field.
+// checkAndSetPresetDefaults checks SAMLIdPServiceProviderV1 preset field
+// and applies default values to the preset type.
 // preset can be either empty or one of the supported type.
-func validatePreset(preset string) bool {
+func (s *SAMLIdPServiceProviderV1) checkAndSetPresetDefaults(preset string) bool {
 	switch preset {
-	case "", samlsp.GCP:
+	case "":
+		return true
+	case samlsp.GCPWorkforce:
+		if s.GetRelayState() == "" {
+			s.SetRelayState(samlsp.DefaultRelayStateGCPWorkforce)
+		}
 		return true
 	default:
 		return false

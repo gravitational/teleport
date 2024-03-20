@@ -448,10 +448,11 @@ func TestNewClientStoreFromIdentityFile(t *testing.T) {
 	retrievedProfile, err := clientStore.GetProfile(currentProfile)
 	require.NoError(t, err)
 	require.Equal(t, &profile.Profile{
-		WebProxyAddr:     key.ProxyHost + ":3080",
-		SiteName:         key.ClusterName,
-		Username:         key.Username,
-		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+		WebProxyAddr:          key.ProxyHost + ":3080",
+		SiteName:              key.ClusterName,
+		Username:              key.Username,
+		PrivateKeyPolicy:      keys.PrivateKeyPolicyNone,
+		MissingClusterDetails: true,
 	}, retrievedProfile)
 
 	retrievedKey, err := clientStore.GetKey(key.KeyIndex, client.WithAllCerts...)

@@ -196,7 +196,7 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
 		closeCtx: ctx,
-		log:      logrus.WithField(trace.Component, proxyServerComponent),
+		log:      logrus.WithField(teleport.ComponentKey, proxyServerComponent),
 	}
 	server.cfg.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(

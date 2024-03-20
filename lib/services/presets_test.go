@@ -134,8 +134,8 @@ func TestAddRoleDefaults(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
-						DatabaseServiceLabels: defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseServiceLabels,
-						DatabaseRoles:         defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseRoles,
+						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
+						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
 						Rules:                 NewPresetAccessRole().GetRules(types.Allow),
 					},
 				},
@@ -166,8 +166,8 @@ func TestAddRoleDefaults(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
-						DatabaseServiceLabels: defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseServiceLabels,
-						DatabaseRoles:         defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseRoles,
+						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
+						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
 						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
 					},
 				},
@@ -181,8 +181,8 @@ func TestAddRoleDefaults(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
-						DatabaseServiceLabels: defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseServiceLabels,
-						DatabaseRoles:         defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseRoles,
+						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
+						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
 						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
 					},
 				},
@@ -197,8 +197,8 @@ func TestAddRoleDefaults(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
-						DatabaseServiceLabels: defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseServiceLabels,
-						DatabaseRoles:         defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseRoles,
+						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
+						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
 						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
 					},
 				},
@@ -415,6 +415,136 @@ func TestAddRoleDefaults(t *testing.T) {
 					Name: teleport.PresetRequesterRoleName,
 					Labels: map[string]string{
 						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							Roles: []string{"some-role"},
+						},
+					},
+				},
+			},
+			enterprise:  true,
+			expectedErr: noChange,
+		},
+		{
+			name: "okta resources (not enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.SystemOktaAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.SystemResource,
+					},
+				},
+			},
+			expectedErr: noChange,
+			expected:    nil,
+		},
+		{
+			name: "okta resources (enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.SystemOktaAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.SystemResource,
+					},
+				},
+			},
+			enterprise:  true,
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.SystemOktaAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.SystemResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						AppLabels: types.Labels{
+							types.OriginLabel: []string{types.OriginOkta},
+						},
+						GroupLabels: types.Labels{
+							types.OriginLabel: []string{types.OriginOkta},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "okta resources (enterprise, created by user)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.SystemOktaAccessRoleName,
+				},
+			},
+			enterprise:  true,
+			expectedErr: notModifying,
+			expected:    nil,
+		},
+		{
+			name: "okta requester (not enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.SystemOktaRequesterRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.SystemResource,
+						types.OriginLabel:                  types.OriginOkta,
+					},
+				},
+			},
+			expectedErr: noChange,
+			expected:    nil,
+		},
+		{
+			name: "okta requester (enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.SystemOktaRequesterRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.SystemResource,
+						types.OriginLabel:                  types.OriginOkta,
+					},
+				},
+			},
+			enterprise:             true,
+			expectedErr:            require.NoError,
+			accessRequestsNotEmpty: true,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.SystemOktaRequesterRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.SystemResource,
+						types.OriginLabel:                  types.OriginOkta,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: defaultAllowAccessRequestConditions(true)[teleport.SystemOktaRequesterRoleName],
+					},
+				},
+			},
+		},
+		{
+			name: "okta requester (enterprise, created by user)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.SystemOktaRequesterRoleName,
+				},
+			},
+			enterprise:  true,
+			expectedErr: notModifying,
+			expected:    nil,
+		},
+		{
+			name: "okta requester (enterprise, existing requests)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.SystemOktaRequesterRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.SystemResource,
+						types.OriginLabel:                  types.OriginOkta,
 					},
 				},
 				Spec: types.RoleSpecV6{

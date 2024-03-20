@@ -13,23 +13,26 @@ upgrades or upgrade them manually using the method you used to install Teleport.
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components in your cluster.
 
-- A Teleport Enterprise Cloud or Teleport Team account. You can determine the
-  current version of the Auth Service and Proxy Service by running the following
-  command, where `mytenant` is the name of your Teleport Team or Teleport
-  Enterprise Cloud account. This requires the [`jq` CLI
-  tool](https://jqlang.github.io/jq/):
+- A Teleport Enterprise Cloud account. You can determine the current version of
+  the Auth Service and Proxy Service by running the following command, where
+  `mytenant` is the name of your Teleport Enterprise Cloud account. This
+  requires the [`jq` CLI tool](https://jqlang.github.io/jq/):
 
   ```code
   $ curl -s https://mytenant.teleport.sh/webapi/ping | jq '.server_version'
   ```
+
+- (!docs/pages/includes/cloud/tctl-tsh-prerequisite.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
 
 Teleport supports automatic agent updates for systemd-based Linux distributions
 using `apt`, `yum`, and `zypper` package managers. The [Automatic Update
 Architecture](../architecture/agent-update-management.mdx) guide describes
 how agent updating works. Automatic agent upgrades require:
 
-- A Teleport Cloud account that supports automatic upgrades. To determine if
-  your account supports automatic upgrades, run the following command, replacing
+- A Teleport Cloud account that supports automatic updates. To determine if
+  your account supports automatic updates, run the following command, replacing
   `mytenant.teleport.sh` with the address of your Teleport Cloud account:
 
   ```code
@@ -42,11 +45,11 @@ how agent updating works. Automatic agent upgrades require:
 
   So you can access each agent, we assume that each agent runs the Teleport SSH
   Service in addition to any other services. See the [Deploy Teleport Agents
-  with Terraform](../agents/deploy-agents-terraform.mdx] guide for an example.
+  with Terraform](../agents/deploy-agents-terraform.mdx) guide for an example.
 
 ## Step 1/2. Find agents to upgrade
 
-To list agents that are not enrolled in automatic upgrades, use the `tctl
+To list agents that are not enrolled in automatic updates, use the `tctl
 inventory ls` command with the `--upgrader=none` flag. This command also uses
 the `--services` flag to constrain the search to Teleport processes running
 agent services:
@@ -65,13 +68,19 @@ your oldest agents, you can limit your search using the `--older-than` filter:
 
 ```code
 $ tctl inventory ls --upgrader=none --older-than=v1.2.3
-Server ID                            Hostname        Services Version Upgrader
------------------------------------- --------------- -------- ------- --------
-00000000-0000-0000-0000-000000000000 old.example.com Node     v1.1.1  none
+Server ID                            Hostname        Services       Version Upgrader
+------------------------------------ --------------- -------------- ------- --------
+00000000-0000-0000-0000-000000000000 old.example.com Node           v1.1.1  none
+00000000-0000-0000-0000-000000000001 teleport-proxy  Proxy          v14.3.6 none
+00000000-0000-0000-0000-000000000002 teleport-auth   Auth,Discovery v14.3.6 none
 ...
 ```
 
-When you enroll each agent in automatic upgrades in the next section, you can
+Note that the `inventory ls` command will also list `teleport-auth` and `teleport-proxy` services.
+You do not need to update these services or enroll them in automatic updates.
+Teleport Cloud manages updates for these services.
+
+When you enroll each agent in automatic updates in the next section, you can
 run the following commands to fetch the hostname for each agent and access it
 via Teleport. 
 
@@ -85,12 +94,12 @@ $ tsh ssh "${USER?}@${HOST?}"
 ```
 
 You can then follow the steps in the next section on each agent to enroll it in
-automatic upgrades.
+automatic updates.
 
-## Step 2/2. Enroll agents in automatic upgrades
+## Step 2/2. Enroll agents in automatic updates
 
 Complete the following instructions on each agent you would like to enroll into
-automatic upgrades:
+automatic updates:
 
 1. Ensure the Teleport repository is added and Teleport Enterprise is installed.
 
@@ -107,7 +116,7 @@ automatic upgrades:
    it is up to date.
 
 1. If the repository was added, make sure the Teleport binary installed on the
-   agent can run the automatic upgrader:
+   agent can run the automatic updater:
 
    ```code
    $ which teleport-upgrade || echo "Install the upgrader"
@@ -164,7 +173,7 @@ and look at its logs:
 $ sudo teleport-upgrade run
 ```
 
-To suspend automatic upgrades, disable the systemd timer:
+To suspend automatic updates, disable the systemd timer:
 
 ```code
 $ sudo systemctl disable --now teleport-upgrade.timer

@@ -31,6 +31,7 @@ import (
 	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -66,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -272,6 +274,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.DatabaseObjectImportRules == nil {
+		cfg.DatabaseObjectImportRules, err = local.NewDatabaseObjectImportRuleService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.PluginData == nil {
 		cfg.PluginData = local.NewPluginData(cfg.Backend, cfg.DynamicAccessExt)
 	}
@@ -341,37 +349,38 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
-		Trust:                   cfg.Trust,
-		PresenceInternal:        cfg.Presence,
-		Provisioner:             cfg.Provisioner,
-		Identity:                cfg.Identity,
-		Access:                  cfg.Access,
-		DynamicAccessExt:        cfg.DynamicAccessExt,
-		ClusterConfiguration:    cfg.ClusterConfiguration,
-		Restrictions:            cfg.Restrictions,
-		Apps:                    cfg.Apps,
-		Kubernetes:              cfg.Kubernetes,
-		Databases:               cfg.Databases,
-		DatabaseServices:        cfg.DatabaseServices,
-		AuditLogSessionStreamer: cfg.AuditLog,
-		Events:                  cfg.Events,
-		WindowsDesktops:         cfg.WindowsDesktops,
-		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
-		UserGroups:              cfg.UserGroups,
-		SessionTrackerService:   cfg.SessionTrackerService,
-		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
-		Integrations:            cfg.Integrations,
-		DiscoveryConfigs:        cfg.DiscoveryConfigs,
-		Embeddings:              cfg.Embeddings,
-		Okta:                    cfg.Okta,
-		AccessLists:             cfg.AccessLists,
-		SecReports:              cfg.SecReports,
-		UserLoginStates:         cfg.UserLoginState,
-		StatusInternal:          cfg.Status,
-		UsageReporter:           cfg.UsageReporter,
-		Assistant:               cfg.Assist,
-		UserPreferences:         cfg.UserPreferences,
-		PluginData:              cfg.PluginData,
+		Trust:                     cfg.Trust,
+		PresenceInternal:          cfg.Presence,
+		Provisioner:               cfg.Provisioner,
+		Identity:                  cfg.Identity,
+		Access:                    cfg.Access,
+		DynamicAccessExt:          cfg.DynamicAccessExt,
+		ClusterConfiguration:      cfg.ClusterConfiguration,
+		Restrictions:              cfg.Restrictions,
+		Apps:                      cfg.Apps,
+		Kubernetes:                cfg.Kubernetes,
+		Databases:                 cfg.Databases,
+		DatabaseServices:          cfg.DatabaseServices,
+		AuditLogSessionStreamer:   cfg.AuditLog,
+		Events:                    cfg.Events,
+		WindowsDesktops:           cfg.WindowsDesktops,
+		SAMLIdPServiceProviders:   cfg.SAMLIdPServiceProviders,
+		UserGroups:                cfg.UserGroups,
+		SessionTrackerService:     cfg.SessionTrackerService,
+		ConnectionsDiagnostic:     cfg.ConnectionsDiagnostic,
+		Integrations:              cfg.Integrations,
+		DiscoveryConfigs:          cfg.DiscoveryConfigs,
+		Embeddings:                cfg.Embeddings,
+		Okta:                      cfg.Okta,
+		AccessLists:               cfg.AccessLists,
+		DatabaseObjectImportRules: cfg.DatabaseObjectImportRules,
+		SecReports:                cfg.SecReports,
+		UserLoginStates:           cfg.UserLoginState,
+		StatusInternal:            cfg.Status,
+		UsageReporter:             cfg.UsageReporter,
+		Assistant:                 cfg.Assist,
+		UserPreferences:           cfg.UserPreferences,
+		PluginData:                cfg.PluginData,
 	}
 
 	as := Server{
@@ -515,6 +524,7 @@ type Services struct {
 	services.DiscoveryConfigs
 	services.Okta
 	services.AccessLists
+	services.DatabaseObjectImportRules
 	services.UserLoginStates
 	services.Assistant
 	services.Embeddings
@@ -545,8 +555,8 @@ func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (r *Services) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
-	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx)
+func (r *Services) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
+	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, integration)
 }
 
 // OktaClient returns the okta client.
@@ -708,6 +718,15 @@ var (
 // successfully authenticated. An example would be creating objects based on the user.
 type LoginHook func(context.Context, types.User) error
 
+// CreateDeviceWebTokenFunc creates a new DeviceWebToken for the logged in user.
+//
+// Used during a successful Web login, after the user was verified and the
+// WebSession created.
+//
+// May return `nil, nil` if device trust isn't supported (OSS), disabled, or if
+// the user has no suitable trusted device.
+type CreateDeviceWebTokenFunc func(context.Context, *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error)
+
 // Server keeps the cluster together. It acts as a certificate authority (CA) for
 // a cluster and:
 //   - generates the keypair for the node it's running on
@@ -786,6 +805,10 @@ type Server struct {
 	// in a unified manner in the web UI.
 	UnifiedResourceCache *services.UnifiedResourceCache
 
+	// AccessRequestCache is a cache of access requests that specifically provides
+	// custom sorting options not available via the standard backend.
+	AccessRequestCache *services.AccessRequestCache
+
 	inventory *inventory.Controller
 
 	// githubOrgSSOCache is used to cache whether Github organizations use
@@ -860,6 +883,10 @@ type Server struct {
 
 	// ulsGenerator is the user login state generator.
 	ulsGenerator *userloginstate.Generator
+
+	// createDeviceWebTokenFunc is the CreateDeviceWebToken implementation.
+	// Is nil on OSS clusters.
+	createDeviceWebTokenFunc CreateDeviceWebTokenFunc
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -962,6 +989,13 @@ func (a *Server) SetUnifiedResourcesCache(unifiedResourcesCache *services.Unifie
 	a.UnifiedResourceCache = unifiedResourcesCache
 }
 
+// SetAccessRequestCache sets the access request cache.
+func (a *Server) SetAccessRequestCache(accessRequestCache *services.AccessRequestCache) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.AccessRequestCache = accessRequestCache
+}
+
 func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
@@ -981,6 +1015,23 @@ func (a *Server) SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher 
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.headlessAuthenticationWatcher = headlessAuthenticationWatcher
+}
+
+func (a *Server) SetCreateDeviceWebTokenFunc(f CreateDeviceWebTokenFunc) {
+	a.lock.Lock()
+	a.createDeviceWebTokenFunc = f
+	a.lock.Unlock()
+}
+
+// createDeviceWebToken safely calls the underlying [CreateDeviceWebTokenFunc].
+func (a *Server) createDeviceWebToken(ctx context.Context, webToken *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+	if a.createDeviceWebTokenFunc == nil {
+		return nil, nil
+	}
+	token, err := a.createDeviceWebTokenFunc(ctx, webToken)
+	return token, trace.Wrap(err)
 }
 
 // syncUpgradeWindowStartHour attempts to load the cloud UpgradeWindowStartHour value and set
@@ -1226,7 +1277,6 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 	skipControlPlane := modules.GetModules().Features().Cloud
 
 	// set up aggregators for our periodics
-	imp := newInstanceMetricsPeriodic()
 	uep := newUpgradeEnrollPeriodic()
 
 	// stream all instances to all aggregators
@@ -1239,7 +1289,6 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 			}
 		}
 
-		imp.VisitInstance(instances.Item())
 		uep.VisitInstance(instances.Item())
 	}
 
@@ -1248,18 +1297,7 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 		return
 	}
 
-	// set instance metric values
-	totalInstancesMetric.Set(float64(imp.TotalInstances()))
-	enrolledInUpgradesMetric.Set(float64(imp.TotalEnrolledInUpgrades()))
-
-	for upgraderType, upgraderVersions := range imp.upgraderCounts {
-		for version, count := range upgraderVersions {
-			upgraderCountsMetric.With(prometheus.Labels{
-				teleport.TagUpgrader: upgraderType,
-				teleport.TagVersion:  version,
-			}).Set(float64(count))
-		}
-	}
+	a.updateUpdaterVersionMetrics()
 
 	// create/delete upgrade enroll prompt as appropriate
 	enrollMsg, shouldPrompt := uep.GenerateEnrollPrompt()
@@ -1446,6 +1484,32 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 	}
 }
 
+// updateUpdaterVersionMetrics leverages the inventory control stream to report the
+// number of teleport updaters installed and their versions. To get an accurate representation
+// of versions in an entire cluster the metric must be aggregated with all auth instances.
+func (a *Server) updateUpdaterVersionMetrics() {
+	imp := newInstanceMetricsPeriodic()
+
+	// record versions for all connected resources
+	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+		imp.VisitInstance(handle.Hello())
+	})
+
+	totalInstancesMetric.Set(float64(imp.TotalInstances()))
+	enrolledInUpgradesMetric.Set(float64(imp.TotalEnrolledInUpgrades()))
+
+	// reset the gauges so that any versions that fall off are removed from exported metrics
+	upgraderCountsMetric.Reset()
+	for upgraderType, upgraderVersions := range imp.upgraderCounts {
+		for version, count := range upgraderVersions {
+			upgraderCountsMetric.With(prometheus.Labels{
+				teleport.TagUpgrader: upgraderType,
+				teleport.TagVersion:  version,
+			}).Set(float64(count))
+		}
+	}
+}
+
 // updateVersionMetrics leverages the inventory control stream to report the versions of
 // all instances that are connected to a single auth server via prometheus metrics. To
 // get an accurate representation of versions in an entire cluster the metric must be aggregated
@@ -1504,7 +1568,7 @@ var (
 
 // refreshRemoteClusters updates connection status of all remote clusters.
 func (a *Server) refreshRemoteClusters(ctx context.Context, rnd *insecurerand.Rand) {
-	remoteClusters, err := a.Services.GetRemoteClusters()
+	remoteClusters, err := a.Services.GetRemoteClusters(ctx)
 	if err != nil {
 		log.WithError(err).Error("Failed to load remote clusters for status refresh")
 		return
@@ -1560,6 +1624,12 @@ func (a *Server) Close() error {
 
 	if a.bk != nil {
 		if err := a.bk.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if a.AccessRequestCache != nil {
+		if err := a.AccessRequestCache.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -1945,13 +2015,14 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 
 // GenerateUserTestCertsRequest is a request to generate test certificates.
 type GenerateUserTestCertsRequest struct {
-	Key            []byte
-	Username       string
-	TTL            time.Duration
-	Compatibility  string
-	RouteToCluster string
-	PinnedIP       string
-	MFAVerified    string
+	Key                  []byte
+	Username             string
+	TTL                  time.Duration
+	Compatibility        string
+	RouteToCluster       string
+	PinnedIP             string
+	MFAVerified          string
+	AttestationStatement *keys.AttestationStatement
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -1971,16 +2042,17 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		return nil, nil, trace.Wrap(err)
 	}
 	certs, err := a.generateUserCert(ctx, certRequest{
-		user:           userState,
-		ttl:            req.TTL,
-		compatibility:  req.Compatibility,
-		publicKey:      req.Key,
-		routeToCluster: req.RouteToCluster,
-		checker:        checker,
-		traits:         userState.GetTraits(),
-		loginIP:        req.PinnedIP,
-		pinIP:          req.PinnedIP != "",
-		mfaVerified:    req.MFAVerified,
+		user:                 userState,
+		ttl:                  req.TTL,
+		compatibility:        req.Compatibility,
+		publicKey:            req.Key,
+		routeToCluster:       req.RouteToCluster,
+		checker:              checker,
+		traits:               userState.GetTraits(),
+		loginIP:              req.PinnedIP,
+		pinIP:                req.PinnedIP != "",
+		mfaVerified:          req.MFAVerified,
+		attestationStatement: req.AttestationStatement,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -2155,7 +2227,8 @@ type AugmentUserCertificateOpts struct {
 // Used by Device Trust to add device extensions to the user certificate.
 func (a *Server) AugmentContextUserCertificates(
 	ctx context.Context,
-	authCtx *authz.Context, opts *AugmentUserCertificateOpts,
+	authCtx *authz.Context,
+	opts *AugmentUserCertificateOpts,
 ) (*proto.Certs, error) {
 	switch {
 	case authCtx == nil:
@@ -2164,10 +2237,126 @@ func (a *Server) AugmentContextUserCertificates(
 		return nil, trace.BadParameter("opts required")
 	}
 
+	// Fetch user TLS certificate.
+	x509Cert, err := authz.UserCertificateFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity := authCtx.Identity.GetIdentity()
+
+	return a.augmentUserCertificates(ctx, augmentUserCertificatesOpts{
+		checker:          authCtx.Checker,
+		x509Cert:         x509Cert,
+		x509Identity:     &identity,
+		sshAuthorizedKey: opts.SSHAuthorizedKey,
+		deviceExtensions: opts.DeviceExtensions,
+	})
+}
+
+// AugmentWebSessionCertificatesOpts aggregates arguments for
+// [AugmentWebSessionCertificates].
+type AugmentWebSessionCertificatesOpts struct {
+	// WebSessionID is the identifier for the WebSession.
+	WebSessionID string
+
+	// DeviceExtensions are the device-aware extensions to add to the certificates
+	// being augmented.
+	DeviceExtensions *DeviceExtensions
+}
+
+// AugmentWebSessionCertificates is a variant of
+// [AugmentContextUserCertificates] that operates directly in the certificates
+// stored in a WebSession.
+//
+// The authCtx user must be the owner of the session. Unlike
+// [AugmentContextUserCertificates], the user certificate doesn't need to be
+// present in the ctx, as the session certificates are used.
+//
+// On success the WebSession is updated with device extension certificates.
+func (a *Server) AugmentWebSessionCertificates(
+	ctx context.Context,
+	authCtx *authz.Context,
+	opts *AugmentWebSessionCertificatesOpts,
+) error {
+	switch {
+	case authCtx == nil:
+		return trace.BadParameter("authCtx required")
+	case opts == nil:
+		return trace.BadParameter("opts required")
+	case opts.WebSessionID == "":
+		return trace.BadParameter("opts.WebSessionID required")
+	}
+
+	identity := authCtx.Identity.GetIdentity()
+
+	// Get and validate session.
+	sessions := a.WebSessions()
+	session, err := sessions.Get(ctx, types.GetWebSessionRequest{
+		User:      identity.Username,
+		SessionID: opts.WebSessionID,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Sanity check: session must belong to user.
+	if session.GetUser() != identity.Username {
+		return trace.AccessDenied("identity and session user mismatch")
+	}
+
+	// Coerce session before doing more expensive operations.
+	sessionV2, ok := session.(*types.WebSessionV2)
+	if !ok {
+		return trace.BadParameter("unexpected WebSession type: %T", session)
+	}
+
+	// Parse X.509 certificate.
+	block, _ := pem.Decode(session.GetTLSCert())
+	if block == nil {
+		return trace.BadParameter("cannot decode session TLS certificate")
+	}
+	x509Cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	x509Identity, err := tlsca.FromSubject(x509Cert.Subject, x509Cert.NotAfter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Augment certificates.
+	newCerts, err := a.augmentUserCertificates(ctx, augmentUserCertificatesOpts{
+		checker:          authCtx.Checker,
+		x509Cert:         x509Cert,
+		x509Identity:     x509Identity,
+		sshAuthorizedKey: session.GetPub(),
+		deviceExtensions: opts.DeviceExtensions,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Update WebSession.
+	sessionV2.Spec.Pub = newCerts.SSH
+	sessionV2.Spec.TLSCert = newCerts.TLS
+	return trace.Wrap(sessions.Upsert(ctx, sessionV2))
+}
+
+type augmentUserCertificatesOpts struct {
+	checker          services.AccessChecker
+	x509Cert         *x509.Certificate
+	x509Identity     *tlsca.Identity
+	sshAuthorizedKey []byte
+	deviceExtensions *DeviceExtensions
+}
+
+func (a *Server) augmentUserCertificates(
+	ctx context.Context,
+	opts augmentUserCertificatesOpts,
+) (*proto.Certs, error) {
 	// Is at least one extension present?
 	// Are the extensions valid?
-	identity := authCtx.Identity.GetIdentity()
-	dev := opts.DeviceExtensions
+	dev := opts.deviceExtensions
 	switch {
 	case dev == nil: // Only extension that currently exists.
 		return nil, trace.BadParameter("at least one opts extension must be present")
@@ -2177,28 +2366,27 @@ func (a *Server) AugmentContextUserCertificates(
 		return nil, trace.BadParameter("opts.DeviceExtensions.AssetTag required")
 	case dev.CredentialID == "":
 		return nil, trace.BadParameter("opts.DeviceExtensions.CredentialID required")
-	// Do not reissue if device extensions are already present.
-	case identity.DeviceExtensions.DeviceID != "",
-		identity.DeviceExtensions.AssetTag != "",
-		identity.DeviceExtensions.CredentialID != "":
-		return nil, trace.BadParameter("device extensions already present")
 	}
 
-	// Fetch user TLS certificate.
-	x509Cert, err := authz.UserCertificateFromContext(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	x509Cert := opts.x509Cert
+	x509Identity := opts.x509Identity
 
-	// Sanity check: x509Cert matches identity.
-	// Both the TLS certificate and the identity come from the same source, so
-	// they are unlikely to mismatch unless Teleport itself mixes it up.
-	if x509Cert.Subject.CommonName != identity.Username {
+	// Sanity check: x509Cert identity matches x509Identity.
+	if x509Cert.Subject.CommonName != x509Identity.Username {
 		return nil, trace.BadParameter("identity and x509 user mismatch")
 	}
 
+	// Do not reissue if device extensions are already present.
+	// Note that the certIdentity extensions could differ from the "current"
+	// identity extensions if this was not the cert used to authenticate.
+	if x509Identity.DeviceExtensions.DeviceID != "" ||
+		x509Identity.DeviceExtensions.AssetTag != "" ||
+		x509Identity.DeviceExtensions.CredentialID != "" {
+		return nil, trace.BadParameter("device extensions already present")
+	}
+
 	// Parse and verify SSH certificate.
-	sshAuthorizedKey := opts.SSHAuthorizedKey
+	sshAuthorizedKey := opts.sshAuthorizedKey
 	var sshCert *ssh.Certificate
 	if len(sshAuthorizedKey) > 0 {
 		var err error
@@ -2235,9 +2423,9 @@ func (a *Server) AugmentContextUserCertificates(
 		switch {
 		case sshCert.CertType != ssh.UserCert:
 			return nil, trace.BadParameter("ssh cert type mismatch")
-		case sshCert.KeyId != identity.Username:
+		case sshCert.KeyId != x509Identity.Username:
 			return nil, trace.BadParameter("identity and SSH user mismatch")
-		case !slices.Equal(filterAndSortPrincipals(sshCert.ValidPrincipals), filterAndSortPrincipals(identity.Principals)):
+		case !slices.Equal(filterAndSortPrincipals(sshCert.ValidPrincipals), filterAndSortPrincipals(x509Identity.Principals)):
 			return nil, trace.BadParameter("identity and SSH principals mismatch")
 		case !apisshutils.KeysEqual(sshCert.Key, xPubKey):
 			return nil, trace.BadParameter("x509 and SSH public key mismatch")
@@ -2305,18 +2493,18 @@ func (a *Server) AugmentContextUserCertificates(
 		return nil, trace.Wrap(err)
 	}
 	if err := a.verifyLocksForUserCerts(verifyLocksForUserCertsReq{
-		checker:              authCtx.Checker,
+		checker:              opts.checker,
 		defaultMode:          authPref.GetLockingMode(),
-		username:             identity.Username,
-		mfaVerified:          identity.MFAVerified,
-		activeAccessRequests: identity.ActiveRequests,
-		deviceID:             opts.DeviceExtensions.DeviceID, // Check lock against requested device.
+		username:             x509Identity.Username,
+		mfaVerified:          x509Identity.MFAVerified,
+		activeAccessRequests: x509Identity.ActiveRequests,
+		deviceID:             dev.DeviceID, // Check lock against requested device.
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Augment TLS certificate.
-	newIdentity := identity
+	newIdentity := x509Identity
 	newIdentity.DeviceExtensions.DeviceID = dev.DeviceID
 	newIdentity.DeviceExtensions.AssetTag = dev.AssetTag
 	newIdentity.DeviceExtensions.CredentialID = dev.CredentialID
@@ -2521,7 +2709,14 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			return nil, trace.Wrap(err)
 		}
 
-		if hksn, err := authPref.GetHardwareKeySerialNumberValidation(); err == nil && hksn.Enabled {
+		var validateSerialNumber bool
+		hksnv, err := authPref.GetHardwareKeySerialNumberValidation()
+		if err == nil {
+			validateSerialNumber = hksnv.Enabled
+		}
+
+		// Validate the serial number if enabled, unless this is a web session.
+		if validateSerialNumber && attestedKeyPolicy != keys.PrivateKeyPolicyWebSession {
 			const defaultSerialNumberTraitName = "hardware_key_serial_numbers"
 			// Note: currently only yubikeys are supported as hardware keys. If we extend
 			// support to more hardware keys, we can add prefixes to serial numbers.
@@ -2529,7 +2724,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			// When prefixes are added, we can default to assuming that serial numbers
 			// without prefixes are for yubikeys, meaning there will be no backwards
 			// compatibility issues.
-			serialNumberTraitName := hksn.SerialNumberTraitName
+			serialNumberTraitName := hksnv.SerialNumberTraitName
 			if serialNumberTraitName == "" {
 				serialNumberTraitName = defaultSerialNumberTraitName
 			}
@@ -2564,7 +2759,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	}
 	if req.routeToCluster != clusterName {
 		// Authorize access to a remote cluster.
-		rc, err := a.GetRemoteCluster(req.routeToCluster)
+		rc, err := a.GetRemoteCluster(ctx, req.routeToCluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2974,7 +3169,7 @@ func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.upsertWebSession(ctx, user, sess); err != nil {
+	if err := a.upsertWebSession(ctx, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess.WithoutSecrets(), nil
@@ -3079,7 +3274,7 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 		}
 		username = token.GetUser()
 
-	case req.ExistingMFAResponse != nil: // Authenticated user without token, tsh.
+	default: // Authenticated user without token, tsh.
 		var err error
 		username, err = authz.GetClientUsername(ctx)
 		if err != nil {
@@ -3102,9 +3297,6 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-	default:
-		return nil, trace.BadParameter("either a token or an MFA response are required")
 	}
 
 	regChal, err := a.createRegisterChallenge(ctx, &newRegisterChallengeRequest{
@@ -3743,7 +3935,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 
 	sess.SetConsumedAccessRequestID(req.AccessRequestID)
 
-	if err := a.upsertWebSession(ctx, req.User, sess); err != nil {
+	if err := a.upsertWebSession(ctx, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4460,6 +4652,87 @@ func (a *Server) DeleteNamespace(namespace string) error {
 	return a.Services.DeleteNamespace(namespace)
 }
 
+// IterateRoles is a helper used to read a page of roles with a custom matcher, used by access-control logic to handle
+// per-resource read permissions.
+func (a *Server) IterateRoles(ctx context.Context, req *proto.ListRolesRequest, match func(*types.RoleV6) (bool, error)) ([]*types.RoleV6, string, error) {
+	const maxIterations = 100_000
+
+	if req.Limit == 0 {
+		req.Limit = apidefaults.DefaultChunkSize
+	}
+
+	req.Limit++
+	defer func() {
+		req.Limit--
+	}()
+
+	var filtered []*types.RoleV6
+	var iterations int
+
+Outer:
+	for {
+		iterations++
+		if iterations > maxIterations {
+			return nil, "", trace.Errorf("too many role page iterations (%d), this is likely a bug", iterations)
+		}
+
+		rsp, err := a.Cache.ListRoles(ctx, req)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+	Inner:
+		for _, role := range rsp.Roles {
+			ok, err := match(role)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			if !ok {
+				continue Inner
+			}
+
+			filtered = append(filtered, role)
+			if len(filtered) == int(req.Limit) {
+				break Outer
+			}
+		}
+
+		req.StartKey = rsp.NextKey
+
+		if req.StartKey == "" {
+			break Outer
+		}
+	}
+
+	var nextKey string
+	if len(filtered) == int(req.Limit) {
+		nextKey = filtered[req.Limit-1].GetName()
+		filtered = filtered[:req.Limit-1]
+	}
+
+	return filtered, nextKey, nil
+}
+
+// ListAccessRequests is an access request getter with pagination and sorting options.
+func (a *Server) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+	// most access request methods target the backend directly since access requests are frequently read
+	// immediately after writing, but listing requires support for custom sort orders so we route it to
+	// a special cache. note that the access request cache will still end up forwarding single-request
+	// reads to the real backend due to the read after write issue.
+	return a.AccessRequestCache.ListAccessRequests(ctx, req)
+}
+
+// ListMatchingAccessRequests is equivalent to ListAccessRequests except that it adds the ability to provide an arbitrary matcher function. This method
+// should be preferred when using custom filtering (e.g. access-controls), since the paginations keys used by the access request cache are non-standard.
+func (a *Server) ListMatchingAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest, match func(*types.AccessRequestV3) bool) (*proto.ListAccessRequestsResponse, error) {
+	// most access request methods target the backend directly since access requests are frequently read
+	// immediately after writing, but listing requires support for custom sort orders so we route it to
+	// a special cache. note that the access request cache will still end up forwarding single-request
+	// reads to the real backend due to the read after write issue.
+	return a.AccessRequestCache.ListMatchingAccessRequests(ctx, req, match)
+}
+
 func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (types.AccessRequest, error) {
 	now := a.clock.Now().UTC()
 
@@ -4573,7 +4846,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 // the error and return whatever it has. The caller is expected to deal with the possibility of a nil promotions object.
 func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.AccessRequest) (types.AccessRequest, *types.AccessRequestAllowedPromotions) {
 	reqCopy := req.Copy()
-	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Services, reqCopy)
+	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Cache, reqCopy)
 	if err != nil {
 		// Do not fail the request if the promotions failed to generate.
 		// The request promotion will be blocked, but the request can still be approved.
@@ -6099,7 +6372,7 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 	}
 }
 
-func (a *Server) upsertWebSession(ctx context.Context, user string, session types.WebSession) error {
+func (a *Server) upsertWebSession(ctx context.Context, session types.WebSession) error {
 	if err := a.WebSessions().Upsert(ctx, session); err != nil {
 		return trace.Wrap(err)
 	}
@@ -6213,6 +6486,19 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 			return keySet, trace.Wrap(err)
 		}
 		keySet.TLS = append(keySet.TLS, tlsKeyPair)
+	case types.SPIFFECA:
+		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.TLS = append(keySet.TLS, tlsKeyPair)
+		// Whilst we don't currently support JWT-SVIDs, we will eventually. So
+		// generate a JWT keypair.
+		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx)
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.JWT = append(keySet.JWT, jwtKeyPair)
 	default:
 		return keySet, trace.BadParameter("unknown ca type: %s", caID.Type)
 	}

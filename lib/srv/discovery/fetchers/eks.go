@@ -30,6 +30,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
@@ -60,6 +61,13 @@ type EKSFetcherConfig struct {
 	// AssumeRole provides a role ARN and ExternalID to assume an AWS role
 	// when fetching clusters.
 	AssumeRole types.AssumeRole
+	// Integration is the integration name to be used to fetch credentials.
+	// When present, it will use this integration and discard any local credentials.
+	Integration string
+	// KubeAppDiscovery specifies if Kubernetes App Discovery should be enabled for the
+	// discovered cluster. We don't use this information for fetching itself, but we need it for
+	// correct enrollment of the clusters returned from this fetcher.
+	KubeAppDiscovery bool
 	// Region is the region where the clusters should be located.
 	Region string
 	// FilterLabels are the filter criteria.
@@ -82,9 +90,50 @@ func (c *EKSFetcherConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "fetcher:eks")
+		c.Log = logrus.WithField(teleport.ComponentKey, "fetcher:eks")
 	}
 	return nil
+}
+
+// MakeEKSFetchersFromAWSMatchers creates fetchers from the provided matchers. Returned fetchers are separated
+// by their reliance on the integration.
+func MakeEKSFetchersFromAWSMatchers(log logrus.FieldLogger, clients cloud.AWSClients, matchers []types.AWSMatcher) (kubeFetchers, kubeIntegrationFetchers []common.Fetcher, _ error) {
+	for _, matcher := range matchers {
+		var matcherAssumeRole types.AssumeRole
+		if matcher.AssumeRole != nil {
+			matcherAssumeRole = *matcher.AssumeRole
+		}
+
+		for _, t := range matcher.Types {
+			for _, region := range matcher.Regions {
+				switch t {
+				case types.AWSMatcherEKS:
+					fetcher, err := NewEKSFetcher(
+						EKSFetcherConfig{
+							EKSClientGetter:  clients,
+							AssumeRole:       matcherAssumeRole,
+							Region:           region,
+							Integration:      matcher.Integration,
+							KubeAppDiscovery: matcher.KubeAppDiscovery,
+							FilterLabels:     matcher.Tags,
+							Log:              log,
+						},
+					)
+					if err != nil {
+						log.WithError(err).Warnf("Could not initialize EKS fetcher(Region=%q, Labels=%q, AssumeRole=%q), skipping.", region, matcher.Tags, matcherAssumeRole.RoleARN)
+						continue
+					}
+
+					if matcher.Integration != "" {
+						kubeIntegrationFetchers = append(kubeIntegrationFetchers, fetcher)
+					} else {
+						kubeFetchers = append(kubeFetchers, fetcher)
+					}
+				}
+			}
+		}
+	}
+	return kubeFetchers, kubeIntegrationFetchers, nil
 }
 
 // NewEKSFetcher creates a new EKS fetcher configuration.
@@ -111,7 +160,7 @@ func (a *eksFetcher) getClient(ctx context.Context) (eksiface.EKSAPI, error) {
 			a.AssumeRole.RoleARN,
 			a.AssumeRole.ExternalID,
 		),
-		cloud.WithAmbientCredentials(),
+		cloud.WithCredentialsMaybeIntegration(a.Integration),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -121,14 +170,41 @@ func (a *eksFetcher) getClient(ctx context.Context) (eksiface.EKSAPI, error) {
 	return a.client, nil
 }
 
+type DiscoveredEKSCluster struct {
+	types.KubeCluster
+
+	Integration            string
+	EnableKubeAppDiscovery bool
+}
+
+func (d *DiscoveredEKSCluster) GetIntegration() string {
+	return d.Integration
+}
+
+func (d *DiscoveredEKSCluster) GetKubeAppDiscovery() bool {
+	return d.EnableKubeAppDiscovery
+}
+
+func (d *DiscoveredEKSCluster) GetKubeCluster() types.KubeCluster {
+	return d.KubeCluster
+}
+
 func (a *eksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
 	clusters, err := a.getEKSClusters(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	a.rewriteKubeClusters(clusters)
-	return clusters.AsResources(), nil
+
+	resources := make(types.ResourcesWithLabels, 0, len(clusters))
+	for _, cluster := range clusters {
+		resources = append(resources, &DiscoveredEKSCluster{
+			KubeCluster:            cluster,
+			Integration:            a.Integration,
+			EnableKubeAppDiscovery: a.KubeAppDiscovery,
+		})
+	}
+	return resources, nil
 }
 
 // rewriteKubeClusters rewrites the discovered kube clusters.

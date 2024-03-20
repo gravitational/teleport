@@ -326,12 +326,12 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		clusterNetworkingCfg = types.DefaultClusterNetworkingConfig()
 	}
 
-	err = srv.AuthServer.SetClusterNetworkingConfig(ctx, clusterNetworkingCfg)
+	_, err = srv.AuthServer.UpsertClusterNetworkingConfig(ctx, clusterNetworkingCfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = srv.AuthServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	_, err = srv.AuthServer.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -351,7 +351,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = srv.AuthServer.SetAuthPreference(ctx, authPreference)
+	_, err = srv.AuthServer.UpsertAuthPreference(ctx, authPreference)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -411,6 +411,16 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	srv.AuthServer.SetUnifiedResourcesCache(unifiedResourcesCache)
+
+	accessRequestCache, err := services.NewAccessRequestCache(services.AccessRequestCacheConfig{
+		Events: srv.AuthServer.Services,
+		Getter: srv.AuthServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	srv.AuthServer.SetAccessRequestCache(accessRequestCache)
 
 	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(srv.AuthServer.CloseContext(), local.HeadlessAuthenticationWatcherConfig{
 		Backend: b,
@@ -699,6 +709,13 @@ type TestTLSServerOption func(*TestTLSServerConfig)
 func WithLimiterConfig(config *limiter.Config) TestTLSServerOption {
 	return func(cfg *TestTLSServerConfig) {
 		cfg.Limiter = config
+	}
+}
+
+// WithAccessGraphConfig sets the access graph configuration.
+func WithAccessGraphConfig(config AccessGraphConfig) TestTLSServerOption {
+	return func(cfg *TestTLSServerConfig) {
+		cfg.APIConfig.AccessGraph = config
 	}
 }
 

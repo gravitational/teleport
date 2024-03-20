@@ -490,8 +490,8 @@ func (c *HTTPClient) DeleteAllTunnelConnections() error {
 }
 
 // GetRemoteClusters returns a list of remote clusters
-func (c *HTTPClient) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("remoteclusters"), url.Values{})
+func (c *HTTPClient) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
+	out, err := c.Get(ctx, c.Endpoint("remoteclusters"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -511,11 +511,11 @@ func (c *HTTPClient) GetRemoteClusters(opts ...services.MarshalOption) ([]types.
 }
 
 // GetRemoteCluster returns a remote cluster by name
-func (c *HTTPClient) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
+func (c *HTTPClient) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing cluster name")
 	}
-	out, err := c.Get(context.TODO(), c.Endpoint("remoteclusters", clusterName), url.Values{})
+	out, err := c.Get(ctx, c.Endpoint("remoteclusters", clusterName), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -528,25 +528,6 @@ func (c *HTTPClient) DeleteRemoteCluster(ctx context.Context, clusterName string
 		return trace.BadParameter("missing parameter cluster name")
 	}
 	_, err := c.Delete(ctx, c.Endpoint("remoteclusters", clusterName))
-	return trace.Wrap(err)
-}
-
-// DeleteAllRemoteClusters deletes all remote clusters
-func (c *HTTPClient) DeleteAllRemoteClusters() error {
-	_, err := c.Delete(context.TODO(), c.Endpoint("remoteclusters"))
-	return trace.Wrap(err)
-}
-
-// CreateRemoteCluster creates remote cluster resource
-func (c *HTTPClient) CreateRemoteCluster(rc types.RemoteCluster) error {
-	data, err := services.MarshalRemoteCluster(rc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	args := &createRemoteClusterRawReq{
-		RemoteCluster: data,
-	}
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("remoteclusters"), args)
 	return trace.Wrap(err)
 }
 

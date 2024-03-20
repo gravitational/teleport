@@ -28,6 +28,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 )
@@ -59,6 +61,11 @@ func (m *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuth
 		}
 	}
 	return m.server.GetCertAuthority(ctx, id, loadKeys)
+}
+
+func (m *mockAuthClient) PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
+	// return MFA not required to gracefully skip the MFA prompt.
+	return nil, &mfa.ErrMFANotRequired
 }
 
 func TestExportAuthorities(t *testing.T) {

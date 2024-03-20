@@ -61,6 +61,14 @@ func newNativeImpl() *nativeImpl {
 			Debug("WebAuthnWin: failed to load WebAuthn.dll (it's likely missing)")
 		return n
 	}
+	// Load WebAuthNGetApiVersionNumber explicitly too, it avoids a panic on some
+	// Windows Server 2019 installs.
+	if err := procWebAuthNGetApiVersionNumber.Find(); err != nil {
+		log.
+			WithError(err).
+			Debug("WebAuthnWin: failed to load WebAuthNGetApiVersionNumber")
+		return n
+	}
 
 	v, err := webAuthNGetApiVersionNumber()
 	if err != nil {
@@ -69,6 +77,10 @@ func newNativeImpl() *nativeImpl {
 	}
 	n.webauthnAPIVersion = v
 	n.isAvailable = v > 0
+
+	if !n.isAvailable {
+		return n
+	}
 
 	n.hasPlatformUV, err = isUVPlatformAuthenticatorAvailable()
 	if err != nil {

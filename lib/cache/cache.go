@@ -114,6 +114,7 @@ func makeAllKnownCAsFilter() types.CertAuthorityFilter {
 // ForAuth sets up watch configuration for the auth server
 func ForAuth(cfg Config) Config {
 	cfg.target = "auth"
+	cfg.EnableRelativeExpiry = true
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
 		{Kind: types.KindClusterName},
@@ -417,6 +418,7 @@ func ForDiscovery(cfg Config) Config {
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNode},
 		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindKubeServer},
 		{Kind: types.KindDatabase},
 		{Kind: types.KindApp},
 		{Kind: types.KindDiscoveryConfig},
@@ -741,6 +743,9 @@ type Config struct {
 	// healthy even if some of the requested resource kinds aren't
 	// supported by the event source.
 	DisablePartialHealth bool
+	// EnableRelativeExpiry turns on purging expired items from the cache even
+	// if delete events have not been received from the backend.
+	EnableRelativeExpiry bool
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -937,7 +942,7 @@ func New(config Config) (*Cache, error) {
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
 		Logger: log.WithFields(log.Fields{
-			trace.Component: config.Component,
+			teleport.ComponentKey: config.Component,
 		}),
 	}
 	collections, err := setupCollections(cs, config.Watches)
@@ -1282,18 +1287,14 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 
 	retry.Reset()
 
-	// only enable relative node expiry if the cache is configured
-	// to watch for types.KindNode
+	// Only enable relative node expiry for the auth cache.
 	relativeExpiryInterval := interval.NewNoop()
-	for _, watch := range c.Config.Watches {
-		if watch.Kind == types.KindNode {
-			relativeExpiryInterval = interval.New(interval.Config{
-				Duration:      c.Config.RelativeExpiryCheckInterval,
-				FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
-				Jitter:        retryutils.NewSeventhJitter(),
-			})
-			break
-		}
+	if c.EnableRelativeExpiry {
+		relativeExpiryInterval = interval.New(interval.Config{
+			Duration:      c.Config.RelativeExpiryCheckInterval,
+			FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
+			Jitter:        retryutils.NewSeventhJitter(),
+		})
 	}
 	defer relativeExpiryInterval.Stop()
 
@@ -1346,8 +1347,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 				}
 			}
 
-			err = c.processEvent(ctx, event, true)
-			if err != nil {
+			if err := c.processEvent(ctx, event); err != nil {
 				return trace.Wrap(err)
 			}
 			c.notify(c.ctx, Event{Event: event, Type: EventProcessed})
@@ -1440,7 +1440,7 @@ func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 				Kind:     types.KindNode,
 				Metadata: node.GetMetadata(),
 			},
-		}, false); err != nil {
+		}); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -1607,9 +1607,9 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 }
 
 // processEvent hands the event off to the appropriate collection for processing. Any
-// resources which were not registered are ignored. If processing completed successfully
-// and emit is true the event will be emitted via the fanout.
-func (c *Cache) processEvent(ctx context.Context, event types.Event, emit bool) error {
+// resources which were not registered are ignored. If processing completed successfully,
+// the event will be emitted via the fanout.
+func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	resourceKind := resourceKindFromResource(event.Resource)
 	collection, ok := c.collections.byKind[resourceKind]
 	if !ok {
@@ -1619,14 +1619,14 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event, emit bool) 
 	if err := collection.processEvent(ctx, event); err != nil {
 		return trace.Wrap(err)
 	}
-	if emit {
-		c.eventsFanout.Emit(event)
-		if !isHighVolumeResource(resourceKind.kind) {
-			c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
-				f.Emit(event)
-			})
-		}
+
+	c.eventsFanout.Emit(event)
+	if !isHighVolumeResource(resourceKind.kind) {
+		c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
+			f.Emit(event)
+		})
 	}
+
 	return nil
 }
 
@@ -1763,7 +1763,7 @@ type clusterConfigCacheKey struct {
 var _ map[clusterConfigCacheKey]struct{} // compile-time hashability check
 
 // GetClusterAuditConfig gets ClusterAuditConfig from the backend.
-func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+func (c *Cache) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterAuditConfig")
 	defer span.End()
 
@@ -1774,7 +1774,7 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.Mars
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"audit"}, func(ctx context.Context) (types.ClusterAuditConfig, error) {
-			cfg, err := rg.reader.GetClusterAuditConfig(ctx, opts...)
+			cfg, err := rg.reader.GetClusterAuditConfig(ctx)
 			return cfg, err
 		})
 		if err != nil {
@@ -1782,11 +1782,11 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.Mars
 		}
 		return cachedCfg.Clone(), nil
 	}
-	return rg.reader.GetClusterAuditConfig(ctx, opts...)
+	return rg.reader.GetClusterAuditConfig(ctx)
 }
 
 // GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
-func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (c *Cache) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterNetworkingConfig")
 	defer span.End()
 
@@ -1797,7 +1797,7 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"networking"}, func(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-			cfg, err := rg.reader.GetClusterNetworkingConfig(ctx, opts...)
+			cfg, err := rg.reader.GetClusterNetworkingConfig(ctx)
 			return cfg, err
 		})
 		if err != nil {
@@ -1805,7 +1805,7 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 		}
 		return cachedCfg.Clone(), nil
 	}
-	return rg.reader.GetClusterNetworkingConfig(ctx, opts...)
+	return rg.reader.GetClusterNetworkingConfig(ctx)
 }
 
 // GetClusterName gets the name of the cluster from the backend.
@@ -1886,6 +1886,19 @@ func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
 	}
 	defer rg.Release()
 	return rg.reader.GetRoles(ctx)
+}
+
+// ListRoles is a paginated role getter.
+func (c *Cache) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListRoles")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.roles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListRoles(ctx, req)
 }
 
 // GetRole is a part of auth.Cache implementation
@@ -2041,8 +2054,8 @@ type remoteClustersCacheKey struct {
 var _ map[remoteClustersCacheKey]struct{} // compile-time hashability check
 
 // GetRemoteClusters returns a list of remote clusters
-func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
-	ctx, span := c.Tracer.Start(context.TODO(), "cache/GetRemoteClusters")
+func (c *Cache) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetRemoteClusters")
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.remoteClusters)
@@ -2052,7 +2065,7 @@ func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remot
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		cachedRemotes, err := utils.FnCacheGet(ctx, c.fnCache, remoteClustersCacheKey{}, func(ctx context.Context) ([]types.RemoteCluster, error) {
-			remotes, err := rg.reader.GetRemoteClusters(opts...)
+			remotes, err := rg.reader.GetRemoteClusters(ctx)
 			return remotes, err
 		})
 		if err != nil || cachedRemotes == nil {
@@ -2065,12 +2078,12 @@ func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remot
 		}
 		return remotes, nil
 	}
-	return rg.reader.GetRemoteClusters(opts...)
+	return rg.reader.GetRemoteClusters(ctx)
 }
 
 // GetRemoteCluster returns a remote cluster by name
-func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
-	ctx, span := c.Tracer.Start(context.TODO(), "cache/GetRemoteCluster")
+func (c *Cache) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetRemoteCluster")
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.remoteClusters)
@@ -2080,7 +2093,7 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		cachedRemote, err := utils.FnCacheGet(ctx, c.fnCache, remoteClustersCacheKey{clusterName}, func(ctx context.Context) (types.RemoteCluster, error) {
-			remote, err := rg.reader.GetRemoteCluster(clusterName)
+			remote, err := rg.reader.GetRemoteCluster(ctx, clusterName)
 			return remote, err
 		})
 		if err != nil {
@@ -2089,17 +2102,31 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 
 		return cachedRemote.Clone(), nil
 	}
-	rc, err := rg.reader.GetRemoteCluster(clusterName)
+	rc, err := rg.reader.GetRemoteCluster(ctx, clusterName)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
 		// fallback is sane because this method is never used
 		// in construction of derivative caches.
-		if rc, err := c.Config.Presence.GetRemoteCluster(clusterName); err == nil {
+		if rc, err := c.Config.Presence.GetRemoteCluster(ctx, clusterName); err == nil {
 			return rc, nil
 		}
 	}
 	return rc, trace.Wrap(err)
+}
+
+// ListRemoteClusters returns a page of remote clusters.
+func (c *Cache) ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error) {
+	_, span := c.Tracer.Start(ctx, "cache/ListRemoteClusters")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.remoteClusters)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	remoteClusters, token, err := rg.reader.ListRemoteClusters(ctx, pageSize, nextToken)
+	return remoteClusters, token, trace.Wrap(err)
 }
 
 // GetUser is a part of auth.Cache implementation.
@@ -2449,7 +2476,7 @@ func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, er
 }
 
 // GetSessionRecordingConfig gets session recording configuration.
-func (c *Cache) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+func (c *Cache) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSessionRecordingConfig")
 	defer span.End()
 
@@ -2458,7 +2485,7 @@ func (c *Cache) GetSessionRecordingConfig(ctx context.Context, opts ...services.
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetSessionRecordingConfig(ctx, opts...)
+	return rg.reader.GetSessionRecordingConfig(ctx)
 }
 
 // GetNetworkRestrictions gets the network restrictions.
@@ -2925,6 +2952,19 @@ func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.Acc
 	}
 	defer rg.Release()
 	return rg.reader.GetAccessList(ctx, name)
+}
+
+// CountAccessListMembers will count all access list members.
+func (c *Cache) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/CountAccessListMembers")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.CountAccessListMembers(ctx, accessListName)
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.

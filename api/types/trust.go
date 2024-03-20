@@ -57,10 +57,22 @@ const (
 	// the certificate authority that will be used by the OIDC Identity Provider.
 	// Similar to JWTSigner, it doesn't issue Certificates but signs JSON Web Tokens.
 	OIDCIdPCA CertAuthType = "oidc_idp"
+	// SPIFFECA identifies the certificate authority that will be used by the
+	// SPIFFE Workload Identity provider functionality.
+	SPIFFECA CertAuthType = "spiffe"
 )
 
 // CertAuthTypes lists all certificate authority types.
-var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, DatabaseClientCA, OpenSSHCA, JWTSigner, SAMLIDPCA, OIDCIdPCA}
+var CertAuthTypes = []CertAuthType{HostCA,
+	UserCA,
+	DatabaseCA,
+	DatabaseClientCA,
+	OpenSSHCA,
+	JWTSigner,
+	SAMLIDPCA,
+	OIDCIdPCA,
+	SPIFFECA,
+}
 
 // NewlyAdded should return true for CA types that were added in the current
 // major version, so that we can avoid erroring out when a potentially older
@@ -77,6 +89,8 @@ func (c CertAuthType) addedInMajorVer() int64 {
 	case OpenSSHCA, SAMLIDPCA, OIDCIdPCA:
 		return 12
 	case DatabaseClientCA:
+		return 15
+	case SPIFFECA:
 		return 15
 	default:
 		// We don't care about other CAs added before v4.0.0

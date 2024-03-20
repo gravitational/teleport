@@ -45,7 +45,7 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentAuthority,
+	teleport.ComponentKey: teleport.ComponentAuthority,
 })
 
 // FromCertAndSigner returns a CertAuthority with the given raw certificate and signer.
@@ -1119,7 +1119,10 @@ func (id Identity) GetSessionMetadata(sid string) events.SessionMetadata {
 	}
 }
 
-// IsMFAVerified returns whether this identity is MFA verified.
+// IsMFAVerified returns whether this identity is MFA verified. This MFA
+// verification may or may not have taken place recently, so it should not
+// be treated as blanket MFA verification uncritically. For example, MFA
+// should be re-verified for login procedures or admin actions.
 func (id *Identity) IsMFAVerified() bool {
 	return id.MFAVerified != "" || id.PrivateKeyPolicy.MFAVerified()
 }

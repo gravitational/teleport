@@ -156,6 +156,18 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 				PrivateKey: keyBytes,
 			}},
 		}
+	case types.SPIFFECA:
+		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
+		// Generating keys is CPU intensive operation. Generate JWT keys only
+		// when needed.
+		publicKey, privateKey, err := testauthority.New().GenerateJWT()
+		if err != nil {
+			panic(err)
+		}
+		ca.Spec.ActiveKeys.JWT = []*types.JWTKeyPair{{
+			PublicKey:  publicKey,
+			PrivateKey: privateKey,
+		}}
 	default:
 		panic("unknown CA type")
 	}
@@ -1074,71 +1086,40 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 	require.NotEqual(t, updated.GetDisplay(), upserted.GetDisplay())
 }
 
-func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
-	ctx := context.Background()
-	clusterName := "example.com"
-	out, err := s.PresenceS.GetRemoteClusters()
-	require.NoError(t, err)
-	require.Empty(t, out)
-
-	rc, err := types.NewRemoteCluster(clusterName)
-	require.NoError(t, err)
-
-	rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
-
-	err = s.PresenceS.CreateRemoteCluster(rc)
-	require.NoError(t, err)
-
-	err = s.PresenceS.CreateRemoteCluster(rc)
-	require.True(t, trace.IsAlreadyExists(err))
-
-	out, err = s.PresenceS.GetRemoteClusters()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	require.Empty(t, cmp.Diff(out[0], rc, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
-
-	err = s.PresenceS.DeleteAllRemoteClusters()
-	require.NoError(t, err)
-
-	out, err = s.PresenceS.GetRemoteClusters()
-	require.NoError(t, err)
-	require.Empty(t, out)
-
-	// test delete individual connection
-	err = s.PresenceS.CreateRemoteCluster(rc)
-	require.NoError(t, err)
-
-	out, err = s.PresenceS.GetRemoteClusters()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	require.Empty(t, cmp.Diff(out[0], rc, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
-
-	err = s.PresenceS.DeleteRemoteCluster(ctx, clusterName)
-	require.NoError(t, err)
-
-	err = s.PresenceS.DeleteRemoteCluster(ctx, clusterName)
-	require.True(t, trace.IsNotFound(err))
-}
-
 // AuthPreference tests authentication preference service
 func (s *ServicesTestSuite) AuthPreference(t *testing.T) {
 	ctx := context.Background()
 	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		Type:                  "local",
-		SecondFactor:          "otp",
+		Type:                  constants.Local,
+		SecondFactor:          constants.SecondFactorOTP,
 		DisconnectExpiredCert: types.NewBoolOption(true),
 	})
 	require.NoError(t, err)
 
-	err = s.ConfigS.SetAuthPreference(ctx, ap)
+	// Create a preference when one does not exist.
+	created, err := s.ConfigS.CreateAuthPreference(ctx, ap)
 	require.NoError(t, err)
+	require.NotEmpty(t, created.GetRevision())
 
+	// Validate the created preference matches the retrieve preference.
 	gotAP, err := s.ConfigS.GetAuthPreference(ctx)
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(ap, gotAP), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"))
 
-	require.Equal(t, "local", gotAP.GetType())
-	require.Equal(t, constants.SecondFactorOTP, gotAP.GetSecondFactor())
-	require.True(t, gotAP.GetDisconnectExpiredCert())
+	// Validate that update only works if the revision matches.
+	gotAP.SetRevision("123")
+	_, err = s.ConfigS.UpdateAuthPreference(ctx, gotAP)
+	require.True(t, trace.IsCompareFailed(err))
+
+	created.SetSecondFactor(constants.SecondFactorOff)
+	updated, err := s.ConfigS.UpdateAuthPreference(ctx, created)
+	require.NoError(t, err)
+	require.Equal(t, constants.SecondFactorOff, updated.GetSecondFactor())
+
+	// Validate that upserting overwrites the value regardless of the revision.
+	upserted, err := s.ConfigS.UpsertAuthPreference(ctx, gotAP)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(upserted, gotAP), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"))
 }
 
 // SessionRecordingConfig tests session recording configuration.
@@ -1149,13 +1130,36 @@ func (s *ServicesTestSuite) SessionRecordingConfig(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = s.ConfigS.SetSessionRecordingConfig(ctx, recConfig)
-	require.NoError(t, err)
+	// Validate updating a non-existent config fails.
+	_, err = s.ConfigS.UpdateSessionRecordingConfig(ctx, recConfig)
+	require.True(t, trace.IsCompareFailed(err))
 
-	gotrecConfig, err := s.ConfigS.GetSessionRecordingConfig(ctx)
+	// Create a config when one does not exist.
+	created, err := s.ConfigS.CreateSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
+	require.NotEmpty(t, created.GetRevision())
 
-	require.Equal(t, types.RecordAtProxy, gotrecConfig.GetMode())
+	// Validate the created config matches the retrieve config.
+	gotRecConfig, err := s.ConfigS.GetSessionRecordingConfig(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(recConfig, gotRecConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	// Validate that update only works if the revision matches.
+	gotRecConfig.SetRevision("123")
+	_, err = s.ConfigS.UpdateSessionRecordingConfig(ctx, gotRecConfig)
+	require.True(t, trace.IsCompareFailed(err))
+
+	created.SetMode(types.RecordAtNode)
+
+	updated, err := s.ConfigS.UpdateSessionRecordingConfig(ctx, created)
+	require.NoError(t, err)
+	require.Equal(t, types.RecordAtNode, updated.GetMode())
+
+	// Validate that upserting overwrites the value regardless of the revision.
+	upserted, err := s.ConfigS.UpsertSessionRecordingConfig(ctx, gotRecConfig)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(upserted, gotRecConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
 }
 
 func (s *ServicesTestSuite) StaticTokens(t *testing.T) {
@@ -1247,14 +1251,75 @@ func (s *ServicesTestSuite) ClusterNetworkingConfig(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = s.ConfigS.SetClusterNetworkingConfig(ctx, netConfig)
-	require.NoError(t, err)
+	// Validate updating a non-existent config fails.
+	_, err = s.ConfigS.UpdateClusterNetworkingConfig(ctx, netConfig)
+	require.True(t, trace.IsCompareFailed(err))
 
+	// Create a config when one does not exist.
+	created, err := s.ConfigS.CreateClusterNetworkingConfig(ctx, netConfig)
+	require.NoError(t, err)
+	require.NotEmpty(t, created.GetRevision())
+
+	// Validate the created config matches the retrieve config.
 	gotNetConfig, err := s.ConfigS.GetClusterNetworkingConfig(ctx)
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(netConfig, gotNetConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
-	require.Equal(t, 17*time.Second, gotNetConfig.GetClientIdleTimeout())
-	require.Equal(t, int64(3000), gotNetConfig.GetKeepAliveCountMax())
+	// Validate that update only works if the revision matches.
+	gotNetConfig.SetRevision("123")
+	_, err = s.ConfigS.UpdateClusterNetworkingConfig(ctx, gotNetConfig)
+	require.True(t, trace.IsCompareFailed(err))
+
+	created.SetKeepAliveCountMax(10)
+
+	updated, err := s.ConfigS.UpdateClusterNetworkingConfig(ctx, created)
+	require.NoError(t, err)
+	require.Equal(t, int64(10), updated.GetKeepAliveCountMax())
+
+	// Validate that upserting overwrites the value regardless of the revision.
+	upserted, err := s.ConfigS.UpsertClusterNetworkingConfig(ctx, gotNetConfig)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(upserted, gotNetConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+}
+
+// ClusterAuditConfig tests cluster audit configuration.
+func (s *ServicesTestSuite) ClusterAuditConfig(t *testing.T) {
+	ctx := context.Background()
+	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+		Region:                  "us-east-1",
+		EnableContinuousBackups: true,
+	})
+	require.NoError(t, err)
+
+	// Validate updating a non-existent config fails.
+	_, err = s.ConfigS.UpdateClusterAuditConfig(ctx, auditConfig)
+	require.True(t, trace.IsCompareFailed(err))
+
+	// Create a config when one does not exist.
+	created, err := s.ConfigS.CreateClusterAuditConfig(ctx, auditConfig)
+	require.NoError(t, err)
+	require.NotEmpty(t, created.GetRevision())
+
+	// Validate the created config matches the retrieve config.
+	gotAuditConfig, err := s.ConfigS.GetClusterAuditConfig(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(auditConfig, gotAuditConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	// Validate that update only works if the revision matches.
+	gotAuditConfig.SetRevision("123")
+	_, err = s.ConfigS.UpdateClusterAuditConfig(ctx, gotAuditConfig)
+	require.True(t, trace.IsCompareFailed(err))
+
+	created.SetRegion("us-west-2")
+
+	updated, err := s.ConfigS.UpdateClusterAuditConfig(ctx, created)
+	require.NoError(t, err)
+	require.Equal(t, "us-west-2", updated.Region())
+
+	// Validate that upserting overwrites the value regardless of the revision.
+	upserted, err := s.ConfigS.UpsertClusterAuditConfig(ctx, gotAuditConfig)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(upserted, gotAuditConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 // sem wrapper is a helper for overriding the keepalive
@@ -1719,9 +1784,10 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				rc, err := types.NewRemoteCluster("example.com")
 				rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 				require.NoError(t, err)
-				require.NoError(t, s.PresenceS.CreateRemoteCluster(rc))
+				_, err = s.PresenceS.CreateRemoteCluster(ctx, rc)
+				require.NoError(t, err)
 
-				out, err := s.PresenceS.GetRemoteClusters()
+				out, err := s.PresenceS.GetRemoteClusters(ctx)
 				require.NoError(t, err)
 
 				err = s.PresenceS.DeleteRemoteCluster(ctx, rc.GetName())
@@ -1846,7 +1912,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				err = s.ConfigS.SetClusterNetworkingConfig(ctx, netConfig)
+				_, err = s.ConfigS.UpsertClusterNetworkingConfig(ctx, netConfig)
 				require.NoError(t, err)
 
 				out, err := s.ConfigS.GetClusterNetworkingConfig(ctx)
@@ -1868,7 +1934,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				err = s.ConfigS.SetSessionRecordingConfig(ctx, recConfig)
+				_, err = s.ConfigS.UpsertSessionRecordingConfig(ctx, recConfig)
 				require.NoError(t, err)
 
 				out, err := s.ConfigS.GetSessionRecordingConfig(ctx)

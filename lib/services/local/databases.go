@@ -90,6 +90,10 @@ func (s *DatabaseService) CreateDatabase(ctx context.Context, database types.Dat
 		ID:      database.GetResourceID(),
 	}
 	_, err = s.Create(ctx, item)
+	if trace.IsAlreadyExists(err) {
+		return trace.AlreadyExists("database %q already exists", database.GetName())
+	}
+
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -114,6 +118,10 @@ func (s *DatabaseService) UpdateDatabase(ctx context.Context, database types.Dat
 		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)
+	if trace.IsNotFound(err) {
+		return trace.NotFound("database %q doesn't exist", database.GetName())
+	}
+
 	if err != nil {
 		return trace.Wrap(err)
 	}

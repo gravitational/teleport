@@ -74,7 +74,8 @@ export function OfflineGateway(props: {
       )}
       <Flex
         as="form"
-        onSubmit={() => {
+        onSubmit={e => {
+          e.preventDefault();
           setReconnectRequested(true);
           props.reconnect(props.gatewayPort.isSupported ? port : undefined);
         }}

@@ -65,7 +65,7 @@ export class AwsLaunchButton extends React.Component<Props> {
             horizontal: 'right',
           }}
           anchorOrigin={{
-            vertical: 'center',
+            vertical: 'bottom',
             horizontal: 'right',
           }}
           getContentAnchorEl={null}

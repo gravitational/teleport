@@ -215,4 +215,61 @@ func TestDiscoveryConfig(t *testing.T) {
 		require.Len(t, uniqDC, listTestCount)
 		require.Zero(t, iterationsCount, "invalid number of iterations")
 	})
+
+	t.Run("Create valid access graph", func(t *testing.T) {
+		resp, err := pack.clt.PostJSON(ctx, createEndpoint, ui.DiscoveryConfig{
+			Name:           "dc01",
+			DiscoveryGroup: "dg01",
+			AccessGraph: &types.AccessGraphSync{
+				AWS: []*types.AccessGraphAWSSync{
+					{
+						Regions:     []string{"us-west-2"},
+						Integration: "integrationrole",
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.Code())
+
+		t.Run("Create fails when name already exists", func(t *testing.T) {
+			resp, err := pack.clt.PostJSON(ctx, createEndpoint, ui.DiscoveryConfig{
+				Name:           "dc01",
+				DiscoveryGroup: "dg01",
+				AccessGraph: &types.AccessGraphSync{
+					AWS: []*types.AccessGraphAWSSync{
+						{
+							Regions:     []string{"us-west-2"},
+							Integration: "integrationrole",
+						},
+					},
+				},
+			})
+			require.ErrorContains(t, err, "already exists")
+			require.Equal(t, http.StatusConflict, resp.Code())
+		})
+
+		getDC01Endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "discoveryconfig", "dc01")
+		t.Run("Get one", func(t *testing.T) {
+			resp, err := pack.clt.Get(ctx, getDC01Endpoint, nil)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.Code())
+
+			var discoveryConfigResp ui.DiscoveryConfig
+			err = json.Unmarshal(resp.Bytes(), &discoveryConfigResp)
+			require.NoError(t, err)
+			require.Equal(t, "dg01", discoveryConfigResp.DiscoveryGroup)
+			require.Equal(t, "dc01", discoveryConfigResp.Name)
+			require.NotNil(t, discoveryConfigResp.AccessGraph)
+			expected := &types.AccessGraphSync{
+				AWS: []*types.AccessGraphAWSSync{
+					{
+						Regions:     []string{"us-west-2"},
+						Integration: "integrationrole",
+					},
+				},
+			}
+			require.Equal(t, expected, discoveryConfigResp.AccessGraph)
+		})
+	})
 }

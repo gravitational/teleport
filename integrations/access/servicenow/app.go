@@ -140,10 +140,9 @@ func (a *App) init(ctx context.Context) error {
 	log := logger.Get(ctx)
 
 	var err error
-	if a.teleport == nil {
-		if a.teleport, err = common.GetTeleportClient(ctx, a.conf.Teleport); err != nil {
-			return trace.Wrap(err)
-		}
+	a.teleport, err = a.conf.GetTeleportClient(ctx)
+	if err != nil {
+		return trace.Wrap(err, "getting teleport client")
 	}
 
 	pong, err := a.checkTeleportVersion(ctx)
@@ -403,15 +402,19 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 		logger.Get(ctx).Debugf("Skipping the approval: %s", err)
 		return nil
 	}
+	log.Debugf("Checking the following shifts to see if the requester is on-call: %s", serviceNames)
 
 	onCallUsers, err := a.getOnCallUsers(ctx, serviceNames)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	log.Debugf("Users on-call are: %s", onCallUsers)
 
 	if userIsOnCall := slices.Contains(onCallUsers, req.GetUser()); !userIsOnCall {
+		log.Debugf("User %q is not on-call, not approving the request %q.", req.GetUser(), req.GetName())
 		return nil
 	}
+	log.Debugf("User %q is on-call. Auto-approving the request %q.", req.GetUser(), req.GetName())
 	if _, err := a.teleport.SubmitAccessReview(ctx, types.AccessReviewSubmission{
 		RequestID: req.GetName(),
 		Review: types.AccessReview{
