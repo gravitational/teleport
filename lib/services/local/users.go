@@ -784,6 +784,12 @@ func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 		return trace.Wrap(err)
 	}
 
+	// To make sure that the password state reflects the actual state of the
+	// password whenever we update or delete it, we first set it to UNSPECIFIED,
+	// and then use CompareAndSwapUser to update it to the expected value. We risk
+	// that the password state will be left UNSPECIFIED, but this is tolerable,
+	// since this is also the initial state for legacy users. In future, all of
+	// the user operations should be moved to AtomicWrite.
 	u, err := s.UpdateAndSwapUser(context.TODO(), user, false /*withSecrets*/, func(u types.User) (bool, error) {
 		u.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSPECIFIED)
 		return true, nil
@@ -814,6 +820,7 @@ func (s *IdentityService) DeletePassword(ctx context.Context, user string) error
 		return trace.BadParameter("missing username")
 	}
 
+	// See the comment in UpsertPassword.
 	u, err := s.UpdateAndSwapUser(context.TODO(), user, false /*withSecrets*/, func(u types.User) (bool, error) {
 		u.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSPECIFIED)
 		return true, nil
