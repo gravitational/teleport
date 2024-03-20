@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"slices"
 	"sync"
@@ -32,7 +33,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
@@ -290,9 +290,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 						sendError(trace.Wrap(err))
 						continue
 					}
-					log.WithField("address", addrs).Debug(
-						"No addresses were configured explicitly, falling back to addresses specified by credential. Consider explicitly configuring an address.",
-					)
+					slog.DebugContext(ctx, "No addresses were configured explicitly, falling back to addresses specified by credential. Consider explicitly configuring an address.", "address", addrs)
 				}
 			}
 
@@ -2522,7 +2520,7 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 		event, err := events.FromOneOf(*rawEvent)
 		if err != nil {
 			if trace.IsBadParameter(err) {
-				log.Warnf("skipping unknown event: %v", err)
+				slog.WarnContext(ctx, "skipping unknown event", "error", err)
 				continue
 			}
 			return nil, "", trace.Wrap(err)
@@ -2965,6 +2963,15 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 		return nil, trace.Wrap(err)
 	}
 	return resp, nil
+}
+
+// GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
+func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
+	rsp, err := c.ClusterConfigClient().GetClusterAccessGraphConfig(ctx, &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rsp.AccessGraph, nil
 }
 
 // GetInstaller gets all installer script resources
