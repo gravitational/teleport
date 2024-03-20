@@ -362,7 +362,8 @@ func TestRBACJoinMFA(t *testing.T) {
 			authPref: noMFAAuthPref,
 			role:     joinMFARole.GetName(),
 			testError: func(t *testing.T, err error) {
-				require.NoError(t, err)
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
 		{
@@ -394,7 +395,7 @@ func TestRBACJoinMFA(t *testing.T) {
 				Traits: wrappers.Traits{
 					teleport.TraitInternalPrefix: []string{""},
 				},
-				Roles:             []string{joinRole.GetName()},
+				Roles:             []string{tt.role},
 				CertificateFormat: constants.CertificateFormatStandard,
 			})
 			require.NoError(t, err)
