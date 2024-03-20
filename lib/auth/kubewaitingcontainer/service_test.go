@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -28,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
 )
 
 func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
@@ -124,12 +124,12 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 					ContainerName: wcName,
 				})
 				require.NoError(t, err)
-				require.Equal(t, out.Metadata.Name, wcName)
-				require.Equal(t, out.Spec.Username, username)
-				require.Equal(t, out.Spec.Cluster, cluster)
-				require.Equal(t, out.Spec.Namespace, namespace)
-				require.Equal(t, out.Spec.PodName, podName)
-				require.Equal(t, out.Spec.ContainerName, wcName)
+				require.Equal(t, wcName, out.Metadata.Name)
+				require.Equal(t, username, out.Spec.Username)
+				require.Equal(t, cluster, out.Spec.Cluster)
+				require.Equal(t, namespace, out.Spec.Namespace)
+				require.Equal(t, podName, out.Spec.PodName)
+				require.Equal(t, wcName, out.Spec.ContainerName)
 			},
 		},
 		{
@@ -180,12 +180,12 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 					WaitingContainer: sampleKubeWaitingContFn(t, wcName),
 				})
 				require.NoError(t, err)
-				require.Equal(t, out.Metadata.Name, wcName)
-				require.Equal(t, out.Spec.Username, username)
-				require.Equal(t, out.Spec.Cluster, cluster)
-				require.Equal(t, out.Spec.Namespace, namespace)
-				require.Equal(t, out.Spec.PodName, podName)
-				require.Equal(t, out.Spec.ContainerName, wcName)
+				require.Equal(t, wcName, out.Metadata.Name)
+				require.Equal(t, username, out.Spec.Username)
+				require.Equal(t, cluster, out.Spec.Cluster)
+				require.Equal(t, namespace, out.Spec.Namespace)
+				require.Equal(t, podName, out.Spec.PodName)
+				require.Equal(t, wcName, out.Spec.ContainerName)
 			},
 		},
 		{
