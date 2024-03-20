@@ -75,10 +75,46 @@ func NewNotificationsService(backend backend.Backend, clock clockwork.Clock) (*N
 	}, nil
 }
 
-// ListNotificationsForUser returns a paginated list of notifications which match a user, including both user-specific and global ones.
-func (s *NotificationsService) ListNotificationsForUser(ctx context.Context) ([]*notificationsv1.Notification, string, error) {
-	// TODO: rudream - implement listing notifications for a user with filtering/matching
-	return []*notificationsv1.Notification{}, "", nil
+// GetAllUserNotifications returns all user-specific notifications for all users. This should only ever be called to initialize the UserNotificationCache.
+func (s *NotificationsService) GetAllUserNotifications(ctx context.Context) ([]*notificationsv1.Notification, error) {
+	notifications := []*notificationsv1.Notification{}
+	startKey := ""
+
+	// Keep listing until there are no more pages.
+	for {
+		resp, nextKey, err := s.userNotificationService.ListResources(ctx, 50, startKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		notifications = append(notifications, resp...)
+		if nextKey == "" {
+			break
+		}
+		startKey = nextKey
+	}
+	return notifications, nil
+}
+
+// GetAllGlobalNotifications returns all global notifications. This should only ever be called to initialize the GlobalNotificationCache.
+func (s *NotificationsService) GetAllGlobalNotifications(ctx context.Context) ([]*notificationsv1.GlobalNotification, error) {
+	globalNotifications := []*notificationsv1.GlobalNotification{}
+	startKey := ""
+
+	// Keep listing until there are no more pages.
+	for {
+		resp, nextKey, err := s.globalNotificationService.ListResources(ctx, 50, startKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		globalNotifications = append(globalNotifications, resp...)
+		if nextKey == "" {
+			break
+		}
+		startKey = nextKey
+	}
+	return globalNotifications, nil
 }
 
 // CreateUserNotification creates a user-specific notification.
@@ -90,6 +126,7 @@ func (s *NotificationsService) CreateUserNotification(ctx context.Context, usern
 	notification.Kind = types.KindNotification
 	notification.Version = types.V1
 
+	notification.Spec.Username = username
 	// Generate uuidv7 ID.
 	uuid, err := uuid.NewV7()
 	if err != nil {

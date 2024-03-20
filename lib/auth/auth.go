@@ -539,6 +539,7 @@ type Services struct {
 	services.UserPreferences
 	services.PluginData
 	services.SCIM
+	services.Notifications
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
@@ -824,6 +825,12 @@ type Server struct {
 	// custom sorting options not available via the standard backend.
 	AccessRequestCache *services.AccessRequestCache
 
+	// UserNotificationCache is a cache of user-specific notifications.
+	UserNotificationCache *services.UserNotificationCache
+
+	// GlobalNotificationCache is a cache of global notifications.
+	GlobalNotificationCache *services.GlobalNotificationCache
+
 	inventory *inventory.Controller
 
 	// githubOrgSSOCache is used to cache whether Github organizations use
@@ -1009,6 +1016,20 @@ func (a *Server) SetAccessRequestCache(accessRequestCache *services.AccessReques
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.AccessRequestCache = accessRequestCache
+}
+
+// SetUserNotificationsCache sets the user notification cache.
+func (a *Server) SetUserNotificationCache(userNotificationCache *services.UserNotificationCache) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.UserNotificationCache = userNotificationCache
+}
+
+// SetGlobalNotificationsCache sets the global notification cache.
+func (a *Server) SetGlobalNotificationCache(globalNotificationCache *services.GlobalNotificationCache) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.GlobalNotificationCache = globalNotificationCache
 }
 
 func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
@@ -1645,6 +1666,18 @@ func (a *Server) Close() error {
 
 	if a.AccessRequestCache != nil {
 		if err := a.AccessRequestCache.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if a.UserNotificationCache != nil {
+		if err := a.UserNotificationCache.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if a.GlobalNotificationCache != nil {
+		if err := a.GlobalNotificationCache.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}

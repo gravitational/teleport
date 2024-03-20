@@ -1947,6 +1947,26 @@ func (process *TeleportProcess) initAuthService() error {
 
 	authServer.SetAccessRequestCache(accessRequestCache)
 
+	userNotificationCache, err := services.NewUserNotificationCache(services.NotificationCacheConfig{
+		Events: authServer.Services,
+		Getter: authServer.Services,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authServer.SetUserNotificationCache(userNotificationCache)
+
+	globalNotificationCache, err := services.NewGlobalNotificationCache(services.NotificationCacheConfig{
+		Events: authServer.Services,
+		Getter: authServer.Services,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authServer.SetGlobalNotificationCache(globalNotificationCache)
+
 	if embedderClient != nil {
 		logger.DebugContext(process.ExitContext(), "Starting embedding watcher")
 		embeddingProcessor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
