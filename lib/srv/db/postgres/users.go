@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/srv/db/common/permissions"
 )
 
@@ -125,7 +126,7 @@ var pgTablePerms = map[string]struct{}{
 
 func checkPgPermission(objKind, perm string) error {
 	// for now, only tables are supported. ignore other kinds of objects.
-	if objKind != permissions.ObjectKindTable {
+	if objKind != databaseobjectimportrule.ObjectKindTable {
 		return nil
 	}
 
@@ -147,7 +148,7 @@ func convertPermissions(perms permissions.PermissionSet) (*Permissions, error) {
 				errors = append(errors, err)
 				continue
 			}
-			if obj.GetSpec().ObjectKind == permissions.ObjectKindTable {
+			if obj.GetSpec().ObjectKind == databaseobjectimportrule.ObjectKindTable {
 				out.Tables = append(out.Tables, TablePermission{
 					Privilege: permission,
 					Schema:    obj.GetSpec().Schema,
@@ -207,14 +208,14 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	counts, countMap := permissions.CountObjectKinds(objsFetched)
-	e.Log.WithField("kind_counts", countMap).WithField("total", len(objsFetched)).Infof("Fetched %v objects from the database (%v).", len(objsFetched), counts)
+	counts, _ := permissions.CountObjectKinds(objsFetched)
+	e.Log.WithField("total", len(objsFetched)).Infof("Database objects fetched from the database (%v).", counts)
 
-	objsTagged := permissions.ApplyDatabaseObjectImportRules(rules, sessionCtx.Database, objsFetched)
-	counts, countMap = permissions.CountObjectKinds(objsTagged)
-	e.Log.WithField("kind_counts", countMap).WithField("total", len(objsFetched)).Infof("Tagged %v database objects (%v).", len(objsTagged), counts)
+	objsImported, errCount := databaseobjectimportrule.ApplyDatabaseObjectImportRules(e.Log, rules, sessionCtx.Database, objsFetched)
+	counts, _ = permissions.CountObjectKinds(objsImported)
+	e.Log.WithField("err_count", errCount).WithField("total", len(objsFetched)).Infof("Database objects imported (%v).", counts)
 
-	permissionSet, err := permissions.CalculatePermissions(sessionCtx.Checker, sessionCtx.Database, objsTagged)
+	permissionSet, err := permissions.CalculatePermissions(sessionCtx.Checker, sessionCtx.Database, objsImported)
 	if err != nil {
 		return trace.Wrap(err)
 	}
