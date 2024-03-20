@@ -2127,8 +2127,7 @@ func (kubeWaitingContainerExecutor) deleteAll(ctx context.Context, cache *Cache)
 func (kubeWaitingContainerExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
 	switch r := resource.(type) {
 	case types.Resource153Unwrapper:
-		r153 := r.Unwrap()
-		switch wc := r153.(type) {
+		switch wc := r.Unwrap().(type) {
 		case *kubewaitingcontainerpb.KubernetesWaitingContainer:
 			err := cache.kubeWaitingContsCache.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
 				Username:      wc.Spec.Username,
