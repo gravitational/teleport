@@ -973,7 +973,7 @@ var dbProxySpannerAuthTpl = template.Must(template.New("").Parse(
 {{end}}
 ` + dbProxyConnectAd + `
 Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
-  $ SPANNER_EMULATOR_HOST={{.address}} {{.command}}
+  $ {{.command}}
 
 Or use a JDBC connection string to connect with other GUI/CLI clients:
 jdbc:cloudspanner://{{.address}}/projects/{{.gcpProject}}/instances/{{.gcpInstance}}/databases/{{.databaseName}}

@@ -296,8 +296,7 @@ func onDatabaseLogin(cf *CLIConf) error {
 // client interactive mode that is needed for the tsh db connect flow.
 func protocolSupportsInteractiveMode(dbProtocol string) bool {
 	switch dbProtocol {
-	case defaults.ProtocolDynamoDB,
-		defaults.ProtocolSpanner:
+	case defaults.ProtocolDynamoDB:
 		return false
 	}
 	return true
@@ -809,6 +808,9 @@ func onDatabaseConnect(cf *CLIConf) error {
 	opts = append(opts, dbcmd.WithLogger(log))
 
 	if opts, err = maybeAddDBUserPassword(cf, tc, dbInfo, opts); err != nil {
+		return trace.Wrap(err)
+	}
+	if opts, err = maybeAddGCPMetadata(cf.Context, tc, dbInfo, opts); err != nil {
 		return trace.Wrap(err)
 	}
 

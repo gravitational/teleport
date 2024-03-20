@@ -668,10 +668,10 @@ func (c *CLICommandBuilder) getOpenSearchCLICommand() (*exec.Cmd, error) {
 	return exec.Command(openSearchCLIBin, args...), nil
 }
 
-func (c *CLICommandBuilder) checkLocalProxyTunnelOnly() error {
+func (c *CLICommandBuilder) checkLocalProxyTunnelOnly(printOnly bool) error {
 	// we can't guess at what the user wants to do, so this command is for print purposes only,
 	// and it only works with a local proxy tunnel.
-	if !c.options.printFormat || !c.options.noTLS || c.options.localProxyHost == "" || c.options.localProxyPort == 0 {
+	if (printOnly && !c.options.printFormat) || !c.options.noTLS || c.options.localProxyHost == "" || c.options.localProxyPort == 0 {
 		svc := "<db>"
 		if c.db != nil && c.db.ServiceName != "" {
 			svc = c.db.ServiceName
@@ -683,7 +683,7 @@ func (c *CLICommandBuilder) checkLocalProxyTunnelOnly() error {
 }
 
 func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
-	if err := c.checkLocalProxyTunnelOnly(); err != nil {
+	if err := c.checkLocalProxyTunnelOnly(true); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	args := []string{
@@ -695,7 +695,7 @@ func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
 }
 
 func (c *CLICommandBuilder) getSpannerCommand() (*exec.Cmd, error) {
-	if err := c.checkLocalProxyTunnelOnly(); err != nil {
+	if err := c.checkLocalProxyTunnelOnly(false); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	project := "<project>"
@@ -716,7 +716,11 @@ func (c *CLICommandBuilder) getSpannerCommand() (*exec.Cmd, error) {
 		"-i", instance,
 		"-d", database,
 	}
-	return exec.Command(spannerBin, args...), nil
+	cmd := exec.Command(spannerBin, args...)
+	cmd.Env = append(cmd.Env,
+		fmt.Sprintf("SPANNER_EMULATOR_HOST=%v:%v", c.host, c.port),
+	)
+	return cmd, nil
 }
 
 type jdbcOracleThinConnection struct {
