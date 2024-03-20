@@ -624,12 +624,22 @@ func TestMergeStreams(t *testing.T) {
 		return a <= convertBFunc(b)
 	}
 
+	filterAFunc := func(a int) bool {
+		return true
+	}
+
+	// Only returns true if the number is even.
+	filterBFunc := func(b string) bool {
+		intValue := convertBFunc(b)
+		return intValue%2 == 0
+	}
+
 	// Test the case where the streams should have interlaced values.
 	t.Run("interlaced streams", func(t *testing.T) {
 		streamA := Slice([]int{1, 3, 5})
 		streamB := Slice([]string{"2", "4", "6"})
 
-		resultStream := MergeStreams(streamA, streamB, compareFunc, convertAFunc, convertBFunc)
+		resultStream := MergeStreams(streamA, streamB, compareFunc, convertAFunc, convertBFunc, filterAFunc, filterBFunc)
 		out, err := Collect(resultStream)
 
 		require.NoError(t, err)
@@ -642,13 +652,13 @@ func TestMergeStreams(t *testing.T) {
 	// Test the case where streamA is empty.
 	t.Run("stream A empty", func(t *testing.T) {
 		streamA := Empty[int]()
-		streamB := Slice([]string{"1", "2", "3"})
+		streamB := Slice([]string{"1", "2", "3", "4"})
 
-		resultStream := MergeStreams(streamA, streamB, compareFunc, convertAFunc, convertBFunc)
+		resultStream := MergeStreams(streamA, streamB, compareFunc, convertAFunc, convertBFunc, filterAFunc, filterBFunc)
 		out, err := Collect(resultStream)
 
 		require.NoError(t, err)
-		require.Equal(t, []int{1, 2, 3}, out)
+		require.Equal(t, []int{2, 4}, out)
 
 		err = resultStream.Done()
 		require.NoError(t, err)
@@ -659,7 +669,7 @@ func TestMergeStreams(t *testing.T) {
 		streamA := Slice([]int{1, 2, 3})
 		streamB := Empty[string]()
 
-		resultStream := MergeStreams(streamA, streamB, compareFunc, convertAFunc, convertBFunc)
+		resultStream := MergeStreams(streamA, streamB, compareFunc, convertAFunc, convertBFunc, filterAFunc, filterBFunc)
 		out, err := Collect(resultStream)
 
 		require.NoError(t, err)
@@ -674,7 +684,7 @@ func TestMergeStreams(t *testing.T) {
 		streamA := Empty[int]()
 		streamB := Empty[string]()
 
-		resultStream := MergeStreams(streamA, streamB, compareFunc, convertAFunc, convertBFunc)
+		resultStream := MergeStreams(streamA, streamB, compareFunc, convertAFunc, convertBFunc, filterAFunc, filterBFunc)
 		out, err := Collect(resultStream)
 
 		require.NoError(t, err)
@@ -689,11 +699,11 @@ func TestMergeStreams(t *testing.T) {
 		streamA := Slice([]int{1, 2, 3})
 		streamB := Slice([]string{"4", "5", "6"})
 
-		resultStream := MergeStreams(streamA, streamB, compareFunc, convertAFunc, convertBFunc)
+		resultStream := MergeStreams(streamA, streamB, compareFunc, convertAFunc, convertBFunc, filterAFunc, filterBFunc)
 		out, err := Collect(resultStream)
 
 		require.NoError(t, err)
-		require.Equal(t, []int{1, 2, 3, 4, 5, 6}, out)
+		require.Equal(t, []int{1, 2, 3, 4, 6}, out)
 
 		err = resultStream.Done()
 		require.NoError(t, err)
@@ -704,11 +714,26 @@ func TestMergeStreams(t *testing.T) {
 		streamA := Slice([]int{4, 5, 6})
 		streamB := Slice([]string{"1", "2", "3"})
 
-		resultStream := MergeStreams(streamA, streamB, compareFunc, convertAFunc, convertBFunc)
+		resultStream := MergeStreams(streamA, streamB, compareFunc, convertAFunc, convertBFunc, filterAFunc, filterBFunc)
 		out, err := Collect(resultStream)
 
 		require.NoError(t, err)
-		require.Equal(t, []int{1, 2, 3, 4, 5, 6}, out)
+		require.Equal(t, []int{2, 4, 5, 6}, out)
+
+		err = resultStream.Done()
+		require.NoError(t, err)
+	})
+
+	// Test the case where every value in streamB is lower than every value in streamA.
+	t.Run("compare always favors B", func(t *testing.T) {
+		streamA := Slice([]int{4, 5, 6})
+		streamB := Slice([]string{"1", "2", "3"})
+
+		resultStream := MergeStreams(streamA, streamB, compareFunc, convertAFunc, convertBFunc, filterAFunc, filterBFunc)
+		out, err := Collect(resultStream)
+
+		require.NoError(t, err)
+		require.Equal(t, []int{2, 4, 5, 6}, out)
 
 		err = resultStream.Done()
 		require.NoError(t, err)

@@ -394,19 +394,39 @@ type mergedStream[T, U, V any] struct {
 	convertA func(item T) V
 	// convertB converts an item from streamB into the V type.
 	convertB func(item U) V
+	// filterA is a function that is run to determine whether itemA should be yielded. If false, we will skip it and go to the next one.
+	filterA func(item T) bool
+	// filterB is a function that is run to determine whether itemB should be yielded. If false, we will skip it and go to the next one.
+	filterB func(item U) bool
 }
 
 // Next attempts to advance each stream to the next item. If false is returned, then no more items are available.
 func (ms *mergedStream[T, U, V]) Next() bool {
 	// Attempt to advance to the next item in streamA, if we don't already have an item from it.
-	if !ms.hasItemA && ms.streamA.Next() {
-		ms.itemA = ms.streamA.Item()
-		ms.hasItemA = true
+	if !ms.hasItemA {
+		var item T
+		// We keep going to the next item in streamA until we get one that passes the filter function.
+		for ms.streamA.Next() {
+			item = ms.streamA.Item()
+			if ms.filterA(item) {
+				ms.itemA = item
+				ms.hasItemA = true
+				break
+			}
+		}
 	}
-	// Attempt to advance to the next item in streamB, if we don't already  have an item from it.
-	if !ms.hasItemB && ms.streamB.Next() {
-		ms.itemB = ms.streamB.Item()
-		ms.hasItemB = true
+	// Attempt to advance to the next item in streamB, if we don't already have an item from it.
+	if !ms.hasItemB {
+		var item U
+		// We keep going to the next item in streamB until we get one that passes the filter function.
+		for ms.streamB.Next() {
+			item = ms.streamB.Item()
+			if ms.filterB(item) {
+				ms.itemB = item
+				ms.hasItemB = true
+				break
+			}
+		}
 	}
 
 	// Return true if either stream has an item available.
@@ -472,6 +492,8 @@ func MergeStreams[T any, U, V any](
 	less func(a T, b U) bool,
 	convertA func(item T) V,
 	convertB func(item U) V,
+	filterA func(item T) bool,
+	filterB func(item U) bool,
 ) Stream[V] {
 	return &mergedStream[T, U, V]{
 		streamA:  streamA,
@@ -479,5 +501,7 @@ func MergeStreams[T any, U, V any](
 		less:     less,
 		convertA: convertA,
 		convertB: convertB,
+		filterA:  filterA,
+		filterB:  filterB,
 	}
 }
