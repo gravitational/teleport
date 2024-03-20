@@ -26,10 +26,10 @@ use bytes::BytesMut;
 use ironrdp_cliprdr::{Cliprdr, CliprdrClient, CliprdrSvcMessages};
 use ironrdp_connector::connection_activation::ConnectionActivationState;
 use ironrdp_connector::{Config, ConnectorError, Credentials, DesktopSize};
+use ironrdp_dvc::display::{Monitor, MonitorFlags, Orientation};
 use ironrdp_dvc::DrdynvcClient;
-use ironrdp_pdu::dvc::display::{
-    ClientPdu, DisplayPipelineError, Monitor, MonitorFlags, MonitorLayoutPdu, Orientation,
-};
+use ironrdp_dvc::DynamicChannelId;
+use ironrdp_dvc::{display::DisplayControlClient, DvcProcessor};
 use ironrdp_pdu::input::fast_path::{
     FastPathInput, FastPathInputEvent, KeyboardFlags, SynchronizeFlags,
 };
@@ -39,7 +39,7 @@ use ironrdp_pdu::mcs::DisconnectReason;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::write_buf::WriteBuf;
-use ironrdp_pdu::{custom_err, dvc, function, PduError, PduParsing};
+use ironrdp_pdu::{custom_err, function, PduError, PduParsing};
 use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
@@ -157,7 +157,9 @@ impl Client {
 
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config.clone())
             .with_server_addr(server_socket_addr)
-            .with_static_channel(DrdynvcClient::new())
+            .with_static_channel(
+                DrdynvcClient::new().with_dynamic_channel(DisplayControlClient::new()),
+            )
             .with_static_channel(Rdpsnd::new()) // required for rdpdr to work
             .with_static_channel(rdpdr);
 
@@ -211,8 +213,6 @@ impl Client {
             connection_result.static_channels,
             connection_result.user_channel_id,
             connection_result.io_channel_id,
-            None,
-            None,
             connection_result.connection_activation,
         );
 
@@ -647,45 +647,49 @@ impl Client {
         width: u32,
         height: u32,
     ) -> ClientResult<()> {
-        let monitor_layout_buf = {
-            let mut monitor_layout_buf = WriteBuf::new(); // TODO(isaiah): re-use this?
-            let orientation = if width > height {
-                Orientation::Landscape
-            } else {
-                Orientation::Portrait
-            };
-            let monitor_layout_pdu = ClientPdu::DisplayControlMonitorLayout(MonitorLayoutPdu {
-                monitors: vec![Monitor {
-                    flags: MonitorFlags::PRIMARY,
-                    left: 0,
-                    top: 0,
-                    width,
-                    height,
-                    physical_width: 0,
-                    physical_height: 0,
-                    orientation,
-                    desktop_scale_factor: 100, // percent; todo: can this be zero?
-                    device_scale_factor: 100,  // percent; todo: can this be zero?
-                }],
-            });
-            monitor_layout_pdu.to_buffer(&mut monitor_layout_buf)?;
-
-            Ok::<_, ClientError>(monitor_layout_buf)
-        }?;
-
-        let full_dvc_buf = global::TOKIO_RT
+        let cloned = x224_processor.clone();
+        let messages = global::TOKIO_RT
             .spawn_blocking(move || {
-                let mut full_dvc_buf = WriteBuf::new();
-                let x224_processor = Self::x224_lock(&x224_processor)?;
-                x224_processor.encode_dynamic(
-                    &mut full_dvc_buf,
-                    dvc::display::CHANNEL_NAME,
-                    monitor_layout_buf.filled(),
-                )?;
-                Ok::<_, ClientError>(full_dvc_buf)
+                let x224_processor = Self::x224_lock(&cloned)?;
+                let (disp_ctl_cli, channel_id): (&DisplayControlClient, Option<DynamicChannelId>) =
+                    Self::get_dvc_processor::<DisplayControlClient>(&x224_processor)?;
+
+                if channel_id.is_none() {
+                    return Err(ClientError::InternalError(
+                        "DisplayControlClient channel not found".to_string(),
+                    ));
+                }
+
+                Ok::<_, ClientError>(disp_ctl_cli.encode_monitors(
+                    channel_id.unwrap(),
+                    vec![Monitor {
+                        flags: MonitorFlags::PRIMARY,
+                        left: 0,
+                        top: 0,
+                        width,
+                        height,
+                        physical_width: 0,
+                        physical_height: 0,
+                        orientation: if width > height {
+                            Orientation::Landscape
+                        } else {
+                            Orientation::Portrait
+                        },
+                        desktop_scale_factor: 100, // percent; todo: can this be zero?
+                        device_scale_factor: 100,  // percent; todo: can this be zero?
+                    }],
+                ))
             })
-            .await??;
-        write_stream.write_all(full_dvc_buf.filled()).await?;
+            .await???;
+
+        let encoded = Client::x224_process_svc_messages(
+            x224_processor,
+            SvcProcessorMessages::<DrdynvcClient>::new(messages),
+        )
+        .await?;
+
+        write_stream.write_all(&encoded).await?;
+
         Ok(())
     }
 
@@ -908,6 +912,20 @@ impl Client {
             .get_svc_processor_mut::<S>()
             .ok_or(ClientError::InternalError(format!(
                 "get_svc_processor_mut::<{}>() returned None",
+                std::any::type_name::<S>(),
+            )))
+    }
+
+    fn get_dvc_processor<'a, S>(
+        x224_processor: &'a MutexGuard<'_, x224::Processor>,
+    ) -> Result<(&'a S, Option<DynamicChannelId>), ClientError>
+    where
+        S: DvcProcessor + 'static,
+    {
+        x224_processor
+            .get_dvc_processor::<S>()
+            .ok_or(ClientError::InternalError(format!(
+                "get_dvc_processor::<{}>() returned None",
                 std::any::type_name::<S>(),
             )))
     }
@@ -1286,7 +1304,6 @@ pub enum ClientError {
     ErrorStack(ErrorStack),
     #[cfg(feature = "fips")]
     HandshakeError(HandshakeError<TokioTcpStream>),
-    DisplayPipelineError(DisplayPipelineError),
 }
 
 impl std::error::Error for ClientError {}
@@ -1312,7 +1329,6 @@ impl Display for ClientError {
             ClientError::ErrorStack(e) => Display::fmt(e, f),
             #[cfg(feature = "fips")]
             ClientError::HandshakeError(e) => Display::fmt(e, f),
-            ClientError::DisplayPipelineError(e) => Display::fmt(e, f),
         }
     }
 }
@@ -1382,12 +1398,6 @@ impl From<ErrorStack> for ClientError {
 impl From<HandshakeError<TokioTcpStream>> for ClientError {
     fn from(e: HandshakeError<TokioTcpStream>) -> Self {
         ClientError::HandshakeError(e)
-    }
-}
-
-impl From<DisplayPipelineError> for ClientError {
-    fn from(e: DisplayPipelineError) -> Self {
-        ClientError::DisplayPipelineError(e)
     }
 }
 

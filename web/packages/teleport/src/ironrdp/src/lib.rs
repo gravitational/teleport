@@ -184,9 +184,9 @@ impl FastPathProcessor {
     ///
     /// `respond_cb: (responseFrame: ArrayBuffer) => void`
     ///
+    /// If `data` is `false` we hide the cursor (but remember its value), if `data` is `true` we restore
+    /// the last cursor value; otherwise we set the cursor to a bitmap from `ImageData`.
     /// `update_pointer_cb: (data: ImageData | boolean, hotspot_x: number, hotspot_y: number) => void`
-    /// if data is `false` we hide cursor but remember its value, if data is `true` we restore last
-    /// cursor value, otherwise we set cursor to bitmapt from `ImageData`
     pub fn process(
         &mut self,
         tdp_fast_path_frame: &[u8],
