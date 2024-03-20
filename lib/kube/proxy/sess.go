@@ -636,7 +636,11 @@ func (s *session) launch(isEphemeralCont bool) error {
 		// if attaching to an ephemeral container failed chances are the
 		// container isn't running anymore, try streaming the execution
 		// logs instead
-		if isEphemeralCont {
+		containerNotFoundErr := fmt.Sprintf("unable to upgrade connection: container %s not found in pod %s_%s", container, podName, namespace)
+		// if the error is due to the ephemeral container finishing, the
+		// error will be an *errors.errorString so try to match against
+		// the error message
+		if isEphemeralCont && err.Error() == containerNotFoundErr {
 			if err := s.retrieveAlreadyStoppedPodLogs(
 				namespace,
 				podName,
@@ -645,6 +649,8 @@ func (s *session) launch(isEphemeralCont bool) error {
 				onErr(err)
 				return trace.Wrap(err)
 			}
+
+			return nil
 		}
 
 		onErr(err)
@@ -1425,7 +1431,7 @@ func (s *session) retrieveAlreadyStoppedPodLogs(namespace, podName, container st
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Fprintf(s.io, "Failed to attach to the container, trying to stream logs instead...\r\n")
+	fmt.Fprintf(s.io, "Failed to attach to the container, attempting to stream logs instead...\r\n")
 	podClient := clientSet.CoreV1().Pods(namespace)
 	req := podClient.GetLogs(podName, &corev1.PodLogOptions{Container: container})
 	r, err := req.Stream(s.streamContext)
