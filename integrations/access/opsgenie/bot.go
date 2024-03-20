@@ -66,7 +66,7 @@ func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipientSchedu
 		notificationSchedules = append(notificationSchedules, notifySchedule.Name)
 	}
 	autoApprovalSchedules := []string{}
-	if annotationAutoApprovalSchedules, ok := reqData.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]; ok {
+	if annotationAutoApprovalSchedules, ok := reqData.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationApproveSchedulesLabel]; ok {
 		autoApprovalSchedules = annotationAutoApprovalSchedules
 	}
 	if len(autoApprovalSchedules) == 0 {
@@ -83,7 +83,7 @@ func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipientSchedu
 			Reason: reqData.ResolutionReason,
 		},
 		SystemAnnotations: types.Labels{
-			types.TeleportNamespace + types.ReqAnnotationSchedulesLabel:      autoApprovalSchedules,
+			types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel:      autoApprovalSchedules,
 			types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel: notificationSchedules,
 		},
 	}

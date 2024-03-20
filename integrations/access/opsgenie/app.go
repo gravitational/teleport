@@ -277,7 +277,7 @@ func (a *App) getNotifyServiceNames(req types.AccessRequest) ([]string, error) {
 }
 
 func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
-	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]
+	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationApproveSchedulesLabel]
 	if !ok {
 		return nil, trace.NotFound("on-call schedules not specified")
 	}
