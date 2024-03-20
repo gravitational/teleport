@@ -2434,7 +2434,9 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	isDebugEnabled, debugf := rbacDebugLogger()
 
 	if !state.MFAVerified && state.MFARequired == MFARequiredAlways {
-		debugf("Access to %v %q denied, cluster requires per-session MFA", r.GetKind(), r.GetName())
+		if isDebugEnabled {
+			debugf("Access to %v %q denied, cluster requires per-session MFA", r.GetKind(), r.GetName())
+		}
 		return ErrSessionMFARequired
 	}
 
@@ -2466,8 +2468,10 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 			return trace.Wrap(err)
 		}
 		if matchLabels {
-			debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, %s)",
-				r.GetKind(), r.GetName(), role.GetName(), namespaceMessage, labelsMessage)
+			if isDebugEnabled {
+				debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, %s)",
+					r.GetKind(), r.GetName(), role.GetName(), namespaceMessage, labelsMessage)
+			}
 			return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 				r.GetKind(), additionalDeniedMessage)
 		}
@@ -2479,8 +2483,10 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 			return trace.Wrap(err)
 		}
 		if matchMatchers {
-			debugf("Access to %v %q denied, deny rule in role %q matched; match(matcher=%v)",
-				r.GetKind(), r.GetName(), role.GetName(), matchersMessage)
+			if isDebugEnabled {
+				debugf("Access to %v %q denied, deny rule in role %q matched; match(matcher=%v)",
+					r.GetKind(), r.GetName(), role.GetName(), matchersMessage)
+			}
 			return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 				r.GetKind(), additionalDeniedMessage)
 		}
@@ -2543,37 +2549,47 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		// ensure the access is permitted.
 
 		if mfaAllowed && deviceAllowed {
-			debugf("Access to %v %q granted, allow rule in role %q matched.",
-				r.GetKind(), r.GetName(), role.GetName())
+			if isDebugEnabled {
+				debugf("Access to %v %q granted, allow rule in role %q matched.",
+					r.GetKind(), r.GetName(), role.GetName())
+			}
 			return nil
 		}
 
 		// MFA verification.
 		if !mfaAllowed && role.GetOptions().RequireMFAType.IsSessionMFARequired() {
-			debugf("Access to %v %q denied, role %q requires per-session MFA",
-				r.GetKind(), r.GetName(), role.GetName())
+			if isDebugEnabled {
+				debugf("Access to %v %q denied, role %q requires per-session MFA",
+					r.GetKind(), r.GetName(), role.GetName())
+			}
 			return ErrSessionMFARequired
 		}
 
 		// Device verification.
 		if !deviceAllowed && role.GetOptions().DeviceTrustMode == constants.DeviceTrustModeRequired {
-			debugf("Access to %v %q denied, role %q requires a trusted device",
-				r.GetKind(), r.GetName(), role.GetName())
+			if isDebugEnabled {
+				debugf("Access to %v %q denied, role %q requires a trusted device",
+					r.GetKind(), r.GetName(), role.GetName())
+			}
 			return ErrTrustedDeviceRequired
 		}
 
 		// Current role allows access, but keep looking for a more restrictive
 		// setting.
 		allowed = true
-		debugf("Access to %v %q granted, allow rule in role %q matched.",
-			r.GetKind(), r.GetName(), role.GetName())
+		if isDebugEnabled {
+			debugf("Access to %v %q granted, allow rule in role %q matched.",
+				r.GetKind(), r.GetName(), role.GetName())
+		}
 	}
 
 	if allowed {
 		return nil
 	}
 
-	debugf("Access to %v %q denied, no allow rule matched; %v", r.GetKind(), r.GetName(), errs)
+	if isDebugEnabled {
+		debugf("Access to %v %q denied, no allow rule matched; %v", r.GetKind(), r.GetName(), errs)
+	}
 	return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 		r.GetKind(), additionalDeniedMessage)
 }

@@ -858,8 +858,10 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 	}
 
 	if !usesLabels && len(rcLabels) == 0 {
-		debugf("Grant access to cluster %v - no role in %v uses cluster labels and the cluster is not labeled.",
-			rc.GetName(), a.RoleNames())
+		if isDebugEnabled {
+			debugf("Grant access to cluster %v - no role in %v uses cluster labels and the cluster is not labeled.",
+				rc.GetName(), a.RoleNames())
+		}
 		return nil
 	}
 
@@ -872,9 +874,11 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 			return trace.Wrap(err)
 		}
 		if matchLabels {
-			// This condition avoids formatting calls on large scale.
-			debugf("Access to cluster %v denied, deny rule in %v matched; match(%s)",
-				rc.GetName(), role.GetName(), labelsMessage)
+			if isDebugEnabled {
+				// This condition avoids formatting calls on large scale.
+				debugf("Access to cluster %v denied, deny rule in %v matched; match(%s)",
+					rc.GetName(), role.GetName(), labelsMessage)
+			}
 			return trace.AccessDenied("access to cluster denied")
 		}
 	}
@@ -889,8 +893,10 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		debugf("Check access to role(%v) rc(%v, labels=%v) matchLabels=%v, msg=%v, err=%v allow=%v rcLabels=%v",
-			role.GetName(), rc.GetName(), rcLabels, matchLabels, labelsMessage, err, labelMatchers, rcLabels)
+		if isDebugEnabled {
+			debugf("Check access to role(%v) rc(%v, labels=%v) matchLabels=%v, msg=%v, err=%v allow=%v rcLabels=%v",
+				role.GetName(), rc.GetName(), rcLabels, matchLabels, labelsMessage, err, labelMatchers, rcLabels)
+		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -904,7 +910,9 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 		}
 	}
 
-	debugf("Access to cluster %v denied, no allow rule matched; %v", rc.GetName(), errs)
+	if isDebugEnabled {
+		debugf("Access to cluster %v denied, no allow rule matched; %v", rc.GetName(), errs)
+	}
 	return trace.AccessDenied("access to cluster denied")
 }
 
