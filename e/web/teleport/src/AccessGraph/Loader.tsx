@@ -25,6 +25,7 @@ import * as jsxRuntime from 'react/jsx-runtime';
 import * as reactIs from 'react-is';
 import * as whatwgFetch from 'whatwg-fetch';
 import * as propTypes from 'prop-types';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 const ASSETS_PREFIX = '/enterprise/accessgraph/static';
 const STYLE_URL = `${ASSETS_PREFIX}/style.css`;
@@ -46,6 +47,12 @@ declare global {
       propTypes: typeof propTypes;
     };
   }
+}
+
+interface AccessGraphProps {
+  clusterId: string;
+  awsOnboardingEnabled: boolean;
+  urlNavigationEnabled: boolean;
 }
 
 function loadAccessGraph() {
@@ -76,7 +83,7 @@ function loadAccessGraph() {
   };
 
   return new Promise<{
-    default: React.ComponentType<any>;
+    default: React.ComponentType<AccessGraphProps>;
   }>((resolve, reject) => {
     const style = document.createElement('link');
 
@@ -106,9 +113,15 @@ function loadAccessGraph() {
 const Graph = lazy(loadAccessGraph);
 
 export function AccessGraph() {
+  const { clusterId } = useStickyClusterId();
+
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      <Graph />
+      <Graph
+        clusterId={clusterId}
+        awsOnboardingEnabled={true}
+        urlNavigationEnabled={true}
+      />
     </Suspense>
   );
 }

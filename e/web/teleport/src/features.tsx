@@ -443,7 +443,7 @@ class FeatureAccessGraph implements TeleportFeature {
   route = {
     title: 'Access Graph',
     path: cfg.routes.accessGraph,
-    exact: true,
+    exact: false,
     component: AccessGraph,
   };
 
