@@ -34,14 +34,18 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	protobuf "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
@@ -2903,6 +2907,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAccessList:              newAccessList(t, "access-list", clock),
 		types.KindAccessListMember:        newAccessListMember(t, "access-list", "member"),
 		types.KindAccessListReview:        newAccessListReview(t, "access-list", "review"),
+		types.KindKubeWaitingContainer:    newKubeWaitingContainer(t),
 	}
 
 	for name, cfg := range cases {
@@ -2920,7 +2925,23 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 				event, err := client.EventFromGRPC(protoEvent)
 				require.NoError(t, err)
 
-				require.Empty(t, cmp.Diff(resource, event.Resource))
+				// unwrap the RFD 153 resource if necessary
+				switch r := resource.(type) {
+				case types.Resource153Unwrapper:
+					eventResource, ok := event.Resource.(types.Resource153Unwrapper)
+					require.True(t, ok)
+
+					// if the resource is a protobuf message, pass an option so
+					// attempting to compare the messages does not result in a panic
+					switch r := r.Unwrap().(type) {
+					case protobuf.Message:
+						require.Empty(t, cmp.Diff(r, eventResource.Unwrap(), protocmp.Transform()))
+					default:
+						require.Empty(t, cmp.Diff(r, eventResource.Unwrap()))
+					}
+				default:
+					require.Empty(t, cmp.Diff(resource, event.Resource))
+				}
 			}
 		})
 	}
@@ -3121,6 +3142,7 @@ func newDiscoveryConfig(t *testing.T, name string) *discoveryconfig.DiscoveryCon
 	require.NoError(t, err)
 	return discoveryConfig
 }
+
 func newAuditQuery(t *testing.T, name string) *secreports.AuditQuery {
 	t.Helper()
 
@@ -3314,6 +3336,22 @@ func newAccessListReview(t *testing.T, accessList, name string) *accesslist.Revi
 	require.NoError(t, err)
 
 	return review
+}
+
+func newKubeWaitingContainer(t *testing.T) types.Resource {
+	t.Helper()
+
+	waitingCont, err := kubewaitingcontainer.NewKubeWaitingContainer("container", &kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
+		Username:      "user",
+		Cluster:       "cluster",
+		Namespace:     "namespace",
+		PodName:       "pod",
+		ContainerName: "container",
+		Patch:         []byte("patch"),
+	})
+	require.NoError(t, err)
+
+	return types.Resource153ToLegacy(waitingCont)
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {
