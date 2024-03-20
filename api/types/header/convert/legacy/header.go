@@ -30,5 +30,6 @@ func FromHeaderMetadata(metadata header.Metadata) types.Metadata {
 		Expires:     &metadata.Expires,
 		Description: metadata.Description,
 		Labels:      metadata.Labels,
+		Revision:    metadata.Revision,
 	}
 }
