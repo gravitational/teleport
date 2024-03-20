@@ -1944,7 +1944,7 @@ exports[`list of all events 1`] = `
                 class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
-              Device Update
+              Device Updated
             </div>
           </td>
           <td
@@ -1980,7 +1980,7 @@ exports[`list of all events 1`] = `
                 class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
-              Device Enrollment
+              Device Enrolled
             </div>
           </td>
           <td
@@ -2016,7 +2016,7 @@ exports[`list of all events 1`] = `
                 class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
-              Device Enrollment
+              Device Enrolled
             </div>
           </td>
           <td
@@ -2124,7 +2124,7 @@ exports[`list of all events 1`] = `
                 class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
-              Device Delete
+              Device Deleted
             </div>
           </td>
           <td
@@ -2160,7 +2160,7 @@ exports[`list of all events 1`] = `
                 class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
-              Device Delete
+              Device Deleted
             </div>
           </td>
           <td
@@ -2196,7 +2196,7 @@ exports[`list of all events 1`] = `
                 class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
-              Device Enroll Token Create
+              Device Enroll Token Created
             </div>
           </td>
           <td
@@ -2232,7 +2232,7 @@ exports[`list of all events 1`] = `
                 class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
-              Device Enroll Token Create
+              Device Enroll Token Created
             </div>
           </td>
           <td
@@ -2268,7 +2268,7 @@ exports[`list of all events 1`] = `
                 class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
-              Device Authenticate
+              Device Authenticated
             </div>
           </td>
           <td
@@ -2304,7 +2304,7 @@ exports[`list of all events 1`] = `
                 class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
-              Device Authenticate
+              Device Authenticated
             </div>
           </td>
           <td
@@ -2340,7 +2340,7 @@ exports[`list of all events 1`] = `
                 class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
-              Device Register
+              Device Registered
             </div>
           </td>
           <td
@@ -2376,7 +2376,7 @@ exports[`list of all events 1`] = `
                 class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
-              Device Register
+              Device Registered
             </div>
           </td>
           <td
@@ -2412,7 +2412,7 @@ exports[`list of all events 1`] = `
                 class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
-              Device Update
+              Device Updated
             </div>
           </td>
           <td
@@ -2448,7 +2448,7 @@ exports[`list of all events 1`] = `
                 class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
-              Device Authenticate
+              Device Authenticated
             </div>
           </td>
           <td
@@ -2484,7 +2484,7 @@ exports[`list of all events 1`] = `
                 class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
-              Device Enrollment
+              Device Enrolled
             </div>
           </td>
           <td
@@ -2556,7 +2556,7 @@ exports[`list of all events 1`] = `
                 class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
-              Device Enroll Token Create
+              Device Enroll Token Created
             </div>
           </td>
           <td
@@ -2592,7 +2592,7 @@ exports[`list of all events 1`] = `
                 class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
-              Device Delete
+              Device Deleted
             </div>
           </td>
           <td
@@ -2628,7 +2628,7 @@ exports[`list of all events 1`] = `
                 class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
-              Device Register
+              Device Registered
             </div>
           </td>
           <td
