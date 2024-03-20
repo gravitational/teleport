@@ -111,7 +111,7 @@ func NewJobWithEvents(events types.Events, config Config, fn EventFunc) (lib.Ser
 			job.SetReady(false)
 
 			// Note: we must always return an error, even if everything went great and we're doing a graceful shutdown.
-			// The process library will trigger a complete shutdown only if the critical job exist with an error.
+			// The process library will trigger a complete shutdown only if the critical job exits with an error.
 			switch {
 			case trace.IsConnectionProblem(err):
 				if config.FailFast {
@@ -173,8 +173,7 @@ func (job job) watchEvents(ctx context.Context) error {
 					return trace.Wrap(ctx.Err())
 				}
 			}
-			err := watcher.Error()
-			if err != nil {
+			if err := watcher.Error(); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Errorf("watcher closed without error")
