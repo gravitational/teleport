@@ -22,6 +22,9 @@ import (
 	"bytes"
 	"io"
 	"net/http"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -190,8 +193,69 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 	if err != nil {
 		return http.StatusInternalServerError, trace.Wrap(err)
 	}
+
+	// if this pod watch request is for a specific pod, watch for and
+	// push events that show ephemeral containers were started if there
+	// are any ephemeral containers waiting to be created for this pod
+	// by this user
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	if podName := isRequestTargetedToPod(req, sess.apiResource); podName != "" {
+		if ok {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				sentDebugContainers := map[string]struct{}{}
+				ticker := time.NewTicker(5 * time.Second)
+				defer ticker.Stop()
+				for {
+					wcs, err := f.getUserEphemeralContainersForPod(
+						req.Context(),
+						sess.User.GetName(),
+						sess.kubeClusterName,
+						sess.apiResource.namespace,
+						podName,
+					)
+					if err != nil {
+						f.log.WithError(err).Warn("error getting user ephemeral containers")
+						return
+					}
+					if len(wcs) == 0 {
+						continue
+					}
+					for _, wc := range wcs {
+						if _, ok := sentDebugContainers[wc.Spec.ContainerName]; ok {
+							continue
+						}
+						evt, err := f.getPatchedPodEvent(req.Context(), sess, wc)
+						if err != nil {
+							f.log.WithError(err).Warn("error pushing pod event")
+							continue
+						}
+						sentDebugContainers[wc.Spec.ContainerName] = struct{}{}
+						// push the event to the client
+						// this will lock until the event is pushed or the
+						// request context is done.
+						rw.PushVirtualEventToClient(req.Context(), evt)
+					}
+
+					select {
+					case <-req.Context().Done():
+						return
+					case <-done:
+						return
+					case <-ticker.C:
+					}
+				}
+			}()
+		}
+	}
+
 	// Forwards the request to the target cluster.
 	sess.forwarder.ServeHTTP(rw, req)
+	// Wait for the fake event pushing goroutine to finish
+	close(done)
+	wg.Wait()
 	// Once the request terminates, close the watcher and waits for resources
 	// cleanup.
 	err = rw.Close()
@@ -219,4 +283,36 @@ func decompressInplace(memoryRW *responsewriters.MemoryResponseWriter) error {
 	default:
 		return nil
 	}
+}
+
+// isRequestTargetedToPod checks if the request is
+// possibly targeted to an ephemeral container. If it is, it returns the
+// name of the pod that the container is in.
+// This function is used to determine if a watch request is for a specific pod
+// because although the watch request is for a specific pod, the endpoint
+// is the same as the endpoint for the pod list request.
+func isRequestTargetedToPod(req *http.Request, kube apiResource) (podName string) {
+	const (
+		podsResource = "pods"
+	)
+	if kube.resourceKind != podsResource {
+		return ""
+	}
+	if kube.namespace == "" {
+		return ""
+	}
+	if kube.resourceName != "" {
+		return ""
+	}
+
+	q := req.URL.Query()
+	if fieldSel, ok := q["fieldSelector"]; ok {
+		for _, val := range fieldSel {
+			podName, ok = strings.CutPrefix(val, "metadata.name=")
+			if ok {
+				break
+			}
+		}
+	}
+	return
 }
