@@ -36,6 +36,9 @@ type Listener struct {
 // the provided [ConnectionsLimiter] on the all connections accepted
 // by the provided [net.Listener].
 func NewListener(ln net.Listener, limiter *ConnectionsLimiter) *Listener {
+	if ln == nil || limiter == nil {
+		return nil
+	}
 	return &Listener{
 		Listener: ln,
 		limiter:  limiter,
