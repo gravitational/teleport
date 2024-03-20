@@ -36,6 +36,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	protobuf "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -2937,7 +2939,23 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 				event, err := client.EventFromGRPC(protoEvent)
 				require.NoError(t, err)
 
-				require.Empty(t, cmp.Diff(resource, event.Resource))
+				// unwrap the RFD 153 resource if necessary
+				switch r := resource.(type) {
+				case types.Resource153Unwrapper:
+					eventResource, ok := event.Resource.(types.Resource153Unwrapper)
+					require.True(t, ok)
+
+					// if the resource is a protobuf message, pass an option so
+					// attempting to compare the messages does not result in a panic
+					switch r := r.Unwrap().(type) {
+					case protobuf.Message:
+						require.Empty(t, cmp.Diff(r, eventResource.Unwrap(), protocmp.Transform()))
+					default:
+						require.Empty(t, cmp.Diff(r, eventResource.Unwrap()))
+					}
+				default:
+					require.Empty(t, cmp.Diff(resource, event.Resource))
+				}
 			}
 		})
 	}
@@ -3340,7 +3358,7 @@ func newAccessListReview(t *testing.T, accessList, name string) *accesslist.Revi
 func newKubeWaitingContainer(t *testing.T) types.Resource {
 	t.Helper()
 
-	waitingCont, err := kubewaitingcontainer.NewKubeWaitingContainer("name", &kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
+	waitingCont, err := kubewaitingcontainer.NewKubeWaitingContainer("container", &kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
 		Username:      "user",
 		Cluster:       "cluster",
 		Namespace:     "namespace",
