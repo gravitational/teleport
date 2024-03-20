@@ -138,10 +138,9 @@ func (a *App) init(ctx context.Context) error {
 	log := logger.Get(ctx)
 
 	var err error
-	if a.teleport == nil {
-		if a.teleport, err = common.GetTeleportClient(ctx, a.conf.Teleport); err != nil {
-			return trace.Wrap(err)
-		}
+	a.teleport, err = a.conf.GetTeleportClient(ctx)
+	if err != nil {
+		return trace.Wrap(err, "getting teleport client")
 	}
 
 	pong, err := a.checkTeleportVersion(ctx)
