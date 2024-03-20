@@ -133,6 +133,8 @@ type SAMLIdPServiceProvider interface {
 	GetAttributeMapping() []*SAMLAttributeMapping
 	// SetAttributeMapping sets Attribute Mapping.
 	SetAttributeMapping([]*SAMLAttributeMapping)
+	// GetPreset returns the Preset.
+	GetPreset() string
 	// GetRelayState returns Relay State.
 	GetRelayState() string
 	// SetRelayState sets Relay State.
@@ -197,6 +199,11 @@ func (s *SAMLIdPServiceProviderV1) GetAttributeMapping() []*SAMLAttributeMapping
 // SetAttributeMapping sets Attribute Mapping.
 func (s *SAMLIdPServiceProviderV1) SetAttributeMapping(attrMaps []*SAMLAttributeMapping) {
 	s.Spec.AttributeMapping = attrMaps
+}
+
+// GetPreset returns the Preset.
+func (s *SAMLIdPServiceProviderV1) GetPreset() string {
+	return s.Spec.Preset
 }
 
 // GetRelayState returns Relay State.

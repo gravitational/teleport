@@ -21,6 +21,7 @@ package local
 import (
 	"context"
 	"encoding/xml"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -32,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	preset "github.com/gravitational/teleport/api/types/samlsp"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -112,15 +114,11 @@ func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProvider(ctx context.Co
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
 	if sp.GetEntityDescriptor() == "" {
-		// fetchAndSetEntityDescriptor is expected to return error if it fails
-		// to fetch a valid entity descriptor.
-		if err := s.fetchAndSetEntityDescriptor(sp); err != nil {
-			s.log.Debugf("Failed to fetch entity descriptor from %q. %v.", sp.GetEntityID(), err)
-			// We aren't interested in checking error type as any occurrence of error mean entity descriptor was not set.
-			if err := s.generateAndSetEntityDescriptor(sp); err != nil {
-				return trace.BadParameter("could not generate entity descriptor with given entity_id %q and acs_url %q: %v",
-					sp.GetEntityID(), sp.GetACSURL(), err)
-			}
+		if err := s.configureEntityDescriptorPerPreset(sp); err != nil {
+			errMsg := fmt.Errorf("failed to configure entity descriptor with the given entity_id %q and acs_url %q: %w",
+				sp.GetEntityID(), sp.GetACSURL(), err)
+			s.log.Errorf(errMsg.Error())
+			return trace.BadParameter(errMsg.Error())
 		}
 	}
 
@@ -237,6 +235,25 @@ func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Conte
 		}
 		if nextToken == "" {
 			break
+		}
+	}
+
+	return nil
+}
+
+// configureEntityDescriptorPerPreset configures entity descriptor based on SAML service provider preset.
+func (s *SAMLIdPServiceProviderService) configureEntityDescriptorPerPreset(sp types.SAMLIdPServiceProvider) error {
+	switch sp.GetPreset() {
+	case preset.GCPWorkforce:
+		return trace.Wrap(s.generateAndSetEntityDescriptor(sp))
+	default:
+		// fetchAndSetEntityDescriptor is expected to return error if it fails
+		// to fetch a valid entity descriptor.
+		if err := s.fetchAndSetEntityDescriptor(sp); err != nil {
+			s.log.Debugf("Failed to fetch entity descriptor from %q: %v.", sp.GetEntityID(), err)
+			// We aren't interested in checking error type as any occurrence of error
+			// mean entity descriptor was not set.
+			return trace.Wrap(s.generateAndSetEntityDescriptor(sp))
 		}
 	}
 
