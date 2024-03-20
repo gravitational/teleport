@@ -1,6 +1,6 @@
 # Changelog
 
-## 14.3.12 (03/20/24)
+## 14.3.13 (03/20/24)
 
 * Fixed the discovery script failing when `jq` was not installed. [#39600](https://github.com/gravitational/teleport/pull/39600)
 * Improve performance when listing nodes with tsh or tctl. [#39568](https://github.com/gravitational/teleport/pull/39568)
