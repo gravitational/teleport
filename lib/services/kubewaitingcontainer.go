@@ -54,6 +54,7 @@ func MarshalKubeWaitingContainer(in *kubewaitingcontainerpb.KubernetesWaitingCon
 	}
 
 	if !cfg.PreserveResourceID {
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
 		in.Metadata.Id = 0
 		in.Metadata.Revision = ""
 	}
@@ -82,6 +83,7 @@ func UnmarshalKubeWaitingContainer(data []byte, opts ...MarshalOption) (*kubewai
 		return nil, trace.Wrap(err)
 	}
 	if cfg.ID != 0 {
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
 		out.Metadata.Id = cfg.ID
 	}
 	if cfg.Revision != "" {
