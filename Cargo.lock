@@ -1225,7 +1225,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-async"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=4dccd6e21b70e79c0acb4c62de131acf2047bf0d#4dccd6e21b70e79c0acb4c62de131acf2047bf0d"
+source = "git+https://github.com/Devolutions/IronRDP?rev=ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9#ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9"
 dependencies = [
  "bytes",
  "ironrdp-connector",
@@ -1236,7 +1236,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-cliprdr"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=4dccd6e21b70e79c0acb4c62de131acf2047bf0d#4dccd6e21b70e79c0acb4c62de131acf2047bf0d"
+source = "git+https://github.com/Devolutions/IronRDP?rev=ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9#ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9"
 dependencies = [
  "bitflags 2.4.2",
  "ironrdp-pdu",
@@ -1248,7 +1248,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-connector"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=4dccd6e21b70e79c0acb4c62de131acf2047bf0d#4dccd6e21b70e79c0acb4c62de131acf2047bf0d"
+source = "git+https://github.com/Devolutions/IronRDP?rev=ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9#ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9"
 dependencies = [
  "ironrdp-error",
  "ironrdp-pdu",
@@ -1263,7 +1263,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-dvc"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=4dccd6e21b70e79c0acb4c62de131acf2047bf0d#4dccd6e21b70e79c0acb4c62de131acf2047bf0d"
+source = "git+https://github.com/Devolutions/IronRDP?rev=ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9#ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9"
 dependencies = [
  "bitflags 2.4.2",
  "ironrdp-pdu",
@@ -1275,12 +1275,12 @@ dependencies = [
 [[package]]
 name = "ironrdp-error"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=4dccd6e21b70e79c0acb4c62de131acf2047bf0d#4dccd6e21b70e79c0acb4c62de131acf2047bf0d"
+source = "git+https://github.com/Devolutions/IronRDP?rev=ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9#ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9"
 
 [[package]]
 name = "ironrdp-graphics"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=4dccd6e21b70e79c0acb4c62de131acf2047bf0d#4dccd6e21b70e79c0acb4c62de131acf2047bf0d"
+source = "git+https://github.com/Devolutions/IronRDP?rev=ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9#ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9"
 dependencies = [
  "bit_field",
  "bitflags 2.4.2",
@@ -1297,7 +1297,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-pdu"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=4dccd6e21b70e79c0acb4c62de131acf2047bf0d#4dccd6e21b70e79c0acb4c62de131acf2047bf0d"
+source = "git+https://github.com/Devolutions/IronRDP?rev=ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9#ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9"
 dependencies = [
  "bit_field",
  "bitflags 2.4.2",
@@ -1319,7 +1319,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-rdpdr"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=4dccd6e21b70e79c0acb4c62de131acf2047bf0d#4dccd6e21b70e79c0acb4c62de131acf2047bf0d"
+source = "git+https://github.com/Devolutions/IronRDP?rev=ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9#ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9"
 dependencies = [
  "bitflags 2.4.2",
  "ironrdp-error",
@@ -1331,7 +1331,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-rdpsnd"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=4dccd6e21b70e79c0acb4c62de131acf2047bf0d#4dccd6e21b70e79c0acb4c62de131acf2047bf0d"
+source = "git+https://github.com/Devolutions/IronRDP?rev=ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9#ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9"
 dependencies = [
  "ironrdp-pdu",
  "ironrdp-svc",
@@ -1340,7 +1340,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-session"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=4dccd6e21b70e79c0acb4c62de131acf2047bf0d#4dccd6e21b70e79c0acb4c62de131acf2047bf0d"
+source = "git+https://github.com/Devolutions/IronRDP?rev=ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9#ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9"
 dependencies = [
  "bitflags 2.4.2",
  "ironrdp-connector",
@@ -1355,7 +1355,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-svc"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=4dccd6e21b70e79c0acb4c62de131acf2047bf0d#4dccd6e21b70e79c0acb4c62de131acf2047bf0d"
+source = "git+https://github.com/Devolutions/IronRDP?rev=ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9#ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9"
 dependencies = [
  "bitflags 2.4.2",
  "ironrdp-pdu",
@@ -1364,7 +1364,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-tls"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=4dccd6e21b70e79c0acb4c62de131acf2047bf0d#4dccd6e21b70e79c0acb4c62de131acf2047bf0d"
+source = "git+https://github.com/Devolutions/IronRDP?rev=ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9#ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9"
 dependencies = [
  "tokio",
  "tokio-rustls",
@@ -1374,7 +1374,7 @@ dependencies = [
 [[package]]
 name = "ironrdp-tokio"
 version = "0.1.0"
-source = "git+https://github.com/Devolutions/IronRDP?rev=4dccd6e21b70e79c0acb4c62de131acf2047bf0d#4dccd6e21b70e79c0acb4c62de131acf2047bf0d"
+source = "git+https://github.com/Devolutions/IronRDP?rev=ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9#ead24a5f96bd9e8a402faf7fa227b0fdd406ddd9"
 dependencies = [
  "bytes",
  "ironrdp-async",
