@@ -153,6 +153,14 @@ const (
 	DatabaseSessionMalformedPacketCode = "TDB06I"
 	// DatabaseSessionPermissionUpdateCode is the db.session.permissions.update event code.
 	DatabaseSessionPermissionUpdateCode = "TDB07I"
+	// DatabaseSessionUserCreateCode is the db.session.user.create event code.
+	DatabaseSessionUserCreateCode = "TDB08I"
+	// DatabaseSessionUserCreateFailureCode is the db.session.user.create event failure code.
+	DatabaseSessionUserCreateFailureCode = "TDB08W"
+	// DatabaseSessionUserDeactivateCode is the db.session.user.deactivate event code.
+	DatabaseSessionUserDeactivateCode = "TDB09I"
+	// DatabaseSessionUserDeactivateFailureCode is the db.session.user.deactivate event failure code.
+	DatabaseSessionUserDeactivateFailureCode = "TDB09W"
 
 	// PostgresParseCode is the db.session.postgres.statements.parse event code.
 	PostgresParseCode = "TPG00I"
@@ -456,6 +464,8 @@ const (
 	DeviceAuthenticateCode = "TV006I"
 	// DeviceUpdateCode is the device update code.
 	DeviceUpdateCode = "TV007I"
+	// DeviceWebTokenCreateCode is the device web token creation code.
+	DeviceWebTokenCreateCode = "TV008I"
 
 	// LoginRuleCreateCode is the login rule create code.
 	LoginRuleCreateCode = "TLR00I"
@@ -516,6 +526,12 @@ const (
 	// OktaAccessListSyncSuccessCode is the Okta access list sync failure code.
 	OktaAccessListSyncFailureCode = "TOK006E"
 
+	// OktaUserSyncSuccessCode is the Okta user sync success code.
+	OktaUserSyncSuccessCode = "TOK007I"
+
+	// OktaUserSyncSuccessCode is the Okta user sync failure code.
+	OktUserSyncFailureCode = "TOK007E"
+
 	// AccessListCreateSuccessCode is the access list create success code.
 	AccessListCreateSuccessCode = "TAL001I"
 
@@ -574,6 +590,18 @@ const (
 	ExternalAuditStorageEnableCode = "TEA001I"
 	// ExternalAuditStorageDisableCode is the External Audit Storage disabled code.
 	ExternalAuditStorageDisableCode = "TEA002I"
+
+	// SPIFFESVIDIssuedSuccessCode is the SPIFFE SVID issued success code.
+	SPIFFESVIDIssuedSuccessCode = "TSPIFFE000I"
+	// SPIFFESVIDIssuedFailureCode is the SPIFFE SVID issued failure code.
+	SPIFFESVIDIssuedFailureCode = "TSPIFFE000E"
+
+	// AuthPreferenceUpdateCode is the auth preference updated event code.
+	AuthPreferenceUpdateCode = "TCAUTH001I"
+	// ClusterNetworkingConfigUpdateCode is the cluster networking config updated event code.
+	ClusterNetworkingConfigUpdateCode = "TCNET002I"
+	// SessionRecordingConfigUpdateCode is the session recording config updated event code.
+	SessionRecordingConfigUpdateCode = "TCREC003I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

@@ -29,6 +29,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -110,5 +111,38 @@ func (s *s3ClientMock) PutObject(ctx context.Context, in *s3.PutObjectInput, opt
 			return nil, err
 		}
 		return &s3.PutObjectOutput{}, nil
+	}
+}
+
+func TestCreateBucketConfiguration(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		regionIn string
+		expected *s3types.CreateBucketConfiguration
+	}{
+		{
+			name:     "special region",
+			regionIn: "us-east-1",
+			expected: nil,
+		},
+		{
+			name:     "regular region",
+			regionIn: "us-east-2",
+			expected: &s3types.CreateBucketConfiguration{
+				LocationConstraint: s3types.BucketLocationConstraintUsEast2,
+			},
+		},
+		{
+			name:     "unknown region",
+			regionIn: "unknown",
+			expected: &s3types.CreateBucketConfiguration{
+				LocationConstraint: "unknown",
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := CreateBucketConfiguration(tt.regionIn)
+			require.Equal(t, tt.expected, got)
+		})
 	}
 }

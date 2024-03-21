@@ -150,7 +150,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	// Always use *-sync to prevent fileStreamer from running against os.RemoveAll
 	// once the test ends.
 	recConfig.SetMode(types.RecordAtNodeSync)
-	err = authServer.AuthServer.SetSessionRecordingConfig(ctx, recConfig)
+	_, err = authServer.AuthServer.UpsertSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	// Auth client for Kube service.

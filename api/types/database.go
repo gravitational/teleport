@@ -17,14 +17,15 @@ limitations under the License.
 package types
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/utils"
 	atlasutils "github.com/gravitational/teleport/api/utils/atlas"
@@ -692,7 +693,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	case awsutils.IsRDSEndpoint(d.Spec.URI):
 		details, err := awsutils.ParseRDSEndpoint(d.Spec.URI)
 		if err != nil {
-			logrus.WithError(err).Warnf("Failed to parse RDS endpoint %v.", d.Spec.URI)
+			slog.WarnContext(context.Background(), "Failed to parse RDS endpoint.", "uri", d.Spec.URI, "error", err)
 			break
 		}
 		if d.Spec.AWS.RDS.InstanceID == "" {
@@ -728,7 +729,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	case awsutils.IsRedshiftServerlessEndpoint(d.Spec.URI):
 		details, err := awsutils.ParseRedshiftServerlessEndpoint(d.Spec.URI)
 		if err != nil {
-			logrus.WithError(err).Warnf("Failed to parse Redshift Serverless endpoint %v.", d.Spec.URI)
+			slog.WarnContext(context.Background(), "Failed to parse Redshift Serverless endpoint.", "uri", d.Spec.URI, "error", err)
 			break
 		}
 		if d.Spec.AWS.RedshiftServerless.WorkgroupName == "" {
@@ -746,7 +747,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	case awsutils.IsElastiCacheEndpoint(d.Spec.URI):
 		endpointInfo, err := awsutils.ParseElastiCacheEndpoint(d.Spec.URI)
 		if err != nil {
-			logrus.WithError(err).Warnf("Failed to parse %v as ElastiCache endpoint", d.Spec.URI)
+			slog.WarnContext(context.Background(), "Failed to parse ElastiCache endpoint", "uri", d.Spec.URI, "error", err)
 			break
 		}
 		if d.Spec.AWS.ElastiCache.ReplicationGroupID == "" {
@@ -760,7 +761,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	case awsutils.IsMemoryDBEndpoint(d.Spec.URI):
 		endpointInfo, err := awsutils.ParseMemoryDBEndpoint(d.Spec.URI)
 		if err != nil {
-			logrus.WithError(err).Warnf("Failed to parse %v as MemoryDB endpoint", d.Spec.URI)
+			slog.WarnContext(context.Background(), "Failed to parse MemoryDB endpoint", "uri", d.Spec.URI, "error", err)
 			break
 		}
 		if d.Spec.AWS.MemoryDB.ClusterName == "" {

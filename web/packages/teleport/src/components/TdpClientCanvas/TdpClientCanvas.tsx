@@ -38,6 +38,7 @@ function TdpClientCanvas(props: Props) {
     clientOnClipboardData,
     clientOnTdpError,
     clientOnTdpWarning,
+    clientOnTdpInfo,
     clientOnWsClose,
     clientOnWsOpen,
     clientOnClientScreenSpec,
@@ -50,6 +51,7 @@ function TdpClientCanvas(props: Props) {
     canvasOnMouseWheelScroll,
     canvasOnContextMenu,
     style,
+    updatePointer,
   } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -96,6 +98,44 @@ function TdpClientCanvas(props: Props) {
       };
     }
   }, [client, clientOnPngFrame]);
+
+  const previousCursor = useRef('auto');
+
+  useEffect(() => {
+    if (client && updatePointer) {
+      const canvas = canvasRef.current;
+      const updatePointer = (pointer: {
+        data: ImageData | boolean;
+        hotspot_x?: number;
+        hotspot_y?: number;
+      }) => {
+        if (typeof pointer.data === 'boolean') {
+          if (pointer.data) {
+            canvas.style.cursor = previousCursor.current;
+          } else {
+            previousCursor.current = canvas.style.cursor;
+            canvas.style.cursor = 'none';
+          }
+          return;
+        }
+        const cursor = document.createElement('canvas');
+        cursor.width = pointer.data.width;
+        cursor.height = pointer.data.height;
+        cursor
+          .getContext('2d', { colorSpace: pointer.data.colorSpace })
+          .putImageData(pointer.data, 0, 0);
+        canvas.style.cursor = `url(${cursor.toDataURL()}) ${
+          pointer.hotspot_x
+        } ${pointer.hotspot_y}, auto`;
+      };
+
+      client.addListener(TdpClientEvent.POINTER, updatePointer);
+
+      return () => {
+        client.removeListener(TdpClientEvent.POINTER, updatePointer);
+      };
+    }
+  }, [client, updatePointer]);
 
   useEffect(() => {
     if (client && clientOnBmpFrame) {
@@ -186,6 +226,16 @@ function TdpClientCanvas(props: Props) {
       };
     }
   }, [client, clientOnTdpWarning]);
+
+  useEffect(() => {
+    if (client && clientOnTdpInfo) {
+      client.on(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
+
+      return () => {
+        client.removeListener(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
+      };
+    }
+  }, [client, clientOnTdpInfo]);
 
   useEffect(() => {
     if (client && clientOnWsClose) {
@@ -369,7 +419,8 @@ export type Props = {
   clientOnClipboardData?: (clipboardData: ClipboardData) => void;
   clientOnTdpError?: (error: Error) => void;
   clientOnTdpWarning?: (warning: string) => void;
-  clientOnWsClose?: () => void;
+  clientOnTdpInfo?: (info: string) => void;
+  clientOnWsClose?: (message: string) => void;
   clientOnWsOpen?: () => void;
   clientOnClientScreenSpec?: (
     cli: TdpClient,
@@ -389,6 +440,7 @@ export type Props = {
   canvasOnMouseWheelScroll?: (cli: TdpClient, e: WheelEvent) => void;
   canvasOnContextMenu?: () => boolean;
   style?: CSSProperties;
+  updatePointer?: boolean;
 };
 
 export default memo(TdpClientCanvas);

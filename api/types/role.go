@@ -19,8 +19,10 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"path"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -248,6 +250,18 @@ type Role interface {
 	GetGroupLabels(RoleConditionType) Labels
 	// SetGroupLabels sets the map of group labels this role is allowed or denied access to.
 	SetGroupLabels(RoleConditionType, Labels)
+
+	// GetSPIFFEConditions returns the allow or deny SPIFFERoleCondition.
+	GetSPIFFEConditions(rct RoleConditionType) []*SPIFFERoleCondition
+	// SetSPIFFEConditions sets the allow or deny SPIFFERoleCondition.
+	SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCondition)
+
+	// GetSAMLIdPServiceProviderLabels gets the map of saml_idp_service_provider resource
+	// labels this role is allowed or denied access to.
+	GetSAMLIdPServiceProviderLabels(RoleConditionType) Labels
+	// SetSAMLIdPServiceProviderLabels sets the map of saml_idp_service_provider resource
+	// labels this role is allowed or denied access to.
+	SetSAMLIdPServiceProviderLabels(RoleConditionType, Labels)
 }
 
 // NewRole constructs new standard V7 role.
@@ -908,6 +922,42 @@ func (r *RoleV6) SetHostSudoers(rct RoleConditionType, sudoers []string) {
 	}
 }
 
+// GetSPIFFEConditions returns the allow or deny SPIFFERoleCondition.
+func (r *RoleV6) GetSPIFFEConditions(rct RoleConditionType) []*SPIFFERoleCondition {
+	if rct == Allow {
+		return r.Spec.Allow.SPIFFE
+	}
+	return r.Spec.Deny.SPIFFE
+}
+
+// SetSPIFFEConditions sets the allow or deny SPIFFERoleCondition.
+func (r *RoleV6) SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCondition) {
+	if rct == Allow {
+		r.Spec.Allow.SPIFFE = cond
+	} else {
+		r.Spec.Deny.SPIFFE = cond
+	}
+}
+
+// GetSAMLIdPServiceProviderLabels gets the map of saml_idp_service_provider resource
+// labels this role is allowed or denied access to.
+func (r *RoleV6) GetSAMLIdPServiceProviderLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.SAMLIdPServiceProviderLabels
+	}
+	return r.Spec.Deny.SAMLIdPServiceProviderLabels
+}
+
+// SetSAMLIdPServiceProviderLabels sets the map of saml_idp_service_provider resource
+// labels this role is allowed or denied access to.
+func (r *RoleV6) SetSAMLIdPServiceProviderLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.SAMLIdPServiceProviderLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.SAMLIdPServiceProviderLabels = labels.Clone()
+	}
+}
+
 // GetPrivateKeyPolicy returns the private key policy enforced for this role.
 func (r *RoleV6) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 	switch r.Spec.Options.RequireMFAType {
@@ -950,6 +1000,27 @@ func (r *RoleV6) SetGroupLabels(rct RoleConditionType, labels Labels) {
 	} else {
 		r.Spec.Deny.GroupLabels = labels.Clone()
 	}
+}
+
+// CheckAndSetDefaults checks validity of all fields and sets defaults
+func (c *SPIFFERoleCondition) CheckAndSetDefaults() error {
+	if c.Path == "" {
+		return trace.BadParameter("path: should be non-empty")
+	}
+	isRegex := strings.HasPrefix(c.Path, "^") && strings.HasSuffix(c.Path, "$")
+	if !(strings.HasPrefix(c.Path, "/") || isRegex) {
+		return trace.BadParameter(
+			"path: should start with / or be a regex expression starting with ^ and ending with $",
+		)
+	}
+	for i, str := range c.IPSANs {
+		if _, _, err := net.ParseCIDR(str); err != nil {
+			return trace.BadParameter(
+				"validating ip_sans[%d]: %s", i, err.Error(),
+			)
+		}
+	}
+	return nil
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults
@@ -1145,6 +1216,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		r.Spec.Allow.DatabaseLabels,
 		r.Spec.Allow.WindowsDesktopLabels,
 		r.Spec.Allow.GroupLabels,
+		r.Spec.Allow.SAMLIdPServiceProviderLabels,
 	} {
 		if err := checkWildcardSelector(labels); err != nil {
 			return trace.Wrap(err)
@@ -1167,6 +1239,18 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	for i, perm := range r.Spec.Deny.DatabasePermissions {
 		if err := perm.CheckAndSetDefaults(); err != nil {
 			return trace.BadParameter("failed to process 'deny' db_permission #%v: %v", i+1, err)
+		}
+	}
+	for i := range r.Spec.Allow.SPIFFE {
+		err := r.Spec.Allow.SPIFFE[i].CheckAndSetDefaults()
+		if err != nil {
+			return trace.Wrap(err, "validating spec.allow.spiffe[%d]", i)
+		}
+	}
+	for i := range r.Spec.Deny.SPIFFE {
+		err := r.Spec.Deny.SPIFFE[i].CheckAndSetDefaults()
+		if err != nil {
+			return trace.Wrap(err, "validating spec.deny.spiffe[%d]", i)
 		}
 	}
 
@@ -1779,6 +1863,8 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
 	case KindUserGroup:
 		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
+	case KindSAMLIdPServiceProvider:
+		return LabelMatchers{cond.SAMLIdPServiceProviderLabels, cond.SAMLIdPServiceProviderLabelsExpression}, nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
 }
@@ -1828,6 +1914,10 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 	case KindUserGroup:
 		cond.GroupLabels = labelMatchers.Labels
 		cond.GroupLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindSAMLIdPServiceProvider:
+		cond.SAMLIdPServiceProviderLabels = labelMatchers.Labels
+		cond.SAMLIdPServiceProviderLabelsExpression = labelMatchers.Expression
 		return nil
 	}
 	return trace.BadParameter("can't set label matchers for resource kind %q", kind)
@@ -1891,6 +1981,7 @@ var LabelMatcherKinds = []string{
 	KindWindowsDesktop,
 	KindWindowsDesktopService,
 	KindUserGroup,
+	KindSAMLIdPServiceProvider,
 }
 
 const (

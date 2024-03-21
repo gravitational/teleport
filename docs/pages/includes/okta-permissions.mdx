@@ -1,0 +1,31 @@
+Okta API tokens inherit the permissions of the user who created them. These can
+be controlled by using [custom admin roles](https://help.okta.com/en-us/Content/Topics/Security/custom-admin-role/about-creating-custom-admin-roles.htm)
+and assigning them to a user who will then create the API token. We recommend
+creating a user dedicated to the Teleport Okta API service to manage this token.
+
+The permissions required are:
+
+### User permissions
+
+- View users and their details
+- Edit users' group membership
+- Edit users' application assignments
+
+### Group permissions
+
+- View groups and their details
+- Manage group membership
+
+### Application permissions
+
+- Add and configure applications (only required for installation)
+- View applications and their details
+- Edit application's user assignments
+
+Additionally, the resource set associated with the target user must have
+unconstrained access to Users, Applications, and Groups.
+
+One caveat here is that it's impossible to assign API token creation permissions to a
+custom role. However, the Okta built in role "Group Membership Admin" has permissions
+to create an API token. See more information about built in roles
+[here](https://help.okta.com/en-us/Content/Topics/Security/administrators-admin-comparison.htm).

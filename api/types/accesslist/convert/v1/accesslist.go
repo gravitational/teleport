@@ -93,6 +93,12 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		nextAuditDate = msg.Spec.Audit.NextAuditDate.AsTime()
 	}
 
+	var memberCount *uint32
+	if msg.Status != nil && msg.Status.MemberCount != nil {
+		memberCount = new(uint32)
+		*memberCount = *msg.Status.MemberCount
+	}
+
 	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.Spec{
 		Title:       msg.Spec.Title,
 		Description: msg.Spec.Description,
@@ -102,12 +108,10 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 			Recurrence:    recurrence,
 			Notifications: notifications,
 		},
-		Membership: accesslist.Inclusion(msg.Spec.Membership),
 		MembershipRequires: accesslist.Requires{
 			Roles:  msg.Spec.MembershipRequires.Roles,
 			Traits: traitv1.FromProto(msg.Spec.MembershipRequires.Traits),
 		},
-		Ownership: accesslist.Inclusion(msg.Spec.Ownership),
 		OwnershipRequires: accesslist.Requires{
 			Roles:  msg.Spec.OwnershipRequires.Roles,
 			Traits: traitv1.FromProto(msg.Spec.OwnershipRequires.Traits),
@@ -120,6 +124,9 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	accessList.Status = accesslist.Status{
+		MemberCount: memberCount,
 	}
 
 	for _, opt := range opts {
@@ -165,13 +172,17 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 		nextAuditDate = timestamppb.New(accessList.Spec.Audit.NextAuditDate)
 	}
 
+	var memberCount *uint32
+	if accessList.Status.MemberCount != nil {
+		memberCount = new(uint32)
+		*memberCount = *accessList.Status.MemberCount
+	}
+
 	return &accesslistv1.AccessList{
 		Header: headerv1.ToResourceHeaderProto(accessList.ResourceHeader),
 		Spec: &accesslistv1.AccessListSpec{
 			Title:       accessList.Spec.Title,
 			Description: accessList.Spec.Description,
-			Ownership:   string(accessList.Spec.Ownership),
-			Membership:  string(accessList.Spec.Membership),
 			Owners:      owners,
 			Audit: &accesslistv1.AccessListAudit{
 				NextAuditDate: nextAuditDate,
@@ -196,6 +207,9 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 				Traits: traitv1.ToProto(accessList.Spec.Grants.Traits),
 			},
 			OwnerGrants: ownerGrants,
+		},
+		Status: &accesslistv1.AccessListStatus{
+			MemberCount: memberCount,
 		},
 	}
 }

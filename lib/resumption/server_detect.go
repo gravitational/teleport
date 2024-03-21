@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -58,18 +59,36 @@ func serverVersionCRLFV1(pubKey *ecdh.PublicKey, hostID string) string {
 	)
 }
 
-// NewSSHServerWrapper wraps a given SSH server as to support connection
-// resumption.
-func NewSSHServerWrapper(log logrus.FieldLogger, sshServer func(net.Conn), hostID string) *SSHServerWrapper {
-	if log == nil {
-		log = logrus.WithField(trace.Component, Component)
+type SSHServerWrapperConfig struct {
+	Log logrus.FieldLogger
+
+	// SSHServer is a function that takes ownership of a [net.Conn] and uses it
+	// as a SSH server. If the Conn is a [sshutils.SSHServerVersionOverrider],
+	// the server should use the overridden server version.
+	SSHServer func(net.Conn)
+
+	// HostID is the host ID of the Teleport instance running the server;
+	// compliant connection resumption clients will reconnect to the host ID
+	// expecting to reach the instance.
+	HostID string
+
+	// DataDir is the path to the Teleport data directory, used to store
+	// temporary handover sockets.
+	DataDir string
+}
+
+// NewSSHServerWrapper creates a [SSHServerWrapper].
+func NewSSHServerWrapper(cfg SSHServerWrapperConfig) *SSHServerWrapper {
+	if cfg.Log == nil {
+		cfg.Log = logrus.WithField(teleport.ComponentKey, Component)
 	}
 
 	return &SSHServerWrapper{
-		sshServer: sshServer,
-		log:       log,
+		sshServer: cfg.SSHServer,
+		log:       cfg.Log,
 
-		hostID: hostID,
+		hostID:  cfg.HostID,
+		dataDir: cfg.DataDir,
 
 		conns: make(map[resumptionToken]*connEntry),
 	}
@@ -85,7 +104,8 @@ type SSHServerWrapper struct {
 	sshServer func(net.Conn)
 	log       logrus.FieldLogger
 
-	hostID string
+	hostID  string
+	dataDir string
 
 	mu    sync.Mutex
 	conns map[resumptionToken]*connEntry

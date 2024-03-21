@@ -22,7 +22,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/bufbuild/connect-go"
+	"connectrpc.com/connect"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"

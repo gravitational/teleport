@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
@@ -431,5 +432,113 @@ func TestUnmarshallCreateHostUserModeYAML(t *testing.T) {
 		err := yaml.Unmarshal([]byte(tc.input), &got)
 		require.NoError(t, err)
 		require.Equal(t, tc.expected, got)
+	}
+}
+
+func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
+	t.Parallel()
+	requireBadParameterContains := func(contains string) require.ErrorAssertionFunc {
+		return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+			require.True(t, trace.IsBadParameter(err))
+			require.ErrorContains(t, err, contains)
+		}
+	}
+	newRole := func(spec RoleSpecV6) *RoleV6 {
+		return &RoleV6{
+			Metadata: Metadata{
+				Name: "test",
+			},
+			Spec: spec,
+		}
+	}
+
+	tests := []struct {
+		name                string
+		role                *RoleV6
+		requireError        require.ErrorAssertionFunc
+		compareDefaultValue RoleConditions
+	}{
+		{
+			name: "spiffe: valid",
+			role: newRole(RoleSpecV6{
+				Allow: RoleConditions{
+					SPIFFE: []*SPIFFERoleCondition{{Path: "/test"}},
+				},
+			}),
+			requireError: require.NoError,
+		},
+		{
+			name: "spiffe: valid regex path",
+			role: newRole(RoleSpecV6{
+				Allow: RoleConditions{
+					SPIFFE: []*SPIFFERoleCondition{{Path: `^\/svc\/foo\/.*\/bar$`}},
+				},
+			}),
+			requireError: require.NoError,
+		},
+		{
+			name: "spiffe: missing path",
+			role: newRole(RoleSpecV6{
+				Allow: RoleConditions{
+					SPIFFE: []*SPIFFERoleCondition{{Path: ""}},
+				},
+			}),
+			requireError: requireBadParameterContains("path: should be non-empty"),
+		},
+		{
+			name: "spiffe: path not prepended",
+			role: newRole(RoleSpecV6{
+				Allow: RoleConditions{
+					SPIFFE: []*SPIFFERoleCondition{{Path: "foo"}},
+				},
+			}),
+			requireError: requireBadParameterContains("path: should start with /"),
+		},
+		{
+			name: "spiffe: invalid ip cidr",
+			role: newRole(RoleSpecV6{
+				Allow: RoleConditions{
+					SPIFFE: []*SPIFFERoleCondition{
+						{
+							Path: "/foo",
+							IPSANs: []string{
+								"10.0.0.1/24",
+								"llama",
+							},
+						},
+					},
+				},
+			}),
+			requireError: requireBadParameterContains("validating ip_sans[1]: invalid CIDR address: llama"),
+		},
+		{
+			name: "SAMLIdpServiceProviderLabels: valid wildcard labels",
+			role: newRole(RoleSpecV6{
+				Allow: RoleConditions{
+					SAMLIdPServiceProviderLabels: Labels{
+						Wildcard: {Wildcard},
+					},
+				},
+			}),
+			requireError: require.NoError,
+		},
+		{
+			name: "SAMLIdpServiceProviderLabels: invalid labels",
+			role: newRole(RoleSpecV6{
+				Allow: RoleConditions{
+					SAMLIdPServiceProviderLabels: Labels{
+						Wildcard: {"val"},
+					},
+				},
+			}),
+			requireError: requireBadParameterContains("not supported"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.role.CheckAndSetDefaults()
+			tt.requireError(t, err)
+		})
 	}
 }

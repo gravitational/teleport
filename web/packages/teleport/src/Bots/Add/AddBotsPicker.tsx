@@ -45,6 +45,9 @@ import {
 import { IntegrationTile } from 'teleport/Integrations';
 import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
 
+import useTeleport from 'teleport/useTeleport';
+import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
+
 import { BotFlowType } from '../types';
 
 type BotIntegration = {
@@ -136,29 +139,37 @@ const integrations: BotIntegration[] = [
 ];
 
 export function AddBotsPicker() {
+  const ctx = useTeleport();
   return (
     <>
       <FeatureHeader>
         <FeatureHeaderTitle>Select Bot Type</FeatureHeaderTitle>
       </FeatureHeader>
 
-      <Text typography="body1">
+      <Text typography="body1" mb="5">
         Set up Teleport Machine ID to allow CI/CD workflows and other machines
         to access resources protected by Teleport.
       </Text>
 
-      <BotTiles />
+      <BotTiles hasCreateBotPermission={ctx.getFeatureFlags().addBots} />
     </>
   );
 }
 
-export function BotTiles() {
+export function BotTiles({
+  hasCreateBotPermission,
+}: {
+  hasCreateBotPermission: boolean;
+}) {
   return (
-    <Flex mt={5} gap={3} flexWrap="wrap">
+    <Flex gap={3} flexWrap="wrap">
       {integrations.map(i => (
         <Box key={i.title}>
           {i.guided ? (
-            <GuidedTile integration={i} />
+            <GuidedTile
+              integration={i}
+              hasCreateBotPermission={hasCreateBotPermission}
+            />
           ) : (
             <ExternalLinkTile integration={i} />
           )}
@@ -189,12 +200,21 @@ function ExternalLinkTile({ integration }: { integration: BotIntegration }) {
   );
 }
 
-function GuidedTile({ integration }: { integration: BotIntegration }) {
+function GuidedTile({
+  integration,
+  hasCreateBotPermission,
+}: {
+  integration: BotIntegration;
+  hasCreateBotPermission: boolean;
+}) {
   return (
     <IntegrationTile
       as={Link}
-      to={integration.link}
+      to={hasCreateBotPermission ? integration.link : null}
       onClick={() => {
+        if (!hasCreateBotPermission) {
+          return;
+        }
         userEventService.captureIntegrationEnrollEvent({
           event: IntegrationEnrollEvent.Started,
           eventData: {
@@ -204,7 +224,16 @@ function GuidedTile({ integration }: { integration: BotIntegration }) {
         });
       }}
     >
-      <BadgeGuided>Guided</BadgeGuided>
+      {hasCreateBotPermission ? (
+        <BadgeGuided>Guided</BadgeGuided>
+      ) : (
+        <ToolTipNoPermBadge>
+          <div>
+            You don’t have sufficient permissions to create bots. Reach out to
+            your Teleport administrator to request additional permissions.
+          </div>
+        </ToolTipNoPermBadge>
+      )}
       <TileContent icon={integration.icon} title={integration.title} />
     </IntegrationTile>
   );

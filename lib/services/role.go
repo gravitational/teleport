@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"path"
 	"regexp"
 	"slices"
@@ -1805,6 +1806,114 @@ func (set RoleSet) SessionRecordingMode(service constants.SessionRecordingServic
 	return constants.SessionRecordingModeBestEffort
 }
 
+func contains[S ~[]E, E any](s S, f func(E) (bool, error)) (bool, error) {
+	for i := range s {
+		match, err := f(s[i])
+		if err != nil {
+			return false, err
+		}
+		if match {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// matchSPIFFESVIDConditions compares a slice of SPIFFE Role Conditions against
+// a requested SPIFFE SVID generation. All fields within a condition must match,
+// but any condition in the slice can match for the function to return true.
+func matchSPIFFESVIDConditions(
+	conds []*types.SPIFFERoleCondition,
+	spiffeIDPath string,
+	dnsSANs []string,
+	ipSANs []net.IP,
+) (bool, error) {
+	return contains(conds, func(cond *types.SPIFFERoleCondition) (bool, error) {
+		// Match SPIFFE ID path.
+		match, err := utils.MatchString(spiffeIDPath, cond.Path)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if !match {
+			// No match - skip to next condition.
+			return false, nil
+		}
+
+		// All DNS SANs requested must match one of the DNS SAN matchers in the
+		// condition.
+		for _, dnsSAN := range dnsSANs {
+			match, err := contains(cond.DNSSANs, func(s string) (bool, error) {
+				match, err := utils.MatchString(dnsSAN, s)
+				if err != nil {
+					return false, trace.Wrap(err)
+				}
+				return match, nil
+			})
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if !match {
+				return false, nil
+			}
+		}
+
+		// All IP SANs requested must match one of the IP SAN matchers in the
+		// condition.
+		for _, ipSAN := range ipSANs {
+			match, err := contains(cond.IPSANs, func(s string) (bool, error) {
+				_, cidr, err := net.ParseCIDR(s)
+				if err != nil {
+					return false, trace.Wrap(err, "parsing cidr")
+				}
+
+				return cidr.Contains(ipSAN), nil
+			})
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if !match {
+				return false, nil
+			}
+		}
+
+		// All condition fields matched.
+		return true, nil
+	})
+}
+
+// CheckSPIFFESVID checks if the role set has access to generating the
+// requested SPIFFE ID. Returns an error if the role set does not have the
+// ability to generate the requested SVID.
+func (set RoleSet) CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs []net.IP) error {
+	accessDenied := trace.AccessDenied("access denied to generate SVID %q", spiffeIDPath)
+
+	// check deny: a single match on a deny rule prohibits generation
+	for _, role := range set {
+		cond := role.GetSPIFFEConditions(types.Deny)
+		matched, err := matchSPIFFESVIDConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matched {
+			return accessDenied
+		}
+	}
+
+	// check allow: if a single condition matches, allow generation
+	for _, role := range set {
+		cond := role.GetSPIFFEConditions(types.Allow)
+		matched, err := matchSPIFFESVIDConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matched {
+			return nil
+		}
+	}
+
+	return accessDenied
+}
+
 func roleNames(roles []types.Role) string {
 	out := make([]string, len(roles))
 	for i := range roles {
@@ -2314,7 +2423,7 @@ type AccessCheckable interface {
 // allowing the RBAC system to generate more verbose errors in debug mode.
 func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...interface{})) {
 	isDebugEnabled := log.IsLevelEnabled(log.TraceLevel)
-	log := log.WithField(trace.Component, teleport.ComponentRBAC)
+	log := log.WithField(teleport.ComponentKey, teleport.ComponentRBAC)
 	return isDebugEnabled, log.Tracef
 }
 
@@ -2906,7 +3015,7 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 			}
 			if matched {
 				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
+					teleport.ComponentKey: teleport.ComponentRBAC,
 				}).Tracef("Access to %v %v in namespace %v denied to %v: deny rule matched.",
 					p.verb, p.resource, p.namespace, role.GetName())
 				return trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
@@ -2929,7 +3038,7 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 	}
 
 	log.WithFields(log.Fields{
-		trace.Component: teleport.ComponentRBAC,
+		teleport.ComponentKey: teleport.ComponentRBAC,
 	}).Tracef("Access to %v %v in namespace %v denied to %v: no allow rule matched.",
 		p.verb, p.resource, p.namespace, set)
 
@@ -3124,26 +3233,13 @@ const (
 	MFARequiredPerRole MFARequired = "per-role"
 )
 
-// SortedRoles sorts roles by name
-type SortedRoles []types.Role
-
-// Len returns length of a role list
-func (s SortedRoles) Len() int {
-	return len(s)
-}
-
-// Less compares roles by name
-func (s SortedRoles) Less(i, j int) bool {
-	return s[i].GetName() < s[j].GetName()
-}
-
-// Swap swaps two roles in a list
-func (s SortedRoles) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
 // UnmarshalRole unmarshals the Role resource from JSON.
 func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
+	return UnmarshalRoleV6(bytes, opts...)
+}
+
+// UnmarshalRoleV6 unmarshals the RoleV6 resource from JSON.
+func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error) {
 	var h types.ResourceHeader
 	err := json.Unmarshal(bytes, &h)
 	if err != nil {

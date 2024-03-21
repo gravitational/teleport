@@ -34,6 +34,8 @@ import (
 	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -41,6 +43,7 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -151,6 +154,33 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 func (c *Client) Close() error {
 	c.HTTPClient.Close()
 	return c.APIClient.Close()
+}
+
+// CreateAuthPreference not implemented: can only be called locally.
+func (c *Client) CreateAuthPreference(context.Context, types.AuthPreference) (types.AuthPreference, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// CreateSessionRecordingConfig not implemented: can only be called locally.
+func (c *Client) CreateSessionRecordingConfig(context.Context, types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// CreateClusterAuditConfig not implemented: can only be called locally.
+func (c *Client) CreateClusterAuditConfig(context.Context, types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpdateClusterAuditConfig(context.Context, types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpsertClusterAuditConfig(context.Context, types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) CreateClusterNetworkingConfig(context.Context, types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // CreateCertAuthority not implemented: can only be called locally.
@@ -312,6 +342,16 @@ func (c *Client) DeleteAllReverseTunnels() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// DeleteAllRemoteClusters not implemented: can only be called locally.
+func (c *Client) DeleteAllRemoteClusters(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// CreateRemoteCluster not implemented: can only be called locally.
+func (c *Client) CreateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
 // DeleteAllNamespaces not implemented: can only be called locally.
 func (c *Client) DeleteAllNamespaces() error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -377,17 +417,17 @@ func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (apieven
 }
 
 // GetClusterAuditConfig gets cluster audit configuration.
-func (c *Client) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
 	return c.APIClient.GetClusterAuditConfig(ctx)
 }
 
 // GetClusterNetworkingConfig gets cluster networking configuration.
-func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (c *Client) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	return c.APIClient.GetClusterNetworkingConfig(ctx)
 }
 
 // GetSessionRecordingConfig gets session recording configuration.
-func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+func (c *Client) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
 	return c.APIClient.GetSessionRecordingConfig(ctx)
 }
 
@@ -475,6 +515,26 @@ func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
 }
 
+// ListRemoteClusters returns a page of remote clusters.
+func (c *Client) ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error) {
+	return nil, "", trace.NotImplemented("ListRemoteClusters is not implemented yet")
+}
+
+// UpdateRemoteCluster updates a remote cluster.
+func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error) {
+	// This is a little weird during the migration period of the old endpoints
+	// to grpc. Here, we need to call Update via gRPC and Get via HTTP.
+	err := c.APIClient.UpdateRemoteCluster(ctx, rc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	fetchedRC, err := c.HTTPClient.GetRemoteCluster(ctx, rc.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return fetchedRC, nil
+}
+
 // UpsertUser user updates user entry.
 // TODO(tross): DELETE IN 16.0.0
 func (c *Client) UpsertUser(ctx context.Context, user types.User) (types.User, error) {
@@ -492,10 +552,6 @@ func (c *Client) UpsertUser(ctx context.Context, user types.User) (types.User, e
 		return nil, trace.Wrap(err)
 	}
 	_, err = c.HTTPClient.PostJSON(ctx, c.Endpoint("users"), &upsertUserRawReq{User: data})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -644,11 +700,6 @@ type IdentityService interface {
 	// ChangePassword changes user password
 	ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error
 
-	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
-	// plain text format, signs it using Host Certificate Authority private key and returns the
-	// resulting certificate.
-	GenerateHostCert(ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error)
-
 	// GenerateUserCerts takes the public key in the OpenSSH `authorized_keys` plain
 	// text format, signs it using User Certificate Authority signing key and
 	// returns the resulting certificates.
@@ -773,10 +824,14 @@ type ClientI interface {
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
 	services.Integrations
+	services.KubeWaitingContainer
 	types.Events
 
 	types.WebSessionsGetter
 	types.WebTokensGetter
+
+	// TrustClient returns a client to the Trust service.
+	TrustClient() trustpb.TrustServiceClient
 
 	// DevicesClient returns a Device Trust client.
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
@@ -844,7 +899,7 @@ type ClientI interface {
 
 	// CreateAppSession creates an application web session. Application web
 	// sessions represent a browser session the client holds.
-	CreateAppSession(context.Context, types.CreateAppSessionRequest) (types.WebSession, error)
+	CreateAppSession(context.Context, *proto.CreateAppSessionRequest) (types.WebSession, error)
 
 	// CreateSnowflakeSession creates a Snowflake web session. Snowflake web
 	// sessions represent Database Access Snowflake session the client holds.
@@ -868,7 +923,7 @@ type ClientI interface {
 	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
 
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context) (string, error)
+	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
 
 	// ResetAuthPreference resets cluster auth preference to defaults.
 	ResetAuthPreference(ctx context.Context) error
@@ -930,6 +985,9 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	AccessListClient() services.AccessLists
 
+	// DatabaseObjectImportRuleClient returns a database import rule client.
+	DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient
+
 	// SecReportsClient returns a client for security reports.
 	// Clients connecting to  older Teleport versions, still get an access list client
 	// when calling this method, but all RPCs will return "not implemented" errors
@@ -966,6 +1024,18 @@ type ClientI interface {
 	// "not implemented" errors (as per the default gRPC behavior).
 	ExternalAuditStorageClient() *externalauditstorage.Client
 
+	// WorkloadIdentityServiceClient returns a workload identity service client.
+	// Clients connecting to  older Teleport versions, still get a client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient
+
+	// ClusterConfigClient returns a Cluster Configuration client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClient
+
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
 
@@ -977,6 +1047,11 @@ type ClientI interface {
 
 	// UpsertUserPreferences creates or updates user preferences for a given username.
 	UpsertUserPreferences(ctx context.Context, req *userpreferencesv1.UpsertUserPreferencesRequest) error
+
+	// ListAllAccessRequests is a helper for using the ListAccessRequests API's additional sort order/index features without
+	// mucking about with pagination. It also implements backwards-comatibility with older control planes that only
+	// support GetAccessRequests.
+	ListAllAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) ([]*types.AccessRequestV3, error)
 
 	// ListUnifiedResources returns a paginated list of unified resources.
 	ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error)
@@ -991,4 +1066,7 @@ type ClientI interface {
 	// and prompts the user to answer the challenge with the given promptOpts, and ultimately returning
 	// an MFA challenge response for the user.
 	PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error)
+
+	// GetClusterAccessGraphConfig retrieves the cluster Access Graph configuration from Auth server.
+	GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error)
 }

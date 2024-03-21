@@ -23,9 +23,6 @@ jobs:
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport16
 
-    env:
-      GOLANGCI_LINT_VERSION: v1.56.1
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,40 +34,50 @@ jobs:
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $( realpath . ) && git diff --exit-code -- go.mod go.sum api/go.mod api/go.sum
 
+      - name: Set linter versions
+        run: |
+          echo BUF_VERSION=$(cd build.assets; make print-buf-version) >> $GITHUB_ENV
+          echo GOLANGCI_LINT_VERSION=$(cd build.assets; make print-golangci-lint-version) >> $GITHUB_ENV
+
+      - name: Print linter versions
+        run: |
+          echo "BUF_VERSION=$BUF_VERSION"
+          echo "GOLANGCI_LINT_VERSION=$GOLANGCI_LINT_VERSION"
+
       # Run various golangci-lint checks.
       # TODO(codingllama): Using go.work could save a bunch of repetition here.
       - name: golangci-lint (api)
-        uses: golangci/golangci-lint-action@3a919529898de77ec3da873e3063ca4b10e7f5cc # v3.7.0
+        uses: golangci/golangci-lint-action@3cfe3a4abbb849e10058ce4af15d205b6da42804 # v4.0.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: api
           args: --out-format=colored-line-number
           skip-cache: true
       - name: golangci-lint (teleport)
-        uses: golangci/golangci-lint-action@3a919529898de77ec3da873e3063ca4b10e7f5cc # v3.7.0
+        uses: golangci/golangci-lint-action@3cfe3a4abbb849e10058ce4af15d205b6da42804 # v4.0.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --out-format=colored-line-number --build-tags libfido2,piv
           skip-cache: true
       - name: golangci-lint (assets/backport)
-        uses: golangci/golangci-lint-action@3a919529898de77ec3da873e3063ca4b10e7f5cc # v3.7.0
+        uses: golangci/golangci-lint-action@3cfe3a4abbb849e10058ce4af15d205b6da42804 # v4.0.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: assets/backport
           args: --out-format=colored-line-number
           skip-cache: true
       - name: golangci-lint (build.assets/tooling)
-        uses: golangci/golangci-lint-action@3a919529898de77ec3da873e3063ca4b10e7f5cc # v3.7.0
+        uses: golangci/golangci-lint-action@3cfe3a4abbb849e10058ce4af15d205b6da42804 # v4.0.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: build.assets/tooling
           args: --out-format=colored-line-number
           skip-cache: true
 
-      - uses: bufbuild/buf-setup-action@88db93f5d74ffa329bb43e42aa95cd822697d214 # v1.29.0
+      - uses: bufbuild/buf-setup-action@517ee23296d5caf38df31c21945e6a54bbc8a89f # v1.30.0
         with:
           github_token: ${{ github.token }}
-          version: v1.29.0
+          version: ${{ env.BUF_VERSION }}
       - uses: bufbuild/buf-lint-action@044d13acb1f155179c606aaa2e53aea304d22058 # v1.1.0
       - name: buf breaking from parent to self
         uses: bufbuild/buf-breaking-action@a074e988ee34efcd4927079e79c611f428354c01 # v1.1.3
@@ -95,3 +102,7 @@ jobs:
       - name: Check if Operator CRDs are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make crds-up-to-date
+
+      - name: Check if derived functions are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make derive-up-to-date

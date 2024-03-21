@@ -35,7 +35,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
@@ -273,7 +272,7 @@ func (s *WebSuite) makeCommand(t *testing.T, pack *authPack, conversationID uuid
 	u := url.URL{
 		Host:   s.url().Host,
 		Scheme: client.WSS,
-		Path:   fmt.Sprintf("/v1/webapi/command/%v/execute", currentSiteShortcut),
+		Path:   fmt.Sprintf("/v1/webapi/command/%v/execute/ws", currentSiteShortcut),
 	}
 	data, err := json.Marshal(req)
 	if err != nil {
@@ -282,7 +281,6 @@ func (s *WebSuite) makeCommand(t *testing.T, pack *authPack, conversationID uuid
 
 	q := u.Query()
 	q.Set("params", string(data))
-	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
 	u.RawQuery = q.Encode()
 
 	dialer := websocket.Dialer{}
@@ -298,6 +296,10 @@ func (s *WebSuite) makeCommand(t *testing.T, pack *authPack, conversationID uuid
 
 	ws, resp, err := dialer.Dial(u.String(), header)
 	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	if err := makeAuthReqOverWS(ws, pack.session.Token); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 

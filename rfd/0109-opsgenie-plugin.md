@@ -108,8 +108,8 @@ spec:
     request:
       roles: [someOtherRole]
       annotations:
-        teleport.dev/notify-services: ["service1", "service2"] # These are the Opsgenie schedules alerts will be created under
-        teleport.dev/schedules: ["service1", "service2"] # These are the Opsgenie schedules checked during auto approval
+        opsgenie_notify_services: ["service1", "service2"] # These are the Opsgenie services alerts will be created under
+        opsgenie_oncall_schedules: ["service1", "service2"] # These are the Opsgenie schedules checked during auto approval
 ```
 
 ## Implementation details

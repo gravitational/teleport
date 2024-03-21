@@ -32,6 +32,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -171,7 +172,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	log := logrus.WithField(trace.Component, componentName)
+	log := logrus.WithField(teleport.ComponentKey, componentName)
 
 	if cfg.AuthMode == AzureADAuth {
 		bc, err := pgcommon.AzureBeforeConnect(log)

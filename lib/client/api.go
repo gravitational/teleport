@@ -128,8 +128,10 @@ const (
 	ForwardAgentLocal
 )
 
+const remoteForwardUnsupportedMessage = "ssh: tcpip-forward request denied by peer"
+
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentClient,
+	teleport.ComponentKey: teleport.ComponentClient,
 })
 
 // ForwardedPort specifies local tunnel to remote
@@ -311,6 +313,10 @@ type Config struct {
 	// DynamicForwardedPorts are the list of ports tsh listens on for dynamic
 	// port forwarding (parameters to -D ssh flag).
 	DynamicForwardedPorts DynamicForwardedPorts
+
+	// RemoteForwardPorts are the list of ports the remote connection listens on
+	// for remote port forwarding (parameters to -R ssh flag).
+	RemoteForwardPorts ForwardedPorts
 
 	// HostKeyCallback will be called to check host keys of the remote
 	// node, if not specified will be using CheckHostSignature function
@@ -674,19 +680,42 @@ func WithBeforeLoginHook(fn func() error) RetryWithReloginOption {
 
 // IsErrorResolvableWithRelogin returns true if relogin is attempted on `err`.
 func IsErrorResolvableWithRelogin(err error) bool {
+	// Private key policy errors indicate that the user must login with an
+	// unexpected private key policy requirement satisfied. This can occur
+	// in the following cases:
+	// - User is logging in for the first time, and their strictest private
+	//   key policy requirement is specified in a role.
+	// - User is assuming a role with a stricter private key policy requirement
+	//   than the user's given roles.
+	// - The private key policy in the user's roles or the cluster auth
+	//   preference have been upgraded since the user last logged in, making
+	//   their current login session invalid.
+	if keys.IsPrivateKeyPolicyError(err) {
+		return true
+	}
+
 	// Ignore any failures resulting from RPCs.
 	// These were all materialized as status.Error here before
 	// https://github.com/gravitational/teleport/pull/30578.
 	var remoteErr *interceptors.RemoteError
 	if errors.As(err, &remoteErr) {
-		return false
+		// Exception for the two "retryable" errors that come from RPCs.
+		//
+		// Since Connect no longer checks the user cert before making an RPC,
+		// it has to be able to properly recognize "expired certs" errors
+		// that come from the server (to show a re-login dialog).
+		//
+		// TODO(gzdunek): These manual checks should be replaced with retryable
+		// errors returned explicitly, as described below by codingllama.
+		isClientCredentialsHaveExpired := errors.Is(err, client.ErrClientCredentialsHaveExpired)
+		isTLSExpiredCertificate := strings.Contains(err.Error(), "tls: expired certificate")
+		return isClientCredentialsHaveExpired || isTLSExpiredCertificate
 	}
 
-	return keys.IsPrivateKeyPolicyError(err) ||
-		// TODO(codingllama): Retrying BadParameter is a terrible idea.
-		//  We should fix this and remove the RemoteError condition above as well.
-		//  Any retriable error should be explicitly marked as such.
-		trace.IsBadParameter(err) ||
+	// TODO(codingllama): Retrying BadParameter is a terrible idea.
+	//  We should fix this and remove the RemoteError condition above as well.
+	//  Any retriable error should be explicitly marked as such.
+	return trace.IsBadParameter(err) ||
 		trace.IsTrustError(err) ||
 		utils.IsCertExpiredError(err) ||
 		// Assume that failed handshake is a result of expired credentials.
@@ -1363,6 +1392,7 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, cachePolicy Cert
 	)
 	defer span.End()
 
+	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1393,6 +1423,7 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	)
 	defer span.End()
 
+	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1414,13 +1445,14 @@ func (tc *TeleportClient) CreateAccessRequestV2(ctx context.Context, req types.A
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	return proxyClient.CreateAccessRequestV2(ctx, req)
+	created, err := clusterClient.AuthClient.CreateAccessRequestV2(ctx, req)
+	return created, trace.Wrap(err)
 }
 
 // GetAccessRequests loads all access requests matching the supplied filter.
@@ -1436,13 +1468,14 @@ func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter types.Ac
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	return proxyClient.GetAccessRequests(ctx, filter)
+	reqs, err := clusterClient.AuthClient.GetAccessRequests(ctx, filter)
+	return reqs, trace.Wrap(err)
 }
 
 // GetRole loads a role resource by name.
@@ -1457,13 +1490,14 @@ func (tc *TeleportClient) GetRole(ctx context.Context, name string) (types.Role,
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	return proxyClient.GetRole(ctx, name)
+	role, err := clusterClient.AuthClient.GetRole(ctx, name)
+	return role, trace.Wrap(err)
 }
 
 // watchCloser is a wrapper around a services.Watcher
@@ -1490,20 +1524,19 @@ func (tc *TeleportClient) NewWatcher(ctx context.Context, watch types.Watch) (ty
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	watcher, err := proxyClient.NewWatcher(ctx, watch)
+	watcher, err := clusterClient.AuthClient.NewWatcher(ctx, watch)
 	if err != nil {
-		proxyClient.Close()
-		return nil, trace.Wrap(err)
+		return nil, trace.NewAggregate(err, clusterClient.Close())
 	}
 
 	return watchCloser{
 		Watcher: watcher,
-		Closer:  proxyClient,
+		Closer:  clusterClient,
 	}, nil
 }
 
@@ -1517,6 +1550,7 @@ func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt
 	)
 	defer span.End()
 
+	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1930,6 +1964,22 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 		}
 		go nodeClient.dynamicListenAndForward(ctx, socket, addr)
 	}
+	for _, fp := range tc.Config.RemoteForwardPorts {
+		addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
+		socket, err := nodeClient.Client.Listen("tcp", addr)
+		if err != nil {
+			// We log the error here instead of returning it to be consistent with
+			// the other port forwarding methods, which don't stop the session
+			// if forwarding fails.
+			message := fmt.Sprintf("Failed to bind on remote host to %v: %v.", addr, err)
+			if strings.Contains(err.Error(), remoteForwardUnsupportedMessage) {
+				message = "Node does not support remote port forwarding (-R)."
+			}
+			log.Error(message)
+		} else {
+			go nodeClient.remoteListenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)), addr)
+		}
+	}
 	return nil
 }
 
@@ -2041,13 +2091,13 @@ func (tc *TeleportClient) Play(ctx context.Context, sessionID string, speed floa
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	return playSession(ctx, sessionID, speed, proxyClient.CurrentCluster())
+	return playSession(ctx, sessionID, speed, clusterClient.AuthClient)
 }
 
 const (
@@ -2333,13 +2383,22 @@ func isRemoteDest(name string) bool {
 // ListNodesWithFilters returns all nodes that match the filters in the current cluster
 // that the logged in user has access to.
 func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Server, error) {
-	req := tc.ResourceFilter(types.KindNode)
+	req := proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{types.KindNode},
+		Labels:              tc.Labels,
+		SearchKeywords:      tc.SearchKeywords,
+		PredicateExpression: tc.PredicateExpression,
+		UseSearchAsRoles:    tc.UseSearchAsRoles,
+		SortBy: types.SortBy{
+			Field: types.ResourceKind,
+		},
+	}
+
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ListNodesWithFilters",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
-			attribute.String("resource", req.ResourceType),
 			attribute.Int("limit", int(req.Limit)),
 			attribute.String("predicate", req.PredicateExpression),
 			attribute.StringSlice("keywords", req.SearchKeywords),
@@ -2353,8 +2412,30 @@ func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Ser
 	}
 	defer clt.Close()
 
-	servers, err := client.GetAllResources[types.Server](ctx, clt.AuthClient, req)
-	return servers, trace.Wrap(err)
+	var servers []types.Server
+	for {
+		page, err := client.ListUnifiedResourcePage(ctx, clt.AuthClient, &req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, r := range page.Resources {
+			srv, ok := r.(types.Server)
+			if !ok {
+				log.Warnf("expected types.Server but received unexpected type %T", r)
+				continue
+			}
+
+			servers = append(servers, srv)
+		}
+
+		req.StartKey = page.NextKey
+		if req.StartKey == "" {
+			break
+		}
+	}
+
+	return servers, nil
 }
 
 // GetClusterAlerts returns a list of matching alerts from the current cluster.
@@ -2365,18 +2446,19 @@ func (tc *TeleportClient) GetClusterAlerts(ctx context.Context, req types.GetClu
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	alerts, err := proxyClient.GetClusterAlerts(ctx, req)
+	alerts, err := clusterClient.AuthClient.GetClusterAlerts(ctx, req)
 	return alerts, trace.Wrap(err)
 }
 
 // ListNodesWithFiltersAllClusters returns a map of all nodes in all clusters connected to this proxy.
 func (tc *TeleportClient) ListNodesWithFiltersAllClusters(ctx context.Context) (map[string][]types.Server, error) {
+	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2407,27 +2489,24 @@ func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customF
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
 	filter := customFilter
 	if filter == nil {
 		filter = tc.ResourceFilter(types.KindAppServer)
 	}
 
-	servers, err := proxyClient.FindAppServersByFilters(ctx, *filter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return servers, nil
+	servers, err := client.GetAllResources[types.AppServer](ctx, clusterClient.AuthClient, filter)
+	return servers, trace.Wrap(err)
 }
 
 // listAppServersWithFiltersAllClusters returns a map of all app servers in all clusters connected to this proxy.
 func (tc *TeleportClient) listAppServersWithFiltersAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.AppServer, error) {
+	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2492,7 +2571,7 @@ func (tc *TeleportClient) ListAppsAllClusters(ctx context.Context, customFilter 
 }
 
 // CreateAppSession creates a new application access session.
-func (tc *TeleportClient) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
+func (tc *TeleportClient) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/CreateAppSession",
@@ -2500,12 +2579,28 @@ func (tc *TeleportClient) CreateAppSession(ctx context.Context, req types.Create
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
-	return proxyClient.CreateAppSession(ctx, req)
+	defer clusterClient.Close()
+
+	rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rootAuthClient.Close()
+
+	ws, err := rootAuthClient.CreateAppSession(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), rootAuthClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ws, nil
 }
 
 // GetAppSession returns an existing application access session.
@@ -2520,12 +2615,20 @@ func (tc *TeleportClient) GetAppSession(ctx context.Context, req types.GetAppSes
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
-	return proxyClient.GetAppSession(ctx, req)
+	defer clusterClient.Close()
+
+	rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rootAuthClient.Close()
+
+	ws, err := rootAuthClient.GetAppSession(ctx, req)
+	return ws, trace.Wrap(err)
 }
 
 // DeleteAppSession removes the specified application access session.
@@ -2537,12 +2640,19 @@ func (tc *TeleportClient) DeleteAppSession(ctx context.Context, sessionID string
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
-	return proxyClient.DeleteAppSession(ctx, sessionID)
+	defer clusterClient.Close()
+
+	rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer rootAuthClient.Close()
+
+	return trace.Wrap(rootAuthClient.DeleteAppSession(ctx, types.DeleteAppSessionRequest{SessionID: sessionID}))
 }
 
 // ListDatabaseServersWithFilters returns all registered database proxy servers.
@@ -2554,27 +2664,24 @@ func (tc *TeleportClient) ListDatabaseServersWithFilters(ctx context.Context, cu
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
 	filter := customFilter
 	if filter == nil {
 		filter = tc.ResourceFilter(types.KindDatabaseServer)
 	}
 
-	servers, err := proxyClient.FindDatabaseServersByFilters(ctx, *filter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return servers, nil
+	servers, err := client.GetAllResources[types.DatabaseServer](ctx, clusterClient.AuthClient, filter)
+	return servers, trace.Wrap(err)
 }
 
 // listDatabaseServersWithFilters returns all registered database proxy servers across all clusters.
 func (tc *TeleportClient) listDatabaseServersWithFiltersAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.DatabaseServer, error) {
+	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2676,6 +2783,7 @@ func (tc *TeleportClient) ListKubernetesClustersWithFiltersAllClusters(ctx conte
 	)
 	defer span.End()
 
+	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 	pc, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3113,6 +3221,9 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 // ConnectToProxy will dial to the proxy server and return a ProxyClient when
 // successful. If the passed in context is canceled, this function will return
 // a trace.ConnectionProblem right away.
+//
+// Deprecated: Use ConnectToCluster instead, it connects to the cluster via
+// gRPC instead of SSH to reduce latency.
 func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
@@ -4428,21 +4539,22 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 	if !tc.Config.ProxySpecified() {
 		return nil, trace.BadParameter("proxy server is not specified")
 	}
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
 	// Get a client to the Auth Server.
-	clt, err := proxyClient.ConnectToCluster(ctx, clusterName)
+	clt, err := clusterClient.ConnectToCluster(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer clt.Close()
 
 	// Get the list of host certificates that this cluster knows about.
-	return clt.GetCertAuthorities(ctx, types.HostCA, false)
+	cas, err := clt.GetCertAuthorities(ctx, types.HostCA, false)
+	return cas, trace.Wrap(err)
 }
 
 // UpdateTrustedCA connects to the Auth Server and fetches all host certificates
@@ -5113,20 +5225,14 @@ func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUT
 		),
 	)
 	defer span.End()
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
-	authClient := proxyClient.CurrentCluster()
-	defer authClient.Close()
+	defer clusterClient.Close()
 
-	sessions, err := GetPaginatedSessions(ctx, fromUTC, toUTC,
-		pageSize, order, max, authClient)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sessions, nil
+	sessions, err := GetPaginatedSessions(ctx, fromUTC, toUTC, pageSize, order, max, clusterClient.AuthClient)
+	return sessions, trace.Wrap(err)
 }
 
 func parseMFAMode(in string) (wancli.AuthenticatorAttachment, error) {
@@ -5225,13 +5331,13 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		return trace.BadParameter("proxy server is not specified")
 	}
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	rootClient, err := proxyClient.ConnectToRootCluster(ctx)
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

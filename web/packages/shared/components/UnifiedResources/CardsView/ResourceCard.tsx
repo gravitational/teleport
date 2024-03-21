@@ -289,7 +289,8 @@ const CardOuterContainer = styled(Box)`
     `}
   transition: all 150ms;
 
-  ${CardContainer}:hover & {
+  // Using double ampersand because of https://github.com/styled-components/styled-components/issues/3678.
+  ${CardContainer}:hover && {
     background-color: ${props => props.theme.colors.levels.surface};
 
     // We use a pseudo element for the shadow with position: absolute in order to prevent

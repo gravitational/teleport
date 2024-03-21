@@ -187,9 +187,9 @@ RUN apt-get -y update && \
 # Code Signing Certificate needs us to use osslsigncode >= 2.6, which
 # allows the use of legacy OpenSSL algorithms. This is not yet provided
 # by Ubuntu, so we will have to fetch it ourselves.
-RUN --mount=type=bind,target=/context \
+RUN --mount=type=bind,source=download-hashes/osslsigncode.sha256,target=/context/osslsigncode.sha256 \
     curl -L https://github.com/mtrojnar/osslsigncode/releases/download/2.6/osslsigncode-2.6-ubuntu-22.04.zip -o osslsigncode.zip \
-    && sha256sum --strict -c /context/download-hashes/osslsigncode.sha256 \
+    && sha256sum --strict -c /context/osslsigncode.sha256 \
     && unzip -d /tmp/osslsigncode osslsigncode.zip \
     && install -m 0755 /tmp/osslsigncode/bin/osslsigncode /usr/bin \
     && rm -rf /tmp/osslsigncode \
@@ -266,7 +266,7 @@ RUN git clone --depth=1 https://github.com/bats-core/bats-core.git -b v1.2.1 && 
     rm -r bats-core
 
 # Install shellcheck.
-RUN scversion='v0.9.0' && \
+RUN scversion='v0.10.0' && \
     curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch64"; fi).tar.xz" | \
         tar -xJv && \
     cp "shellcheck-$scversion/shellcheck" /usr/local/bin/ && \
@@ -313,13 +313,14 @@ RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install GCI.
-RUN go install github.com/daixiang0/gci@v0.12.1
+RUN go install github.com/daixiang0/gci@v0.12.3
 
 # Install gotestsum.
 RUN go install gotest.tools/gotestsum@v1.10.1
 
 # Install golangci-lint.
-RUN VERSION='v1.56.1'; \
+ARG GOLANGCI_LINT_VERSION # eg, v1.56.1
+RUN VERSION="$GOLANGCI_LINT_VERSION"; \
     curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$VERSION/install.sh" | \
     sh -s -- -b "$(go env GOPATH)/bin" "$VERSION"
 

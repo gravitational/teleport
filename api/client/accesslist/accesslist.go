@@ -136,6 +136,18 @@ func (c *Client) DeleteAllAccessLists(ctx context.Context) error {
 	return trace.NotImplemented("DeleteAllAccessLists not supported in the gRPC client")
 }
 
+// CountAccessListMembers will count all access list members.
+func (c *Client) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error) {
+	resp, err := c.grpcClient.CountAccessListMembers(ctx, &accesslistv1.CountAccessListMembersRequest{
+		AccessListName: accessListName,
+	})
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return resp.Count, nil
+}
+
 // ListAccessListMembers returns a paginated list of all access list members for an access list.
 func (c *Client) ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
 	resp, err := c.grpcClient.ListAccessListMembers(ctx, &accesslistv1.ListAccessListMembersRequest{

@@ -236,6 +236,9 @@ func (h *Handler) executeCommand(
 			LocalAccessPoint:   h.auth.accessPoint,
 			mfaFuncCache:       mfaCacheFn,
 			buffer:             buffer,
+			HostNameResolver: func(serverID string) (string, error) {
+				return serverID, nil
+			},
 		}
 
 		handler, err := newCommandHandler(ctx, commandHandlerConfig)
@@ -455,8 +458,8 @@ func newCommandHandler(ctx context.Context, cfg CommandHandlerConfig) (*commandH
 	return &commandHandler{
 		sshBaseHandler: sshBaseHandler{
 			log: logrus.WithFields(logrus.Fields{
-				trace.Component: teleport.ComponentWebsocket,
-				"session_id":    cfg.SessionData.ID.String(),
+				teleport.ComponentKey: teleport.ComponentWebsocket,
+				"session_id":          cfg.SessionData.ID.String(),
 			}),
 			ctx:                cfg.SessionCtx,
 			userAuthClient:     cfg.UserAuthClient,
@@ -467,6 +470,7 @@ func newCommandHandler(ctx context.Context, cfg CommandHandlerConfig) (*commandH
 			router:             cfg.Router,
 			localAccessPoint:   cfg.LocalAccessPoint,
 			tracer:             cfg.tracer,
+			resolver:           cfg.HostNameResolver,
 		},
 		mfaAuthCache: cfg.mfaFuncCache,
 		buffer:       cfg.buffer,
@@ -499,6 +503,9 @@ type CommandHandlerConfig struct {
 	// Anything requests that should be made on behalf of the user should
 	// use [UserAuthClient].
 	LocalAccessPoint localAccessPoint
+	// HostNameResolver allows the hostname to be determined from a server UUID
+	// so that a friendly name can be displayed in the console tab.
+	HostNameResolver func(serverID string) (hostname string, err error)
 	// tracer is used to create spans
 	tracer oteltrace.Tracer
 	// mfaFuncCache is used to cache the MFA auth method

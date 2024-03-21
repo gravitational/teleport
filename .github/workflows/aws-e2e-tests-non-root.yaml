@@ -32,7 +32,7 @@ jobs:
        - name: Checkout
          if: ${{ github.event_name == 'merge_group' }}
          uses: actions/checkout@v4
-       - uses: dorny/paths-filter@0bc4621a3135347011ad047f9ecf449bf72ce2bd # v3.0.0
+       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
          id: changes
          with:
            base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
@@ -79,7 +79,7 @@ jobs:
         continue-on-error: true
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ env.GHA_ASSUME_ROLE }}

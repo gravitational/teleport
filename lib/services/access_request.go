@@ -33,23 +33,29 @@ import (
 
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
-const maxAccessRequestReasonSize = 4096
+const (
+	maxAccessRequestReasonSize = 4096
 
-// A day is sometimes 23 hours, sometimes 25 hours, usually 24 hours.
-const day = 24 * time.Hour
+	// A day is sometimes 23 hours, sometimes 25 hours, usually 24 hours.
+	day = 24 * time.Hour
 
-// maxAccessDuration is the maximum duration that an access request can be
-// granted for.
-const maxAccessDuration = 7 * day
+	// MaxAccessDuration is the maximum duration that an access request can be
+	// granted for.
+	MaxAccessDuration = 14 * day
+
+	// requestTTL is the the TTL for an access request, i.e. the amount of time that
+	// the access request can be reviewed. Defaults to 1 week.
+	requestTTL = 7 * day
+)
 
 // ValidateAccessRequest validates the AccessRequest and sets default values
 func ValidateAccessRequest(ar types.AccessRequest) error {
@@ -75,7 +81,7 @@ type ClusterGetter interface {
 	// GetClusterName returns the local cluster name
 	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
 	// GetRemoteCluster returns a remote cluster by name
-	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
+	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
 }
 
 // ValidateAccessRequestClusterNames checks that the clusters in the access request exist
@@ -92,7 +98,7 @@ func ValidateAccessRequestClusterNames(cg ClusterGetter, ar types.AccessRequest)
 		if resourceID.ClusterName == localClusterName.GetClusterName() {
 			continue
 		}
-		_, err := cg.GetRemoteCluster(resourceID.ClusterName)
+		_, err := cg.GetRemoteCluster(context.TODO(), resourceID.ClusterName)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err, "failed to fetch remote cluster %q", resourceID.ClusterName)
 		}
@@ -163,6 +169,9 @@ func (r *RequestIDs) IsEmpty() bool {
 type AccessRequestGetter interface {
 	// GetAccessRequests gets all currently active access requests.
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
+
+	// ListAccessRequests is an access request getter with pagination and sorting options.
+	ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error)
 }
 
 // DynamicAccessCore is the core functionality common to all DynamicAccess implementations.
@@ -368,8 +377,8 @@ func ValidateAccessPredicates(role types.Role) error {
 	}
 
 	if maxDuration := role.GetAccessRequestConditions(types.Allow).MaxDuration; maxDuration.Duration() != 0 &&
-		maxDuration.Duration() > maxAccessDuration {
-		return trace.BadParameter("max access duration must be less or equal 7 days")
+		maxDuration.Duration() > MaxAccessDuration {
+		return trace.BadParameter("max access duration must be less than or equal to %v", MaxAccessDuration)
 	}
 
 	return nil
@@ -417,8 +426,8 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 	req.SetReviews(append(req.GetReviews(), rev))
 
 	if rev.AssumeStartTime != nil {
-		if rev.AssumeStartTime.After(req.GetAccessExpiry()) {
-			return trace.BadParameter("request start time is after expiry")
+		if err := types.ValidateAssumeStartTime(*rev.AssumeStartTime, req.GetAccessExpiry(), req.GetCreationTime()); err != nil {
+			return trace.Wrap(err)
 		}
 		req.SetAssumeStartTime(*rev.AssumeStartTime)
 	}
@@ -1213,6 +1222,13 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		req.SetAccessExpiry(accessTTL)
 		// Adjusted max access duration is equal to the access expiry time.
 		req.SetMaxDuration(accessTTL)
+
+		if req.GetAssumeStartTime() != nil {
+			assumeStartTime := *req.GetAssumeStartTime()
+			if err := types.ValidateAssumeStartTime(assumeStartTime, accessTTL, req.GetCreationTime()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
 	}
 
 	return nil
@@ -1230,17 +1246,16 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (
 
 	maxDuration := maxDurationTime.Sub(req.GetCreationTime())
 
-	// For dry run requests, the max_duration is set to 7 days.
+	// For dry run requests, use the maximum possible duration.
 	// This prevents the time drift that can occur as the value is set on the client side.
-	// TODO(jakule): Replace with MaxAccessDuration that is a duration (5h, 4d etc), and not a point in time.
 	if req.GetDryRun() {
-		maxDuration = maxAccessDuration
+		maxDuration = MaxAccessDuration
 	} else if maxDuration < 0 {
 		return 0, trace.BadParameter("invalid maxDuration: must be greater than creation time")
 	}
 
-	if maxDuration > maxAccessDuration {
-		return 0, trace.BadParameter("max_duration must be less or equal 7 days")
+	if maxDuration > MaxAccessDuration {
+		return 0, trace.BadParameter("max_duration must be less than or equal to %v", MaxAccessDuration)
 	}
 
 	minAdjDuration := maxDuration
@@ -1271,27 +1286,22 @@ func (m *RequestValidator) requestTTL(ctx context.Context, identity tlsca.Identi
 	// If no expiration provided, use default.
 	expiry := r.Expiry()
 	if expiry.IsZero() {
-		expiry = m.clock.Now().UTC().Add(defaults.PendingAccessDuration)
+		expiry = m.clock.Now().UTC().Add(requestTTL)
 	}
 
 	if expiry.Before(m.clock.Now().UTC()) {
 		return 0, trace.BadParameter("invalid request TTL: Access Request can not be created in the past")
 	}
 
-	ttl, err := m.truncateTTL(ctx, identity, expiry, r.GetRoles())
-	if err != nil {
-		return 0, trace.BadParameter("invalid request TTL: %v", err)
-	}
-
 	// Before returning the TTL, validate that the value requested was smaller
 	// than the maximum value allowed. Used to return a sensible error to the
 	// user.
 	requestedTTL := expiry.Sub(m.clock.Now().UTC())
-	if !r.Expiry().IsZero() && requestedTTL > ttl {
-		return 0, trace.BadParameter("invalid request TTL: %v greater than maximum allowed (%v)", requestedTTL.Round(time.Minute), ttl.Round(time.Minute))
+	if !r.Expiry().IsZero() && requestedTTL > requestTTL {
+		return 0, trace.BadParameter("invalid request TTL: %v greater than maximum allowed (%v)", requestedTTL.Round(time.Minute), requestTTL.Round(time.Minute))
 	}
 
-	return ttl, nil
+	return requestedTTL, nil
 }
 
 // sessionTTL calculates the TTL of the elevated certificate that will be issued
@@ -1629,7 +1639,7 @@ func ValidateAccessRequestForUser(ctx context.Context, clock clockwork.Clock, ge
 }
 
 // UnmarshalAccessRequest unmarshals the AccessRequest resource from JSON.
-func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (types.AccessRequest, error) {
+func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (*types.AccessRequestV3, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)

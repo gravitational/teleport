@@ -27,6 +27,7 @@ export const eventGroupTypes = {
   sftp: 'SFTP',
   subsystem: 'Subsystem Request',
   'user.login': 'User Logins',
+  'spiffe.svid.issued': 'SPIFFE SVID Issuance',
 };
 
 /**
@@ -68,6 +69,10 @@ export const eventCodes = {
   DATABASE_SESSION_STARTED: 'TDB00I',
   DATABASE_SESSION_MALFORMED_PACKET: 'TDB06I',
   DATABASE_SESSION_PERMISSIONS_UPDATE: 'TDB07I',
+  DATABASE_SESSION_USER_CREATE: 'TDB08I',
+  DATABASE_SESSION_USER_CREATE_FAILURE: 'TDB08W',
+  DATABASE_SESSION_USER_DEACTIVATE: 'TDB09I',
+  DATABASE_SESSION_USER_DEACTIVATE_FAILURE: 'TDB09W',
   DATABASE_CREATED: 'TDB03I',
   DATABASE_UPDATED: 'TDB04I',
   DATABASE_DELETED: 'TDB05I',
@@ -119,6 +124,7 @@ export const eventCodes = {
   DEVICE_ENROLL: 'TV005I',
   DEVICE_AUTHENTICATE: 'TV006I',
   DEVICE_UPDATE: 'TV007I',
+  DEVICE_WEB_TOKEN_CREATE: 'TV008I',
   EXEC_FAILURE: 'T3002E',
   EXEC: 'T3002I',
   GITHUB_CONNECTOR_CREATED: 'T8000I',
@@ -262,6 +268,8 @@ export const eventCodes = {
   OKTA_ASSIGNMENT_CLEANUP_FAILURE: 'TOK005E',
   OKTA_ACCESS_LIST_SYNC: 'TOK006I',
   OKTA_ACCESS_LIST_SYNC_FAILURE: 'TOK006E',
+  OKTA_USER_SYNC: 'TOK007I',
+  OKTA_USER_SYNC_FAILURE: 'TOK007E',
   ACCESS_LIST_CREATE: 'TAL001I',
   ACCESS_LIST_CREATE_FAILURE: 'TAL001E',
   ACCESS_LIST_UPDATE: 'TAL002I',
@@ -282,6 +290,11 @@ export const eventCodes = {
   SECURITY_REPORT_RUN: 'SRE002I',
   EXTERNAL_AUDIT_STORAGE_ENABLE: 'TEA001I',
   EXTERNAL_AUDIT_STORAGE_DISABLE: 'TEA002I',
+  SPIFFE_SVID_ISSUED: 'TSPIFFE000I',
+  SPIFFE_SVID_ISSUED_FAILURE: 'TSPIFFE000E',
+  AUTH_PREFERENCE_UPDATE: 'TCAUTH001I',
+  CLUSTER_NETWORKING_CONFIG_UPDATE: 'TCNET002I',
+  SESSION_RECORDING_CONFIG_UPDATE: 'TCREC003I',
 } as const;
 
 /**
@@ -302,7 +315,7 @@ export type RawEvents = {
   >;
   [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: RawEvent<
     typeof eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH,
-    { resource_type: string; search_as_roles: string }
+    { resource_type: string; search_as_roles: string[] }
   >;
   [eventCodes.AUTH_ATTEMPT_FAILURE]: RawEventAuthFailure<
     typeof eventCodes.AUTH_ATTEMPT_FAILURE
@@ -778,6 +791,34 @@ export type RawEvents = {
       }[];
     }
   >;
+  [eventCodes.DATABASE_SESSION_USER_CREATE]: RawDatabaseSessionEvent<
+    typeof eventCodes.DATABASE_SESSION_USER_CREATE,
+    {
+      roles: string[];
+    }
+  >;
+  [eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE]: RawDatabaseSessionEvent<
+    typeof eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE,
+    {
+      error: string;
+      message: string;
+      roles: string[];
+    }
+  >;
+  [eventCodes.DATABASE_SESSION_USER_DEACTIVATE]: RawDatabaseSessionEvent<
+    typeof eventCodes.DATABASE_SESSION_USER_DEACTIVATE,
+    {
+      delete: boolean;
+    }
+  >;
+  [eventCodes.DATABASE_SESSION_USER_DEACTIVATE_FAILURE]: RawDatabaseSessionEvent<
+    typeof eventCodes.DATABASE_SESSION_USER_DEACTIVATE_FAILURE,
+    {
+      error: string;
+      message: string;
+      delete: boolean;
+    }
+  >;
   [eventCodes.DATABASE_CREATED]: RawEvent<
     typeof eventCodes.DATABASE_CREATED,
     {
@@ -1204,6 +1245,9 @@ export type RawEvents = {
     typeof eventCodes.DEVICE_AUTHENTICATE
   >;
   [eventCodes.DEVICE_UPDATE]: RawDeviceEvent<typeof eventCodes.DEVICE_UPDATE>;
+  [eventCodes.DEVICE_WEB_TOKEN_CREATE]: RawDeviceEvent<
+    typeof eventCodes.DEVICE_WEB_TOKEN_CREATE
+  >;
   [eventCodes.UNKNOWN]: RawEvent<
     typeof eventCodes.UNKNOWN,
     {
@@ -1403,6 +1447,17 @@ export type RawEvents = {
       source: string;
     }
   >;
+  [eventCodes.OKTA_USER_SYNC]: RawEvent<
+    typeof eventCodes.OKTA_USER_SYNC,
+    {
+      num_users_created: number;
+      num_users_modified: number;
+      num_users_deleted: number;
+    }
+  >;
+  [eventCodes.OKTA_USER_SYNC_FAILURE]: RawEvent<
+    typeof eventCodes.OKTA_USER_SYNC_FAILURE
+  >;
   [eventCodes.OKTA_ACCESS_LIST_SYNC]: RawEvent<
     typeof eventCodes.OKTA_ACCESS_LIST_SYNC
   >;
@@ -1539,6 +1594,36 @@ export type RawEvents = {
   >;
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE]: RawEvent<
     typeof eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.SPIFFE_SVID_ISSUED]: RawEvent<
+    typeof eventCodes.SPIFFE_SVID_ISSUED,
+    {
+      spiffe_id: string;
+    }
+  >;
+  [eventCodes.SPIFFE_SVID_ISSUED_FAILURE]: RawEvent<
+    typeof eventCodes.SPIFFE_SVID_ISSUED_FAILURE,
+    {
+      spiffe_id: string;
+    }
+  >;
+  [eventCodes.AUTH_PREFERENCE_UPDATE]: RawEvent<
+    typeof eventCodes.AUTH_PREFERENCE_UPDATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.CLUSTER_NETWORKING_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.CLUSTER_NETWORKING_CONFIG_UPDATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.SESSION_RECORDING_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.SESSION_RECORDING_CONFIG_UPDATE,
     {
       user: string;
     }
@@ -1717,6 +1802,20 @@ type RawEventSFTP<T extends EventCode> = RawEvent<
     error: string;
     ['addr.local']: string;
   }
+>;
+
+type RawDatabaseSessionEvent<T extends EventCode, K = unknown> = Merge<
+  RawEvent<
+    T,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      db_user: string;
+      username: string;
+    }
+  >,
+  K
 >;
 
 /**

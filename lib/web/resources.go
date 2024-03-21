@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -238,7 +239,13 @@ func (h *Handler) upsertTrustedClusterHandle(w http.ResponseWriter, r *http.Requ
 
 func upsertTrustedCluster(ctx context.Context, clt resourcesAPIGetter, content, httpMethod string, params httprouter.Params) (*ui.ResourceItem, error) {
 	get := func(ctx context.Context, name string) (types.Resource, error) {
-		return clt.GetTrustedCluster(ctx, name)
+		// Remove the MFA resp from the context before getting the trusted cluster.
+		// Otherwise, it will be consumed before the Upsert which actually
+		// requires the MFA.
+		// TODO(Joerger): Explicitly provide MFA response only where it is
+		// needed instead of removing it like this.
+		getCtx := mfa.ContextWithMFAResponse(ctx, nil)
+		return clt.GetTrustedCluster(getCtx, name)
 	}
 
 	extractedRes, err := ExtractResourceAndValidate(content)

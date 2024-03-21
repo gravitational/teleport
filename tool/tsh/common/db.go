@@ -39,6 +39,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -71,22 +72,25 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	var proxy *client.ProxyClient
+	var clusterClient *client.ClusterClient
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		proxy, err = tc.ConnectToProxy(cf.Context)
+		clusterClient, err = tc.ConnectToCluster(cf.Context)
 		return trace.Wrap(err)
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxy.Close()
+	defer clusterClient.Close()
 
-	databases, err := proxy.FindDatabasesByFiltersForCluster(cf.Context, *tc.ResourceFilter(types.KindDatabaseServer), tc.SiteName)
+	servers, err := apiclient.GetAllResources[types.DatabaseServer](cf.Context, clusterClient.AuthClient, tc.ResourceFilter(types.KindDatabaseServer))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	accessChecker, err := accessCheckerForRemoteCluster(cf.Context, profile, proxy, tc.SiteName)
+	databases := types.DatabaseServers(servers).ToDatabases()
+	types.DeduplicateDatabases(databases)
+
+	accessChecker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
 	if err != nil {
 		log.Debugf("Failed to fetch user roles: %v.", err)
 	}
@@ -827,7 +831,38 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, routes []tlsca.Rout
 	}
 
 	db, err := getDatabaseByNameOrDiscoveredName(cf, tc, routes)
-	if err != nil {
+	switch {
+	// If the database cannot be found, try again with UseSearchAsRoles. If
+	// the database is then found with UseSearchAsRoles, make an access request
+	// for it and elevate the user with the request ID upon approval.
+	//
+	// Note that the access request must be made before the database connection
+	// is made to avoid mangling the request with the database client tools.
+	// Thus the flow for auto database access request is different from SSH.
+	//
+	// Performance considerations:
+	// - For common scenarios where UseSearchAsRoles is not desired, it would
+	//   be rare that cf.DatabaseName would be not found in the first API call
+	//   so there won't be a second call usually.
+	// - accessChecker.GetAllowedSearchAsRoles can be checked to avoid the
+	//   second API call but creating the access checker requires more calls.
+	// - The db commands do provide "--disable-access-request" to bypass the
+	//   second call. If needed, we can add it to `tsh login` and profile yaml
+	//   in the future.
+	case shouldRetryGetDatabaseUsingSearchAsRoles(cf, tc, err):
+		orgErr := err
+		if db, err = getDatabaseByNameOrDiscoveredNameUsingSearchAsRoles(cf, tc); err != nil {
+			return nil, trace.Wrap(orgErr) // Returns the original not found error.
+		}
+		if err := makeDatabaseAccessRequestAndWaitForApproval(cf, tc, db); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Reset routes. Once access requeset is approved, user certs are
+		// reissued with client.CertCacheDrop.
+		routes = nil
+
+	case err != nil:
 		return nil, trace.Wrap(err)
 	}
 
@@ -847,6 +882,56 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, routes []tlsca.Rout
 		return nil, trace.Wrap(err)
 	}
 	return info, nil
+}
+
+var dbCommandsWithAccessRequestSupport = []string{
+	"db login",
+	"proxy db",
+	"db connect",
+}
+
+func shouldRetryGetDatabaseUsingSearchAsRoles(cf *CLIConf, tc *client.TeleportClient, getDatabaseError error) bool {
+	// If already using SearchAsRoles, nothing to retry.
+	if tc.UseSearchAsRoles {
+		return false
+	}
+	// Only retry when the database cannot be found.
+	if !trace.IsNotFound(getDatabaseError) {
+		return false
+	}
+	// Check if auto access request is disabled.
+	if cf.disableAccessRequest {
+		return false
+	}
+	// Check if the `tsh` command supports auto access request.
+	return slices.Contains(dbCommandsWithAccessRequestSupport, cf.command)
+}
+
+func makeAccessRequestForDatabase(tc *client.TeleportClient, db types.Database) (types.AccessRequest, error) {
+	requestResourceIDs := []types.ResourceID{{
+		ClusterName: tc.SiteName,
+		Kind:        types.KindDatabase,
+		Name:        db.GetName(),
+	}}
+
+	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
+	return req, trace.Wrap(err)
+}
+
+func makeDatabaseAccessRequestAndWaitForApproval(cf *CLIConf, tc *client.TeleportClient, db types.Database) error {
+	req, err := makeAccessRequestForDatabase(tc, db)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintf(cf.Stdout(), "You do not currently have access to %q, attempting to request access.\n\n", db.GetName())
+	if err := setAccessRequestReason(cf, req); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := sendAccessRequestAndWaitForApproval(cf, tc, req); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func requestedDatabaseRoles(cf *CLIConf) []string {
@@ -887,21 +972,22 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 		return nil
 	}
 
-	var proxy *client.ProxyClient
+	var clusterClient *client.ClusterClient
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		proxy, err = tc.ConnectToProxy(cf.Context)
+		clusterClient, err = tc.ConnectToCluster(cf.Context)
 		return trace.Wrap(err)
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxy.Close()
+	defer clusterClient.Close()
 
 	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	checker, err := accessCheckerForRemoteCluster(cf.Context, profile, proxy, tc.SiteName)
+
+	checker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1038,6 +1124,15 @@ func getDatabaseByNameOrDiscoveredName(cf *CLIConf, tc *client.TeleportClient, a
 	return chooseOneDatabase(cf, databases)
 }
 
+func getDatabaseByNameOrDiscoveredNameUsingSearchAsRoles(cf *CLIConf, tc *client.TeleportClient) (types.Database, error) {
+	tc.UseSearchAsRoles = true
+	defer func() {
+		tc.UseSearchAsRoles = false
+	}()
+	db, err := getDatabaseByNameOrDiscoveredName(cf, tc, nil)
+	return db, trace.Wrap(err)
+}
+
 func filterActiveDatabases(routes []tlsca.RouteToDatabase, databases types.Databases) types.Databases {
 	databasesByName := databases.ToMap()
 	var out types.Databases
@@ -1063,6 +1158,7 @@ func listDatabasesWithPredicate(ctx context.Context, tc *client.TeleportClient, 
 			ResourceType:        types.KindDatabaseServer,
 			PredicateExpression: predicate,
 			Labels:              tc.Labels,
+			UseSearchAsRoles:    tc.UseSearchAsRoles,
 		})
 		return trace.Wrap(err)
 	})
@@ -1308,15 +1404,11 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 // isMFADatabaseAccessRequired calls the IsMFARequired endpoint in order to get from user roles if access to the database
 // requires MFA.
 func isMFADatabaseAccessRequired(ctx context.Context, tc *client.TeleportClient, database tlsca.RouteToDatabase) (bool, error) {
-	proxy, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	cluster, err := proxy.ConnectToCluster(ctx, tc.SiteName)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	defer cluster.Close()
+	defer clusterClient.Close()
 
 	dbParam := proto.RouteToDatabase{
 		ServiceName: database.ServiceName,
@@ -1324,7 +1416,7 @@ func isMFADatabaseAccessRequired(ctx context.Context, tc *client.TeleportClient,
 		Username:    database.Username,
 		Database:    database.Database,
 	}
-	mfaResp, err := cluster.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+	mfaResp, err := clusterClient.AuthClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
 		Target: &proto.IsMFARequiredRequest_Database{
 			Database: &dbParam,
 		},

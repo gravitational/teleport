@@ -212,7 +212,7 @@ func (proxy *ProxyClient) GetLeafClusters(ctx context.Context) ([]types.RemoteCl
 	}
 	defer clt.Close()
 
-	remoteClusters, err := clt.GetRemoteClusters()
+	remoteClusters, err := clt.GetRemoteClusters(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -540,6 +540,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 			// In case of MFA connect to root teleport proxy instead of JumpHost to request
 			// MFA certificates.
 			proxy.teleportClient.JumpHosts = nil
+			//nolint:staticcheck // SA1019. TODO(tross) remove once ProxyClient is no longer used.
 			rootClusterProxy, err = proxy.teleportClient.ConnectToProxy(ctx)
 			proxy.teleportClient.JumpHosts = jumpHost
 			if err != nil {
@@ -792,7 +793,7 @@ func (proxy *ProxyClient) FindAppServersByFiltersForCluster(ctx context.Context,
 }
 
 // CreateAppSession creates a new application access session.
-func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
+func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/CreateAppSession",
@@ -2017,6 +2018,31 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 	}
 
 	log.WithError(ctx.Err()).Infof("Shutting down dynamic port forwarding.")
+}
+
+// remoteListenAndForward requests a listening socket and forwards all incoming
+// commands to the local address through the SSH tunnel.
+func (c *NodeClient) remoteListenAndForward(ctx context.Context, ln net.Listener, localAddr, remoteAddr string) {
+	defer ln.Close()
+	log := log.WithField("localAddr", localAddr).WithField("remoteAddr", remoteAddr)
+	log.Infof("Starting remote port forwarding")
+
+	for ctx.Err() == nil {
+		conn, err := acceptWithContext(ctx, ln)
+		if err != nil {
+			if ctx.Err() == nil {
+				log.WithError(err).Errorf("Remote port forwarding failed.")
+			}
+			continue
+		}
+
+		go func() {
+			if err := proxyConnection(ctx, conn, localAddr, &net.Dialer{}); err != nil {
+				log.WithError(err).Warnf("Failed to proxy connection")
+			}
+		}()
+	}
+	log.WithError(ctx.Err()).Infof("Shutting down remote port forwarding.")
 }
 
 // GetRemoteTerminalSize fetches the terminal size of a given SSH session.

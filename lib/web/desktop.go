@@ -122,7 +122,16 @@ func (h *Handler) createDesktopConnection(
 	if err != nil {
 		return sendTDPError(err)
 	}
-	log.Debugf("Received screen spec: %v\n", screenSpec)
+
+	width, height := screenSpec.Width, screenSpec.Height
+	if width > types.MaxRDPScreenWidth || height > types.MaxRDPScreenHeight {
+		return sendTDPError(trace.BadParameter(
+			"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
+			width, height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight,
+		))
+	}
+
+	log.Debugf("Attempting to connect to desktop using username=%v, width=%v, height=%v\n", username, width, height)
 
 	// Pick a random Windows desktop service as our gateway.
 	// When agent mode is implemented in the service, we'll have to filter out

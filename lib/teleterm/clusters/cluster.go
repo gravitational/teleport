@@ -24,10 +24,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
@@ -83,84 +85,97 @@ func (c *Cluster) Connected() bool {
 // GetWithDetails makes requests to the auth server to return details of the current
 // Cluster that cannot be found on the disk only, including details about the user
 // and enabled enterprise features. This method requires a valid cert.
-func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, error) {
+func (c *Cluster) GetWithDetails(ctx context.Context, authClient auth.ClientI) (*ClusterWithDetails, error) {
 	var (
-		authPingResponse proto.PingResponse
-		caps             *types.AccessCapabilities
-		authClusterID    string
-		acl              *api.ACL
-		user             types.User
+		clusterPingResponse *webclient.PingResponse
+		authPingResponse    proto.PingResponse
+		caps                *types.AccessCapabilities
+		authClusterID       string
+		acl                 *api.ACL
+		user                types.User
+		roles               []types.Role
 	)
 
-	clusterPingResponse, err := c.clusterClient.Ping(ctx)
-	if err != nil {
+	group, groupCtx := errgroup.WithContext(ctx)
+
+	group.Go(func() error {
+		res, err := c.clusterClient.Ping(groupCtx)
+		clusterPingResponse = res
+		return trace.Wrap(err)
+	})
+
+	group.Go(func() error {
+		err := AddMetadataToRetryableError(groupCtx, func() error {
+			res, err := authClient.Ping(groupCtx)
+			authPingResponse = res
+			return trace.Wrap(err)
+		})
+		return trace.Wrap(err)
+	})
+
+	group.Go(func() error {
+		err := AddMetadataToRetryableError(groupCtx, func() error {
+			res, err := authClient.GetAccessCapabilities(groupCtx, types.AccessCapabilitiesRequest{
+				RequestableRoles:   true,
+				SuggestedReviewers: true,
+			})
+			caps = res
+			return trace.Wrap(err)
+		})
+		return trace.Wrap(err)
+	})
+
+	group.Go(func() error {
+		err := AddMetadataToRetryableError(groupCtx, func() error {
+			clusterName, err := authClient.GetClusterName()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			authClusterID = clusterName.GetClusterID()
+			return nil
+		})
+		return trace.Wrap(err)
+	})
+
+	group.Go(func() error {
+		err := AddMetadataToRetryableError(groupCtx, func() error {
+			res, err := authClient.GetCurrentUser(groupCtx)
+			user = res
+			return trace.Wrap(err)
+		})
+		return trace.Wrap(err)
+	})
+
+	group.Go(func() error {
+		err := AddMetadataToRetryableError(groupCtx, func() error {
+			res, err := authClient.GetCurrentUserRoles(groupCtx)
+			roles = res
+			return trace.Wrap(err)
+		})
+		return trace.Wrap(err)
+	})
+
+	if err := group.Wait(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
+	roleSet := services.NewRoleSet(roles...)
+	userACL := services.NewUserACL(user, roleSet, *authPingResponse.ServerFeatures, false, false)
 
-		authClient, err := proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		authPingResponse, err = authClient.Ping(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		caps, err = authClient.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
-			RequestableRoles:   true,
-			SuggestedReviewers: true,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		clusterName, err := authClient.GetClusterName()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		authClusterID = clusterName.GetClusterID()
-
-		user, err = authClient.GetCurrentUser(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		roles, err := authClient.GetCurrentUserRoles(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		roleSet := services.NewRoleSet(roles...)
-		userACL := services.NewUserACL(user, roleSet, *authPingResponse.ServerFeatures, false, false)
-
-		acl = &api.ACL{
-			RecordedSessions: convertToAPIResourceAccess(userACL.RecordedSessions),
-			ActiveSessions:   convertToAPIResourceAccess(userACL.ActiveSessions),
-			AuthConnectors:   convertToAPIResourceAccess(userACL.AuthConnectors),
-			Roles:            convertToAPIResourceAccess(userACL.Roles),
-			Users:            convertToAPIResourceAccess(userACL.Users),
-			TrustedClusters:  convertToAPIResourceAccess(userACL.TrustedClusters),
-			Events:           convertToAPIResourceAccess(userACL.Events),
-			Tokens:           convertToAPIResourceAccess(userACL.Tokens),
-			Servers:          convertToAPIResourceAccess(userACL.Nodes),
-			Apps:             convertToAPIResourceAccess(userACL.AppServers),
-			Dbs:              convertToAPIResourceAccess(userACL.DBServers),
-			Kubeservers:      convertToAPIResourceAccess(userACL.KubeServers),
-			AccessRequests:   convertToAPIResourceAccess(userACL.AccessRequests),
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	acl = &api.ACL{
+		RecordedSessions: convertToAPIResourceAccess(userACL.RecordedSessions),
+		ActiveSessions:   convertToAPIResourceAccess(userACL.ActiveSessions),
+		AuthConnectors:   convertToAPIResourceAccess(userACL.AuthConnectors),
+		Roles:            convertToAPIResourceAccess(userACL.Roles),
+		Users:            convertToAPIResourceAccess(userACL.Users),
+		TrustedClusters:  convertToAPIResourceAccess(userACL.TrustedClusters),
+		Events:           convertToAPIResourceAccess(userACL.Events),
+		Tokens:           convertToAPIResourceAccess(userACL.Tokens),
+		Servers:          convertToAPIResourceAccess(userACL.Nodes),
+		Apps:             convertToAPIResourceAccess(userACL.AppServers),
+		Dbs:              convertToAPIResourceAccess(userACL.DBServers),
+		Kubeservers:      convertToAPIResourceAccess(userACL.KubeServers),
+		AccessRequests:   convertToAPIResourceAccess(userACL.AccessRequests),
 	}
 
 	withDetails := &ClusterWithDetails{
@@ -192,6 +207,7 @@ func convertToAPIResourceAccess(access services.ResourceAccess) *api.ResourceAcc
 func (c *Cluster) GetRoles(ctx context.Context) ([]*types.Role, error) {
 	var roles []*types.Role
 	err := AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -216,12 +232,10 @@ func (c *Cluster) GetRoles(ctx context.Context) ([]*types.Role, error) {
 }
 
 // GetRequestableRoles returns the requestable roles for the currently logged-in user
-func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest) (*types.AccessCapabilities, error) {
+func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest, authClient auth.ClientI) (*types.AccessCapabilities, error) {
 	var (
-		authClient  auth.ClientI
-		proxyClient *client.ProxyClient
-		err         error
-		response    *types.AccessCapabilities
+		err      error
+		response *types.AccessCapabilities
 	)
 
 	resourceIds := make([]types.ResourceID, 0, len(req.GetResourceIds()))
@@ -235,18 +249,6 @@ func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
 		response, err = authClient.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
 			ResourceIDs:      resourceIds,
 			RequestableRoles: true,

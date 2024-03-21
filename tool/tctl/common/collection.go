@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -1158,6 +1159,32 @@ func (c *botCollection) writeText(w io.Writer, verbose bool) error {
 		t.AddRow([]string{
 			b.Metadata.Name,
 			strings.Join(b.Spec.Roles, ", "),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type databaseObjectImportRuleCollection struct {
+	rules []*dbobjectimportrulev1.DatabaseObjectImportRule
+}
+
+func (c *databaseObjectImportRuleCollection) resources() []types.Resource {
+	resources := make([]types.Resource, len(c.rules))
+	for i, b := range c.rules {
+		resources[i] = types.Resource153ToLegacy(b)
+	}
+	return resources
+}
+
+func (c *databaseObjectImportRuleCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name", "Priority", "Mapping Count", "DB Label Count"})
+	for _, b := range c.rules {
+		t.AddRow([]string{
+			b.GetMetadata().GetName(),
+			fmt.Sprintf("%v", b.GetSpec().GetPriority()),
+			fmt.Sprintf("%v", len(b.GetSpec().GetMappings())),
+			fmt.Sprintf("%v", len(b.GetSpec().GetDatabaseLabels())),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)

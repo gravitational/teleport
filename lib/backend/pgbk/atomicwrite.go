@@ -130,6 +130,10 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 		return nil
 	})
 
+	if tries > 1 {
+		backend.AtomicWriteContention.WithLabelValues(b.GetName()).Add(float64(tries - 1))
+	}
+
 	if tries > 2 {
 		// if we retried more than once, txn experienced non-trivial conflict and we should warn about it. Infrequent warnings of this kind
 		// are nothing to be concerned about, but high volumes may indicate that an automatic process is creating excessive conflicts.

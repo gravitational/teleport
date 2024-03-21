@@ -24,6 +24,7 @@ import "teleport/devicetrust/v1/device.proto";
 import "teleport/devicetrust/v1/device_collected_data.proto";
 import "teleport/devicetrust/v1/device_enroll_token.proto";
 import "teleport/devicetrust/v1/device_source.proto";
+import "teleport/devicetrust/v1/device_web_token.proto";
 import "teleport/devicetrust/v1/tpm.proto";
 import "teleport/devicetrust/v1/usage.proto";
 import "teleport/devicetrust/v1/user_certificates.proto";
@@ -497,6 +498,12 @@ message AuthenticateDeviceInit {
   // Matched against the device registration information and any previously
   // collected data.
   DeviceCollectedData device_data = 3;
+
+  // If present, on-behalf-of device authentication is performed.
+  // The user_certificates input field is ignored and no certificate data is
+  // returned to the caller, instead the WebSession certificates are updated
+  // on success.
+  DeviceWebToken device_web_token = 4;
 }
 
 // TPMAuthenticateDeviceChallenge carries the authentication challenge

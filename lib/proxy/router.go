@@ -112,7 +112,7 @@ type SiteGetter interface {
 // RemoteClusterGetter provides access to remote cluster resources
 type RemoteClusterGetter interface {
 	// GetRemoteCluster returns a remote cluster by name
-	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
+	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
 }
 
 // RouterConfig contains all the dependencies required
@@ -136,7 +136,7 @@ type RouterConfig struct {
 // CheckAndSetDefaults ensures the required items were populated
 func (c *RouterConfig) CheckAndSetDefaults() error {
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "Router")
+		c.Log = logrus.WithField(teleport.ComponentKey, "Router")
 	}
 
 	if c.ClusterName == "" {
@@ -368,7 +368,7 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 		return nil, trace.Wrap(err)
 	}
 
-	rc, err := r.clusterGetter.GetRemoteCluster(clusterName)
+	rc, err := r.clusterGetter.GetRemoteCluster(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -384,7 +384,7 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 // for a reversetunnelclient.RemoteSite. It makes testing easier.
 type site interface {
 	GetNodes(ctx context.Context, fn func(n services.Node) bool) ([]types.Server, error)
-	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 }
 
 // remoteSite is a site implementation that wraps
@@ -404,13 +404,13 @@ func (r remoteSite) GetNodes(ctx context.Context, fn func(n services.Node) bool)
 }
 
 // GetClusterNetworkingConfig uses the wrapped sites cache to retrieve the ClusterNetworkingConfig
-func (r remoteSite) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (r remoteSite) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	ap, err := r.site.CachingAccessPoint()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cfg, err := ap.GetClusterNetworkingConfig(ctx, opts...)
+	cfg, err := ap.GetClusterNetworkingConfig(ctx)
 	return cfg, trace.Wrap(err)
 }
 

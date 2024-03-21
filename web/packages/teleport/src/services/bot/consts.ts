@@ -74,6 +74,10 @@ export function makeBot(bot: ApiBot): FlatBot {
     return;
   }
 
+  const labels = bot?.metadata?.labels
+    ? new Map(Object.entries(bot.metadata.labels))
+    : new Map<string, string>();
+
   return {
     kind: bot?.kind || '',
     status: bot?.status || '',
@@ -83,9 +87,9 @@ export function makeBot(bot: ApiBot): FlatBot {
     name: bot?.metadata?.name || '',
     namespace: bot?.metadata?.namespace || '',
     description: bot?.metadata?.description || '',
-    labels: bot?.metadata?.labels || new Map<string, string>(),
+    labels: labels,
     revision: bot?.metadata?.revision || '',
-    type: getBotType(bot?.metadata?.labels),
+    type: getBotType(labels),
 
     roles: bot?.spec?.roles || [],
     traits: bot?.spec?.traits || [],

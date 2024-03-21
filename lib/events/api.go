@@ -424,8 +424,12 @@ const (
 	// DatabaseSessionStartEvent is emitted when a database client attempts
 	// to connect to a database.
 	DatabaseSessionStartEvent = "db.session.start"
-	// DatabaseSessionPermissionsUpdateEvent is emitted when a database client
-	// is assigned new granular database permissions after being created.
+	// DatabaseSessionUserCreateEvent is emitted after provisioning new database user.
+	DatabaseSessionUserCreateEvent = "db.session.user.create"
+	// DatabaseSessionUserDeactivateEvent is emitted after disabling/deleting the auto-provisioned database user.
+	DatabaseSessionUserDeactivateEvent = "db.session.user.deactivate"
+	// DatabaseSessionPermissionsUpdateEvent is emitted after assigning
+	// the auto-provisioned database user permissions.
 	DatabaseSessionPermissionsUpdateEvent = "db.session.permissions.update"
 	// DatabaseSessionEndEvent is emitted when a database client disconnects
 	// from a database.
@@ -633,6 +637,12 @@ const (
 	// Device enroll tokens are issued by either a device admin or during
 	// client-side auto-enrollment.
 	DeviceEnrollTokenCreateEvent = "device.token.create"
+	// DeviceWebTokenCreateEvent is emitted when a new device web token is issued.
+	// Device web tokens are issued during Web login for users that own a suitable
+	// trusted device.
+	// Tokens are spent in exchange for a single on-behalf-of device
+	// authentication attempt.
+	DeviceWebTokenCreateEvent = "device.webtoken.create"
 
 	// BotJoinEvent is emitted when a bot joins
 	BotJoinEvent = "bot.join"
@@ -684,6 +694,9 @@ const (
 	// OktaAccessListSyncEvent is emitted when an access list synchronization has completed.
 	OktaAccessListSyncEvent = "okta.access_list.sync"
 
+	// OktaUserSyncEvent is emitted when an access list synchronization has completed.
+	OktaUserSyncEvent = "okta.user.sync"
+
 	// AccessListCreateEvent is emitted when an access list is created.
 	AccessListCreateEvent = "access_list.create"
 
@@ -729,6 +742,16 @@ const (
 
 	// ValidateMFAAuthResponseEvent is emitted when an MFA auth challenge is validated.
 	ValidateMFAAuthResponseEvent = "mfa_auth_challenge.validate"
+
+	// SPIFFESVIDIssuedEvent is emitted when a SPIFFE SVID is issued.
+	SPIFFESVIDIssuedEvent = "spiffe.svid.issued"
+
+	// AuthPreferenceUpdateEvent is emitted when a user updates the cluster authentication preferences.
+	AuthPreferenceUpdateEvent = "auth_preference.update"
+	// ClusterNetworkingConfigUpdateEvent is emitted when a user updates the cluster networking configuration.
+	ClusterNetworkingConfigUpdateEvent = "cluster_networking_config.update"
+	// SessionRecordingConfigUpdateEvent is emitted when a user updates the cluster session recording configuration.
+	SessionRecordingConfigUpdateEvent = "session_recording_config.update"
 )
 
 const (

@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -40,8 +39,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	helmCli "helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/release"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
@@ -61,13 +62,14 @@ const (
 	// We use cluster admin policy to create namespace and cluster role.
 	eksClusterAdminPolicy = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
 
-	agentRepoURL                = "https://charts.releases.teleport.dev"
 	agentNamespace              = "teleport-agent"
 	agentName                   = "teleport-kube-agent"
 	awsKubePrefix               = "k8s-aws-v1."
 	awsHeaderClusterName        = "x-k8s-aws-id"
 	concurrentEKSEnrollingLimit = 5
 )
+
+var agentRepoURL = url.URL{Scheme: "https", Host: "charts.releases.teleport.dev"}
 
 // EnrollEKSClusterResult contains result for a single EKS cluster enrollment, if it was successful 'Error' will be nil
 // otherwise it will contain an error happened during enrollment.
@@ -173,10 +175,6 @@ func (d *defaultEnrollEKSClustersClient) InstallKubeAgent(ctx context.Context, e
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	settings, err := getHelmSettings()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	return installKubeAgent(ctx, installKubeAgentParams{
 		eksCluster:   eksCluster,
@@ -184,7 +182,6 @@ func (d *defaultEnrollEKSClustersClient) InstallKubeAgent(ctx context.Context, e
 		joinToken:    joinToken,
 		resourceID:   resourceId,
 		actionConfig: actionConfig,
-		settings:     settings,
 		req:          req,
 		log:          log,
 	})
@@ -238,6 +235,23 @@ type EnrollEKSClustersRequest struct {
 	AgentVersion string
 }
 
+// CheckAndSetDefaults checks if the required fields are present.
+func (e *EnrollEKSClustersRequest) CheckAndSetDefaults() error {
+	if e.Region == "" {
+		return trace.BadParameter("region is required")
+	}
+
+	if len(e.ClusterNames) == 0 {
+		return trace.BadParameter("non-empty cluster names is required")
+	}
+
+	if e.AgentVersion == "" {
+		return trace.BadParameter("agent version is required")
+	}
+
+	return nil
+}
+
 // EnrollEKSClusters enrolls EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.
 // It returns list of result individually for each EKS cluster. Clusters are enrolled concurrently. If an error occurs
 // during a cluster enrollment an error message will be present in the result for this cluster. Otherwise result will
@@ -247,9 +261,13 @@ type EnrollEKSClustersRequest struct {
 // During enrollment we create access entry for an EKS cluster if needed and cluster admin policy is associated with that entry,
 // so our AWS integration can access the target EKS cluster during the chart installation. After enrollment is done we remove
 // the access entry (if it was created by us), since we don't need it anymore.
-func EnrollEKSClusters(ctx context.Context, log logrus.FieldLogger, clock clockwork.Clock, proxyAddr string, credsProvider aws.CredentialsProvider, clt EnrollEKSCLusterClient, req EnrollEKSClustersRequest) *EnrollEKSClusterResponse {
+func EnrollEKSClusters(ctx context.Context, log logrus.FieldLogger, clock clockwork.Clock, proxyAddr string, credsProvider aws.CredentialsProvider, clt EnrollEKSCLusterClient, req EnrollEKSClustersRequest) (*EnrollEKSClusterResponse, error) {
 	var mu sync.Mutex
 	var results []EnrollEKSClusterResult
+
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	group, ctx := errgroup.WithContext(ctx)
 	group.SetLimit(concurrentEKSEnrollingLimit)
@@ -273,7 +291,7 @@ func EnrollEKSClusters(ctx context.Context, log logrus.FieldLogger, clock clockw
 	// We don't return error from individual group goroutines, they are gathered in the returned value.
 	_ = group.Wait()
 
-	return &EnrollEKSClusterResponse{Results: results}
+	return &EnrollEKSClusterResponse{Results: results}, nil
 }
 
 func enrollEKSCluster(ctx context.Context, log logrus.FieldLogger, clock clockwork.Clock, credsProvider aws.CredentialsProvider, clt EnrollEKSCLusterClient, proxyAddr, clusterName string, req EnrollEKSClustersRequest) (string, error) {
@@ -332,6 +350,7 @@ func enrollEKSCluster(ctx context.Context, log logrus.FieldLogger, clock clockwo
 	if alreadyInstalled, err := clt.CheckAgentAlreadyInstalled(ctx, kubeClientGetter, log); err != nil {
 		return "", trace.Wrap(err, "could not check if teleport-kube-agent is already installed.")
 	} else if alreadyInstalled {
+		// Web UI relies on the text of this error message. If changed, sync with EnrollEksCluster.tsx
 		return "", trace.AlreadyExists("teleport-kube-agent is already installed on the cluster %q", clusterName)
 	}
 
@@ -454,18 +473,6 @@ func getHelmActionConfig(clientGetter genericclioptions.RESTClientGetter, log lo
 	return actionConfig, nil
 }
 
-func getHelmSettings() (*helmCli.EnvSettings, error) {
-	helmSettings := helmCli.New()
-	dir, err := os.MkdirTemp(os.TempDir(), "teleport-eks-chart-")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	helmSettings.RepositoryCache = dir
-	helmSettings.SetNamespace(agentNamespace)
-
-	return helmSettings, nil
-}
-
 // checkAgentAlreadyInstalled checks through the Helm if teleport-kube-agent chart was already installed in the EKS cluster.
 func checkAgentAlreadyInstalled(ctx context.Context, actionConfig *action.Configuration) (bool, error) {
 	var releases []*release.Release
@@ -503,37 +510,52 @@ type installKubeAgentParams struct {
 	joinToken    string
 	resourceID   string
 	actionConfig *action.Configuration
-	settings     *helmCli.EnvSettings
 	req          EnrollEKSClustersRequest
 	log          logrus.FieldLogger
 }
 
+func getChartURL(version string) *url.URL {
+	return &url.URL{
+		Scheme: agentRepoURL.Scheme,
+		Host:   agentRepoURL.Host,
+		Path:   fmt.Sprintf("%s-%s.tgz", agentName, version),
+	}
+}
+
+// getChartData returns kube agent Helm chart data ready to be used by Helm SDK. We don't use native Helm
+// chart downloading because it tends to save temporary files and here we do everything just in memory.
+func getChartData(version string) (*chart.Chart, error) {
+	chartURL := getChartURL(version)
+
+	g, err := getter.All(helmCli.New()).ByScheme(chartURL.Scheme)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	data, err := g.Get(chartURL.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	agentChart, err := loader.LoadArchive(data)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return agentChart, nil
+}
+
 // installKubeAgent installs teleport-kube-agent chart to the target EKS cluster.
 func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
-	defer func() {
-		// Clean up temporary chart cache directory.
-		err := os.RemoveAll(cfg.settings.RepositoryCache)
-		if err != nil && cfg.log != nil {
-			cfg.log.Warnf("could not delete temporary chart cache directory at the path %q", cfg.settings.RepositoryCache)
-		}
-	}()
-
 	installCmd := action.NewInstall(cfg.actionConfig)
-	installCmd.RepoURL = agentRepoURL
+	installCmd.RepoURL = agentRepoURL.String()
 	installCmd.Version = cfg.req.AgentVersion
-	if strings.Contains(installCmd.Version, "dev") {
-		installCmd.Version = "" // For testing during development.
-	}
 
-	chartPath, err := installCmd.LocateChart(agentName, cfg.settings)
-	if err != nil {
-		return trace.Wrap(err, "could not locate chart")
-	}
-
-	agentChart, err := loader.Load(chartPath)
+	agentChart, err := getChartData(installCmd.Version)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	installCmd.ReleaseName = agentName
 	installCmd.Namespace = agentNamespace
 	installCmd.CreateNamespace = true
@@ -562,6 +584,7 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	for k, v := range cfg.eksCluster.Tags {
 		eksTags[k] = aws.String(v)
 	}
+	eksTags[types.OriginLabel] = aws.String(types.OriginCloud)
 	kubeCluster, err := services.NewKubeClusterFromAWSEKS(aws.ToString(cfg.eksCluster.Name), aws.ToString(cfg.eksCluster.Arn), eksTags)
 	if err != nil {
 		return trace.Wrap(err)

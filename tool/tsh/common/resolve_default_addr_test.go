@@ -29,14 +29,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	apihelpers "github.com/gravitational/teleport/api/testhelpers"
 	"github.com/gravitational/teleport/integration/helpers"
 )
 
-var testLog = log.WithField(trace.Component, "test")
+var testLog = log.WithField(teleport.ComponentKey, "test")
 
 func newWaitForeverHandler() (http.Handler, chan struct{}) {
 	doneChannel := make(chan struct{})
