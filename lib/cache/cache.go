@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -2186,21 +2187,21 @@ func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, e
 }
 
 // ListUsers returns a page of users.
-func (c *Cache) ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
+func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
 	_, span := c.Tracer.Start(ctx, "cache/ListUsers")
 	defer span.End()
 
-	if withSecrets { // cache never tracks user secrets
-		users, token, err := c.Users.ListUsers(ctx, pageSize, nextToken, withSecrets)
-		return users, token, trace.Wrap(err)
+	if req.WithSecrets { // cache never tracks user secrets
+		rsp, err := c.Users.ListUsers(ctx, req)
+		return rsp, trace.Wrap(err)
 	}
 	rg, err := readCollectionCache(c, c.collections.users)
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	users, token, err := rg.reader.ListUsers(ctx, pageSize, nextToken, withSecrets)
-	return users, token, trace.Wrap(err)
+	rsp, err := rg.reader.ListUsers(ctx, req)
+	return rsp, trace.Wrap(err)
 }
 
 // GetTunnelConnections is a part of auth.Cache implementation

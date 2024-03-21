@@ -2243,7 +2243,8 @@ var xxx_messageInfo_AD proto.InternalMessageInfo
 
 // DatabaseTLS contains TLS configuration options.
 type DatabaseTLS struct {
-	// Mode is a TLS connection mode. See DatabaseTLSMode for details.
+	// Mode is a TLS connection mode.
+	// 0 is "verify-full"; 1 is "verify-ca", 2 is "insecure".
 	Mode DatabaseTLSMode `protobuf:"varint,1,opt,name=Mode,proto3,enum=types.DatabaseTLSMode" json:"mode"`
 	// CACert is an optional user provided CA certificate used for verifying
 	// database TLS connection.
@@ -5114,8 +5115,10 @@ type ClusterNetworkingConfigSpecV2 struct {
 	// timeouts.
 	WebIdleTimeout Duration `protobuf:"varint,6,opt,name=WebIdleTimeout,proto3,casttype=Duration" json:"web_idle_timeout"`
 	// ProxyListenerMode is proxy listener mode used by Teleport Proxies.
+	// 0 is "separate"; 1 is "multiplex".
 	ProxyListenerMode ProxyListenerMode `protobuf:"varint,7,opt,name=ProxyListenerMode,proto3,enum=types.ProxyListenerMode" json:"proxy_listener_mode,omitempty"`
 	// RoutingStrategy determines the strategy used to route to nodes.
+	// 0 is "unambiguous_match"; 1 is "most_recent".
 	RoutingStrategy RoutingStrategy `protobuf:"varint,8,opt,name=RoutingStrategy,proto3,enum=types.RoutingStrategy" json:"routing_strategy,omitempty"`
 	// TunnelStrategyV1 determines the tunnel strategy used in the cluster.
 	TunnelStrategy *TunnelStrategyV1 `protobuf:"bytes,9,opt,name=TunnelStrategy,proto3" json:"tunnel_strategy,omitempty"`
@@ -5511,6 +5514,8 @@ type AuthPreferenceSpecV2 struct {
 	// otherwise.
 	AllowPasswordless *BoolOption `protobuf:"bytes,11,opt,name=AllowPasswordless,proto3,customtype=BoolOption" json:"allow_passwordless,omitempty"`
 	// RequireMFAType is the type of MFA requirement enforced for this cluster.
+	// 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH",
+	// 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
 	RequireMFAType RequireMFAType `protobuf:"varint,12,opt,name=RequireMFAType,proto3,enum=types.RequireMFAType" json:"require_session_mfa,omitempty"`
 	// DeviceTrust holds settings related to trusted device verification.
 	// Requires Teleport Enterprise.
@@ -7183,6 +7188,8 @@ type RoleOptions struct {
 	// over an SSH session. It defaults to true unless explicitly set to false.
 	SSHFileCopy *BoolOption `protobuf:"bytes,22,opt,name=SSHFileCopy,proto3,customtype=BoolOption" json:"ssh_file_copy"`
 	// RequireMFAType is the type of MFA requirement enforced for this user.
+	// 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH",
+	// 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
 	RequireMFAType RequireMFAType `protobuf:"varint,23,opt,name=RequireMFAType,proto3,enum=types.RequireMFAType" json:"require_session_mfa,omitempty"`
 	// DeviceTrustMode is the device authorization mode used for the resources
 	// associated with the role.
@@ -7197,10 +7204,13 @@ type RoleOptions struct {
 	// CreateDatabaseUser enabled automatic database user creation.
 	CreateDatabaseUser *BoolOption `protobuf:"bytes,27,opt,name=CreateDatabaseUser,proto3,customtype=BoolOption" json:"create_db_user"`
 	// CreateHostUserMode allows users to be automatically created on a
-	// host when not set to off
+	// host when not set to off.
+	// 0 is "unspecified"; 1 is "off"; 2 is "drop" (removed for v15 and above),
+	// 3 is "keep"; 4 is "insecure-drop".
 	CreateHostUserMode CreateHostUserMode `protobuf:"varint,28,opt,name=CreateHostUserMode,proto3,enum=types.CreateHostUserMode" json:"create_host_user_mode,omitempty"`
 	// CreateDatabaseUserMode allows users to be automatically created on a
 	// database when not set to off.
+	// 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop".
 	CreateDatabaseUserMode CreateDatabaseUserMode `protobuf:"varint,29,opt,name=CreateDatabaseUserMode,proto3,enum=types.CreateDatabaseUserMode" json:"create_db_user_mode,omitempty"`
 	XXX_NoUnkeyedLiteral   struct{}               `json:"-"`
 	XXX_unrecognized       []byte                 `json:"-"`
@@ -7290,9 +7300,11 @@ var xxx_messageInfo_RecordSession proto.InternalMessageInfo
 type CertExtension struct {
 	// Type represents the certificate type being extended, only ssh
 	// is supported at this time.
+	// 0 is "ssh".
 	Type CertExtensionType `protobuf:"varint,1,opt,name=Type,proto3,enum=types.CertExtensionType" json:"type"`
 	// Mode is the type of extension to be used -- currently
-	// critical-option is not supported
+	// critical-option is not supported.
+	// 0 is "extension".
 	Mode CertExtensionMode `protobuf:"varint,2,opt,name=Mode,proto3,enum=types.CertExtensionMode" json:"mode"`
 	// Name specifies the key to be used in the cert extension.
 	Name string `protobuf:"bytes,3,opt,name=Name,proto3" json:"name"`

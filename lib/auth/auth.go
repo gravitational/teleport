@@ -6053,6 +6053,14 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			services.AccessState{},
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
 
+	case *proto.IsMFARequiredRequest_App:
+		app, err := a.GetApp(ctx, t.App.GetName())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		noMFAAccessErr = checker.CheckAccess(app, services.AccessState{})
+
 	default:
 		return nil, trace.BadParameter("unknown Target %T", req.Target)
 	}
