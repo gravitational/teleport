@@ -19,20 +19,13 @@ KUBECONFIG ?=
 TEST_KUBE ?=
 
 OS ?= linux
-ARCH ?= amd64
 
 UID := $$(id -u)
 GID := $$(id -g)
 
-HOST_ARCH := $(shell uname -m)
-RUNTIME_ARCH_x86_64 := amd64
-# uname returns different value on Linux (aarch64) and MacOS (arm64).
-RUNTIME_ARCH_arm64 := arm64
-RUNTIME_ARCH_aarch64 := arm64
-RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
-
-# BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables are included
 include versions.mk
+include arch.mk
+# BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables are included
 include images.mk
 include grpcbox.mk # Requires images.mk
 
@@ -77,11 +70,6 @@ endif
 # $(ARCH) is the target architecture we want to build for.
 REQUIRE_HOST_ARCH = $(if $(filter-out $(ARCH),$(RUNTIME_ARCH)),$(error Cannot cross-compile $@ $(ARCH) on $(RUNTIME_ARCH)))
 
-# PULL_ON_CI is used by the buildbox targets to pull the latest buildbox before building
-# a new one so that less work is done if the buildbox is up-to-date already. This is only
-# needed on CI as they start with a fresh state each time.
-PULL_ON_CI = $(if $(filter $(CI),true),docker inspect --type=image $(1) >/dev/null 2>&1 || docker pull $(1) || true)
-
 #
 # Build 'teleport' release inside a docker container
 #
@@ -124,8 +112,7 @@ build-binaries-fips: buildbox-centos7-fips webassets
 #
 .PHONY:buildbox
 buildbox:
-	$(call PULL_ON_CI,$(BUILDBOX))
-	DOCKER_BUILDKIT=1 docker build --platform=linux/$(RUNTIME_ARCH) \
+	docker buildx build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
@@ -139,7 +126,9 @@ buildbox:
 		--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
 		--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
 		--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
+		--cache-to type=inline \
 		--cache-from $(BUILDBOX) \
+		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX) .
 
 # Builds a Docker buildbox for FIPS
@@ -155,8 +144,7 @@ buildbox-fips: buildbox-centos7-fips
 .PHONY:buildbox-centos7
 buildbox-centos7:
 	$(REQUIRE_HOST_ARCH)
-	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7))
-	DOCKER_BUILDKIT=1 docker build \
+	docker buildx build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
@@ -166,7 +154,9 @@ buildbox-centos7:
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
+		--cache-to type=inline \
 		--cache-from $(BUILDBOX_CENTOS7) \
+		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_CENTOS7) -f Dockerfile-centos7 .
 
 #
@@ -174,7 +164,6 @@ buildbox-centos7:
 #
 .PHONY:buildbox-centos7-fips
 buildbox-centos7-fips:
-	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_FIPS))
 	docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
@@ -184,7 +173,9 @@ buildbox-centos7-fips:
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+		--cache-to type=inline \
 		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
+		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_CENTOS7_FIPS) -f Dockerfile-centos7-fips .
 
 #
@@ -194,16 +185,16 @@ buildbox-centos7-fips:
 #
 .PHONY:buildbox-arm
 buildbox-arm:
-	$(call PULL_ON_CI,$(BUILDBOX_ARM))
-	docker build \
+	docker buildx build \
 		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--cache-from $(BUILDBOX) \
-		--cache-from $(BUILDBOX_ARM) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--cache-to type=inline \
+		--cache-from $(BUILDBOX_ARM) \
+		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
 
 CONNECT_VERSION ?= $(VERSION)
@@ -216,10 +207,11 @@ endif
 #
 .PHONY:buildbox-connect
 buildbox-connect:
-	if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CONNECT) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CONNECT) || true; fi; \
-	DOCKER_BUILDKIT=1 docker build \
+	docker buildx build \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--cache-to type=inline \
 		--cache-from $(BUILDBOX_CONNECT) \
+		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_CONNECT) -f Dockerfile-connect .
 
 #
