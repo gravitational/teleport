@@ -2638,24 +2638,6 @@ func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, submission typ
 	return a.authServer.submitAccessReview(ctx, submission, &identity)
 }
 
-func (a *ServerWithRoles) canFilterRequestableRolesByResource(ctx context.Context, req types.AccessCapabilitiesRequest) (bool, error) {
-	if !req.FilterRequestableRolesByResource {
-		return false, nil
-	}
-	currentCluster, err := a.GetClusterName()
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	for _, resourceID := range req.ResourceIDs {
-		if resourceID.ClusterName != currentCluster.GetClusterName() {
-			// Requested resource is from another cluster, so we can't know
-			// all of the roles which would grant access to it.
-			return false, nil
-		}
-	}
-	return true, nil
-}
-
 func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
 	// default to checking the capabilities of the caller
 	if req.User == "" {
@@ -2670,14 +2652,6 @@ func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.A
 		if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbList, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	}
-
-	canFilter, err := a.canFilterRequestableRolesByResource(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if !canFilter {
-		req.ResourceIDs = nil
 	}
 
 	return a.authServer.GetAccessCapabilities(ctx, req)
