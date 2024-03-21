@@ -421,6 +421,20 @@ func TestAWSSignerHandler(t *testing.T) {
 	}
 }
 
+func TestRewriteRequest(t *testing.T) {
+	expectedReq, err := http.NewRequest("GET", "https://example.com", http.NoBody)
+	require.NoError(t, err)
+	ctx := context.Background()
+
+	inputReq := mustNewRequest(t, "GET", "https://example.com", nil)
+	actualOutReq, err := rewriteRequest(ctx, inputReq, &endpoints.ResolvedEndpoint{})
+	require.NoError(t, err)
+	require.Equal(t, expectedReq, actualOutReq, err)
+
+	_, err = io.ReadAll(actualOutReq.Body)
+	require.NoError(t, err)
+}
+
 func TestURLForResolvedEndpoint(t *testing.T) {
 	tests := []struct {
 		name                 string

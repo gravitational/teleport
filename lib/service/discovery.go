@@ -81,6 +81,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		PollInterval:      process.Config.Discovery.PollInterval,
 		ServerCredentials: tlsConfig,
 		AccessGraphConfig: process.Config.AccessGraph,
+		ClusterFeatures:   process.getClusterFeatures,
 	})
 	if err != nil {
 		return trace.Wrap(err)
