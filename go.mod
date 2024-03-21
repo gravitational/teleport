@@ -38,7 +38,7 @@ require (
 	github.com/andybalholm/brotli v1.1.0
 	github.com/aquasecurity/libbpfgo v0.5.1-libbpf-1.2
 	github.com/armon/go-radix v1.0.0
-	github.com/aws/aws-sdk-go v1.50.31
+	github.com/aws/aws-sdk-go v1.51.5
 	github.com/aws/aws-sdk-go-v2 v1.25.2
 	github.com/aws/aws-sdk-go-v2/config v1.27.5
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.5
