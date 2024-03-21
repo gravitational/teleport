@@ -791,51 +791,31 @@ export type RawEvents = {
       }[];
     }
   >;
-  [eventCodes.DATABASE_SESSION_USER_CREATE]: RawEvent<
+  [eventCodes.DATABASE_SESSION_USER_CREATE]: RawDatabaseSessionEvent<
     typeof eventCodes.DATABASE_SESSION_USER_CREATE,
     {
-      name: string;
-      db_service: string;
-      db_name: string;
-      db_user: string;
-      username: string;
       roles: string[];
     }
   >;
-  [eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE]: RawEvent<
+  [eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE]: RawDatabaseSessionEvent<
     typeof eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE,
     {
-      name: string;
-      db_service: string;
-      db_name: string;
-      db_user: string;
       error: string;
       message: string;
-      username: string;
       roles: string[];
     }
   >;
-  [eventCodes.DATABASE_SESSION_USER_DEACTIVATE]: RawEvent<
+  [eventCodes.DATABASE_SESSION_USER_DEACTIVATE]: RawDatabaseSessionEvent<
     typeof eventCodes.DATABASE_SESSION_USER_DEACTIVATE,
     {
-      name: string;
-      db_service: string;
-      db_name: string;
-      db_user: string;
-      username: string;
       delete: boolean;
     }
   >;
-  [eventCodes.DATABASE_SESSION_USER_DEACTIVATE_FAILURE]: RawEvent<
+  [eventCodes.DATABASE_SESSION_USER_DEACTIVATE_FAILURE]: RawDatabaseSessionEvent<
     typeof eventCodes.DATABASE_SESSION_USER_DEACTIVATE_FAILURE,
     {
-      name: string;
-      db_service: string;
-      db_name: string;
-      db_user: string;
       error: string;
       message: string;
-      username: string;
       delete: boolean;
     }
   >;
@@ -1822,6 +1802,20 @@ type RawEventSFTP<T extends EventCode> = RawEvent<
     error: string;
     ['addr.local']: string;
   }
+>;
+
+type RawDatabaseSessionEvent<T extends EventCode, K = unknown> = Merge<
+  RawEvent<
+    T,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      db_user: string;
+      username: string;
+    }
+  >,
+  K
 >;
 
 /**
