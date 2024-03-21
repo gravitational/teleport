@@ -889,7 +889,11 @@
             {
               "title": "Terraform Provider",
               "slug": "/management/dynamic-resources/terraform-provider/"
-            }
+            },
+	    {
+	      "title": "Import Teleport Resources into Terraform",
+	      "slug": "/management/dynamic-resources/import-terraform-resources/"
+	    }
           ]
         },
         {

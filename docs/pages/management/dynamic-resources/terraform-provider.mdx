@@ -4,7 +4,7 @@ description: How to manage dynamic resources using the Teleport Terraform provid
 videoBanner: YgNHD4SS8dg
 ---
 
-This guide demonstrates how to: Set up the Terraform provider for Teleport on
+This guide demonstrates how to set up the Terraform provider for Teleport on
 Linux and macOS.
 
 Terraform is intended to be used with Machine ID, Teleport's feature for providing identities to
@@ -43,11 +43,10 @@ authority to manage resources in the cluster. To prepare credentials using a loc
    $ cd teleport-terraform
    ```
 
-1. Create a new file called `terraform.yaml` and open it in an editor.
-
-1. Terraform needs a role giving it permission to manage our Cluster's resources. The bot will
-   create identity certificates that have this role. Configure the necessary role by pasting
-   the following content into a `terraform_role.yaml` file:
+1. Terraform needs a Teleport role that gives it permission to manage your
+   cluster's resources. The bot creates identity documents that have this role.
+   Configure the necessary role by pasting the following content into a
+   `terraform_role.yaml` file:
 
    ```yaml
    kind: role
@@ -90,13 +89,14 @@ authority to manage resources in the cluster. To prepare credentials using a loc
 1. Create the `terraform` role by running the following command:
 
    ```code
-   $ tctl create -f terraform_role.yaml
+   $ tctl create terraform_role.yaml
    role 'terraform' has been created
    ```
 
-1. We're going to create two scripts that will let us quickly and repeatably create and destroy
-   our local Terraform bot. First, create a new file called `create_and_run_terraform_bot.sh`,
-   open it in an editor, and paste in the following content:
+1. Create two scripts that let you quickly and repeatably create and destroy our
+   local Terraform bot. First, create a new file called
+   `create_and_run_terraform_bot.sh`, open it in an editor, and paste in the
+   following content:
 
    ```shell
    #! /usr/bin/env bash
@@ -117,6 +117,12 @@ authority to manage resources in the cluster. To prepare credentials using a loc
    created in any way other than adding a bot, so for local development work, you must manually
    manage the bot and its token.
 
+   The bot manages its state data in a folder called `tbot-data` in the current
+   working directory.
+
+1. Edit `create_and_run_terraform_bot.sh` to replace `tele.example.com:443` with
+   the domain name and port of the Teleport Proxy Service in your cluster.
+
 1. Create another file called `remove_terraform_bot.sh`, open it in an editor, and
 paste in the following content:
 
@@ -125,6 +131,7 @@ paste in the following content:
 
    tctl bots rm terraform-test
    rm -rf ./terraform-identity
+   rm -rf ./tbot-data
    ```
 
    This script will be used later to clean up our bot in between runs and when we're done.
@@ -195,7 +202,12 @@ To apply the configuration:
 
 ## Next steps
 
+- If you have already created Teleport resources with another tool, such as
+  `tctl`, learn how to [import Teleport resources into
+  Terraform](./import-terraform-resources.mdx).
 - Follow [the user and role IaC guide](./user-and-role.mdx) to use the Terraform
   Provider to create Teleport users and grant them roles.
-- Explore the full list of supported [Terraform provider resources](../../reference/terraform-provider.mdx).
-- See how to use Machine ID with Terraform in [production](../../machine-id/access-guides/terraform.mdx).
+- Explore the full list of supported [Terraform provider
+  resources](../../reference/terraform-provider.mdx).
+- See how to use Machine ID with Terraform in
+  [production](../../machine-id/access-guides/terraform.mdx).
