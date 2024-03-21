@@ -210,6 +210,59 @@ func TestSeekForward(t *testing.T) {
 	}
 }
 
+func TestSeekForwardTwice(t *testing.T) {
+	clk := clockwork.NewFakeClock()
+	p, err := player.New(&player.Config{
+		Clock:     clk,
+		SessionID: "test-session",
+		Streamer:  &simpleStreamer{count: 1, delay: 1000},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { p.Close() })
+
+	ch := make(chan struct{})
+
+	go func() {
+		clk.BlockUntil(1)
+		ch <- struct{}{}
+	}()
+
+	require.NoError(t, p.Play())
+	<-ch
+
+	go func() {
+		clk.BlockUntil(1)
+		ch <- struct{}{}
+	}()
+
+	p.SetPos(100 * time.Millisecond)
+	<-ch
+
+	go func() {
+		clk.BlockUntil(1)
+		ch <- struct{}{}
+	}()
+
+	p.SetPos(800 * time.Millisecond)
+	<-ch
+
+	clk.BlockUntil(1)
+	clk.Advance(150 * time.Millisecond)
+
+	select {
+	case evt := <-p.C():
+		require.FailNow(t, "event should not be ready yet: %v", evt)
+	case <-time.After(1 * time.Second):
+	}
+
+	clk.Advance(51 * time.Millisecond)
+	select {
+	case <-p.C():
+	case <-time.After(1 * time.Second):
+		require.FailNow(t, "event not ready in time %#v", clk)
+	}
+}
+
 // TestInterruptsDelay tests that the player responds to playback
 // controls even when it is waiting to emit an event.
 func TestInterruptsDelay(t *testing.T) {
