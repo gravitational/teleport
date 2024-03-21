@@ -6,7 +6,7 @@
 GOLANG_VERSION ?= go1.21.8
 GOLANGCI_LINT_VERSION ?= v1.56.2
 
-NODE_VERSION ?= 18.19.1
+NODE_VERSION ?= 20.11.1
 
 # Run lint-rust check locally before merging code after you bump this.
 RUST_VERSION ?= 1.71.1
