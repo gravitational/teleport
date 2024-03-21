@@ -17,94 +17,30 @@
  */
 
 import grpc from '@grpc/grpc-js';
-import { VnetServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb.grpc-client';
+import * as vnetServiceProtobuf from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb.client';
+import { GrpcTransport } from '@protobuf-ts/grpc-transport';
 
 import Logger from 'teleterm/logger';
-import * as uri from 'teleterm/ui/uri';
 
-import { TshAbortSignal } from './types';
 import { loggingInterceptor } from './interceptors';
+import { CloneableClient, cloneClient } from './cloneableClient';
+
+export type VnetServiceClient =
+  CloneableClient<vnetServiceProtobuf.VnetServiceClient>;
 
 export function createVnetClient(
   addr: string,
   credentials: grpc.ChannelCredentials
-): VnetClient {
+): VnetServiceClient {
   const logger = new Logger('vnet');
-  const vnet = new VnetServiceClient(addr, credentials, {
+  const transport = new GrpcTransport({
+    host: addr,
+    channelCredentials: credentials,
     interceptors: [loggingInterceptor(logger)],
   });
+  const client = cloneClient(
+    new vnetServiceProtobuf.VnetServiceClient(transport)
+  );
 
-  return {
-    start(
-      rootClusterUri: uri.RootClusterUri,
-      abortSignal?: TshAbortSignal
-    ): Promise<void> {
-      return withAbort(abortSignal, callRef => {
-        return new Promise((resolve, reject) => {
-          callRef.current = vnet.start({ rootClusterUri }, err => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve();
-            }
-          });
-        });
-      });
-    },
-
-    stop(
-      rootClusterUri: uri.RootClusterUri,
-      abortSignal?: TshAbortSignal
-    ): Promise<void> {
-      return withAbort(abortSignal, callRef => {
-        return new Promise((resolve, reject) => {
-          callRef.current = vnet.stop({ rootClusterUri }, err => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve();
-            }
-          });
-        });
-      });
-    },
-  };
-}
-
-export type VnetClient = {
-  start: (
-    rootClusterUri: uri.RootClusterUri,
-    abortSignal?: TshAbortSignal
-  ) => Promise<void>;
-
-  stop: (
-    rootClusterUri: uri.RootClusterUri,
-    abortSignal?: TshAbortSignal
-  ) => Promise<void>;
-};
-
-type CallRef = {
-  current: {
-    cancel(): void;
-  } | null;
-};
-
-// TODO(ravicious): Extract withAbort and use it in both tshd and vnet clients.
-async function withAbort<T>(
-  sig: TshAbortSignal | undefined,
-  cb: (ref: CallRef) => Promise<T>
-) {
-  const ref: CallRef = {
-    current: null,
-  };
-
-  const abort = () => {
-    ref?.current?.cancel();
-  };
-
-  sig?.addEventListener(abort);
-
-  return cb(ref).finally(() => {
-    sig?.removeEventListener(abort);
-  });
+  return client;
 }

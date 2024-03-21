@@ -68,7 +68,7 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
         //
         // A custom error wrapper is needed to detect cancellation.
         // https://github.com/gravitational/teleport/issues/30753
-        await vnet.start(uri);
+        await vnet.start({ rootClusterUri: uri });
         setStatus('running');
       },
       [vnet]
@@ -78,7 +78,7 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
   const [stopAttempt, stop] = useAsync(
     useCallback(
       async (uri: uri.RootClusterUri) => {
-        await vnet.stop(uri);
+        await vnet.stop({ rootClusterUri: uri });
         setStatus('stopped');
       },
       [vnet]
