@@ -20,6 +20,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -353,7 +354,7 @@ func (s *AccessRequestSuite) RunAndWaitReady(t *testing.T, app AppI) {
 
 	go func() {
 		ctx := appCtx
-		if err := app.Run(ctx); err != nil {
+		if err := app.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 			logger.Get(ctx).WithError(err).Error("Application failed")
 			assert.Fail(t, "Application failed")
 		}
@@ -362,7 +363,10 @@ func (s *AccessRequestSuite) RunAndWaitReady(t *testing.T, app AppI) {
 	t.Cleanup(func() {
 		err := app.Shutdown(appCtx)
 		assert.NoError(t, err)
-		assert.NoError(t, app.Err())
+		err = app.Err()
+		if err != nil {
+			assert.ErrorContains(t, err, context.Canceled.Error(), "if a non-nil error is returned, it should be canceled context")
+		}
 	})
 
 	waitCtx, cancel := context.WithTimeout(appCtx, 20*time.Second)
