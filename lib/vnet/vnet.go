@@ -299,22 +299,6 @@ func (m *Manager) cachedIP(fqdn string) (tcpip.Address, bool) {
 	return ip, ok
 }
 
-func (m *Manager) matchingApp(ctx context.Context, fqdn string) (types.Application, bool, error) {
-	appPublicAddr := strings.TrimSuffix(fqdn, ".")
-	matchingProfile, ok, err := m.matchingProfile(appPublicAddr)
-	if err != nil {
-		return nil, false, trace.Wrap(err)
-	}
-	if !ok {
-		return nil, false, nil
-	}
-	if matchingProfile == appPublicAddr {
-		// This is a request for a proxy address
-		return nil, false, nil
-	}
-	return m.matchingAppForProfile(ctx, matchingProfile, appPublicAddr)
-}
-
 func (m *Manager) matchingProfile(appPublicAddr string) (string, bool, error) {
 	profiles, err := m.tc.ClientStore.ListProfiles()
 	if err != nil {
@@ -458,6 +442,10 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 }
 
 func (m *Manager) handleUDP(req *udp.ForwarderRequest) {
+	go m.handleUDPConcurrent(req)
+}
+
+func (m *Manager) handleUDPConcurrent(req *udp.ForwarderRequest) {
 	ctx, cancel := context.WithCancel(m.rootCtx)
 	defer cancel()
 	id := req.ID()

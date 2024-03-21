@@ -100,12 +100,16 @@ func (s *Server) HandleUDPConn(ctx context.Context, conn io.ReadWriteCloser) err
 		return nil
 	}
 	question, err := parser.Question()
-	s.slog.Debug("Received DNS question.", "question", question)
-	if question.Class != dnsmessage.ClassINET {
-		s.slog.Debug("Query class is not INET, not responding.", "class", question.Class)
-		return nil
+	if err != nil {
+		return trace.Wrap(err, "parsing DNS question")
 	}
 	fqdn := question.Name.String()
+	slog := s.slog.With("fqdn", fqdn, "type", question.Type.String())
+	slog.Debug("Received DNS question.", "question", question)
+	if question.Class != dnsmessage.ClassINET {
+		slog.Debug("Query class is not INET, not responding.", "class", question.Class)
+		return nil
+	}
 
 	var result Result
 	switch question.Type {
@@ -125,20 +129,20 @@ func (s *Server) HandleUDPConn(ctx context.Context, conn io.ReadWriteCloser) err
 	var response []byte
 	switch {
 	case result.NXDomain:
-		s.slog.Debug("No match for name, responding with authoritative name error.", "fqdn", fqdn)
+		slog.Debug("No match for name, responding with authoritative name error.")
 		response, err = buildNXDomainResponse(buf, &requestHeader, &question)
 	case result.NoRecord:
-		s.slog.Debug("Name matched but no record, responding with authoritative non-answer.", "fqdn", fqdn)
+		slog.Debug("Name matched but no record, responding with authoritative non-answer.")
 		response, err = buildEmptyResponse(buf, &requestHeader, &question)
 	case result.A != ([4]byte{}):
-		s.slog.Debug("Matched DNS A.", "fqdn", fqdn, "A", result.A)
+		slog.Debug("Matched DNS A.", "A", result.A)
 		response, err = buildAResponse(buf, &requestHeader, &question, result.A)
 	case result.AAAA != ([16]byte{}):
-		s.slog.Debug("Matched DNS AAAA.", "fqdn", fqdn, "AAAA", result.AAAA)
+		slog.Debug("Matched DNS AAAA.", "AAAA", result.AAAA)
 		response, err = buildAAAAResponse(buf, &requestHeader, &question, result.AAAA)
 	default:
 		// TODO: forwarding
-		s.slog.Debug("Recursively resolving query.")
+		slog.Debug("Recursively resolving query.")
 		response, err = s.recurse(ctx, buf)
 	}
 	if err != nil {
