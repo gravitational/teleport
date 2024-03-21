@@ -222,7 +222,11 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 	}
 
 	if req.RequestableRoles {
-		caps.RequestableRoles, err = v.GetRequestableRoles(ctx, req.RequestableResourceIDs, req.Login)
+		var resourceIDs []types.ResourceID
+		if req.FilterRequestableRolesByResource {
+			resourceIDs = req.ResourceIDs
+		}
+		caps.RequestableRoles, err = v.GetRequestableRoles(ctx, resourceIDs, req.Login)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -1985,8 +1985,8 @@ func TestSSHAccessRequest(t *testing.T) {
 			}, setHomePath(tmpHomePath))
 			require.NoError(t, err)
 
-			// fail to ssh to other non-approved node, do not prompt for request
-			// (only applies to resource requests)
+			// For resource-based requests, fail to ssh to other non-approved node,
+			// do not prompt for request
 			if tc.requestMode == accessRequestModeResource {
 				err = Run(ctx, []string{
 					"ssh",
@@ -1995,6 +1995,15 @@ func TestSSHAccessRequest(t *testing.T) {
 					"echo", "test",
 				}, setHomePath(tmpHomePath))
 				require.Error(t, err)
+			} else {
+				// For role-based requests, ssh into another node works
+				err = Run(ctx, []string{
+					"ssh",
+					"--insecure",
+					fmt.Sprintf("%s@%s", user.Username, sshHostname2),
+					"echo", "test",
+				}, setHomePath(tmpHomePath))
+				require.NoError(t, err)
 			}
 
 			// drop the current access request

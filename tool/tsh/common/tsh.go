@@ -630,6 +630,7 @@ const (
 	awsWorkgroupEnvVar       = "TELEPORT_AWS_WORKGROUP"
 	proxyKubeConfigEnvVar    = "TELEPORT_KUBECONFIG"
 	noResumeEnvVar           = "TELEPORT_NO_RESUME"
+	requestModeEnvVar        = "TELEPORT_REQUEST_MODE"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -770,7 +771,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("x11-untrusted-timeout", "Sets a timeout for untrusted X11 forwarding, after which the client will reject any forwarding requests from the server").Default("10m").DurationVar((&cf.X11ForwardingTimeout))
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
 	ssh.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
-	ssh.Flag("request-mode", fmt.Sprintf("Type of automatic access request to make (%s)", strings.Join(accessRequestModes, ", "))).Default(accessRequestModeResource).EnumVar(&cf.RequestMode, accessRequestModes...)
+	ssh.Flag("request-mode", fmt.Sprintf("Type of automatic access request to make (%s)", strings.Join(accessRequestModes, ", "))).Envar(requestModeEnvVar).Default(accessRequestModeResource).EnumVar(&cf.RequestMode, accessRequestModes...)
 	ssh.Flag("disable-access-request", "Disable automatic resource access requests (DEPRECATED: use --request-mode=off)").BoolVar(&cf.disableAccessRequest)
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
@@ -1243,7 +1244,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	cf.ExplicitUsername = cf.Username != ""
 
 	cf.command = command
-	// Convert --disableAccessRequest for compatibility.
+	// Convert --disable-access-request for compatibility.
 	if cf.disableAccessRequest {
 		cf.RequestMode = accessRequestModeOff
 	}
@@ -3214,7 +3215,7 @@ func serializeClusters(rootCluster clusterInfo, leafClusters []clusterInfo, form
 	return string(out), trace.Wrap(err)
 }
 
-// accessRequestForSSH attempts to create a resource access request for the case
+// accessRequestForSSH attempts to create an access request for the case
 // where "tsh ssh" was attempted and access was denied
 func accessRequestForSSH(ctx context.Context, cf *CLIConf, tc *client.TeleportClient) (types.AccessRequest, error) {
 	if tc.Host == "" {
@@ -3253,15 +3254,17 @@ func accessRequestForSSH(ctx context.Context, cf *CLIConf, tc *client.TeleportCl
 		Kind:        types.KindNode,
 		Name:        node.GetName(),
 	}}
-	if cf.RequestMode == accessRequestModeRole {
+	switch cf.RequestMode {
+	case accessRequestModeRole:
 		rootClient, err := clt.ConnectToRootCluster(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		resp, err := rootClient.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
-			RequestableRoles:       true,
-			RequestableResourceIDs: requestResourceIDs,
-			Login:                  tc.HostLogin,
+			RequestableRoles:                 true,
+			ResourceIDs:                      requestResourceIDs,
+			Login:                            tc.HostLogin,
+			FilterRequestableRolesByResource: true,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -3287,12 +3290,14 @@ func accessRequestForSSH(ctx context.Context, cf *CLIConf, tc *client.TeleportCl
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else {
+	case accessRequestModeResource:
 		// Roles to request will be automatically determined on the backend.
 		req, err = services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	default:
+		return nil, trace.BadParameter("unexpected request mode %q", cf.RequestMode)
 	}
 
 	req.SetLoginHint(tc.HostLogin)
@@ -3323,7 +3328,7 @@ func retryWithAccessRequest(
 ) error {
 	origErr := fn()
 	if cf.RequestMode == accessRequestModeOff || !trace.IsAccessDenied(origErr) {
-		// Return if --disable-access-request was specified.
+		// Return if --request-mode=off was specified.
 		// Return the original error if it's not AccessDenied.
 		// Quit now if we don't have a hostname.
 		return trace.Wrap(origErr)
