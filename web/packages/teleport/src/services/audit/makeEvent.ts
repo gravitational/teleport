@@ -919,7 +919,7 @@ export const formatters: Formatters = {
     },
   },
   [eventCodes.DATABASE_SESSION_USER_CREATE]: {
-    type: ' db.session.user.create',
+    type: 'db.session.user.create',
     desc: 'Database User Created',
     format: ev => {
       if (!ev.roles) {
@@ -929,14 +929,14 @@ export const formatters: Formatters = {
     },
   },
   [eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE]: {
-    type: ' db.session.user.create',
+    type: 'db.session.user.create',
     desc: 'Database User Creation Failed',
     format: ev => {
       return `Failed to create database user [${ev.user}] in database [${ev.db_service}], error: [${ev.error}]`;
     },
   },
   [eventCodes.DATABASE_SESSION_USER_DEACTIVATE]: {
-    type: ' db.session.user.deactivate',
+    type: 'db.session.user.deactivate',
     desc: 'Database User Deactivated',
     format: ev => {
       if (!ev.delete) {
@@ -946,7 +946,7 @@ export const formatters: Formatters = {
     },
   },
   [eventCodes.DATABASE_SESSION_USER_DEACTIVATE_FAILURE]: {
-    type: ' db.session.user.deactivate',
+    type: 'db.session.user.deactivate',
     desc: 'Database User Deactivate Failure',
     format: ev => {
       return `Failed to disable database user [${ev.user}] in database [${ev.db_service}], error: [${ev.error}]`;
