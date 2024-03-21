@@ -278,6 +278,8 @@ type RpcStatusCode =
 
 /**
  * Checks if the given value is a `TshdRpcError`.
+ * It's meant to be used to check errors received from a gRPC client
+ * that was produced with `cloneClient()`.
  * @param error - Error to check.
  * @param statusCode - Optionally, a gRPC status code to compare.
  */
