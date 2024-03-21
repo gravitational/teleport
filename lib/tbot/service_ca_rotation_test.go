@@ -199,7 +199,7 @@ func rotate( //nolint:unused // used in skipped test
 }
 
 func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *testing.T, wg *sync.WaitGroup, //nolint:unused // used in skipped test
-) (auth.ClientI, func() *service.TeleportProcess, *config.FileConfig) {
+) (*auth.Client, func() *service.TeleportProcess, *config.FileConfig) {
 	fc, fds := testhelpers.DefaultConfig(t)
 
 	cfg := servicecfg.MakeDefaultConfig()
@@ -289,7 +289,7 @@ func TestBot_Run_CARotation(t *testing.T) {
 	client, teleportProcess, fc := setupServerForCARotationTest(ctx, log, t, wg)
 
 	// Make and join a new bot instance.
-	botParams := testhelpers.MakeBot(t, client, "test", "access")
+	botParams, _ := testhelpers.MakeBot(t, client, "test", "access")
 	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, nil,
 		testhelpers.DefaultBotConfigOpts{
 			UseAuthServer: true,
@@ -317,6 +317,7 @@ func TestBot_Run_CARotation(t *testing.T) {
 	// Allow time for bot to start running and watching for CA rotations
 	// TODO: We should modify the bot to emit events that may be useful...
 	time.Sleep(10 * time.Second)
+	facade := b.botIdentitySvc.facade
 
 	// fetch initial host cert
 	require.Len(t, b.BotIdentity().TLSCACertsBytes, 2)
@@ -329,24 +330,25 @@ func TestBot_Run_CARotation(t *testing.T) {
 	// TODO: These sleeps allow the client time to rotate. They could be
 	// replaced if tbot emitted a CA rotation/renewal event.
 	time.Sleep(time.Second * 30)
-	_, err = clientForIdentity(ctx, log, botConfig, b.BotIdentity(), resolver)
+
+	_, err = clientForFacade(ctx, log, botConfig, facade, resolver)
 	require.NoError(t, err)
 
 	rotate(ctx, t, log, teleportProcess(), types.RotationPhaseUpdateClients)
 	time.Sleep(time.Second * 30)
 	// Ensure both sets of CA certificates are now available locally
 	require.Len(t, b.BotIdentity().TLSCACertsBytes, 3)
-	_, err = clientForIdentity(ctx, log, botConfig, b.BotIdentity(), resolver)
+	_, err = clientForFacade(ctx, log, botConfig, facade, resolver)
 	require.NoError(t, err)
 
 	rotate(ctx, t, log, teleportProcess(), types.RotationPhaseUpdateServers)
 	time.Sleep(time.Second * 30)
-	_, err = clientForIdentity(ctx, log, botConfig, b.BotIdentity(), resolver)
+	_, err = clientForFacade(ctx, log, botConfig, facade, resolver)
 	require.NoError(t, err)
 
 	rotate(ctx, t, log, teleportProcess(), types.RotationStateStandby)
 	time.Sleep(time.Second * 30)
-	_, err = clientForIdentity(ctx, log, botConfig, b.BotIdentity(), resolver)
+	_, err = clientForFacade(ctx, log, botConfig, facade, resolver)
 	require.NoError(t, err)
 
 	require.Len(t, b.BotIdentity().TLSCACertsBytes, 2)

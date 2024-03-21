@@ -487,7 +487,7 @@ func (m *mockIntegrationsTokenGenerator) GetProxies() ([]types.Server, error) {
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (m *mockIntegrationsTokenGenerator) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
+func (m *mockIntegrationsTokenGenerator) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	m.tokenCallsCount++
 	return uuid.NewString(), nil
 }

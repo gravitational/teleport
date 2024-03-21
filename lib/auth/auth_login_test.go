@@ -968,7 +968,7 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 		{
 			name:    "WebAuthn",
 			dev:     mfa.WebDev,
-			wantErr: "invalid Webauthn response", // generic error as it _could_ be a passwordless attempt
+			wantErr: "invalid credentials", // generic error as it _could_ be a passwordless attempt
 		},
 	}
 	for _, test := range tests {

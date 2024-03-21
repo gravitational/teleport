@@ -10,11 +10,9 @@
   },
   "license": "Apache-2.0",
   "scripts": {
-    "start": "yarn build-native-deps && yarn start-skip-native-deps",
-    "start-skip-native-deps": "electron-vite dev",
+    "start": "electron-vite dev",
     "start-electron": "electron build/app/dist/main/main.js",
     "build": "electron-vite build",
-    "build-native-deps": "electron-builder install-app-deps",
     "package": "electron-builder build --config electron-builder-config.js --publish never -c.extraMetadata.name=teleport-connect",
     "generate-grpc-shared": "npx -y --target_arch=x64 --package=@protobuf-ts/plugin@2.9.3 -- protoc -I=src/sharedProcess/api/proto --ts_opt long_type_number,eslint_disable,add_pb_suffix,client_grpc1,server_grpc1,ts_nocheck --ts_out=src/sharedProcess/api/protogen src/sharedProcess/api/proto/*.proto"
   },
@@ -28,7 +26,7 @@
   "dependencies": {
     "@grpc/grpc-js": "1.8.8",
     "node-forge": "^1.3.1",
-    "node-pty": "1.1.0-beta5",
+    "node-pty": "1.1.0-beta12",
     "ring-buffer-ts": "^1.2.0",
     "split2": "4.1.0",
     "strip-ansi": "^7.1.0",
@@ -46,7 +44,7 @@
     "@types/tar-fs": "^2.0.1",
     "@types/whatwg-url": "^11.0.1",
     "clean-webpack-plugin": "4.0.0",
-    "electron": "28.2.3",
+    "electron": "29.1.4",
     "electron-notarize": "^1.2.1",
     "electron-vite": "^2.0.0",
     "eslint-import-resolver-webpack": "0.13.2",

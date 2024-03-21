@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -522,6 +523,13 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 			return trace.Wrap(err)
 		}
 		span.AddEvent("completed creating preset users")
+
+		span.AddEvent("creating preset database object import rules")
+		if err := createPresetDatabaseObjectImportRule(ctx, asrv); err != nil {
+			// merely raise a warning; this is not a fatal error.
+			log.WithError(err).Warn("error creating preset database object import rules")
+		}
+		span.AddEvent("completed creating database object import rules")
 	} else {
 		log.Info("skipping preset role and user creation")
 	}
@@ -918,6 +926,29 @@ func createPresetUsers(ctx context.Context, um PresetUsers) error {
 		if user, err := um.CreateUser(ctx, user); err != nil && !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err, "failed creating preset user %s", user.GetName())
 		}
+	}
+
+	return nil
+}
+
+// createPresetDatabaseObjectImportRule will create a sample database object import rule if there are none.
+func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.DatabaseObjectImportRules) error {
+	importRules, _, err := rules.ListDatabaseObjectImportRules(ctx, 100, "")
+	if err != nil {
+		return trace.Wrap(err, "failed listing available database object import rules")
+	}
+	if len(importRules) > 0 {
+		return nil
+	}
+
+	rule := databaseobjectimportrule.NewPresetImportAllObjectsRule()
+	if rule == nil {
+		return nil
+	}
+
+	_, err = rules.CreateDatabaseObjectImportRule(ctx, rule)
+	if err != nil {
+		return trace.Wrap(err, "failed to create default database object import rule")
 	}
 
 	return nil

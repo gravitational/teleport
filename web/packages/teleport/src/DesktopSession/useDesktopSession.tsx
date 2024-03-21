@@ -82,7 +82,7 @@ export default function useDesktopSession() {
     useState(false);
 
   document.title = useMemo(
-    () => `${clusterId} • ${username}@${hostname}`,
+    () => `${username}@${hostname} • ${clusterId}`,
     [clusterId, hostname, username]
   );
 

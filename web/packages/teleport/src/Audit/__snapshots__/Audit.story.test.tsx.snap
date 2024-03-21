@@ -137,17 +137,6 @@ exports[`list of all events 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
-.c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 4px;
-  color: #FFFFFF;
-}
-
 .c17 {
   display: inline-flex;
   align-items: center;
@@ -160,6 +149,17 @@ exports[`list of all events 1`] = `
   justify-content: center;
   margin-right: 16px;
   padding: 4px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+  color: #FFFFFF;
 }
 
 .c8 {
@@ -3033,7 +3033,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Update
+              Device Updated
             </div>
           </td>
           <td
@@ -3087,7 +3087,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Enrollment
+              Device Enrolled
             </div>
           </td>
           <td
@@ -3141,7 +3141,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Enrollment
+              Device Enrolled
             </div>
           </td>
           <td
@@ -3303,7 +3303,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Delete
+              Device Deleted
             </div>
           </td>
           <td
@@ -3357,7 +3357,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Delete
+              Device Deleted
             </div>
           </td>
           <td
@@ -3411,7 +3411,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Enroll Token Create
+              Device Enroll Token Created
             </div>
           </td>
           <td
@@ -3465,7 +3465,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Enroll Token Create
+              Device Enroll Token Created
             </div>
           </td>
           <td
@@ -3519,7 +3519,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Authenticate
+              Device Authenticated
             </div>
           </td>
           <td
@@ -3573,7 +3573,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Authenticate
+              Device Authenticated
             </div>
           </td>
           <td
@@ -3627,7 +3627,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Register
+              Device Registered
             </div>
           </td>
           <td
@@ -3681,7 +3681,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Register
+              Device Registered
             </div>
           </td>
           <td
@@ -3735,7 +3735,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Update
+              Device Updated
             </div>
           </td>
           <td
@@ -3789,7 +3789,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Authenticate
+              Device Authenticated
             </div>
           </td>
           <td
@@ -3843,7 +3843,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Enrollment
+              Device Enrolled
             </div>
           </td>
           <td
@@ -3951,7 +3951,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Enroll Token Create
+              Device Enroll Token Created
             </div>
           </td>
           <td
@@ -4005,7 +4005,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Delete
+              Device Deleted
             </div>
           </td>
           <td
@@ -4059,7 +4059,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Register
+              Device Registered
             </div>
           </td>
           <td
@@ -5373,7 +5373,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [foo] searched for resource type [db_server] with role(s) [admin]
+            User [foo] searched for resource type [db_server] with role(s) [admin,really-long-role-name-1,really-long-role-name-2,really-long-role-name-3...]
           </td>
           <td
             style="min-width: 120px;"
@@ -12549,6 +12549,20 @@ exports[`loaded audit log screen 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c24 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c28 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 16px;
+  padding: 4px;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -12568,20 +12582,6 @@ exports[`loaded audit log screen 1`] = `
   margin: 0px;
   margin-right: 4px;
   color: #FFFFFF;
-}
-
-.c24 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c28 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16px;
-  padding: 4px;
 }
 
 .c1 {

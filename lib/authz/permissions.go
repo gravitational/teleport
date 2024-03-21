@@ -150,10 +150,10 @@ type AuthorizerAccessPoint interface {
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
 	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 }
 
 // MFAAuthenticator authenticates MFA responses.
@@ -490,12 +490,6 @@ func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, aut
 }
 
 func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Context) error {
-	// Certain hardware-key based private key policies require MFA for each request.
-	if authContext.Identity.GetIdentity().PrivateKeyPolicy.MFAVerified() {
-		authContext.AdminActionAuthState = AdminActionAuthMFAVerified
-		return nil
-	}
-
 	// MFA is required to be passed through the request context.
 	mfaResp, err := mfa.CredentialsFromContext(ctx)
 	if err != nil {
@@ -1118,6 +1112,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindApp, services.RW()),
 						types.NewRule(types.KindDiscoveryConfig, services.RO()),
 						types.NewRule(types.KindIntegration, append(services.RO(), types.VerbUse)),
+						types.NewRule(types.KindSemaphore, services.RW()),
 					},
 					// Discovery service should only access kubes/apps/dbs that originated from discovery.
 					KubernetesLabels: types.Labels{types.OriginLabel: []string{types.OriginCloud}},

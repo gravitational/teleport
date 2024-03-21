@@ -572,9 +572,11 @@ func TestProxySSHJumpHost(t *testing.T) {
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 				withLeafConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 			},
 		},
@@ -583,9 +585,11 @@ func TestProxySSHJumpHost(t *testing.T) {
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 				withLeafConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 			},
 		},
@@ -594,9 +598,11 @@ func TestProxySSHJumpHost(t *testing.T) {
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 				withLeafConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 			},
 		},
@@ -605,9 +611,11 @@ func TestProxySSHJumpHost(t *testing.T) {
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 				withLeafConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 			},
 		},
@@ -990,7 +998,7 @@ func mustLoginSetEnv(t *testing.T, s *suite, args ...string) (tshHome, kubeConfi
 	return
 }
 
-func mustLoginIdentity(t *testing.T, s *suite, opts ...CliOption) string {
+func mustLoginIdentity(t *testing.T, s *suite) string {
 	identityFile := path.Join(t.TempDir(), "identity.pem")
 	mustLogin(t, s, "--out", identityFile)
 	return identityFile

@@ -65,7 +65,7 @@ func (c *TopCommand) Initialize(app *kingpin.Application, config *servicecfg.Con
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *TopCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
+func (c *TopCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
 	switch cmd {
 	case c.top.FullCommand():
 		diagClient, err := roundtrip.NewClient(*c.diagURL, "")

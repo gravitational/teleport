@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -223,7 +222,7 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 		table.AddRow([]string{"Access Expires:", req.GetAccessExpiry().Local().Format(time.DateTime)})
 	}
 	if req.GetAssumeStartTime() != nil {
-		table.AddRow([]string{"Assume Start Time (UTC):", req.GetAssumeStartTime().UTC().Format(time.RFC822)})
+		table.AddRow([]string{"Assume Start Time:", req.GetAssumeStartTime().Local().Format(time.DateTime)})
 	}
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
@@ -317,10 +316,6 @@ func onRequestReview(cf *CLIConf) error {
 			return trace.BadParameter("parsing assume-start-time (required format RFC3339 e.g 2023-12-12T23:20:50.52Z): %v", err)
 		}
 		parsedAssumeStartTime = &assumeStartTime
-		if time.Until(*parsedAssumeStartTime) > constants.MaxAssumeStartDuration {
-			return trace.BadParameter("assume-start-time too far in future: latest date %q",
-				parsedAssumeStartTime.Add(constants.MaxAssumeStartDuration).Format(time.RFC3339))
-		}
 	}
 
 	var state types.RequestState
@@ -471,7 +466,13 @@ func onRequestSearch(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		tableColumns = []string{"Name", "Hostname", "Labels", "Resource ID"}
+
+		switch cf.ResourceKind {
+		case types.KindDatabase:
+			tableColumns = []string{"Database Name", "Labels", "Resource ID"}
+		default:
+			tableColumns = []string{"Name", "Hostname", "Labels", "Resource ID"}
+		}
 	}
 
 	var rows [][]string
@@ -514,11 +515,21 @@ func onRequestSearch(cf *CLIConf) error {
 			if r, ok := resource.(interface{ GetHostname() string }); ok {
 				hostName = r.GetHostname()
 			}
-			row = []string{
-				common.FormatResourceName(resource, cf.Verbose),
-				hostName,
-				common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
-				resourceID,
+
+			switch cf.ResourceKind {
+			case types.KindDatabase:
+				row = []string{
+					common.FormatResourceName(resource, cf.Verbose),
+					common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
+					resourceID,
+				}
+			default:
+				row = []string{
+					common.FormatResourceName(resource, cf.Verbose),
+					hostName,
+					common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
+					resourceID,
+				}
 			}
 		}
 		rows = append(rows, row)

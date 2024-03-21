@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -100,58 +101,48 @@ func TestWebauthnLogin_ssh(t *testing.T) {
 
 func TestWebauthnLogin_web(t *testing.T) {
 	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	rpID := env.server.TLS.ClusterName()
 	clusterMFA := configureClusterForMFA(t, env, &types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
 		Webauthn: &types.Webauthn{
-			RPID: env.server.TLS.ClusterName(),
+			RPID: rpID,
 		},
 	})
 	user := clusterMFA.User
 	password := clusterMFA.Password
 	device := clusterMFA.WebDev.Key
 
-	clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
-	require.NoError(t, err)
-
-	// 1st login step: request challenge.
 	ctx := context.Background()
-	beginResp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), &client.MFAChallengeRequest{
-		User: user,
-		Pass: password,
-	})
-	require.NoError(t, err)
-	authChallenge := &client.MFAAuthenticateChallenge{}
-	require.NoError(t, json.Unmarshal(beginResp.Bytes(), authChallenge))
-	require.NotNil(t, authChallenge.WebauthnChallenge)
 
-	// Sign Webauthn challenge (requires user interaction in real-world
-	// scenarios).
-	assertionResp, err := device.SignAssertion("https://"+env.server.TLS.ClusterName(), authChallenge.WebauthnChallenge)
-	require.NoError(t, err)
-
-	// 2nd login step: reply with signed challenged.
-	sessionResp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finishsession"), &client.AuthenticateWebUserRequest{
-		User:                      user,
-		WebauthnAssertionResponse: assertionResp,
+	sessionResp, _ := loginWebMFA(ctx, t, loginWebMFAParams{
+		webClient:     proxy.newClient(t),
+		rpID:          rpID,
+		user:          user,
+		password:      password,
+		authenticator: device,
 	})
-	require.NoError(t, err)
-	createSessionResp := &CreateSessionResponse{}
-	require.NoError(t, json.Unmarshal(sessionResp.Bytes(), createSessionResp))
-	require.NotEmpty(t, createSessionResp.TokenType)
-	require.NotEmpty(t, createSessionResp.Token)
-	require.NotEmpty(t, createSessionResp.TokenExpiresIn)
-	require.NotEmpty(t, createSessionResp.SessionExpires.Unix())
+
+	// Run various additional response assertions.
+	assert.NotEmpty(t, sessionResp.TokenType)
+	assert.NotEmpty(t, sessionResp.Token)
+	assert.NotEmpty(t, sessionResp.TokenExpiresIn)
+	assert.NotEmpty(t, sessionResp.SessionExpires.Unix())
 }
 
 func TestWebauthnLogin_webWithPrivateKeyEnabledError(t *testing.T) {
-	ctx := context.Background()
 	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	ctx := context.Background()
+
+	rpID := env.server.TLS.ClusterName()
 	authPref := &types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
 		Webauthn: &types.Webauthn{
-			RPID: env.server.TLS.ClusterName(),
+			RPID: rpID,
 		},
 	}
 
@@ -175,32 +166,20 @@ func TestWebauthnLogin_webWithPrivateKeyEnabledError(t *testing.T) {
 		},
 	})
 
-	clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
-	require.NoError(t, err)
-
-	// 1st login step: request challenge.
-	beginResp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), &client.MFAChallengeRequest{
-		User: user,
-		Pass: password,
-	})
-	require.NoError(t, err)
-	authChallenge := &client.MFAAuthenticateChallenge{}
-	require.NoError(t, json.Unmarshal(beginResp.Bytes(), authChallenge))
-	require.NotNil(t, authChallenge.WebauthnChallenge)
-
-	// Sign Webauthn challenge (requires user interaction in real-world
-	// scenarios).
-	assertionResp, err := device.SignAssertion("https://"+env.server.TLS.ClusterName(), authChallenge.WebauthnChallenge)
-	require.NoError(t, err)
-
-	// 2nd login step: reply with signed challenged.
-	sessionResp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finishsession"), &client.AuthenticateWebUserRequest{
-		User:                      user,
-		WebauthnAssertionResponse: assertionResp,
+	httpResp, body, err := rawLoginWebMFA(ctx, loginWebMFAParams{
+		webClient:     proxy.newClient(t),
+		rpID:          rpID,
+		user:          user,
+		password:      password,
+		authenticator: device,
 	})
 	require.Error(t, err)
+	// Make sure we failed in the last step.
+	require.NotNil(t, httpResp, "HTTP response nil, did it fail in the finishsession step?")
+	require.NotNil(t, body, "HTTP response body nil, did it fail in the finishsession step?")
+
 	var resErr httpErrorResponse
-	require.NoError(t, json.Unmarshal(sessionResp.Bytes(), &resErr))
+	require.NoError(t, json.Unmarshal(body, &resErr))
 	require.Contains(t, resErr.Error.Message, keys.PrivateKeyPolicyHardwareKeyTouch)
 }
 

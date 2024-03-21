@@ -128,6 +128,8 @@ const (
 	ForwardAgentLocal
 )
 
+const remoteForwardUnsupportedMessage = "ssh: tcpip-forward request denied by peer"
+
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentClient,
 })
@@ -311,6 +313,10 @@ type Config struct {
 	// DynamicForwardedPorts are the list of ports tsh listens on for dynamic
 	// port forwarding (parameters to -D ssh flag).
 	DynamicForwardedPorts DynamicForwardedPorts
+
+	// RemoteForwardPorts are the list of ports the remote connection listens on
+	// for remote port forwarding (parameters to -R ssh flag).
+	RemoteForwardPorts ForwardedPorts
 
 	// HostKeyCallback will be called to check host keys of the remote
 	// node, if not specified will be using CheckHostSignature function
@@ -693,7 +699,17 @@ func IsErrorResolvableWithRelogin(err error) bool {
 	// https://github.com/gravitational/teleport/pull/30578.
 	var remoteErr *interceptors.RemoteError
 	if errors.As(err, &remoteErr) {
-		return false
+		// Exception for the two "retryable" errors that come from RPCs.
+		//
+		// Since Connect no longer checks the user cert before making an RPC,
+		// it has to be able to properly recognize "expired certs" errors
+		// that come from the server (to show a re-login dialog).
+		//
+		// TODO(gzdunek): These manual checks should be replaced with retryable
+		// errors returned explicitly, as described below by codingllama.
+		isClientCredentialsHaveExpired := errors.Is(err, client.ErrClientCredentialsHaveExpired)
+		isTLSExpiredCertificate := strings.Contains(err.Error(), "tls: expired certificate")
+		return isClientCredentialsHaveExpired || isTLSExpiredCertificate
 	}
 
 	// TODO(codingllama): Retrying BadParameter is a terrible idea.
@@ -1943,6 +1959,22 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 		}
 		go nodeClient.dynamicListenAndForward(ctx, socket, addr)
 	}
+	for _, fp := range tc.Config.RemoteForwardPorts {
+		addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
+		socket, err := nodeClient.Client.Listen("tcp", addr)
+		if err != nil {
+			// We log the error here instead of returning it to be consistent with
+			// the other port forwarding methods, which don't stop the session
+			// if forwarding fails.
+			message := fmt.Sprintf("Failed to bind on remote host to %v: %v.", addr, err)
+			if strings.Contains(err.Error(), remoteForwardUnsupportedMessage) {
+				message = "Node does not support remote port forwarding (-R)."
+			}
+			log.Error(message)
+		} else {
+			go nodeClient.remoteListenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)), addr)
+		}
+	}
 	return nil
 }
 
@@ -2346,13 +2378,22 @@ func isRemoteDest(name string) bool {
 // ListNodesWithFilters returns all nodes that match the filters in the current cluster
 // that the logged in user has access to.
 func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Server, error) {
-	req := tc.ResourceFilter(types.KindNode)
+	req := proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{types.KindNode},
+		Labels:              tc.Labels,
+		SearchKeywords:      tc.SearchKeywords,
+		PredicateExpression: tc.PredicateExpression,
+		UseSearchAsRoles:    tc.UseSearchAsRoles,
+		SortBy: types.SortBy{
+			Field: types.ResourceKind,
+		},
+	}
+
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ListNodesWithFilters",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
-			attribute.String("resource", req.ResourceType),
 			attribute.Int("limit", int(req.Limit)),
 			attribute.String("predicate", req.PredicateExpression),
 			attribute.StringSlice("keywords", req.SearchKeywords),
@@ -2366,8 +2407,30 @@ func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Ser
 	}
 	defer clt.Close()
 
-	servers, err := client.GetAllResources[types.Server](ctx, clt.AuthClient, req)
-	return servers, trace.Wrap(err)
+	var servers []types.Server
+	for {
+		page, err := client.ListUnifiedResourcePage(ctx, clt.AuthClient, &req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, r := range page.Resources {
+			srv, ok := r.(types.Server)
+			if !ok {
+				log.Warnf("expected types.Server but received unexpected type %T", r)
+				continue
+			}
+
+			servers = append(servers, srv)
+		}
+
+		req.StartKey = page.NextKey
+		if req.StartKey == "" {
+			break
+		}
+	}
+
+	return servers, nil
 }
 
 // GetClusterAlerts returns a list of matching alerts from the current cluster.

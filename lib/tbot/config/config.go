@@ -100,6 +100,7 @@ type CLIConf struct {
 	// AuthServer is a Teleport auth server address. It may either point
 	// directly to an auth server, or to a Teleport proxy server in which case
 	// a tunneled auth connection will be established.
+	// Prefer using Address() to pick an address.
 	AuthServer string
 
 	// DataDir stores the bot's internal data.
@@ -154,9 +155,10 @@ type CLIConf struct {
 	// should be written to
 	ConfigureOutput string
 
-	// Proxy is the teleport proxy address. Unlike `AuthServer` this must
+	// ProxyServer is the teleport proxy address. Unlike `AuthServer` this must
 	// explicitly point to a Teleport proxy.
-	Proxy string
+	// Example: "example.teleport.sh:443"
+	ProxyServer string
 
 	// Cluster is the name of the Teleport cluster on which resources should
 	// be accessed.
@@ -265,10 +267,14 @@ type BotConfig struct {
 	Onboarding OnboardingConfig `yaml:"onboarding,omitempty"`
 	Storage    *StorageConfig   `yaml:"storage,omitempty"`
 	Outputs    Outputs          `yaml:"outputs,omitempty"`
-	Services   Services         `yaml:"services,omitempty"`
+	Services   ServiceConfigs   `yaml:"services,omitempty"`
 
-	Debug           bool          `yaml:"debug"`
-	AuthServer      string        `yaml:"auth_server"`
+	Debug      bool   `yaml:"debug"`
+	AuthServer string `yaml:"auth_server,omitempty"`
+	// ProxyServer is the teleport proxy address. Unlike `AuthServer` this must
+	// explicitly point to a Teleport proxy.
+	// Example: "example.teleport.sh:443"
+	ProxyServer     string        `yaml:"proxy_server,omitempty"`
 	CertificateTTL  time.Duration `yaml:"certificate_ttl"`
 	RenewalInterval time.Duration `yaml:"renewal_interval"`
 	Oneshot         bool          `yaml:"oneshot"`
@@ -290,6 +296,30 @@ type BotConfig struct {
 	// Insecure configures the bot to trust the certificates from the Auth Server or Proxy on first connect without verification.
 	// Do not use in production.
 	Insecure bool `yaml:"insecure,omitempty"`
+}
+
+type AddressKind string
+
+const (
+	AddressKindUnspecified AddressKind = ""
+	AddressKindProxy       AddressKind = "proxy"
+	AddressKindAuth        AddressKind = "auth"
+)
+
+// Address returns the address to the auth server, either directly or via
+// a proxy, and the kind of address it is.
+func (conf *BotConfig) Address() (string, AddressKind) {
+	switch {
+	case conf.AuthServer != "" && conf.ProxyServer != "":
+		// This is an error case that should be prevented by the validation.
+		return "", AddressKindUnspecified
+	case conf.ProxyServer != "":
+		return conf.ProxyServer, AddressKindProxy
+	case conf.AuthServer != "":
+		return conf.AuthServer, AddressKindAuth
+	default:
+		return "", AddressKindUnspecified
+	}
 }
 
 func (conf *BotConfig) CipherSuites() []uint16 {
@@ -341,6 +371,13 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		}
 	}
 
+	// Validate configured services
+	for i, service := range conf.Services {
+		if err := service.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "validating service[%d]", i)
+		}
+	}
+
 	if conf.CertificateTTL == 0 {
 		conf.CertificateTTL = DefaultCertificateTTL
 	}
@@ -385,11 +422,17 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Services assists polymorphic unmarshaling of a slice of Services.
-type Services []bot.Service
+// ServiceConfig is an interface over the various service configurations.
+type ServiceConfig interface {
+	Type() string
+	CheckAndSetDefaults() error
+}
 
-func (o *Services) UnmarshalYAML(node *yaml.Node) error {
-	var out []bot.Service
+// ServiceConfigs assists polymorphic unmarshaling of a slice of ServiceConfigs.
+type ServiceConfigs []ServiceConfig
+
+func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
+	var out []ServiceConfig
 	for _, node := range node.Content {
 		header := struct {
 			Type string `yaml:"type"`
@@ -401,6 +444,12 @@ func (o *Services) UnmarshalYAML(node *yaml.Node) error {
 		switch header.Type {
 		case ExampleServiceType:
 			v := &ExampleService{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case SPIFFEWorkloadAPIServiceType:
+			v := &SPIFFEWorkloadAPIService{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
@@ -454,6 +503,12 @@ func (o *Outputs) UnmarshalYAML(node *yaml.Node) error {
 			out = append(out, v)
 		case SSHHostOutputType:
 			v := &SSHHostOutput{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case SPIFFESVIDOutputType:
+			v := &SPIFFESVIDOutput{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
@@ -614,6 +669,13 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 			log.Warnf("CLI parameters are overriding auth server configured in %s", cf.ConfigPath)
 		}
 		config.AuthServer = cf.AuthServer
+	}
+
+	if cf.ProxyServer != "" {
+		if config.ProxyServer != "" {
+			log.Warnf("CLI parameters are overriding proxy configured in %s", cf.ConfigPath)
+		}
+		config.ProxyServer = cf.ProxyServer
 	}
 
 	if cf.CertificateTTL != 0 {

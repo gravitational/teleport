@@ -23,6 +23,7 @@ import (
 	"crypto/subtle"
 	"net/mail"
 
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -31,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -129,10 +131,18 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 		Username: user,
 		Webauthn: wantypes.CredentialAssertionResponseFromProto(req.Webauthn),
 	}
+	requiredExt := mfav1.ChallengeExtensions{
+		Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD,
+	}
 	if len(req.OldPassword) > 0 {
 		authReq.Pass = &PassCreds{
 			Password: req.OldPassword,
 		}
+	} else {
+		// If the user didn't provide their old password, we need to require
+		// identity verification (i.e. make sure that a resident token used for
+		// MFA).
+		requiredExt.UserVerificationRequirement = string(protocol.VerificationRequired)
 	}
 	if req.SecondFactorToken != "" {
 		authReq.OTP = &OTPCreds{
@@ -140,7 +150,7 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 			Token:    req.SecondFactorToken,
 		}
 	}
-	verifyMFALocks, _, _, err := a.authenticateUser(ctx, authReq)
+	verifyMFALocks, _, _, err := a.authenticateUser(ctx, authReq, requiredExt)
 	if err != nil {
 		return trace.Wrap(err)
 	}

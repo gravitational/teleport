@@ -94,8 +94,9 @@ outputs:
 ```
 
 If operating `tbot` as a background service, restart it. If running `tbot` in
-one-shot mode, it must be executed before you attempt to execute the Terraform
-plan later.
+one-shot mode (which creates credentials and ends the process, rather than running
+a background process), it must be executed before you attempt to execute the
+Terraform plan later.
 
 You should now see an `identity` file under `/opt/machine-id`. This contains
 the private key and signed certificates needed by the Terraform provider to

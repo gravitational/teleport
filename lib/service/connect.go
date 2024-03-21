@@ -30,7 +30,6 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -1184,8 +1183,8 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 			return nil, nil, trace.Wrap(err)
 		}
 		dialOpts = append(dialOpts, []grpc.DialOption{
-			grpc.WithUnaryInterceptor(om.UnaryClientInterceptor(grpcMetrics)),
-			grpc.WithStreamInterceptor(om.StreamClientInterceptor(grpcMetrics)),
+			grpc.WithUnaryInterceptor(grpcMetrics.UnaryClientInterceptor()),
+			grpc.WithStreamInterceptor(grpcMetrics.StreamClientInterceptor()),
 		}...)
 	}
 

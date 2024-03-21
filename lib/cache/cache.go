@@ -1786,7 +1786,7 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.Mars
 }
 
 // GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
-func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (c *Cache) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterNetworkingConfig")
 	defer span.End()
 
@@ -1797,7 +1797,7 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"networking"}, func(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-			cfg, err := rg.reader.GetClusterNetworkingConfig(ctx, opts...)
+			cfg, err := rg.reader.GetClusterNetworkingConfig(ctx)
 			return cfg, err
 		})
 		if err != nil {
@@ -1805,7 +1805,7 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 		}
 		return cachedCfg.Clone(), nil
 	}
-	return rg.reader.GetClusterNetworkingConfig(ctx, opts...)
+	return rg.reader.GetClusterNetworkingConfig(ctx)
 }
 
 // GetClusterName gets the name of the cluster from the backend.
@@ -2462,7 +2462,7 @@ func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, er
 }
 
 // GetSessionRecordingConfig gets session recording configuration.
-func (c *Cache) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+func (c *Cache) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSessionRecordingConfig")
 	defer span.End()
 
@@ -2471,7 +2471,7 @@ func (c *Cache) GetSessionRecordingConfig(ctx context.Context, opts ...services.
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetSessionRecordingConfig(ctx, opts...)
+	return rg.reader.GetSessionRecordingConfig(ctx)
 }
 
 // GetNetworkRestrictions gets the network restrictions.

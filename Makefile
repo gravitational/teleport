@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=15.1.1
+VERSION=15.1.9
 
 DOCKER_IMAGE ?= teleport
 
@@ -1303,6 +1303,19 @@ buf/installed:
 		exit 1; \
 	fi
 
+# derive will generate derived functions for our API.
+.PHONY: derive
+derive:
+	cd $(TOOLINGDIR) && go run ./cmd/goderive/main.go ../../api/types
+
+# derive-up-to-date checks if the generated derived functions are up to date.
+.PHONY: derive-up-to-date
+derive-up-to-date: must-start-clean/host derive
+	@if ! $(GIT) diff --quiet; then \
+		echo 'Please run make derive.'; \
+		exit 1; \
+	fi
+
 # grpc generates gRPC stubs from service definitions.
 # This target runs in the buildbox container.
 .PHONY: grpc
@@ -1514,7 +1527,12 @@ rustup-install-target-toolchain: rustup-set-version
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.
 #
+# usage: make changelog
+# usage: make changelog BASE_BRANCH=branch/v13 BASE_TAG=13.2.0
 # usage: BASE_BRANCH=branch/v13 BASE_TAG=13.2.0 make changelog
+#
+# BASE_BRANCH and BASE_TAG will be automatically determined if not specified.
+# See ./build.assets/changelog.sh
 .PHONY: changelog
 changelog:
-	@./build.assets/changelog.sh BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG)
+	@BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG) ./build.assets/changelog.sh
