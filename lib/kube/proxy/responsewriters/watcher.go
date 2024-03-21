@@ -268,6 +268,7 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, writer io.Write
 			select {
 			case evt := <-w.evtsChan:
 				if err := writeEventAndFlush(evt); err != nil {
+					//nolint:sloglint // there is no context to pass to WarnContext here
 					slog.Warn("error pushing fake pod event", "err", err)
 				}
 			case <-w.closeChan:
