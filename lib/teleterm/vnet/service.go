@@ -75,8 +75,10 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		return nil, trace.CompareFailed("VNet service is already running")
 	}
 
-	// adminSubcmdCtx has no effect on the execution of the admin subcommand itself, but it's
-	// able to close the prompt for the password if one is shown at the time of cancelation.
+	// vnet.CreateAndSetupTUNDevice passes the provided context to exec.CommandContext which executes
+	// a long running admin subcommand. The context itself has little effect on the execution of the
+	// admin subcommand once it's started, but it's able to close the prompt for the password if one
+	// is shown at the time of cancelation.
 	adminSubcmdCtx, cancelAdminSubcmdCtx := context.WithCancel(context.Background())
 
 	tun, cleanup, err := vnet.CreateAndSetupTUNDevice(adminSubcmdCtx)

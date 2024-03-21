@@ -18,7 +18,6 @@ package vnet
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -79,22 +78,27 @@ func createAndSetupTUNDeviceWithoutRoot(ctx context.Context) (tun.Device, string
 		return nil, "", trace.Wrap(err)
 	}
 
+	// Read errors from separate goroutines. If the admin subcommand exits prematurely, this function
+	// will return an error immediately instead of waiting for the deadline from recvTUNNameAndFd.
+	errC := make(chan error, 2)
+	var tunName string
+	var tunFd uintptr
+
 	go func() {
-		if err := runAdminSubcommand(ctx, socketPath); err != nil {
-			// Log err, but only if the context hasn't been canceled yet.
-			// This will log errors resulting from the command exiting prematurely, but not from being
-			// killed by exec.CommandContext.
-			if errors.Is(ctx.Err(), context.Canceled) {
-				slog.Debug("Wrapper for admin subcommand killed due to canceled context.")
-			} else {
-				slog.Error("Error running admin subcommand.", "error", err)
-			}
-		}
+		// If everything goes well, this will write to the channel only after the context gets canceled,
+		// in which case the error will be ignored as no one will read it.
+		// Not wrapping err in another message as those returned from runAdminSubcommand are enough.
+		errC <- trace.Wrap(runAdminSubcommand(ctx, socketPath))
 	}()
 
-	tunName, tunFd, err := recvTUNNameAndFd(ctx, socket)
-	if err != nil {
-		return nil, "", trace.Wrap(err, "receiving TUN name and file descriptor")
+	go func() {
+		// This is expected to finish and write to the channel first.
+		tunName, tunFd, err = recvTUNNameAndFd(ctx, socket)
+		errC <- trace.Wrap(err, "receiving TUN name and file descriptor")
+	}()
+
+	if err := <-errC; err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
 	tunDevice, err := tun.CreateTUNFromFile(os.NewFile(tunFd, ""), 0)
@@ -243,12 +247,12 @@ do shell script quoted form of executableName & " %s --socket " & quoted form of
 			// When the user closes the prompt for administrator privileges, the -128 error is returned.
 			// https://developer.apple.com/library/archive/documentation/AppleScript/Conceptual/AppleScriptLangGuide/reference/ASLR_error_codes.html#//apple_ref/doc/uid/TP40000983-CH220-SW2
 			if strings.Contains(stderr, "-128") {
-				return trace.Errorf("admin setup canceled by user")
+				return trace.Errorf("password prompt closed by user")
 			}
 
-			return trace.Wrap(err, fmt.Sprintf("admin setup subcommand exited, stderr: %s", stderr))
+			return trace.Wrap(err, fmt.Sprintf("subcommand exited, stderr: %s", stderr))
 		}
-		return trace.Wrap(err, "running admin setup subcommand")
+		return trace.Wrap(err)
 	}
 	return nil
 }
