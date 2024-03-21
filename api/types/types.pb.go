@@ -3020,7 +3020,7 @@ type AppSpecV3 struct {
 	Cloud string `protobuf:"bytes,7,opt,name=Cloud,proto3" json:"cloud,omitempty"`
 	// UserGroups are a list of user group IDs that this app is associated with.
 	UserGroups []string `protobuf:"bytes,8,rep,name=UserGroups,proto3" json:"UserGroups,omitempty"`
-	// Integration is the integration that must be used to access this Application.
+	// Integration is the integration name that must be used to access this Application.
 	// Only applicable to AWS App Access.
 	// If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
 	Integration          string   `protobuf:"bytes,9,opt,name=Integration,proto3" json:"integration,omitempty"`
