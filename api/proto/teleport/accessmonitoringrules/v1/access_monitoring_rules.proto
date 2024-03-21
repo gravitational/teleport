@@ -17,7 +17,6 @@ syntax = "proto3";
 package teleport.accessmonitoringrules.v1;
 
 import "teleport/header/v1/resourceheader.proto";
-import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1;accessmonitoringrulesv1";
 
@@ -60,19 +59,19 @@ message Notification {
 // CreateAccessMonitoringRuleRequest is the request for CreateAccessMonitoringRule.
 message CreateAccessMonitoringRuleRequest {
   // access_monitoring_rule is the specification of the rule to be created.
-  AccessMonitoringRuleV1 access_monitoring_rule = 1;
+  AccessMonitoringRule access_monitoring_rule = 1;
 }
 
 // UpdateAccessMonitoringRuleRequest is the request for UpdateAccessMonitoringRule.
 message UpdateAccessMonitoringRuleRequest {
   // access_monitoring_rule is the specification of the rule to be updated.
-  AccessMonitoringRuleV1 access_monitoring_rule = 1;
+  AccessMonitoringRule access_monitoring_rule = 1;
 }
 
 // UpsertAccessMonitoringRuleRequest is the request for UpsertAccessMonitoringRule.
 message UpsertAccessMonitoringRuleRequest {
   // access_monitoring_rule is the specification of the rule to be upsertd.
-  AccessMonitoringRuleV1 access_monitoring_rule = 1;
+  AccessMonitoringRule access_monitoring_rule = 1;
 }
 
 // GetAccessMonitoringRuleRequest is the request for GetAccessMonitoringRule.
@@ -87,7 +86,6 @@ message DeleteAccessMonitoringRuleRequest {
   string resource_name = 1;
 }
 
-
 // ListAccessMonitoringRulesResponse is the request for ListAccessMonitoringRules.
 message ListAccessMonitoringRulesRequest {
   // page_size is the maximum number of items to return.
@@ -100,7 +98,7 @@ message ListAccessMonitoringRulesRequest {
 // ListAccessMonitoringRulesResponse is the response from ListAccessMonitoringRules.
 message ListAccessMonitoringRulesResponse {
   // The page of AccessMonitoringRule that matched the request.
-  repeated AccessMonitoringRuleV1 access_monitoring_rules = 1;
+  repeated AccessMonitoringRule access_monitoring_rules = 1;
   // Token to retrieve the next page of results, or empty if there are no
   // more results in the list.
   string next_page_token = 2;

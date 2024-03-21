@@ -153,6 +153,6 @@ message Event {
     // waiting to be created.
     teleport.kubewaitingcontainer.v1.KubernetesWaitingContainer KubernetesWaitingContainer = 55;
     // AccessMonitoringRule is an access monitoring rule resource.
-    teleport.accessmonitoringrules.v1.AccessMonitoringRuleV1 AccessMonitoringRule = 54;
+    teleport.accessmonitoringrules.v1.AccessMonitoringRule AccessMonitoringRule = 54;
   }
 }
