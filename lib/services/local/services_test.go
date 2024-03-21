@@ -91,7 +91,7 @@ func TestCRUD(t *testing.T) {
 	t.Run("TestUsersCRUD", tt.suite.UsersCRUD)
 	t.Run("TestUsersExpiry", tt.suite.UsersExpiry)
 	t.Run("TestLoginAttempts", tt.suite.LoginAttempts)
-	t.Run("TestPasswordHashCRUD", tt.suite.PasswordHashCRUD)
+	t.Run("TestPasswordCRUD", tt.suite.PasswordCRUD)
 	t.Run("TestWebSessionCRUD", tt.suite.WebSessionCRUD)
 	t.Run("TestToken", tt.suite.TokenCRUD)
 	t.Run("TestRoles", tt.suite.RolesCRUD)

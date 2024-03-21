@@ -147,14 +147,15 @@ func TestPasswordLengthChange(t *testing.T) {
 
 	username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
 	password := []byte("a")
-	_, _, err = CreateUserAndRole(authServer, username, []string{username}, nil)
+	u, _, err := CreateUserAndRole(authServer, username, []string{username}, nil)
 	require.NoError(t, err)
 
 	hash, err := utils.BcryptFromPassword(password, bcrypt.DefaultCost)
 	require.NoError(t, err)
 
 	// Set an initial password that is shorter than minimum length
-	err = authServer.UpsertPasswordHash(username, hash)
+	u.SetLocalAuth(&types.LocalAuthSecrets{PasswordHash: hash})
+	authServer.UpsertUser(ctx, u)
 	require.NoError(t, err)
 
 	// Ensure that a shorter password still works for auth
@@ -843,6 +844,34 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 		NewPassword: validPassword,
 	})
 	require.Error(t, err)
+}
+
+func TestResetPassword(t *testing.T) {
+	t.Parallel()
+	s := setupPasswordSuite(t)
+
+	_, _, err := CreateUserAndRole(s.a, "dave", []string{"dave"}, nil)
+	require.NoError(t, err)
+
+	// Using the Identity service makes it easier to set up the test case.
+	err = s.a.Identity.UpsertPassword("dave", []byte("it's full of stars!"))
+	require.NoError(t, err)
+
+	// Reset password.
+	ctx := context.Background()
+	err = s.a.ResetPassword(ctx, "dave")
+	require.NoError(t, err)
+
+	// Make sure that the password has been reset.
+	u, err := s.a.Identity.GetUser(ctx, "dave", true /* withSecrets */)
+	require.NoError(t, err)
+	assert.Nil(t, u.GetLocalAuth())
+	assert.Equal(t, types.PasswordState_PASSWORD_STATE_UNSET, u.GetPasswordState())
+
+	// Make sure that we can reset once again (i.e. we don't complain if there's
+	// no password).
+	err = s.a.ResetPassword(ctx, "dave")
+	require.NoError(t, err)
 }
 
 func (s *passwordSuite) shouldLockAfterFailedAttempts(t *testing.T, req *proto.ChangePasswordRequest) {

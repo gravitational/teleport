@@ -278,6 +278,13 @@ func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (type
 		return nil, trace.AlreadyExists("user %q already registered", user.GetName())
 	}
 
+	auth := user.GetLocalAuth()
+	if auth != nil && len(auth.PasswordHash) > 0 {
+		user.SetPasswordState(types.PasswordState_PASSWORD_STATE_SET)
+	} else {
+		user.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSET)
+	}
+
 	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -294,7 +301,7 @@ func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if auth := user.GetLocalAuth(); auth != nil {
+	if auth != nil {
 		if err = s.upsertLocalAuthSecrets(ctx, user.GetName(), *auth); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -564,7 +571,7 @@ func (s *IdentityService) getUserWithSecrets(ctx context.Context, user string) (
 
 func (s *IdentityService) upsertLocalAuthSecrets(ctx context.Context, user string, auth types.LocalAuthSecrets) error {
 	if len(auth.PasswordHash) > 0 {
-		err := s.UpsertPasswordHash(user, auth.PasswordHash)
+		err := s.upsertPasswordHash(user, auth.PasswordHash)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -645,8 +652,7 @@ func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
 	return trace.Wrap(err)
 }
 
-// UpsertPasswordHash upserts user password hash
-func (s *IdentityService) UpsertPasswordHash(username string, hash []byte) error {
+func (s *IdentityService) upsertPasswordHash(username string, hash []byte) error {
 	userPrototype, err := types.NewUser(username)
 	if err != nil {
 		return trace.Wrap(err)
@@ -777,7 +783,9 @@ func (s *IdentityService) DeleteUserLoginAttempts(user string) error {
 	return nil
 }
 
-// UpsertPassword upserts new password hash into a backend.
+// UpsertPassword upserts a new password. It also sets the user's
+// `PasswordState` status flag accordingly. Returns an error if the user doesn't
+// exist.
 func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 	if user == "" {
 		return trace.BadParameter("missing username")
@@ -791,9 +799,61 @@ func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 		return trace.Wrap(err)
 	}
 
-	err = s.UpsertPasswordHash(user, hash)
+	// To make sure that the password state reflects the actual state of the
+	// password whenever we update or delete it, we first set it to UNSPECIFIED,
+	// and then use CompareAndSwapUser to update it to the expected value. We risk
+	// that the password state will be left UNSPECIFIED, but this is tolerable,
+	// since this is also the initial state for legacy users. In future, all of
+	// the user operations should be moved to AtomicWrite.
+	u, err := s.UpdateAndSwapUser(context.TODO(), user, false /*withSecrets*/, func(u types.User) (bool, error) {
+		u.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSPECIFIED)
+		return true, nil
+	})
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	err = s.upsertPasswordHash(user, hash)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	u2 := u.DeepCopy()
+	u2.SetPasswordState(types.PasswordState_PASSWORD_STATE_SET)
+	err = s.CompareAndSwapUser(context.TODO(), u2, u)
+	if err != nil {
+		s.log.WithError(err).Info("Failed to set password state")
+	}
+
+	return nil
+}
+
+// DeletePassword deletes user's password and sets the `PasswordState` status
+// flag accordingly. Does NOT return an error if the password didn't exist.
+func (s *IdentityService) DeletePassword(ctx context.Context, user string) error {
+	if user == "" {
+		return trace.BadParameter("missing username")
+	}
+
+	// See the comment in UpsertPassword.
+	u, err := s.UpdateAndSwapUser(context.TODO(), user, false /*withSecrets*/, func(u types.User) (bool, error) {
+		u.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSPECIFIED)
+		return true, nil
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.Delete(ctx, backend.Key(webPrefix, usersPrefix, user, pwdPrefix))
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	u2 := u.DeepCopy()
+	u2.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSET)
+	err = s.CompareAndSwapUser(context.TODO(), u2, u)
+	if err != nil {
+		s.log.WithError(err).Info("Failed to set password state")
 	}
 
 	return nil
