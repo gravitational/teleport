@@ -686,6 +686,10 @@ func applyDefaults(cfg *Config) {
 		cfg.Logger = slog.Default()
 	}
 
+	if cfg.LoggerLevel == nil {
+		cfg.LoggerLevel = new(slog.LevelVar)
+	}
+
 	if cfg.PollingPeriod == 0 {
 		cfg.PollingPeriod = defaults.LowResPollingPeriod
 	}
