@@ -1134,6 +1134,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		puttyConfig.Hidden()
 	}
 
+	ping := app.Command("ping", "Test ping against Teleport Proxy.").Hidden()
+
 	// FIDO2, TouchID and WebAuthnWin commands.
 	f2 := newFIDO2Command(app)
 	tid := newTouchIDCommand(app)
@@ -1502,6 +1504,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onHeadlessApprove(&cf)
 	case workloadIdentityCmd.issue.FullCommand():
 		err = workloadIdentityCmd.issue.run(&cf)
+	case ping.FullCommand():
+		err = onPing(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
