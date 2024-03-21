@@ -32,7 +32,12 @@ import {
   MethodInfo,
 } from '@protobuf-ts/runtime-rpc';
 
-import { cloneAbortSignal, TshdRpcError, cloneClient } from './cloneableClient';
+import {
+  cloneAbortSignal,
+  TshdRpcError,
+  cloneClient,
+  isTshdRpcError,
+} from './cloneableClient';
 
 function getRpcError() {
   return new RpcError('You do not have permission.', 'ACCESS_DENIED');
@@ -250,4 +255,29 @@ test('response error is cloned as an object in a duplex call', async () => {
 
   expect(Object.getPrototypeOf(error).constructor).toEqual(Object);
   expect(error).toMatchObject(tshdRpcErrorObjectMatcher);
+});
+
+test.each([
+  {
+    name: 'is not a tshd error',
+    errorToCheck: { name: 'Error' },
+    statusCodeToCheck: undefined,
+    expectTshdRpcError: false,
+  },
+  {
+    name: 'is a tshd error',
+    errorToCheck: { name: 'TshdRpcError' },
+    statusCodeToCheck: undefined,
+    expectTshdRpcError: true,
+  },
+  {
+    name: 'is a tshd error with a status code',
+    errorToCheck: { name: 'TshdRpcError', code: 'PERMISSION_DENIED' },
+    statusCodeToCheck: 'PERMISSION_DENIED',
+    expectTshdRpcError: true,
+  },
+])('$name', testCase => {
+  expect(
+    isTshdRpcError(testCase.errorToCheck, testCase.statusCodeToCheck)
+  ).toBe(testCase.expectTshdRpcError);
 });
