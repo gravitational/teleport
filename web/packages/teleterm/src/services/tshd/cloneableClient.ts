@@ -255,9 +255,7 @@ export type TshdRpcError = Pick<
 };
 
 /**
- * Subset of gRPC status codes.
- * It doesn't contain UNAUTHENTICATED and ABORTED values, which could be
- * mistakenly used as PERMISSION_DENIED and CANCELLED.
+ * gRPC status codes.
  * @see https://grpc.io/docs/guides/status-codes
  */
 type RpcStatusCode =
@@ -270,11 +268,13 @@ type RpcStatusCode =
   | 'PERMISSION_DENIED'
   | 'RESOURCE_EXHAUSTED'
   | 'FAILED_PRECONDITION'
+  | 'ABORTED'
   | 'OUT_OF_RANGE'
   | 'UNIMPLEMENTED'
   | 'INTERNAL'
   | 'UNAVAILABLE'
-  | 'DATA_LOSS';
+  | 'DATA_LOSS'
+  | 'UNAUTHENTICATED';
 
 /**
  * Checks if the given value is a `TshdRpcError`.
