@@ -1195,7 +1195,11 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		// incoming requests must have system annotations attached
 		// before being inserted into the backend. this is how the
 		// RBAC system propagates sideband information to plugins.
-		req.SetSystemAnnotations(m.SystemAnnotations())
+		systemAnnotations, err := m.SystemAnnotations(req.GetRoles())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		req.SetSystemAnnotations(systemAnnotations)
 
 		// if no suggested reviewers were provided by the user, then
 		// use the defaults suggested by the user's static roles.
@@ -1699,21 +1703,44 @@ Outer:
 
 // SystemAnnotations calculates the system annotations for a pending
 // access request.
-func (m *RequestValidator) SystemAnnotations() map[string][]string {
+func (m *RequestValidator) SystemAnnotations(requestedRoles []string) (map[string][]string, error) {
 	annotations := make(map[string][]string)
+
+	allowedAnnotations := make(map[string][]string)
+	for _, userRole := range m.userState.GetRoles() {
+		role, err := m.getter.GetRole(context.Background(), userRole)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		acr := role.GetAccessRequestConditions(types.Allow)
+
+		for _, reqRole := range requestedRoles {
+			if slices.Contains(acr.Roles, reqRole) {
+				for k, v := range acr.Annotations {
+					vals := allowedAnnotations[k]
+					allowedAnnotations[k] = slices.Concat(vals, v)
+				}
+			}
+		}
+	}
+
 	for k, va := range m.Annotations.Allow {
 		var filtered []string
 		for _, v := range va {
-			if !slices.Contains(m.Annotations.Deny[k], v) {
-				filtered = append(filtered, v)
+			if slices.Contains(m.Annotations.Deny[k], v) {
+				continue
 			}
+			if !slices.Contains(allowedAnnotations[k], v) {
+				continue
+			}
+			filtered = append(filtered, v)
 		}
 		if len(filtered) == 0 {
 			continue
 		}
 		annotations[k] = filtered
 	}
-	return annotations
+	return annotations, nil
 }
 
 type ValidateRequestOption func(*RequestValidator)

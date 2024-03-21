@@ -7251,6 +7251,88 @@ func TestCreateAccessRequest(t *testing.T) {
 	}
 }
 
+func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	srv := newTestTLSServer(t)
+	paymentRequestReviewer, identityRequestReviewer, _ := createSessionTestUsers(t, srv.Auth())
+	requester, _, err := CreateUserAndRole(srv.Auth(), "requester", nil, []types.Rule{})
+	require.NoError(t, err)
+
+	paymentsRole, err := types.NewRole("paymentsRole", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{"requestRole"},
+				Annotations: map[string][]string{
+					"pagerduty_services": {"payments"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	paymentsReviewRole, err := types.NewRole("paymentsReviewRole", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{types.NewRule(types.KindAccessRequest, []string{"update"})},
+		},
+	})
+	require.NoError(t, err)
+	identityReviewRole, err := types.NewRole("identityReviewRole", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{types.NewRule(types.KindAccessRequest, []string{"update"})},
+		},
+	})
+	require.NoError(t, err)
+
+	requestRole, err := types.NewRole("requestRole", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{"requestRole"},
+				Annotations: map[string][]string{
+					"pagerduty_services": {"identity"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	srv.Auth().CreateRole(ctx, requestRole)
+	srv.Auth().CreateRole(ctx, paymentsRole)
+	srv.Auth().CreateRole(ctx, paymentsReviewRole)
+	srv.Auth().CreateRole(ctx, identityReviewRole)
+
+	user, err := srv.Auth().GetUser(ctx, paymentRequestReviewer, true)
+	require.NoError(t, err)
+	user.AddRole(paymentsReviewRole.GetName())
+	_, err = srv.Auth().UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	user, err = srv.Auth().GetUser(ctx, identityRequestReviewer, true)
+	require.NoError(t, err)
+	user.AddRole(identityReviewRole.GetName())
+	_, err = srv.Auth().UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	user, err = srv.Auth().GetUser(ctx, requester.GetName(), true)
+	require.NoError(t, err)
+	user.AddRole(paymentsRole.GetName())
+	_, err = srv.Auth().UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestUser(requester.GetName()))
+	require.NoError(t, err)
+
+	paymentsAccessRequest, err := types.NewAccessRequest(uuid.NewString(), requester.GetName(), "requestRole")
+	require.NoError(t, err)
+	req, err := client.CreateAccessRequestV2(ctx, paymentsAccessRequest)
+	require.NoError(t, err)
+
+	// system annotations should only contain annotations from the requested role
+	require.Equal(t, map[string][]string{"pagerduty_services": {"payments"}}, req.GetSystemAnnotations())
+
+	require.NoError(t, err)
+}
+
 func mustAccessRequest(t *testing.T, user string, state types.RequestState, created, expires time.Time, roles []string, resourceIDs []types.ResourceID) types.AccessRequest {
 	t.Helper()
 
