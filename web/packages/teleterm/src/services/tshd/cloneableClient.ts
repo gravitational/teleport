@@ -254,9 +254,47 @@ export type TshdRpcError = Pick<
   isResolvableWithRelogin: boolean;
 };
 
-/** Checks if the given value is a `TshdRpcError`. */
-export function isTshdRpcError(error: unknown): error is TshdRpcError {
-  return error['name'] === 'TshdRpcError';
+/**
+ * gRPC status codes.
+ * @see https://grpc.io/docs/guides/status-codes
+ */
+type RpcStatusCode =
+  | 'CANCELLED'
+  | 'UNKNOWN'
+  | 'INVALID_ARGUMENT'
+  | 'DEADLINE_EXCEEDED'
+  | 'NOT_FOUND'
+  | 'ALREADY_EXISTS'
+  | 'PERMISSION_DENIED'
+  | 'RESOURCE_EXHAUSTED'
+  | 'FAILED_PRECONDITION'
+  | 'ABORTED'
+  | 'OUT_OF_RANGE'
+  | 'UNIMPLEMENTED'
+  | 'INTERNAL'
+  | 'UNAVAILABLE'
+  | 'DATA_LOSS'
+  | 'UNAUTHENTICATED';
+
+/**
+ * Checks if the given value is a `TshdRpcError`.
+ * It's meant to be used to check errors received from a gRPC client
+ * that was produced with `cloneClient()`.
+ * @param error - Error to check.
+ * @param statusCode - Optionally, a gRPC status code to compare.
+ */
+export function isTshdRpcError(
+  error: unknown,
+  statusCode?: RpcStatusCode
+): error is TshdRpcError {
+  const isTshdRpcError = error['name'] === 'TshdRpcError';
+  if (!isTshdRpcError) {
+    return false;
+  }
+  if (statusCode) {
+    return (error as TshdRpcError).code === statusCode;
+  }
+  return true;
 }
 
 function cloneError(error: unknown): TshdRpcError | Error | unknown {
