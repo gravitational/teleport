@@ -16,10 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Text } from 'design';
+
 import { FilterableList } from 'teleterm/ui/components/FilterableList';
 import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
 import { useKeyboardArrowsNavigationStateUpdate } from 'teleterm/ui/components/KeyboardArrowsNavigation';
-import { VnetConnectionItem } from 'teleterm/ui/Vnet';
+import { VnetConnectionItem, useVnetContext } from 'teleterm/ui/Vnet';
 
 import { ConnectionItem } from './ConnectionItem';
 
@@ -31,9 +33,12 @@ export function ConnectionsFilterableList(props: {
   slideToVnet(): void;
 }) {
   const { setActiveIndex } = useKeyboardArrowsNavigationStateUpdate();
+  const { isSupported: isVnetSupported } = useVnetContext();
 
-  // TODO(ravicious): Render "No Connections" if props.items.length is zero and VNet isn't
-  // supported.
+  if (!isVnetSupported && props.items.length === 0) {
+    return <Text color="text.muted">No Connections</Text>;
+  } // With VNet being supported, there's always at least one item to show – the VNet item.
+
   return (
     <FilterableList<ExtendedTrackedConnection>
       items={props.items}
@@ -61,10 +66,12 @@ export function ConnectionsFilterableList(props: {
         We don't want to put VNet into ExtendedTrackedConnection because these are two fundamentally
         different things.
       */}
-      <VnetConnectionItem
-        onClick={props.slideToVnet}
-        title="Open VNet details"
-      />
+      {isVnetSupported && (
+        <VnetConnectionItem
+          onClick={props.slideToVnet}
+          title="Open VNet details"
+        />
+      )}
     </FilterableList>
   );
 }

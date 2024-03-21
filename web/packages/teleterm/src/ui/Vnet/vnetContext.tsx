@@ -23,6 +23,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useMemo,
 } from 'react';
 import { useAsync, Attempt } from 'shared/hooks/useAsync';
 
@@ -35,6 +36,10 @@ import * as uri from 'teleterm/ui/uri';
  * There is a single VNet instance running for all workspaces.
  */
 export type VnetContext = {
+  /**
+   * Describes whether the given OS can run VNet.
+   */
+  isSupported: boolean;
   status: 'running' | 'stopped';
   start: (uri: uri.RootClusterUri) => void;
   startAttempt: Attempt<void>;
@@ -46,7 +51,14 @@ const VnetContext = createContext<VnetContext>(null);
 
 export const VnetContextProvider: FC<PropsWithChildren> = props => {
   const [status, setStatus] = useState<'running' | 'stopped'>('stopped');
-  const { vnet } = useAppContext();
+  const { vnet, mainProcessClient, configService } = useAppContext();
+
+  const isSupported = useMemo(
+    () =>
+      mainProcessClient.getRuntimeSettings().platform === 'darwin' &&
+      configService.get('feature.vnet').value,
+    [mainProcessClient, configService]
+  );
 
   const [startAttempt, start] = useAsync(
     useCallback(
@@ -76,6 +88,7 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
   return (
     <VnetContext.Provider
       value={{
+        isSupported,
         status,
         start,
         startAttempt,

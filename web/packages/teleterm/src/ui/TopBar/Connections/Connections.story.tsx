@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useLayoutEffect } from 'react';
 
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -26,10 +26,68 @@ import { Connections } from './Connections';
 
 export default {
   title: 'Teleterm/TopBar/Connections',
+  decorators: [
+    Story => {
+      useOpenConnections();
+
+      return <Story />;
+    },
+  ],
 };
 
-export function ExpanderConnections() {
+export function Story() {
   const appContext = new MockAppContext();
+  prepareAppContext(appContext);
+
+  return (
+    <AppContextProvider value={appContext}>
+      <VnetContextProvider>
+        <Connections />
+      </VnetContextProvider>
+    </AppContextProvider>
+  );
+}
+
+export function JustVnet() {
+  const appContext = new MockAppContext();
+  prepareAppContext(appContext);
+  appContext.connectionTracker.getConnections = () => [];
+
+  return (
+    <AppContextProvider value={appContext}>
+      <VnetContextProvider>
+        <Connections />
+      </VnetContextProvider>
+    </AppContextProvider>
+  );
+}
+
+export function WithoutVnet() {
+  const appContext = new MockAppContext({ platform: 'win32' });
+  prepareAppContext(appContext);
+
+  return (
+    <AppContextProvider value={appContext}>
+      <VnetContextProvider>
+        <Connections />
+      </VnetContextProvider>
+    </AppContextProvider>
+  );
+}
+
+export function EmptyWithoutVnet() {
+  const appContext = new MockAppContext({ platform: 'win32' });
+
+  return (
+    <AppContextProvider value={appContext}>
+      <VnetContextProvider>
+        <Connections />
+      </VnetContextProvider>
+    </AppContextProvider>
+  );
+}
+
+const prepareAppContext = (appContext: MockAppContext) => {
   appContext.connectionTracker.getConnections = () => {
     return [
       {
@@ -67,12 +125,15 @@ export function ExpanderConnections() {
   appContext.connectionTracker.disconnectItem = async () => {};
   appContext.connectionTracker.removeItem = async () => {};
   appContext.connectionTracker.useState = () => null;
+  appContext.configService.set('feature.vnet', true);
+};
 
-  return (
-    <AppContextProvider value={appContext}>
-      <VnetContextProvider>
-        <Connections />
-      </VnetContextProvider>
-    </AppContextProvider>
-  );
-}
+const useOpenConnections = () => {
+  useLayoutEffect(() => {
+    const button = document.querySelector(
+      'button[title~="connections"i]'
+    ) as HTMLButtonElement;
+
+    button?.click();
+  });
+};

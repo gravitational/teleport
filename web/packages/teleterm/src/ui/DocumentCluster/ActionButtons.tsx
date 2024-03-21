@@ -47,6 +47,7 @@ import {
   getAwsAppLaunchUrl,
   getSamlAppSsoUrl,
 } from 'teleterm/services/tshd/app';
+import { useVnetContext } from 'teleterm/ui/Vnet';
 
 export function ConnectServerActionButton(props: {
   server: Server;
@@ -108,6 +109,7 @@ export function ConnectKubeActionButton(props: {
 
 export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
   const appContext = useAppContext();
+  const { isSupported: isVnetSupported } = useVnetContext();
 
   function connect(): void {
     connectToApp(appContext, props.app, { origin: 'resource_table' });
@@ -126,6 +128,7 @@ export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
       app={props.app}
       cluster={cluster}
       rootCluster={rootCluster}
+      isVnetSupported={isVnetSupported}
       onLaunchUrl={() => {
         captureAppLaunchInBrowser(appContext, props.app, {
           origin: 'resource_table',
@@ -212,6 +215,7 @@ function AppButton(props: {
   rootCluster: Cluster;
   connect(): void;
   onLaunchUrl(): void;
+  isVnetSupported: boolean;
 }) {
   if (props.app.awsConsole) {
     return (
@@ -265,20 +269,40 @@ function AppButton(props: {
         target="_blank"
         title="Launch the app in the browser"
       >
-        <MenuItem>Connect and copy VNet address</MenuItem>
+        {props.isVnetSupported ? (
+          <>
+            <MenuItem
+              onClick={() => window.alert('TODO(ravicious): Open VNet')}
+            >
+              Connect and copy VNet address
+            </MenuItem>
+            <MenuItem onClick={props.connect}>Connect to local port</MenuItem>
+          </>
+        ) : (
+          <MenuItem onClick={props.connect}>Set up connection</MenuItem>
+        )}
+      </ButtonWithMenu>
+    );
+  }
+
+  // TCP app with VNet.
+  if (props.isVnetSupported) {
+    return (
+      <ButtonWithMenu
+        text="Connect"
+        textTransform="none"
+        size="small"
+        onClick={() => window.alert('TODO(ravicious): Open VNet')}
+      >
         <MenuItem onClick={props.connect}>Connect to local port</MenuItem>
       </ButtonWithMenu>
     );
   }
 
+  // TCP app without VNet.
   return (
-    <ButtonWithMenu
-      text="Connect"
-      textTransform="none"
-      size="small"
-      onClick={() => window.alert('TODO(ravicious): Open VNet')}
-    >
-      <MenuItem onClick={props.connect}>Connect to local port</MenuItem>
-    </ButtonWithMenu>
+    <ButtonBorder size="small" onClick={props.connect} textTransform="none">
+      Connect
+    </ButtonBorder>
   );
 }
