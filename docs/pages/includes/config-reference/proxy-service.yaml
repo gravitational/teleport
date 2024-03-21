@@ -120,6 +120,7 @@ proxy_service:
     # Also set using the CLI command:
     # 'teleport configure --acme --acme-email=email@example.com \
     # --cluster-name=tele.example.com -o file'
+    # This should NOT be enabled in a highly available Teleport deployment
     #acme:
     #  enabled: yes
     #  email: user@example.com
