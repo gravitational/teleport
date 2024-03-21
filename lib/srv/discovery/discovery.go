@@ -155,18 +155,18 @@ type Config struct {
 	clock clockwork.Clock
 }
 
-// AccessGraphConfig represents TAG server config
+// AccessGraphConfig represents TAG server config.
 type AccessGraphConfig struct {
-	// Enabled Access Graph reporting enabled
+	// Enabled indicates if Access Graph reporting is enabled.
 	Enabled bool
 
-	// Addr of the Access Graph service addr
+	// Addr of the Access Graph service.
 	Addr string
 
 	// CA is the CA in PEM format used by the Access Graph service.
 	CA []byte
 
-	// Insecure is true if the connection to the Access Graph service should be insecure
+	// Insecure is true if the connection to the Access Graph service should be insecure.
 	Insecure bool
 }
 
