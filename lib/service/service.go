@@ -3987,7 +3987,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Emitter:                   streamEmitter,
 			PluginRegistry:            process.PluginRegistry,
 			HostUUID:                  process.Config.HostUUID,
-			Context:                   process.ExitContext(),
+			Context:                   process.GracefulExitContext(),
 			StaticFS:                  fs,
 			ClusterFeatures:           process.getClusterFeatures(),
 			UI:                        cfg.Proxy.UI,
