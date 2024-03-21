@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
@@ -259,41 +260,38 @@ func startWatching(eventWatcher *tagEventWatcher, authServer *auth.Server, serve
 
 // sendUsers sends all users to the access graph service.
 func sendUsers(ctx context.Context, authServer *auth.Server, stream accessgraphv1.AccessGraphService_EventsStreamClient) error {
-	startToken := ""
-	limit := apidefaults.DefaultChunkSize
+	req := userspb.ListUsersRequest{
+		PageSize: apidefaults.DefaultChunkSize,
+	}
 
 	for {
-		users, nextToken, err := authServer.ListUsers(ctx, limit, startToken, false /*withSecrets*/)
+		rsp, err := authServer.ListUsers(ctx, &req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if err := pushUsersToTAG(ctx, stream, users); err != nil {
+		if err := pushUsersToTAG(ctx, stream, rsp.Users); err != nil {
 			return trace.Wrap(err)
 		}
 
-		if nextToken == "" {
+		req.PageToken = rsp.NextPageToken
+		if req.PageToken == "" {
 			break
 		}
-		startToken = nextToken
 	}
 
 	return nil
 }
 
-func pushUsersToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamClient, users []types.User) error {
+func pushUsersToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamClient, users []*types.UserV2) error {
 	if len(users) == 0 {
 		return nil
 	}
 	list := &accessgraphv1.ResourceList{}
 	for _, user := range users {
-		u, ok := user.(*types.UserV2)
-		if !ok {
-			return trace.BadParameter("expected types.UserV2, got %T", user)
-		}
 		list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
 			Resource: &accessgraphv1.ResourceEntry_User{
-				User: u,
+				User: user,
 			},
 		})
 	}

@@ -3,6 +3,7 @@ package scim
 import (
 	"context"
 
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -30,7 +31,7 @@ type UsersService interface {
 
 	// ListUsers returns a list of users registered with the local
 	// cluster auth server.
-	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
+	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 
 	// UpdateUser updates the backend record to match the supplied struct,
 	// returning the updated user.

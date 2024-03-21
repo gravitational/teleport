@@ -8,7 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
-	"github.com/gravitational/teleport/api/types"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 )
 
 const (
@@ -106,17 +106,18 @@ func (uh *userHandler) list(ctx context.Context, shim providerShim, filter filte
 	index := 0
 	totalCount := 0
 	outputResources := []*scimpb.Resource{}
-	nextToken := ""
+
+	req := userspb.ListUsersRequest{
+		PageSize: pageSize,
+	}
 
 	for {
-		var srcPage []types.User
-		var err error
-		srcPage, nextToken, err = uh.users.ListUsers(ctx, pageSize, nextToken, false)
+		rsp, err := uh.users.ListUsers(ctx, &req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		for _, user := range srcPage {
+		for _, user := range rsp.Users {
 			if !shim.userPredicate(ctx, user) {
 				continue
 			}
@@ -146,7 +147,8 @@ func (uh *userHandler) list(ctx context.Context, shim providerShim, filter filte
 			totalCount++
 		}
 
-		if nextToken == "" {
+		req.PageToken = rsp.NextPageToken
+		if req.PageToken == "" {
 			break
 		}
 	}

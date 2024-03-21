@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -67,7 +68,7 @@ var (
 )
 
 type UsersService interface {
-	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
+	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 }
 
 type AuthServer interface {
@@ -411,18 +412,21 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 // getAllUsers returns all users known to Teleport.
 func (s *Service) getAllUsers(ctx context.Context) ([]types.User, error) {
 	var users []types.User
-	var nextToken string
+	req := userspb.ListUsersRequest{
+		PageSize: int32(s.userPageSize),
+	}
 	for {
-		var page []types.User
-		var err error
-		page, nextToken, err = s.cachedUsers.ListUsers(ctx, s.userPageSize, nextToken, false /* without secrets */)
+		rsp, err := s.cachedUsers.ListUsers(ctx, &req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		users = append(users, page...)
+		for _, u := range rsp.Users {
+			users = append(users, u)
+		}
 
-		if nextToken == "" {
+		req.PageToken = rsp.NextPageToken
+		if req.PageToken == "" {
 			break
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -37,9 +38,9 @@ type mockUserService struct {
 
 var _ UsersService = (*mockUserService)(nil)
 
-func (m *mockUserService) ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
-	result := m.Called(ctx, pageSize, nextToken, withSecrets)
-	return getResultAs[[]types.User](result, 0), result.String(1), result.Error(2)
+func (m *mockUserService) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
+	result := m.Called(ctx, req)
+	return getResultAs[*userspb.ListUsersResponse](result, 0), result.Error(1)
 }
 
 func (m *mockUserService) GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error) {

@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/modules"
@@ -382,9 +383,8 @@ func TestListUserResources(t *testing.T) {
 				Return(mkTestPlugin(), nil)
 
 			fix.users.
-				On("ListUsers", anyContext, mock.AnythingOfType("int"),
-					mock.AnythingOfType("string"), withoutSecrets).
-				Return(users, "", nil)
+				On("ListUsers", anyContext, mock.AnythingOfType("*usersv1.ListUsersRequest")).
+				Return(&userspb.ListUsersResponse{Users: users}, nil)
 
 			// When I attempt to list all of the User resources via SCIM...
 			list, err := uut.ListSCIMResources(fix.userCtx, &scimpb.ListSCIMResourcesRequest{
@@ -433,17 +433,22 @@ func TestListUsersHandlesPagedUsers(t *testing.T) {
 	// configure the user mock to deliver the users in several, arbitrarily-
 	// sized pages
 	fix.users.
-		On("ListUsers", anyContext, mock.AnythingOfType("int"), "", withoutSecrets).
-		Return(users[0:5], "alpha", nil)
+		On("ListUsers", anyContext, mock.MatchedBy(func(req *userspb.ListUsersRequest) bool {
+			return req.PageToken == ""
+		})).
+		Return(&userspb.ListUsersResponse{Users: users[0:5], NextPageToken: "alpha"}, nil)
 	fix.users.
-		On("ListUsers", anyContext, mock.AnythingOfType("int"), "alpha", withoutSecrets).
-		Return(users[5:15], "bravo", nil)
+		On("ListUsers", anyContext, mock.MatchedBy(func(req *userspb.ListUsersRequest) bool {
+			return req.PageToken == "alpha"
+		})).Return(&userspb.ListUsersResponse{Users: users[5:15], NextPageToken: "bravo"}, nil)
 	fix.users.
-		On("ListUsers", anyContext, mock.AnythingOfType("int"), "bravo", withoutSecrets).
-		Return(users[15:35], "charlie", nil)
+		On("ListUsers", anyContext, mock.MatchedBy(func(req *userspb.ListUsersRequest) bool {
+			return req.PageToken == "bravo"
+		})).Return(&userspb.ListUsersResponse{Users: users[15:35], NextPageToken: "charlie"}, nil)
 	fix.users.
-		On("ListUsers", anyContext, mock.AnythingOfType("int"), "charlie", withoutSecrets).
-		Return(users[35:49], "", nil)
+		On("ListUsers", anyContext, mock.MatchedBy(func(req *userspb.ListUsersRequest) bool {
+			return req.PageToken == "charlie"
+		})).Return(&userspb.ListUsersResponse{Users: users[35:49]}, nil)
 
 	// When I attempt to list a specific user via a filtered list request ...
 	list, err := uut.ListSCIMResources(fix.userCtx, &scimpb.ListSCIMResourcesRequest{
@@ -754,14 +759,14 @@ func must[T any](value T, err error) T {
 	return value
 }
 
-func mkTestUser(t *testing.T, id int) types.User {
+func mkTestUser(t *testing.T, id int) *types.UserV2 {
 	user, err := types.NewUser(fmt.Sprintf("User%03d@example.com", id))
 	require.NoError(t, err, "making test user list should succeed")
-	return user
+	return user.(*types.UserV2)
 }
 
-func mkTestUserList(t *testing.T, n int, spacing int) []types.User {
-	dst := make([]types.User, n)
+func mkTestUserList(t *testing.T, n int, spacing int) []*types.UserV2 {
+	dst := make([]*types.UserV2, n)
 	for i := 0; i < n; i++ {
 		dst[i] = mkTestUser(t, i)
 		dst[i].SetRevision(strconv.Itoa(i % 5))
