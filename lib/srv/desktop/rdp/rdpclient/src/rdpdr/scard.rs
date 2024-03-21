@@ -561,6 +561,13 @@ impl Contexts {
         Ok(self.get_internal_mut(id)?.take_scard_cancel_response())
     }
 
+    fn has_scard_cancel_response(&self, id: u32) -> bool {
+        self.contexts
+            .get(&id)
+            .map(|ctx| ctx.scard_cancel_response.is_some())
+            .unwrap_or(false)
+    }
+
     fn get_card(&mut self, handle: &ScardHandle) -> PduResult<&mut piv::Card<TRANSMIT_DATA_LIMIT>> {
         self.get_internal_mut(handle.context.value)?
             .get(handle.value)
@@ -703,3 +710,206 @@ impl std::fmt::Display for SmartcardBackendError {
 }
 
 impl std::error::Error for SmartcardBackendError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::{ClientFunction, FunctionReceiver};
+    use ironrdp_rdpdr::pdu::{
+        efs::{DeviceIoRequest, DeviceIoResponse, MajorFunction, MinorFunction},
+        esc::{EstablishContextCall, ReaderState, Scope},
+    };
+
+    #[tokio::test]
+    async fn test_establish_context() {
+        let (scard, fr) = create_scard_and_fr();
+        establish_context(scard, fr).await;
+    }
+
+    #[tokio::test]
+    async fn test_infinite_timeout_cancel() {
+        let (scard, fr) = create_scard_and_fr();
+        let (scard, mut fr, context_id) = establish_context(scard, fr).await;
+
+        // Simulate receiving a SCARD_IOCTL_GETSTATUSCHANGEW with an infinite timeout.
+        let req1 = create_device_control_request(1, ScardIoCtlCode::GetStatusChangeW);
+        let call1 = create_infinite_status_change_call(context_id);
+
+        let scard = scard_handle(
+            scard,
+            req1.clone(),
+            ScardCall::GetStatusChangeCall(call1.clone()),
+        )
+        .await;
+
+        // Nothing should have been sent back to the server, we should have a pending cancel response.
+        fr.try_recv().expect_err("expected error");
+        assert!(scard.contexts.has_scard_cancel_response(context_id));
+
+        // Simulate receiving a SCARD_IOCTL_CANCEL.
+        let req2 = create_device_control_request(2, ScardIoCtlCode::Cancel);
+        let call2 = ScardCall::ContextCall(create_context_call(context_id));
+        let scard = scard_handle(scard, req2.clone(), call2).await;
+
+        // The pending cancel response should have been sent back to the server,
+        // so it should no longer be pending.
+        assert!(!scard.contexts.has_scard_cancel_response(context_id));
+
+        // Check that we sent the no longer pending response for the original SCARD_IOCTL_GETSTATUSCHANGEW.
+        check_device_control_response_sent(
+            &mut fr,
+            DeviceControlResponse {
+                device_io_reply: DeviceIoResponse {
+                    device_id: SCARD_DEVICE_ID,
+                    completion_id: req1.header.completion_id,
+                    io_status: NtStatus::SUCCESS,
+                },
+                output_buffer: Some(Box::new(GetStatusChangeReturn::new(
+                    ReturnCode::Cancelled,
+                    ScardBackend::create_get_status_change_return(call1)
+                        .into_inner()
+                        .reader_states,
+                ))),
+            },
+        );
+
+        // Check that we also sent the response for the SCARD_IOCTL_CANCEL.
+        check_device_control_response_sent(
+            &mut fr,
+            DeviceControlResponse {
+                device_io_reply: DeviceIoResponse {
+                    device_id: SCARD_DEVICE_ID,
+                    completion_id: req2.header.completion_id,
+                    io_status: NtStatus::SUCCESS,
+                },
+                output_buffer: Some(Box::new(LongReturn::new(ReturnCode::Success))),
+            },
+        );
+    }
+
+    fn create_scard_and_fr() -> (ScardBackend, FunctionReceiver) {
+        let (ch, fr) = ClientHandle::new(10);
+        let scard = ScardBackend::new(ch, vec![], vec![], "1234".to_string());
+        (scard, fr)
+    }
+
+    /// [`ScardBackend::handle`] ultimately calls a `blocking_send` which must be wrapped in a
+    /// `tokio::task::spawn_blocking` to avoid blocking the tokio runtime. This function is a
+    /// wrapper around that pattern.
+    async fn scard_handle(
+        mut scard: ScardBackend,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        call: ScardCall,
+    ) -> ScardBackend {
+        tokio::task::spawn_blocking(|| {
+            scard.handle(req, call).unwrap();
+            scard
+        })
+        .await
+        .unwrap()
+    }
+
+    /// Establishes a context and returns the passed ScardBackend and the context ID.
+    async fn establish_context(
+        scard: ScardBackend,
+        mut fr: FunctionReceiver,
+    ) -> (ScardBackend, FunctionReceiver, u32) {
+        let req = create_device_control_request(1, ScardIoCtlCode::EstablishContext);
+        let call = create_establish_context_call();
+        let expected_id = scard.contexts.next_id;
+        let scard = scard_handle(scard, req, call).await;
+        assert!(scard.contexts.exists(expected_id));
+        match fr.try_recv().unwrap() {
+            ClientFunction::WriteRdpdr(pdu) => match pdu {
+                ironrdp_rdpdr::pdu::RdpdrPdu::DeviceControlResponse(resp) => {
+                    assert_eq!(resp.device_io_reply.device_id, SCARD_DEVICE_ID);
+                    assert_eq!(resp.device_io_reply.completion_id, 1);
+                    assert_eq!(resp.device_io_reply.io_status, NtStatus::SUCCESS);
+                }
+                _ => panic!("unexpected pdu"),
+            },
+            _ => panic!("unexpected function"),
+        }
+        (scard, fr, expected_id)
+    }
+
+    fn create_establish_context_call() -> ScardCall {
+        ScardCall::EstablishContextCall(EstablishContextCall {
+            scope: Scope::System,
+        })
+    }
+
+    fn create_context_call(context_id: u32) -> ContextCall {
+        ContextCall {
+            context: ScardContext { value: context_id },
+        }
+    }
+
+    fn create_device_control_request(
+        completion_id: u32,
+        io_control_code: ScardIoCtlCode,
+    ) -> DeviceControlRequest<ScardIoCtlCode> {
+        DeviceControlRequest {
+            header: DeviceIoRequest {
+                device_id: SCARD_DEVICE_ID,
+                file_id: 1,
+                completion_id,
+                major_function: MajorFunction::DeviceControl,
+                minor_function: MinorFunction::from(0x00000000),
+            },
+            output_buffer_length: 2048,
+            input_buffer_length: 2048,
+            io_control_code,
+        }
+    }
+
+    fn create_infinite_status_change_call(context_id: u32) -> GetStatusChangeCall {
+        GetStatusChangeCall {
+            context: ScardContext { value: context_id },
+            timeout: TIMEOUT_INFINITE,
+            states_ptr_length: 2,
+            states_ptr: 131076,
+            states_length: 2,
+            states: vec![
+                ReaderState {
+                    reader: "\\\\?PnP?\\Notification".to_string(),
+                    common: ReaderStateCommonCall {
+                        current_state: CardStateFlags::empty(),
+                        event_state: CardStateFlags::empty(),
+                        atr_length: 0,
+                        atr: [0; 36],
+                    },
+                },
+                ReaderState {
+                    reader: TELEPORT_READER_NAME.to_string(),
+                    common: ReaderStateCommonCall {
+                        current_state: CardStateFlags::SCARD_STATE_CHANGED
+                            | CardStateFlags::SCARD_STATE_PRESENT,
+                        event_state: CardStateFlags::empty(),
+                        atr_length: 11,
+                        atr: [
+                            59, 149, 19, 129, 1, 128, 115, 255, 1, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        ],
+                    },
+                },
+            ],
+        }
+    }
+
+    /// Checks whether the `expected` DeviceControlResponse was sent to the `fr`.
+    fn check_device_control_response_sent(
+        fr: &mut FunctionReceiver,
+        expected: DeviceControlResponse,
+    ) {
+        match fr.try_recv().expect("expected function") {
+            ClientFunction::WriteRdpdr(pdu) => match pdu {
+                ironrdp_rdpdr::pdu::RdpdrPdu::DeviceControlResponse(resp) => {
+                    assert_eq!(resp, expected);
+                }
+                _ => panic!("unexpected pdu"),
+            },
+            _ => panic!("unexpected function"),
+        }
+    }
+}
