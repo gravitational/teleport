@@ -757,23 +757,23 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		w = logFile
 	}
 
-	var level slog.Level
+	level := new(slog.LevelVar)
 	switch strings.ToLower(loggerConfig.Severity) {
 	case "", "info":
 		logger.SetLevel(log.InfoLevel)
-		level = slog.LevelInfo
+		level.Set(slog.LevelInfo)
 	case "err", "error":
 		logger.SetLevel(log.ErrorLevel)
-		level = slog.LevelError
+		level.Set(slog.LevelError)
 	case teleport.DebugLevel:
 		logger.SetLevel(log.DebugLevel)
-		level = slog.LevelDebug
+		level.Set(slog.LevelDebug)
 	case "warn", "warning":
 		logger.SetLevel(log.WarnLevel)
-		level = slog.LevelWarn
+		level.Set(slog.LevelWarn)
 	case "trace":
 		logger.SetLevel(log.TraceLevel)
-		level = logutils.TraceLevel
+		level.Set(logutils.TraceLevel)
 	default:
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
@@ -848,6 +848,7 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 
 	cfg.Log = logger
 	cfg.Logger = slogLogger
+	cfg.LoggerLevel = level
 	return nil
 }
 
@@ -2319,8 +2320,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		// log level right away. Otherwise allow the command line flag to override
 		// logger severity in file configuration.
 		if fileConf == nil {
-			log.SetLevel(log.DebugLevel)
-			cfg.Log.SetLevel(log.DebugLevel)
+			cfg.SetLogLevel(slog.LevelDebug)
 		} else {
 			if strings.ToLower(fileConf.Logger.Severity) != "trace" {
 				fileConf.Logger.Severity = teleport.DebugLevel
@@ -2636,8 +2636,7 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 
 	// Apply command line --debug flag to override logger severity.
 	if clf.Debug {
-		log.SetLevel(log.DebugLevel)
-		cfg.Log.SetLevel(log.DebugLevel)
+		cfg.SetLogLevel(slog.LevelDebug)
 		cfg.Debug = clf.Debug
 	}
 
