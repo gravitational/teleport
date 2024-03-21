@@ -8,8 +8,11 @@ on:
         type: string
         required: true
       environment:
-        description: Environment to deploy the package to.
-        type: string # Cannot use type "environment" in workflow_call input params.
+        # TODO(camh): use proper GitHub environment names
+        description: |
+          Environment to deploy the package to. This must be 'development' or
+          'production', not an actual GitHub Actions environment.
+        type: string
         required: true
       workflow-tag:
         description: Tag used to identify workflow runs spawned by this event.
@@ -22,7 +25,7 @@ on:
         type: string
         required: true
       environment:
-        type: environment # Note: different type to workflow_call param.
+        type: string
         required: true
       workflow-tag:
         type: string
@@ -30,6 +33,9 @@ on:
 jobs:
   deploy-teleport-artifacts:
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
     strategy:
       max-parallel: 1
       fail-fast: true
