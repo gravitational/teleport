@@ -75,13 +75,19 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		return nil, trace.CompareFailed("VNet service is already running")
 	}
 
-	tun, cleanup, err := vnet.CreateAndSetupTUNDevice(ctx)
+	// adminSubcmdCtx has no effect on the execution of the admin subcommand itself, but it's
+	// able to close the prompt for the password if one is shown at the time of cancelation.
+	adminSubcmdCtx, cancelAdminSubcmdCtx := context.WithCancel(context.Background())
+
+	tun, cleanup, err := vnet.CreateAndSetupTUNDevice(adminSubcmdCtx)
 	if err != nil {
+		cancelAdminSubcmdCtx()
 		return nil, trace.Wrap(err)
 	}
 
 	_, client, err := s.cfg.DaemonService.ResolveCluster(req.RootClusterUri)
 	if err != nil {
+		cancelAdminSubcmdCtx()
 		cleanup()
 		return nil, trace.Wrap(err)
 	}
@@ -92,6 +98,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		TUNDevice: tun,
 	})
 	if err != nil {
+		cancelAdminSubcmdCtx()
 		cleanup()
 		return nil, trace.Wrap(err)
 	}
@@ -100,6 +107,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 
 	go func() {
 		defer cleanup()
+		defer cancelAdminSubcmdCtx()
 		s.vnet.Run()
 		// TODO: Log error.
 	}()

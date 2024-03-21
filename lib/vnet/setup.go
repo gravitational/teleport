@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -80,7 +81,14 @@ func createAndSetupTUNDeviceWithoutRoot(ctx context.Context) (tun.Device, string
 
 	go func() {
 		if err := runAdminSubcommand(ctx, socketPath); err != nil {
-			slog.Error("Error running admin subcommand.", "error", err)
+			// Log err, but only if the context hasn't been canceled yet.
+			// This will log errors resulting from the command exiting prematurely, but not from being
+			// killed by exec.CommandContext.
+			if errors.Is(ctx.Err(), context.Canceled) {
+				slog.Debug("Wrapper for admin subcommand killed due to canceled context.")
+			} else {
+				slog.Error("Error running admin subcommand.", "error", err)
+			}
 		}
 	}()
 
@@ -220,9 +228,14 @@ set socketPath to "%s"
 set pidFile to "%s"
 do shell script quoted form of executableName & " %s --socket " & quoted form of socketPath & " --pidfile " & quoted form of pidFile with prompt "%s" with administrator privileges`,
 		executableName, socketPath, pidFile.Name(), teleport.VnetAdminSetupSubCommand, prompt)
+
+	// The context we pass here has effect only on the password prompt being shown. Once osascript
+	// spawns the privileged process, canceling the context (and thus killing osascript) has no effect
+	// on the privileged process.
 	cmd := exec.CommandContext(ctx, "osascript", "-e", appleScript)
 	stderr := new(strings.Builder)
 	cmd.Stderr = stderr
+
 	if err := cmd.Run(); err != nil {
 		if err, ok := err.(*exec.ExitError); ok {
 			stderr := stderr.String()
