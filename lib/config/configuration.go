@@ -401,7 +401,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.AccessGraph.Enabled {
 		cfg.AccessGraph.Enabled = true
 		if fc.AccessGraph.Endpoint == "" {
-			return trace.Errorf("Please, provide access_graph_service.addr configuration variable")
+			return trace.Errorf("Please provide access_graph.endpoint configuration variable")
 		}
 		cfg.AccessGraph.Addr = fc.AccessGraph.Endpoint
 		cfg.AccessGraph.CA = fc.AccessGraph.CA
