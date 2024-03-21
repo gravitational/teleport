@@ -168,6 +168,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessListMember},
 		{Kind: types.KindAccessListReview},
 		{Kind: types.KindKubeWaitingContainer},
+		{Kind: types.KindNotification},
+		{Kind: types.KindGlobalNotification},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -544,6 +546,7 @@ type Cache struct {
 	eventsFanout                 *services.FanoutV2
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
 	kubeWaitingContsCache        *local.KubeWaitingContainerService
+	notificationsCache           services.Notifications
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -708,6 +711,8 @@ type Config struct {
 	AccessLists services.AccessLists
 	// KubeWaitingContainers is the Kubernetes waiting container service.
 	KubeWaitingContainers services.KubeWaitingContainer
+	// Notifications is the notifications service
+	Notifications services.Notifications
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -907,6 +912,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	notificationsCache, err := local.NewNotificationsService(config.Backend, config.Clock)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	fanout := services.NewFanoutV2(services.FanoutV2Config{})
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
 	for i := 0; i < config.FanoutShards; i++ {
@@ -952,6 +963,7 @@ func New(config Config) (*Cache, error) {
 		secReportsCache:              secReprotsCache,
 		userLoginStateCache:          userLoginStatesCache,
 		accessListCache:              accessListCache,
+		notificationsCache:           notificationsCache,
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
 		kubeWaitingContsCache:        kubeWaitingContsCache,

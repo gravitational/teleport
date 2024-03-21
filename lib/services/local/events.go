@@ -21,6 +21,7 @@ package local
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/backend"
@@ -1959,9 +1961,29 @@ type userNotificationParser struct {
 }
 
 func (p *userNotificationParser) parse(event backend.Event) (types.Resource, error) {
+	fmt.Printf("\n\nTHIS IS BEING RUN WITH:\n%v\n", event)
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindNotification, types.V1, 0)
+		// remove the first separator so no separated parts should be
+		// empty strings
+		key := string(event.Item.Key)
+		if len(key) > 0 && key[0] == backend.Separator {
+			key = key[1:]
+		}
+		parts := strings.Split(key, string(backend.Separator))
+		if len(parts) != 4 {
+			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindNotification, event.Item.Key)
+		}
+
+		notification := &notificationsv1.Notification{
+			SubKind: "test-subkind",
+			Spec: &notificationsv1.NotificationSpec{
+				Username: parts[2],
+				Id:       parts[3],
+			},
+		}
+
+		return types.Resource153ToLegacy(notification), nil
 	case types.OpPut:
 		notification, err := services.UnmarshalNotification(
 			event.Item.Value,

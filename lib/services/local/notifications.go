@@ -96,6 +96,15 @@ func (s *NotificationsService) GetAllUserNotifications(ctx context.Context) ([]*
 	return notifications, nil
 }
 
+// DeleteAllUserNotifications deletes all user-specific notifications for all users. This should only be used by the cache.
+func (s *NotificationsService) DeleteAllUserNotifications(ctx context.Context) error {
+	if err := s.userNotificationService.DeleteAllResources(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // GetAllGlobalNotifications returns all global notifications. This should only ever be called to initialize the GlobalNotificationCache.
 func (s *NotificationsService) GetAllGlobalNotifications(ctx context.Context) ([]*notificationsv1.GlobalNotification, error) {
 	globalNotifications := []*notificationsv1.GlobalNotification{}
@@ -117,16 +126,29 @@ func (s *NotificationsService) GetAllGlobalNotifications(ctx context.Context) ([
 	return globalNotifications, nil
 }
 
+// DeleteAllGlobalNotifications deletes all global notifications. This should only be used by the cache.
+func (s *NotificationsService) DeleteAllGlobalNotifications(ctx context.Context) error {
+	if err := s.globalNotificationService.DeleteAllResources(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // CreateUserNotification creates a user-specific notification.
-func (s *NotificationsService) CreateUserNotification(ctx context.Context, username string, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
+func (s *NotificationsService) CreateUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
 	if err := services.ValidateNotification(notification); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	if notification.Spec.Username == "" {
+		return nil, trace.BadParameter("a username must be specified")
+	}
+	username := notification.Spec.Username
+
 	notification.Kind = types.KindNotification
 	notification.Version = types.V1
 
-	notification.Spec.Username = username
 	// Generate uuidv7 ID.
 	uuid, err := uuid.NewV7()
 	if err != nil {

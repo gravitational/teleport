@@ -33,8 +33,10 @@ import (
 // Notifications defines an interface for managing notifications.
 type Notifications interface {
 	GetAllUserNotifications(ctx context.Context) ([]*notificationsv1.Notification, error)
+	DeleteAllUserNotifications(ctx context.Context) error
 	GetAllGlobalNotifications(ctx context.Context) ([]*notificationsv1.GlobalNotification, error)
-	CreateUserNotification(ctx context.Context, username string, notification *notificationsv1.Notification) (*notificationsv1.Notification, error)
+	DeleteAllGlobalNotifications(ctx context.Context) error
+	CreateUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error)
 	DeleteUserNotification(ctx context.Context, username string, notificationId string) error
 	DeleteAllUserNotificationsForUser(ctx context.Context, username string) error
 	CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error)

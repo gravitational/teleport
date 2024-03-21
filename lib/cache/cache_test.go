@@ -42,7 +42,9 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -2928,6 +2930,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAccessListMember:        newAccessListMember(t, "access-list", "member"),
 		types.KindAccessListReview:        newAccessListReview(t, "access-list", "review"),
 		types.KindKubeWaitingContainer:    newKubeWaitingContainer(t),
+		types.KindNotification:            newUserNotification(t),
+		types.KindGlobalNotification:      newGlobalNotification(t),
 	}
 
 	for name, cfg := range cases {
@@ -3375,6 +3379,43 @@ func newKubeWaitingContainer(t *testing.T) types.Resource {
 	require.NoError(t, err)
 
 	return types.Resource153ToLegacy(waitingCont)
+}
+
+func newUserNotification(t *testing.T) types.Resource {
+	t.Helper()
+
+	notification := &notificationsv1.Notification{
+		SubKind: "test-subkind",
+		Spec: &notificationsv1.NotificationSpec{
+			Username: "test-username",
+		},
+		Metadata: &headerv1.Metadata{
+			Labels: map[string]string{"description": "test-description"},
+		},
+	}
+
+	return types.Resource153ToLegacy(notification)
+}
+
+func newGlobalNotification(t *testing.T) types.Resource {
+	t.Helper()
+
+	notification := &notificationsv1.GlobalNotification{
+		Spec: &notificationsv1.GlobalNotificationSpec{
+			Matcher: &notificationsv1.GlobalNotificationSpec_All{
+				All: true,
+			},
+			Notification: &notificationsv1.Notification{
+				SubKind: "test-subkind",
+				Spec:    &notificationsv1.NotificationSpec{},
+				Metadata: &headerv1.Metadata{
+					Labels: map[string]string{"description": "test-description"},
+				},
+			},
+		},
+	}
+
+	return types.Resource153ToLegacy(notification)
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {
