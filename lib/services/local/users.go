@@ -25,6 +25,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"sort"
 	"sync"
 	"time"
@@ -40,6 +41,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
@@ -78,9 +80,30 @@ func (s *IdentityService) DeleteAllUsers(ctx context.Context) error {
 	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
-func (s *IdentityService) listUsersWithSecrets(ctx context.Context, pageSize int, pageToken string) ([]types.User, string, error) {
-	rangeStart := backend.Key(webPrefix, usersPrefix, pageToken)
+// ListUsers returns a page of users.
+func (s *IdentityService) ListUsers(ctx context.Context, pageSize int, pageToken string, withSecrets bool) ([]types.User, string, error) {
+	resp, err := s.ListUsersExt(ctx, &userspb.ListUsersRequest{
+		PageSize:    int32(pageSize),
+		PageToken:   pageToken,
+		WithSecrets: withSecrets,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	out := make([]types.User, 0, len(resp.Users))
+	for _, u := range resp.Users {
+		out = append(out, u)
+	}
+
+	return out, resp.NextPageToken, nil
+}
+
+// ListUsersExt is equivalent to ListUsers except that it supports additional parameters.
+func (s *IdentityService) ListUsersExt(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
+	rangeStart := backend.Key(webPrefix, usersPrefix, req.PageToken)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(webPrefix, usersPrefix))
+	pageSize := req.PageSize
 
 	// Adjust page size, so it can't be too large.
 	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
@@ -89,65 +112,32 @@ func (s *IdentityService) listUsersWithSecrets(ctx context.Context, pageSize int
 
 	// Artificially inflate the limit to account for user secrets
 	// which have the same prefix.
-	limit := pageSize * 4
+	limit := int(pageSize) * 4
 
-	rangeStream := backend.StreamRange(ctx, s.Backend, rangeStart, rangeEnd, limit)
+	itemStream := backend.StreamRange(ctx, s.Backend, rangeStart, rangeEnd, limit)
 
-	var (
-		out []types.User
-
-		name  string
-		items userItems
-	)
-	for rangeStream.Next() {
-		item := rangeStream.Item()
-
-		itemName, suffix, err := splitUsernameAndSuffix(string(item.Key))
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-
-		if itemName == name {
-			items.Set(suffix, item)
-			continue
-		}
-
-		// we exclude user item sets that don't have a /params subitem because
-		// SSO users have an expiration time on /params but their /mfa devices
-		// are persistent
-		if items.complete() {
-			user, err := userFromUserItems(name, items)
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-			out = append(out, user)
-
-			if len(out) >= pageSize {
-				if err := rangeStream.Done(); err != nil {
-					return nil, "", trace.Wrap(err)
-				}
-
-				return out, nextUserToken(user), nil
-			}
-		}
-
-		name = itemName
-		items = userItems{}
-		items.Set(suffix, item)
-	}
-	if err := rangeStream.Done(); err != nil {
-		return nil, "", trace.Wrap(err)
+	var userStream stream.Stream[*types.UserV2]
+	if req.WithSecrets {
+		userStream = s.streamUsersWithSecrets(itemStream)
+	} else {
+		userStream = s.streamUsersWithoutSecrets(itemStream)
 	}
 
-	if items.complete() {
-		user, err := userFromUserItems(name, items)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		out = append(out, user)
+	users, full := stream.Take(userStream, int(pageSize))
+
+	var nextToken string
+	if full && userStream.Next() {
+		nextToken = nextUserToken(users[len(users)-1])
 	}
 
-	return out, "", nil
+	if err := userStream.Done(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &userspb.ListUsersResponse{
+		Users:         users,
+		NextPageToken: nextToken,
+	}, nil
 }
 
 // nextUserToken returns the last token for the given user. This
@@ -158,45 +148,89 @@ func nextUserToken(user types.User) string {
 	return string(backend.RangeEnd(backend.ExactKey(user.GetName())))[utf8.RuneLen(backend.Separator):]
 }
 
-// ListUsers returns a page of users.
-func (s *IdentityService) ListUsers(ctx context.Context, pageSize int, pageToken string, withSecrets bool) ([]types.User, string, error) {
-	if withSecrets {
-		users, next, err := s.listUsersWithSecrets(ctx, pageSize, pageToken)
-		return users, next, trace.Wrap(err)
+// streamUsersWithSecrets is a helper that converts a stream of backend items over the user key range into a stream
+// of users along with their associated secrets.
+func (s *IdentityService) streamUsersWithSecrets(itemStream stream.Stream[backend.Item]) stream.Stream[*types.UserV2] {
+	type collector struct {
+		items userItems
+		name  string
 	}
 
-	rangeStart := backend.Key(webPrefix, usersPrefix, pageToken)
-	rangeEnd := backend.RangeEnd(backend.ExactKey(webPrefix, usersPrefix))
+	var current collector
 
-	// Adjust page size, so it can't be too large.
-	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
-		pageSize = apidefaults.DefaultChunkSize
-	}
+	collectorStream := stream.FilterMap(itemStream, func(item backend.Item) (collector, bool) {
+		name, suffix, err := splitUsernameAndSuffix(string(item.Key))
+		if err != nil {
+			s.log.Warnf("Failed to extract name/suffix for user item at %q: %v", item.Key, err)
+			return collector{}, false
+		}
 
-	// Artificially inflate the limit to account for user secrets
-	// which have the same prefix.
-	limit := pageSize * 4
+		if name == current.name {
+			// we're already in the process of aggregating the items for this user, so just
+			// store this item and continue on to the next one.
+			current.items.Set(suffix, item)
+			return collector{}, false
+		}
 
-	rangeStream := stream.FilterMap(
-		backend.StreamRange(ctx, s.Backend, rangeStart, rangeEnd, limit),
-		func(item backend.Item) (backend.Item, bool) {
-			return item, bytes.HasSuffix(item.Key, []byte(paramsPrefix))
-		})
+		// we've reached a new user range, so take local ownership of the previous aggregator and
+		// set up a new one to aggregate this new range.
+		prev := current
+		current = collector{
+			name: name,
+		}
+		current.items.Set(suffix, item)
 
-	var err error
-	userStream := stream.MapWhile(rangeStream, func(item backend.Item) (types.User, bool) {
-		var user types.User
-		user, err = services.UnmarshalUser(item.Value, services.WithRevision(item.Revision))
-		return user, err == nil
+		if !prev.items.complete() {
+			// previous aggregator was empty or malformed and can be discarded.
+			return collector{}, false
+		}
+
+		return prev, true
+
 	})
 
-	users, more := stream.Take(userStream, pageSize)
-	var nextToken string
-	if more && userStream.Next() {
-		nextToken = nextUserToken(users[len(users)-1])
-	}
+	// since a collector for a given user isn't yielded until the above stream reaches the *next*
+	// user, that means the last user's collector is never yielded. we need to append a single
+	// additional check to the stream that decides if it should yield the final collector.
+	collectorStream = stream.Chain(collectorStream, stream.OnceFunc(func() (collector, error) {
+		if !current.items.complete() {
+			return collector{}, io.EOF
+		}
+		return current, nil
+	}))
 
-	return users, nextToken, trace.NewAggregate(err, userStream.Done())
+	userStream := stream.FilterMap(collectorStream, func(c collector) (*types.UserV2, bool) {
+		user, err := userFromUserItems(c.name, c.items)
+		if err != nil {
+			s.log.Warnf("Failed to build user %q from user item aggregator: %v", c.name, err)
+			return nil, false
+		}
+
+		return user, true
+	})
+
+	return userStream
+}
+
+// streamUsersWithoutSecrets is a helper that converts a stream of backend items over the user range into a stream of
+// user resources without any included secrets.
+func (s *IdentityService) streamUsersWithoutSecrets(itemStream stream.Stream[backend.Item]) stream.Stream[*types.UserV2] {
+	suffix := []byte(paramsPrefix)
+	userStream := stream.FilterMap(itemStream, func(item backend.Item) (*types.UserV2, bool) {
+		if !bytes.HasSuffix(item.Key, suffix) {
+			return nil, false
+		}
+
+		user, err := services.UnmarshalUser(item.Value, services.WithRevision(item.Revision))
+		if err != nil {
+			s.log.Warnf("Failed to unmarshal user at %q: %v", item.Key, err)
+			return nil, false
+		}
+
+		return user, true
+	})
+
+	return userStream
 }
 
 // GetUsers returns a list of users registered with the local auth server

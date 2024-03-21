@@ -40,6 +40,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -1012,15 +1013,17 @@ func TestIdentityService_ListUsers(t *testing.T) {
 	require.NoError(t, err, "creating otp device failed")
 
 	// Validate that no users returns an empty page.
-	users, next, err := identity.ListUsers(ctx, 0, "", false)
+	rsp, err := identity.ListUsersExt(ctx, &userspb.ListUsersRequest{})
 	assert.NoError(t, err, "no error returned when no users exist")
-	assert.Empty(t, users, "users returned from listing when no users exist")
-	assert.Empty(t, next, "next page token returned from listing when no users exist")
+	assert.Empty(t, rsp.Users, "users returned from listing when no users exist")
+	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no users exist")
 
-	users, next, err = identity.ListUsers(ctx, 0, "", true)
+	rsp, err = identity.ListUsersExt(ctx, &userspb.ListUsersRequest{
+		WithSecrets: true,
+	})
 	assert.NoError(t, err, "no error returned when no users exist")
-	assert.Empty(t, users, "users returned from listing when no users exist")
-	assert.Empty(t, next, "next page token returned from listing when no users exist")
+	assert.Empty(t, rsp.Users, "users returned from listing when no users exist")
+	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no users exist")
 
 	// Validate that listing works when there is only a single user
 	user, err := types.NewUser("fish0")
@@ -1028,17 +1031,17 @@ func TestIdentityService_ListUsers(t *testing.T) {
 
 	user, err = identity.CreateUser(ctx, user)
 	require.NoError(t, err, "creating user %s failed", user)
-	expectedUsers := []types.User{user}
+	expectedUsers := []*types.UserV2{user.(*types.UserV2)}
 
-	users, next, err = identity.ListUsers(ctx, 0, "", false)
+	rsp, err = identity.ListUsersExt(ctx, &userspb.ListUsersRequest{})
 	assert.NoError(t, err, "no error returned when no users exist")
-	assert.Empty(t, next, "next page token returned from listing when no more users exist")
-	assert.Empty(t, cmp.Diff(expectedUsers, users, cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")), "not all users returned from listing operation")
+	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no more users exist")
+	assert.Empty(t, cmp.Diff(expectedUsers, rsp.Users, cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")), "not all users returned from listing operation")
 
-	users, next, err = identity.ListUsers(ctx, 0, "", true)
+	rsp, err = identity.ListUsersExt(ctx, &userspb.ListUsersRequest{})
 	assert.NoError(t, err, "no error returned when no users exist")
-	assert.Empty(t, next, "next page token returned from listing when no users exist")
-	assert.Empty(t, cmp.Diff(expectedUsers, users), "not all users returned from listing operation")
+	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no users exist")
+	assert.Empty(t, cmp.Diff(expectedUsers, rsp.Users), "not all users returned from listing operation")
 
 	// Create a number of users.
 	usernames := []string{"llama", "alpaca", "fox", "fish", "fish+", "fish2"}
@@ -1070,25 +1073,29 @@ func TestIdentityService_ListUsers(t *testing.T) {
 
 		created, err := identity.CreateUser(ctx, user)
 		require.NoError(t, err, "creating user %s failed", user)
-		expectedUsers = append(expectedUsers, created)
+		expectedUsers = append(expectedUsers, created.(*types.UserV2))
 	}
-	slices.SortFunc(expectedUsers, func(a, b types.User) int {
+	slices.SortFunc(expectedUsers, func(a, b *types.UserV2) int {
 		return strings.Compare(a.GetName(), b.GetName())
 	})
 
 	// List a few users at a time and validate that all users are eventually returned.
-	var retrieved []types.User
-	for next := ""; ; {
-		users, nextToken, err := identity.ListUsers(ctx, 2, next, false)
+	var retrieved []*types.UserV2
+	req := userspb.ListUsersRequest{
+		PageSize: 2,
+	}
+	for {
+		rsp, err := identity.ListUsersExt(ctx, &req)
 		require.NoError(t, err, "no error returned when no users exist")
 
-		for _, user := range users {
+		for _, user := range rsp.Users {
 			assert.Empty(t, user.GetLocalAuth(), "expected no secrets to be returned with user %s", user.GetName())
 		}
 
-		retrieved = append(retrieved, users...)
-		next = nextToken
-		if next == "" {
+		retrieved = append(retrieved, rsp.Users...)
+
+		req.PageToken = rsp.NextPageToken
+		if req.PageToken == "" {
 			break
 		}
 
@@ -1097,16 +1104,22 @@ func TestIdentityService_ListUsers(t *testing.T) {
 		}
 	}
 
-	slices.SortFunc(retrieved, func(a, b types.User) int {
+	slices.SortFunc(retrieved, func(a, b *types.UserV2) int {
 		return strings.Compare(a.GetName(), b.GetName())
 	})
 	assert.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")), "not all users returned from listing operation")
 
 	// Validate that listing all users at once returns all expected users with secrets.
-	users, next, err = identity.ListUsers(ctx, 200, "", true)
+	rsp, err = identity.ListUsersExt(ctx, &userspb.ListUsersRequest{
+		PageSize:    200,
+		WithSecrets: true,
+	})
 	require.NoError(t, err, "unexpected error listing users")
-	assert.Empty(t, next, "got a next page token when page size was greater than number of items")
-	slices.SortFunc(users, func(a, b types.User) int {
+	assert.Empty(t, rsp.NextPageToken, "got a next page token when page size was greater than number of items")
+
+	users := rsp.Users
+
+	slices.SortFunc(users, func(a, b *types.UserV2) int {
 		return strings.Compare(a.GetName(), b.GetName())
 	})
 
@@ -1115,14 +1128,19 @@ func TestIdentityService_ListUsers(t *testing.T) {
 	require.Empty(t, cmp.Diff(expectedUsers, users, cmpopts.SortSlices(devicesSort)), "not all users returned from listing operation")
 
 	// List a few users at a time and validate that all users are eventually returned with their secrets.
-	retrieved = []types.User{}
-	for next := ""; ; {
-		users, nextToken, err := identity.ListUsers(ctx, 2, next, true)
+	retrieved = nil
+	req = userspb.ListUsersRequest{
+		PageSize:    2,
+		WithSecrets: true,
+	}
+	for {
+		rsp, err := identity.ListUsersExt(ctx, &req)
 		require.NoError(t, err, "no error returned when no users exist")
 
-		retrieved = append(retrieved, users...)
-		next = nextToken
-		if next == "" {
+		retrieved = append(retrieved, rsp.Users...)
+
+		req.PageToken = rsp.NextPageToken
+		if req.PageToken == "" {
 			break
 		}
 
@@ -1131,7 +1149,7 @@ func TestIdentityService_ListUsers(t *testing.T) {
 		}
 	}
 
-	slices.SortFunc(retrieved, func(a, b types.User) int {
+	slices.SortFunc(retrieved, func(a, b *types.UserV2) int {
 		return strings.Compare(a.GetName(), b.GetName())
 	})
 	require.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.SortSlices(devicesSort)), "not all users returned from listing operation")
@@ -1145,10 +1163,15 @@ func TestIdentityService_ListUsers(t *testing.T) {
 
 	clock.Advance(time.Hour)
 
-	retrieved, next, err = identity.ListUsers(ctx, 0, "", true)
+	rsp, err = identity.ListUsersExt(ctx, &userspb.ListUsersRequest{
+		WithSecrets: true,
+	})
 	assert.NoError(t, err, "got an error while listing over an expired user")
-	assert.Empty(t, next, "next page token returned from listing all users")
-	slices.SortFunc(retrieved, func(a, b types.User) int {
+	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing all users")
+
+	retrieved = rsp.Users
+
+	slices.SortFunc(retrieved, func(a, b *types.UserV2) int {
 		return strings.Compare(a.GetName(), b.GetName())
 	})
 	require.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.SortSlices(devicesSort)), "not all users returned from listing operation")
