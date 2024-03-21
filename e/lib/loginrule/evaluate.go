@@ -10,8 +10,8 @@ import (
 
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/e/lib/expression"
 	"github.com/gravitational/teleport/e/lib/loginrule/storage"
+	"github.com/gravitational/teleport/lib/expression"
 	oss "github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )

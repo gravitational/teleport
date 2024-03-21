@@ -4,7 +4,7 @@ import (
 	"github.com/crewjam/saml"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/e/lib/expression"
+	"github.com/gravitational/teleport/lib/expression"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
