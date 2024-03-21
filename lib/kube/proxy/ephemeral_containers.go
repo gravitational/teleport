@@ -339,13 +339,10 @@ func (f *Forwarder) getUserEphemeralContainersForPod(ctx context.Context, userna
 	return list, nil
 }
 
-func getContainerStatusByName(pod *corev1.Pod, containerName string) *corev1.ContainerStatus {
-	allContainerStatus := [][]corev1.ContainerStatus{pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses, pod.Status.EphemeralContainerStatuses}
-	for _, statusSlice := range allContainerStatus {
-		for i := range statusSlice {
-			if statusSlice[i].Name == containerName {
-				return &statusSlice[i]
-			}
+func getEphemeralContainerStatusByName(pod *corev1.Pod, containerName string) *corev1.ContainerStatus {
+	for _, status := range pod.Status.EphemeralContainerStatuses {
+		if status.Name == containerName {
+			return &status
 		}
 	}
 	return nil

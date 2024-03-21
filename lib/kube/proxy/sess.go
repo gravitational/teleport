@@ -1407,7 +1407,7 @@ func (s *session) patchAndWaitForPodEphemeralContainer(ctx context.Context, auth
 			return false, trace.BadParameter("watch did not return a pod: %v", ev.Object)
 		}
 
-		s := getContainerStatusByName(p, waitingCont.Spec.ContainerName)
+		s := getEphemeralContainerStatusByName(p, waitingCont.Spec.ContainerName)
 		if s == nil {
 			return false, nil
 		}
