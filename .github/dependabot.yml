@@ -22,6 +22,11 @@ updates:
       - dependency-name: github.com/redis/go-redis/v9
       - dependency-name: github.com/vulcand/predicate
     open-pull-requests-limit: 10
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
     reviewers:
       - codingllama
       - jentfoo
@@ -39,6 +44,11 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
     reviewers:
       - codingllama
       - jentfoo
@@ -59,6 +69,11 @@ updates:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
     open-pull-requests-limit: 10
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
     reviewers:
       - codingllama
       - jentfoo
@@ -77,6 +92,11 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
     reviewers:
       - codingllama
       - jentfoo
@@ -97,6 +117,11 @@ updates:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
     open-pull-requests-limit: 10
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
     reviewers:
       - codingllama
       - fheinecke
@@ -115,6 +140,11 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
+    groups:
+      rust:
+        update-types:
+          - "minor"
+          - "patch"
     reviewers:
       - codingllama
       - ibeckermayer
@@ -133,6 +163,11 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
+    groups:
+      rust:
+        update-types:
+          - "minor"
+          - "patch"
     reviewers:
       - codingllama
       - ibeckermayer
