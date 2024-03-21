@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/srv/db/common/permissions"
 )
 
@@ -80,12 +81,14 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	}
 
 	e.Log.WithField("user", sessionCtx.DatabaseUser).WithField("roles", roles).Info("Activating PostgreSQL user")
-
 	_, err = conn.Exec(ctx, activateQuery, sessionCtx.DatabaseUser, roles)
 	if err != nil {
 		e.Log.WithError(err).Debug("Call teleport_activate_user failed.")
-		return trace.Wrap(convertActivateError(sessionCtx, err))
+		errOut := convertActivateError(sessionCtx, err)
+		e.Audit.OnDatabaseUserCreate(ctx, sessionCtx, errOut)
+		return trace.Wrap(errOut)
 	}
+	e.Audit.OnDatabaseUserCreate(ctx, sessionCtx, nil)
 
 	if err != nil {
 		if strings.Contains(err.Error(), "already exists") {
@@ -125,7 +128,7 @@ var pgTablePerms = map[string]struct{}{
 
 func checkPgPermission(objKind, perm string) error {
 	// for now, only tables are supported. ignore other kinds of objects.
-	if objKind != permissions.ObjectKindTable {
+	if objKind != databaseobjectimportrule.ObjectKindTable {
 		return nil
 	}
 
@@ -147,7 +150,7 @@ func convertPermissions(perms permissions.PermissionSet) (*Permissions, error) {
 				errors = append(errors, err)
 				continue
 			}
-			if obj.GetSpec().ObjectKind == permissions.ObjectKindTable {
+			if obj.GetSpec().ObjectKind == databaseobjectimportrule.ObjectKindTable {
 				out.Tables = append(out.Tables, TablePermission{
 					Privilege: permission,
 					Schema:    obj.GetSpec().Schema,
@@ -207,14 +210,14 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	counts, countMap := permissions.CountObjectKinds(objsFetched)
-	e.Log.WithField("kind_counts", countMap).WithField("total", len(objsFetched)).Infof("Fetched %v objects from the database (%v).", len(objsFetched), counts)
+	counts, _ := permissions.CountObjectKinds(objsFetched)
+	e.Log.WithField("total", len(objsFetched)).Infof("Database objects fetched from the database (%v).", counts)
 
-	objsTagged := permissions.ApplyDatabaseObjectImportRules(rules, sessionCtx.Database, objsFetched)
-	counts, countMap = permissions.CountObjectKinds(objsTagged)
-	e.Log.WithField("kind_counts", countMap).WithField("total", len(objsFetched)).Infof("Tagged %v database objects (%v).", len(objsTagged), counts)
+	objsImported, errCount := databaseobjectimportrule.ApplyDatabaseObjectImportRules(e.Log, rules, sessionCtx.Database, objsFetched)
+	counts, _ = permissions.CountObjectKinds(objsImported)
+	e.Log.WithField("err_count", errCount).WithField("total", len(objsFetched)).Infof("Database objects imported (%v).", counts)
 
-	permissionSet, err := permissions.CalculatePermissions(sessionCtx.Checker, sessionCtx.Database, objsTagged)
+	permissionSet, err := permissions.CalculatePermissions(sessionCtx.Checker, sessionCtx.Database, objsImported)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -303,8 +306,10 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 
 	_, err = conn.Exec(ctx, deactivateQuery, sessionCtx.DatabaseUser)
 	if err != nil {
+		e.Audit.OnDatabaseUserDeactivate(ctx, sessionCtx, false, err)
 		return trace.NewAggregate(errRemove, trace.Wrap(err))
 	}
+	e.Audit.OnDatabaseUserDeactivate(ctx, sessionCtx, false, nil)
 
 	return errRemove
 }
@@ -337,14 +342,17 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 		return trace.NewAggregate(errRemove, trace.Wrap(err))
 	}
 
+	deleted := true
 	switch state {
 	case common.SQLStateUserDropped:
 		e.Log.WithField("user", sessionCtx.DatabaseUser).Debug("User deleted successfully.")
 	case common.SQLStateUserDeactivated:
+		deleted = false
 		e.Log.WithField("user", sessionCtx.DatabaseUser).Info("Unable to delete user, it was disabled instead.")
 	default:
 		e.Log.WithField("user", sessionCtx.DatabaseUser).Warn("Unable to determine user deletion state.")
 	}
+	e.Audit.OnDatabaseUserDeactivate(ctx, sessionCtx, deleted, nil)
 
 	return errRemove
 }

@@ -146,6 +146,7 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
@@ -651,7 +652,7 @@ func (process *TeleportProcess) GetIdentity(role types.SystemRole) (i *auth.Iden
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			process.logger.InfoContext(process.ExitContext(), "Found static identity in the config file, writing to disk.", "identity", &id)
+			process.logger.InfoContext(process.ExitContext(), "Found static identity in the config file, writing to disk.", "identity", logutils.StringerAttr(&id))
 			if err = process.storage.WriteIdentity(auth.IdentityCurrent, *i); err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1015,8 +1016,15 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	upgraderKind := os.Getenv("TELEPORT_EXT_UPGRADER")
+	upgraderKind := os.Getenv(automaticupgrades.EnvUpgrader)
 	upgraderVersion := automaticupgrades.GetUpgraderVersion(process.GracefulExitContext())
+
+	// Instances deployed using the AWS OIDC integration are automatically updated
+	// by the proxy. The instance heartbeat should properly reflect that.
+	externalUpgrader := upgraderKind
+	if externalUpgrader == "" && os.Getenv(types.InstallMethodAWSOIDCDeployServiceEnvVar) == "true" {
+		externalUpgrader = types.OriginIntegrationAWSOIDC
+	}
 
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
@@ -1025,7 +1033,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		Version:                 teleport.Version,
 		Services:                process.getInstanceRoles(),
 		Hostname:                cfg.Hostname,
-		ExternalUpgrader:        upgraderKind,
+		ExternalUpgrader:        externalUpgrader,
 		ExternalUpgraderVersion: vc.Normalize(upgraderVersion),
 	})
 
@@ -1778,7 +1786,7 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(), emitter),
+		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(process.getClusterFeatures().Cloud), emitter),
 		Clock:       process.Clock,
 		ClusterName: clusterName,
 	})
@@ -2025,6 +2033,13 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	var accessGraphCAData []byte
+	if cfg.AccessGraph.Enabled && cfg.AccessGraph.CA != "" {
+		accessGraphCAData, err = os.ReadFile(cfg.AccessGraph.CA)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	apiConf := &auth.APIConfig{
 		AuthServer:     authServer,
 		Authorizer:     authorizer,
@@ -2032,6 +2047,12 @@ func (process *TeleportProcess) initAuthService() error {
 		PluginRegistry: process.PluginRegistry,
 		Emitter:        authServer,
 		MetadataGetter: uploadHandler,
+		AccessGraph: auth.AccessGraphConfig{
+			Enabled:  cfg.AccessGraph.Enabled,
+			Address:  cfg.AccessGraph.Addr,
+			CA:       accessGraphCAData,
+			Insecure: cfg.AccessGraph.Insecure,
+		},
 	}
 
 	// Auth initialization is done (including creation/updating of all singleton
@@ -2452,7 +2473,7 @@ func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
 // It is caller's responsibility to call Close on the emitter once done.
 func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.AsyncEmitter, error) {
 	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(), clt),
+		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(process.getClusterFeatures().Cloud), clt),
 		Clock: process.Clock,
 	})
 	if err != nil {
@@ -4092,7 +4113,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Emitter:          asyncEmitter,
 			PluginRegistry:   process.PluginRegistry,
 			HostUUID:         process.Config.HostUUID,
-			Context:          process.ExitContext(),
+			Context:          process.GracefulExitContext(),
 			StaticFS:         fs,
 			ClusterFeatures:  process.getClusterFeatures(),
 			GetProxyIdentity: func() (*auth.Identity, error) {
@@ -4221,7 +4242,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				return nil
 			}
 
-			logger.InfoContext(process.ExitContext(), "Starting peer proxy service", "listen_address", listeners.proxyPeer.Addr().String())
+			logger.InfoContext(process.ExitContext(), "Starting peer proxy service", "listen_address", logutils.StringerAttr(listeners.proxyPeer.Addr()))
 			err := proxyServer.Serve()
 			if err != nil {
 				return trace.Wrap(err)
@@ -4693,7 +4714,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(alpnTLSConfigForWeb))
 
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {
-			logger.InfoContext(process.ExitContext(), "Starting TLS ALPN SNI proxy server on.", "listen_address", listeners.alpn.Addr())
+			logger.InfoContext(process.ExitContext(), "Starting TLS ALPN SNI proxy server on.", "listen_address", logutils.StringerAttr(listeners.alpn.Addr()))
 			if err := alpnServer.Serve(process.ExitContext()); err != nil {
 				logger.WarnContext(process.ExitContext(), "TLS ALPN SNI proxy proxy server exited with error.", "error", err)
 			}

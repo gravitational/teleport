@@ -331,7 +331,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	err = srv.AuthServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	_, err = srv.AuthServer.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -709,6 +709,13 @@ type TestTLSServerOption func(*TestTLSServerConfig)
 func WithLimiterConfig(config *limiter.Config) TestTLSServerOption {
 	return func(cfg *TestTLSServerConfig) {
 		cfg.Limiter = config
+	}
+}
+
+// WithAccessGraphConfig sets the access graph configuration.
+func WithAccessGraphConfig(config AccessGraphConfig) TestTLSServerOption {
+	return func(cfg *TestTLSServerConfig) {
+		cfg.APIConfig.AccessGraph = config
 	}
 }
 

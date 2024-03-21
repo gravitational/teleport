@@ -26,7 +26,10 @@ import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import ModalsHost from 'teleterm/ui/ModalsHost';
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import {
+  makeRootCluster,
+  makeRetryableError,
+} from 'teleterm/services/tshd/testHelpers';
 
 import { ClusterUri } from 'teleterm/ui/uri';
 
@@ -280,7 +283,7 @@ it('shows a login modal when a request to a cluster from the current workspace f
   const resourceSearchError = new ResourceSearchError(
     cluster.uri,
     'server',
-    new Error('ssh: cert has expired')
+    makeRetryableError()
   );
   const resourceSearchResult = {
     results: [],

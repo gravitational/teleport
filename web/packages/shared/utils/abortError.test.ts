@@ -39,6 +39,7 @@ function newApiAbortError() {
   });
 }
 
+// mimics TshdRpcError
 function newGrpcAbortError() {
-  return new Error('1 CANCELLED: Cancelled on client');
+  return { code: 'CANCELLED' };
 }

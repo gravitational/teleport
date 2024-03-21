@@ -9,7 +9,7 @@ publish.workspace = true
 crate-type = ["staticlib"]
 
 [dependencies]
-bitflags = "2.4.2"
+bitflags = "2.5.0"
 boring = { git = "https://github.com/gravitational/boring", rev="605253d99d5e363e178bcf97e1d4622e33844cd5", optional = true }
 byteorder = "1.5.0"
 bytes = "1.4.0"
@@ -35,7 +35,7 @@ static_init = "1.0.3"
 tokio = { version = "1.36", features = ["full"] }
 tokio-boring = { git = "https://github.com/gravitational/boring", rev="605253d99d5e363e178bcf97e1d4622e33844cd5", optional = true }
 utf16string = "0.2.0"
-uuid = { version = "1.7.0", features = ["v4"] }
+uuid = { version = "1.8.0", features = ["v4"] }
 
 [build-dependencies]
 cbindgen = "0.26.0"

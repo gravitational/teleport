@@ -392,7 +392,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 			})
 			require.NoError(t, err)
 			dynamically.SetOrigin(types.OriginDynamic)
-			err = authServer.SetSessionRecordingConfig(ctx, dynamically)
+			_, err = authServer.UpsertSessionRecordingConfig(ctx, dynamically)
 			require.NoError(t, err)
 		},
 		getStored: func(t *testing.T, authServer *Server) types.ResourceWithOrigin {

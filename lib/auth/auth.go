@@ -347,6 +347,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if cfg.KubeWaitingContainers == nil {
+		cfg.KubeWaitingContainers, err = local.NewKubeWaitingContainerService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		Trust:                     cfg.Trust,
@@ -381,6 +388,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Assistant:                 cfg.Assist,
 		UserPreferences:           cfg.UserPreferences,
 		PluginData:                cfg.PluginData,
+		KubeWaitingContainer:      cfg.KubeWaitingContainers,
 	}
 
 	as := Server{
@@ -535,6 +543,7 @@ type Services struct {
 	types.Events
 	events.AuditLogSessionStreamer
 	services.SecReports
+	services.KubeWaitingContainer
 }
 
 // SecReportsClient returns the security reports client.
@@ -555,8 +564,8 @@ func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (r *Services) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
-	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx)
+func (r *Services) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
+	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, integration)
 }
 
 // OktaClient returns the okta client.
@@ -583,6 +592,12 @@ func (r *Services) DiscoveryConfigClient() services.DiscoveryConfigs {
 
 // UserLoginStateClient returns the user login state client.
 func (r *Services) UserLoginStateClient() services.UserLoginStates {
+	return r
+}
+
+// KubernetesWaitingContainerClient returns the Kubernetes waiting
+// container client.
+func (r *Services) KubernetesWaitingContainerClient() services.KubeWaitingContainer {
 	return r
 }
 
@@ -6037,6 +6052,14 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		noMFAAccessErr = checker.CheckAccess(desktops[0],
 			services.AccessState{},
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
+
+	case *proto.IsMFARequiredRequest_App:
+		app, err := a.GetApp(ctx, t.App.GetName())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		noMFAAccessErr = checker.CheckAccess(app, services.AccessState{})
 
 	default:
 		return nil, trace.BadParameter("unknown Target %T", req.Target)

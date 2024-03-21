@@ -378,13 +378,15 @@ func (a *ServerWithRoles) DeleteIntegration(ctx context.Context, name string) er
 }
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
+func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	igSvc, err := a.integrationsService()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{})
+	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
+		Integration: integration,
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -1353,12 +1355,10 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		Kinds:               req.Kinds,
 	}
 
-	// resourceAccessMap is a map of resourceKind to error, that holds any errors returned when checking verbs
-	// for that resource (list/read)
-	resourceAccessMap := make(map[string]error)
-
-	// we want to populate the resourceAccessMap at the start of the request for all available kind in the
-	// unified resource cache
+	// Populate resourceAccessMap with any access errors the user has for each possible
+	// resource kind. This allows the access check to occur a single time per resource
+	// kind instead of once per matching resource.
+	resourceAccessMap := make(map[string]error, len(services.UnifiedResourceKinds))
 	for _, kind := range services.UnifiedResourceKinds {
 		actionVerbs := []string{types.VerbList, types.VerbRead}
 		if kind == types.KindNode {
@@ -1371,6 +1371,24 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		}
 
 		resourceAccessMap[kind] = a.action(apidefaults.Namespace, kind, actionVerbs...)
+	}
+
+	// Before doing any listing, verify that the user is allowed to list
+	// at least one of the requested kinds. If no access is permitted, then
+	// return an access denied error.
+	requested := req.Kinds
+	if len(req.Kinds) == 0 {
+		requested = services.UnifiedResourceKinds
+	}
+	var rbacErrors int
+	for _, kind := range requested {
+		if err, ok := resourceAccessMap[kind]; ok && err != nil {
+			rbacErrors++
+		}
+	}
+
+	if rbacErrors == len(requested) {
+		return nil, trace.AccessDenied("User does not have access to any of the requested kinds: %v", requested)
 	}
 
 	// Apply any requested additional search_as_roles and/or preview_as_roles
@@ -4585,7 +4603,6 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 	}
 
 	return trace.Wrap(err)
-
 }
 
 // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
@@ -4661,7 +4678,7 @@ func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, newRecC
 		return trace.Wrap(err)
 	}
 
-	err = a.authServer.SetSessionRecordingConfig(ctx, newRecConfig)
+	_, err = a.authServer.UpsertSessionRecordingConfig(ctx, newRecConfig)
 
 	var msg string
 	if err != nil {
@@ -4706,7 +4723,7 @@ func (a *ServerWithRoles) ResetSessionRecordingConfig(ctx context.Context) error
 		return trace.Wrap(err)
 	}
 
-	err = a.authServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	_, err = a.authServer.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
 
 	var msg string
 	if err != nil {
@@ -4936,9 +4953,6 @@ func (a *ServerWithRoles) AcquireSemaphore(ctx context.Context, params types.Acq
 	if err := a.action(apidefaults.Namespace, types.KindSemaphore, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if a.hasBuiltinRole(types.RoleDiscovery) && params.SemaphoreKind != types.KindAccessGraph {
-		return nil, trace.AccessDenied("discovery service can not create other semaphores")
-	}
 	return a.authServer.AcquireSemaphore(ctx, params)
 }
 
@@ -4946,9 +4960,6 @@ func (a *ServerWithRoles) AcquireSemaphore(ctx context.Context, params types.Acq
 func (a *ServerWithRoles) KeepAliveSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
 	if err := a.action(apidefaults.Namespace, types.KindSemaphore, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
-	}
-	if a.hasBuiltinRole(types.RoleDiscovery) && lease.SemaphoreKind != types.KindAccessGraph {
-		return trace.AccessDenied("discovery service can not create other semaphores")
 	}
 	return a.authServer.KeepAliveSemaphoreLease(ctx, lease)
 }
@@ -5374,7 +5385,7 @@ func (a *ServerWithRoles) ListSAMLIdPSessions(ctx context.Context, pageSize int,
 
 // CreateAppSession creates an application web session. Application web
 // sessions represent a browser session the client holds.
-func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
+func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error) {
 	if err := a.currentUserAction(req.Username); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5722,12 +5733,15 @@ func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFAReq
 		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
 	}
 
-	// Certain hardware-key based private key policies are treated as MFA verification.
+	// Certain hardware-key based private key policies are treated as MFA verification,
+	// except for app sessions which can only be attested with the key policy "web_session".
 	if a.context.Identity.GetIdentity().PrivateKeyPolicy.MFAVerified() {
-		return &proto.IsMFARequiredResponse{
-			Required:    false,
-			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
-		}, nil
+		if _, isAppReq := req.Target.(*proto.IsMFARequiredRequest_App); !isAppReq {
+			return &proto.IsMFARequiredResponse{
+				Required:    false,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			}, nil
+		}
 	}
 
 	return a.authServer.isMFARequired(ctx, a.context.Checker, req)

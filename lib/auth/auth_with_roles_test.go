@@ -1295,12 +1295,12 @@ func TestSessionRecordingConfigRBAC(t *testing.T) {
 	testDynamicallyConfigurableRBAC(t, testDynamicallyConfigurableRBACParams{
 		kind: types.KindSessionRecordingConfig,
 		storeDefault: func(s *Server) {
-			s.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+			s.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
 		},
 		storeConfigFile: func(s *Server) {
 			recConfig := types.DefaultSessionRecordingConfig()
 			recConfig.SetOrigin(types.OriginConfigFile)
-			s.SetSessionRecordingConfig(ctx, recConfig)
+			s.UpsertSessionRecordingConfig(ctx, recConfig)
 		},
 		get: func(s *ServerWithRoles) error {
 			_, err := s.GetSessionRecordingConfig(ctx)
@@ -4097,7 +4097,7 @@ func TestDeleteUserAppSessions(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create a session for alice.
-		_, err = aliceClt.CreateAppSession(ctx, types.CreateAppSessionRequest{
+		_, err = aliceClt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
 			Username:    "alice",
 			PublicAddr:  application.publicAddr,
 			ClusterName: "localhost",
@@ -4105,7 +4105,7 @@ func TestDeleteUserAppSessions(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create a session for bob.
-		_, err = bobClt.CreateAppSession(ctx, types.CreateAppSessionRequest{
+		_, err = bobClt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
 			Username:    "bob",
 			PublicAddr:  application.publicAddr,
 			ClusterName: "localhost",
@@ -4940,6 +4940,35 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 		r := resource.GetDatabaseServer()
 		require.Equal(t, types.KindDatabaseServer, r.GetKind())
 	}
+
+	// Update the roles to prevent access to any resource kinds.
+	role.SetRules(types.Deny, []types.Rule{{Resources: services.UnifiedResourceKinds, Verbs: []string{types.VerbList, types.VerbRead}}})
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// ensure updated roles have propagated to auth cache
+	flushCache(t, srv.Auth())
+
+	// Get a new client to test with the new roles.
+	clt, err = srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// Validate that an error is returned when no kinds are requested.
+	resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		Limit:  20,
+		SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
+	})
+	require.True(t, trace.IsAccessDenied(err))
+	require.Nil(t, resp)
+
+	// Validate that an error is returned when a subset of kinds are requested.
+	resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		Limit:  20,
+		SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
+		Kinds:  []string{types.KindNode, types.KindDatabaseServer},
+	})
+	require.True(t, trace.IsAccessDenied(err))
+	require.Nil(t, resp)
 }
 
 // TestListUnifiedResources_WithPredicate will return resources that match the
