@@ -959,7 +959,7 @@ func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request,
 	// "teleport integration configure access-graph aws-iam"
 	argsList := []string{
 		"integration", "configure", "access-graph", "aws-iam",
-		fmt.Sprintf("--role=%s", role),
+		fmt.Sprintf("--role=%s", libutils.UnixShellQuote(role)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
