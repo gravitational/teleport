@@ -144,10 +144,18 @@ func (g *genericCollection[T, R, _]) processEvent(ctx context.Context, event typ
 			}
 		}
 	case types.OpPut:
-		resource, ok := event.Resource.(T)
+		var resource T
+		var ok bool
+		switch r := event.Resource.(type) {
+		case types.Resource153Unwrapper:
+			resource, ok = r.Unwrap().(T)
+		default:
+			resource, ok = event.Resource.(T)
+		}
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
+
 		if err := g.exec.upsert(ctx, g.cache, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -658,8 +666,8 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			collections.accessListReviews = &genericCollection[*accesslist.Review, accessListReviewsGetter, accessListReviewExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.accessListReviews
 		case types.KindKubeWaitingContainer:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
+			if c.KubeWaitingContainers == nil {
+				return nil, trace.BadParameter("missing parameter KubeWaitingContainers")
 			}
 			collections.kubeWaitingContainers = &genericCollection[*kubewaitingcontainerpb.KubernetesWaitingContainer, kubernetesWaitingContainerGetter, kubeWaitingContainerExecutor]{
 				cache: c,
@@ -2100,7 +2108,7 @@ func (kubeWaitingContainerExecutor) getAll(ctx context.Context, cache *Cache, lo
 		allConts []*kubewaitingcontainerpb.KubernetesWaitingContainer
 	)
 	for {
-		conts, nextKey, err := cache.kubeWaitingContsCache.ListKubernetesWaitingContainers(ctx, 0, startKey)
+		conts, nextKey, err := cache.KubeWaitingContainers.ListKubernetesWaitingContainers(ctx, 0, startKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
