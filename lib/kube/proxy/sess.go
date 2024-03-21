@@ -1037,9 +1037,8 @@ func (s *session) createEphemeralContainer() (bool, error) {
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return false, nil
-		} else {
-			return false, trace.Wrap(err)
 		}
+		return false, trace.Wrap(err)
 	}
 
 	if err = s.forwarder.cfg.AuthClient.DeleteKubernetesWaitingContainer(

@@ -178,10 +178,9 @@ func (w *WatcherResponseWriter) getStatus() int {
 // the spinned goroutine terminates.
 // After closes the writer pipe and flushes the response into target.
 func (w *WatcherResponseWriter) Close() error {
-	w.closeChanGuard.Do(
-		func() {
-			close(w.closeChan)
-		})
+	w.closeChanGuard.Do(func() {
+		close(w.closeChan)
+	})
 	w.pipeReader.CloseWithError(io.EOF)
 	err := w.group.Wait()
 	w.pipeWriter.CloseWithError(io.EOF)
@@ -242,10 +241,7 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, writer io.Write
 		watchEncoderGuard.Lock()
 		defer watchEncoderGuard.Unlock()
 		// encode the event into the target connection.
-		err = watchEncoder.Encode(
-			evt,
-		)
-		if err != nil {
+		if err := watchEncoder.Encode(evt); err != nil {
 			return trace.Wrap(err)
 		}
 		// Stream the response into the target connection, as we are dealing with
@@ -268,8 +264,7 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, writer io.Write
 			select {
 			case evt := <-w.evtsChan:
 				if err := writeEventAndFlush(evt); err != nil {
-					//nolint:sloglint // there is no context to pass to WarnContext here
-					slog.Warn("error pushing fake pod event", "err", err)
+					slog.WarnContext(context.Background(), "error pushing fake pod event", "err", err)
 				}
 			case <-w.closeChan:
 				return nil

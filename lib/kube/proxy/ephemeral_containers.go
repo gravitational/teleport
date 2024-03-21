@@ -285,7 +285,8 @@ func patchPodWithDebugContainer(decoder runtime.Decoder, podJson, podPatch []byt
 func (f *Forwarder) getPatchedPodEvent(ctx context.Context, sess *clusterSession, waitingCont *kubewaitingcontainerpb.KubernetesWaitingContainer) (*watch.Event, error) {
 	encoder, decoder, err := newEncoderAndDecoderForContentType(
 		responsewriters.DefaultContentType,
-		newClientNegotiator(sess.codecFactory))
+		newClientNegotiator(sess.codecFactory),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to create encoder and decoder")
 	}
