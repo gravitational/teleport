@@ -178,14 +178,22 @@ type GatewayCLICommand struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Path string   `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// path is the absolute path to the CLI client of a gateway if the client is
+	// in PATH. Otherwise, the name of the program we were trying to find.
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// args is a list containing the name of the program as the first element
+	// and the actual args as the other elements
 	Args []string `protobuf:"bytes,2,rep,name=args,proto3" json:"args,omitempty"`
-	Env  []string `protobuf:"bytes,3,rep,name=env,proto3" json:"env,omitempty"`
+	// env is a list of env vars that need to be set for the command
+	// invocation. The elements of the list are in the format of NAME=value.
+	Env []string `protobuf:"bytes,3,rep,name=env,proto3" json:"env,omitempty"`
 	// preview is used to show the user what command will be executed before they decide to run it.
 	// It's like os.exec.Cmd.String with two exceptions:
 	//
 	// 1) It is prepended with Cmd.Env.
 	// 2) The command name is relative and not absolute.
+	//
+	// Should not be used to execute anything in the shell.
 	Preview string `protobuf:"bytes,4,opt,name=preview,proto3" json:"preview,omitempty"`
 }
 
