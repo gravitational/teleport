@@ -1239,6 +1239,10 @@ enter/centos7:
 enter/grpcbox:
 	make -C build.assets enter/grpcbox
 
+.PHONY:enter/node
+enter/node:
+	make -C build.assets enter/node
+
 BUF := buf
 
 # protos/all runs build, lint and format on all protos.
