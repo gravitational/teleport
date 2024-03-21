@@ -1774,7 +1774,7 @@ func (clusterNetworkingConfigExecutor) getReader(cache *Cache, cacheOK bool) clu
 }
 
 type clusterNetworkingConfigGetter interface {
-	GetClusterNetworkingConfig(context.Context, ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(context.Context) (types.ClusterNetworkingConfig, error)
 }
 
 var _ executor[types.ClusterNetworkingConfig, clusterNetworkingConfigGetter] = clusterNetworkingConfigExecutor{}
@@ -1848,7 +1848,7 @@ func (sessionRecordingConfigExecutor) getReader(cache *Cache, cacheOK bool) sess
 }
 
 type sessionRecordingConfigGetter interface {
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 }
 
 var _ executor[types.SessionRecordingConfig, sessionRecordingConfigGetter] = sessionRecordingConfigExecutor{}

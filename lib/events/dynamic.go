@@ -359,6 +359,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.ValidateMFAAuthResponse{}
 	case SPIFFESVIDIssuedEvent:
 		e = &events.SPIFFESVIDIssued{}
+	case AuthPreferenceUpdateEvent:
+		e = &events.AuthPreferenceUpdate{}
+	case ClusterNetworkingConfigUpdateEvent:
+		e = &events.ClusterNetworkingConfigUpdate{}
+	case SessionRecordingConfigUpdateEvent:
+		e = &events.SessionRecordingConfigUpdate{}
 
 	case UnknownEvent:
 		e = &events.Unknown{}

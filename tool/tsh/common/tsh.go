@@ -177,6 +177,8 @@ type CLIConf struct {
 	// DynamicForwardedPorts is port forwarding using SOCKS5. It is similar to
 	// "ssh -D 8080 example.com".
 	DynamicForwardedPorts []string
+	// -R flag for ssh. Remote port forwarding like 'ssh -R 80:localhost:80 -R 443:localhost:443'
+	RemoteForwardPorts []string
 	// ForwardAgent agent to target node. Equivalent of -A for OpenSSH.
 	ForwardAgent bool
 	// ProxyJump is an optional -J flag pointing to the list of jumphosts,
@@ -740,6 +742,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("forward-agent", "Forward agent to target node").Short('A').BoolVar(&cf.ForwardAgent)
 	ssh.Flag("forward", "Forward localhost connections to remote server").Short('L').StringsVar(&cf.LocalForwardPorts)
 	ssh.Flag("dynamic-forward", "Forward localhost connections to remote server using SOCKS5").Short('D').StringsVar(&cf.DynamicForwardedPorts)
+	ssh.Flag("remote-forward", "Forward remote connections to localhost").Short('R').StringsVar(&cf.RemoteForwardPorts)
 	ssh.Flag("local", "Execute command on localhost after connecting to SSH node").Default("false").BoolVar(&cf.LocalExec)
 	ssh.Flag("tty", "Allocate TTY").Short('t').BoolVar(&cf.Interactive)
 	ssh.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -841,6 +844,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyDB.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	proxyDB.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	proxyDB.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
+	proxyDB.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
+	proxyDB.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
 
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
@@ -884,6 +889,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbLogin.Flag("db-user", "Database user to configure as default.").Short('u').StringVar(&cf.DatabaseUser)
 	dbLogin.Flag("db-name", "Database name to configure as default.").Short('n').StringVar(&cf.DatabaseName)
 	dbLogin.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
+	dbLogin.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
+	dbLogin.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
 	dbLogout := db.Command("logout", "Remove database credentials.")
 	dbLogout.Arg("db", "Database to remove credentials for.").StringVar(&cf.DatabaseService)
 	dbLogout.Flag("labels", labelHelp).StringVar(&cf.Labels)
@@ -910,6 +917,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConnect.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
 	dbConnect.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	dbConnect.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
+	dbConnect.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
+	dbConnect.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
 
 	// join
 	join := app.Command("join", "Join the active SSH or Kubernetes session.")
@@ -3264,12 +3273,25 @@ func retryWithAccessRequest(
 		log.Debugf("Not attempting to automatically request access, reason: %v", err)
 		return trace.Wrap(origErr)
 	}
-	cf.RequestID = req.GetName()
 
 	// Print and log the original AccessDenied error.
 	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(origErr))
 	fmt.Fprintf(os.Stdout, "You do not currently have access to %q, attempting to request access.\n\n", resource)
 
+	if err := setAccessRequestReason(cf, req); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := sendAccessRequestAndWaitForApproval(cf, tc, req); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Retry now that request has been approved and certs updated.
+	// Clear the original exit status.
+	tc.ExitStatus = 0
+	return trace.Wrap(fn())
+}
+
+func setAccessRequestReason(cf *CLIConf, req types.AccessRequest) (err error) {
 	requestReason := cf.RequestReason
 	if requestReason == "" {
 		// Prompt for a request reason.
@@ -3279,7 +3301,11 @@ func retryWithAccessRequest(
 		}
 	}
 	req.SetRequestReason(requestReason)
+	return nil
+}
 
+func sendAccessRequestAndWaitForApproval(cf *CLIConf, tc *client.TeleportClient, req types.AccessRequest) (err error) {
+	cf.RequestID = req.GetName()
 	fmt.Fprint(os.Stdout, "Creating request...\n")
 	// Always create access request against the root cluster.
 	if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
@@ -3310,11 +3336,7 @@ func retryWithAccessRequest(
 	if err := onRequestResolution(cf, tc, resolvedReq); err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Retry now that request has been approved and certs updated.
-	// Clear the original exit status.
-	tc.ExitStatus = 0
-	return trace.Wrap(fn())
+	return nil
 }
 
 func onSSHLatency(cf *CLIConf) error {
@@ -3639,6 +3661,11 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		return nil, trace.Wrap(err)
 	}
 
+	rPorts, err := client.ParsePortForwardSpec(cf.RemoteForwardPorts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
 
@@ -3783,6 +3810,9 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 	if len(dPorts) > 0 {
 		c.DynamicForwardedPorts = dPorts
+	}
+	if len(rPorts) > 0 {
+		c.RemoteForwardPorts = rPorts
 	}
 	if cf.SiteName != "" {
 		c.SiteName = cf.SiteName
@@ -4612,6 +4642,9 @@ func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.Acces
 		msg := fmt.Sprintf("request %s has been set to %s", req.GetName(), req.GetState().String())
 		if reason := req.GetResolveReason(); reason != "" {
 			msg = fmt.Sprintf("%s, reason=%q", msg, reason)
+		}
+		if req.GetState().IsDenied() {
+			return trace.AccessDenied(msg)
 		}
 		return trace.Errorf(msg)
 	}

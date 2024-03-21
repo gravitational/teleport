@@ -232,6 +232,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindBot, nil
 	case types.KindDatabaseObjectImportRule, "db_object_import_rules", "database_object_import_rule":
 		return types.KindDatabaseObjectImportRule, nil
+	case types.KindAccessMonitoringRule:
+		return types.KindAccessMonitoringRule, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

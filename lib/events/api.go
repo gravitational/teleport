@@ -732,6 +732,13 @@ const (
 
 	// SPIFFESVIDIssuedEvent is emitted when a SPIFFE SVID is issued.
 	SPIFFESVIDIssuedEvent = "spiffe.svid.issued"
+
+	// AuthPreferenceUpdateEvent is emitted when a user updates the cluster authentication preferences.
+	AuthPreferenceUpdateEvent = "auth_preference.update"
+	// ClusterNetworkingConfigUpdateEvent is emitted when a user updates the cluster networking configuration.
+	ClusterNetworkingConfigUpdateEvent = "cluster_networking_config.update"
+	// SessionRecordingConfigUpdateEvent is emitted when a user updates the cluster session recording configuration.
+	SessionRecordingConfigUpdateEvent = "session_recording_config.update"
 )
 
 const (

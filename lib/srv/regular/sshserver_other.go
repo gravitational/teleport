@@ -1,3 +1,6 @@
+//go:build !darwin && !linux
+// +build !darwin,!linux
+
 /*
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
@@ -15,26 +18,18 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-package experiment
+package regular
 
 import (
+	"net"
 	"os"
-	"sync/atomic"
+	"runtime"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/srv"
 )
 
-var enabled = atomic.Bool{}
-
-func init() {
-	enabled.Store(os.Getenv("WORKLOAD_IDENTITY_EXPERIMENT") == "1")
-}
-
-// Enabled returns true if the workload identity experiment is enabled.
-func Enabled() bool {
-	return enabled.Load()
-}
-
-// SetEnabled sets the workload identity experiment to the given value.
-func SetEnabled(value bool) {
-	enabled.Store(value)
+func validateListenerSocket(scx *srv.ServerContext, controlConn *net.UnixConn, listenerFD *os.File) error {
+	return trace.BadParameter("remote forwarding is not implemented for %s", runtime.GOOS)
 }

@@ -52,7 +52,9 @@ it('creates a gateway on mount if it does not exist already', async () => {
     wrapper: $wrapper,
   });
 
-  await waitFor(() => result.current.connectAttempt.status === 'success');
+  await waitFor(() =>
+    expect(result.current.connectAttempt.status).toBe('success')
+  );
 
   expect(appContext.clustersService.createGateway).toHaveBeenCalledWith({
     targetUri: doc.targetUri,
@@ -103,7 +105,9 @@ it('does not attempt to create a gateway immediately after closing it if the gat
     result.current.disconnect();
   });
 
-  await waitFor(() => result.current.disconnectAttempt.status === 'success');
+  await waitFor(() =>
+    expect(result.current.disconnectAttempt.status).toBe('success')
+  );
 
   expect(appContext.clustersService.createGateway).not.toHaveBeenCalled();
 });

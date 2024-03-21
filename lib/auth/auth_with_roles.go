@@ -381,13 +381,15 @@ func (a *ServerWithRoles) DeleteIntegration(ctx context.Context, name string) er
 }
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
+func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	igSvc, err := a.integrationsService()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{})
+	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
+		Integration: integration,
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -1356,12 +1358,10 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		Kinds:               req.Kinds,
 	}
 
-	// resourceAccessMap is a map of resourceKind to error, that holds any errors returned when checking verbs
-	// for that resource (list/read)
-	resourceAccessMap := make(map[string]error)
-
-	// we want to populate the resourceAccessMap at the start of the request for all available kind in the
-	// unified resource cache
+	// Populate resourceAccessMap with any access errors the user has for each possible
+	// resource kind. This allows the access check to occur a single time per resource
+	// kind instead of once per matching resource.
+	resourceAccessMap := make(map[string]error, len(services.UnifiedResourceKinds))
 	for _, kind := range services.UnifiedResourceKinds {
 		actionVerbs := []string{types.VerbList, types.VerbRead}
 		if kind == types.KindNode {
@@ -1374,6 +1374,24 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		}
 
 		resourceAccessMap[kind] = a.action(apidefaults.Namespace, kind, actionVerbs...)
+	}
+
+	// Before doing any listing, verify that the user is allowed to list
+	// at least one of the requested kinds. If no access is permitted, then
+	// return an access denied error.
+	requested := req.Kinds
+	if len(req.Kinds) == 0 {
+		requested = services.UnifiedResourceKinds
+	}
+	var rbacErrors int
+	for _, kind := range requested {
+		if err, ok := resourceAccessMap[kind]; ok && err != nil {
+			rbacErrors++
+		}
+	}
+
+	if rbacErrors == len(requested) {
+		return nil, trace.AccessDenied("User does not have access to any of the requested kinds: %v", requested)
 	}
 
 	// Apply any requested additional search_as_roles and/or preview_as_roles
@@ -4367,7 +4385,29 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.SetAuthPreference(ctx, newAuthPref)
+	err = a.authServer.SetAuthPreference(ctx, newAuthPref)
+
+	var msg string
+	if err != nil {
+		msg = err.Error()
+	}
+	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.AuthPreferenceUpdateEvent,
+			Code: events.AuthPreferenceUpdateCode,
+		},
+		UserMetadata:       a.context.GetUserMetadata(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success:     err == nil,
+			Error:       msg,
+			UserMessage: msg,
+		},
+	}); auditErr != nil {
+		log.WithError(auditErr).Warn("Failed to emit auth preference update event event.")
+	}
+
+	return trace.Wrap(err)
 }
 
 // ResetAuthPreference resets cluster auth preference to defaults.
@@ -4388,7 +4428,29 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.SetAuthPreference(ctx, types.DefaultAuthPreference())
+	err = a.authServer.SetAuthPreference(ctx, types.DefaultAuthPreference())
+
+	var msg string
+	if err != nil {
+		msg = err.Error()
+	}
+	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.AuthPreferenceUpdateEvent,
+			Code: events.AuthPreferenceUpdateCode,
+		},
+		UserMetadata:       a.context.GetUserMetadata(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success:     err == nil,
+			Error:       msg,
+			UserMessage: msg,
+		},
+	}); auditErr != nil {
+		log.WithError(auditErr).Warn("Failed to emit auth preference update event event.")
+	}
+
+	return trace.Wrap(err)
 }
 
 // GetClusterAuditConfig gets cluster audit configuration.
@@ -4402,13 +4464,13 @@ func (a *ServerWithRoles) GetClusterAuditConfig(ctx context.Context, opts ...ser
 }
 
 // GetClusterNetworkingConfig gets cluster networking configuration.
-func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	if err := a.action(apidefaults.Namespace, types.KindClusterNetworkingConfig, types.VerbRead); err != nil {
 		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbRead); err2 != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetClusterNetworkingConfig(ctx, opts...)
+	return a.authServer.GetClusterNetworkingConfig(ctx)
 }
 
 // SetClusterNetworkingConfig sets cluster networking configuration.
@@ -4438,7 +4500,29 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 		return trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
-	return a.authServer.SetClusterNetworkingConfig(ctx, newNetConfig)
+	err = a.authServer.SetClusterNetworkingConfig(ctx, newNetConfig)
+	var msg string
+	if err != nil {
+		msg = err.Error()
+	}
+	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.ClusterNetworkingConfigUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.ClusterNetworkingConfigUpdateEvent,
+			Code: events.ClusterNetworkingConfigUpdateCode,
+		},
+		UserMetadata:       a.context.GetUserMetadata(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success:     err == nil,
+			Error:       msg,
+			UserMessage: msg,
+		},
+	}); auditErr != nil {
+		log.WithError(auditErr).Warn("Failed to emit cluster networking config update event event.")
+	}
+
+	return trace.Wrap(err)
+
 }
 
 // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
@@ -4461,17 +4545,39 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	err = a.authServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+
+	var msg string
+	if err != nil {
+		msg = err.Error()
+	}
+	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.ClusterNetworkingConfigUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.ClusterNetworkingConfigUpdateEvent,
+			Code: events.ClusterNetworkingConfigUpdateCode,
+		},
+		UserMetadata:       a.context.GetUserMetadata(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success:     err == nil,
+			Error:       msg,
+			UserMessage: msg,
+		},
+	}); auditErr != nil {
+		log.WithError(auditErr).Warn("Failed to emit cluster networking config update event event.")
+	}
+
+	return trace.Wrap(err)
 }
 
 // GetSessionRecordingConfig gets session recording configuration.
-func (a *ServerWithRoles) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+func (a *ServerWithRoles) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
 	if err := a.action(apidefaults.Namespace, types.KindSessionRecordingConfig, types.VerbRead); err != nil {
 		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbRead); err2 != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetSessionRecordingConfig(ctx, opts...)
+	return a.authServer.GetSessionRecordingConfig(ctx)
 }
 
 // SetSessionRecordingConfig sets session recording configuration.
@@ -4492,7 +4598,29 @@ func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, newRecC
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.SetSessionRecordingConfig(ctx, newRecConfig)
+	err = a.authServer.SetSessionRecordingConfig(ctx, newRecConfig)
+
+	var msg string
+	if err != nil {
+		msg = err.Error()
+	}
+	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.SessionRecordingConfigUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.SessionRecordingConfigUpdateEvent,
+			Code: events.SessionRecordingConfigUpdateCode,
+		},
+		UserMetadata:       a.context.GetUserMetadata(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success:     err == nil,
+			Error:       msg,
+			UserMessage: msg,
+		},
+	}); auditErr != nil {
+		log.WithError(auditErr).Warn("Failed to emit session recording config update event event.")
+	}
+
+	return trace.Wrap(err)
 }
 
 // ResetSessionRecordingConfig resets session recording configuration to defaults.
@@ -4515,7 +4643,29 @@ func (a *ServerWithRoles) ResetSessionRecordingConfig(ctx context.Context) error
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	err = a.authServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+
+	var msg string
+	if err != nil {
+		msg = err.Error()
+	}
+	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.SessionRecordingConfigUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.SessionRecordingConfigUpdateEvent,
+			Code: events.SessionRecordingConfigUpdateCode,
+		},
+		UserMetadata:       a.context.GetUserMetadata(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success:     err == nil,
+			Error:       msg,
+			UserMessage: msg,
+		},
+	}); auditErr != nil {
+		log.WithError(auditErr).Warn("Failed to emit session recording config update event event.")
+	}
+
+	return trace.Wrap(err)
 }
 
 // GetServerInfos returns a stream of ServerInfos.
@@ -4736,9 +4886,6 @@ func (a *ServerWithRoles) AcquireSemaphore(ctx context.Context, params types.Acq
 	if err := a.action(apidefaults.Namespace, types.KindSemaphore, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if a.hasBuiltinRole(types.RoleDiscovery) && params.SemaphoreKind != types.KindAccessGraph {
-		return nil, trace.AccessDenied("discovery service can not create other semaphores")
-	}
 	return a.authServer.AcquireSemaphore(ctx, params)
 }
 
@@ -4746,9 +4893,6 @@ func (a *ServerWithRoles) AcquireSemaphore(ctx context.Context, params types.Acq
 func (a *ServerWithRoles) KeepAliveSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
 	if err := a.action(apidefaults.Namespace, types.KindSemaphore, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
-	}
-	if a.hasBuiltinRole(types.RoleDiscovery) && lease.SemaphoreKind != types.KindAccessGraph {
-		return trace.AccessDenied("discovery service can not create other semaphores")
 	}
 	return a.authServer.KeepAliveSemaphoreLease(ctx, lease)
 }

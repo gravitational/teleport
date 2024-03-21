@@ -280,7 +280,7 @@ type certificateSigner interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
-	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 	GetProxies() ([]types.Server, error)
 	GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error)

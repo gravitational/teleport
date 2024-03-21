@@ -5959,6 +5959,10 @@ message SAMLIdPServiceProviderSpecV1 {
   // Preset is used to define service provider profile that will have a custom behavior
   // processed by Teleport.
   string Preset = 5 [(gogoproto.jsontag) = "preset"];
+  // RelayState is used to add custom value in the SAML response as a relay_state HTTP parameter.
+  // The value can contain service provider specific redirect URL, static state token etc.
+  // The value is only applied in the IdP initiated SSO flow.
+  string RelayState = 6 [(gogoproto.jsontag) = "relay_state"];
 }
 
 // SAMLAttributeMapping represents SAML service provider requested attribute
@@ -6262,6 +6266,14 @@ message AWSOIDCIntegrationSpecV1 {
   // RoleARN contains the Role ARN used to set up the Integration.
   // This is the AWS Role that Teleport will use to issue tokens for API Calls.
   string RoleARN = 1 [(gogoproto.jsontag) = "role_arn,omitempty"];
+
+  // IssuerS3URI is the Identity Provider that was configured in AWS.
+  // This bucket/prefix/* files must be publicly accessible and contain the following:
+  // > .well-known/openid-configuration
+  // > .well-known/jwks
+  // Format: s3://<bucket>/<prefix>
+  // Optional. The proxy's endpoint is used if it is not specified.
+  string IssuerS3URI = 2 [(gogoproto.jsontag) = "issuer_s3_uri,omitempty"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.

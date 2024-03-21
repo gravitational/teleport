@@ -133,6 +133,12 @@ type SAMLIdPServiceProvider interface {
 	GetAttributeMapping() []*SAMLAttributeMapping
 	// SetAttributeMapping sets Attribute Mapping.
 	SetAttributeMapping([]*SAMLAttributeMapping)
+	// GetPreset returns the Preset.
+	GetPreset() string
+	// GetRelayState returns Relay State.
+	GetRelayState() string
+	// SetRelayState sets Relay State.
+	SetRelayState(string)
 	// Copy returns a copy of this saml idp service provider object.
 	Copy() SAMLIdPServiceProvider
 	// CloneResource returns a copy of the SAMLIdPServiceProvider as a ResourceWithLabels
@@ -193,6 +199,21 @@ func (s *SAMLIdPServiceProviderV1) GetAttributeMapping() []*SAMLAttributeMapping
 // SetAttributeMapping sets Attribute Mapping.
 func (s *SAMLIdPServiceProviderV1) SetAttributeMapping(attrMaps []*SAMLAttributeMapping) {
 	s.Spec.AttributeMapping = attrMaps
+}
+
+// GetPreset returns the Preset.
+func (s *SAMLIdPServiceProviderV1) GetPreset() string {
+	return s.Spec.Preset
+}
+
+// GetRelayState returns Relay State.
+func (s *SAMLIdPServiceProviderV1) GetRelayState() string {
+	return s.Spec.RelayState
+}
+
+// SetRelayState sets Relay State.
+func (s *SAMLIdPServiceProviderV1) SetRelayState(relayState string) {
+	s.Spec.RelayState = relayState
 }
 
 // String returns the SAML IdP service provider string representation.
@@ -265,11 +286,27 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 		attrNames[attributeMap.Name] = struct{}{}
 	}
 
-	if ok := validatePreset(s.Spec.Preset); !ok {
+	if ok := s.checkAndSetPresetDefaults(s.Spec.Preset); !ok {
 		return trace.Wrap(ErrUnsupportedPresetName)
 	}
 
 	return nil
+}
+
+// validatePreset validates SAMLIdPServiceProviderV1 preset field.
+// preset can be either empty or one of the supported type.
+func (s *SAMLIdPServiceProviderV1) checkAndSetPresetDefaults(preset string) bool {
+	switch preset {
+	case "":
+		return true
+	case samlsp.GCPWorkforce:
+		if s.GetRelayState() == "" {
+			s.SetRelayState(samlsp.DefaultRelayStateGCPWorkforce)
+		}
+		return true
+	default:
+		return false
+	}
 }
 
 // SAMLIdPServiceProviders is a list of SAML IdP service provider resources.
@@ -315,15 +352,4 @@ func (am *SAMLAttributeMapping) CheckAndSetDefaults() error {
 		return trace.BadParameter("invalid name format: %s", am.NameFormat)
 	}
 	return nil
-}
-
-// validatePreset validates SAMLIdPServiceProviderV1 preset field.
-// preset can be either empty or one of the supported type.
-func validatePreset(preset string) bool {
-	switch preset {
-	case "", samlsp.GCPWorkforce:
-		return true
-	default:
-		return false
-	}
 }
