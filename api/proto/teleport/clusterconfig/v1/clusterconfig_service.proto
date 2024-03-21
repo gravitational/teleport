@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.clusterconfig.v1;
 
+import "teleport/clusterconfig/v1/access_graph.proto";
 import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1;clusterconfigv1";
@@ -51,6 +52,9 @@ service ClusterConfigService {
 
   // GetClusterAuditConfig retrieves the active cluster audit configuration.
   rpc GetClusterAuditConfig(GetClusterAuditConfigRequest) returns (types.ClusterAuditConfigV2);
+
+  // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
+  rpc GetClusterAccessGraphConfig(GetClusterAccessGraphConfigRequest) returns (GetClusterAccessGraphConfigResponse);
 }
 
 // Request for GetClusterNetworkingConfig
@@ -103,3 +107,12 @@ message ResetAuthPreferenceRequest {}
 
 // Request for GetClusterAuditConfig
 message GetClusterAuditConfigRequest {}
+
+// Request for GetClusterAccessGraphConfig
+message GetClusterAccessGraphConfigRequest {}
+
+// Response for GetClusterAccessGraphConfig
+message GetClusterAccessGraphConfigResponse {
+  // access_graph holds the information about Access Graph service.
+  teleport.clusterconfig.v1.AccessGraphConfig access_graph = 1;
+}
