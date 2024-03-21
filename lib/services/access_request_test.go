@@ -644,7 +644,7 @@ func TestReviewThresholds(t *testing.T) {
 					propose:         approve,
 					assumeStartTime: clock.Now().UTC().Add(10000 * time.Hour),
 					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
-						require.ErrorIs(tt, err, trace.BadParameter("request start time is after expiry"), i...)
+						require.ErrorContains(tt, err, "assume start time must be prior to access expiry time", i...)
 					},
 				},
 			},
@@ -1803,7 +1803,7 @@ func (mcg mockClusterGetter) GetClusterName(opts ...MarshalOption) (types.Cluste
 	return mcg.localCluster, nil
 }
 
-func (mcg mockClusterGetter) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
+func (mcg mockClusterGetter) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
 	if cluster, ok := mcg.remoteClusters[clusterName]; ok {
 		return cluster, nil
 	}

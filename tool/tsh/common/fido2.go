@@ -65,7 +65,7 @@ type fido2DiagCommand struct {
 	*kingpin.CmdClause
 }
 
-func (_ *fido2DiagCommand) run(cf *CLIConf) error {
+func (*fido2DiagCommand) run(cf *CLIConf) error {
 	diag, err := wancli.FIDO2Diag(cf.Context, os.Stdout)
 	// Abort if we got a nil diagnostic, otherwise print as much as we can.
 	if diag == nil {

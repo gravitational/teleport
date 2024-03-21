@@ -34,6 +34,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/auth"
@@ -250,7 +251,7 @@ func (c *ProxyConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("listener missing")
 	}
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "alpn:proxy")
+		c.Log = logrus.WithField(teleport.ComponentKey, "alpn:proxy")
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()

@@ -636,7 +636,17 @@ func handleLocalPortForward(ctx context.Context, addr string, file *os.File) err
 }
 
 func createRemotePortForwardingListener(ctx context.Context, addr string) (*os.File, error) {
-	var lc net.ListenConfig
+	lc := net.ListenConfig{
+		Control: func(network, addr string, conn syscall.RawConn) error {
+			var err error
+			err2 := conn.Control(func(descriptor uintptr) {
+				// Disable address reuse to prevent socket replacement.
+				err = syscall.SetsockoptInt(int(descriptor), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 0)
+			})
+			return trace.NewAggregate(err2, err)
+		},
+	}
+
 	listener, err := lc.Listen(ctx, "tcp", addr)
 	if err != nil {
 		return nil, trace.Wrap(err)

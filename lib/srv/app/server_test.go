@@ -172,7 +172,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	t.Cleanup(func() { s.authServer.Close() })
 
 	if config.ServerStreamer != nil {
-		err = s.authServer.AuthServer.SetSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
+		_, err = s.authServer.AuthServer.UpsertSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
 			Spec: types.SessionRecordingConfigSpecV2{Mode: types.RecordAtNodeSync},
 		})
 		require.NoError(t, err)

@@ -47,6 +47,7 @@ type Services interface {
 	SAMLIdPServiceProviders
 	UserGroups
 	Integrations
+	KubeWaitingContainer
 
 	OktaClient() Okta
 	AccessListClient() AccessLists

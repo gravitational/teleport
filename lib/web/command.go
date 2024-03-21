@@ -458,8 +458,8 @@ func newCommandHandler(ctx context.Context, cfg CommandHandlerConfig) (*commandH
 	return &commandHandler{
 		sshBaseHandler: sshBaseHandler{
 			log: logrus.WithFields(logrus.Fields{
-				trace.Component: teleport.ComponentWebsocket,
-				"session_id":    cfg.SessionData.ID.String(),
+				teleport.ComponentKey: teleport.ComponentWebsocket,
+				"session_id":          cfg.SessionData.ID.String(),
 			}),
 			ctx:                cfg.SessionCtx,
 			userAuthClient:     cfg.UserAuthClient,

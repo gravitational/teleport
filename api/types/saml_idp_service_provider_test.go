@@ -27,14 +27,16 @@ import (
 // TestNewSAMLIdPServiceProvider ensures a valid SAML IdP service provider.
 func TestNewSAMLIdPServiceProvider(t *testing.T) {
 	tests := []struct {
-		name             string
-		entityDescriptor string
-		entityID         string
-		acsURL           string
-		errAssertion     require.ErrorAssertionFunc
-		expectedEntityID string
-		attributeMapping []*SAMLAttributeMapping
-		preset           string
+		name               string
+		entityDescriptor   string
+		entityID           string
+		acsURL             string
+		errAssertion       require.ErrorAssertionFunc
+		expectedEntityID   string
+		attributeMapping   []*SAMLAttributeMapping
+		preset             string
+		relayState         string
+		expectedRelayState string
 	}{
 		{
 			name:             "valid entity descriptor",
@@ -181,7 +183,7 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			acsURL:           "https:/test.com/acs",
 			expectedEntityID: "IAMShowcase",
 			errAssertion:     require.NoError,
-			preset:           samlsp.GCP,
+			preset:           samlsp.GCPWorkforce,
 		},
 		{
 			name:             "unsupported preset value",
@@ -193,6 +195,31 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 				require.ErrorContains(t, err, "unsupported preset")
 			},
 			preset: "notsupported",
+		},
+		{
+			name:               "GCP Workforce user provided relay state",
+			entityID:           "IAMShowcase",
+			acsURL:             "https:/test.com/acs",
+			errAssertion:       require.NoError,
+			preset:             samlsp.GCPWorkforce,
+			relayState:         "user_provided_relay_state",
+			expectedRelayState: "user_provided_relay_state",
+		},
+		{
+			name:               "GCP Workforce default relay state",
+			entityID:           "IAMShowcase",
+			acsURL:             "https:/test.com/acs",
+			errAssertion:       require.NoError,
+			preset:             samlsp.GCPWorkforce,
+			expectedRelayState: samlsp.DefaultRelayStateGCPWorkforce,
+		},
+		{
+			name:               "default relay state should not be set for empty preset value",
+			entityID:           "IAMShowcase",
+			acsURL:             "https:/test.com/acs",
+			errAssertion:       require.NoError,
+			preset:             "",
+			expectedRelayState: "",
 		},
 	}
 
@@ -206,13 +233,22 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 				ACSURL:           test.acsURL,
 				AttributeMapping: test.attributeMapping,
 				Preset:           test.preset,
+				RelayState:       test.relayState,
 			})
 
 			test.errAssertion(t, err)
 			if sp != nil {
-				require.Equal(t, test.expectedEntityID, sp.GetEntityID())
+				if test.expectedEntityID != "" {
+					require.Equal(t, test.expectedEntityID, sp.GetEntityID())
+				}
 				if len(sp.GetAttributeMapping()) > 0 {
 					require.Equal(t, test.attributeMapping, sp.GetAttributeMapping())
+				}
+				if test.preset == "" && test.relayState == "" {
+					require.Empty(t, sp.GetRelayState())
+				}
+				if test.expectedRelayState != "" {
+					require.Equal(t, test.expectedRelayState, sp.GetRelayState())
 				}
 			}
 		})

@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	ecatypes "github.com/gravitational/teleport/api/types/externalauditstorage"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/configurators"
@@ -485,8 +486,13 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		IntegrationConfAWSOIDCIdPArguments.Name)
 	integrationConfAWSOIDCIdPCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.Role)
-	integrationConfAWSOIDCIdPCmd.Flag("proxy-public-url", "Proxy Public URL (eg https://mytenant.teleport.sh).").Required().StringVar(&ccf.
+	integrationConfAWSOIDCIdPCmd.Flag("proxy-public-url", "Proxy Public URL (eg https://mytenant.teleport.sh).").StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL)
+	integrationConfAWSOIDCIdPCmd.Flag("insecure", "Insecure mode disables certificate validation.").BoolVar(&ccf.InsecureMode)
+	integrationConfAWSOIDCIdPCmd.Flag("s3-bucket-uri", "The S3 URI(format: s3://<bucket>/<prefix>) used to store the OpenID configuration and public keys. ").StringVar(&ccf.
+		IntegrationConfAWSOIDCIdPArguments.S3BucketURI)
+	integrationConfAWSOIDCIdPCmd.Flag("s3-jwks-base64", `The JWKS base 64 encoded. Required when using the S3 Bucket as the Issuer URL. Format: base64({"keys":[{"kty":"RSA","alg":"RS256","n":"<value of n>","e":"<value of e>","use":"sig","kid":""}]}).`).StringVar(&ccf.
+		IntegrationConfAWSOIDCIdPArguments.S3JWKSContentsB64)
 
 	integrationConfListDatabasesCmd := integrationConfigureCmd.Command("listdatabases-iam", "Adds required IAM permissions to List RDS Databases (Instances and Clusters).")
 	integrationConfListDatabasesCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfListDatabasesIAMArguments.Region)
@@ -599,7 +605,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case integrationConfEKSCmd.FullCommand():
 		err = onIntegrationConfEKSIAM(ccf.IntegrationConfEKSIAMArguments)
 	case integrationConfAWSOIDCIdPCmd.FullCommand():
-		err = onIntegrationConfAWSOIDCIdP(ccf.IntegrationConfAWSOIDCIdPArguments)
+		err = onIntegrationConfAWSOIDCIdP(ccf)
 	case integrationConfListDatabasesCmd.FullCommand():
 		err = onIntegrationConfListDatabasesIAM(ccf.IntegrationConfListDatabasesIAMArguments)
 	case integrationConfExternalAuditCmd.FullCommand():
@@ -1010,8 +1016,11 @@ func onIntegrationConfEKSIAM(params config.IntegrationConfEKSIAM) error {
 	return nil
 }
 
-func onIntegrationConfAWSOIDCIdP(params config.IntegrationConfAWSOIDCIdP) error {
+func onIntegrationConfAWSOIDCIdP(clf config.CommandLineFlags) error {
 	ctx := context.Background()
+
+	// pass the value of --insecure flag to the runtime
+	lib.SetInsecureDevMode(clf.InsecureMode)
 
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
@@ -1022,10 +1031,12 @@ func onIntegrationConfAWSOIDCIdP(params config.IntegrationConfAWSOIDCIdP) error 
 	}
 
 	err = awsoidc.ConfigureIdPIAM(ctx, iamClient, awsoidc.IdPIAMConfigureRequest{
-		Cluster:            params.Cluster,
-		IntegrationName:    params.Name,
-		IntegrationRole:    params.Role,
-		ProxyPublicAddress: params.ProxyPublicURL,
+		Cluster:            clf.IntegrationConfAWSOIDCIdPArguments.Cluster,
+		IntegrationName:    clf.IntegrationConfAWSOIDCIdPArguments.Name,
+		IntegrationRole:    clf.IntegrationConfAWSOIDCIdPArguments.Role,
+		ProxyPublicAddress: clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
+		S3BucketLocation:   clf.IntegrationConfAWSOIDCIdPArguments.S3BucketURI,
+		S3JWKSContentsB64:  clf.IntegrationConfAWSOIDCIdPArguments.S3JWKSContentsB64,
 	})
 	if err != nil {
 		return trace.Wrap(err)

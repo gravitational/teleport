@@ -496,6 +496,18 @@ spec:
                           type: string
                       type: object
                     type: array
+                  saml_idp_service_provider_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: SAMLIdPServiceProviderLabels is a labels map used
+                      in RBAC system to allow/deny access to saml_idp_service_provider
+                      resource.
+                    type: object
+                  saml_idp_service_provider_labels_expression:
+                    description: SAMLIdPServiceProviderLabelsExpression is a predicate
+                      expression used to allow/deny access to saml_idp_service_provider
+                      resource.
+                    type: string
                   spiffe:
                     description: SPIFFE is used to allow or deny access to a role
                       holder to generating a SPIFFE SVID.
@@ -1022,6 +1034,18 @@ spec:
                           type: string
                       type: object
                     type: array
+                  saml_idp_service_provider_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: SAMLIdPServiceProviderLabels is a labels map used
+                      in RBAC system to allow/deny access to saml_idp_service_provider
+                      resource.
+                    type: object
+                  saml_idp_service_provider_labels_expression:
+                    description: SAMLIdPServiceProviderLabelsExpression is a predicate
+                      expression used to allow/deny access to saml_idp_service_provider
+                      resource.
+                    type: string
                   spiffe:
                     description: SPIFFE is used to allow or deny access to a role
                       holder to generating a SPIFFE SVID.
@@ -1092,7 +1116,7 @@ spec:
                       properties:
                         mode:
                           description: Mode is the type of extension to be used --
-                            currently critical-option is not supported
+                            currently critical-option is not supported. 0 is "extension".
                           x-kubernetes-int-or-string: true
                         name:
                           description: Name specifies the key to be used in the cert
@@ -1100,7 +1124,7 @@ spec:
                           type: string
                         type:
                           description: Type represents the certificate type being
-                            extended, only ssh is supported at this time.
+                            extended, only ssh is supported at this time. 0 is "ssh".
                           x-kubernetes-int-or-string: true
                         value:
                           description: Value specifies the value to be used in the
@@ -1125,7 +1149,8 @@ spec:
                     type: boolean
                   create_db_user_mode:
                     description: CreateDatabaseUserMode allows users to be automatically
-                      created on a database when not set to off.
+                      created on a database when not set to off. 0 is "unspecified",
+                      1 is "off", 2 is "keep", 3 is "best_effort_drop".
                     x-kubernetes-int-or-string: true
                   create_desktop_user:
                     description: CreateDesktopUser allows users to be automatically
@@ -1137,7 +1162,9 @@ spec:
                     type: boolean
                   create_host_user_mode:
                     description: CreateHostUserMode allows users to be automatically
-                      created on a host when not set to off
+                      created on a host when not set to off. 0 is "unspecified"; 1
+                      is "off"; 2 is "drop" (removed for v15 and above), 3 is "keep";
+                      4 is "insecure-drop".
                     x-kubernetes-int-or-string: true
                   desktop_clipboard:
                     description: DesktopClipboard indicates whether clipboard sharing
@@ -1248,7 +1275,8 @@ spec:
                     type: string
                   require_session_mfa:
                     description: RequireMFAType is the type of MFA requirement enforced
-                      for this user.
+                      for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY",
+                      3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
                     x-kubernetes-int-or-string: true
                   ssh_file_copy:
                     description: SSHFileCopy indicates whether remote file operations
@@ -1824,6 +1852,18 @@ spec:
                           type: string
                       type: object
                     type: array
+                  saml_idp_service_provider_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: SAMLIdPServiceProviderLabels is a labels map used
+                      in RBAC system to allow/deny access to saml_idp_service_provider
+                      resource.
+                    type: object
+                  saml_idp_service_provider_labels_expression:
+                    description: SAMLIdPServiceProviderLabelsExpression is a predicate
+                      expression used to allow/deny access to saml_idp_service_provider
+                      resource.
+                    type: string
                   spiffe:
                     description: SPIFFE is used to allow or deny access to a role
                       holder to generating a SPIFFE SVID.
@@ -2350,6 +2390,18 @@ spec:
                           type: string
                       type: object
                     type: array
+                  saml_idp_service_provider_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: SAMLIdPServiceProviderLabels is a labels map used
+                      in RBAC system to allow/deny access to saml_idp_service_provider
+                      resource.
+                    type: object
+                  saml_idp_service_provider_labels_expression:
+                    description: SAMLIdPServiceProviderLabelsExpression is a predicate
+                      expression used to allow/deny access to saml_idp_service_provider
+                      resource.
+                    type: string
                   spiffe:
                     description: SPIFFE is used to allow or deny access to a role
                       holder to generating a SPIFFE SVID.
@@ -2420,7 +2472,7 @@ spec:
                       properties:
                         mode:
                           description: Mode is the type of extension to be used --
-                            currently critical-option is not supported
+                            currently critical-option is not supported. 0 is "extension".
                           x-kubernetes-int-or-string: true
                         name:
                           description: Name specifies the key to be used in the cert
@@ -2428,7 +2480,7 @@ spec:
                           type: string
                         type:
                           description: Type represents the certificate type being
-                            extended, only ssh is supported at this time.
+                            extended, only ssh is supported at this time. 0 is "ssh".
                           x-kubernetes-int-or-string: true
                         value:
                           description: Value specifies the value to be used in the
@@ -2453,7 +2505,8 @@ spec:
                     type: boolean
                   create_db_user_mode:
                     description: CreateDatabaseUserMode allows users to be automatically
-                      created on a database when not set to off.
+                      created on a database when not set to off. 0 is "unspecified",
+                      1 is "off", 2 is "keep", 3 is "best_effort_drop".
                     x-kubernetes-int-or-string: true
                   create_desktop_user:
                     description: CreateDesktopUser allows users to be automatically
@@ -2465,7 +2518,9 @@ spec:
                     type: boolean
                   create_host_user_mode:
                     description: CreateHostUserMode allows users to be automatically
-                      created on a host when not set to off
+                      created on a host when not set to off. 0 is "unspecified"; 1
+                      is "off"; 2 is "drop" (removed for v15 and above), 3 is "keep";
+                      4 is "insecure-drop".
                     x-kubernetes-int-or-string: true
                   desktop_clipboard:
                     description: DesktopClipboard indicates whether clipboard sharing
@@ -2576,7 +2631,8 @@ spec:
                     type: string
                   require_session_mfa:
                     description: RequireMFAType is the type of MFA requirement enforced
-                      for this user.
+                      for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY",
+                      3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
                     x-kubernetes-int-or-string: true
                   ssh_file_copy:
                     description: SSHFileCopy indicates whether remote file operations

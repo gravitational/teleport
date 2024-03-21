@@ -16,14 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export function isAccessDeniedError(error: Error): boolean {
-  return (error.message as string)?.includes('access denied');
-}
+import { isTshdRpcError } from './cloneableClient';
 
-export function isNotFoundError(error: Error): boolean {
-  return (error.message as string)?.includes('NOT_FOUND');
-}
-
-export function isUnimplementedError(error: Error): boolean {
-  return (error.message as string)?.includes('UNIMPLEMENTED');
+/** @deprecated Use `isTshdRpcError(error, 'UNIMPLEMENTED')`. */
+export function isUnimplementedError(error: unknown): boolean {
+  return isTshdRpcError(error, 'UNIMPLEMENTED');
 }

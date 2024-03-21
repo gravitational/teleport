@@ -157,8 +157,8 @@ func newClusterPeer(srv *server, connInfo types.TunnelConnection, offlineThresho
 		srv:      srv,
 		connInfo: connInfo,
 		log: log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentReverseTunnelServer,
-			trace.ComponentFields: map[string]string{
+			teleport.ComponentKey: teleport.ComponentReverseTunnelServer,
+			teleport.ComponentFields: map[string]string{
 				"cluster": connInfo.GetClusterName(),
 			},
 		}),

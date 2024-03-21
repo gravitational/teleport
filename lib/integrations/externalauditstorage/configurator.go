@@ -33,6 +33,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/lib/modules"
@@ -322,7 +323,7 @@ func newCredentialsCache(ctx context.Context, region, roleARN string, options *O
 	gotFirstCredsOrErr := make(chan struct{})
 	return &credentialsCache{
 		roleARN:                 roleARN,
-		log:                     logrus.WithField(trace.Component, "ExternalAuditStorage.CredentialsCache"),
+		log:                     logrus.WithField(teleport.ComponentKey, "ExternalAuditStorage.CredentialsCache"),
 		initialized:             initialized,
 		closeInitialized:        sync.OnceFunc(func() { close(initialized) }),
 		gotFirstCredsOrErr:      gotFirstCredsOrErr,

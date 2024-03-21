@@ -132,9 +132,10 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 }
 
 type createAuthenticateChallengeRequest struct {
-	IsMFARequiredRequest *isMFARequiredRequest `json:"is_mfa_required_req"`
-	ChallengeScope       int                   `json:"challenge_scope"`
-	ChallengeAllowReuse  bool                  `json:"challenge_allow_reuse"`
+	IsMFARequiredRequest        *isMFARequiredRequest `json:"is_mfa_required_req"`
+	ChallengeScope              int                   `json:"challenge_scope"`
+	ChallengeAllowReuse         bool                  `json:"challenge_allow_reuse"`
+	UserVerificationRequirement string                `json:"user_verification_requirement"`
 }
 
 // createAuthenticateChallengeHandle creates and returns MFA authentication challenges for the user in context (logged in user).
@@ -169,8 +170,9 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		},
 		MFARequiredCheck: mfaRequiredCheckProto,
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope:      mfav1.ChallengeScope(req.ChallengeScope),
-			AllowReuse: allowReuse,
+			Scope:                       mfav1.ChallengeScope(req.ChallengeScope),
+			AllowReuse:                  allowReuse,
+			UserVerificationRequirement: req.UserVerificationRequirement,
 		},
 	})
 	if err != nil {

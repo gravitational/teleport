@@ -97,7 +97,7 @@ type FSKeyStore struct {
 func NewFSKeyStore(dirPath string) *FSKeyStore {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &FSKeyStore{
-		log:    logrus.WithField(trace.Component, teleport.ComponentKeyStore),
+		log:    logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
 		KeyDir: dirPath,
 	}
 }

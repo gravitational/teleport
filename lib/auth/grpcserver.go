@@ -49,9 +49,11 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev12 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	discoveryconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -68,9 +70,11 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
+	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
+	kubewaitingcontainerv1 "github.com/gravitational/teleport/lib/auth/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/auth/loginrule"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
@@ -330,9 +334,6 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 				}
 			}
 			g.Debugf("Completed stream for session %v", sessionID)
-			if err != nil {
-				return trace.Wrap(err)
-			}
 			return nil
 		} else if flushAndClose := request.GetFlushAndCloseStream(); flushAndClose != nil {
 			if eventStream == nil {
@@ -688,8 +689,7 @@ func (g *GRPCServer) generateUserSingleUseCerts(ctx context.Context, actx *grpcC
 	singleUseCert, err := userSingleUseCertsGenerate(
 		ctx,
 		actx,
-		*req,
-		nil /* mfaDev handled by generateUserCerts */)
+		*req)
 	if err != nil {
 		g.Entry.Warningf("Failed to generate single-use cert: %v", err)
 		return nil, trace.Wrap(err)
@@ -1744,14 +1744,7 @@ func (g *GRPCServer) CreateAppSession(ctx context.Context, req *authpb.CreateApp
 		return nil, trace.Wrap(err)
 	}
 
-	session, err := auth.CreateAppSession(ctx, types.CreateAppSessionRequest{
-		Username:          req.GetUsername(),
-		PublicAddr:        req.GetPublicAddr(),
-		ClusterName:       req.GetClusterName(),
-		AWSRoleARN:        req.GetAWSRoleARN(),
-		AzureIdentity:     req.GetAzureIdentity(),
-		GCPServiceAccount: req.GetGCPServiceAccount(),
-	})
+	session, err := auth.CreateAppSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2539,7 +2532,7 @@ var ErrNoMFADevices = &trace.AccessDeniedError{
 	Message: "MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices",
 }
 
-func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req authpb.UserCertsRequest, mfaDev *types.MFADevice) (*authpb.Certs, error) {
+func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req authpb.UserCertsRequest) (*authpb.Certs, error) {
 	// Get the client IP.
 	clientPeer, ok := peer.FromContext(ctx)
 	if !ok {
@@ -3471,6 +3464,7 @@ func (g *GRPCServer) GetAuthPreference(ctx context.Context, _ *emptypb.Empty) (*
 }
 
 // SetAuthPreference sets cluster auth preference.
+// Deprecated: Use Update/UpsertAuthPreference where appropriate.
 func (g *GRPCServer) SetAuthPreference(ctx context.Context, authPref *types.AuthPreferenceV2) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -5227,9 +5221,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		),
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	usersService, err := usersv1.NewService(usersv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5242,6 +5233,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	userspb.RegisterUsersServiceServer(server, usersService)
 
 	botService, err := machineidv1.NewBotService(machineidv1.BotServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5281,7 +5274,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
 		Entry: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
+			teleport.ComponentKey: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
 		}),
 		server:       server,
 		usersService: usersService,
@@ -5393,7 +5386,34 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	userloginstatev1.RegisterUserLoginStateServiceServer(server, userLoginStateServer)
 
-	userspb.RegisterUsersServiceServer(server, usersService)
+	clusterConfigService, err := clusterconfigv1.NewService(clusterconfigv1.ServiceConfig{
+		Cache:      cfg.AuthServer.Cache,
+		Backend:    cfg.AuthServer.Services,
+		Authorizer: cfg.Authorizer,
+		Emitter:    cfg.Emitter,
+		AccessGraph: clusterconfigv1.AccessGraphConfig{
+			Enabled:  cfg.APIConfig.AccessGraph.Enabled,
+			CA:       cfg.APIConfig.AccessGraph.CA,
+			Address:  cfg.APIConfig.AccessGraph.Address,
+			Insecure: cfg.APIConfig.AccessGraph.Insecure,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterconfigpb.RegisterClusterConfigServiceServer(server, clusterConfigService)
+
+	// Initialize and register the Kubernetes waiting container service.
+	kubeWaitingContsServer, err := kubewaitingcontainerv1.NewService(kubewaitingcontainerv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+		Cache:      cfg.AuthServer.Cache,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	kubewaitingcontainerpb.RegisterKubeWaitingContainersServiceServer(server, kubeWaitingContsServer)
 
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all

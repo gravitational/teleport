@@ -18,6 +18,8 @@
 
 import { EventMeta } from 'teleport/services/userEvent';
 
+import { IsMfaRequiredRequest, MfaChallengeScope } from './auth';
+
 export type Base64urlString = string;
 
 export type UserCredentials = {
@@ -69,4 +71,18 @@ export type ResetPasswordReqWithEvent = {
 export type ResetPasswordWithWebauthnReqWithEvent = {
   req: NewCredentialRequest;
   eventMeta?: EventMeta;
+};
+
+export type CreateAuthenticateChallengeRequest = {
+  scope: MfaChallengeScope;
+  allowReuse?: boolean;
+  isMfaRequiredRequest?: IsMfaRequiredRequest;
+  userVerificationRequirement?: UserVerificationRequirement;
+};
+
+export type ChangePasswordReq = {
+  oldPassword: string;
+  newPassword: string;
+  secondFactorToken: string;
+  credential?: Credential;
 };

@@ -1086,52 +1086,6 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 	require.NotEqual(t, updated.GetDisplay(), upserted.GetDisplay())
 }
 
-func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
-	ctx := context.Background()
-	clusterName := "example.com"
-	out, err := s.PresenceS.GetRemoteClusters()
-	require.NoError(t, err)
-	require.Empty(t, out)
-
-	rc, err := types.NewRemoteCluster(clusterName)
-	require.NoError(t, err)
-
-	rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
-
-	err = s.PresenceS.CreateRemoteCluster(rc)
-	require.NoError(t, err)
-
-	err = s.PresenceS.CreateRemoteCluster(rc)
-	require.True(t, trace.IsAlreadyExists(err))
-
-	out, err = s.PresenceS.GetRemoteClusters()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	require.Empty(t, cmp.Diff(out[0], rc, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
-
-	err = s.PresenceS.DeleteAllRemoteClusters()
-	require.NoError(t, err)
-
-	out, err = s.PresenceS.GetRemoteClusters()
-	require.NoError(t, err)
-	require.Empty(t, out)
-
-	// test delete individual connection
-	err = s.PresenceS.CreateRemoteCluster(rc)
-	require.NoError(t, err)
-
-	out, err = s.PresenceS.GetRemoteClusters()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	require.Empty(t, cmp.Diff(out[0], rc, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
-
-	err = s.PresenceS.DeleteRemoteCluster(ctx, clusterName)
-	require.NoError(t, err)
-
-	err = s.PresenceS.DeleteRemoteCluster(ctx, clusterName)
-	require.True(t, trace.IsNotFound(err))
-}
-
 // AuthPreference tests authentication preference service
 func (s *ServicesTestSuite) AuthPreference(t *testing.T) {
 	ctx := context.Background()
@@ -1830,9 +1784,10 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				rc, err := types.NewRemoteCluster("example.com")
 				rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 				require.NoError(t, err)
-				require.NoError(t, s.PresenceS.CreateRemoteCluster(rc))
+				_, err = s.PresenceS.CreateRemoteCluster(ctx, rc)
+				require.NoError(t, err)
 
-				out, err := s.PresenceS.GetRemoteClusters()
+				out, err := s.PresenceS.GetRemoteClusters(ctx)
 				require.NoError(t, err)
 
 				err = s.PresenceS.DeleteRemoteCluster(ctx, rc.GetName())
@@ -1957,7 +1912,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				err = s.ConfigS.SetClusterNetworkingConfig(ctx, netConfig)
+				_, err = s.ConfigS.UpsertClusterNetworkingConfig(ctx, netConfig)
 				require.NoError(t, err)
 
 				out, err := s.ConfigS.GetClusterNetworkingConfig(ctx)
@@ -1979,7 +1934,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				err = s.ConfigS.SetSessionRecordingConfig(ctx, recConfig)
+				_, err = s.ConfigS.UpsertSessionRecordingConfig(ctx, recConfig)
 				require.NoError(t, err)
 
 				out, err := s.ConfigS.GetSessionRecordingConfig(ctx)
