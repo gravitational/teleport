@@ -23,9 +23,12 @@ import { ButtonSecondary } from 'design/Button';
 import { Platform, getPlatform } from 'design/platform';
 import { Text, Flex } from 'design';
 import * as Icons from 'design/Icon';
-import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { Path, makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 import * as connectMyComputer from 'shared/connectMyComputer';
+import {
+  DownloadLink,
+  DownloadConnect,
+} from 'shared/components/DownloadConnect/DownloadConnect';
 
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
@@ -318,29 +321,6 @@ export const usePollForConnectMyComputerNode = (args: {
   );
 
   return { node, isPolling };
-};
-
-type DownloadLink = { text: string; url: string };
-
-const DownloadConnect = (props: { downloadLinks: Array<DownloadLink> }) => {
-  if (props.downloadLinks.length === 1) {
-    const downloadLink = props.downloadLinks[0];
-    return (
-      <ButtonSecondary as="a" href={downloadLink.url}>
-        Download Teleport Connect
-      </ButtonSecondary>
-    );
-  }
-
-  return (
-    <MenuButton buttonText="Download Teleport Connect">
-      {props.downloadLinks.map(link => (
-        <MenuItem key={link.url} as="a" href={link.url}>
-          {link.text}
-        </MenuItem>
-      ))}
-    </MenuButton>
-  );
 };
 
 function getConnectDownloadLinks(
