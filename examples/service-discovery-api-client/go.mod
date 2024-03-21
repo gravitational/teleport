@@ -3,7 +3,7 @@ module register-app-service
 go 1.19
 
 require (
-	github.com/docker/docker v24.0.7+incompatible
+	github.com/docker/docker v24.0.9+incompatible
 	github.com/gravitational/teleport/api v0.0.0-20240221193746-cb12e1ea4a57
 	github.com/gravitational/trace v1.3.1
 	google.golang.org/grpc v1.59.0
