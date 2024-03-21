@@ -507,6 +507,18 @@ message Features {
   // Policy enables the Teleport Policy feature set.
   // At the time of writing, this includes Teleport Access Graph (TAG).
   PolicyFeature Policy = 28 [(gogoproto.jsontag) = "policy,omitempty"];
+  // Questionnaire indicates whether cluster users should get an onboarding questionnaire
+  bool Questionnaire = 29;
+  // IsStripeManaged indicates if the cluster billing is managed via Stripe
+  bool IsStripeManaged = 30;
+  // ExternalAuditStorage indicates whether the EAS feature is enabled in the cluster.
+  bool ExternalAuditStorage = 31;
+  // PremiumSupport indicates if the customer has access to premium support
+  bool PremiumSupport = 32;
+  // JoinActiveSessions indicates whether joining active sessions via web UI is enabled
+  bool JoinActiveSessions = 33;
+  // IdentityManagement indicates whether identity management (Jamf Plugin) can be used in the cluster
+  bool IdentityManagement = 34;
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
