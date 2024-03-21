@@ -85,6 +85,9 @@ func createAndSetupTUNDeviceWithoutRoot(ctx context.Context) (tun.Device, string
 	}()
 
 	tunName, tunFd, err := recvTUNNameAndFd(ctx, socket)
+	if err != nil {
+		return nil, "", trace.Wrap(err, "receiving TUN name and file descriptor")
+	}
 
 	tunDevice, err := tun.CreateTUNFromFile(os.NewFile(tunFd, ""), 0)
 	if err != nil {
