@@ -78,7 +78,8 @@ require (
 	github.com/distribution/reference v0.6.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-elasticsearch/v8 v8.13.1
-	github.com/elimity-com/scim v0.0.0-20240320110924-172bf2aee9c8
+	github.com/elimity-com/scim v0.0.0-20230426070224-941a5eac92f3
+	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a
 	github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d
 	github.com/fsouza/fake-gcs-server v1.48.0
@@ -234,8 +235,6 @@ require (
 	github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd // indirect
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
 )
-
-require github.com/evanphx/json-patch v5.9.0+incompatible
 
 require (
 	cloud.google.com/go v0.112.1 // indirect
