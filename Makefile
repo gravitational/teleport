@@ -1174,31 +1174,45 @@ update-tag:
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
 	git push $(TAG_REMOTE) $(GITTAG) && git push $(TAG_REMOTE) api/$(GITTAG)
 
+# HAS_CLOUD_SEMVER is non-empty if $(VERSION) contains a cloud-only pre-release tag,
+# and is empty if not.
+HAS_CLOUD_SEMVER = $(findstring -cloud.,$(VERSION))$(findstring -dev.cloud.,$(VERSION))
+
 # Builds a tag build on GitHub Actions.
 # Starts a tag publish run using e/.github/workflows/tag-build.yaml
 # for the tag v$(VERSION).
+# If the $(VERSION) variable contains a cloud pre-release component, -cloud. or
+# -dev.cloud., then the cloud-tag-build workflow is run instead. This can be
+# specified explicitly with `make tag-build CLOUD_ONLY=<true|false>`.
 .PHONY: tag-build
+tag-build: CLOUD_ONLY = $(if $(HAS_CLOUD_SEMVER),true,false)
+tag-build: WORKFLOW = $(if $(filter $(CLOUD_ONLY),true),cloud-tag-build,tag-build)
 tag-build:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
-	gh workflow run tag-build.yaml \
+	gh workflow run $(WORKFLOW).yaml \
 		--repo gravitational/teleport.e \
 		--ref "v$(VERSION)" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
 		-f "oss-teleport-ref=v$(VERSION)"
-	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-build.yaml
+	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/$(WORKFLOW).yaml
 
 # Publishes a tag build.
 # Starts a tag publish run using e/.github/workflows/tag-publish.yaml
 # for the tag v$(VERSION).
+# If the $(VERSION) variable contains a cloud pre-release component, -cloud. or
+# -dev.cloud., then the cloud-tag-publish workflow is run instead. This can be
+# specified explicitly with `make tag-publish CLOUD_ONLY=<true|false>`.
 .PHONY: tag-publish
+tag-publish: CLOUD_ONLY = $(if $(HAS_CLOUD_SEMVER),true,false)
+tag-publish: WORKFLOW = $(if $(filter $(CLOUD_ONLY),true),cloud-tag-build,tag-build)
 tag-publish:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
-	gh workflow run tag-publish.yaml \
+	gh workflow run $(WORKFLOW).yaml \
 		--repo gravitational/teleport.e \
 		--ref "v$(VERSION)" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
 		-f "oss-teleport-ref=v$(VERSION)"
-	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-publish.yaml
+	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/$(WORKFLOW).yaml
 
 .PHONY: test-package
 test-package: remove-temp-files
