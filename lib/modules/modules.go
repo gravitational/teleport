@@ -253,7 +253,7 @@ func (f Features) IGSEnabled() bool {
 	return f.IdentityGovernanceSecurity
 }
 
-// Deprecated: use other flags do determine cluster features istead of relying on isTeam
+// TODO(mcbattirola): Deprecate IsTeam once it's unused.
 func (f Features) IsTeam() bool {
 	return f.ProductType == ProductTypeTeam
 }
