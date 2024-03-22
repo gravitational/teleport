@@ -43,8 +43,8 @@ const (
 )
 
 var (
-	// errNoTAGFetchers is returned when there are no TAG fetchers.
-	errNoTAGFetchers = errors.New("no TAG fetchers")
+	// errNoAccessGraphFetchers is returned when there are no TAG fetchers.
+	errNoAccessGraphFetchers = errors.New("no Access Graph fetchers")
 )
 
 func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *aws_sync.Resources, stream accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient, features aws_sync.Features) error {
@@ -62,7 +62,7 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 		if err != nil {
 			s.Log.WithError(err).Error("Error pushing TAGs")
 		}
-		return trace.Wrap(errNoTAGFetchers)
+		return trace.Wrap(errNoAccessGraphFetchers)
 	}
 	resultsC := make(chan fetcherResult, len(allFetchers))
 	// Use a channel to limit the number of concurrent fetchers.
@@ -316,7 +316,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	defer ticker.Stop()
 	for {
 		err := s.reconcileAccessGraph(ctx, currentTAGResources, stream, features)
-		if errors.Is(err, errNoTAGFetchers) {
+		if errors.Is(err, errNoAccessGraphFetchers) {
 			// no fetchers, no need to continue.
 			// we will wait for the config to change and re-evaluate the fetchers
 			// before starting the sync.
