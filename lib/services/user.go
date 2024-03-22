@@ -84,7 +84,7 @@ func (la *LoginAttempt) Check() error {
 }
 
 // UnmarshalUser unmarshals the User resource from JSON.
-func UnmarshalUser(bytes []byte, opts ...MarshalOption) (types.User, error) {
+func UnmarshalUser(bytes []byte, opts ...MarshalOption) (*types.UserV2, error) {
 	var h types.ResourceHeader
 	err := json.Unmarshal(bytes, &h)
 	if err != nil {
