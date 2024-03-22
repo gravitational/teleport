@@ -500,8 +500,11 @@ func (s *ServerV2) MatchSearch(values []string) bool {
 		return false
 	}
 
-	custom := func(val string) bool {
-		return s.GetUseTunnel() && strings.EqualFold(val, "tunnel")
+	var custom func(val string) bool
+	if s.GetUseTunnel() {
+		custom = func(val string) bool {
+			return strings.EqualFold(val, "tunnel")
+		}
 	}
 
 	fieldVals := make([]string, 0, (len(s.Metadata.Labels)*2)+(len(s.Spec.CmdLabels)*2)+len(s.Spec.PublicAddrs)+3)
