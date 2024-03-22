@@ -38,12 +38,18 @@ func newVnetCommands(app *kingpin.Application) vnetCommands {
 
 type vnetCommand struct {
 	*kingpin.CmdClause
+	// customDNSZones is a comma-separated list of custom DNS zones.
+	customDNSZones string
 }
 
 func newVnetCommandBase(app *kingpin.Application) *vnetCommand {
-	cmd := app.Command("vnet", "Start Teleport VNet, a virtual network emulator for HTTP and TCP apps.")
+	cmd := &vnetCommand{
+		CmdClause: app.Command("vnet", "Start Teleport VNet, a virtual network emulator for HTTP and TCP apps."),
+	}
 
-	return &vnetCommand{CmdClause: cmd}
+	cmd.Flag("custom-dns-zones", "custom DNS zones (comma-separated)").StringVar(&cmd.customDNSZones)
+
+	return cmd
 }
 
 type vnetAdminSetupCommand struct {
@@ -53,6 +59,8 @@ type vnetAdminSetupCommand struct {
 	// pidFilePath is a path to a PID file. Used by the privileged process to clean up DNS config when
 	// the unprivileged process exits.
 	pidFilePath string
+	// customDNSZones is a comma-separated list of custom DNS zones.
+	customDNSZones string
 }
 
 func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
@@ -62,6 +70,7 @@ func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 
 	cmd.Flag("socket", "unix socket path").StringVar(&cmd.socketPath)
 	cmd.Flag("pidfile", "pid file path").StringVar(&cmd.pidFilePath)
+	cmd.Flag("custom-dns-zones", "custom DNS zones (comma-separated)").StringVar(&cmd.customDNSZones)
 
 	return cmd
 }

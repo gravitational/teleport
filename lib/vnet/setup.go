@@ -34,7 +34,7 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
-func CreateAndSetupTUNDevice(ctx context.Context) (tun.Device, func(), error) {
+func CreateAndSetupTUNDevice(ctx context.Context, customDNSZones []string) (tun.Device, func(), error) {
 	var (
 		device  tun.Device
 		name    string
@@ -42,9 +42,9 @@ func CreateAndSetupTUNDevice(ctx context.Context) (tun.Device, func(), error) {
 		err     error
 	)
 	if os.Getuid() == 0 {
-		device, name, cleanup, err = createAndSetupTUNDeviceAsRoot(ctx)
+		device, name, cleanup, err = createAndSetupTUNDeviceAsRoot(ctx, customDNSZones)
 	} else {
-		device, name, err = createAndSetupTUNDeviceWithoutRoot(ctx)
+		device, name, err = createAndSetupTUNDeviceWithoutRoot(ctx, customDNSZones)
 		cleanup = func() {}
 	}
 	if err != nil {
@@ -54,7 +54,7 @@ func CreateAndSetupTUNDevice(ctx context.Context) (tun.Device, func(), error) {
 	return device, cleanup, nil
 }
 
-func createAndSetupTUNDeviceAsRoot(ctx context.Context) (tun.Device, string, func(), error) {
+func createAndSetupTUNDeviceAsRoot(ctx context.Context, customDNSZones []string) (tun.Device, string, func(), error) {
 	tun, tunName, err := createTUNDevice()
 	if err != nil {
 		return nil, "", nil, trace.Wrap(err)
@@ -64,14 +64,14 @@ func createAndSetupTUNDeviceAsRoot(ctx context.Context) (tun.Device, string, fun
 		return nil, "", nil, trace.Wrap(err, "setting up host IP routes")
 	}
 
-	cleanup, err := setupHostDNS(ctx)
+	cleanup, err := setupHostDNS(ctx, customDNSZones)
 	if err != nil {
 		return nil, "", nil, trace.Wrap(err, "setting up host DNS configuration")
 	}
 	return tun, tunName, cleanup, nil
 }
 
-func createAndSetupTUNDeviceWithoutRoot(ctx context.Context) (tun.Device, string, error) {
+func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, customDNSZones []string) (tun.Device, string, error) {
 	slog.Info("Spawning child process as root to create and setup TUN device")
 	socket, socketPath, err := createUnixSocket()
 	if err != nil {
@@ -88,7 +88,7 @@ func createAndSetupTUNDeviceWithoutRoot(ctx context.Context) (tun.Device, string
 		// If everything goes well, this will write to the channel only after the context gets canceled,
 		// in which case the error will be ignored as no one will read it.
 		// Not wrapping err in another message as those returned from runAdminSubcommand are enough.
-		errC <- trace.Wrap(runAdminSubcommand(ctx, socketPath))
+		errC <- trace.Wrap(runAdminSubcommand(ctx, socketPath, customDNSZones))
 	}()
 
 	go func() {
@@ -206,7 +206,7 @@ func recvTUNNameAndFd(ctx context.Context, socket *net.UnixListener) (string, ui
 	return tunName, fd, nil
 }
 
-func runAdminSubcommand(ctx context.Context, socketPath string) error {
+func runAdminSubcommand(ctx context.Context, socketPath string, customDNSZones []string) error {
 	pid := os.Getpid()
 	pidFile, err := os.CreateTemp("", "vnet*.pid")
 	if err != nil {
@@ -230,8 +230,9 @@ func runAdminSubcommand(ctx context.Context, socketPath string) error {
 set executableName to "%s"
 set socketPath to "%s"
 set pidFile to "%s"
-do shell script quoted form of executableName & " %s --socket " & quoted form of socketPath & " --pidfile " & quoted form of pidFile with prompt "%s" with administrator privileges`,
-		executableName, socketPath, pidFile.Name(), teleport.VnetAdminSetupSubCommand, prompt)
+set customDNSZones to "%s"
+do shell script quoted form of executableName & " %s --socket " & quoted form of socketPath & " --pidfile " & quoted form of pidFile & " --custom-dns-zones " & quoted form of customDNSZones with prompt "%s" with administrator privileges`,
+		executableName, socketPath, pidFile.Name(), strings.Join(customDNSZones, ","), teleport.VnetAdminSetupSubCommand, prompt)
 
 	// The context we pass here has effect only on the password prompt being shown. Once osascript
 	// spawns the privileged process, canceling the context (and thus killing osascript) has no effect
@@ -260,12 +261,12 @@ do shell script quoted form of executableName & " %s --socket " & quoted form of
 // AdminSubcommand is the tsh subcommand that should run as root that will
 // create and setup a TUN device and pass the file descriptor for that device
 // over the unix socket found at socketPath.
-func AdminSubcommand(ctx context.Context, socketPath, pidFilePath string) error {
+func AdminSubcommand(ctx context.Context, socketPath, pidFilePath string, customDNSZones []string) error {
 	ctx, err := withPidfileCancellation(ctx, pidFilePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tun, tunName, cleanup, err := createAndSetupTUNDeviceAsRoot(ctx)
+	tun, tunName, cleanup, err := createAndSetupTUNDeviceAsRoot(ctx, customDNSZones)
 	if err != nil {
 		return trace.Wrap(err, "doing admin setup")
 	}
@@ -312,7 +313,7 @@ func setupHostIPRoutes(ctx context.Context, tunName string) error {
 	return nil
 }
 
-func setupHostDNS(ctx context.Context) (func(), error) {
+func setupHostDNS(ctx context.Context, customDNSZones []string) (func(), error) {
 	// TODO: support multiple active profiles, custom DNS zones, and react to
 	// changes.
 	profileDir := profile.FullProfilePath(os.Getenv("TELEPORT_HOME"))
@@ -321,15 +322,25 @@ func setupHostDNS(ctx context.Context) (func(), error) {
 		return nil, trace.Wrap(err, "getting current profile")
 	}
 	proxyAddress := currentProfile
-	fileName := "/etc/resolver/" + proxyAddress
-	contents := "nameserver " + defaultDNSAddress.String()
-	if err := os.WriteFile(fileName, []byte(contents), 0644); err != nil {
-		return nil, trace.Wrap(err, "writing DNS configuration file %s", fileName)
-	}
-	return func() {
-		if err := os.Remove(fileName); err != nil {
-			slog.Error("Failed to remove DNS configuration file.", "filename", fileName, "error", err)
-		}
-	}, nil
 
+	allZones := append(customDNSZones, proxyAddress)
+	allFiles := make([]string, len(allZones))
+	cleanup := func() {
+		for _, fileName := range allFiles {
+			if err := os.Remove(fileName); err != nil {
+				slog.Error("Failed to remove DNS configuration file.", "filename", fileName, "error", err)
+			}
+		}
+	}
+
+	for _, zone := range allZones {
+		fileName := "/etc/resolver/" + zone
+		allFiles = append(allFiles, fileName)
+		contents := "nameserver " + defaultDNSAddress.String()
+		if err := os.WriteFile(fileName, []byte(contents), 0644); err != nil {
+			cleanup()
+			return nil, trace.Wrap(err, "writing DNS configuration file %s", fileName)
+		}
+	}
+	return cleanup, nil
 }

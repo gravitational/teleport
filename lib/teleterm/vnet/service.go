@@ -101,7 +101,8 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	// is shown at the time of cancelation.
 	adminSubcmdCtx, cancelAdminSubcmdCtx := context.WithCancel(context.Background())
 
-	tun, cleanup, err := vnet.CreateAndSetupTUNDevice(adminSubcmdCtx)
+	customDNSZones := []string{}
+	tun, cleanup, err := vnet.CreateAndSetupTUNDevice(adminSubcmdCtx, customDNSZones)
 	if err != nil {
 		cancelAdminSubcmdCtx()
 		return nil, trace.Wrap(err)

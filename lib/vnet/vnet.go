@@ -62,16 +62,17 @@ var (
 )
 
 // Run is a blocking call to create and start Teleport VNet.
-func Run(ctx context.Context, tc *client.TeleportClient) error {
-	tun, cleanup, err := CreateAndSetupTUNDevice(ctx)
+func Run(ctx context.Context, tc *client.TeleportClient, customDNSZones []string) error {
+	tun, cleanup, err := CreateAndSetupTUNDevice(ctx, customDNSZones)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer cleanup()
 
 	manager, err := NewManager(ctx, &Config{
-		Client:    tc,
-		TUNDevice: tun,
+		Client:         tc,
+		TUNDevice:      tun,
+		customDNSZones: customDNSZones,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -84,9 +85,10 @@ func Run(ctx context.Context, tc *client.TeleportClient) error {
 
 // Config holds configuration parameters for the VNet.
 type Config struct {
-	Client     *client.TeleportClient
-	TUNDevice  tun.Device
-	DNSAddress tcpip.Address
+	Client         *client.TeleportClient
+	TUNDevice      tun.Device
+	DNSAddress     tcpip.Address
+	customDNSZones []string
 }
 
 // CheckAndSetDefaults checks the config and sets defaults.
@@ -111,6 +113,7 @@ type tcpHandler interface {
 type udpHandler func(context.Context, io.ReadWriteCloser) error
 
 type state struct {
+	mu          sync.RWMutex
 	tcpHandlers map[tcpip.Address]tcpHandler
 	udpHandlers map[tcpip.Address]udpHandler
 	ips         map[string]tcpip.Address
@@ -137,7 +140,8 @@ type Manager struct {
 	dnsServer     *dns.Server
 	slog          *slog.Logger
 	state         state
-	mu            sync.RWMutex
+	// TODO: remove this and get custom DNS zones per cluster.
+	globalCustomDNSZones []string
 }
 
 // NewManager creates a new VNet manager with the given configuration and root
@@ -153,14 +157,15 @@ func NewManager(ctx context.Context, cfg *Config) (*Manager, error) {
 	slog := slog.With(teleport.ComponentKey, "VNet")
 	ctx, cancel := context.WithCancel(ctx)
 	m := &Manager{
-		tc:            cfg.Client,
-		tun:           cfg.TUNDevice,
-		dnsAddress:    cfg.DNSAddress,
-		stack:         stack,
-		rootCtx:       ctx,
-		rootCtxCancel: cancel,
-		slog:          slog,
-		state:         newState(),
+		tc:                   cfg.Client,
+		tun:                  cfg.TUNDevice,
+		dnsAddress:           cfg.DNSAddress,
+		stack:                stack,
+		rootCtx:              ctx,
+		rootCtxCancel:        cancel,
+		slog:                 slog,
+		state:                newState(),
+		globalCustomDNSZones: cfg.customDNSZones,
 	}
 	dnsServer, err := dns.NewServer(slog, m)
 	if err != nil {
@@ -293,8 +298,8 @@ func (m *Manager) ResolveAAAA(ctx context.Context, fqdn string) (dns.Result, err
 }
 
 func (m *Manager) cachedIP(fqdn string) (tcpip.Address, bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.state.mu.RLock()
+	defer m.state.mu.RUnlock()
 	ip, ok := m.state.ips[fqdn]
 	return ip, ok
 }
@@ -308,6 +313,11 @@ func (m *Manager) matchingProfile(appPublicAddr string) (string, bool, error) {
 		dnsZone := fmt.Sprintf(".%s", profile)
 		if strings.HasSuffix(appPublicAddr, dnsZone) {
 			return profile, true, nil
+		}
+		for _, customZone := range m.globalCustomDNSZones {
+			if strings.HasSuffix(appPublicAddr, customZone) {
+				return profile, true, nil
+			}
 		}
 	}
 	return "", false, nil
@@ -352,8 +362,8 @@ func (m *Manager) apiClient(ctx context.Context, profileName string) (*apiclient
 func (m *Manager) assignIPv4ToApp(fqdn string, app types.Application) tcpip.Address {
 	appHandler := newAppHandler(m.tc, app)
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.state.mu.Lock()
+	defer m.state.mu.Unlock()
 
 	ip := m.state.nextFreeIP
 	m.state.nextFreeIP += 1
@@ -366,15 +376,15 @@ func (m *Manager) assignIPv4ToApp(fqdn string, app types.Application) tcpip.Addr
 }
 
 func (m *Manager) tcpHandler(addr tcpip.Address, port uint16) (tcpHandler, bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.state.mu.RLock()
+	defer m.state.mu.RUnlock()
 	handler, ok := m.state.tcpHandlers[addr]
 	return handler, ok
 }
 
 func (m *Manager) udpHandler(addr tcpip.Address, port uint16) (udpHandler, bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.state.mu.RLock()
+	defer m.state.mu.RUnlock()
 	handler, ok := m.state.udpHandlers[addr]
 	return handler, ok
 }

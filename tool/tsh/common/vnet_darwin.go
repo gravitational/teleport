@@ -20,6 +20,8 @@
 package common
 
 import (
+	"strings"
+
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
@@ -35,9 +37,17 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(vnet.Run(cf.Context, tc))
+	var customDNSZones []string
+	if len(c.customDNSZones) > 0 {
+		customDNSZones = strings.Split(c.customDNSZones, ",")
+	}
+	return trace.Wrap(vnet.Run(cf.Context, tc, customDNSZones))
 }
 
 func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
-	return trace.Wrap(vnet.AdminSubcommand(cf.Context, c.socketPath, c.pidFilePath))
+	var customDNSZones []string
+	if len(c.customDNSZones) > 0 {
+		customDNSZones = strings.Split(c.customDNSZones, ",")
+	}
+	return trace.Wrap(vnet.AdminSubcommand(cf.Context, c.socketPath, c.pidFilePath, customDNSZones))
 }
