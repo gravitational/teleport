@@ -436,6 +436,14 @@ enum ProductType {
   PRODUCT_TYPE_EUB = 2;
 }
 
+// SupportType if the type of support offered.
+enum SupportType {
+  // SUPPORT_TYPE_FREE is the free tier support
+  SUPPORT_TYPE_FREE = 0;
+  // SUPPORT_TYPE_PREMIUM is the premium tier support
+  SUPPORT_TYPE_PREMIUM = 1;
+}
+
 // Features are auth server features.
 message Features {
   // Kubernetes enables Kubernetes Access product
@@ -513,8 +521,8 @@ message Features {
   bool IsStripeManaged = 30;
   // ExternalAuditStorage indicates whether the EAS feature is enabled in the cluster.
   bool ExternalAuditStorage = 31;
-  // PremiumSupport indicates if the customer has access to premium support
-  bool PremiumSupport = 32;
+  // SupportType indicates the type of the customer's support
+  SupportType SupportType = 32;
   // JoinActiveSessions indicates whether joining active sessions via web UI is enabled
   bool JoinActiveSessions = 33;
   // MobileDeviceManagement indicates whether endpoint management (like Jamf Plugin) can be used in the cluster
