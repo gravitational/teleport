@@ -300,17 +300,20 @@ func (rd *Redirector) Close() error {
 // and sends a result to the channel and redirect users to error page
 func (rd *Redirector) wrapCallback(fn func(http.ResponseWriter, *http.Request) (*auth.SSHLoginResponse, error)) http.Handler {
 	clone := *rd.proxyURL
-	origin := clone.String()
 	clone.Path = LoginFailedRedirectURL
 	errorURL := clone.String()
 	clone.Path = LoginSuccessRedirectURL
 	successURL := clone.String()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("Access-Control-Allow-Origin", origin)
-		w.Header().Add("Access-Control-Allow-Methods", "GET, POST")
-		w.Header().Add("Access-Control-Allow-Private-Network", "true")
 		w.Header().Add("Allow", "GET, OPTIONS, POST")
+		// CORS protects the _response_, and our response is always just a
+		// redirect to info/login_success or error/login so it's fine to share
+		// with the world; we could use the proxy URL as the origin, but that
+		// would break setups where the proxy public address that tsh is using
+		// is not the "main" one that ends up being used for the redirect after
+		// the IdP login
+		w.Header().Add("Access-Control-Allow-Origin", "*")
 		switch r.Method {
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
