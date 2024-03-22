@@ -71,8 +71,11 @@ type Config struct {
 	ConnectMyComputerNodeDelete       *connectmycomputer.NodeDelete
 	ConnectMyComputerNodeName         *connectmycomputer.NodeName
 
-	ClientCache ClientCache
+	CreateClientCacheFunc func(resolver ResolveClusterFunc) ClientCache
 }
+
+// ResolveClusterFunc returns a cluster by URI.
+type ResolveClusterFunc func(uri uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error)
 
 // ClientCache stores clients keyed by cluster URI.
 type ClientCache interface {
@@ -156,11 +159,13 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.ConnectMyComputerNodeName = nodeName
 	}
 
-	if c.ClientCache == nil {
-		c.ClientCache = clientcache.New(clientcache.Config{
-			Log:      c.Log,
-			Resolver: c.Storage,
-		})
+	if c.CreateClientCacheFunc == nil {
+		c.CreateClientCacheFunc = func(resolver ResolveClusterFunc) ClientCache {
+			return clientcache.New(clientcache.Config{
+				Log:                c.Log,
+				ResolveClusterFunc: clientcache.ResolveClusterFunc(resolver),
+			})
+		}
 	}
 
 	return nil
