@@ -25,6 +25,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -36,9 +37,159 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// TODO (Joerger): Replace this alias with the definition of types.NewWebSessionRequest
-// once /e is no longer dependent on types.NewWebSessionRequest.
-type NewWebSessionRequest = types.NewWebSessionRequest
+// NewWebSessionRequest defines a request to create a new user
+// web session
+type NewWebSessionRequest struct {
+	// User specifies the user this session is bound to
+	User string
+	// LoginIP is an observed IP of the client, it will be embedded into certificates.
+	LoginIP string
+	// Roles optionally lists additional user roles
+	Roles []string
+	// Traits optionally lists role traits
+	Traits map[string][]string
+	// SessionTTL optionally specifies the session time-to-live.
+	// If left unspecified, the default certificate duration is used.
+	SessionTTL time.Duration
+	// LoginTime is the time that this user recently logged in.
+	LoginTime time.Time
+	// AccessRequests contains the UUIDs of the access requests currently in use.
+	AccessRequests []string
+	// RequestedResourceIDs optionally lists requested resources
+	RequestedResourceIDs []types.ResourceID
+}
+
+// CheckAndSetDefaults validates the request and sets defaults.
+func (r *NewWebSessionRequest) CheckAndSetDefaults() error {
+	if r.User == "" {
+		return trace.BadParameter("user name required")
+	}
+	if len(r.Roles) == 0 {
+		return trace.BadParameter("roles required")
+	}
+	if len(r.Traits) == 0 {
+		return trace.BadParameter("traits required")
+	}
+	if r.SessionTTL == 0 {
+		r.SessionTTL = apidefaults.CertDuration
+	}
+	return nil
+}
+
+func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
+	session, err := a.NewWebSession(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = a.upsertWebSession(ctx, session)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return session, nil
+}
+
+// NewWebSession creates and returns a new web session for the specified request
+func (a *Server) NewWebSession(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
+	userState, err := a.GetUserOrLoginState(ctx, req.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.LoginIP == "" {
+		// TODO(antonam): consider turning this into error after all use cases are covered (before v14.0 testplan)
+		log.Debug("Creating new web session without login IP specified.")
+	}
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker, err := services.NewAccessChecker(&services.AccessInfo{
+		Roles:              req.Roles,
+		Traits:             req.Traits,
+		AllowedResourceIDs: req.RequestedResourceIDs,
+	}, clusterName.GetClusterName(), a)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	netCfg, err := a.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	priv, pub, err := native.GenerateKeyPair()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sessionTTL := req.SessionTTL
+	if sessionTTL == 0 {
+		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
+	}
+
+	certs, err := a.generateUserCert(ctx, certRequest{
+		user:           userState,
+		loginIP:        req.LoginIP,
+		ttl:            sessionTTL,
+		publicKey:      pub,
+		checker:        checker,
+		traits:         req.Traits,
+		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	token, err := utils.CryptoRandomHex(SessionTokenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	bearerToken, err := utils.CryptoRandomHex(SessionTokenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	bearerTokenTTL := utils.MinTTL(sessionTTL, BearerTokenTTL)
+
+	startTime := a.clock.Now()
+	if !req.LoginTime.IsZero() {
+		startTime = req.LoginTime
+	}
+
+	sessionSpec := types.WebSessionSpecV2{
+		User:               req.User,
+		Priv:               priv,
+		Pub:                certs.SSH,
+		TLSCert:            certs.TLS,
+		Expires:            startTime.UTC().Add(sessionTTL),
+		BearerToken:        bearerToken,
+		BearerTokenExpires: startTime.UTC().Add(bearerTokenTTL),
+		LoginTime:          req.LoginTime,
+		IdleTimeout:        types.Duration(netCfg.GetWebIdleTimeout()),
+	}
+	UserLoginCount.Inc()
+
+	sess, err := types.NewWebSession(token, types.KindWebSession, sessionSpec)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sess, nil
+}
+
+func (a *Server) upsertWebSession(ctx context.Context, session types.WebSession) error {
+	if err := a.WebSessions().Upsert(ctx, session); err != nil {
+		return trace.Wrap(err)
+	}
+	token, err := types.NewWebToken(session.GetBearerTokenExpiryTime(), types.WebTokenSpecV3{
+		User:  session.GetUser(),
+		Token: session.GetBearerToken(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.WebTokens().Upsert(ctx, token); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
 
 // CreateAppSession creates and inserts a services.WebSession into the
 // backend with the identity of the caller used to generate the certificate.
@@ -251,20 +402,6 @@ func (a *Server) generateAppToken(ctx context.Context, username string, roles []
 	}
 
 	return token, nil
-}
-
-func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
-	session, err := a.NewWebSession(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = a.upsertWebSession(ctx, req.User, session)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return session, nil
 }
 
 func (a *Server) CreateSessionCert(user services.UserState, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster, loginIP string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {

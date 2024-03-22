@@ -2780,7 +2780,7 @@ func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
+	sess, err := a.NewWebSession(ctx, NewWebSessionRequest{
 		User:                 user,
 		LoginIP:              identity.LoginIP,
 		Roles:                accessInfo.Roles,
@@ -2791,7 +2791,7 @@ func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.upsertWebSession(ctx, user, sess); err != nil {
+	if err := a.upsertWebSession(ctx, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess.WithoutSecrets(), nil
@@ -3435,7 +3435,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 
 	sess.SetConsumedAccessRequestID(req.AccessRequestID)
 
-	if err := a.upsertWebSession(ctx, req.User, sess); err != nil {
+	if err := a.upsertWebSession(ctx, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4068,89 +4068,6 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 		tokens = append(tokens, tok)
 	}
 	return tokens, nil
-}
-
-// NewWebSession creates and returns a new web session for the specified request
-func (a *Server) NewWebSession(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
-	userState, err := a.GetUserOrLoginState(ctx, req.User)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if req.LoginIP == "" {
-		// TODO(antonam): consider turning this into error after all use cases are covered (before v14.0 testplan)
-		log.Debug("Creating new web session without login IP specified.")
-	}
-	clusterName, err := a.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	checker, err := services.NewAccessChecker(&services.AccessInfo{
-		Roles:              req.Roles,
-		Traits:             req.Traits,
-		AllowedResourceIDs: req.RequestedResourceIDs,
-	}, clusterName.GetClusterName(), a)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	netCfg, err := a.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	priv, pub, err := native.GenerateKeyPair()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sessionTTL := req.SessionTTL
-	if sessionTTL == 0 {
-		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
-	}
-	certs, err := a.generateUserCert(ctx, certRequest{
-		user:           userState,
-		loginIP:        req.LoginIP,
-		ttl:            sessionTTL,
-		publicKey:      pub,
-		checker:        checker,
-		traits:         req.Traits,
-		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	token, err := utils.CryptoRandomHex(SessionTokenBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	bearerToken, err := utils.CryptoRandomHex(SessionTokenBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	bearerTokenTTL := utils.MinTTL(sessionTTL, BearerTokenTTL)
-
-	startTime := a.clock.Now()
-	if !req.LoginTime.IsZero() {
-		startTime = req.LoginTime
-	}
-
-	sessionSpec := types.WebSessionSpecV2{
-		User:               req.User,
-		Priv:               priv,
-		Pub:                certs.SSH,
-		TLSCert:            certs.TLS,
-		Expires:            startTime.UTC().Add(sessionTTL),
-		BearerToken:        bearerToken,
-		BearerTokenExpires: startTime.UTC().Add(bearerTokenTTL),
-		LoginTime:          req.LoginTime,
-		IdleTimeout:        types.Duration(netCfg.GetWebIdleTimeout()),
-	}
-	UserLoginCount.Inc()
-
-	sess, err := types.NewWebSession(token, types.KindWebSession, sessionSpec)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sess, nil
 }
 
 // GetWebSessionInfo returns the web session specified with sessionID for the given user.
@@ -5645,23 +5562,6 @@ func (a *Server) validateMFAAuthResponse(
 	default:
 		return nil, "", trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}
-}
-
-func (a *Server) upsertWebSession(ctx context.Context, user string, session types.WebSession) error {
-	if err := a.WebSessions().Upsert(ctx, session); err != nil {
-		return trace.Wrap(err)
-	}
-	token, err := types.NewWebToken(session.GetBearerTokenExpiryTime(), types.WebTokenSpecV3{
-		User:  session.GetUser(),
-		Token: session.GetBearerToken(),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.WebTokens().Upsert(ctx, token); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
