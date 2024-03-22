@@ -32,7 +32,6 @@ import (
 
 const accessMonitoringRulesPrefix = "access_monitoring_rule"
 
-
 // AccessMonitoringRulesService manages AccessMonitoringRules in the Backend.
 type AccessMonitoringRulesService struct {
 	svc *generic.ServiceWrapper[*accessmonitoringrule.AccessMonitoringRule]
@@ -112,4 +111,3 @@ func (s *AccessMonitoringRulesService) DeleteAccessMonitoringRule(ctx context.Co
 func (s *AccessMonitoringRulesService) DeleteAllAccessMonitoringRules(ctx context.Context) error {
 	return trace.Wrap(s.svc.DeleteAllResources(ctx))
 }
-
