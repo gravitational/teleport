@@ -117,7 +117,7 @@ type Features struct {
 	// ExternalAuditStorage indicates whether the EAS feature is enabled in the cluster.
 	ExternalAuditStorage bool
 	// SupportType indicates the type of customer's support
-	SupportType SupportType
+	SupportType proto.SupportType
 	// JoinActiveSessions indicates whether joining active sessions via web UI is enabled
 	JoinActiveSessions bool
 	// MobileDeviceManagement indicates whether endpoints management (like Jamf Plugin) can be used in the cluster
@@ -214,7 +214,7 @@ func (f Features) ToProto() *proto.Features {
 		Questionnaire:          f.Questionnaire,
 		IsStripeManaged:        f.IsStripeManaged,
 		ExternalAuditStorage:   f.ExternalAuditStorage,
-		SupportType:            proto.SupportType(f.SupportType),
+		SupportType:            f.SupportType,
 		JoinActiveSessions:     f.JoinActiveSessions,
 		MobileDeviceManagement: f.MobileDeviceManagement,
 	}
@@ -230,9 +230,6 @@ const (
 	// ProductTypeEUB is Teleport Enterprise Usage Based product.
 	ProductTypeEUB ProductType = 2
 )
-
-// SupportType is the type of support.
-type SupportType proto.SupportType
 
 // IsLegacy describes the legacy enterprise product that existed before the
 // usage-based product was introduced. Some features (Device Trust, for example)
@@ -386,7 +383,7 @@ func (p *defaultModules) Features() Features {
 		AutomaticUpgrades:  p.automaticUpgrades,
 		Assist:             true,
 		JoinActiveSessions: true,
-		SupportType:        SupportType(proto.SupportType_SUPPORT_TYPE_FREE),
+		SupportType:        proto.SupportType_SUPPORT_TYPE_FREE,
 	}
 }
 
