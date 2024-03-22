@@ -438,10 +438,11 @@ enum ProductType {
 
 // SupportType if the type of support offered.
 enum SupportType {
+  SUPPORT_TYPE_UNKNOWN = 0;
   // SUPPORT_TYPE_FREE is the free tier support
-  SUPPORT_TYPE_FREE = 0;
+  SUPPORT_TYPE_FREE = 1;
   // SUPPORT_TYPE_PREMIUM is the premium tier support
-  SUPPORT_TYPE_PREMIUM = 1;
+  SUPPORT_TYPE_PREMIUM = 2;
 }
 
 // Features are auth server features.
