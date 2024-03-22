@@ -17,6 +17,7 @@
  */
 
 import { ButtonSecondary } from 'design/Button';
+import { Platform } from 'design/platform';
 
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
@@ -44,3 +45,41 @@ export const DownloadConnect = (props: {
     </MenuButton>
   );
 };
+
+export function getConnectDownloadLinks(
+  platform: Platform,
+  proxyVersion: string
+): Array<DownloadLink> {
+  switch (platform) {
+    case Platform.Windows:
+      return [
+        {
+          text: 'Teleport Connect',
+          url: `https://cdn.teleport.dev/Teleport Connect Setup-${proxyVersion}.exe`,
+        },
+      ];
+    case Platform.macOS:
+      return [
+        {
+          text: 'Teleport Connect',
+          url: `https://cdn.teleport.dev/Teleport Connect-${proxyVersion}.dmg`,
+        },
+      ];
+    case Platform.Linux:
+      return [
+        {
+          text: 'DEB',
+          url: `https://cdn.teleport.dev/teleport-connect_${proxyVersion}_amd64.deb`,
+        },
+        {
+          text: 'RPM',
+          url: `https://cdn.teleport.dev/teleport-connect-${proxyVersion}.x86_64.rpm`,
+        },
+
+        {
+          text: 'tar.gz',
+          url: `https://cdn.teleport.dev/teleport-connect-${proxyVersion}-x64.tar.gz`,
+        },
+      ];
+  }
+}

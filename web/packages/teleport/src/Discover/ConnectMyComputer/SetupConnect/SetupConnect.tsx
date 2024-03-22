@@ -20,14 +20,14 @@ import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 
 import { ButtonSecondary } from 'design/Button';
-import { Platform, getPlatform } from 'design/platform';
+import { getPlatform } from 'design/platform';
 import { Text, Flex } from 'design';
 import * as Icons from 'design/Icon';
 import { Path, makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 import * as connectMyComputer from 'shared/connectMyComputer';
 import {
-  DownloadLink,
   DownloadConnect,
+  getConnectDownloadLinks,
 } from 'shared/components/DownloadConnect/DownloadConnect';
 
 import cfg from 'teleport/config';
@@ -322,41 +322,3 @@ export const usePollForConnectMyComputerNode = (args: {
 
   return { node, isPolling };
 };
-
-function getConnectDownloadLinks(
-  platform: Platform,
-  proxyVersion: string
-): Array<DownloadLink> {
-  switch (platform) {
-    case Platform.Windows:
-      return [
-        {
-          text: 'Teleport Connect',
-          url: `https://cdn.teleport.dev/Teleport Connect Setup-${proxyVersion}.exe`,
-        },
-      ];
-    case Platform.macOS:
-      return [
-        {
-          text: 'Teleport Connect',
-          url: `https://cdn.teleport.dev/Teleport Connect-${proxyVersion}.dmg`,
-        },
-      ];
-    case Platform.Linux:
-      return [
-        {
-          text: 'DEB',
-          url: `https://cdn.teleport.dev/teleport-connect_${proxyVersion}_amd64.deb`,
-        },
-        {
-          text: 'RPM',
-          url: `https://cdn.teleport.dev/teleport-connect-${proxyVersion}.x86_64.rpm`,
-        },
-
-        {
-          text: 'tar.gz',
-          url: `https://cdn.teleport.dev/teleport-connect-${proxyVersion}-x64.tar.gz`,
-        },
-      ];
-  }
-}
