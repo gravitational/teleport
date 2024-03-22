@@ -205,13 +205,16 @@ export interface AccessListAudit {
  */
 export interface Recurrence {
     /**
-     * frequency is the frequency of reviews.
+     * frequency is the frequency of reviews. This represents the period in months
+     * between two reviews.
+     * Supported values are 0, 1, 3, 6, and 12.
      *
      * @generated from protobuf field: teleport.accesslist.v1.ReviewFrequency frequency = 1;
      */
     frequency: ReviewFrequency;
     /**
      * day_of_month is the day of month that reviews will be scheduled on.
+     * Supported values are 0, 1, 15, and 31.
      *
      * @generated from protobuf field: teleport.accesslist.v1.ReviewDayOfMonth day_of_month = 2;
      */
