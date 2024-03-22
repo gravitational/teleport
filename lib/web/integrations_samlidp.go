@@ -22,13 +22,14 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/gravitational/teleport/lib/httplib"
-	samlidpscripts "github.com/gravitational/teleport/lib/web/scripts/samlidp"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+
+	"github.com/gravitational/teleport/lib/httplib"
+	samlidpscripts "github.com/gravitational/teleport/lib/web/scripts/samlidp"
 )
 
-func (h *Handler) gcpWIFConfigurationScript(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+func (h *Handler) gcpWorkforceConfigScript(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	queryParams := r.URL.Query()
 	orgId := queryParams.Get("orgId")
 	poolName := queryParams.Get("poolName")
