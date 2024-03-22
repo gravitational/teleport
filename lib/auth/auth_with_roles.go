@@ -1371,6 +1371,20 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		Kinds:               req.Kinds,
 	}
 
+	// If a predicate expression was provided, evaluate it with an empty
+	// server to determine if the expression is valid before attempting
+	// to do any listing.
+	if filter.PredicateExpression != "" {
+		parser, err := services.NewResourceParser(&types.ServerV2{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if _, err := parser.EvalBoolPredicate(filter.PredicateExpression); err != nil {
+			return nil, trace.BadParameter("failed to parse predicate expression: %s", err.Error())
+		}
+	}
+
 	// Populate resourceAccessMap with any access errors the user has for each possible
 	// resource kind. This allows the access check to occur a single time per resource
 	// kind instead of once per matching resource.
