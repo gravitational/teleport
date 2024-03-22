@@ -76,6 +76,9 @@ type Application interface {
 	SetUserGroups([]string)
 	// Copy returns a copy of this app resource.
 	Copy() *AppV3
+	// GetIntegration will return the Integration.
+	// If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
+	GetIntegration() string
 }
 
 // NewAppV3 creates a new app resource.
@@ -304,6 +307,12 @@ func (a *AppV3) GetUserGroups() []string {
 // SetUserGroups will set the list of user group IDs associated with the application.
 func (a *AppV3) SetUserGroups(userGroups []string) {
 	a.Spec.UserGroups = userGroups
+}
+
+// GetIntegration will return the Integration.
+// If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
+func (a *AppV3) GetIntegration() string {
+	return a.Spec.Integration
 }
 
 // String returns the app string representation.
