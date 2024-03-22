@@ -48,10 +48,12 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -60,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
 // SessionContext is a context associated with a user's
@@ -653,16 +656,11 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 		proxySigner:               config.proxySigner,
 	}
 
-	sessionWatcher, err := cache.prepareWebSessionWatcher(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Watch for session updates.
-	go sessionWatcher(ctx)
-
 	// periodically close expired and unused sessions
 	go cache.expireSessions(ctx)
+
+	// Watch for session updates.
+	go cache.watchWebSessions(ctx)
 
 	return cache, nil
 }
@@ -743,14 +741,51 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 	}
 }
 
-// prepareWebSessionWatcher prepares the WebSession watcher for sessionCache and
-// returns a function that executes the watcher loop.
-func (s *sessionCache) prepareWebSessionWatcher(ctx context.Context) (watchFn func(context.Context), err error) {
+// watchWebSessions runs the WebSession watcher loop.
+// It only stops when ctx is done.
+func (s *sessionCache) watchWebSessions(ctx context.Context) {
 	// Watcher not necessary for OSS.
 	if modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return func(context.Context) {}, nil
+		return
 	}
 
+	const period = defaults.HighResPollingPeriod
+	ticker := interval.New(interval.Config{
+		Duration:      period,
+		FirstDuration: period,
+		Jitter:        retryutils.NewSeventhJitter(),
+	})
+	defer ticker.Stop()
+
+	s.log.Debug("Starting sessionCache WebSession watcher")
+	for {
+		if err := s.watchWebSessionsOnce(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			const msg = "" +
+				"sessionCache WebSession watcher aborted, re-connecting. " +
+				"This may have an impact in device trust web sessions."
+			s.log.WithError(err).Warn(msg)
+		}
+
+		select {
+		// Stop when the context tells us to.
+		case <-ctx.Done():
+			s.log.Debug("Stopping sessionCache WebSession watcher")
+			return
+
+		case <-ticker.Next():
+			// continue
+		}
+	}
+}
+
+// watchWebSessionsOnce creates a watcher for WebSessions and watches for its
+// events.
+//
+// Any updated sessions are evicted from the cache. The underlying assumption
+// is that an updated session got its certificates augmented with device trust
+// extensions, so it is evicted in order for the new certificates to be loaded
+// by the Proxy.
+func (s *sessionCache) watchWebSessionsOnce(ctx context.Context) error {
 	watcher, err := s.proxyClient.NewWatcher(ctx, types.Watch{
 		Name: teleport.ComponentWebProxy + ".sessionCache." + types.KindWebSession,
 		Kinds: []types.WatchKind{
@@ -763,38 +798,17 @@ func (s *sessionCache) prepareWebSessionWatcher(ctx context.Context) (watchFn fu
 		},
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
+	defer watcher.Close()
 
-	return func(ctx context.Context) {
-		s.log.Debug("Starting sessionCache WebSession watcher")
-
-		// Watch sessions. Blocks indefinitely.
-		err := s.watchWebSessions(ctx, watcher)
-
-		switch {
-		case errors.Is(err, context.Canceled):
-			s.log.Debug("Stopped sessionCache WebSession watcher")
-		case err != nil:
-			s.log.
-				WithError(err).
-				Warn("Stopped sessionCache WebSession watcher. This may have an impact in device trust web sessions.")
-		}
-	}, nil
-}
-
-// watchWebSessions is returned wrapped by "watchFn" by [prepareWebSessionWatcher].
-// Do not call it directly.
-//
-// watchWebSessions watches WebSessions and releases any updated sessions.
-// The underlying assumption is that an updated session got its certificates
-// augmented with device trust extensions, so it is cleared in order for the new
-// certificates to be loaded by the Proxy.
-func (s *sessionCache) watchWebSessions(ctx context.Context, watcher types.Watcher) error {
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+
+		case <-watcher.Done():
+			return errors.New("watcher closed")
 
 		case event := <-watcher.Events():
 			s.log.
