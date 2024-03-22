@@ -16,8 +16,8 @@ TF_VAR_license_path ?=
 # AMI name contains the version of Teleport to install, and whether to use OSS or Enterprise version
 # These AMIs are published by Gravitational and shared as public whenever a new version of Teleport is released
 # To list available AMIs:
-# OSS: aws ec2 describe-images --filters 'Name=name,Values=gravitational-teleport-ami-oss*'
-# Enterprise: aws ec2 describe-images --filters 'Name=name,Values=gravitational-teleport-ami-ent*'
+# OSS: aws ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-oss-*'
+# Enterprise: aws ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-*'
 TF_VAR_ami_name ?=
 
 # Route 53 zone to use, should be the zone registered in AWS, e.g. example.com
