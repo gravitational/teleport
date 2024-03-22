@@ -5353,6 +5353,17 @@ func (a *ServerWithRoles) GetAppSession(ctx context.Context, req types.GetAppSes
 
 	// Users can fetch their own app sessions without secrets.
 	if err := a.currentUserAction(session.GetUser()); err == nil {
+		// TODO (Joerger): DELETE IN 17.0.0
+		// App Session secrets should not be returned to the user. We only do this
+		// here for backwards compatibility with `tsh proxy azure`, which uses the
+		// app session key to sign JWT tokens with Azure claims. This check means
+		// that `tsh proxy azure` will fail for old clients when used with Per-session
+		// MFA or Hardware Key support, which is planned for release in v16.0.0.
+		identity := a.context.Identity.GetIdentity()
+		if identity.MFAVerified == "" || identity.PrivateKeyPolicy != keys.PrivateKeyPolicyWebSession {
+			return session, nil
+		}
+
 		return session.WithoutSecrets(), nil
 	}
 
