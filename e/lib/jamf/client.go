@@ -160,6 +160,27 @@ func (c *Client) nowUTC() time.Time {
 
 func (c *Client) doJSONRequest(req *http.Request, jsonResp any) error {
 	req.Header.Set("Accept", "application/json")
+
+	// Log all requests at trace level.
+	{
+		authz := req.Header.Get("Authorization")
+		req.Header.Set("Authorization", "redacted")
+
+		// Unescape the query for clearer logs.
+		u := req.URL.String()
+		if val, err := url.QueryUnescape(u); err == nil {
+			u = val
+		}
+
+		c.logger.
+			WithFields(log.Fields{
+				"url":    u,
+				"header": req.Header,
+			}).
+			Trace("Client: Executing HTTP request")
+		req.Header.Set("Authorization", authz)
+	}
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return trace.Wrap(err)
