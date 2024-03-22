@@ -581,6 +581,7 @@ func (r *EmptyResource) CheckAndSetDefaults() error { return nil }
 type BoolPredicateParser interface {
 	predicate.Parser
 	EvalBoolPredicate(string) (bool, error)
+	CompileBoolPredicate(expr string) (func() bool, error)
 }
 
 type boolPredicateParser struct {
@@ -588,17 +589,25 @@ type boolPredicateParser struct {
 }
 
 func (p boolPredicateParser) EvalBoolPredicate(expr string) (bool, error) {
+	fn, err := p.CompileBoolPredicate(expr)
+	if err != nil {
+		return false, nil
+	}
+	return fn(), nil
+}
+
+func (p boolPredicateParser) CompileBoolPredicate(expr string) (func() bool, error) {
 	ifn, err := p.Parse(expr)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	fn, ok := ifn.(predicate.BoolPredicate)
 	if !ok {
-		return false, trace.BadParameter("expected boolean predicate, got unsupported type: %T", ifn)
+		return nil, trace.BadParameter("expected boolean predicate, got unsupported type: %T", ifn)
 	}
 
-	return fn(), nil
+	return fn, nil
 }
 
 // NewJSONBoolParser returns a generic parser for boolean expressions based on a

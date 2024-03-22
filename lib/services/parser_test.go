@@ -158,6 +158,63 @@ func TestParserForIdentifierSubcondition(t *testing.T) {
 			}}))
 }
 
+func TestSwappableResource(t *testing.T) {
+	type swappableResource struct {
+		types.ResourceWithLabels
+	}
+
+	slot := new(swappableResource)
+
+	parser, err := NewResourceParser(slot)
+	require.NoError(t, err)
+
+	expr := `search("leeward", "red") || search("windward", "blue")`
+
+	pred, err := parser.CompileBoolPredicate(expr)
+	require.NoError(t, err)
+
+	tts := []struct {
+		labels map[string]string
+		expect bool
+	}{
+		{
+			labels: map[string]string{
+				"location": "leeward",
+				"group:":   "red",
+			},
+			expect: true,
+		},
+		{
+			labels: map[string]string{
+				"location": "leeward",
+				"group":    "blue",
+			},
+			expect: false,
+		},
+		{
+			labels: map[string]string{
+				"location": "windward",
+				"group":    "red",
+			},
+			expect: false,
+		},
+		{
+			labels: map[string]string{
+				"location": "windward",
+				"group":    "blue",
+			},
+			expect: true,
+		},
+	}
+
+	for _, tt := range tts {
+		resource, err := types.NewServerWithLabels("test-name", types.KindNode, types.ServerSpecV2{}, tt.labels)
+		require.NoError(t, err)
+		slot.ResourceWithLabels = resource
+		require.Equal(t, tt.expect, pred())
+	}
+}
+
 func TestNewResourceParser(t *testing.T) {
 	t.Parallel()
 	resource, err := types.NewServerWithLabels("test-name", types.KindNode, types.ServerSpecV2{
