@@ -59,8 +59,8 @@ const (
 	// while checking for IAM policy status eg: no AWS credentials provider found
 	// or the policy was misconfigured.
 	IAMPolicyStatus_IAM_POLICY_STATUS_FAILED IAMPolicyStatus = 2
-	// IAM_POLICY_STATUS_SUCCESS represents a state where IAM policy was
-	// configured correctly.
+	// IAM_POLICY_STATUS_SUCCESS represents a state where IAM policy was configured
+	// correctly.
 	IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS IAMPolicyStatus = 3
 )
 
@@ -95,8 +95,7 @@ const (
 	DatabaseTLSMode_VERIFY_FULL DatabaseTLSMode = 0
 	// VERIFY_CA works the same as VERIFY_FULL, but it skips the hostname check.
 	DatabaseTLSMode_VERIFY_CA DatabaseTLSMode = 1
-	// INSECURE accepts any certificate provided by server. This is the least
-	// secure option.
+	// INSECURE accepts any certificate provided by server. This is the least secure option.
 	DatabaseTLSMode_INSECURE DatabaseTLSMode = 2
 )
 
@@ -161,12 +160,10 @@ type ProxyListenerMode int32
 
 const (
 	// Separate is the proxy listener mode indicating that proxies are running
-	// in separate listener mode where Teleport Proxy services use different
-	// listeners.
+	// in separate listener mode where Teleport Proxy services use different listeners.
 	ProxyListenerMode_Separate ProxyListenerMode = 0
-	// Multiplex is the proxy listener mode indicating the proxy should use
-	// multiplex mode where all proxy services are multiplexed on a single proxy
-	// port.
+	// Multiplex is the proxy listener mode indicating the proxy should use multiplex mode
+	// where all proxy services are multiplexed on a single proxy port.
 	ProxyListenerMode_Multiplex ProxyListenerMode = 1
 )
 
@@ -194,8 +191,7 @@ type RoutingStrategy int32
 const (
 	// UnambiguousMatch only routes to distinct nodes.
 	RoutingStrategy_UNAMBIGUOUS_MATCH RoutingStrategy = 0
-	// MostRecent routes to the most recently heartbeated node if duplicates are
-	// present.
+	// MostRecent routes to the most recently heartbeated node if duplicates are present.
 	RoutingStrategy_MOST_RECENT RoutingStrategy = 1
 )
 
@@ -217,8 +213,7 @@ func (RoutingStrategy) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_9198ee693835762e, []int{4}
 }
 
-// UserTokenUsage contains additional information about the intended usage of a
-// user token.
+// UserTokenUsage contains additional information about the intended usage of a user token.
 type UserTokenUsage int32
 
 const (
@@ -346,14 +341,13 @@ const (
 	CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED CreateHostUserMode = 0
 	// HOST_USER_MODE_OFF disables host user creation.
 	CreateHostUserMode_HOST_USER_MODE_OFF CreateHostUserMode = 1
-	// HOST_USER_MODE_DROP enables host user creation and deletes users at session
-	// end. Deprecated: replaced by HOST_USER_MODE_INSECURE_DROP.
+	// HOST_USER_MODE_DROP enables host user creation and deletes users at session end.
+	// Deprecated: replaced by HOST_USER_MODE_INSECURE_DROP.
 	CreateHostUserMode_HOST_USER_MODE_DROP CreateHostUserMode = 2 // Deprecated: Do not use.
-	// HOST_USER_MODE_KEEP enables host user creation and leaves users behind at
-	// session end.
+	// HOST_USER_MODE_KEEP enables host user creation and leaves users behind at session end.
 	CreateHostUserMode_HOST_USER_MODE_KEEP CreateHostUserMode = 3
-	// HOST_USER_MODE_INSECURE_DROP enables host user creation without a home
-	// directory and deletes users at session end.
+	// HOST_USER_MODE_INSECURE_DROP enables host user creation without a home directory and deletes
+	// users at session end.
 	CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP CreateHostUserMode = 4
 )
 
@@ -472,14 +466,13 @@ func (CertExtensionType) EnumDescriptor() ([]byte, []int) {
 type SessionState int32
 
 const (
-	// Pending variant represents a session that is waiting on participants to
-	// fulfill the criteria to start the session.
+	// Pending variant represents a session that is waiting on participants to fulfill the criteria
+	// to start the session.
 	SessionState_SessionStatePending SessionState = 0
-	// Running variant represents a session that has had it's criteria for
-	// starting fulfilled at least once and has transitioned to a RUNNING state.
+	// Running variant represents a session that has had it's criteria for starting
+	// fulfilled at least once and has transitioned to a RUNNING state.
 	SessionState_SessionStateRunning SessionState = 1
-	// Terminated variant represents a session that is no longer running and due
-	// for removal.
+	// Terminated variant represents a session that is no longer running and due for removal.
 	SessionState_SessionStateTerminated SessionState = 2
 )
 
@@ -503,8 +496,8 @@ func (SessionState) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_9198ee693835762e, []int{12}
 }
 
-// AlertSeverity represents how problematic/urgent an alert is, and is used to
-// assist in sorting alerts for display.
+// AlertSeverity represents how problematic/urgent an alert is, and is used to assist
+// in sorting alerts for display.
 type AlertSeverity int32
 
 const (
@@ -545,14 +538,14 @@ const (
 	// SESSION_AND_HARDWARE_KEY means MFA is required to begin server sessions,
 	// and login sessions must use a private key backed by a hardware key.
 	RequireMFAType_SESSION_AND_HARDWARE_KEY RequireMFAType = 2
-	// HARDWARE_KEY_TOUCH means login sessions must use a hardware private key
-	// that requires touch to be used.
+	// HARDWARE_KEY_TOUCH means login sessions must use a hardware private key that
+	// requires touch to be used.
 	RequireMFAType_HARDWARE_KEY_TOUCH RequireMFAType = 3
 	// HARDWARE_KEY_PIN means login sessions must use a hardware private key that
 	// requires pin to be used.
 	RequireMFAType_HARDWARE_KEY_PIN RequireMFAType = 4
-	// HARDWARE_KEY_TOUCH_AND_PIN means login sessions must use a hardware private
-	// key that requires touch and pin to be used.
+	// HARDWARE_KEY_TOUCH_AND_PIN means login sessions must use a hardware private key that
+	// requires touch and pin to be used.
 	RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN RequireMFAType = 5
 )
 
@@ -585,21 +578,17 @@ func (RequireMFAType) EnumDescriptor() ([]byte, []int) {
 type PluginStatusCode int32
 
 const (
-	// UNKNOWN is the default value when the plugin has not reported its status
-	// yet.
+	// UNKNOWN is the default value when the plugin has not reported its status yet.
 	PluginStatusCode_UNKNOWN PluginStatusCode = 0
 	// RUNNING means the plugin reports running successfully.
 	PluginStatusCode_RUNNING PluginStatusCode = 1
-	// OTHER_ERROR indicates that an otherwise-unspecified error has been
-	// encountered.
+	// OTHER_ERROR indicates that an otherwise-unspecified error has been encountered.
 	PluginStatusCode_OTHER_ERROR PluginStatusCode = 2
-	// UNAUTHORIZED indicates that plugin is not able to authenticate to the 3rd
-	// party API. This could be a result of e.g. the user revoking the
-	// authorization on the API provider's side.
+	// UNAUTHORIZED indicates that plugin is not able to authenticate to the 3rd party API.
+	// This could be a result of e.g. the user revoking the authorization on the API provider's side.
 	PluginStatusCode_UNAUTHORIZED PluginStatusCode = 3
 	// SLACK_NOT_IN_CHANNEL is a Slack-specific status code that indicates
-	// that the bot has not been invited to a channel that it is configured to
-	// post in.
+	// that the bot has not been invited to a channel that it is configured to post in.
 	PluginStatusCode_SLACK_NOT_IN_CHANNEL PluginStatusCode = 10
 )
 
@@ -749,8 +738,8 @@ func (CertAuthoritySpecV2_SigningAlgType) EnumDescriptor() ([]byte, []int) {
 type ClusterAuditConfigSpecV2_FIPSEndpointState int32
 
 const (
-	// FIPS_UNSET allows setting FIPS state for AWS S3/Dynamo using
-	// configuration files or environment variables
+	// FIPS_UNSET allows setting FIPS state for AWS S3/Dynamo using configuration files or
+	// environment variables
 	ClusterAuditConfigSpecV2_FIPS_UNSET ClusterAuditConfigSpecV2_FIPSEndpointState = 0
 	// FIPS_ENABLED explicitly enables FIPS support for AWS S3/Dynamo
 	ClusterAuditConfigSpecV2_FIPS_ENABLED ClusterAuditConfigSpecV2_FIPSEndpointState = 1
@@ -785,34 +774,28 @@ const (
 	ConnectionDiagnosticTrace_TRACE_TYPE_UNSPECIFIED ConnectionDiagnosticTrace_TraceType = 0
 	// UNKNOWN_ERROR is used when we don't know the error.
 	// It's not always possible to offer guidance based on the received error.
-	// This trace type should be used when the error is too generic given the
-	// context we have.
+	// This trace type should be used when the error is too generic given the context we
+	// have.
 	ConnectionDiagnosticTrace_UNKNOWN_ERROR ConnectionDiagnosticTrace_TraceType = 1
 	// RBAC_NODE is for RBAC checks for the node.
 	ConnectionDiagnosticTrace_RBAC_NODE ConnectionDiagnosticTrace_TraceType = 2
 	// CONNECTIVITY is for network connectivity checks.
 	ConnectionDiagnosticTrace_CONNECTIVITY ConnectionDiagnosticTrace_TraceType = 3
-	// RBAC_PRINCIPAL is used when checking if the principal is allowed per RBAC
-	// rules.
+	// RBAC_PRINCIPAL is used when checking if the principal is allowed per RBAC rules.
 	ConnectionDiagnosticTrace_RBAC_PRINCIPAL ConnectionDiagnosticTrace_TraceType = 4
-	// NODE_PRINCIPAL is used when checking if the Node has the requested
-	// principal.
+	// NODE_PRINCIPAL is used when checking if the Node has the requested principal.
 	ConnectionDiagnosticTrace_NODE_PRINCIPAL ConnectionDiagnosticTrace_TraceType = 5
 	// RBAC_KUBE is for RBAC checks to kubernetes the cluster.
 	ConnectionDiagnosticTrace_RBAC_KUBE ConnectionDiagnosticTrace_TraceType = 6
-	// KUBE_PRINCIPAL is used when checking if the Kube Cluster has at least one
-	// user principals.
+	// KUBE_PRINCIPAL is used when checking if the Kube Cluster has at least one user principals.
 	ConnectionDiagnosticTrace_KUBE_PRINCIPAL ConnectionDiagnosticTrace_TraceType = 7
 	// RBAC_DATABASE is for RBAC checks to database access (db_labels).
 	ConnectionDiagnosticTrace_RBAC_DATABASE ConnectionDiagnosticTrace_TraceType = 8
-	// RBAC_DATABASE_LOGIN is for RBAC checks to database login (db_name and
-	// db_user).
+	// RBAC_DATABASE_LOGIN is for RBAC checks to database login (db_name and db_user).
 	ConnectionDiagnosticTrace_RBAC_DATABASE_LOGIN ConnectionDiagnosticTrace_TraceType = 9
-	// DATABASE_DB_USER is used when checking whether the Database has the
-	// requested Database User.
+	// DATABASE_DB_USER is used when checking whether the Database has the requested Database User.
 	ConnectionDiagnosticTrace_DATABASE_DB_USER ConnectionDiagnosticTrace_TraceType = 10
-	// DATABASE_DB_NAME is used when checking whether the Database has the
-	// requested Database Name.
+	// DATABASE_DB_NAME is used when checking whether the Database has the requested Database Name.
 	ConnectionDiagnosticTrace_DATABASE_DB_NAME ConnectionDiagnosticTrace_TraceType = 11
 )
 
@@ -895,8 +878,7 @@ const (
 	OktaAssignmentSpecV1_PROCESSING OktaAssignmentSpecV1_OktaAssignmentStatus = 2
 	// SUCCESSFUL indicates the action was applied successfully.
 	OktaAssignmentSpecV1_SUCCESSFUL OktaAssignmentSpecV1_OktaAssignmentStatus = 3
-	// FAILED indicates the action was not applied successfully. It will be
-	// retried.
+	// FAILED indicates the action was not applied successfully. It will be retried.
 	OktaAssignmentSpecV1_FAILED OktaAssignmentSpecV1_OktaAssignmentStatus = 4
 )
 
@@ -924,8 +906,7 @@ func (OktaAssignmentSpecV1_OktaAssignmentStatus) EnumDescriptor() ([]byte, []int
 	return fileDescriptor_9198ee693835762e, []int{294, 0}
 }
 
-// OktaAssignmentTargetType is the type of Okta object that an assignment is
-// targeting.
+// OktaAssignmentTargetType is the type of Okta object that an assignment is targeting.
 type OktaAssignmentTargetV1_OktaAssignmentTargetType int32
 
 const (
@@ -1438,8 +1419,8 @@ type DatabaseSpecV3 struct {
 	GCP GCPCloudSQL `protobuf:"bytes,6,opt,name=GCP,proto3" json:"gcp,omitempty"`
 	// Azure contains Azure specific database metadata.
 	Azure Azure `protobuf:"bytes,7,opt,name=Azure,proto3" json:"azure,omitempty"`
-	// TLS is the TLS configuration used when establishing connection to target
-	// database. Allows to provide custom CA cert or override server name.
+	// TLS is the TLS configuration used when establishing connection to target database.
+	// Allows to provide custom CA cert or override server name.
 	TLS DatabaseTLS `protobuf:"bytes,8,opt,name=TLS,proto3" json:"tls,omitempty"`
 	// AD is the Active Directory configuration for the database.
 	AD AD `protobuf:"bytes,9,opt,name=AD,proto3" json:"ad,omitempty"`
@@ -1541,8 +1522,7 @@ var xxx_messageInfo_DatabaseAdminUser proto.InternalMessageInfo
 // OracleOptions contains information about privileged database user used
 // for database audit.
 type OracleOptions struct {
-	// AuditUser is the Oracle database user privilege to access internal Oracle
-	// audit trail.
+	// AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
 	AuditUser            string   `protobuf:"bytes,1,opt,name=AuditUser,proto3" json:"audit_user"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -1652,19 +1632,16 @@ type AWS struct {
 	RDSProxy RDSProxy `protobuf:"bytes,8,opt,name=RDSProxy,proto3" json:"rdsproxy,omitempty"`
 	// RedshiftServerless contains AWS Redshift Serverless specific metadata.
 	RedshiftServerless RedshiftServerless `protobuf:"bytes,9,opt,name=RedshiftServerless,proto3" json:"redshift_serverless,omitempty"`
-	// ExternalID is an optional AWS external ID used to enable assuming an AWS
-	// role across accounts.
+	// ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
 	ExternalID string `protobuf:"bytes,10,opt,name=ExternalID,proto3" json:"external_id,omitempty"`
-	// AssumeRoleARN is an optional AWS role ARN to assume when accessing a
-	// database. Set this field and ExternalID to enable access across AWS
-	// accounts.
+	// AssumeRoleARN is an optional AWS role ARN to assume when accessing a database.
+	// Set this field and ExternalID to enable access across AWS accounts.
 	AssumeRoleARN string `protobuf:"bytes,11,opt,name=AssumeRoleARN,proto3" json:"assume_role_arn,omitempty"`
 	// OpenSearch contains AWS OpenSearch specific metadata.
 	OpenSearch OpenSearch `protobuf:"bytes,12,opt,name=OpenSearch,proto3" json:"opensearch,omitempty"`
-	// IAMPolicyStatus indicates whether the IAM Policy is configured properly for
-	// database access. If not, the user must update the AWS profile identity to
-	// allow access to the Database. Eg for an RDS Database: the underlying AWS
-	// profile allows for `rds-db:connect` for the Database.
+	// IAMPolicyStatus indicates whether the IAM Policy is configured properly for database access.
+	// If not, the user must update the AWS profile identity to allow access to the Database.
+	// Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database.
 	IAMPolicyStatus IAMPolicyStatus `protobuf:"varint,14,opt,name=IAMPolicyStatus,proto3,enum=types.IAMPolicyStatus" json:"iam_policy_status"`
 	// SessionTags is a list of AWS STS session tags.
 	SessionTags          map[string]string `protobuf:"bytes,15,rep,name=SessionTags,proto3" json:"session_tags,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
@@ -1896,8 +1873,7 @@ type ElastiCache struct {
 	ReplicationGroupID string `protobuf:"bytes,1,opt,name=ReplicationGroupID,proto3" json:"replication_group_id,omitempty"`
 	// UserGroupIDs is a list of user group IDs.
 	UserGroupIDs []string `protobuf:"bytes,2,rep,name=UserGroupIDs,proto3" json:"user_group_ids,omitempty"`
-	// TransitEncryptionEnabled indicates whether in-transit encryption (TLS) is
-	// enabled.
+	// TransitEncryptionEnabled indicates whether in-transit encryption (TLS) is enabled.
 	TransitEncryptionEnabled bool `protobuf:"varint,3,opt,name=TransitEncryptionEnabled,proto3" json:"transit_encryption_enabled,omitempty"`
 	// EndpointType is the type of the endpoint.
 	EndpointType         string   `protobuf:"bytes,4,opt,name=EndpointType,proto3" json:"endpoint_type,omitempty"`
@@ -2217,15 +2193,13 @@ var xxx_messageInfo_AzureRedis proto.InternalMessageInfo
 type AD struct {
 	// KeytabFile is the path to the Kerberos keytab file.
 	KeytabFile string `protobuf:"bytes,1,opt,name=KeytabFile,proto3" json:"keytab_file,omitempty"`
-	// Krb5File is the path to the Kerberos configuration file. Defaults to
-	// /etc/krb5.conf.
+	// Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.
 	Krb5File string `protobuf:"bytes,2,opt,name=Krb5File,proto3" json:"krb5_file,omitempty"`
 	// Domain is the Active Directory domain the database resides in.
 	Domain string `protobuf:"bytes,3,opt,name=Domain,proto3" json:"domain"`
 	// SPN is the service principal name for the database.
 	SPN string `protobuf:"bytes,4,opt,name=SPN,proto3" json:"spn"`
-	// LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509
-	// Authentication.
+	// LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication.
 	LDAPCert string `protobuf:"bytes,5,opt,name=LDAPCert,proto3" json:"ldap_cert,omitempty"`
 	// KDCHostName is the host name for a KDC for x509 Authentication.
 	KDCHostName          string   `protobuf:"bytes,6,opt,name=KDCHostName,proto3" json:"kdc_host_name,omitempty"`
@@ -2318,8 +2292,8 @@ var xxx_messageInfo_DatabaseTLS proto.InternalMessageInfo
 
 // MySQLOptions are additional MySQL database options.
 type MySQLOptions struct {
-	// ServerVersion is the server version reported by DB proxy if the runtime
-	// information is not available.
+	// ServerVersion is the server version reported by DB proxy if the runtime information is
+	// not available.
 	ServerVersion        string   `protobuf:"bytes,1,opt,name=ServerVersion,proto3" json:"server_version,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -2447,26 +2421,21 @@ var xxx_messageInfo_InstanceV1 proto.InternalMessageInfo
 type InstanceSpecV1 struct {
 	// Version is the version of teleport this instance most recently advertised.
 	Version string `protobuf:"bytes,1,opt,name=Version,proto3" json:"version,omitempty"`
-	// Services is the list of active services this instance most recently
-	// advertised.
+	// Services is the list of active services this instance most recently advertised.
 	Services []SystemRole `protobuf:"bytes,2,rep,name=Services,proto3,casttype=SystemRole" json:"services,omitempty"`
 	// Hostname is the hostname this instance most recently advertised.
 	Hostname string `protobuf:"bytes,3,opt,name=Hostname,proto3" json:"hostname,omitempty"`
-	// AuthID is the ID of the auth server that most recently observed this
-	// instance.
+	// AuthID is the ID of the auth server that most recently observed this instance.
 	AuthID string `protobuf:"bytes,4,opt,name=AuthID,proto3" json:"auth_id,omitempty"`
 	// LastSeen is the last time an auth server reported observing this instance.
 	LastSeen time.Time `protobuf:"bytes,5,opt,name=LastSeen,proto3,stdtime" json:"last_seen,omitempty"`
-	// ControlLog is the log of recent important instance control events related
-	// to this instance. See comments on the InstanceControlLogEntry type for
-	// details.
+	// ControlLog is the log of recent important instance control events related to this instance. See comments
+	// on the InstanceControlLogEntry type for details.
 	ControlLog []InstanceControlLogEntry `protobuf:"bytes,6,rep,name=ControlLog,proto3" json:"control_log,omitempty"`
-	// ExternalUpgrader identifies the external upgrader that the instance is
-	// configured to export schedules to (e.g. 'kube'). Empty if no upgrader is
-	// defined.
+	// ExternalUpgrader identifies the external upgrader that the instance is configured to
+	// export schedules to (e.g. 'kube'). Empty if no upgrader is defined.
 	ExternalUpgrader string `protobuf:"bytes,7,opt,name=ExternalUpgrader,proto3" json:"ext_upgrader,omitempty"`
-	// ExternalUpgraderVersion identifies the external upgrader version. Empty if
-	// no upgrader is defined.
+	// ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
 	ExternalUpgraderVersion string   `protobuf:"bytes,8,opt,name=ExternalUpgraderVersion,proto3" json:"ext_upgrader_version,omitempty"`
 	XXX_NoUnkeyedLiteral    struct{} `json:"-"`
 	XXX_unrecognized        []byte   `json:"-"`
@@ -2506,43 +2475,37 @@ func (m *InstanceSpecV1) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_InstanceSpecV1 proto.InternalMessageInfo
 
-// InstanceControlLogEntry represents an entry in a given instance's control
-// log. The control log of an instance is protected by CompareAndSwap semantics,
-// allowing entries to function as a means of synchronization as well as
-// recordkeeping. For example, an auth server intending to trigger an upgrade
-// for a given instance can check its control log for 'upgrade-attempt' entries.
-// If no such entry exists, it can attempt to write an 'upgrade-attempt' entry
-// of its own. If that entry successfully writes without hitting a
-// CompareFailed, the auth server knows that no other auth servers will make
-// concurrent upgrade attempts while that entry persists.
+// InstanceControlLogEntry represents an entry in a given instance's control log. The control log of
+// an instance is protected by CompareAndSwap semantics, allowing entries to function as a means of
+// synchronization as well as recordkeeping. For example, an auth server intending to trigger an upgrade
+// for a given instance can check its control log for 'upgrade-attempt' entries. If no such entry exists,
+// it can attempt to write an 'upgrade-attempt' entry of its own. If that entry successfully writes without
+// hitting a CompareFailed, the auth server knows that no other auth servers will make concurrent upgrade
+// attempts while that entry persists.
 //
-// NOTE: Due to resource size and backend throughput limitations, care should be
-// taken to minimize the use and size of instance control log entries.
+// NOTE: Due to resource size and backend throughput limitations, care should be taken to minimize the
+// use and size of instance control log entries.
 type InstanceControlLogEntry struct {
-	// Type represents the type of control log entry this is (e.g.
-	// 'upgrade-attempt').
+	// Type represents the type of control log entry this is (e.g. 'upgrade-attempt').
 	Type string `protobuf:"bytes,1,opt,name=Type,proto3" json:"type,omitempty"`
-	// ID is a random identifier used to assist in uniquely identifying entries.
-	// This value may be unique, or it may be used to associate a collection of
-	// related entries (e.g. an upgrade attempt entry may use the same ID as an
-	// associated upgrade failure entry if appropriate).
+	// ID is a random identifier used to assist in uniquely identifying entries. This value may
+	// be unique, or it may be used to associate a collection of related entries (e.g. an upgrade
+	// attempt entry may use the same ID as an associated upgrade failure entry if appropriate).
 	ID uint64 `protobuf:"varint,2,opt,name=ID,proto3" json:"id,omitempty"`
-	// Time is the time at which the event represented by this entry occurred
-	// (used in determining ordering and expiry).
+	// Time is the time at which the event represented by this entry occurred (used in determining
+	// ordering and expiry).
 	Time time.Time `protobuf:"bytes,3,opt,name=Time,proto3,stdtime" json:"time,omitempty"`
-	// TTL is an optional custom time to live for this control log entry. Some
-	// control log entries (e.g. an upgrade failure) may require longer than
-	// normal TTLs in order to ensure visibility. If a log entry's TTL results in
-	// it having an intended expiry further in the future than the expiry of the
-	// enclosing Instance resource, the instance resource's expiry will be bumped
-	// to accommodate preservation of the log. Because of this fact, custom entry
-	// TTLs should be used sparingly, as excess usage could result in unexpected
-	// backend growth for high churn clusters.
+	// TTL is an optional custom time to live for this control log entry. Some control log entries
+	// (e.g. an upgrade failure) may require longer than normal TTLs in order to ensure visibility.
+	// If a log entry's TTL results in it having an intended expiry further in the future than the
+	// expiry of the enclosing Instance resource, the instance resource's expiry will be bumped
+	// to accommodate preservation of the log. Because of this fact, custom entry TTLs should be
+	// used sparingly, as excess usage could result in unexpected backend growth for high churn
+	// clusters.
 	TTL time.Duration `protobuf:"varint,4,opt,name=TTL,proto3,casttype=time.Duration" json:"ttl,omitempty"`
-	// Labels is an arbitrary collection of key-value pairs. The expected labels
-	// are determined by the type of the entry. Use of labels is preferable to
-	// adding new fields in some cases in order to preserve fields across auth
-	// downgrades (this is mostly relevant for the version-control system).
+	// Labels is an arbitrary collection of key-value pairs. The expected labels are determined by the
+	// type of the entry. Use of labels is preferable to adding new fields in some cases in order to
+	// preserve fields across auth downgrades (this is mostly relevant for the version-control system).
 	Labels               map[string]string `protobuf:"bytes,5,rep,name=Labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
@@ -2588,15 +2551,13 @@ type InstanceFilter struct {
 	ServerID string `protobuf:"bytes,1,opt,name=ServerID,proto3" json:"ServerID,omitempty"`
 	// Version matches instance version if specified.
 	Version string `protobuf:"bytes,2,opt,name=Version,proto3" json:"Version,omitempty"`
-	// Services matches the instance services if specified. Note that this field
-	// matches all instances which expose *at least* one of the listed services.
-	// This is in contrast to service matching in version directives which match
-	// instances that expose a *at most* the listed services.
+	// Services matches the instance services if specified. Note that this field matches all instances which
+	// expose *at least* one of the listed services. This is in contrast to service matching in version
+	// directives which match instances that expose a *at most* the listed services.
 	Services []SystemRole `protobuf:"bytes,3,rep,name=Services,proto3,casttype=SystemRole" json:"Services,omitempty"`
 	// ExternalUpgrader matches instance upgrader if specified.
 	ExternalUpgrader string `protobuf:"bytes,4,opt,name=ExternalUpgrader,proto3" json:"ExternalUpgrader,omitempty"`
-	// NoExtUpgrader explicitly matches instances for which no upgrader is
-	// defined.
+	// NoExtUpgrader explicitly matches instances for which no upgrader is defined.
 	NoExtUpgrader bool `protobuf:"varint,5,opt,name=NoExtUpgrader,proto3" json:"NoExtUpgrader,omitempty"`
 	// OlderThanVersion is an optional exclusive upper version bound.
 	OlderThanVersion string `protobuf:"bytes,6,opt,name=OlderThanVersion,proto3" json:"OlderThanVersion,omitempty"`
@@ -2640,8 +2601,7 @@ func (m *InstanceFilter) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_InstanceFilter proto.InternalMessageInfo
 
-// ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport
-// cluster.
+// ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.
 type ServerV2 struct {
 	// Kind is a resource kind
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
@@ -2763,10 +2723,8 @@ type AWSInfo struct {
 	// VPCID is the AWS VPC ID where the Instance is running.
 	VPCID string `protobuf:"bytes,4,opt,name=VPCID,proto3" json:"vpc_id,omitempty"`
 	// Integration is the integration name that added this Node.
-	// When connecting to it, it will use this integration to issue AWS API calls
-	// in order to set up the connection. This includes sending an SSH Key and
-	// then opening a tunnel (EC2 Instance Connect Endpoint) so Teleport can
-	// connect to it.
+	// When connecting to it, it will use this integration to issue AWS API calls in order to set up the connection.
+	// This includes sending an SSH Key and then opening a tunnel (EC2 Instance Connect Endpoint) so Teleport can connect to it.
 	Integration string `protobuf:"bytes,5,opt,name=Integration,proto3" json:"integration,omitempty"`
 	// SubnetID is the Subnet ID in use by the instance.
 	SubnetID             string   `protobuf:"bytes,6,opt,name=SubnetID,proto3" json:"subnet_id,omitempty"`
@@ -3104,9 +3062,8 @@ func (m *AppSpecV3) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_AppSpecV3 proto.InternalMessageInfo
 
-// AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a
-// SAMLIdPServiceProviderV1 resource (never both). Used in application listings
-// that request both app servers and saml apps.
+// AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
+// Used in application listings that request both app servers and saml apps.
 //
 // DEPRECATED: Use AppServer and SAMLIdPServiceProvider type individually.
 //
@@ -3252,8 +3209,7 @@ func (m *Rewrite) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Rewrite proto.InternalMessageInfo
 
-// Header represents a single http header passed over to the proxied
-// application.
+// Header represents a single http header passed over to the proxied application.
 type Header struct {
 	// Name is the http header name.
 	Name string `protobuf:"bytes,1,opt,name=Name,proto3" json:"name"`
@@ -3936,35 +3892,28 @@ type ProvisionTokenSpecV2 struct {
 	JoinMethod JoinMethod `protobuf:"bytes,4,opt,name=JoinMethod,proto3,casttype=JoinMethod" json:"join_method"`
 	// BotName is the name of the bot this token grants access to, if any
 	BotName string `protobuf:"bytes,5,opt,name=BotName,proto3" json:"bot_name,omitempty"`
-	// SuggestedLabels is a set of labels that resources should set when using
-	// this token to enroll themselves in the cluster. Currently, only node-join
-	// scripts create a configuration according to the suggestion.
+	// SuggestedLabels is a set of labels that resources should set when using this token to enroll
+	// themselves in the cluster.
+	// Currently, only node-join scripts create a configuration according to the suggestion.
 	SuggestedLabels Labels `protobuf:"bytes,6,opt,name=SuggestedLabels,proto3,customtype=Labels" json:"suggested_labels,omitempty"`
-	// GitHub allows the configuration of options specific to the "github" join
-	// method.
+	// GitHub allows the configuration of options specific to the "github" join method.
 	GitHub *ProvisionTokenSpecV2GitHub `protobuf:"bytes,7,opt,name=GitHub,proto3" json:"github,omitempty"`
-	// CircleCI allows the configuration of options specific to the "circleci"
-	// join method.
+	// CircleCI allows the configuration of options specific to the "circleci" join method.
 	CircleCI *ProvisionTokenSpecV2CircleCI `protobuf:"bytes,8,opt,name=CircleCI,proto3" json:"circleci,omitempty"`
-	// SuggestedAgentMatcherLabels is a set of labels to be used by agents to
-	// match on resources. When an agent uses this token, the agent should monitor
-	// resources that match those labels. For databases, this means adding the
-	// labels to `db_service.resources.labels`. Currently, only node-join scripts
-	// create a configuration according to the suggestion.
+	// SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources.
+	// When an agent uses this token, the agent should monitor resources that match those labels.
+	// For databases, this means adding the labels to `db_service.resources.labels`.
+	// Currently, only node-join scripts create a configuration according to the suggestion.
 	SuggestedAgentMatcherLabels Labels `protobuf:"bytes,9,opt,name=SuggestedAgentMatcherLabels,proto3,customtype=Labels" json:"suggested_agent_matcher_labels,omitempty"`
-	// Kubernetes allows the configuration of options specific to the "kubernetes"
-	// join method.
+	// Kubernetes allows the configuration of options specific to the "kubernetes" join method.
 	Kubernetes *ProvisionTokenSpecV2Kubernetes `protobuf:"bytes,10,opt,name=Kubernetes,proto3" json:"kubernetes,omitempty"`
-	// Azure allows the configuration of options specific to the "azure" join
-	// method.
+	// Azure allows the configuration of options specific to the "azure" join method.
 	Azure *ProvisionTokenSpecV2Azure `protobuf:"bytes,11,opt,name=Azure,proto3" json:"azure,omitempty"`
-	// GitLab allows the configuration of options specific to the "gitlab" join
-	// method.
+	// GitLab allows the configuration of options specific to the "gitlab" join method.
 	GitLab *ProvisionTokenSpecV2GitLab `protobuf:"bytes,12,opt,name=GitLab,proto3" json:"gitlab,omitempty"`
 	// GCP allows the configuration of options specific to the "gcp" join method.
 	GCP *ProvisionTokenSpecV2GCP `protobuf:"bytes,13,opt,name=GCP,proto3" json:"gcp,omitempty"`
-	// Spacelift allows the configuration of options specific to the "spacelift"
-	// join method.
+	// Spacelift allows the configuration of options specific to the "spacelift" join method.
 	Spacelift            *ProvisionTokenSpecV2Spacelift `protobuf:"bytes,14,opt,name=Spacelift,proto3" json:"spacelift,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                       `json:"-"`
 	XXX_unrecognized     []byte                         `json:"-"`
@@ -4023,12 +3972,11 @@ type ProvisionTokenSpecV2GitHub struct {
 	// included in the expected issuer of the OIDC tokens. This is for
 	// compatibility with the `include_enterprise_slug` option in GHE.
 	//
-	// This field should be set to the slug of your enterprise if this is enabled.
-	// If this is not enabled, then this field must be left empty. This field
-	// cannot be specified if `enterprise_server_host` is specified.
+	// This field should be set to the slug of your enterprise if this is enabled. If
+	// this is not enabled, then this field must be left empty. This field cannot
+	// be specified if `enterprise_server_host` is specified.
 	//
-	// See
-	// https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
+	// See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
 	// for more information about customized issuer values.
 	EnterpriseSlug       string   `protobuf:"bytes,3,opt,name=EnterpriseSlug,proto3" json:"enterprise_slug,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -4231,20 +4179,17 @@ type ProvisionTokenSpecV2GitLab_Rule struct {
 	UserEmail string `protobuf:"bytes,10,opt,name=UserEmail,proto3" json:"user_email,omitempty"`
 	// RefProtected is true if the Git ref is protected, false otherwise.
 	RefProtected *BoolOption `protobuf:"bytes,11,opt,name=RefProtected,proto3,customtype=BoolOption" json:"ref_protected,omitempty"`
-	// EnvironmentProtected is true if the Git ref is protected, false
-	// otherwise.
+	// EnvironmentProtected is true if the Git ref is protected, false otherwise.
 	EnvironmentProtected *BoolOption `protobuf:"bytes,12,opt,name=EnvironmentProtected,proto3,customtype=BoolOption" json:"environment_protected,omitempty"`
 	// CIConfigSHA is the git commit SHA for the ci_config_ref_uri.
 	CIConfigSHA string `protobuf:"bytes,13,opt,name=CIConfigSHA,proto3" json:"ci_config_sha,omitempty"`
-	// CIConfigRefURI is the ref path to the top-level pipeline definition, for
-	// example,
+	// CIConfigRefURI is the ref path to the top-level pipeline definition, for example,
 	// gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.
 	CIConfigRefURI string `protobuf:"bytes,14,opt,name=CIConfigRefURI,proto3" json:"ci_config_ref_uri,omitempty"`
-	// DeploymentTier is the deployment tier of the environment the job
-	// specifies
+	// DeploymentTier is the deployment tier of the environment the job specifies
 	DeploymentTier string `protobuf:"bytes,15,opt,name=DeploymentTier,proto3" json:"deployment_tier,omitempty"`
-	// ProjectVisibility is the visibility of the project where the pipeline is
-	// running. Can be internal, private, or public.
+	// ProjectVisibility is the visibility of the project where the pipeline is running.
+	// Can be internal, private, or public.
 	ProjectVisibility    string   `protobuf:"bytes,16,opt,name=ProjectVisibility,proto3" json:"project_visibility,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -4428,8 +4373,7 @@ type ProvisionTokenSpecV2Spacelift_Rule struct {
 	// either `stack` or `module`.
 	CallerType string `protobuf:"bytes,3,opt,name=CallerType,proto3" json:"caller_type,omitempty"`
 	// Scope is the scope of the token - either `read` or `write`.
-	// See
-	// https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes
+	// See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes
 	Scope                string   `protobuf:"bytes,4,opt,name=Scope,proto3" json:"scope,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -5044,8 +4988,7 @@ type ClusterAuditConfigSpecV2 struct {
 	// AuditEventsURI is a parameter with all supported outputs
 	// for audit events
 	AuditEventsURI github_com_gravitational_teleport_api_types_wrappers.Strings `protobuf:"bytes,4,opt,name=AuditEventsURI,proto3,customtype=github.com/gravitational/teleport/api/types/wrappers.Strings" json:"audit_events_uri,omitempty"`
-	// EnableContinuousBackups is used to enable (or disable) PITR (Point-In-Time
-	// Recovery).
+	// EnableContinuousBackups is used to enable (or disable) PITR (Point-In-Time Recovery).
 	EnableContinuousBackups bool `protobuf:"varint,6,opt,name=EnableContinuousBackups,proto3" json:"continuous_backups,omitempty"`
 	// EnableAutoScaling is used to enable (or disable) auto scaling policy.
 	EnableAutoScaling bool `protobuf:"varint,7,opt,name=EnableAutoScaling,proto3" json:"auto_scaling,omitempty"`
@@ -5160,8 +5103,8 @@ type ClusterNetworkingConfigSpecV2 struct {
 	// ClientIdleTimeout sets global cluster default setting for client idle
 	// timeouts.
 	ClientIdleTimeout Duration `protobuf:"varint,1,opt,name=ClientIdleTimeout,proto3,casttype=Duration" json:"client_idle_timeout"`
-	// KeepAliveInterval is the interval at which the server sends keep-alive
-	// messages to the client.
+	// KeepAliveInterval is the interval at which the server sends keep-alive messages
+	// to the client.
 	KeepAliveInterval Duration `protobuf:"varint,2,opt,name=KeepAliveInterval,proto3,casttype=Duration" json:"keep_alive_interval"`
 	// KeepAliveCountMax is the number of keep-alive messages that can be
 	// missed before the server disconnects the connection to the client.
@@ -5170,8 +5113,7 @@ type ClusterNetworkingConfigSpecV2 struct {
 	// the upper limit of how long a node may be out of contact with the auth
 	// server before it begins terminating controlled sessions.
 	SessionControlTimeout Duration `protobuf:"varint,4,opt,name=SessionControlTimeout,proto3,casttype=Duration" json:"session_control_timeout"`
-	// ClientIdleTimeoutMessage is the message sent to the user when a connection
-	// times out.
+	// ClientIdleTimeoutMessage is the message sent to the user when a connection times out.
 	ClientIdleTimeoutMessage string `protobuf:"bytes,5,opt,name=ClientIdleTimeoutMessage,proto3" json:"idle_timeout_message"`
 	// WebIdleTimeout sets global cluster default setting for the web UI idle
 	// timeouts.
@@ -5191,8 +5133,7 @@ type ClusterNetworkingConfigSpecV2 struct {
 	// AssistCommandExecutionWorkers determines the number of workers that will
 	// execute arbitrary Assist commands on servers in parallel
 	AssistCommandExecutionWorkers int32 `protobuf:"varint,11,opt,name=AssistCommandExecutionWorkers,proto3" json:"assist_command_execution_workers,omitempty"`
-	// CaseInsensitiveRouting causes proxies to use case-insensitive hostname
-	// matching.
+	// CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.
 	CaseInsensitiveRouting bool     `protobuf:"varint,12,opt,name=CaseInsensitiveRouting,proto3" json:"case_insensitive_routing,omitempty"`
 	XXX_NoUnkeyedLiteral   struct{} `json:"-"`
 	XXX_unrecognized       []byte   `json:"-"`
@@ -5362,8 +5303,7 @@ func (m *AgentMeshTunnelStrategy) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_AgentMeshTunnelStrategy proto.InternalMessageInfo
 
-// ProxyPeeringTunnelStrategy requires reverse tunnels to dial a fixed number of
-// proxies.
+// ProxyPeeringTunnelStrategy requires reverse tunnels to dial a fixed number of proxies.
 type ProxyPeeringTunnelStrategy struct {
 	AgentConnectionCount int64    `protobuf:"varint,1,opt,name=AgentConnectionCount,proto3" json:"agent_connection_count,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -5837,8 +5777,8 @@ type HardwareKey struct {
 	// PIVSlot is a PIV slot that Teleport clients should use instead of the
 	// default based on private key policy. For example, "9a" or "9e".
 	PIVSlot string `protobuf:"bytes,1,opt,name=PIVSlot,proto3" json:"piv_slot,omitempty"`
-	// SerialNumberValidation holds settings for hardware key serial number
-	// validation. By default, serial number validation is disabled.
+	// SerialNumberValidation holds settings for hardware key serial number validation.
+	// By default, serial number validation is disabled.
 	SerialNumberValidation *HardwareKeySerialNumberValidation `protobuf:"bytes,2,opt,name=SerialNumberValidation,proto3" json:"serial_number_validation,omitempty"`
 	XXX_NoUnkeyedLiteral   struct{}                           `json:"-"`
 	XXX_unrecognized       []byte                             `json:"-"`
@@ -5881,11 +5821,11 @@ var xxx_messageInfo_HardwareKey proto.InternalMessageInfo
 type HardwareKeySerialNumberValidation struct {
 	// Enabled indicates whether hardware key serial number validation is enabled.
 	Enabled bool `protobuf:"varint,1,opt,name=Enabled,proto3" json:"enabled,omitempty"`
-	// SerialNumberTraitName is an optional custom user trait name for hardware
-	// key serial numbers to replace the default: "hardware_key_serial_numbers".
+	// SerialNumberTraitName is an optional custom user trait name for hardware key
+	// serial numbers to replace the default: "hardware_key_serial_numbers".
 	//
-	// Note: Values for this user trait should be a comma-separated list of serial
-	// numbers, or a list of comm-separated lists. e.g ["123", "345,678"]
+	// Note: Values for this user trait should be a comma-separated list of serial numbers,
+	// or a list of comm-separated lists. e.g ["123", "345,678"]
 	SerialNumberTraitName string   `protobuf:"bytes,2,opt,name=SerialNumberTraitName,proto3" json:"serial_number_trait_name,omitempty"`
 	XXX_NoUnkeyedLiteral  struct{} `json:"-"`
 	XXX_unrecognized      []byte   `json:"-"`
@@ -6068,8 +6008,7 @@ type UserTokenSpecV3 struct {
 	User string `protobuf:"bytes,1,opt,name=User,proto3" json:"user"`
 	// URL is this token URL
 	URL string `protobuf:"bytes,2,opt,name=URL,proto3" json:"url"`
-	// Usage is an optional field that provides more information about how this
-	// token will be used.
+	// Usage is an optional field that provides more information about how this token will be used.
 	Usage UserTokenUsage `protobuf:"varint,3,opt,name=Usage,proto3,enum=types.UserTokenUsage" json:"usage,omitempty"`
 	// Created holds information about when the token was created
 	Created              time.Time `protobuf:"bytes,4,opt,name=Created,proto3,stdtime" json:"created,omitempty"`
@@ -6363,8 +6302,7 @@ type AccessReview struct {
 	Reason string `protobuf:"bytes,4,opt,name=Reason,proto3" json:"reason,omitempty"`
 	// Created is the time at which the review was created.
 	Created time.Time `protobuf:"bytes,5,opt,name=Created,proto3,stdtime" json:"created,omitempty"`
-	// Annotations is the proposed value of the request's resolve_annotations
-	// field.
+	// Annotations is the proposed value of the request's resolve_annotations field.
 	Annotations github_com_gravitational_teleport_api_types_wrappers.Traits `protobuf:"bytes,6,opt,name=Annotations,proto3,customtype=github.com/gravitational/teleport/api/types/wrappers.Traits" json:"annotations,omitempty"`
 	// ThresholdIndexes stores the indexes of thresholds which this review matches
 	// (internal use only).
@@ -6457,9 +6395,8 @@ func (m *AccessReviewSubmission) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_AccessReviewSubmission proto.InternalMessageInfo
 
-// ThresholdIndexSet encodes a list of threshold indexes. One of the listed
-// thresholds must pass for the set to be considered to have passed (i.e. this
-// is an `or` operator).
+// ThresholdIndexSet encodes a list of threshold indexes. One of the listed thresholds
+// must pass for the set to be considered to have passed (i.e. this is an `or` operator).
 type ThresholdIndexSet struct {
 	// Indexes are the indexes of thresholds which relate to the role.
 	Indexes              []uint32 `protobuf:"varint,1,rep,packed,name=Indexes,proto3" json:"i,omitempty"`
@@ -6560,42 +6497,38 @@ type AccessRequestSpecV3 struct {
 	Expires time.Time `protobuf:"bytes,5,opt,name=Expires,proto3,stdtime" json:"expires,omitempty"`
 	// RequestReason is an optional message explaining the reason for the request.
 	RequestReason string `protobuf:"bytes,6,opt,name=RequestReason,proto3" json:"request_reason,omitempty"`
-	// ResolveReason is an optional message explaining the reason for the
-	// resolution of the request (approval, denial, etc...).
+	// ResolveReason is an optional message explaining the reason for the resolution
+	// of the request (approval, denial, etc...).
 	ResolveReason string `protobuf:"bytes,7,opt,name=ResolveReason,proto3" json:"resolve_reason,omitempty"`
-	// ResolveAnnotations is a set of arbitrary values received from plugins or
-	// other resolving parties during approval/denial.  Importantly, these
-	// annotations are included in the access_request.update event, allowing
-	// plugins to propagate arbitrary structured data to the audit log.
+	// ResolveAnnotations is a set of arbitrary values received from plugins or other
+	// resolving parties during approval/denial.  Importantly, these annotations are
+	// included in the access_request.update event, allowing plugins to propagate
+	// arbitrary structured data to the audit log.
 	ResolveAnnotations github_com_gravitational_teleport_api_types_wrappers.Traits `protobuf:"bytes,8,opt,name=ResolveAnnotations,proto3,customtype=github.com/gravitational/teleport/api/types/wrappers.Traits" json:"resolve_annotations,omitempty"`
-	// SystemAnnotations is a set of programmatically generated annotations
-	// attached to pending access requests by teleport.  These annotations are
-	// generated by applying variable interpolation to the
-	// RoleConditions.Request.Annotations block of a user's role(s).  These
-	// annotations serve as a mechanism for administrators to pass extra
-	// information to plugins when they process pending access requests.
+	// SystemAnnotations is a set of programmatically generated annotations attached
+	// to pending access requests by teleport.  These annotations are generated by
+	// applying variable interpolation to the RoleConditions.Request.Annotations block
+	// of a user's role(s).  These annotations serve as a mechanism for administrators
+	// to pass extra information to plugins when they process pending access requests.
 	SystemAnnotations github_com_gravitational_teleport_api_types_wrappers.Traits `protobuf:"bytes,9,opt,name=SystemAnnotations,proto3,customtype=github.com/gravitational/teleport/api/types/wrappers.Traits" json:"system_annotations,omitempty"`
-	// Thresholds is a list of review thresholds relevant to this request.  Order
-	// must be preserved, as thresholds are referenced by index (internal use
-	// only).
+	// Thresholds is a list of review thresholds relevant to this request.  Order must be
+	// preserved, as thresholds are referenced by index (internal use only).
 	Thresholds []AccessReviewThreshold `protobuf:"bytes,10,rep,name=Thresholds,proto3" json:"thresholds,omitempty"`
-	// RoleThresholdMapping encodes the relationship between the requested roles
-	// and the review threshold requirements for the given role (internal use
-	// only). By storing a representation of which thresholds must pass for each
-	// requested role, we both eliminate the need to cache the requestor's roles
-	// directly, and allow future versions of teleport to become smarter about
-	// calculating more granular requirements in a backwards-compatible manner
-	// (i.e. calculation can become smarter in minor releases). Storing this
-	// relationship on the request is necessary in order to avoid unexpected or
+	// RoleThresholdMapping encodes the relationship between the requested roles and
+	// the review threshold requirements for the given role (internal use only).
+	// By storing a representation of which thresholds must pass for each requested role, we
+	// both eliminate the need to cache the requestor's roles directly, and allow future
+	// versions of teleport to become smarter about calculating more granular requirements
+	// in a backwards-compatible manner (i.e. calculation can become smarter in minor releases).
+	// Storing this relationship on the request is necessary in order to avoid unexpected or
 	// inconsistent behavior due to review submission timing.
 	RoleThresholdMapping map[string]ThresholdIndexSets `protobuf:"bytes,11,rep,name=RoleThresholdMapping,proto3" json:"rtm,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// Reviews is a list of reviews applied to this request (internal use only).
 	Reviews []AccessReview `protobuf:"bytes,12,rep,name=Reviews,proto3" json:"reviews,omitempty"`
-	// SuggestedReviewers is a list of reviewer suggestions.  These can be
-	// teleport usernames, but that is not a requirement.
+	// SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but
+	// that is not a requirement.
 	SuggestedReviewers []string `protobuf:"bytes,13,rep,name=SuggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
-	// RequestedResourceIDs is a set of resources to which access is being
-	// requested.
+	// RequestedResourceIDs is a set of resources to which access is being requested.
 	RequestedResourceIDs []ResourceID `protobuf:"bytes,14,rep,name=RequestedResourceIDs,proto3" json:"resource_ids,omitempty"`
 	// LoginHint is used as a hint for search-based access requests to select
 	// roles based on the login the user is attempting.
@@ -6605,8 +6538,7 @@ type AccessRequestSpecV3 struct {
 	DryRun bool `protobuf:"varint,16,opt,name=DryRun,proto3" json:"dry_run,omitempty"`
 	// MaxDuration indicates how long the access should be granted for.
 	MaxDuration time.Time `protobuf:"bytes,17,opt,name=MaxDuration,proto3,stdtime" json:"max_duration,omitempty"`
-	// SessionTLL indicated how long a certificate for a session should be valid
-	// for.
+	// SessionTLL indicated how long a certificate for a session should be valid for.
 	SessionTTL time.Time `protobuf:"bytes,18,opt,name=SessionTTL,proto3,stdtime" json:"session_ttl,omitempty"`
 	// PromotedAccessListTitle is the title of the access list that this request
 	// was promoted to. Used by WebUI to display the title of the access list.
@@ -6660,14 +6592,13 @@ type AccessRequestFilter struct {
 	User string `protobuf:"bytes,2,opt,name=User,proto3" json:"user,omitempty"`
 	// RequestState filters for requests in a specific state.
 	State RequestState `protobuf:"varint,3,opt,name=State,proto3,enum=types.RequestState" json:"state,omitempty"`
-	// SearchKeywords is a list of search keywords to match against resource field
-	// values. The matcher goes through select field values from a resource and
-	// tries to match against the list of search values, ignoring case and order.
+	// SearchKeywords is a list of search keywords to match against resource field values.
+	// The matcher goes through select field values from a resource
+	// and tries to match against the list of search values, ignoring case and order.
 	// Returns true if all search vals were matched (or if nil search vals).
 	// Returns false if no or partial match (or nil field values).
 	SearchKeywords []string `protobuf:"bytes,4,rep,name=SearchKeywords,proto3" json:"search,omitempty"`
-	// Scope is an aditional filter to view requests based on needs review,
-	// reviewed, my requests
+	// Scope is an aditional filter to view requests based on needs review, reviewed, my requests
 	Scope AccessRequestScope `protobuf:"varint,5,opt,name=Scope,proto3,enum=types.AccessRequestScope" json:"scope,omitempty"`
 	// Requester is the requester of the api call. This is set by the auth server
 	// Use User for the requester of the request.
@@ -6714,17 +6645,13 @@ var xxx_messageInfo_AccessRequestFilter proto.InternalMessageInfo
 // is granted via their dynamic access privileges which may not be
 // calculable by directly examining the user's own static roles.
 type AccessCapabilities struct {
-	// RequestableRoles is a list of existent roles which the user is allowed to
-	// request.
+	// RequestableRoles is a list of existent roles which the user is allowed to request.
 	RequestableRoles []string `protobuf:"bytes,1,rep,name=RequestableRoles,proto3" json:"requestable_roles,omitempty"`
-	// SuggestedReviewers is a list of all reviewers which are suggested by the
-	// user's roles.
+	// SuggestedReviewers is a list of all reviewers which are suggested by the user's roles.
 	SuggestedReviewers []string `protobuf:"bytes,2,rep,name=SuggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
-	// ApplicableRolesForResources is a list of the roles applicable for access to
-	// a given set of resources.
+	// ApplicableRolesForResources is a list of the roles applicable for access to a given set of resources.
 	ApplicableRolesForResources []string `protobuf:"bytes,3,rep,name=ApplicableRolesForResources,proto3" json:"applicable_roles,omitempty"`
-	// RequestPrompt is an optional message which tells users what they aught to
-	// request.
+	// RequestPrompt is an optional message which tells users what they aught to request.
 	RequestPrompt string `protobuf:"bytes,4,opt,name=RequestPrompt,proto3" json:"request_prompt,omitempty"`
 	// RequireReason indicates whether the request strategy is one that requires
 	// users to always supply reasons with their requests.
@@ -6770,20 +6697,19 @@ func (m *AccessCapabilities) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_AccessCapabilities proto.InternalMessageInfo
 
-// AccessCapabilitiesRequest encodes parameters for the GetAccessCapabilities
-// method.
+// AccessCapabilitiesRequest encodes parameters for the GetAccessCapabilities method.
 type AccessCapabilitiesRequest struct {
-	// User is the name of the user whose capabilities we are interested in
-	// (defaults to the caller's own username).
+	// User is the name of the user whose capabilities we are interested in (defaults to
+	// the caller's own username).
 	User string `protobuf:"bytes,1,opt,name=User,proto3" json:"user,omitempty"`
-	// RequestableRoles is a flag indicating that we would like to view the list
-	// of roles that the user is able to request.
+	// RequestableRoles is a flag indicating that we would like to view the list of roles
+	// that the user is able to request.
 	RequestableRoles bool `protobuf:"varint,2,opt,name=RequestableRoles,proto3" json:"requestable_roles,omitempty"`
-	// SuggestedReviewers is a flag indicating that we would like to view the list
-	// of all reviewers which are suggested by the user's roles.
+	// SuggestedReviewers is a flag indicating that we would like to view the list of all
+	// reviewers which are suggested by the user's roles.
 	SuggestedReviewers bool `protobuf:"varint,3,opt,name=SuggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
-	// ResourceIDs is the list of the ResourceIDs of the resources we would like
-	// to view the necessary roles for.
+	// ResourceIDs is the list of the ResourceIDs of the resources we would like to view
+	// the necessary roles for.
 	ResourceIDs          []ResourceID `protobuf:"bytes,4,rep,name=ResourceIDs,proto3" json:"resource_ids,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
 	XXX_unrecognized     []byte       `json:"-"`
@@ -6833,9 +6759,8 @@ type ResourceID struct {
 	Name string `protobuf:"bytes,3,opt,name=Name,proto3" json:"name"`
 	// SubResourceName is the resource belonging to resource identified by "Name"
 	// that the user is allowed to access to.
-	// When granting access to a subresource, access to other resources is
-	// limited. Currently it just supports resources of Kind=pod and the format is
-	// the following
+	// When granting access to a subresource, access to other resources is limited.
+	// Currently it just supports resources of Kind=pod and the format is the following
 	// "<kube_namespace>/<kube_pod>".
 	SubResourceName      string   `protobuf:"bytes,4,opt,name=SubResourceName,proto3" json:"sub_resource,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -7068,8 +6993,7 @@ type PluginDataUpdateParams struct {
 	Plugin string `protobuf:"bytes,3,opt,name=Plugin,proto3" json:"plugin"`
 	// Set indicates the fields which should be set by this operation.
 	Set map[string]string `protobuf:"bytes,4,rep,name=Set,proto3" json:"set,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	// Expect optionally indicates the expected state of fields prior to this
-	// update.
+	// Expect optionally indicates the expected state of fields prior to this update.
 	Expect               map[string]string `protobuf:"bytes,5,rep,name=Expect,proto3" json:"expect,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
@@ -7239,35 +7163,33 @@ type RoleOptions struct {
 	// RequestAccess defines the access request strategy (optional|note|always)
 	// where optional is the default.
 	RequestAccess RequestStrategy `protobuf:"bytes,11,opt,name=RequestAccess,proto3,casttype=RequestStrategy" json:"request_access,omitempty"`
-	// RequestPrompt is an optional message which tells users what they aught to
-	// request.
+	// RequestPrompt is an optional message which tells users what they aught to request.
 	RequestPrompt string `protobuf:"bytes,12,opt,name=RequestPrompt,proto3" json:"request_prompt,omitempty"`
 	// Lock specifies the locking mode (strict|best_effort) to be applied with
 	// the role.
 	Lock github_com_gravitational_teleport_api_constants.LockingMode `protobuf:"bytes,14,opt,name=Lock,proto3,casttype=github.com/gravitational/teleport/api/constants.LockingMode" json:"lock,omitempty"`
-	// RecordDesktopSession indicates whether desktop access sessions should be
-	// recorded. It defaults to true unless explicitly set to false.
+	// RecordDesktopSession indicates whether desktop access sessions should be recorded.
+	// It defaults to true unless explicitly set to false.
 	RecordSession *RecordSession `protobuf:"bytes,15,opt,name=RecordSession,proto3" json:"record_session"`
-	// DesktopClipboard indicates whether clipboard sharing is allowed between the
-	// user's workstation and the remote desktop. It defaults to true unless
-	// explicitly set to false.
+	// DesktopClipboard indicates whether clipboard sharing is allowed between the user's
+	// workstation and the remote desktop. It defaults to true unless explicitly set to
+	// false.
 	DesktopClipboard *BoolOption `protobuf:"bytes,16,opt,name=DesktopClipboard,proto3,customtype=BoolOption" json:"desktop_clipboard"`
 	// CertExtensions specifies the key/values
 	CertExtensions []*CertExtension `protobuf:"bytes,17,rep,name=CertExtensions,proto3" json:"cert_extensions,omitempty"`
 	// MaxKubernetesConnections defines the maximum number of concurrent
 	// Kubernetes sessions a user may hold.
 	MaxKubernetesConnections int64 `protobuf:"varint,18,opt,name=MaxKubernetesConnections,proto3" json:"max_kubernetes_connections,omitempty"`
-	// DesktopDirectorySharing indicates whether directory sharing is allowed
-	// between the user's workstation and the remote desktop. It defaults to false
-	// unless explicitly set to true.
+	// DesktopDirectorySharing indicates whether directory sharing is allowed between the user's
+	// workstation and the remote desktop. It defaults to false unless explicitly set to
+	// true.
 	DesktopDirectorySharing *BoolOption `protobuf:"bytes,19,opt,name=DesktopDirectorySharing,proto3,customtype=BoolOption" json:"desktop_directory_sharing"`
 	// CreateHostUser allows users to be automatically created on a host
 	CreateHostUser *BoolOption `protobuf:"bytes,20,opt,name=CreateHostUser,proto3,customtype=BoolOption" json:"create_host_user,omitempty"`
 	// PinSourceIP forces the same client IP for certificate generation and usage
 	PinSourceIP Bool `protobuf:"varint,21,opt,name=PinSourceIP,proto3,casttype=Bool" json:"pin_source_ip"`
-	// SSHFileCopy indicates whether remote file operations via SCP or SFTP are
-	// allowed over an SSH session. It defaults to true unless explicitly set to
-	// false.
+	// SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed
+	// over an SSH session. It defaults to true unless explicitly set to false.
 	SSHFileCopy *BoolOption `protobuf:"bytes,22,opt,name=SSHFileCopy,proto3,customtype=BoolOption" json:"ssh_file_copy"`
 	// RequireMFAType is the type of MFA requirement enforced for this user.
 	// 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH",
@@ -7281,8 +7203,7 @@ type RoleOptions struct {
 	// IDP is a set of options related to accessing IdPs within Teleport.
 	// Requires Teleport Enterprise.
 	IDP *IdPOptions `protobuf:"bytes,25,opt,name=IDP,proto3" json:"idp,omitempty"`
-	// CreateDesktopUser allows users to be automatically created on a Windows
-	// desktop
+	// CreateDesktopUser allows users to be automatically created on a Windows desktop
 	CreateDesktopUser *BoolOption `protobuf:"bytes,26,opt,name=CreateDesktopUser,proto3,customtype=BoolOption" json:"create_desktop_user"`
 	// CreateDatabaseUser enabled automatic database user creation.
 	CreateDatabaseUser *BoolOption `protobuf:"bytes,27,opt,name=CreateDatabaseUser,proto3,customtype=BoolOption" json:"create_db_user"`
@@ -7459,27 +7380,22 @@ type RoleConditions struct {
 	KubernetesLabels Labels `protobuf:"bytes,10,opt,name=KubernetesLabels,proto3,customtype=Labels" json:"kubernetes_labels,omitempty"`
 	// DatabaseLabels are used in RBAC system to allow/deny access to databases.
 	DatabaseLabels Labels `protobuf:"bytes,11,opt,name=DatabaseLabels,proto3,customtype=Labels" json:"db_labels,omitempty"`
-	// DatabaseNames is a list of database names this role is allowed to connect
-	// to.
+	// DatabaseNames is a list of database names this role is allowed to connect to.
 	DatabaseNames []string `protobuf:"bytes,12,rep,name=DatabaseNames,proto3" json:"db_names,omitempty"`
-	// DatabaseUsers is a list of databases users this role is allowed to connect
-	// as.
+	// DatabaseUsers is a list of databases users this role is allowed to connect as.
 	DatabaseUsers []string `protobuf:"bytes,13,rep,name=DatabaseUsers,proto3" json:"db_users,omitempty"`
-	// Impersonate specifies what users and roles this role is allowed to
-	// impersonate by issuing certificates or other possible means.
+	// Impersonate specifies what users and roles this role is allowed to impersonate
+	// by issuing certificates or other possible means.
 	Impersonate *ImpersonateConditions `protobuf:"bytes,14,opt,name=Impersonate,proto3" json:"impersonate,omitempty"`
 	// ReviewRequests defines conditions for submitting access reviews.
 	ReviewRequests *AccessReviewConditions `protobuf:"bytes,15,opt,name=ReviewRequests,proto3" json:"review_requests,omitempty"`
 	// AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
 	AWSRoleARNs []string `protobuf:"bytes,16,rep,name=AWSRoleARNs,proto3" json:"aws_role_arns,omitempty"`
-	// WindowsDesktopLogins is a list of desktop login names allowed/denied for
-	// Windows desktops.
+	// WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.
 	WindowsDesktopLogins []string `protobuf:"bytes,17,rep,name=WindowsDesktopLogins,proto3" json:"windows_desktop_logins,omitempty"`
-	// WindowsDesktopLabels are used in the RBAC system to allow/deny access to
-	// Windows desktops.
+	// WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.
 	WindowsDesktopLabels Labels `protobuf:"bytes,18,opt,name=WindowsDesktopLabels,proto3,customtype=Labels" json:"windows_desktop_labels,omitempty"`
-	// RequireSessionJoin specifies policies for required users to start a
-	// session.
+	// RequireSessionJoin specifies policies for required users to start a session.
 	RequireSessionJoin []*SessionRequirePolicy `protobuf:"bytes,19,rep,name=RequireSessionJoin,proto3" json:"require_session_join,omitempty"`
 	// JoinSessions specifies policies to allow users to join other sessions.
 	JoinSessions []*SessionJoinPolicy `protobuf:"bytes,20,rep,name=JoinSessions,proto3" json:"join_sessions,omitempty"`
@@ -7487,16 +7403,13 @@ type RoleConditions struct {
 	HostGroups []string `protobuf:"bytes,21,rep,name=HostGroups,proto3" json:"host_groups,omitempty"`
 	// HostSudoers is a list of entries to include in a users sudoer file
 	HostSudoers []string `protobuf:"bytes,22,rep,name=HostSudoers,proto3" json:"host_sudoers,omitempty"`
-	// AzureIdentities is a list of Azure identities this role is allowed to
-	// assume.
+	// AzureIdentities is a list of Azure identities this role is allowed to assume.
 	AzureIdentities []string `protobuf:"bytes,23,rep,name=AzureIdentities,proto3" json:"azure_identities,omitempty"`
 	// KubernetesResources is the Kubernetes Resources this Role grants access to.
 	KubernetesResources []KubernetesResource `protobuf:"bytes,24,rep,name=KubernetesResources,proto3" json:"kubernetes_resources,omitempty"`
-	// GCPServiceAccounts is a list of GCP service accounts this role is allowed
-	// to assume.
+	// GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.
 	GCPServiceAccounts []string `protobuf:"bytes,25,rep,name=GCPServiceAccounts,proto3" json:"gcp_service_accounts,omitempty"`
-	// DatabaseServiceLabels are used in RBAC system to allow/deny access to
-	// Database Services.
+	// DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.
 	DatabaseServiceLabels Labels `protobuf:"bytes,26,opt,name=DatabaseServiceLabels,proto3,customtype=Labels" json:"db_service_labels,omitempty"`
 	// GroupLabels is a map of labels used as part of the RBAC system.
 	GroupLabels Labels `protobuf:"bytes,27,opt,name=GroupLabels,proto3,customtype=Labels" json:"group_labels,omitempty"`
@@ -7534,11 +7447,11 @@ type RoleConditions struct {
 	// SPIFFE is used to allow or deny access to a role holder to generating a
 	// SPIFFE SVID.
 	SPIFFE []*SPIFFERoleCondition `protobuf:"bytes,39,rep,name=SPIFFE,proto3" json:"spiffe,omitempty"`
-	// SAMLIdPServiceProviderLabels is a labels map used in RBAC system to
-	// allow/deny access to saml_idp_service_provider resource.
+	// SAMLIdPServiceProviderLabels is a labels map used in RBAC system to allow/deny access
+	// to saml_idp_service_provider resource.
 	SAMLIdPServiceProviderLabels Labels `protobuf:"bytes,40,opt,name=SAMLIdPServiceProviderLabels,proto3,customtype=Labels" json:"saml_idp_service_provider_labels,omitempty"`
-	// SAMLIdPServiceProviderLabelsExpression is a predicate expression used to
-	// allow/deny access to saml_idp_service_provider resource.
+	// SAMLIdPServiceProviderLabelsExpression is a predicate expression used to allow/deny
+	// access to saml_idp_service_provider resource.
 	SAMLIdPServiceProviderLabelsExpression string   `protobuf:"bytes,41,opt,name=SAMLIdPServiceProviderLabelsExpression,proto3" json:"saml_idp_service_provider_labels_expression,omitempty"`
 	XXX_NoUnkeyedLiteral                   struct{} `json:"-"`
 	XXX_unrecognized                       []byte   `json:"-"`
@@ -7656,11 +7569,9 @@ var xxx_messageInfo_SPIFFERoleCondition proto.InternalMessageInfo
 
 // DatabasePermission specifies the database object permission for the user.
 type DatabasePermission struct {
-	// Permission is the list of string representations of the permission to be
-	// given, e.g. SELECT, INSERT, UPDATE, ...
+	// Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...
 	Permissions []string `protobuf:"bytes,1,rep,name=Permissions,proto3" json:"permissions"`
-	// Match is a list of object labels that must be matched for the permission to
-	// be granted.
+	// Match is a list of object labels that must be matched for the permission to be granted.
 	Match                Labels   `protobuf:"bytes,2,opt,name=Match,proto3,customtype=Labels" json:"match"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -7751,8 +7662,7 @@ func (m *KubernetesResource) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_KubernetesResource proto.InternalMessageInfo
 
-// SessionRequirePolicy a requirement policy that needs to be fulfilled to grant
-// access.
+// SessionRequirePolicy a requirement policy that needs to be fulfilled to grant access.
 type SessionRequirePolicy struct {
 	// Name is the name of the policy.
 	Name string `protobuf:"bytes,1,opt,name=Name,proto3" json:"name"`
@@ -7760,8 +7670,7 @@ type SessionRequirePolicy struct {
 	Filter string `protobuf:"bytes,2,opt,name=Filter,proto3" json:"filter"`
 	// Kinds are the session kinds this policy applies to.
 	Kinds []string `protobuf:"bytes,3,rep,name=Kinds,proto3" json:"kinds"`
-	// Count is the amount of people that need to be matched for this policy to be
-	// fulfilled.
+	// Count is the amount of people that need to be matched for this policy to be fulfilled.
 	Count int32 `protobuf:"varint,4,opt,name=Count,proto3" json:"count"`
 	// Modes is the list of modes that may be used to fulfill this policy.
 	Modes []string `protobuf:"bytes,5,rep,name=Modes,proto3" json:"modes"`
@@ -7870,12 +7779,12 @@ type AccessRequestConditions struct {
 	// external identity provider, to a plugin via `{{external.trait_name}}`
 	// style substitutions.
 	Annotations github_com_gravitational_teleport_api_types_wrappers.Traits `protobuf:"bytes,3,opt,name=Annotations,proto3,customtype=github.com/gravitational/teleport/api/types/wrappers.Traits" json:"annotations,omitempty"`
-	// Thresholds is a list of thresholds, one of which must be met in order for
-	// reviews to trigger a state-transition.  If no thresholds are provided, a
-	// default threshold of 1 for approval and denial is used.
+	// Thresholds is a list of thresholds, one of which must be met in order for reviews
+	// to trigger a state-transition.  If no thresholds are provided, a default threshold
+	// of 1 for approval and denial is used.
 	Thresholds []AccessReviewThreshold `protobuf:"bytes,4,rep,name=Thresholds,proto3" json:"thresholds,omitempty"`
-	// SuggestedReviewers is a list of reviewer suggestions.  These can be
-	// teleport usernames, but that is not a requirement.
+	// SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but
+	// that is not a requirement.
 	SuggestedReviewers []string `protobuf:"bytes,5,rep,name=SuggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
 	// SearchAsRoles is a list of extra roles which should apply to a user while
 	// they are searching for resources as part of a Resource Access Request, and
@@ -7976,8 +7885,7 @@ func (m *AccessReviewConditions) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_AccessReviewConditions proto.InternalMessageInfo
 
-// AccessRequestAllowedPromotion describes an allowed promotion to an access
-// list.
+// AccessRequestAllowedPromotion describes an allowed promotion to an access list.
 type AccessRequestAllowedPromotion struct {
 	// associated access list
 	AccessListName       string   `protobuf:"bytes,1,opt,name=accessListName,proto3" json:"accessListName,omitempty"`
@@ -8019,8 +7927,8 @@ func (m *AccessRequestAllowedPromotion) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_AccessRequestAllowedPromotion proto.InternalMessageInfo
 
-// AccessRequestAllowedPromotions describes an valid promotion from an access
-// request to an access list.
+// AccessRequestAllowedPromotions describes an valid promotion from an access request
+// to an access list.
 type AccessRequestAllowedPromotions struct {
 	// suggestions is a list of allowed access lists promotions.
 	Promotions           []*AccessRequestAllowedPromotion `protobuf:"bytes,1,rep,name=promotions,proto3" json:"promotions,omitempty"`
@@ -9553,8 +9461,8 @@ type WebSessionSpecV2 struct {
 	LoginTime time.Time `protobuf:"bytes,8,opt,name=LoginTime,proto3,stdtime" json:"login_time"`
 	// IdleTimeout is the max time a user can be inactive in a session.
 	IdleTimeout Duration `protobuf:"varint,9,opt,name=IdleTimeout,proto3,casttype=Duration" json:"idle_timeout"`
-	// ConsumedAccessRequestID is the ID of the access request from which
-	// additional roles to assume were obtained.
+	// ConsumedAccessRequestID is the ID of the access request from which additional roles to assume
+	// were obtained.
 	ConsumedAccessRequestID string `protobuf:"bytes,10,opt,name=ConsumedAccessRequestID,proto3" json:"consumed_access_request_id,omitempty"`
 	// SAMLSession is data associated with a SAML IdP session.
 	SAMLSession *SAMLSessionData `protobuf:"bytes,11,opt,name=SAMLSession,proto3" json:"saml_session,omitempty"`
@@ -9689,8 +9597,7 @@ func (m *WebSessionFilter) XXX_DiscardUnknown() {
 var xxx_messageInfo_WebSessionFilter proto.InternalMessageInfo
 
 // SAMLSessionData contains data for a SAML session.
-// Based on crewjam/saml's session object:
-// https://github.com/crewjam/saml/blob/main/identity_provider.go
+// Based on crewjam/saml's session object: https://github.com/crewjam/saml/blob/main/identity_provider.go
 type SAMLSessionData struct {
 	// ID is the identifier for the SAML session.
 	ID string `protobuf:"bytes,1,opt,name=ID,proto3" json:"id"`
@@ -9698,8 +9605,7 @@ type SAMLSessionData struct {
 	CreateTime time.Time `protobuf:"bytes,2,opt,name=CreateTime,proto3,stdtime" json:"create_time"`
 	// ExpireTime is the time that the session will expire.
 	ExpireTime time.Time `protobuf:"bytes,3,opt,name=ExpireTime,proto3,stdtime" json:"expire_time"`
-	// Index is the session index that allows the IdP to uniquely identify a
-	// session.
+	// Index is the session index that allows the IdP to uniquely identify a session.
 	Index string `protobuf:"bytes,4,opt,name=Index,proto3" json:"index"`
 	// NameID an identifier for the session.
 	NameID string `protobuf:"bytes,5,opt,name=NameID,proto3" json:"name_id"`
@@ -9762,8 +9668,7 @@ func (m *SAMLSessionData) XXX_DiscardUnknown() {
 var xxx_messageInfo_SAMLSessionData proto.InternalMessageInfo
 
 // SAMLAttribute contains an attribute name and associated values.
-// Defined in
-// http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf.
+// Defined in http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf.
 type SAMLAttribute struct {
 	// FriendlyName is a user readable name for the attribute.
 	FriendlyName string `protobuf:"bytes,1,opt,name=FriendlyName,proto3" json:"friendly_name"`
@@ -9812,8 +9717,7 @@ func (m *SAMLAttribute) XXX_DiscardUnknown() {
 var xxx_messageInfo_SAMLAttribute proto.InternalMessageInfo
 
 // SAMLAttributeValues contains a type, value, and an associated name ID block.
-// Defined in
-// http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf.
+// Defined in http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf.
 type SAMLAttributeValue struct {
 	// Type is the type of value this attribute represents.
 	Type string `protobuf:"bytes,1,opt,name=Type,proto3" json:"type"`
@@ -9860,13 +9764,11 @@ func (m *SAMLAttributeValue) XXX_DiscardUnknown() {
 var xxx_messageInfo_SAMLAttributeValue proto.InternalMessageInfo
 
 // SAMLNameID is a more restrictive identifier for an object in SAML.
-// Defined in
-// http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf.
+// Defined in http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf.
 type SAMLNameID struct {
 	// NameQualifier is the domain that qualifies the identifier.
 	NameQualifier string `protobuf:"bytes,1,opt,name=NameQualifier,proto3" json:"name_qualifier"`
-	// SPNameQualifier qualifies the identifier with the name of the service
-	// provider.
+	// SPNameQualifier qualifies the identifier with the name of the service provider.
 	SPNameQualifier string `protobuf:"bytes,2,opt,name=SPNameQualifier,proto3" json:"sp_name_qualifier"`
 	// Format is the format of the identifier.
 	Format string `protobuf:"bytes,3,opt,name=Format,proto3" json:"format"`
@@ -10108,11 +10010,10 @@ var xxx_messageInfo_KubernetesClusterV3 proto.InternalMessageInfo
 type KubernetesClusterSpecV3 struct {
 	// DynamicLabels are the cluster's dynamic labels.
 	DynamicLabels map[string]CommandLabelV2 `protobuf:"bytes,1,rep,name=DynamicLabels,proto3" json:"dynamic_labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	// Kubeconfig is the kubeconfig file payload that grants access to the
-	// cluster. If multiple contexts are specified, the first will be selected.
+	// Kubeconfig is the kubeconfig file payload that grants access to the cluster.
+	// If multiple contexts are specified, the first will be selected.
 	Kubeconfig []byte `protobuf:"bytes,2,opt,name=Kubeconfig,proto3" json:"kubeconfig,omitempty"`
-	// Azure holds the required Azure information for Teleport to access the
-	// cluster.
+	// Azure holds the required Azure information for Teleport to access the cluster.
 	Azure KubeAzure `protobuf:"bytes,3,opt,name=Azure,proto3" json:"azure,omitempty"`
 	// AWS holds the required AWS information for Teleport to access the cluster.
 	AWS KubeAWS `protobuf:"bytes,4,opt,name=AWS,proto3" json:"aws,omitempty"`
@@ -10439,10 +10340,10 @@ func (m *KubernetesServerSpecV3) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_KubernetesServerSpecV3 proto.InternalMessageInfo
 
-// WebTokenV3 describes a web token. Web tokens are used as a transport to relay
-// bearer tokens to the client. Initially bound to a web session, these have
-// been factored out into a separate resource to enable separate lifecycle
-// management.
+// WebTokenV3 describes a web token. Web tokens are used as a transport to relay bearer tokens
+// to the client.
+// Initially bound to a web session, these have been factored out into a separate resource to
+// enable separate lifecycle management.
 type WebTokenV3 struct {
 	// Kind is a resource kind
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
@@ -10753,8 +10654,7 @@ func (m *ResourceRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ResourceRequest proto.InternalMessageInfo
 
-// ResourceWithSecretsRequest is a request relating to a named resource with
-// secrets.
+// ResourceWithSecretsRequest is a request relating to a named resource with secrets.
 type ResourceWithSecretsRequest struct {
 	// Name is the name of the resource.
 	Name string `protobuf:"bytes,1,opt,name=Name,proto3" json:"name"`
@@ -10840,8 +10740,7 @@ func (m *ResourcesWithSecretsRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ResourcesWithSecretsRequest proto.InternalMessageInfo
 
-// ResourcesInNamespaceRequest is a request relating to a named resource in the
-// given namespace.
+// ResourcesInNamespaceRequest is a request relating to a named resource in the given namespace.
 type ResourceInNamespaceRequest struct {
 	// Name is the name of the resource.
 	Name string `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`
@@ -10885,8 +10784,7 @@ func (m *ResourceInNamespaceRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ResourceInNamespaceRequest proto.InternalMessageInfo
 
-// ResourcesInNamespaceRequest is a request relating to resources in the given
-// namespace.
+// ResourcesInNamespaceRequest is a request relating to resources in the given namespace.
 type ResourcesInNamespaceRequest struct {
 	// Namespace is the namespace of resources.
 	Namespace            string   `protobuf:"bytes,1,opt,name=Namespace,proto3" json:"Namespace,omitempty"`
@@ -11026,15 +10924,14 @@ var xxx_messageInfo_OIDCConnectorV3List proto.InternalMessageInfo
 // It specifies configuration for Open ID Connect compatible external
 // identity provider: https://openid.net/specs/openid-connect-core-1_0.html
 type OIDCConnectorSpecV3 struct {
-	// IssuerURL is the endpoint of the provider, e.g.
-	// https://accounts.google.com.
+	// IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
 	IssuerURL string `protobuf:"bytes,1,opt,name=IssuerURL,proto3" json:"issuer_url"`
 	// ClientID is the id of the authentication client (Teleport Auth server).
 	ClientID string `protobuf:"bytes,2,opt,name=ClientID,proto3" json:"client_id"`
 	// ClientSecret is used to authenticate the client.
 	ClientSecret string `protobuf:"bytes,3,opt,name=ClientSecret,proto3" json:"client_secret"`
-	// ACR is an Authentication Context Class Reference value. The meaning of the
-	// ACR value is context-specific and varies for identity providers.
+	// ACR is an Authentication Context Class Reference value. The meaning of the ACR
+	// value is context-specific and varies for identity providers.
 	ACR string `protobuf:"bytes,5,opt,name=ACR,proto3" json:"acr_values,omitempty"`
 	// Provider is the external identity provider.
 	Provider string `protobuf:"bytes,6,opt,name=Provider,proto3" json:"provider,omitempty"`
@@ -11043,30 +10940,25 @@ type OIDCConnectorSpecV3 struct {
 	// Scope specifies additional scopes set by provider.
 	Scope []string `protobuf:"bytes,8,rep,name=Scope,proto3" json:"scope,omitempty"`
 	// Prompt is an optional OIDC prompt. An empty string omits prompt.
-	// If not specified, it defaults to select_account for backwards
-	// compatibility.
+	// If not specified, it defaults to select_account for backwards compatibility.
 	Prompt string `protobuf:"bytes,9,opt,name=Prompt,proto3" json:"prompt,omitempty"`
 	// ClaimsToRoles specifies a dynamic mapping from claims to roles.
 	ClaimsToRoles []ClaimMapping `protobuf:"bytes,10,rep,name=ClaimsToRoles,proto3" json:"claims_to_roles,omitempty"`
 	// GoogleServiceAccountURI is a path to a google service account uri.
 	GoogleServiceAccountURI string `protobuf:"bytes,11,opt,name=GoogleServiceAccountURI,proto3" json:"google_service_account_uri,omitempty"`
-	// GoogleServiceAccount is a string containing google service account
-	// credentials.
+	// GoogleServiceAccount is a string containing google service account credentials.
 	GoogleServiceAccount string `protobuf:"bytes,12,opt,name=GoogleServiceAccount,proto3" json:"google_service_account,omitempty"`
 	// GoogleAdminEmail is the email of a google admin to impersonate.
 	GoogleAdminEmail string `protobuf:"bytes,13,opt,name=GoogleAdminEmail,proto3" json:"google_admin_email,omitempty"`
 	// RedirectURLs is a list of callback URLs which the identity provider can use
-	// to redirect the client back to the Teleport Proxy to complete
-	// authentication. This list should match the URLs on the provider's side. The
-	// URL used for a given auth request will be chosen to match the requesting
-	// Proxy's public address. If there is no match, the first url in the list
-	// will be used.
+	// to redirect the client back to the Teleport Proxy to complete authentication.
+	// This list should match the URLs on the provider's side. The URL used for a
+	// given auth request will be chosen to match the requesting Proxy's public
+	// address. If there is no match, the first url in the list will be used.
 	RedirectURLs github_com_gravitational_teleport_api_types_wrappers.Strings `protobuf:"bytes,14,opt,name=RedirectURLs,proto3,customtype=github.com/gravitational/teleport/api/types/wrappers.Strings" json:"redirect_url"`
-	// AllowUnverifiedEmail tells the connector to accept OIDC users with
-	// unverified emails.
+	// AllowUnverifiedEmail tells the connector to accept OIDC users with unverified emails.
 	AllowUnverifiedEmail bool `protobuf:"varint,15,opt,name=AllowUnverifiedEmail,proto3" json:"allow_unverified_email,omitempty"`
-	// UsernameClaim specifies the name of the claim from the OIDC connector to be
-	// used as the user's username.
+	// UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user's username.
 	UsernameClaim string `protobuf:"bytes,16,opt,name=UsernameClaim,proto3" json:"username_claim,omitempty"`
 	// MaxAge is the amount of time that user logins are
 	// valid for. If a user logs in, but then does not login again
@@ -11185,8 +11077,7 @@ type OIDCAuthRequest struct {
 	Compatibility string `protobuf:"bytes,11,opt,name=Compatibility,proto3" json:"compatibility,omitempty"`
 	// RouteToCluster is the name of Teleport cluster to issue credentials for.
 	RouteToCluster string `protobuf:"bytes,12,opt,name=RouteToCluster,proto3" json:"route_to_cluster,omitempty"`
-	// KubernetesCluster is the name of Kubernetes cluster to issue credentials
-	// for.
+	// KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
 	KubernetesCluster string `protobuf:"bytes,13,opt,name=KubernetesCluster,proto3" json:"kubernetes_cluster,omitempty"`
 	// SSOTestFlow indicates if the request is part of the test flow.
 	SSOTestFlow bool `protobuf:"varint,14,opt,name=SSOTestFlow,proto3" json:"sso_test_flow"`
@@ -11199,8 +11090,7 @@ type OIDCAuthRequest struct {
 	ProxyAddress string `protobuf:"bytes,16,opt,name=ProxyAddress,proto3" json:"proxy_address,omitempty"`
 	// attestation_statement is an attestation statement for the given public key.
 	AttestationStatement *v1.AttestationStatement `protobuf:"bytes,17,opt,name=attestation_statement,json=attestationStatement,proto3" json:"attestation_statement,omitempty"`
-	// ClientLoginIP specifies IP address of the client for login, it will be
-	// written to the user's certificates.
+	// ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
 	ClientLoginIP        string   `protobuf:"bytes,18,opt,name=ClientLoginIP,proto3" json:"client_login_ip,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -11351,9 +11241,8 @@ type SAMLConnectorSpecV2 struct {
 	Audience string `protobuf:"bytes,6,opt,name=Audience,proto3" json:"audience"`
 	// ServiceProviderIssuer is the issuer of the service provider (Teleport).
 	ServiceProviderIssuer string `protobuf:"bytes,7,opt,name=ServiceProviderIssuer,proto3" json:"service_provider_issuer"`
-	// EntityDescriptor is XML with descriptor. It can be used to supply
-	// configuration parameters in one XML file rather than supplying them in the
-	// individual elements.
+	// EntityDescriptor is XML with descriptor. It can be used to supply configuration
+	// parameters in one XML file rather than supplying them in the individual elements.
 	EntityDescriptor string `protobuf:"bytes,8,opt,name=EntityDescriptor,proto3" json:"entity_descriptor"`
 	// EntityDescriptorURL is a URL that supplies a configuration XML.
 	EntityDescriptorURL string `protobuf:"bytes,9,opt,name=EntityDescriptorURL,proto3" json:"entity_descriptor_url"`
@@ -11365,8 +11254,8 @@ type SAMLConnectorSpecV2 struct {
 	Provider string `protobuf:"bytes,12,opt,name=Provider,proto3" json:"provider,omitempty"`
 	// EncryptionKeyPair is a key pair used for decrypting SAML assertions.
 	EncryptionKeyPair *AsymmetricKeyPair `protobuf:"bytes,13,opt,name=EncryptionKeyPair,proto3" json:"assertion_key_pair,omitempty"`
-	// AllowIDPInitiated is a flag that indicates if the connector can be used for
-	// IdP-initiated logins.
+	// AllowIDPInitiated is a flag that indicates if the connector can be used for IdP-initiated
+	// logins.
 	AllowIDPInitiated    bool     `protobuf:"varint,14,opt,name=AllowIDPInitiated,proto3" json:"allow_idp_initiated,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -11437,8 +11326,7 @@ type SAMLAuthRequest struct {
 	Compatibility string `protobuf:"bytes,11,opt,name=Compatibility,proto3" json:"compatibility,omitempty"`
 	// RouteToCluster is the name of Teleport cluster to issue credentials for.
 	RouteToCluster string `protobuf:"bytes,12,opt,name=RouteToCluster,proto3" json:"route_to_cluster,omitempty"`
-	// KubernetesCluster is the name of Kubernetes cluster to issue credentials
-	// for.
+	// KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
 	KubernetesCluster string `protobuf:"bytes,13,opt,name=KubernetesCluster,proto3" json:"kubernetes_cluster,omitempty"`
 	// SSOTestFlow indicates if the request is part of the test flow.
 	SSOTestFlow bool `protobuf:"varint,14,opt,name=SSOTestFlow,proto3" json:"sso_test_flow"`
@@ -11446,8 +11334,7 @@ type SAMLAuthRequest struct {
 	ConnectorSpec *SAMLConnectorSpecV2 `protobuf:"bytes,15,opt,name=ConnectorSpec,proto3" json:"connector_spec,omitempty"`
 	// attestation_statement is an attestation statement for the given public key.
 	AttestationStatement *v1.AttestationStatement `protobuf:"bytes,16,opt,name=attestation_statement,json=attestationStatement,proto3" json:"attestation_statement,omitempty"`
-	// ClientLoginIP specifies IP address of the client for login, it will be
-	// written to the user's certificates.
+	// ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
 	ClientLoginIP        string   `protobuf:"bytes,17,opt,name=ClientLoginIP,proto3" json:"client_login_ip,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -11755,13 +11642,11 @@ type GithubAuthRequest struct {
 	ClientRedirectURL string `protobuf:"bytes,9,opt,name=ClientRedirectURL,proto3" json:"client_redirect_url"`
 	// Compatibility specifies OpenSSH compatibility flags.
 	Compatibility string `protobuf:"bytes,10,opt,name=Compatibility,proto3" json:"compatibility,omitempty"`
-	// Expires is a global expiry time header can be set on any resource in the
-	// system.
+	// Expires is a global expiry time header can be set on any resource in the system.
 	Expires *time.Time `protobuf:"bytes,11,opt,name=Expires,proto3,stdtime" json:"expires,omitempty"`
 	// RouteToCluster is the name of Teleport cluster to issue credentials for.
 	RouteToCluster string `protobuf:"bytes,12,opt,name=RouteToCluster,proto3" json:"route_to_cluster,omitempty"`
-	// KubernetesCluster is the name of Kubernetes cluster to issue credentials
-	// for.
+	// KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
 	KubernetesCluster string `protobuf:"bytes,13,opt,name=KubernetesCluster,proto3" json:"kubernetes_cluster,omitempty"`
 	// SSOTestFlow indicates if the request is part of the test flow.
 	SSOTestFlow bool `protobuf:"varint,14,opt,name=SSOTestFlow,proto3" json:"sso_test_flow"`
@@ -11769,8 +11654,7 @@ type GithubAuthRequest struct {
 	ConnectorSpec *GithubConnectorSpecV3 `protobuf:"bytes,15,opt,name=ConnectorSpec,proto3" json:"connector_spec,omitempty"`
 	// attestation_statement is an attestation statement for the given public key.
 	AttestationStatement *v1.AttestationStatement `protobuf:"bytes,16,opt,name=attestation_statement,json=attestationStatement,proto3" json:"attestation_statement,omitempty"`
-	// ClientLoginIP specifies IP address of the client for login, it will be
-	// written to the user's certificates.
+	// ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
 	ClientLoginIP        string   `protobuf:"bytes,17,opt,name=ClientLoginIP,proto3" json:"client_login_ip,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -11854,8 +11738,7 @@ func (m *SSOWarnings) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SSOWarnings proto.InternalMessageInfo
 
-// CreateUserParams represents the user creation parameters as called during SSO
-// login flow.
+// CreateUserParams represents the user creation parameters as called during SSO login flow.
 type CreateUserParams struct {
 	// ConnectorName is the name of the connector used for SSO login flow.
 	ConnectorName string `protobuf:"bytes,1,opt,name=ConnectorName,proto3" json:"connector_name,omitempty"`
@@ -11919,29 +11802,26 @@ type SSODiagnosticInfo struct {
 	Error string `protobuf:"bytes,2,opt,name=Error,proto3" json:"error"`
 	// Success if present, marks the flow as finished with success.
 	Success bool `protobuf:"varint,3,opt,name=Success,proto3" json:"success"`
-	// CreateUserParams represents the user creation parameters as called during
-	// SSO login flow.
+	// CreateUserParams represents the user creation parameters as called during SSO login flow.
 	CreateUserParams *CreateUserParams `protobuf:"bytes,4,opt,name=CreateUserParams,proto3" json:"create_user_params,omitempty"`
-	// SAMLAttributesToRoles represents mapping from attributes to roles, as used
-	// during SAML SSO login flow.
+	// SAMLAttributesToRoles represents mapping from attributes to roles, as used during SAML SSO
+	// login flow.
 	SAMLAttributesToRoles []AttributeMapping `protobuf:"bytes,10,rep,name=SAMLAttributesToRoles,proto3" json:"saml_attributes_to_roles,omitempty"`
-	// SAMLAttributesToRolesWarnings contains warnings produced during the process
-	// of mapping the SAML attributes to roles.
+	// SAMLAttributesToRolesWarnings contains warnings produced during the process of mapping the
+	// SAML attributes to roles.
 	SAMLAttributesToRolesWarnings *SSOWarnings `protobuf:"bytes,11,opt,name=SAMLAttributesToRolesWarnings,proto3" json:"saml_attributes_to_roles_warnings,omitempty"`
 	// SAMLAttributeStatements represents SAML attribute statements.
 	SAMLAttributeStatements github_com_gravitational_teleport_api_types_wrappers.Traits `protobuf:"bytes,12,opt,name=SAMLAttributeStatements,proto3,customtype=github.com/gravitational/teleport/api/types/wrappers.Traits" json:"saml_attribute_statements,omitempty"`
-	// SAMLAssertionInfo represents raw SAML assertion info as returned by IdP
-	// during SAML flow.
+	// SAMLAssertionInfo represents raw SAML assertion info as returned by IdP during SAML flow.
 	SAMLAssertionInfo *AssertionInfo `protobuf:"bytes,13,opt,name=SAMLAssertionInfo,proto3,customtype=AssertionInfo" json:"saml_assertion_info,omitempty"`
 	// SAMLTraitsFromAssertions represents traits translated from SAML assertions.
 	SAMLTraitsFromAssertions github_com_gravitational_teleport_api_types_wrappers.Traits `protobuf:"bytes,14,opt,name=SAMLTraitsFromAssertions,proto3,customtype=github.com/gravitational/teleport/api/types/wrappers.Traits" json:"saml_traits_from_assertions,omitempty"`
 	// SAMLConnectorTraitMapping represents connector-specific trait mapping.
 	SAMLConnectorTraitMapping []TraitMapping `protobuf:"bytes,15,rep,name=SAMLConnectorTraitMapping,proto3" json:"saml_connector_trait_mapping,omitempty"`
-	// OIDCClaimsToRoles specifies a mapping from claims (traits) to teleport
-	// roles.
+	// OIDCClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
 	OIDCClaimsToRoles []ClaimMapping `protobuf:"bytes,20,rep,name=OIDCClaimsToRoles,proto3" json:"oidc_claims_to_roles,omitempty"`
-	// OIDCClaimsToRolesWarnings contains warnings produced during the process of
-	// mapping the OIDC claims to roles.
+	// OIDCClaimsToRolesWarnings contains warnings produced during the process of mapping the
+	// OIDC claims to roles.
 	OIDCClaimsToRolesWarnings *SSOWarnings `protobuf:"bytes,21,opt,name=OIDCClaimsToRolesWarnings,proto3" json:"oidc_claims_to_roles_warnings,omitempty"`
 	// OIDCClaims represents OIDC claims.
 	OIDCClaims OIDCClaims `protobuf:"bytes,22,opt,name=OIDCClaims,proto3,customtype=OIDCClaims" json:"oidc_claims,omitempty"`
@@ -11951,17 +11831,13 @@ type SSODiagnosticInfo struct {
 	OIDCTraitsFromClaims github_com_gravitational_teleport_api_types_wrappers.Traits `protobuf:"bytes,24,opt,name=OIDCTraitsFromClaims,proto3,customtype=github.com/gravitational/teleport/api/types/wrappers.Traits" json:"oidc_traits_from_claims,omitempty"`
 	// OIDCConnectorTraitMapping represents connector-specific trait mapping.
 	OIDCConnectorTraitMapping []TraitMapping `protobuf:"bytes,25,rep,name=OIDCConnectorTraitMapping,proto3" json:"oidc_connector_trait_mapping,omitempty"`
-	// GithubClaims represents Github user information obtained during OAuth2
-	// flow.
+	// GithubClaims represents Github user information obtained during OAuth2 flow.
 	GithubClaims *GithubClaims `protobuf:"bytes,30,opt,name=GithubClaims,proto3" json:"github_claims,omitempty"`
-	// GithubTeamsToLogins is TeamsToLogins mapping from Github connector used in
-	// the SSO flow.
+	// GithubTeamsToLogins is TeamsToLogins mapping from Github connector used in the SSO flow.
 	GithubTeamsToLogins []TeamMapping `protobuf:"bytes,31,rep,name=GithubTeamsToLogins,proto3" json:"github_teams_to_logins,omitempty"`
-	// GithubTeamsToRoles is TeamRolesMapping mapping from Github connector used
-	// in the SSO flow.
+	// GithubTeamsToRoles is TeamRolesMapping mapping from Github connector used in the SSO flow.
 	GithubTeamsToRoles []TeamRolesMapping `protobuf:"bytes,32,rep,name=GithubTeamsToRoles,proto3" json:"github_teams_to_roles,omitempty"`
-	// GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained
-	// during SSO flow.
+	// GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained during SSO flow.
 	GithubTokenInfo *GithubTokenInfo `protobuf:"bytes,33,opt,name=GithubTokenInfo,proto3" json:"github_token_info,omitempty"`
 	// AppliedLoginRules stores the name of each login rule that was applied.
 	AppliedLoginRules    []string `protobuf:"bytes,34,rep,name=AppliedLoginRules,proto3" json:"applied_login_rules,omitempty"`
@@ -12003,8 +11879,8 @@ func (m *SSODiagnosticInfo) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SSODiagnosticInfo proto.InternalMessageInfo
 
-// GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained
-// during SSO flow. The token itself is secret and therefore not included.
+// GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained during SSO flow.
+// The token itself is secret and therefore not included.
 type GithubTokenInfo struct {
 	TokenType            string   `protobuf:"bytes,1,opt,name=TokenType,proto3" json:"token_type"`
 	Expires              int64    `protobuf:"varint,2,opt,name=Expires,proto3" json:"expires"`
@@ -12105,8 +11981,7 @@ type TeamMapping struct {
 	Logins []string `protobuf:"bytes,3,rep,name=Logins,proto3" json:"logins,omitempty"`
 	// KubeGroups is a list of allowed kubernetes groups for this org/team.
 	KubeGroups []string `protobuf:"bytes,4,rep,name=KubeGroups,proto3" json:"kubernetes_groups,omitempty"`
-	// KubeUsers is a list of allowed kubernetes users to impersonate for this
-	// org/team.
+	// KubeUsers is a list of allowed kubernetes users to impersonate for this org/team.
 	KubeUsers            []string `protobuf:"bytes,5,rep,name=KubeUsers,proto3" json:"kubernetes_users,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -12286,23 +12161,19 @@ var xxx_messageInfo_TrustedClusterV2List proto.InternalMessageInfo
 
 // TrustedClusterSpecV2 is a Trusted Cluster specification.
 type TrustedClusterSpecV2 struct {
-	// Enabled is a bool that indicates if the TrustedCluster is enabled or
-	// disabled. Setting Enabled to false has a side effect of deleting the user
-	// and host certificate authority (CA).
+	// Enabled is a bool that indicates if the TrustedCluster is enabled or disabled.
+	// Setting Enabled to false has a side effect of deleting the user and host certificate
+	// authority (CA).
 	Enabled bool `protobuf:"varint,1,opt,name=Enabled,proto3" json:"enabled"`
-	// Roles is a list of roles that users will be assuming when connecting to
-	// this cluster.
+	// Roles is a list of roles that users will be assuming when connecting to this cluster.
 	Roles []string `protobuf:"bytes,2,rep,name=Roles,proto3" json:"roles,omitempty"`
-	// Token is the authorization token provided by another cluster needed by this
-	// cluster to join.
+	// Token is the authorization token provided by another cluster needed by this cluster to join.
 	Token string `protobuf:"bytes,3,opt,name=Token,proto3" json:"token"`
-	// ProxyAddress is the address of the web proxy server of the cluster to join.
-	// If not set, it is derived from <metadata.name>:<default web proxy server
-	// port>.
+	// ProxyAddress is the address of the web proxy server of the cluster to join. If not set,
+	// it is derived from <metadata.name>:<default web proxy server port>.
 	ProxyAddress string `protobuf:"bytes,4,opt,name=ProxyAddress,proto3" json:"web_proxy_addr"`
-	// ReverseTunnelAddress is the address of the SSH proxy server of the cluster
-	// to join. If not set, it is derived from <metadata.name>:<default reverse
-	// tunnel port>.
+	// ReverseTunnelAddress is the address of the SSH proxy server of the cluster to join. If
+	// not set, it is derived from <metadata.name>:<default reverse tunnel port>.
 	ReverseTunnelAddress string `protobuf:"bytes,5,opt,name=ReverseTunnelAddress,proto3" json:"tunnel_addr"`
 	// RoleMap specifies role mappings to remote roles.
 	RoleMap              []RoleMapping `protobuf:"bytes,6,rep,name=RoleMap,proto3" json:"role_map,omitempty"`
@@ -12453,8 +12324,7 @@ type LockTarget struct {
 	// User specifies the name of a Teleport user.
 	User string `protobuf:"bytes,1,opt,name=User,proto3" json:"user,omitempty"`
 	// Role specifies the name of an RBAC role known to the root cluster.
-	// In remote clusters, this constraint is evaluated before translating to
-	// local roles.
+	// In remote clusters, this constraint is evaluated before translating to local roles.
 	Role string `protobuf:"bytes,2,opt,name=Role,proto3" json:"role,omitempty"`
 	// Login specifies the name of a local UNIX user.
 	Login string `protobuf:"bytes,3,opt,name=Login,proto3" json:"login,omitempty"`
@@ -12510,11 +12380,11 @@ func (m *LockTarget) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_LockTarget proto.InternalMessageInfo
 
-// AddressCondition represents a set of addresses. Presently the addresses are
-// specified exclusively in terms of IPv4/IPv6 ranges.
+// AddressCondition represents a set of addresses. Presently the addresses are specified
+// exclusively in terms of IPv4/IPv6 ranges.
 type AddressCondition struct {
-	// CIDR is IPv4 or IPv6 address. Valid value are either CIDR ranges (e.g.
-	// "10.0.1.0/24", "fe::/8") or a single IP address (e.g "10.1.2.3")
+	// CIDR is IPv4 or IPv6 address. Valid value are either CIDR ranges (e.g. "10.0.1.0/24",
+	// "fe::/8") or a single IP address (e.g "10.1.2.3")
 	CIDR                 string   `protobuf:"bytes,1,opt,name=CIDR,proto3" json:"cidr"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -12557,8 +12427,7 @@ var xxx_messageInfo_AddressCondition proto.InternalMessageInfo
 type NetworkRestrictionsSpecV4 struct {
 	// Allow lists the addresses that should be allowed.
 	Allow []AddressCondition `protobuf:"bytes,1,rep,name=Allow,proto3" json:"allow"`
-	// Deny lists the addresses that should be denied even if they're allowed by
-	// Allow condition.
+	// Deny lists the addresses that should be denied even if they're allowed by Allow condition.
 	Deny                 []AddressCondition `protobuf:"bytes,2,rep,name=Deny,proto3" json:"deny"`
 	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
 	XXX_unrecognized     []byte             `json:"-"`
@@ -12598,10 +12467,10 @@ func (m *NetworkRestrictionsSpecV4) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_NetworkRestrictionsSpecV4 proto.InternalMessageInfo
 
-// NetworkRestrictions specifies a list of addresses to restrict (block). The
-// deny list is checked first and the allow lists overrides it. Thus an empty
-// allow list does not mean that no addresses will be allowed, that will only be
-// the case if the deny list covers the whole address range.
+// NetworkRestrictions specifies a list of addresses to restrict (block). The deny
+// list is checked first and the allow lists overrides it. Thus an empty allow
+// list does not mean that no addresses will be allowed, that will only be the
+// case if the deny list covers the whole address range.
 type NetworkRestrictionsV4 struct {
 	// Kind is the network restrictions resource kind.
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
@@ -12743,11 +12612,9 @@ func (m *WindowsDesktopServiceSpecV3) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_WindowsDesktopServiceSpecV3 proto.InternalMessageInfo
 
-// WindowsDesktopFilter are filters to apply when searching for windows
-// desktops.
+// WindowsDesktopFilter are filters to apply when searching for windows desktops.
 type WindowsDesktopFilter struct {
-	// HostID is the ID of the host the Windows Desktop Service proxying the
-	// desktop.
+	// HostID is the ID of the host the Windows Desktop Service proxying the desktop.
 	HostID string `protobuf:"bytes,1,opt,name=HostID,proto3" json:"host_id"`
 	// Name is the name of the desktop.
 	Name                 string   `protobuf:"bytes,2,opt,name=Name,proto3" json:"name"`
@@ -12839,8 +12706,7 @@ type WindowsDesktopSpecV3 struct {
 	Addr string `protobuf:"bytes,1,opt,name=Addr,proto3" json:"addr"`
 	// Domain is the ActiveDirectory domain that this host belongs to.
 	Domain string `protobuf:"bytes,2,opt,name=Domain,proto3" json:"domain"`
-	// HostID is the ID of the host the Windows Desktop Service proxying the
-	// desktop.
+	// HostID is the ID of the host the Windows Desktop Service proxying the desktop.
 	HostID string `protobuf:"bytes,3,opt,name=HostID,proto3" json:"host_id"`
 	// NonAD marks this desktop as a standalone host that is
 	// not joined to an Active Directory domain.
@@ -13001,17 +12867,15 @@ func (m *RegisterUsingTokenRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_RegisterUsingTokenRequest proto.InternalMessageInfo
 
-// RecoveryCodes holds a user's recovery code information. Recovery codes allows
-// users to regain access to their account by restoring their lost password or
-// second factor. Once a recovery code is successfully verified, the code is
-// mark used (which invalidates it), and lets the user begin the recovery flow.
-// When a user successfully finishes the recovery flow, users will get a new set
+// RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
+// access to their account by restoring their lost password or second factor. Once a recovery code
+// is successfully verified, the code is mark used (which invalidates it), and lets the user begin
+// the recovery flow. When a user successfully finishes the recovery flow, users will get a new set
 // of codes that will replace all the previous ones.
 type RecoveryCodesV1 struct {
 	// Kind is the resource kind.
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
-	// SubKind is an optional resource subkind. Currently unused for this
-	// resource.
+	// SubKind is an optional resource subkind. Currently unused for this resource.
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
 	// Version is the resource version.
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
@@ -13061,8 +12925,8 @@ var xxx_messageInfo_RecoveryCodesV1 proto.InternalMessageInfo
 type RecoveryCodesSpecV1 struct {
 	// Codes hold a list of numOfRecoveryCodes.
 	Codes []RecoveryCode `protobuf:"bytes,1,rep,name=Codes,proto3" json:"codes"`
-	// Created is when the set of recovery codes were generated. Updated when a
-	// new set of recovery codes are inserted.
+	// Created is when the set of recovery codes were generated. Updated when a new set of recovery
+	// codes are inserted.
 	Created              time.Time `protobuf:"bytes,2,opt,name=Created,proto3,stdtime" json:"created"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
@@ -13186,8 +13050,7 @@ func (m *NullableSessionState) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_NullableSessionState proto.InternalMessageInfo
 
-// SessionTrackerFilter are filters to apply when searching for session
-// trackers.
+// SessionTrackerFilter are filters to apply when searching for session trackers.
 type SessionTrackerFilter struct {
 	// Kind describes what kind of session this is.
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind,omitempty"`
@@ -13288,26 +13151,24 @@ type SessionTrackerSpecV1 struct {
 	// Created encodes the time at which the session was registered with the auth
 	// server.
 	//
-	// This should match the timestamp in the corresponding `session.create`
-	// event. It's thus up to the tracker creator to set the correct timestamp.
+	// This should match the timestamp in the corresponding `session.create` event.
+	// It's thus up to the tracker creator to set the correct timestamp.
 	Created time.Time `protobuf:"bytes,4,opt,name=Created,proto3,stdtime" json:"created,omitempty"`
 	// Expires encodes the time at which this session expires and becomes invalid.
 	Expires time.Time `protobuf:"bytes,5,opt,name=Expires,proto3,stdtime" json:"expires,omitempty"`
 	// AttachedData is arbitrary attached JSON serialized metadata.
 	AttachedData string `protobuf:"bytes,6,opt,name=AttachedData,proto3" json:"attached,omitempty"`
-	// Reason is an arbitrary string that may be used to describe the session
-	// and/or it's purpose.
+	// Reason is an arbitrary string that may be used to describe the session and/or it's
+	// purpose.
 	Reason string `protobuf:"bytes,7,opt,name=Reason,proto3" json:"reason,omitempty"`
 	// Invited is a list of invited users, this field is interpreted by different
-	// clients on a best-effort basis and used for delivering notifications to
-	// invited users.
+	// clients on a best-effort basis and used for delivering notifications to invited users.
 	Invited []string `protobuf:"bytes,8,rep,name=Invited,proto3" json:"invited,omitempty"`
 	// Hostname identifies the target this session is connected to.
 	Hostname string `protobuf:"bytes,9,opt,name=Hostname,proto3" json:"target_hostname,omitempty"`
 	// Address is the address of the target this session is connected to.
 	Address string `protobuf:"bytes,10,opt,name=Address,proto3" json:"target_address,omitempty"`
-	// ClusterName is the name of the Teleport cluster that this session belongs
-	// to.
+	// ClusterName is the name of the Teleport cluster that this session belongs to.
 	ClusterName string `protobuf:"bytes,11,opt,name=ClusterName,proto3" json:"cluster_name,omitempty"`
 	// Login is the local login/user on the target used by the session.
 	Login string `protobuf:"bytes,12,opt,name=Login,proto3" json:"login,omitempty"`
@@ -13315,28 +13176,25 @@ type SessionTrackerSpecV1 struct {
 	Participants []Participant `protobuf:"bytes,13,rep,name=Participants,proto3" json:"participants,omitempty"`
 	// The Kubernetes cluster this session belongs to.
 	KubernetesCluster string `protobuf:"bytes,14,opt,name=KubernetesCluster,proto3" json:"kubernetes_cluster,omitempty"`
-	// HostUser is the user regarded as the owner of this session, RBAC checks are
-	// performed against the require policies of this user.
+	// HostUser is the user regarded as the owner of this session, RBAC checks are performed
+	// against the require policies of this user.
 	//
-	// This refers to the Teleport user but may not be the same as the sessions
-	// initiator.
+	// This refers to the Teleport user but may not be the same as the sessions initiator.
 	HostUser string `protobuf:"bytes,15,opt,name=HostUser,proto3" json:"host_user,omitempty"`
-	// HostPolicies is a list of RBAC policy sets held by the host user at the
-	// time of session creation.
+	// HostPolicies is a list of RBAC policy sets held by the host user at the time of session
+	// creation.
 	HostPolicies []*SessionTrackerPolicySet `protobuf:"bytes,16,rep,name=HostPolicies,proto3" json:"host_roles,omitempty"`
 	// DatabaseName is the database server this session belongs to.
 	DatabaseName string `protobuf:"bytes,17,opt,name=DatabaseName,proto3" json:"database_name,omitempty"`
 	// AppName is the app server this session belongs to.
 	AppName string `protobuf:"bytes,18,opt,name=AppName,proto3" json:"app_name,omitempty"`
-	// AppSessionID is the unique ID of the app access certificate used to start
-	// this app session.
+	// AppSessionID is the unique ID of the app access certificate used to start this app session.
 	AppSessionID string `protobuf:"bytes,19,opt,name=AppSessionID,proto3" json:"app_session_id,omitempty"`
 	// DesktopName is the windows desktop server this session belongs to.
 	DesktopName string `protobuf:"bytes,20,opt,name=DesktopName,proto3" json:"desktop_name,omitempty"`
 	// HostID is the target host id that created the session tracker.
-	// It's useful for Kubernetes moderated sessions when running in high
-	// availabilty otherwise kube proxy is not able to know which agent runs the
-	// session.
+	// It's useful for Kubernetes moderated sessions when running in high availabilty
+	// otherwise kube proxy is not able to know which agent runs the session.
 	HostID string `protobuf:"bytes,21,opt,name=HostID,proto3" json:"host_id,omitempty"`
 	// TargetSubKind is the sub kind of the target server.
 	TargetSubKind string `protobuf:"bytes,22,opt,name=TargetSubKind,proto3" json:"target_sub_kind,omitempty"`
@@ -13387,8 +13245,7 @@ type SessionTrackerPolicySet struct {
 	Name string `protobuf:"bytes,1,opt,name=Name,proto3" json:"name,omitempty"`
 	// Version is version of the role this policy set originates from.
 	Version string `protobuf:"bytes,2,opt,name=Version,proto3" json:"version,omitempty"`
-	// RequireSessionJoin specifies policies for required users to start a
-	// session.
+	// RequireSessionJoin specifies policies for required users to start a session.
 	RequireSessionJoin   []*SessionRequirePolicy `protobuf:"bytes,3,rep,name=RequireSessionJoin,proto3" json:"require_session_join,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
 	XXX_unrecognized     []byte                  `json:"-"`
@@ -13432,8 +13289,7 @@ var xxx_messageInfo_SessionTrackerPolicySet proto.InternalMessageInfo
 type Participant struct {
 	// ID is a unique UUID of this participant for a given session.
 	ID string `protobuf:"bytes,1,opt,name=ID,proto3" json:"id,omitempty"`
-	// User is the canonical name of the Teleport user controlling this
-	// participant.
+	// User is the canonical name of the Teleport user controlling this participant.
 	User string `protobuf:"bytes,2,opt,name=User,proto3" json:"user,omitempty"`
 	// Mode is the participant mode.
 	Mode string `protobuf:"bytes,3,opt,name=Mode,proto3" json:"mode,omitempty"`
@@ -13477,8 +13333,7 @@ func (m *Participant) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Participant proto.InternalMessageInfo
 
-// UIConfigV1 represents the configuration for the web UI served by the proxy
-// service
+// UIConfigV1 represents the configuration for the web UI served by the proxy service
 type UIConfigV1 struct {
 	// Header is the resource header for the UI configuration.
 	ResourceHeader `protobuf:"bytes,1,opt,name=Header,proto3,embedded=Header" json:""`
@@ -13568,8 +13423,7 @@ var xxx_messageInfo_UIConfigSpecV1 proto.InternalMessageInfo
 type InstallerV1 struct {
 	// Kind is the resource kind.
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
-	// SubKind is an optional resource subkind. Currently unused for this
-	// resource.
+	// SubKind is an optional resource subkind. Currently unused for this resource.
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
 	// Version is the resource version.
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
@@ -13701,8 +13555,7 @@ var xxx_messageInfo_InstallerV1List proto.InternalMessageInfo
 
 // SortBy defines a sort criteria.
 type SortBy struct {
-	// IsDesc is a sort direction flag where if true the direction is descending,
-	// else ascending.
+	// IsDesc is a sort direction flag where if true the direction is descending, else ascending.
 	IsDesc bool `protobuf:"varint,1,opt,name=IsDesc,proto3" json:"is_desc"`
 	// Field is the name of an objects field to sort by.
 	Field                string   `protobuf:"bytes,2,opt,name=Field,proto3" json:"field"`
@@ -13745,9 +13598,9 @@ func (m *SortBy) XXX_DiscardUnknown() {
 var xxx_messageInfo_SortBy proto.InternalMessageInfo
 
 // ConnectionDiagnosticV1 is the result of testing a connection.
-// When setting up a new resource in Teleport, it's useful to know if we can
-// connect to it. This can be done using the test connection feature. The user
-// can then receive the result as feedback using the UI
+// When setting up a new resource in Teleport, it's useful to know if we can connect to it.
+// This can be done using the test connection feature.
+// The user can then receive the result as feedback using the UI
 type ConnectionDiagnosticV1 struct {
 	ResourceHeader `protobuf:"bytes,1,opt,name=Header,proto3,embedded=Header" json:""`
 	// Spec is the resource spec.
@@ -13797,8 +13650,8 @@ var xxx_messageInfo_ConnectionDiagnosticV1 proto.InternalMessageInfo
 type ConnectionDiagnosticSpecV1 struct {
 	// Success describes whether the connection was a success or a failure.
 	Success bool `protobuf:"varint,1,opt,name=Success,proto3" json:"success"`
-	// Message may contain some user friendly message to let the user know whether
-	// it was successful or a failure.
+	// Message may contain some user friendly message to let the user know whether it was
+	// successful or a failure.
 	Message string `protobuf:"bytes,2,opt,name=Message,proto3" json:"message"`
 	// Traces contain a list of checkpoints defined by
 	Traces               []*ConnectionDiagnosticTrace `protobuf:"bytes,3,rep,name=Traces,proto3" json:"traces"`
@@ -13971,8 +13824,7 @@ func (m *DatabaseServiceSpecV1) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_DatabaseServiceSpecV1 proto.InternalMessageInfo
 
-// DatabaseResourceMatcher is a set of properties that is used to match on
-// resources.
+// DatabaseResourceMatcher is a set of properties that is used to match on resources.
 type DatabaseResourceMatcher struct {
 	Labels               *Labels            `protobuf:"bytes,1,opt,name=Labels,proto3,customtype=Labels" json:"labels"`
 	AWS                  ResourceMatcherAWS `protobuf:"bytes,2,opt,name=AWS,proto3" json:"aws"`
@@ -14016,11 +13868,9 @@ var xxx_messageInfo_DatabaseResourceMatcher proto.InternalMessageInfo
 
 // ResourceMatcherAWS contains AWS specific settings for resource matcher.
 type ResourceMatcherAWS struct {
-	// AssumeRoleARN is an optional AWS role ARN to assume when accessing a
-	// database.
+	// AssumeRoleARN is an optional AWS role ARN to assume when accessing a database.
 	AssumeRoleARN string `protobuf:"bytes,1,opt,name=AssumeRoleARN,proto3" json:"assume_role_arn,omitempty"`
-	// ExternalID is an optional AWS external ID used to enable assuming an AWS
-	// role across accounts.
+	// ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
 	ExternalID           string   `protobuf:"bytes,2,opt,name=ExternalID,proto3" json:"external_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -14160,9 +14010,8 @@ type GetClusterAlertsRequest struct {
 	WithSuperseded bool `protobuf:"varint,4,opt,name=WithSuperseded,proto3" json:"WithSuperseded,omitempty"`
 	// WithAcknowledged includes acknowledged alerts in the output of the request.
 	WithAcknowledged bool `protobuf:"varint,5,opt,name=WithAcknowledged,proto3" json:"WithAcknowledged,omitempty"`
-	// WithUntargeted requests that alerts be included even if they are not
-	// specifically targeted toward the caller. This has no effect unless the
-	// caller has `cluster_alert:list`.
+	// WithUntargeted requests that alerts be included even if they are not specifically
+	// targeted toward the caller. This has no effect unless the caller has `cluster_alert:list`.
 	WithUntargeted       bool     `protobuf:"varint,6,opt,name=WithUntargeted,proto3" json:"WithUntargeted,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -14662,8 +14511,7 @@ type PluginOpsgenieAccessSettings struct {
 	Priority string `protobuf:"bytes,2,opt,name=priority,proto3" json:"priority,omitempty"`
 	// List of tags to be added to alerts created in Opsgenie
 	AlertTags []string `protobuf:"bytes,3,rep,name=alert_tags,json=alertTags,proto3" json:"alert_tags,omitempty"`
-	// Default on-call schedules to check if none are provided in the access
-	// request annotations
+	// Default on-call schedules to check if none are provided in the access request annotations
 	DefaultSchedules []string `protobuf:"bytes,4,rep,name=default_schedules,json=defaultSchedules,proto3" json:"default_schedules,omitempty"`
 	// APIEndpoint is the address of Opsgenie API.
 	ApiEndpoint          string   `protobuf:"bytes,5,opt,name=api_endpoint,json=apiEndpoint,proto3" json:"api_endpoint,omitempty"`
@@ -14982,8 +14830,7 @@ var xxx_messageInfo_PluginJamfSettings proto.InternalMessageInfo
 type PluginOktaSettings struct {
 	// OrgUrl is the Okta organization URL to use for API communication.
 	OrgUrl string `protobuf:"bytes,1,opt,name=org_url,json=orgUrl,proto3" json:"org_url,omitempty"`
-	// EnableUserSync controls the user sync in the Okta integration service.
-	// Deprecated.
+	// EnableUserSync controls the user sync in the Okta integration service. Deprecated.
 	// TODO(mdwn): Remove once e changes have been made.
 	EnableUserSync bool `protobuf:"varint,2,opt,name=enable_user_sync,json=enableUserSync,proto3" json:"enable_user_sync,omitempty"`
 	// SSOConnectorID (deprecated)
@@ -15033,22 +14880,20 @@ var xxx_messageInfo_PluginOktaSettings proto.InternalMessageInfo
 type PluginOktaSyncSettings struct {
 	// SyncUsers controls the user sync in the Okta integration service.
 	SyncUsers bool `protobuf:"varint,1,opt,name=sync_users,json=syncUsers,proto3" json:"sync_users,omitempty"`
-	// SSOConnectorID is the name of the Teleport SSO connector created and used
-	// by the Okta plugin
+	// SSOConnectorID is the name of the Teleport SSO connector created and used by the Okta plugin
 	SsoConnectorId string `protobuf:"bytes,2,opt,name=sso_connector_id,json=ssoConnectorId,proto3" json:"sso_connector_id,omitempty"`
-	// SyncAccessLists controls the access list sync in the Okta integration
-	// service.
+	// SyncAccessLists controls the access list sync in the Okta integration service.
 	SyncAccessLists bool `protobuf:"varint,3,opt,name=sync_access_lists,json=syncAccessLists,proto3" json:"sync_access_lists,omitempty"`
 	// DefaultOwners are the default owners for all imported access lists.
 	DefaultOwners []string `protobuf:"bytes,4,rep,name=default_owners,json=defaultOwners,proto3" json:"default_owners,omitempty"`
 	// AppID is the Okta-assigned ID of the Okta App that Teleport uses as a
 	// gateway to interact with Okta for SAML login, SCIM provisioning and user
 	// sync. When set, user sync will pull users from the assignment list for this
-	// app. When empty the plugin will fall back to the legacy behaviour of
-	// syncing users from the entre organization.
+	// app. When empty the plugin will fall back to the legacy behaviour of syncing
+	// users from the entre organization.
 	AppId string `protobuf:"bytes,5,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
-	// GroupFilters are filters for which Okta groups to synchronize as access
-	// lists. Filters can be globs, for example:
+	// GroupFilters are filters for which Okta groups to synchronize as access lists.
+	// Filters can be globs, for example:
 	//
 	//	group*
 	//	*service*
@@ -15058,8 +14903,8 @@ type PluginOktaSyncSettings struct {
 	//	^group.*$
 	//	^.*service.*$
 	GroupFilters []string `protobuf:"bytes,6,rep,name=group_filters,json=groupFilters,proto3" json:"group_filters,omitempty"`
-	// AppFilters are filters for which Okta applications to synchronize as access
-	// lists. Filters can be globs, for example:
+	// AppFilters are filters for which Okta applications to synchronize as access lists.
+	// Filters can be globs, for example:
 	//
 	//	app*
 	//	*service*
@@ -15295,8 +15140,7 @@ func (*PluginBootstrapCredentialsV1) XXX_OneofWrappers() []interface{} {
 	}
 }
 
-// PluginIdSecretCredential can be OAuth2-like client_id and client_secret or
-// username and password.
+// PluginIdSecretCredential can be OAuth2-like client_id and client_secret or username and password.
 type PluginIdSecretCredential struct {
 	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Secret               string   `protobuf:"bytes,2,opt,name=secret,proto3" json:"secret,omitempty"`
@@ -15582,8 +15426,7 @@ func (m *PluginOAuth2AccessTokenCredentials) XXX_DiscardUnknown() {
 var xxx_messageInfo_PluginOAuth2AccessTokenCredentials proto.InternalMessageInfo
 
 type PluginBearerTokenCredentials struct {
-	// Token is the literal bearer token to be submitted to the 3rd-party API
-	// provider.
+	// Token is the literal bearer token to be submitted to the 3rd-party API provider.
 	Token                string   `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -15623,11 +15466,9 @@ func (m *PluginBearerTokenCredentials) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_PluginBearerTokenCredentials proto.InternalMessageInfo
 
-// PluginStaticCredentialsRef is a reference to plugin static credentials by
-// labels.
+// PluginStaticCredentialsRef is a reference to plugin static credentials by labels.
 type PluginStaticCredentialsRef struct {
-	// Labels is the set of labels to use to match against a set of static
-	// credentials.
+	// Labels is the set of labels to use to match against a set of static credentials.
 	Labels               map[string]string `protobuf:"bytes,1,rep,name=Labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
@@ -15709,8 +15550,7 @@ func (m *PluginListV1) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_PluginListV1 proto.InternalMessageInfo
 
-// PluginStaticCredentialsV1 is a representation of static credentials for
-// plugins.
+// PluginStaticCredentialsV1 is a representation of static credentials for plugins.
 type PluginStaticCredentialsV1 struct {
 	// Header is the resource header for the plugin static credentials object.
 	ResourceHeader `protobuf:"bytes,1,opt,name=Header,proto3,embedded=Header" json:"Header"`
@@ -15753,8 +15593,7 @@ func (m *PluginStaticCredentialsV1) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_PluginStaticCredentialsV1 proto.InternalMessageInfo
 
-// PluginStaticCredentialsSpecV1 is the specification for the static credentials
-// object.
+// PluginStaticCredentialsSpecV1 is the specification for the static credentials object.
 type PluginStaticCredentialsSpecV1 struct {
 	// Types that are valid to be assigned to Credentials:
 	//
@@ -15858,8 +15697,7 @@ func (*PluginStaticCredentialsSpecV1) XXX_OneofWrappers() []interface{} {
 	}
 }
 
-// PluginStaticCredentialsBasicAuth represents username and password credentials
-// for a plugin.
+// PluginStaticCredentialsBasicAuth represents username and password credentials for a plugin.
 type PluginStaticCredentialsBasicAuth struct {
 	// Username is the username to use for basic auth.
 	Username string `protobuf:"bytes,1,opt,name=Username,proto3" json:"username"`
@@ -15903,8 +15741,7 @@ func (m *PluginStaticCredentialsBasicAuth) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_PluginStaticCredentialsBasicAuth proto.InternalMessageInfo
 
-// PluginStaticCredentialsOAuthClientSecret represents an oauth client id and
-// secret.
+// PluginStaticCredentialsOAuthClientSecret represents an oauth client id and secret.
 type PluginStaticCredentialsOAuthClientSecret struct {
 	// ClientId is the client ID to use for OAuth client secret.
 	ClientId string `protobuf:"bytes,1,opt,name=ClientId,proto3" json:"client_id"`
@@ -15950,8 +15787,7 @@ func (m *PluginStaticCredentialsOAuthClientSecret) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_PluginStaticCredentialsOAuthClientSecret proto.InternalMessageInfo
 
-// SAMLIdPServiceProviderV1 is the representation of a SAML IdP service
-// provider.
+// SAMLIdPServiceProviderV1 is the representation of a SAML IdP service provider.
 type SAMLIdPServiceProviderV1 struct {
 	// Header is the resource header for the SAML IdP service provider.
 	ResourceHeader `protobuf:"bytes,1,opt,name=Header,proto3,embedded=Header" json:""`
@@ -15998,24 +15834,22 @@ var xxx_messageInfo_SAMLIdPServiceProviderV1 proto.InternalMessageInfo
 type SAMLIdPServiceProviderSpecV1 struct {
 	// EntityDescriptor is the entity descriptor for the service provider
 	EntityDescriptor string `protobuf:"bytes,1,opt,name=EntityDescriptor,proto3" json:"entity_descriptor"`
-	// EntityID is the entity ID for the entity descriptor. If entity descriptor
-	// is provided, this value is checked that it matches the entity ID in the
-	// entity descriptor at upsert time to avoid having to parse the XML blob in
-	// the entity descriptor every time we need to use this resource.
+	// EntityID is the entity ID for the entity descriptor. If entity descriptor is provided,
+	// this value is checked that it matches the entity ID in the entity descriptor
+	// at upsert time to avoid having to parse the XML blob in the entity descriptor
+	// every time we need to use this resource.
 	EntityID string `protobuf:"bytes,2,opt,name=EntityID,proto3" json:"entity_id"`
-	// ACSURL is the endpoint where SAML authentication response will be
-	// redirected.
+	// ACSURL is the endpoint where SAML authentication response will be redirected.
 	ACSURL string `protobuf:"bytes,3,opt,name=ACSURL,proto3" json:"acs_url"`
 	// AttributeMapping is used to map service provider requested attributes to
 	// username, role and traits in Teleport.
 	AttributeMapping []*SAMLAttributeMapping `protobuf:"bytes,4,rep,name=AttributeMapping,proto3" json:"attribute_mapping"`
-	// Preset is used to define service provider profile that will have a custom
-	// behavior processed by Teleport.
+	// Preset is used to define service provider profile that will have a custom behavior
+	// processed by Teleport.
 	Preset string `protobuf:"bytes,5,opt,name=Preset,proto3" json:"preset"`
-	// RelayState is used to add custom value in the SAML response as a
-	// relay_state HTTP parameter. The value can contain service provider specific
-	// redirect URL, static state token etc. The value is only applied in the IdP
-	// initiated SSO flow.
+	// RelayState is used to add custom value in the SAML response as a relay_state HTTP parameter.
+	// The value can contain service provider specific redirect URL, static state token etc.
+	// The value is only applied in the IdP initiated SSO flow.
 	RelayState           string   `protobuf:"bytes,6,opt,name=RelayState,proto3" json:"relay_state"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -16146,8 +15980,7 @@ var xxx_messageInfo_IdPOptions proto.InternalMessageInfo
 
 // IdPSAMLOptions specifies options related to accessing the Teleport SAML IdP.
 type IdPSAMLOptions struct {
-	// Enabled is set to true if this option allows access to the Teleport SAML
-	// IdP.
+	// Enabled is set to true if this option allows access to the Teleport SAML IdP.
 	Enabled              *BoolOption `protobuf:"bytes,1,opt,name=Enabled,proto3,customtype=BoolOption" json:"enabled"`
 	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
 	XXX_unrecognized     []byte      `json:"-"`
@@ -16325,8 +16158,7 @@ func (m *ClusterMaintenanceConfigV1) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ClusterMaintenanceConfigV1 proto.InternalMessageInfo
 
-// ClusterMaintenanceConfigSpecV1 encodes the parameters of the upgrade window
-// config object.
+// ClusterMaintenanceConfigSpecV1 encodes the parameters of the upgrade window config object.
 type ClusterMaintenanceConfigSpecV1 struct {
 	// AgentUpgrades encodes the agent upgrade window.
 	AgentUpgrades        *AgentUpgradeWindow `protobuf:"bytes,1,opt,name=AgentUpgrades,proto3" json:"agent_upgrades,omitempty"`
@@ -16373,8 +16205,8 @@ var xxx_messageInfo_ClusterMaintenanceConfigSpecV1 proto.InternalMessageInfo
 type AgentUpgradeWindow struct {
 	// UTCStartHour is the start hour of the maintenance window in UTC.
 	UTCStartHour uint32 `protobuf:"varint,1,opt,name=UTCStartHour,proto3" json:"utc_start_hour"`
-	// Weekdays is an optional list of weekdays. If not specified, an agent
-	// upgrade window occurs every day.
+	// Weekdays is an optional list of weekdays. If not specified, an agent upgrade window
+	// occurs every day.
 	Weekdays             []string `protobuf:"bytes,2,rep,name=Weekdays,proto3" json:"weekdays,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -16591,8 +16423,7 @@ var xxx_messageInfo_UserGroupSpecV1 proto.InternalMessageInfo
 
 // OktaImportRuleSpecV1 is a Okta import rule specification.
 type OktaImportRuleSpecV1 struct {
-	// Priority represents the priority of the rule application. Lower numbered
-	// rules will be applied first.
+	// Priority represents the priority of the rule application. Lower numbered rules will be applied first.
 	Priority int32 `protobuf:"varint,1,opt,name=Priority,proto3" json:"priority"`
 	// Mappings is a list of matches that will map match conditions to labels.
 	Mappings             []*OktaImportRuleMappingV1 `protobuf:"bytes,2,rep,name=Mappings,proto3" json:"mappings"`
@@ -16636,11 +16467,9 @@ var xxx_messageInfo_OktaImportRuleSpecV1 proto.InternalMessageInfo
 
 // OktaImportRuleMappingV1 is a list of matches that map match rules to labels.
 type OktaImportRuleMappingV1 struct {
-	// Match is a set of matching rules for this mapping. If any of these match,
-	// then the mapping will be applied.
+	// Match is a set of matching rules for this mapping. If any of these match, then the mapping will be applied.
 	Match []*OktaImportRuleMatchV1 `protobuf:"bytes,1,rep,name=Match,proto3" json:"match"`
-	// AddLabels specifies which labels to add if any of the previous matches
-	// match.
+	// AddLabels specifies which labels to add if any of the previous matches match.
 	AddLabels            map[string]string `protobuf:"bytes,2,rep,name=AddLabels,proto3" json:"add_labels" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
@@ -16680,8 +16509,7 @@ func (m *OktaImportRuleMappingV1) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_OktaImportRuleMappingV1 proto.InternalMessageInfo
 
-// OktaImportRuleV1 is a representation of labeling rules for importing of Okta
-// objects.
+// OktaImportRuleV1 is a representation of labeling rules for importing of Okta objects.
 type OktaImportRuleV1 struct {
 	// Header is the resource header for the SAML IdP service provider.
 	ResourceHeader `protobuf:"bytes,1,opt,name=Header,proto3,embedded=Header" json:""`
@@ -16772,8 +16600,7 @@ func (m *OktaImportRuleMatchV1) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_OktaImportRuleMatchV1 proto.InternalMessageInfo
 
-// OktaAssignmentV1 is a representation of an action or set of actions taken by
-// Teleport to assign Okta users to applications or groups.
+// OktaAssignmentV1 is a representation of an action or set of actions taken by Teleport to assign Okta users to applications or groups.
 type OktaAssignmentV1 struct {
 	// Header is the resource header for the Okta assignment.
 	ResourceHeader `protobuf:"bytes,1,opt,name=Header,proto3,embedded=Header" json:""`
@@ -16822,14 +16649,13 @@ type OktaAssignmentSpecV1 struct {
 	User string `protobuf:"bytes,1,opt,name=User,proto3" json:"user"`
 	// Targets is a list of Okta targets to take on a user.
 	Targets []*OktaAssignmentTargetV1 `protobuf:"bytes,2,rep,name=Targets,proto3" json:"targets"`
-	// CleanupTime is an optional field that notes when the assignment should be
-	// cleaned up. If absent, the assignment will never be cleaned up.
+	// CleanupTime is an optional field that notes when the assignment should be cleaned up.
+	// If absent, the assignment will never be cleaned up.
 	CleanupTime time.Time `protobuf:"bytes,3,opt,name=CleanupTime,proto3,stdtime" json:"cleanup_time"`
 	// Status is the status of the assignment.
 	Status OktaAssignmentSpecV1_OktaAssignmentStatus `protobuf:"varint,4,opt,name=status,proto3,enum=types.OktaAssignmentSpecV1_OktaAssignmentStatus" json:"status"`
-	// LastTransition is an optional field that notes when the last state
-	// transition occurred for this action. If absent, this object has never
-	// transitioned.
+	// LastTransition is an optional field that notes when the last state transition
+	// occurred for this action. If absent, this object has never transitioned.
 	LastTransition time.Time `protobuf:"bytes,5,opt,name=LastTransition,proto3,stdtime" json:"last_transition"`
 	// Finalized is set when the assignment has been properly cleaned up.
 	Finalized            bool     `protobuf:"varint,6,opt,name=Finalized,proto3" json:"finalized"`
@@ -16915,10 +16741,9 @@ func (m *OktaAssignmentTargetV1) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_OktaAssignmentTargetV1 proto.InternalMessageInfo
 
-// IntegrationV1 represents a connection between Teleport and some other 3rd
-// party system. This connection allows API access to that service from
-// Teleport. Each Integration instance must have a SubKind defined which
-// identifies the external system.
+// IntegrationV1 represents a connection between Teleport and some other 3rd party system.
+// This connection allows API access to that service from Teleport.
+// Each Integration instance must have a SubKind defined which identifies the external system.
 type IntegrationV1 struct {
 	// Header is the resource header.
 	ResourceHeader `protobuf:"bytes,1,opt,name=Header,proto3,embedded=Header" json:""`
@@ -17038,17 +16863,17 @@ func (*IntegrationSpecV1) XXX_OneofWrappers() []interface{} {
 	}
 }
 
-// AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC
-// SubKind Integration.
+// AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
 type AWSOIDCIntegrationSpecV1 struct {
 	// RoleARN contains the Role ARN used to set up the Integration.
 	// This is the AWS Role that Teleport will use to issue tokens for API Calls.
 	RoleARN string `protobuf:"bytes,1,opt,name=RoleARN,proto3" json:"role_arn,omitempty"`
 	// IssuerS3URI is the Identity Provider that was configured in AWS.
-	// This bucket/prefix/* files must be publicly accessible and contain the
-	// following: > .well-known/openid-configuration > .well-known/jwks Format:
-	// s3://<bucket>/<prefix> Optional. The proxy's endpoint is used if it is not
-	// specified.
+	// This bucket/prefix/* files must be publicly accessible and contain the following:
+	// > .well-known/openid-configuration
+	// > .well-known/jwks
+	// Format: s3://<bucket>/<prefix>
+	// Optional. The proxy's endpoint is used if it is not specified.
 	IssuerS3URI          string   `protobuf:"bytes,2,opt,name=IssuerS3URI,proto3" json:"issuer_s3_uri,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -17088,8 +16913,7 @@ func (m *AWSOIDCIntegrationSpecV1) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_AWSOIDCIntegrationSpecV1 proto.InternalMessageInfo
 
-// HeadlessAuthentication holds data for an ongoing headless authentication
-// attempt.
+// HeadlessAuthentication holds data for an ongoing headless authentication attempt.
 type HeadlessAuthentication struct {
 	// Header is the resource header.
 	ResourceHeader `protobuf:"bytes,1,opt,name=header,proto3,embedded=header" json:"header"`
@@ -17099,8 +16923,7 @@ type HeadlessAuthentication struct {
 	PublicKey []byte `protobuf:"bytes,3,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
 	// State is the headless authentication request state.
 	State HeadlessAuthenticationState `protobuf:"varint,4,opt,name=state,proto3,enum=types.HeadlessAuthenticationState" json:"state,omitempty"`
-	// MFADevice is the mfa device used to approve the request in case of
-	// successful auth.
+	// MFADevice is the mfa device used to approve the request in case of successful auth.
 	MfaDevice *MFADevice `protobuf:"bytes,5,opt,name=mfa_device,json=mfaDevice,proto3" json:"mfa_device,omitempty"`
 	// ClientIPAddress is the IP address of the client being authenticated.
 	ClientIpAddress      string   `protobuf:"bytes,6,opt,name=client_ip_address,json=clientIpAddress,proto3" json:"client_ip_address,omitempty"`
@@ -17143,8 +16966,7 @@ func (m *HeadlessAuthentication) XXX_DiscardUnknown() {
 var xxx_messageInfo_HeadlessAuthentication proto.InternalMessageInfo
 
 // WatchKind specifies resource kind to watch
-// When adding fields to this struct, make sure to review/update
-// WatchKind.Contains method.
+// When adding fields to this struct, make sure to review/update WatchKind.Contains method.
 type WatchKind struct {
 	// Kind is a resource kind to watch
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
@@ -17200,13 +17022,11 @@ func (m *WatchKind) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_WatchKind proto.InternalMessageInfo
 
-// WatchStatusV1 is intended to be attached to OpInit events and contain
-// information about a successful WatchEvents call.
+// WatchStatusV1 is intended to be attached to OpInit events and contain information about a successful WatchEvents call.
 type WatchStatusV1 struct {
 	// Kind is the resource kind.
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
-	// SubKind is an optional resource subkind. Currently unused for this
-	// resource.
+	// SubKind is an optional resource subkind. Currently unused for this resource.
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
 	// Version is the resource version.
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
@@ -17252,8 +17072,7 @@ func (m *WatchStatusV1) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_WatchStatusV1 proto.InternalMessageInfo
 
-// WatchStatusSpecV1 contains resource kinds confirmed by WatchEvents to be
-// included in the event stream.
+// WatchStatusSpecV1 contains resource kinds confirmed by WatchEvents to be included in the event stream.
 type WatchStatusSpecV1 struct {
 	Kinds                []WatchKind `protobuf:"bytes,1,rep,name=Kinds,proto3" json:"kinds"`
 	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
@@ -17457,8 +17276,7 @@ var xxx_messageInfo_JamfSpecV1 proto.InternalMessageInfo
 type JamfInventoryEntry struct {
 	// Jamf Pro API RSQL filter, used when querying endpoints like
 	// "/api/v1/computers-inventory".
-	// See
-	// https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
+	// See https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
 	FilterRsql string `protobuf:"bytes,1,opt,name=filter_rsql,json=filterRsql,proto3" json:"filter_rsql,omitempty"`
 	// Sync period for PARTIAL syncs.
 	// PARTIAL syncs are scheduled in the time window between FULL syncs, so
@@ -17521,18 +17339,18 @@ var xxx_messageInfo_JamfInventoryEntry proto.InternalMessageInfo
 // resources.
 //
 // When using a oneof in a protobuf messages, the existing utils.FastMarshal
-// utility does not work, so using something like protojson or jsonpb is
-// required. However, these do not respect gogoproto's extensions. When using a
-// ResourceHeader, protojson will not recognize that the ResourceHeader is
-// intended to be embedded and the resulting JSON will have the header as a
-// separate field. This means that using utils.FastUnmarshal will not work for
-// extracting a ResourceHeader from the JSON, and we explicitly extract this
-// header to do things like version checking in lib/services.
+// utility does not work, so using something like protojson or jsonpb is required.
+// However, these do not respect gogoproto's extensions. When using a ResourceHeader,
+// protojson will not recognize that the ResourceHeader is intended to be embedded and
+// the resulting JSON will have the header as a separate field. This means that using
+// utils.FastUnmarshal will not work for extracting a ResourceHeader from the
+// JSON, and we explicitly extract this header to do things like version checking in
+// lib/services.
 //
-// This can be avoided by explicitly embedding the members of the ResourceHeader
-// in a message. However, if we would like to avoid this, we can use this
-// MessageWitHheader to extract the resource header and its elements, which can
-// later be used for the aforementioned processing in lib/services.
+// This can be avoided by explicitly embedding the members of the ResourceHeader in
+// a message. However, if we would like to avoid this, we can use this MessageWitHheader
+// to extract the resource header and its elements, which can later be used for the
+// aforementioned processing in lib/services.
 type MessageWithHeader struct {
 	// Header is the resource header for a resource.
 	ResourceHeader       `protobuf:"bytes,1,opt,name=Header,proto3,embedded=Header" json:""`
@@ -17575,8 +17393,8 @@ var xxx_messageInfo_MessageWithHeader proto.InternalMessageInfo
 
 // AWSMatcher matches AWS EC2 instances and AWS Databases
 type AWSMatcher struct {
-	// Types are AWS database types to match, "ec2", "rds", "redshift",
-	// "elasticache", or "memorydb".
+	// Types are AWS database types to match, "ec2", "rds", "redshift", "elasticache",
+	// or "memorydb".
 	Types []string `protobuf:"bytes,1,rep,name=Types,proto3" json:"types,omitempty"`
 	// Regions are AWS regions to query for databases.
 	Regions []string `protobuf:"bytes,2,rep,name=Regions,proto3" json:"regions,omitempty"`
@@ -17589,13 +17407,11 @@ type AWSMatcher struct {
 	// SSM provides options to use when sending a document command to
 	// an EC2 node
 	SSM *AWSSSM `protobuf:"bytes,6,opt,name=SSM,proto3" json:"ssm,omitempty"`
-	// Integration is the integration name used to generate credentials to
-	// interact with AWS APIs. Environment credentials will not be used when this
-	// value is set.
+	// Integration is the integration name used to generate credentials to interact with AWS APIs.
+	// Environment credentials will not be used when this value is set.
 	Integration string `protobuf:"bytes,7,opt,name=Integration,proto3" json:"integration,omitempty"`
-	// KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled
-	// for agents running on discovered clusters, currently only affects AWS EKS
-	// discovery in integration mode.
+	// KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
+	// discovered clusters, currently only affects AWS EKS discovery in integration mode.
 	KubeAppDiscovery     bool     `protobuf:"varint,8,opt,name=KubeAppDiscovery,proto3" json:"kube_app_discovery,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -17882,8 +17698,7 @@ type GCPMatcher struct {
 	Types []string `protobuf:"bytes,1,rep,name=Types,proto3" json:"types,omitempty"`
 	// Locations are GKE locations to search resources for.
 	Locations []string `protobuf:"bytes,2,rep,name=Locations,proto3" json:"locations,omitempty"`
-	// Tags is obsolete and only exists for backwards compatibility. Use Labels
-	// instead.
+	// Tags is obsolete and only exists for backwards compatibility. Use Labels instead.
 	Tags Labels `protobuf:"bytes,3,opt,name=Tags,proto3,customtype=Labels" json:"tags,omitempty"`
 	// ProjectIDs are the GCP project ID where the resources are deployed.
 	ProjectIDs []string `protobuf:"bytes,4,rep,name=ProjectIDs,proto3" json:"project_ids,omitempty"`
@@ -17934,8 +17749,7 @@ var xxx_messageInfo_GCPMatcher proto.InternalMessageInfo
 
 // KubernetesMatcher matches Kubernetes services.
 type KubernetesMatcher struct {
-	// Types are Kubernetes services types to match. Currently only 'app' is
-	// supported.
+	// Types are Kubernetes services types to match. Currently only 'app' is supported.
 	Types []string `protobuf:"bytes,1,rep,name=Types,proto3" json:"types,omitempty"`
 	// Namespaces are Kubernetes namespaces in which to discover services
 	Namespaces []string `protobuf:"bytes,2,rep,name=Namespaces,proto3" json:"namespaces,omitempty"`
@@ -18063,15 +17877,13 @@ func (m *AccessGraphSync) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_AccessGraphSync proto.InternalMessageInfo
 
-// AccessGraphAWSSync is a configuration for AWS Access Graph service poll
-// service.
+// AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
 type AccessGraphAWSSync struct {
 	// Regions are AWS regions to import resources from.
 	Regions []string `protobuf:"bytes,1,rep,name=Regions,proto3" json:"regions,omitempty"`
 	// AssumeRoleARN is the AWS role to assume for database discovery.
 	AssumeRole *AssumeRole `protobuf:"bytes,3,opt,name=AssumeRole,proto3" json:"assume_role,omitempty"`
-	// Integration is the integration name used to generate credentials to
-	// interact with AWS APIs.
+	// Integration is the integration name used to generate credentials to interact with AWS APIs.
 	Integration          string   `protobuf:"bytes,4,opt,name=Integration,proto3" json:"integration,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
