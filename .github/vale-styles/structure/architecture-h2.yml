@@ -1,0 +1,30 @@
+# This style enforces the presence of architectural information in how-to
+# guides. The motivation is that the architecture of the setups shown in how-to
+# guides is often a point of confusion.
+#
+# In this rule, the first H2 of a how-to guide must be called "How it works".
+# This style defines a how-to guide as any guide that includes at least one H2
+# beginning "Step [0-9]". 
+
+extends: script
+message: "In a how-to guide, the first H2 section must be called \"How it works\" and include architectural information."
+scope: raw
+script: |
+  text := import("text")
+  getMatches := func(){
+    if !text.re_match(`\n## [sS]tep [0-9]`, scope) {
+      // Not a how-to guide for the purpose of this style rule
+      return []
+    }
+  
+    h2s := text.re_find(`\n## [^#\n]+\n`, scope, 1)
+      if h2s && h2s[0][0].text != "\n## How it works\n" {
+        return [{
+          begin: h2s[0][0].begin,
+          end: h2s[0][0].end
+        }]
+    }
+  }
+
+  matches := getMatches()
+

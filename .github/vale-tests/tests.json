@@ -1,0 +1,7 @@
+{
+  "messaging.md": ["instead of 'auth server'", "Proxy service is incorrect"],
+  "architecture-h2.md": [],
+  "architecture-h2-bad.md": ["How it works"],
+  "architecture-not-how-to.md": [],
+  "architecture-h2-no-prereq.md": ["How it works"]
+}

@@ -10,12 +10,12 @@ ignorecase: false
 tokens:
   - machine id
   - db service
-  - database service
-  - 'app(lication) service'
-  - desktop service
-  - kubernetes service
-  - ssh service
-  - discovery service
-  - auth service
+  - '[Dd]atabase service'
+  - '[Aa]pp(lication) service'
+  - '[Dd]esktop service'
+  - '[kK]ubernetes service'
+  - '(SSH|ssh) service'
+  - '[dD]iscovery service'
+  - '[Aa]uth service'
   # Allow for mentions of a local proxy service, but not "proxy service".
-  - '(?<!local )proxy service'
+  - '(?<!local )[pP]roxy service'
