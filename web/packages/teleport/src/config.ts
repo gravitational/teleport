@@ -329,7 +329,7 @@ const cfg = {
     botsTokenPath: '/v1/webapi/sites/:clusterId/machine-id/token',
 
     gcpWorkforceConfigurePath:
-    '/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
+      '/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -1047,10 +1047,9 @@ const cfg = {
     return generatePath(cfg.api.botsPath, { clusterId, name });
   },
 
-  getGcpWorkforceConfigScriptUrl( p: UrlGcpWorkforceConfigParam) {
+  getGcpWorkforceConfigScriptUrl(p: UrlGcpWorkforceConfigParam) {
     return (
-      cfg.baseUrl +
-      generatePath(cfg.api.gcpWorkforceConfigurePath, { ...p })
+      cfg.baseUrl + generatePath(cfg.api.gcpWorkforceConfigurePath, { ...p })
     );
   },
 
