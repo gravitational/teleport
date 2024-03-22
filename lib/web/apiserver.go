@@ -1701,14 +1701,15 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			AccessMonitoringMaxReportRangeLimit: int(clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()),
 			AccessRequestMonthlyRequestLimit:    int(clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit()),
 		},
-		Questionnaire:        clusterFeatures.GetQuestionnaire(),
-		IsStripeManaged:      clusterFeatures.GetIsStripeManaged(),
-		ExternalAuditStorage: clusterFeatures.GetExternalAuditStorage(),
-		PremiumSupport:       clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,
-		AccessRequests:       clusterFeatures.GetAccessRequests().MonthlyRequestLimit > 0,
-		TrustedDevices:       clusterFeatures.GetDeviceTrust().GetEnabled(),
-		OIDC:                 clusterFeatures.GetOIDC(),
-		SAML:                 clusterFeatures.GetSAML(),
+		Questionnaire:          clusterFeatures.GetQuestionnaire(),
+		IsStripeManaged:        clusterFeatures.GetIsStripeManaged(),
+		ExternalAuditStorage:   clusterFeatures.GetExternalAuditStorage(),
+		PremiumSupport:         clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,
+		AccessRequests:         clusterFeatures.GetAccessRequests().MonthlyRequestLimit > 0,
+		TrustedDevices:         clusterFeatures.GetDeviceTrust().GetEnabled(),
+		OIDC:                   clusterFeatures.GetOIDC(),
+		SAML:                   clusterFeatures.GetSAML(),
+		MobileDeviceManagement: clusterFeatures.GetMobileDeviceManagement(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()

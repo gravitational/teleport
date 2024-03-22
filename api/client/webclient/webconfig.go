@@ -95,13 +95,16 @@ type WebConfig struct {
 	PremiumSupport bool `json:"premiumSupport"`
 	// JoinActiveSessions indicates whether joining active sessions via web UI is enabled
 	JoinActiveSessions bool `json:"joinActiveSessions"`
-	AccessRequests     bool `json:"accessRequests"` // TODO?
+	// AccessRequests enables access requests
+	AccessRequests bool `json:"accessRequests"` // TODO?
 	// TrustedDevices enables trusted devices pages
 	TrustedDevices bool `json:"trustedDevices"`
 	// OIDC enables the OIDC integration flow
 	OIDC bool `json:"oidc"`
 	// SAML enables the SAML integration flow
 	SAML bool `json:"saml"`
+	// MobileDeviceManagement enables adding Jamf plugin
+	MobileDeviceManagement bool `json:"mobileDeviceManagement"`
 }
 
 // featureLimits define limits for features.

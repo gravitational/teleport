@@ -68,6 +68,7 @@ const cfg = {
   oidc: false,
   saml: false,
   joinActiveSessions: false,
+  mobileDeviceManagement: false,
 
   // isIgsEnabled refers to Identity Governance & Security product.
   // It refers to a group of features: access request, device trust,
