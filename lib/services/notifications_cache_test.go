@@ -164,9 +164,9 @@ func TestUserNotificationsCache(t *testing.T) {
 	for _, n := range testNotifications {
 		// We add a delay to ensure that the timestamps in the generated UUID's are all different and in the correct order.
 		time.Sleep(50 * time.Millisecond)
-		notification := newUserNotification(t, n.description)
+		notification := newUserNotification(t, n.username, n.description)
 		// Create the notification in the backend.
-		created, err := svcs.CreateUserNotification(ctx, n.username, notification)
+		created, err := svcs.CreateUserNotification(ctx, notification)
 		require.NoError(t, err)
 		if n.username == usernameA {
 			notificationIdsA = append(notificationIdsA, created.GetMetadata().GetName())
@@ -420,12 +420,14 @@ func TestGlobalNotificationsCache(t *testing.T) {
 	}
 }
 
-func newUserNotification(t *testing.T, description string) *notificationsv1.Notification {
+func newUserNotification(t *testing.T, username string, description string) *notificationsv1.Notification {
 	t.Helper()
 
 	notification := notificationsv1.Notification{
 		SubKind: "test-subkind",
-		Spec:    &notificationsv1.NotificationSpec{},
+		Spec: &notificationsv1.NotificationSpec{
+			Username: username,
+		},
 		Metadata: &headerv1.Metadata{
 			Labels: map[string]string{"description": description},
 		},

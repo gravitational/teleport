@@ -1146,6 +1146,9 @@ type Cache interface {
 
 	// IntegrationsGetter defines read/list methods for integrations.
 	services.IntegrationsGetter
+
+	// NotificationsGetter defines list methods for notifications.
+	services.NotificationGetter
 }
 
 type NodeWrapper struct {

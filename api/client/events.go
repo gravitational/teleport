@@ -19,6 +19,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
@@ -55,6 +56,14 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		case *kubewaitingcontainerpb.KubernetesWaitingContainer:
 			out.Resource = &proto.Event_KubernetesWaitingContainer{
 				KubernetesWaitingContainer: r,
+			}
+		case *notificationsv1.Notification:
+			out.Resource = &proto.Event_UserNotification{
+				UserNotification: r,
+			}
+		case *notificationsv1.GlobalNotification:
+			out.Resource = &proto.Event_GlobalNotification{
+				GlobalNotification: r,
 			}
 		}
 	case *types.ResourceHeader:
@@ -462,6 +471,12 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		}
 		return &out, nil
 	} else if r := in.GetKubernetesWaitingContainer(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetUserNotification(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetGlobalNotification(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else {

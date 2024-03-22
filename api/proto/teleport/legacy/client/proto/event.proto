@@ -21,6 +21,7 @@ import "teleport/accessmonitoringrules/v1/access_monitoring_rules.proto";
 import "teleport/discoveryconfig/v1/discoveryconfig.proto";
 import "teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto";
 import "teleport/legacy/types/types.proto";
+import "teleport/notifications/v1/notifications.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 
@@ -154,5 +155,9 @@ message Event {
     // KubernetesWaitingContainer is a Kubernetes ephemeral container
     // waiting to be created.
     teleport.kubewaitingcontainer.v1.KubernetesWaitingContainer KubernetesWaitingContainer = 55;
+    // UserNotification is a user notification resource.
+    teleport.notifications.v1.Notification UserNotification = 56;
+    // GlobalNotification is a global notification resource.
+    teleport.notifications.v1.GlobalNotification GlobalNotification = 57;
   }
 }
