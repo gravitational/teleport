@@ -528,6 +528,15 @@ export type EksMeta = BaseMeta & {
   kube: Kube;
 };
 
-export type AgentMeta = DbMeta | NodeMeta | KubeMeta | EksMeta;
+// SamlIdPSpMeta describes the fields for SAML IdP
+// service provider resource that needs to be
+// preserved throughout the flow.
+export type SamlIdPSpMeta = BaseMeta & {
+  isAutoConfig: boolean;
+  samlAppName: string;
+};
+
+
+export type AgentMeta = DbMeta | NodeMeta | KubeMeta | EksMeta | SamlIdPSpMeta;
 
 export type State = ReturnType<typeof useDiscover>;
