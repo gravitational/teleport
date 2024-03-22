@@ -85,6 +85,23 @@ type WebConfig struct {
 	// Typically used with feature teasers if feature is not enabled for the
 	// product type eg: Team product contains teasers to upgrade to Enterprise.
 	FeatureLimits FeatureLimits `json:"featureLimits"`
+	// Questionnaire indicates whether cluster users should get an onboarding questionnaire
+	Questionnaire bool `json:"questionnaire"`
+	// indicates if the cluster billing is managed via Stripe
+	IsStripeManaged bool `json:"isStripeManaged"`
+	// ExternalAuditStorage indicates whether the EAS feature is enabled in the cluster.
+	ExternalAuditStorage bool `json:"externalAuditStorage"`
+	// PremiumSupport indicates if the customer has premium support
+	PremiumSupport bool `json:"premiumSupport"`
+	// JoinActiveSessions indicates whether joining active sessions via web UI is enabled
+	JoinActiveSessions bool `json:"joinActiveSessions"`
+	AccessRequests     bool `json:"accessRequests"` // TODO?
+	// TrustedDevices enables trusted devices pages
+	TrustedDevices bool `json:"trustedDevices"`
+	// OIDC enables the OIDC integration flow
+	OIDC bool `json:"oidc"`
+	// SAML enables the SAML integration flow
+	SAML bool `json:"saml"`
 }
 
 // featureLimits define limits for features.

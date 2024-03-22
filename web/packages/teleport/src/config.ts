@@ -59,6 +59,16 @@ const cfg = {
    * @deprecated use other flags do determine cluster features istead of relying on isTeam
    */
   isTeam: false,
+  isStripeManaged: false,
+  hasQuestionnaire: false,
+  externalAuditStorage: false,
+  premiumSupport: false,
+  accessRequests: false,
+  trustedDevices: false,
+  oidc: false,
+  saml: false,
+  joinActiveSessions: false,
+
   // isIgsEnabled refers to Identity Governance & Security product.
   // It refers to a group of features: access request, device trust,
   // access list, and access monitoring.
