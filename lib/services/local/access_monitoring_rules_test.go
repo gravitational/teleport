@@ -29,8 +29,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types/accessmonitoringrule"
-	"github.com/gravitational/teleport/api/types/header"
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
@@ -47,21 +47,25 @@ func TestAccessMonitoringRulesCRUD(t *testing.T) {
 	service, err := NewAccessMonitoringRulesService(mem)
 	require.NoError(t, err)
 
-	// Define two AccessMonitoringRules
-	AccessMonitoringRule1, _ := accessmonitoringrule.NewAccessMonitoringRule(
-		header.Metadata{Name: "p1"},
-		accessmonitoringrule.Spec{
+	AccessMonitoringRule1 := &accessmonitoringrulesv1.AccessMonitoringRule{
+		Metadata: &v1.Metadata{
+			Name: "p1",
+		},
+		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 			Subjects:  []string{"someSubject"},
 			Condition: "someCondition",
 		},
-	)
-	AccessMonitoringRule2, _ := accessmonitoringrule.NewAccessMonitoringRule(
-		header.Metadata{Name: "p2"},
-		accessmonitoringrule.Spec{
+	}
+
+	AccessMonitoringRule2 := &accessmonitoringrulesv1.AccessMonitoringRule{
+		Metadata: &v1.Metadata{
+			Name: "p2",
+		},
+		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 			Subjects:  []string{"someSubject"},
 			Condition: "someCondition",
 		},
-	)
+	}
 
 	// Create both AccessMonitoringRules.
 	_, err = service.CreateAccessMonitoringRule(ctx, AccessMonitoringRule1)
@@ -73,7 +77,9 @@ func TestAccessMonitoringRulesCRUD(t *testing.T) {
 	rule, err := service.GetAccessMonitoringRule(ctx, AccessMonitoringRule2.Metadata.Name)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(rule, AccessMonitoringRule2,
-		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreUnexported(accessmonitoringrulesv1.AccessMonitoringRule{}),
+		cmpopts.IgnoreUnexported(accessmonitoringrulesv1.AccessMonitoringRuleSpec{}),
+		cmpopts.IgnoreUnexported(v1.Metadata{}),
 	))
 
 	// Try to fetch a AccessMonitoringRule that doesn't exist.
@@ -117,14 +123,17 @@ func TestListAccessMonitoringRules(t *testing.T) {
 	service, err := NewAccessMonitoringRulesService(mem)
 	require.NoError(t, err)
 
-	var insertedAccessMonitoringRules []*accessmonitoringrule.AccessMonitoringRule
+	var insertedAccessMonitoringRules []*accessmonitoringrulesv1.AccessMonitoringRule
 	for i := 0; i < numAccessMonitoringRules; i++ {
-		AccessMonitoringRule, _ := accessmonitoringrule.NewAccessMonitoringRule(
-			header.Metadata{Name: fmt.Sprintf("p%02d", i+1)},
-			accessmonitoringrule.Spec{
+		AccessMonitoringRule := &accessmonitoringrulesv1.AccessMonitoringRule{
+			Metadata: &v1.Metadata{
+				Name: fmt.Sprintf("p%02d", i+1),
+			},
+			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 				Subjects:  []string{"someSubject"},
 				Condition: "someCondition",
-			})
+			},
+		}
 		_, err := service.CreateAccessMonitoringRule(ctx, AccessMonitoringRule)
 		require.NoError(t, err)
 		insertedAccessMonitoringRules = append(insertedAccessMonitoringRules, AccessMonitoringRule)
@@ -146,13 +155,15 @@ func TestListAccessMonitoringRules(t *testing.T) {
 		require.Empty(t, nextKey)
 		require.Len(t, page3, 1)
 
-		var fetchedAccessMonitoringRules []*accessmonitoringrule.AccessMonitoringRule
+		var fetchedAccessMonitoringRules []*accessmonitoringrulesv1.AccessMonitoringRule
 		fetchedAccessMonitoringRules = append(fetchedAccessMonitoringRules, page1...)
 		fetchedAccessMonitoringRules = append(fetchedAccessMonitoringRules, page2...)
 		fetchedAccessMonitoringRules = append(fetchedAccessMonitoringRules, page3...)
 
 		require.Empty(t, cmp.Diff(insertedAccessMonitoringRules, fetchedAccessMonitoringRules,
-			cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
+			cmpopts.IgnoreUnexported(accessmonitoringrulesv1.AccessMonitoringRule{}),
+			cmpopts.IgnoreUnexported(accessmonitoringrulesv1.AccessMonitoringRuleSpec{}),
+			cmpopts.IgnoreUnexported(v1.Metadata{}),
 		))
 	})
 
@@ -162,7 +173,9 @@ func TestListAccessMonitoringRules(t *testing.T) {
 		require.Empty(t, nextKey)
 
 		require.Empty(t, cmp.Diff(insertedAccessMonitoringRules, fetchedAccessMonitoringRules,
-			cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
+			cmpopts.IgnoreUnexported(accessmonitoringrulesv1.AccessMonitoringRule{}),
+			cmpopts.IgnoreUnexported(accessmonitoringrulesv1.AccessMonitoringRuleSpec{}),
+			cmpopts.IgnoreUnexported(v1.Metadata{}),
 		))
 	})
 }

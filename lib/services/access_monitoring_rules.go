@@ -23,22 +23,26 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types/accessmonitoringrule"
+	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+var _ AccessMonitoringRules = (*accessmonitoringrules.Client)(nil)
+
 // AccessMonitoringRules is the AccessMonitoringRule service
 type AccessMonitoringRules interface {
-	CreateAccessMonitoringRule(ctx context.Context, in *accessmonitoringrule.AccessMonitoringRule) (*accessmonitoringrule.AccessMonitoringRule, error)
-	UpdateAccessMonitoringRule(ctx context.Context, in *accessmonitoringrule.AccessMonitoringRule) (*accessmonitoringrule.AccessMonitoringRule, error)
-	UpsertAccessMonitoringRule(ctx context.Context, in *accessmonitoringrule.AccessMonitoringRule) (*accessmonitoringrule.AccessMonitoringRule, error)
-	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrule.AccessMonitoringRule, error)
+	CreateAccessMonitoringRule(ctx context.Context, in *accessmonitoringrulesv1.AccessMonitoringRule) (*accessmonitoringrulesv1.AccessMonitoringRule, error)
+	UpdateAccessMonitoringRule(ctx context.Context, in *accessmonitoringrulesv1.AccessMonitoringRule) (*accessmonitoringrulesv1.AccessMonitoringRule, error)
+	UpsertAccessMonitoringRule(ctx context.Context, in *accessmonitoringrulesv1.AccessMonitoringRule) (*accessmonitoringrulesv1.AccessMonitoringRule, error)
+	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error)
 	DeleteAccessMonitoringRule(ctx context.Context, name string) error
-	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrule.AccessMonitoringRule, string, error)
+	DeleteAllAccessMonitoringRules(ctx context.Context) error
+	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 }
 
 // MarshalAccessMonitoringRule marshals AccessMonitoringRule resource to JSON.
-func MarshalAccessMonitoringRule(accessMonitoringRule *accessmonitoringrule.AccessMonitoringRule, opts ...MarshalOption) ([]byte, error) {
+func MarshalAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.AccessMonitoringRule, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -46,7 +50,7 @@ func MarshalAccessMonitoringRule(accessMonitoringRule *accessmonitoringrule.Acce
 
 	if !cfg.PreserveResourceID {
 		copy := *accessMonitoringRule
-		copy.Metadata.ID = 0
+		// copy.Metadata.ID = 0
 		copy.Metadata.Revision = ""
 		accessMonitoringRule = &copy
 	}
@@ -54,7 +58,7 @@ func MarshalAccessMonitoringRule(accessMonitoringRule *accessmonitoringrule.Acce
 }
 
 // UnmarshalAccessMonitoringRule unmarshals the AccessMonitoringRule resource.
-func UnmarshalAccessMonitoringRule(data []byte, opts ...MarshalOption) (*accessmonitoringrule.AccessMonitoringRule, error) {
+func UnmarshalAccessMonitoringRule(data []byte, opts ...MarshalOption) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing access monitoring rule data")
 	}
@@ -62,18 +66,18 @@ func UnmarshalAccessMonitoringRule(data []byte, opts ...MarshalOption) (*accessm
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var accessMonitoringRule accessmonitoringrule.AccessMonitoringRule
+	var accessMonitoringRule accessmonitoringrulesv1.AccessMonitoringRule
 	if err := utils.FastUnmarshal(data, &accessMonitoringRule); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
-	if cfg.ID != 0 {
-		accessMonitoringRule.Metadata.ID = cfg.ID
-	}
+	// if cfg.ID != 0 {
+	// 	accessMonitoringRule.Metadata.ID = cfg.ID
+	// }
 	if cfg.Revision != "" {
-		accessMonitoringRule.Metadata.Revision = cfg.Revision
+		accessMonitoringRule.Metadata.Revision =  cfg.Revision
 	}
-	if !cfg.Expires.IsZero() {
-		accessMonitoringRule.Metadata.Expires = cfg.Expires
-	}
+	// if !cfg.Expires.IsZero() {
+	// 	accessMonitoringRule.Metadata.Expires = cfg.Expires
+	// }
 	return &accessMonitoringRule, nil
 }

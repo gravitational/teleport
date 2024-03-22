@@ -16,16 +16,6 @@ limitations under the License.
 
 package accessmonitoringrule
 
-import (
-	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
-	"github.com/gravitational/teleport/api/defaults"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/header"
-)
-
 // AccessMonitoringRuleSubkind represents the type of the AccessMonitoringRule, e.g., access request, MDM etc.
 type AccessMonitoringRuleSubkind string
 
@@ -33,86 +23,3 @@ const (
 	// AccessMonitoringRuleSubkindUnknown is returned when no AccessMonitoringRule subkind matches.
 	AccessMonitoringRuleSubkindUnknown AccessMonitoringRuleSubkind = ""
 )
-
-// AccessMonitoringRule represents a AccessMonitoringRule instance
-type AccessMonitoringRule struct {
-	// Metadata is the rules's metadata.
-	Metadata header.Metadata `json:"metadata" yaml:"metadata"`
-	// Kind is a resource kind
-	Kind string `json:"kind" yaml:"kind"`
-	// SubKind is an optional resource sub kind, used in some resources
-	SubKind string `json:"sub_kind" yaml:"sub_kind"`
-	// Version is the resource version
-	Version string `json:"version" yaml:"version"`
-	// Spec is the specification for the access monitoring rule.
-	Spec Spec `json:"spec" yaml:"spec"`
-}
-
-// Spec is the specification for an access monitoring rule.
-type Spec struct {
-	// Subjects the rule operates on, can be a resource kind or a particular resource property.
-	Subjects []string `json:"subjects" yaml:"subjects"`
-	// States are the desired state which the monitoring rule is attempting to bring the subjects matching the condition to.
-	States []string `json:"states" yaml:"states"`
-	// Condition is a predicate expression that operates on the specified subject resources,
-	// and determines whether the subject will be moved into desired state.
-	Condition string `json:"condition" yaml:"condition"`
-	// Notification defines the notification configuration used if rule is triggered.
-	Notification Notification `json:"notification" yaml:"notification"`
-}
-
-// Notification defines the notification configuration used if an access monitoring rule is triggered.
-type Notification struct {
-	// Name is the name of the plugin to which this configuration should apply.
-	Name string `json:"name" yaml:"name"`
-	// Recipients is the list of recipients the plugin should notify.
-	Recipients []string `json:"recipients" yaml:"recipients"`
-}
-
-// NewAccessMonitoringRule creates a new AccessMonitoringRule resource.
-func NewAccessMonitoringRule(metadata header.Metadata, spec Spec) (*AccessMonitoringRule, error) {
-	rule := &AccessMonitoringRule{
-		Kind:     types.KindAccessMonitoringRule,
-		Metadata: metadata,
-		Spec:     spec,
-	}
-	if err := rule.ValidateAccessMonitoringRule(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return rule, nil
-}
-
-// ValidateAccessMonitoringRule checks if the provided AccessMonitoringRule is valid.
-func (amr *AccessMonitoringRule) ValidateAccessMonitoringRule() error {
-	if amr == nil {
-		return trace.BadParameter("access monitoring rule is nil")
-	}
-	if amr.Spec.Subjects == nil || len(amr.Spec.Subjects) == 0 {
-		return trace.BadParameter("access monitoring rule spec is missing subjects")
-	}
-	if amr.Spec.Condition == "" {
-		return trace.BadParameter("access monitoring rule spec is missing condition")
-	}
-	return nil
-}
-
-// GetMetadata returns metadata. This is specifically for conforming to the Resource interface,
-// and should be removed when possible.
-func (amr *AccessMonitoringRule) GetMetadata() *headerv1.Metadata {
-	md := amr.Metadata
-
-	var expires *timestamppb.Timestamp
-	if md.Expires.IsZero() {
-		expires = timestamppb.New(md.Expires)
-	}
-
-	return &headerv1.Metadata{
-		Name:        md.Name,
-		Namespace:   defaults.Namespace,
-		Description: md.Description,
-		Labels:      md.Labels,
-		Expires:     expires,
-		Id:          md.ID,
-		Revision:    md.Revision,
-	}
-}

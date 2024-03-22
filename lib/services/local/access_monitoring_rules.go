@@ -23,8 +23,8 @@ import (
 
 	"github.com/gravitational/trace"
 
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accessmonitoringrule"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -32,9 +32,10 @@ import (
 
 const accessMonitoringRulesPrefix = "access_monitoring_rule"
 
+
 // AccessMonitoringRulesService manages AccessMonitoringRules in the Backend.
 type AccessMonitoringRulesService struct {
-	svc *generic.ServiceWrapper[*accessmonitoringrule.AccessMonitoringRule]
+	svc *generic.ServiceWrapper[*accessmonitoringrulesv1.AccessMonitoringRule]
 }
 
 // NewAccessMonitoringRulesService creates a new AccessMonitoringRulesService.
@@ -53,7 +54,7 @@ func NewAccessMonitoringRulesService(backend backend.Backend) (*AccessMonitoring
 }
 
 // ListAccessMonitoringRules returns a paginated list of AccessMonitoringRule resources.
-func (s *AccessMonitoringRulesService) ListAccessMonitoringRules(ctx context.Context, pageSize int, pageToken string) ([]*accessmonitoringrule.AccessMonitoringRule, string, error) {
+func (s *AccessMonitoringRulesService) ListAccessMonitoringRules(ctx context.Context, pageSize int, pageToken string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
 	igs, nextKey, err := s.svc.ListResources(ctx, pageSize, pageToken)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -63,7 +64,7 @@ func (s *AccessMonitoringRulesService) ListAccessMonitoringRules(ctx context.Con
 }
 
 // GetAccessMonitoringRule returns the specified AccessMonitoringRule resource.
-func (s *AccessMonitoringRulesService) GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrule.AccessMonitoringRule, error) {
+func (s *AccessMonitoringRulesService) GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
 	ig, err := s.svc.GetResource(ctx, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -73,7 +74,7 @@ func (s *AccessMonitoringRulesService) GetAccessMonitoringRule(ctx context.Conte
 }
 
 // CreateAccessMonitoringRule creates a new AccessMonitoringRule resource.
-func (s *AccessMonitoringRulesService) CreateAccessMonitoringRule(ctx context.Context, amr *accessmonitoringrule.AccessMonitoringRule) (*accessmonitoringrule.AccessMonitoringRule, error) {
+func (s *AccessMonitoringRulesService) CreateAccessMonitoringRule(ctx context.Context, amr *accessmonitoringrulesv1.AccessMonitoringRule) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
 	if err := services.CheckAndSetDefaults(amr); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -83,7 +84,7 @@ func (s *AccessMonitoringRulesService) CreateAccessMonitoringRule(ctx context.Co
 }
 
 // UpdateAccessMonitoringRule updates an existing AccessMonitoringRule resource.
-func (s *AccessMonitoringRulesService) UpdateAccessMonitoringRule(ctx context.Context, amr *accessmonitoringrule.AccessMonitoringRule) (*accessmonitoringrule.AccessMonitoringRule, error) {
+func (s *AccessMonitoringRulesService) UpdateAccessMonitoringRule(ctx context.Context, amr *accessmonitoringrulesv1.AccessMonitoringRule) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
 	if err := services.CheckAndSetDefaults(amr); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -93,7 +94,7 @@ func (s *AccessMonitoringRulesService) UpdateAccessMonitoringRule(ctx context.Co
 }
 
 // UpsertAccessMonitoringRule upserts an existing AccessMonitoringRule resource.
-func (s *AccessMonitoringRulesService) UpsertAccessMonitoringRule(ctx context.Context, amr *accessmonitoringrule.AccessMonitoringRule) (*accessmonitoringrule.AccessMonitoringRule, error) {
+func (s *AccessMonitoringRulesService) UpsertAccessMonitoringRule(ctx context.Context, amr *accessmonitoringrulesv1.AccessMonitoringRule) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
 	if err := services.CheckAndSetDefaults(amr); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -111,3 +112,4 @@ func (s *AccessMonitoringRulesService) DeleteAccessMonitoringRule(ctx context.Co
 func (s *AccessMonitoringRulesService) DeleteAllAccessMonitoringRules(ctx context.Context) error {
 	return trace.Wrap(s.svc.DeleteAllResources(ctx))
 }
+
