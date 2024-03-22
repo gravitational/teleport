@@ -54,7 +54,10 @@ const cfg = {
   isUsageBasedBilling: false,
   hideInaccessibleFeatures: false,
   customTheme: '',
-  // isTeam is true if [Features.ProductType] == Team
+  /**
+   * isTeam is true if [Features.ProductType] == Team
+   * @deprecated use other flags do determine cluster features istead of relying on isTeam
+   */
   isTeam: false,
   // isIgsEnabled refers to Identity Governance & Security product.
   // It refers to a group of features: access request, device trust,
