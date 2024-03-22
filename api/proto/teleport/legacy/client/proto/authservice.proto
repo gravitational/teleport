@@ -517,8 +517,8 @@ message Features {
   bool PremiumSupport = 32;
   // JoinActiveSessions indicates whether joining active sessions via web UI is enabled
   bool JoinActiveSessions = 33;
-  // IdentityManagement indicates whether identity management (Jamf Plugin) can be used in the cluster
-  bool IdentityManagement = 34;
+  // MobileDeviceManagement indicates whether endpoint management (like Jamf Plugin) can be used in the cluster
+  bool MobileDeviceManagement = 34;
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based

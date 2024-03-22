@@ -120,8 +120,8 @@ type Features struct {
 	PremiumSupport bool
 	// JoinActiveSessions indicates whether joining active sessions via web UI is enabled
 	JoinActiveSessions bool
-	// IdentityManagement indicates whether identity management (Jamf Plugin) can be used in the cluster
-	IdentityManagement bool
+	// MobileDeviceManagement indicates whether endpoints management (like Jamf Plugin) can be used in the cluster
+	MobileDeviceManagement bool
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -211,12 +211,12 @@ func (f Features) ToProto() *proto.Features {
 		Policy: &proto.PolicyFeature{
 			Enabled: f.Policy.Enabled,
 		},
-		Questionnaire:        f.Questionnaire,
-		IsStripeManaged:      f.IsStripeManaged,
-		ExternalAuditStorage: f.ExternalAuditStorage,
-		PremiumSupport:       f.PremiumSupport,
-		JoinActiveSessions:   f.JoinActiveSessions,
-		IdentityManagement:   f.IdentityManagement,
+		Questionnaire:          f.Questionnaire,
+		IsStripeManaged:        f.IsStripeManaged,
+		ExternalAuditStorage:   f.ExternalAuditStorage,
+		PremiumSupport:         f.PremiumSupport,
+		JoinActiveSessions:     f.JoinActiveSessions,
+		MobileDeviceManagement: f.MobileDeviceManagement,
 	}
 }
 
@@ -243,6 +243,7 @@ func (f Features) IGSEnabled() bool {
 	return f.IdentityGovernanceSecurity
 }
 
+// Deprecated: use other flags do determine cluster features istead of relying on isTeam
 func (f Features) IsTeam() bool {
 	return f.ProductType == ProductTypeTeam
 }
