@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -355,8 +354,7 @@ func (s *AccessRequestSuite) RunAndWaitReady(t *testing.T, app AppI) {
 	go func() {
 		ctx := appCtx
 		if err := app.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-			logger.Get(ctx).WithError(err).Error("Application failed")
-			assert.Fail(t, "Application failed")
+			assert.ErrorContains(t, err, context.Canceled.Error(), "if a non-nil error is returned, it should be canceled context")
 		}
 	}()
 
