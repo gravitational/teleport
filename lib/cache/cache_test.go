@@ -3360,6 +3360,7 @@ func newKubeWaitingContainer(t *testing.T) types.Resource {
 		PodName:       "pod",
 		ContainerName: "container",
 		Patch:         []byte("patch"),
+		PatchType:     "application/json-patch+json",
 	})
 	require.NoError(t, err)
 
