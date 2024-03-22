@@ -207,7 +207,8 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 
 			const backoff = 5 * time.Second
 			sentDebugContainers := map[string]struct{}{}
-			timer := time.NewTimer(backoff)
+			ticker := time.NewTimer(backoff)
+			defer ticker.Stop()
 			for {
 				wcs, err := f.getUserEphemeralContainersForPod(
 					req.Context(),
@@ -220,9 +221,7 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 					f.log.WithError(err).Warn("error getting user ephemeral containers")
 					return
 				}
-				if len(wcs) == 0 {
-					continue
-				}
+
 				for _, wc := range wcs {
 					if _, ok := sentDebugContainers[wc.Spec.ContainerName]; ok {
 						continue
@@ -246,11 +245,7 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 					return
 				case <-done:
 					return
-				case <-timer.C:
-					if !timer.Stop() {
-						<-timer.C
-					}
-					timer.Reset(backoff)
+				case <-ticker.C:
 				}
 			}
 		}()
