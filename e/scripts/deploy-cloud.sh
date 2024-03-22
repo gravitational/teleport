@@ -30,7 +30,7 @@ function fail_on_exit_code() {
 }
 
 # input variables
-BASE_IMAGE_REPO=${BASE_IMAGE_REPO:-public.ecr.aws/gravitational/teleport-ent}
+BASE_IMAGE_REPO=${BASE_IMAGE_REPO:-public.ecr.aws/gravitational/teleport-ent-distroless}
 BASE_IMAGE_TAG=${BASE_IMAGE_TAG:-$(perl -n -e'/Version = "([[:alnum:]\.]*)[-"]/ && print $1' ../version.go)}
 NAMESPACE_PREFIX=${NAMESPACE_PREFIX:-cloud-gravitational-io}
 BUILDDIR=${BUILDDIR:-build}
