@@ -23,7 +23,9 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"strings"
 
+	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -31,6 +33,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
@@ -119,14 +122,25 @@ func (f *Forwarder) ephemeralContainersLocal(authCtx *authContext, sess *cluster
 		return trace.Wrap(err)
 	}
 
+	reqContentType := req.Header.Get("Content-Type")
+	// Remove "; charset=" if included in header.
+	if idx := strings.Index(reqContentType, ";"); idx > 0 {
+		reqContentType = reqContentType[:idx]
+	}
+
+	reqPatchType := apimachinerytypes.PatchType(reqContentType)
+	contentType, err := patchTypeToContentType(reqPatchType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	encoder, decoder, err := newEncoderAndDecoderForContentType(
-		responsewriters.DefaultContentType,
+		contentType,
 		newClientNegotiator(sess.codecFactory))
 	if err != nil {
 		return trace.Wrap(err, "failed to create encoder and decoder")
 	}
 
-	patchedPod, ephemeralContName, err := f.mergeStrategicEphemeralPatchWithCurrentPod(
+	patchedPod, ephemeralContName, err := f.mergeEphemeralPatchWithCurrentPod(
 		req.Context(),
 		sess.kubeClusterName,
 		authCtx.kubeResource.Namespace,
@@ -134,6 +148,7 @@ func (f *Forwarder) ephemeralContainersLocal(authCtx *authContext, sess *cluster
 		decoder,
 		encoder,
 		podPatch,
+		reqPatchType,
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -154,12 +169,12 @@ func (f *Forwarder) ephemeralContainersLocal(authCtx *authContext, sess *cluster
 	return trace.Wrap(err)
 }
 
-// mergeStrategicEphemeralPatchWithCurrentPod merges the provided patch with the
+// mergeEphemeralPatchWithCurrentPod merges the provided patch with the
 // current pod and returns the patched pod.
 // This function gets the current pod from the Kubernetes API server and
 // merges the provided patch with it. The patch is expected to be a strategic
 // merge patch that adds an ephemeral container to the pod.
-func (f *Forwarder) mergeStrategicEphemeralPatchWithCurrentPod(
+func (f *Forwarder) mergeEphemeralPatchWithCurrentPod(
 	ctx context.Context,
 	kubeCluster,
 	kubeNamespace,
@@ -167,6 +182,7 @@ func (f *Forwarder) mergeStrategicEphemeralPatchWithCurrentPod(
 	decoder runtime.Decoder,
 	encoder runtime.Encoder,
 	podPatch []byte,
+	patchType apimachinerytypes.PatchType,
 ) (*corev1.Pod, string, error) {
 	details, err := f.findKubeDetailsByClusterName(kubeCluster)
 	if err != nil {
@@ -180,12 +196,12 @@ func (f *Forwarder) mergeStrategicEphemeralPatchWithCurrentPod(
 		return nil, "", trace.Wrap(err)
 	}
 
-	podJsonBuf := &bytes.Buffer{}
-	if err := encoder.Encode(pod, podJsonBuf); err != nil {
+	podSerializedBuf := &bytes.Buffer{}
+	if err := encoder.Encode(pod, podSerializedBuf); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	patchedPod, ephemeralContName, err := patchPodWithDebugContainer(decoder, podJsonBuf.Bytes(), podPatch, *pod)
+	patchedPod, ephemeralContName, err := patchPodWithDebugContainer(decoder, podSerializedBuf.Bytes(), podPatch, *pod, patchType)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -237,8 +253,8 @@ func (f *Forwarder) impersonatedKubeClient(authCtx *authContext, headers http.He
 
 // patchPodWithDebugContainer adds an ephemeral container to the provided spec of pod and
 // returns the patched result.
-func patchPodWithDebugContainer(decoder runtime.Decoder, podJson, podPatch []byte, pod corev1.Pod) (*corev1.Pod, string, error) {
-	patchResult, err := strategicpatch.StrategicMergePatch(podJson, podPatch, pod)
+func patchPodWithDebugContainer(decoder runtime.Decoder, podJson, podPatch []byte, pod corev1.Pod, patchType apimachinerytypes.PatchType) (*corev1.Pod, string, error) {
+	patchResult, err := patchPod(podJson, podPatch, pod, patchType)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -283,15 +299,19 @@ func patchPodWithDebugContainer(decoder runtime.Decoder, podJson, podPatch []byt
 // a session which can be safely waiting on until the moderated session
 // is approved.
 func (f *Forwarder) getPatchedPodEvent(ctx context.Context, sess *clusterSession, waitingCont *kubewaitingcontainerpb.KubernetesWaitingContainer) (*watch.Event, error) {
+	contentType, err := patchTypeToContentType(apimachinerytypes.PatchType(waitingCont.Spec.PatchType))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	encoder, decoder, err := newEncoderAndDecoderForContentType(
-		responsewriters.DefaultContentType,
+		contentType,
 		newClientNegotiator(sess.codecFactory),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to create encoder and decoder")
 	}
 
-	patchedPod, _, err := f.mergeStrategicEphemeralPatchWithCurrentPod(
+	patchedPod, _, err := f.mergeEphemeralPatchWithCurrentPod(
 		ctx,
 		waitingCont.Spec.Cluster,
 		waitingCont.Spec.Namespace,
@@ -299,6 +319,7 @@ func (f *Forwarder) getPatchedPodEvent(ctx context.Context, sess *clusterSession
 		decoder,
 		encoder,
 		waitingCont.Spec.Patch,
+		apimachinerytypes.PatchType(waitingCont.Spec.PatchType),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -347,4 +368,41 @@ func getEphemeralContainerStatusByName(pod *corev1.Pod, containerName string) *c
 		}
 	}
 	return nil
+}
+
+func patchTypeToContentType(reqPatchType apimachinerytypes.PatchType) (string, error) {
+	var contentType string
+	switch reqPatchType {
+	case apimachinerytypes.JSONPatchType,
+		apimachinerytypes.MergePatchType,
+		apimachinerytypes.StrategicMergePatchType:
+		contentType = responsewriters.JSONContentType
+	case apimachinerytypes.ApplyPatchType:
+		contentType = responsewriters.YAMLContentType
+	default:
+		return "", trace.BadParameter("unsupported content type %q", reqPatchType)
+	}
+	return contentType, nil
+}
+
+// patchPod applies the provided patch to the pod and returns the patched pod data.
+// The patch type is used to determine how the patch should be applied.
+func patchPod(podData, patchData []byte, pod corev1.Pod, pt apimachinerytypes.PatchType) ([]byte, error) {
+	switch pt {
+	case apimachinerytypes.JSONPatchType:
+		patchObj, err := jsonpatch.DecodePatch(patchData)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		patchedObj, err := patchObj.Apply(podData)
+		return patchedObj, trace.Wrap(err)
+	case apimachinerytypes.MergePatchType:
+		patchedObj, err := jsonpatch.MergePatch(podData, patchData)
+		return patchedObj, trace.Wrap(err)
+	case apimachinerytypes.StrategicMergePatchType:
+		patchedObj, err := strategicpatch.StrategicMergePatch(podData, patchData, pod)
+		return patchedObj, trace.Wrap(err)
+	default:
+		return nil, trace.BadParameter("unsupported patch type %q", pt)
+	}
 }

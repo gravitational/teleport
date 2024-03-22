@@ -37,8 +37,14 @@ import (
 )
 
 const (
-	ContentTypeHeader  = "Content-Type"
-	DefaultContentType = "application/json"
+	// DefaultContentTypeHeader is the default content type header used by the Kubernetes API
+	ContentTypeHeader = "Content-Type"
+	// JSONContentType is the JSON content type used by the Kubernetes API
+	JSONContentType = "application/json"
+	// YAMLContentType is the YAML content type used by the Kubernetes API
+	YAMLContentType = "application/yaml"
+	// DefaultContentType is the default content type used by the Kubernetes API
+	DefaultContentType = JSONContentType
 )
 
 // WatcherResponseWriter satisfies the http.ResponseWriter interface and
