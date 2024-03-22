@@ -29,16 +29,16 @@ import (
 )
 
 var (
-	//go:embed gcpwif.sh
-	gcpWIFScript string
+	//go:embed gcp_workforce.sh
+	gcpWorkforceScript string
 
-	// gcpWIFConfigTemplate
-	gcpWIFConfigTemplate = template.Must(template.New("gcpwif").Parse(gcpWIFScript))
+	// gcpWorkforceConfigTemplate
+	gcpWorkforceConfigTemplate = template.Must(template.New("gcpwif").Parse(gcpWorkforceScript))
 )
 
-// GCPWIFConfigParams defines input params required to create bash script based
-// gcpWIFConfigTemplate.
-type GCPWIFConfigParams struct {
+// GCPWorkforceConfigParams defines input params required to create bash script based
+// gcpWorkforceConfigTemplate.
+type GCPWorkforceConfigParams struct {
 	OrgID            string
 	PoolName         string
 	PoolProviderName string
@@ -48,13 +48,13 @@ type GCPWIFConfigParams struct {
 // BuildScript creates a Bash script that downloads Teleport
 // SAML IdP metadata and runs gcloud command to create workforce
 // identity pool and pool provider
-func BuildScript(p GCPWIFConfigParams) (string, error) {
+func BuildScript(p GCPWorkforceConfigParams) (string, error) {
 	if err := p.checkAndSetDefaults(); err != nil {
 		return "", trace.Wrap(err)
 	}
 
 	out := &bytes.Buffer{}
-	if err := gcpWIFConfigTemplate.Execute(out, p); err != nil {
+	if err := gcpWorkforceConfigTemplate.Execute(out, p); err != nil {
 		return "", trace.Wrap(err)
 	}
 
@@ -64,7 +64,7 @@ func BuildScript(p GCPWIFConfigParams) (string, error) {
 // CheckAndSetDefaults checks if the required params are valid.
 // GCP naming convention docs:
 // https://cloud.google.com/compute/docs/naming-resources#resource-name-format
-func (p *GCPWIFConfigParams) checkAndSetDefaults() error {
+func (p *GCPWorkforceConfigParams) checkAndSetDefaults() error {
 	if err := validateOrgID(p.OrgID); err != nil {
 		return trace.Wrap(err)
 	}

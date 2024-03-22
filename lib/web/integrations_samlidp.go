@@ -34,7 +34,7 @@ func (h *Handler) gcpWIFConfigurationScript(w http.ResponseWriter, r *http.Reque
 	poolName := queryParams.Get("poolName")
 	poolProviderName := queryParams.Get("poolProviderName")
 	metadataEndpoint := fmt.Sprintf("https://%s/enterprise/saml-idp/metadata", h.PublicProxyAddr())
-	script, err := samlidpscripts.BuildScript(samlidpscripts.GCPWIFConfigParams{
+	script, err := samlidpscripts.BuildScript(samlidpscripts.GCPWorkforceConfigParams{
 		OrgID:            orgId,
 		PoolName:         poolName,
 		PoolProviderName: poolProviderName,
