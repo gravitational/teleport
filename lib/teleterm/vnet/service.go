@@ -18,12 +18,14 @@ package service
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"sync/atomic"
 
 	"github.com/gravitational/trace"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
+	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/vnet"
 )
@@ -70,9 +72,27 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		return nil, trace.Errorf("VNet service has been closed")
 	}
 
-	// TODO: Take req.RootClusterUri into account.
 	if s.vnet != nil {
 		return nil, trace.CompareFailed("VNet service is already running")
+	}
+
+	// TODO(ravicious): Support multiple root clusters.
+	rootClusters, err := s.cfg.DaemonService.ListRootClusters(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	i := slices.IndexFunc(rootClusters, func(cluster *clusters.Cluster) bool {
+		return cluster.Connected()
+	})
+	if i == -1 {
+		return nil, trace.Errorf("no active root cluster found")
+	}
+	rootCluster := rootClusters[i]
+
+	_, client, err := s.cfg.DaemonService.ResolveClusterURI(rootCluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// vnet.CreateAndSetupTUNDevice passes the provided context to exec.CommandContext which executes
@@ -84,13 +104,6 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	tun, cleanup, err := vnet.CreateAndSetupTUNDevice(adminSubcmdCtx)
 	if err != nil {
 		cancelAdminSubcmdCtx()
-		return nil, trace.Wrap(err)
-	}
-
-	_, client, err := s.cfg.DaemonService.ResolveCluster(req.RootClusterUri)
-	if err != nil {
-		cancelAdminSubcmdCtx()
-		cleanup()
 		return nil, trace.Wrap(err)
 	}
 
