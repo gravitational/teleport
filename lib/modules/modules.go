@@ -232,14 +232,7 @@ const (
 )
 
 // SupportType is the type of support.
-type SupportType int32
-
-const (
-	// SupportTypeFree is the free support tier
-	SupportTypeFree SupportType = 0
-	// SupportTypePremium is the premium support tier
-	SupportTypePremium SupportType = 1
-)
+type SupportType proto.SupportType
 
 // IsLegacy describes the legacy enterprise product that existed before the
 // usage-based product was introduced. Some features (Device Trust, for example)
@@ -393,7 +386,7 @@ func (p *defaultModules) Features() Features {
 		AutomaticUpgrades:  p.automaticUpgrades,
 		Assist:             true,
 		JoinActiveSessions: true,
-		SupportType:        SupportTypeFree,
+		SupportType:        SupportType(proto.SupportType_SUPPORT_TYPE_FREE),
 	}
 }
 
