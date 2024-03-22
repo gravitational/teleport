@@ -21,14 +21,15 @@ package accessmonitoringrulesv1
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accessmonitoringrule"
 	conv "github.com/gravitational/teleport/api/types/accessmonitoringrule/convert/v1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // ServiceConfig holds configuration options for the access monitoring rules service.
@@ -174,6 +175,9 @@ func (s *Service) ListAccessMonitoringRules(ctx context.Context, req *accessmoni
 		return nil, trace.Wrap(err)
 	}
 	results, nextToken, err := s.cache.ListAccessMonitoringRules(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	amrs := make([]*accessmonitoringrulesv1.AccessMonitoringRule, len(results))
 	for i, r := range results {
 		amrs[i] = conv.ToProto(r)
