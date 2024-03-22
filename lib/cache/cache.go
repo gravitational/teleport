@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -169,6 +170,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessListMember},
 		{Kind: types.KindAccessListReview},
 		{Kind: types.KindKubeWaitingContainer},
+		{Kind: types.KindNotification},
+		{Kind: types.KindGlobalNotification},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -545,6 +548,7 @@ type Cache struct {
 	eventsFanout                 *services.FanoutV2
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
 	kubeWaitingContsCache        *local.KubeWaitingContainerService
+	notificationsCache           services.Notifications
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -709,6 +713,8 @@ type Config struct {
 	AccessLists services.AccessLists
 	// KubeWaitingContainers is the Kubernetes waiting container service.
 	KubeWaitingContainers services.KubeWaitingContainer
+	// Notifications is the notifications service
+	Notifications services.Notifications
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -908,6 +914,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	notificationsCache, err := local.NewNotificationsService(config.Backend, config.Clock)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	fanout := services.NewFanoutV2(services.FanoutV2Config{})
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
 	for i := 0; i < config.FanoutShards; i++ {
@@ -953,6 +965,7 @@ func New(config Config) (*Cache, error) {
 		secReportsCache:              secReprotsCache,
 		userLoginStateCache:          userLoginStatesCache,
 		accessListCache:              accessListCache,
+		notificationsCache:           notificationsCache,
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
 		kubeWaitingContsCache:        kubeWaitingContsCache,
@@ -3054,6 +3067,37 @@ func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pa
 	}
 	defer rg.Release()
 	return rg.reader.ListAccessListReviews(ctx, accessList, pageSize, pageToken)
+}
+
+// GetAllUserNotifications returns all user-specific notifications for all users. This should only ever be called to initialize the UserNotificationCache.
+func (c *Cache) GetAllUserNotifications(ctx context.Context) ([]*notificationsv1.Notification, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAllUserNotifications")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.userNotifications)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer rg.Release()
+
+	out, err := rg.reader.GetAllUserNotifications(ctx)
+	return out, trace.Wrap(err)
+}
+
+// GetAllGlobalNotifications returns all global notifications. This should only ever be called to initialize the GlobalNotificationCache.
+func (c *Cache) GetAllGlobalNotifications(ctx context.Context) ([]*notificationsv1.GlobalNotification, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAllGlobalNotifications")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.globalNotifications)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	out, err := rg.reader.GetAllGlobalNotifications(ctx)
+	return out, trace.Wrap(err)
 }
 
 // ListResources is a part of auth.Cache implementation
