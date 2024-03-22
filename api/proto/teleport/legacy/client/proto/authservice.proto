@@ -516,17 +516,17 @@ message Features {
   // At the time of writing, this includes Teleport Access Graph (TAG).
   PolicyFeature Policy = 28 [(gogoproto.jsontag) = "policy,omitempty"];
   // Questionnaire indicates whether cluster users should get an onboarding questionnaire
-  bool Questionnaire = 29;
+  bool Questionnaire = 29 [(gogoproto.jsontag) = "questionnaire,omitempty"];
   // IsStripeManaged indicates if the cluster billing is managed via Stripe
-  bool IsStripeManaged = 30;
+  bool IsStripeManaged = 30 [(gogoproto.jsontag) = "isStripeManaged,omitempty"];
   // ExternalAuditStorage indicates whether the EAS feature is enabled in the cluster.
-  bool ExternalAuditStorage = 31;
+  bool ExternalAuditStorage = 31 [(gogoproto.jsontag) = "externalAuditStorage,omitempty"];
   // SupportType indicates the type of the customer's support
-  SupportType SupportType = 32;
+  SupportType SupportType = 32 [(gogoproto.jsontag) = "supportType,omitempty"];
   // JoinActiveSessions indicates whether joining active sessions via web UI is enabled
-  bool JoinActiveSessions = 33;
+  bool JoinActiveSessions = 33 [(gogoproto.jsontag) = "joinActiveSessions,omitempty"];
   // MobileDeviceManagement indicates whether endpoint management (like Jamf Plugin) can be used in the cluster
-  bool MobileDeviceManagement = 34;
+  bool MobileDeviceManagement = 34 [(gogoproto.jsontag) = "mobileDeviceManagement,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
