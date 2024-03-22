@@ -42,7 +42,7 @@ export const SAML_APPLICATIONS: ResourceSpec[] = [
   {
     name: 'Workforce Identity Federation',
     kind: ResourceKind.SamlApplication,
-    samlMeta: {preset: SamlServiceProviderPreset.GcpWorkforce},
+    samlMeta: { preset: SamlServiceProviderPreset.GcpWorkforce },
     keywords: 'saml sso application idp gcp workforce federation',
     icon: 'Gcp',
     event: DiscoverEventResource.SamlApplication,
