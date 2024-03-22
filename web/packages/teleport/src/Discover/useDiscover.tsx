@@ -535,6 +535,9 @@ export type SamlMeta = BaseMeta & {
   samlPresetMeta: GcpWorkforceMeta;
 };
 
+// GcpWorkforceMeta describes the fields for SAML
+// GCP workforce pool resource that needs to be
+// preserved throughout the flow.
 export type GcpWorkforceMeta = {
   isAutoConfig: boolean;
   orgId: string;
