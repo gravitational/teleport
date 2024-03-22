@@ -1328,8 +1328,18 @@ func (a *ServerWithRoles) checkUnifiedAccess(resource types.ResourceWithLabels, 
 
 	// Filter first and only check RBAC if there is a match to improve perf.
 	match, err := services.MatchResourceByFilters(resource, filter, nil)
-	if !match || err != nil {
-		return false, trace.Wrap(err)
+	if err != nil {
+		log.WithFields(logrus.Fields{
+			"resource_name": resource.GetName(),
+			"resource_kind": resourceKind,
+			"error":         err,
+		}).
+			Warn("Unable to determine access to resource, matching with filter failed")
+		return false, nil
+	}
+
+	if !match {
+		return false, nil
 	}
 
 	if resourceKind == types.KindSAMLIdPServiceProvider {
