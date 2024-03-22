@@ -120,7 +120,7 @@ func TestValidateGCPResourceName(t *testing.T) {
 			value: "abcde_abcde",
 		},
 		{
-			name:  "contains captial letter",
+			name:  "contains uppercase character",
 			value: "abcdeABCDEabcde",
 		},
 		{
