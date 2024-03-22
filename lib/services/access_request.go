@@ -1222,7 +1222,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 
 		// Calculate the expiration time of the Access Request (how long it
 		// will await approval).
-		requestTTL, err := m.calculatePendingRequestTTL(ctx, identity, req)
+		requestTTL, err := m.calculatePendingRequestTTL(req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1296,7 +1296,7 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest, s
 // calculatePendingRequestTTL calculates the TTL of the Access Request (how long it will await
 // approval). request TTL is capped to the smaller value between the const requsetTTL and the
 // access request access expiry.
-func (m *RequestValidator) calculatePendingRequestTTL(ctx context.Context, identity tlsca.Identity, r types.AccessRequest) (time.Duration, error) {
+func (m *RequestValidator) calculatePendingRequestTTL(r types.AccessRequest) (time.Duration, error) {
 	accessExpiryTTL := r.GetAccessExpiry().Sub(m.clock.Now().UTC())
 
 	// If no expiration provided, use default.
