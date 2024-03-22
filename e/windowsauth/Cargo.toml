@@ -29,6 +29,7 @@ serde = { version = "1.0.197", features = ["derive"] }
 anyhow = "1.0.81"
 humantime = "2.1.0"
 include-flate = { version = "0.2.0", features = ["stable"] }
+itertools = "0.11.0"
 
 [dependencies.windows]
 version = "0.54.0"

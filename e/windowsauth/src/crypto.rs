@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::mem::size_of;
 use std::ptr;
 use std::ptr::{addr_of_mut, null_mut, slice_from_raw_parts};
@@ -24,7 +25,7 @@ struct Groups {
     #[serde(rename = "createUser")]
     create_user: bool,
     #[serde(rename = "groups")]
-    groups: Vec<String>,
+    groups: HashSet<String>,
 }
 
 #[derive(Default)]
@@ -43,7 +44,7 @@ const LICENSE_EXT_OID: PCSTR = s!("1.3.9999.2.14");
 const DESKTOPS_COUNT_EXT_OID: PCSTR = s!("1.3.9999.2.17");
 
 pub enum UserCreation {
-    Yes(Vec<String>),
+    Yes(HashSet<String>),
     No,
 }
 

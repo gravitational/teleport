@@ -1,9 +1,12 @@
+use std::collections::HashSet;
 use std::ffi::c_void;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::Mutex;
 use std::{mem, ptr, slice};
 
 use anyhow::{anyhow, ensure, Context, Result};
+use itertools::Itertools;
 use log::{debug, error, info};
 use windows::{
     core::*, Win32::Foundation::*, Win32::NetworkManagement::NetManagement::*,
@@ -16,6 +19,8 @@ use crate::crypto::LicenseType;
 use crate::crypto::{CryptContext, UserCreation};
 
 static DISPATCH_TABLE: AtomicPtr<LSA_SECPKG_FUNCTION_TABLE> = AtomicPtr::new(ptr::null_mut());
+
+static GROUPS_LOCK: Mutex<()> = Mutex::new(());
 
 fn dispatch_table() -> LSA_SECPKG_FUNCTION_TABLE {
     unsafe { *DISPATCH_TABLE.load(Ordering::SeqCst) }
@@ -334,11 +339,15 @@ unsafe fn lsa_ap_logon_user(
     *token_information_type = LsaTokenInformationV1;
     let token = &mut *token;
 
-    let groups = select_groups(&name, should_create_user)?;
-    copy_groups_to_token(token, groups).context("Can't copy groups to token")?;
     copy_user_to_token(token, &user).context("Can't copy user to token")?;
     copy_primary_group_to_token(&name, token, &user)
         .context("Can't copy primary group to token")?;
+
+    // take lock before syncing groups so login token returned will have consistent view of
+    // group membership
+    let _lock = GROUPS_LOCK.lock().unwrap();
+    let groups = sync_groups(&name, should_create_user, &user)?;
+    copy_groups_to_token(token, groups).context("Can't copy groups to token")?;
 
     info!("User {} logged in successfully", name);
     Ok(())
@@ -399,19 +408,49 @@ unsafe fn copy_user_to_token(token: &mut LSA_TOKEN_INFORMATION_V1, user: &Accoun
     CopySid(user.sid.len() as _, token.User.User.Sid, user.psid()).context("Can't copy user SID")
 }
 
-/// select_groups will return groups that should be included in the token returned to LSA.
-fn select_groups(name: &str, should_create_user: UserCreation) -> Result<Vec<String>> {
+/// sync_groups will return groups that should be included in the token returned to LSA.
+/// If user is managed by Teleport it will also add user to requested groups and remove it from
+/// all other groups.
+fn sync_groups(
+    name: &str,
+    should_create_user: UserCreation,
+    user: &Account,
+) -> Result<HashSet<String>> {
     let mut groups = lookup_groups(name)?;
 
     // auto user creation was requested and user is managed by Teleport, return groups requested in the certificate
     if let UserCreation::Yes(requested_groups) = should_create_user {
-        if groups.contains(&TELEPORT_USERS_GROUP.to_string()) {
+        if groups.contains(TELEPORT_USERS_GROUP) {
             debug!(
-                "User managed by Teleport, creating requested groups {}",
-                requested_groups.join(", ")
+                "User managed by Teleport, creating requested groups: {}",
+                requested_groups.iter().format(", "),
             );
-            for group in &requested_groups {
+            for group in requested_groups.difference(&groups) {
                 create_group(group)?;
+                unsafe {
+                    let psid = user.psid();
+                    NetLocalGroupAddMembers(
+                        None,
+                        UTF16::from(group).pcwstr(),
+                        0,
+                        (&psid as *const PSID) as *const u8,
+                        1,
+                    );
+                }
+            }
+
+            groups.remove(TELEPORT_USERS_GROUP);
+            for group in groups.difference(&requested_groups) {
+                unsafe {
+                    let psid = user.psid();
+                    NetLocalGroupDelMembers(
+                        None,
+                        UTF16::from(group).pcwstr(),
+                        0,
+                        (&psid as *const PSID) as *const u8,
+                        1,
+                    );
+                }
             }
             groups = requested_groups;
         }
@@ -426,9 +465,9 @@ const REMOTE_DESKTOP_USERS_SID: &str = "S-1-5-32-555";
 
 unsafe fn copy_groups_to_token(
     token: &mut LSA_TOKEN_INFORMATION_V1,
-    groups: Vec<String>,
+    groups: HashSet<String>,
 ) -> Result<()> {
-    debug!("Groups added to token: {}", groups.join(", "));
+    debug!("Groups added to token: {}", groups.iter().format(", "));
 
     // Space for the TOKEN_GROUPS struct, which includes space for 1 SID_AND_ATTRIBUTES.
     // We fill this 1 "free" SID_AND_ATTRIBUTES with REMOTE_DESKTOP_USERS group.
@@ -491,7 +530,7 @@ unsafe fn copy_sid(
     Ok(())
 }
 
-fn lookup_groups(name: &str) -> Result<Vec<String>> {
+fn lookup_groups(name: &str) -> Result<HashSet<String>> {
     let mut entries_read = 0u32;
     let mut entries_total = 0u32;
     let mut data: *mut LOCALGROUP_USERS_INFO_0 = ptr::null_mut();
@@ -621,7 +660,7 @@ fn lookup_account(name: &str, sid_types: Vec<SID_NAME_USE>) -> Result<Account> {
     };
     if let Err(err) = res {
         if err != ERROR_INSUFFICIENT_BUFFER.into() {
-            return Err(err).context(format!("Can't lookup account '{}' name length", name))?;
+            Err(err).with_context(|| format!("Can't lookup account '{}' name length", name))?
         }
     }
     let mut account = Account {
