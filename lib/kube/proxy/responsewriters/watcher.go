@@ -73,7 +73,7 @@ type WatcherResponseWriter struct {
 	filter FilterWrapper
 	// evtsChan is used to send fake events to target connection.
 	evtsChan chan *watch.Event
-	// closeChanGuard guards the closeChan
+	// closeChanGuard guards the closeChan close call
 	closeChanGuard sync.Once
 	// closeChan indicates if the watcher as been closed.
 	closeChan chan struct{}
@@ -242,6 +242,8 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, writer io.Write
 		}
 	}
 
+	// watchEncoderGuard prevents multiple sources to push events at the same time.
+	// only one source is able to push and flush events to ensure proper json formatting.
 	var watchEncoderGuard sync.Mutex
 	writeEventAndFlush := func(evt *watch.Event) error {
 		watchEncoderGuard.Lock()

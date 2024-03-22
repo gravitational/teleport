@@ -205,49 +205,7 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 		go func() {
 			defer wg.Done()
 
-			const backoff = 5 * time.Second
-			sentDebugContainers := map[string]struct{}{}
-			ticker := time.NewTimer(backoff)
-			defer ticker.Stop()
-			for {
-				wcs, err := f.getUserEphemeralContainersForPod(
-					req.Context(),
-					sess.User.GetName(),
-					sess.kubeClusterName,
-					sess.apiResource.namespace,
-					podName,
-				)
-				if err != nil {
-					f.log.WithError(err).Warn("error getting user ephemeral containers")
-					return
-				}
-
-				for _, wc := range wcs {
-					if _, ok := sentDebugContainers[wc.Spec.ContainerName]; ok {
-						continue
-					}
-					evt, err := f.getPatchedPodEvent(req.Context(), sess, wc)
-					if err != nil {
-						f.log.WithError(err).Warn("error pushing pod event")
-						continue
-					}
-					sentDebugContainers[wc.Spec.ContainerName] = struct{}{}
-					// push the event to the client
-					// this will lock until the event is pushed or the
-					// request context is done.
-					rw.PushVirtualEventToClient(req.Context(), evt)
-				}
-
-				// wait a bit before querying the cache again, or return
-				// if the request has finished
-				select {
-				case <-req.Context().Done():
-					return
-				case <-done:
-					return
-				case <-ticker.C:
-				}
-			}
+			f.sendEphemeralContainerEvents(done, req, rw, sess, podName)
 		}()
 	}
 
@@ -260,6 +218,52 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 	// cleanup.
 	err = rw.Close()
 	return rw.Status(), trace.Wrap(err)
+}
+
+func (f *Forwarder) sendEphemeralContainerEvents(done <-chan struct{}, req *http.Request, rw *responsewriters.WatcherResponseWriter, sess *clusterSession, podName string) {
+	const backoff = 5 * time.Second
+	sentDebugContainers := map[string]struct{}{}
+	ticker := time.NewTicker(backoff)
+	defer ticker.Stop()
+	for {
+		wcs, err := f.getUserEphemeralContainersForPod(
+			req.Context(),
+			sess.User.GetName(),
+			sess.kubeClusterName,
+			sess.apiResource.namespace,
+			podName,
+		)
+		if err != nil {
+			f.log.WithError(err).Warn("error getting user ephemeral containers")
+			return
+		}
+
+		for _, wc := range wcs {
+			if _, ok := sentDebugContainers[wc.Spec.ContainerName]; ok {
+				continue
+			}
+			evt, err := f.getPatchedPodEvent(req.Context(), sess, wc)
+			if err != nil {
+				f.log.WithError(err).Warn("error pushing pod event")
+				continue
+			}
+			sentDebugContainers[wc.Spec.ContainerName] = struct{}{}
+			// push the event to the client
+			// this will lock until the event is pushed or the
+			// request context is done.
+			rw.PushVirtualEventToClient(req.Context(), evt)
+		}
+
+		// wait a bit before querying the cache again, or return
+		// if the request has finished
+		select {
+		case <-req.Context().Done():
+			return
+		case <-done:
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 // decompressInplace decompresses the response into the same buffer it was

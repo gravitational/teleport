@@ -21,7 +21,6 @@ package proxy
 import (
 	"bytes"
 	"context"
-	"io"
 	"net/http"
 	"strings"
 
@@ -39,10 +38,12 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ephemeralContainers handles ephemeral container creation requests.
@@ -117,7 +118,7 @@ func (f *Forwarder) ephemeralContainers(authCtx *authContext, w http.ResponseWri
 func (f *Forwarder) ephemeralContainersLocal(authCtx *authContext, sess *clusterSession, w http.ResponseWriter, req *http.Request) (err error) {
 	// Fetch information on the requested pod and apply the patch
 	// so kubectl will think the ephemeral container has been created.
-	podPatch, err := io.ReadAll(req.Body)
+	podPatch, err := utils.ReadAtMost(req.Body, teleport.MaxHTTPRequestSize)
 	if err != nil {
 		return trace.Wrap(err)
 	}
