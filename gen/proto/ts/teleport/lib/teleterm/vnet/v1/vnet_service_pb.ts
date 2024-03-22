@@ -23,10 +23,9 @@
 import { ServiceType } from "@protobuf-ts/runtime-rpc";
 import type { BinaryWriteOptions } from "@protobuf-ts/runtime";
 import type { IBinaryWriter } from "@protobuf-ts/runtime";
-import { WireType } from "@protobuf-ts/runtime";
+import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { BinaryReadOptions } from "@protobuf-ts/runtime";
 import type { IBinaryReader } from "@protobuf-ts/runtime";
-import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
@@ -36,10 +35,6 @@ import { MessageType } from "@protobuf-ts/runtime";
  * @generated from protobuf message teleport.lib.teleterm.vnet.v1.StartRequest
  */
 export interface StartRequest {
-    /**
-     * @generated from protobuf field: string root_cluster_uri = 1;
-     */
-    rootClusterUri: string;
 }
 /**
  * Response for Start.
@@ -54,10 +49,6 @@ export interface StartResponse {
  * @generated from protobuf message teleport.lib.teleterm.vnet.v1.StopRequest
  */
 export interface StopRequest {
-    /**
-     * @generated from protobuf field: string root_cluster_uri = 1;
-     */
-    rootClusterUri: string;
 }
 /**
  * Response for Stop.
@@ -69,40 +60,18 @@ export interface StopResponse {
 // @generated message type with reflection information, may provide speed optimized methods
 class StartRequest$Type extends MessageType<StartRequest> {
     constructor() {
-        super("teleport.lib.teleterm.vnet.v1.StartRequest", [
-            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
+        super("teleport.lib.teleterm.vnet.v1.StartRequest", []);
     }
     create(value?: PartialMessage<StartRequest>): StartRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.rootClusterUri = "";
         if (value !== undefined)
             reflectionMergePartial<StartRequest>(this, message, value);
         return message;
     }
     internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StartRequest): StartRequest {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string root_cluster_uri */ 1:
-                    message.rootClusterUri = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
+        return target ?? this.create();
     }
     internalBinaryWrite(message: StartRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string root_cluster_uri = 1; */
-        if (message.rootClusterUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -141,40 +110,18 @@ export const StartResponse = new StartResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class StopRequest$Type extends MessageType<StopRequest> {
     constructor() {
-        super("teleport.lib.teleterm.vnet.v1.StopRequest", [
-            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
+        super("teleport.lib.teleterm.vnet.v1.StopRequest", []);
     }
     create(value?: PartialMessage<StopRequest>): StopRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.rootClusterUri = "";
         if (value !== undefined)
             reflectionMergePartial<StopRequest>(this, message, value);
         return message;
     }
     internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StopRequest): StopRequest {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string root_cluster_uri */ 1:
-                    message.rootClusterUri = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
+        return target ?? this.create();
     }
     internalBinaryWrite(message: StopRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string root_cluster_uri = 1; */
-        if (message.rootClusterUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -28,7 +28,6 @@ import {
 import { useAsync, Attempt } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import * as uri from 'teleterm/ui/uri';
 
 /**
  * VnetContext manages the VNet instance.
@@ -41,9 +40,9 @@ export type VnetContext = {
    */
   isSupported: boolean;
   status: 'running' | 'stopped';
-  start: (uri: uri.RootClusterUri) => void;
+  start: () => void;
   startAttempt: Attempt<void>;
-  stop: (uri: uri.RootClusterUri) => void;
+  stop: () => void;
   stopAttempt: Attempt<void>;
 };
 
@@ -61,28 +60,22 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
   );
 
   const [startAttempt, start] = useAsync(
-    useCallback(
-      async (uri: uri.RootClusterUri) => {
-        // TODO(ravicious): If the osascript dialog was canceled, do not throw an error and instead
-        // just don't update status. Perhaps even revert back attempt status if possible.
-        //
-        // A custom error wrapper is needed to detect cancellation.
-        // https://github.com/gravitational/teleport/issues/30753
-        await vnet.start({ rootClusterUri: uri });
-        setStatus('running');
-      },
-      [vnet]
-    )
+    useCallback(async () => {
+      // TODO(ravicious): If the osascript dialog was canceled, do not throw an error and instead
+      // just don't update status. Perhaps even revert back attempt status if possible.
+      //
+      // A custom error wrapper is needed to detect cancellation.
+      // https://github.com/gravitational/teleport/issues/30753
+      await vnet.start({});
+      setStatus('running');
+    }, [vnet])
   );
 
   const [stopAttempt, stop] = useAsync(
-    useCallback(
-      async (uri: uri.RootClusterUri) => {
-        await vnet.stop({ rootClusterUri: uri });
-        setStatus('stopped');
-      },
-      [vnet]
-    )
+    useCallback(async () => {
+      await vnet.stop({});
+      setStatus('stopped');
+    }, [vnet])
   );
 
   return (

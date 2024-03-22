@@ -34,9 +34,6 @@ export const VnetConnectionItem = (props: {
   title: string;
   showBackButton?: boolean;
 }) => {
-  const { workspacesService } = useAppContext();
-  // TODO(ravicious): Remove rootClusterUri from RPC.
-  const rootClusterUri = workspacesService.getRootClusterUri();
   const { status, start, stop, startAttempt, stopAttempt } = useVnetContext();
 
   return (
@@ -116,7 +113,7 @@ export const VnetConnectionItem = (props: {
                 onClick={e => {
                   // Don't trigger onClick that's on ListItem.
                   e.stopPropagation();
-                  stop(rootClusterUri);
+                  stop();
                 }}
               >
                 <icons.Unlink size={18} />
@@ -128,7 +125,7 @@ export const VnetConnectionItem = (props: {
                 title="Start VNet"
                 onClick={e => {
                   e.stopPropagation();
-                  start(rootClusterUri);
+                  start();
                 }}
               >
                 <icons.Link size={18} />

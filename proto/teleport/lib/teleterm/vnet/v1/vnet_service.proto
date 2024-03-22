@@ -30,17 +30,13 @@ service VnetService {
 }
 
 // Request for Start.
-message StartRequest {
-  string root_cluster_uri = 1;
-}
+message StartRequest {}
 
 // Response for Start.
 message StartResponse {}
 
 // Request for Stop.
-message StopRequest {
-  string root_cluster_uri = 1;
-}
+message StopRequest {}
 
 // Response for Stop.
 message StopResponse {}
