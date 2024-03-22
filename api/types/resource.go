@@ -559,6 +559,7 @@ Outer:
 	return true
 }
 
+// containsFold is a case-insensitive alternative to strings.Contains, used to help avoid excess allocations during searches.
 func containsFold(s, substr string) bool {
 	if len(s) < len(substr) {
 		return false
