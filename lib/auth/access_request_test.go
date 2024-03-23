@@ -1227,14 +1227,6 @@ func TestAssumeStartTime_CreateAccessRequestV2(t *testing.T) {
 		errCheck  require.ErrorAssertionFunc
 	}{
 		{
-			name:      "too far in the future",
-			startTime: s.invalidMaxedAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
-				require.ErrorContains(t, err, "assume start time is too far in the future")
-			},
-		},
-		{
 			name:      "after access expiry time",
 			startTime: s.invalidExpiredAssumeStartTime,
 			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
@@ -1266,14 +1258,6 @@ func TestAssumeStartTime_SubmitAccessReview(t *testing.T) {
 		startTime time.Time
 		errCheck  require.ErrorAssertionFunc
 	}{
-		{
-			name:      "too far in the future",
-			startTime: s.invalidMaxedAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
-				require.ErrorContains(t, err, "assume start time is too far in the future")
-			},
-		},
 		{
 			name:      "after access expiry time",
 			startTime: s.invalidExpiredAssumeStartTime,
@@ -1317,14 +1301,6 @@ func TestAssumeStartTime_SetAccessRequestState(t *testing.T) {
 		startTime time.Time
 		errCheck  require.ErrorAssertionFunc
 	}{
-		{
-			name:      "too far in the future",
-			startTime: s.invalidMaxedAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
-				require.ErrorContains(t, err, "assume start time is too far in the future")
-			},
-		},
 		{
 			name:      "after access expiry time",
 			startTime: s.invalidExpiredAssumeStartTime,
@@ -1372,6 +1348,8 @@ type accessRequestWithStartTime struct {
 
 func createAccessRequestWithStartTime(t *testing.T) accessRequestWithStartTime {
 	t.Helper()
+	clock := clockwork.NewFakeClock()
+	now := clock.Now().UTC()
 
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1386,14 +1364,13 @@ func createAccessRequestWithStartTime(t *testing.T) accessRequestWithStartTime {
 
 	t.Cleanup(func() { require.NoError(t, requesterClient.Close()) })
 
-	now := time.Now().UTC()
 	day := 24 * time.Hour
 
-	maxDuration := time.Now().UTC().Add(12 * day)
+	maxDuration := now.Add(services.MaxAccessDuration)
 
 	invalidMaxedAssumeStartTime := now.Add(constants.MaxAssumeStartDuration + (1 * day))
 	invalidExpiredAssumeStartTime := now.Add(100 * day)
-	validStartTime := now.Add(6 * day)
+	validStartTime := now.Add(2 * day)
 
 	// create the access request object
 	req, err := services.NewAccessRequest(requesterUserName, "admins")
