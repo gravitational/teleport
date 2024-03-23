@@ -4579,6 +4579,35 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 		r := resource.GetDatabaseServer()
 		require.Equal(t, types.KindDatabaseServer, r.GetKind())
 	}
+
+	// Update the roles to prevent access to any resource kinds.
+	role.SetRules(types.Deny, []types.Rule{{Resources: services.UnifiedResourceKinds, Verbs: []string{types.VerbList, types.VerbRead}}})
+	err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// ensure updated roles have propagated to auth cache
+	flushCache(t, srv.Auth())
+
+	// Get a new client to test with the new roles.
+	clt, err = srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// Validate that an error is returned when no kinds are requested.
+	resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		Limit:  20,
+		SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
+	})
+	require.True(t, trace.IsAccessDenied(err))
+	require.Nil(t, resp)
+
+	// Validate that an error is returned when a subset of kinds are requested.
+	resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		Limit:  20,
+		SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
+		Kinds:  []string{types.KindNode, types.KindDatabaseServer},
+	})
+	require.True(t, trace.IsAccessDenied(err))
+	require.Nil(t, resp)
 }
 
 // TestListUnifiedResources_WithPredicate will return resources that match the

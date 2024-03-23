@@ -17,13 +17,17 @@ limitations under the License.
 package common
 
 import (
+	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"os/user"
+	"path"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -36,6 +40,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -73,17 +78,70 @@ func (c compositeCh) Close() error {
 	return trace.NewAggregate(c.r.Close(), c.w.Close())
 }
 
-// sftpHandler provides handlers for a SFTP server.
-type sftpHandler struct {
-	logger *log.Entry
-	events chan<- *apievents.SFTP
+type allowedOps struct {
+	write bool
+	path  string
 }
 
-func newSFTPHandler(logger *log.Entry, events chan<- *apievents.SFTP) *sftpHandler {
-	return &sftpHandler{
-		logger: logger,
-		events: events,
+// sftpHandler provides handlers for a SFTP server.
+type sftpHandler struct {
+	logger  *log.Entry
+	allowed *allowedOps
+	events  chan<- *apievents.SFTP
+}
+
+func newSFTPHandler(logger *log.Entry, req *srv.FileTransferRequest, events chan<- *apievents.SFTP) (*sftpHandler, error) {
+	var allowed *allowedOps
+	if req != nil {
+		allowed = &allowedOps{
+			write: !req.Download,
+		}
+		// TODO(capnspacehook): reject relative paths and symlinks
+		// make filepaths consistent by ensuring all separators use backslashes
+		allowed.path = path.Clean(req.Location)
 	}
+
+	return &sftpHandler{
+		logger:  logger,
+		allowed: allowed,
+		events:  events,
+	}, nil
+}
+
+func newDisallowedErr(req *sftp.Request) error {
+	return fmt.Errorf("method %s is not allowed on %s", strings.ToLower(req.Method), req.Filepath)
+}
+
+// ensureReqIsAllowed returns an error if the SFTP request isn't
+// allowed based on the approved file transfer request for this session.
+func (s *sftpHandler) ensureReqIsAllowed(req *sftp.Request) error {
+	// no specifically allowed operations, all requests are allowed
+	if s.allowed == nil {
+		return nil
+	}
+
+	if s.allowed.path != path.Clean(req.Filepath) {
+		return newDisallowedErr(req)
+	}
+
+	switch req.Method {
+	case methodLstat, methodStat:
+		// these methods are allowed
+	case methodGet:
+		// only allow reads for downloads
+		if s.allowed.write {
+			return newDisallowedErr(req)
+		}
+	case methodPut, methodSetStat:
+		// only allow writes and chmods for uploads
+		if !s.allowed.write {
+			return newDisallowedErr(req)
+		}
+	default:
+		return newDisallowedErr(req)
+	}
+
+	return nil
 }
 
 // OpenFile handles 'open' requests when opening a file for reading
@@ -129,6 +187,10 @@ func (s *sftpHandler) Filewrite(req *sftp.Request) (_ io.WriterAt, retErr error)
 }
 
 func (s *sftpHandler) openFile(req *sftp.Request) (*os.File, error) {
+	if err := s.ensureReqIsAllowed(req); err != nil {
+		return nil, err
+	}
+
 	var flags int
 	pflags := req.Pflags()
 	if pflags.Append {
@@ -171,6 +233,9 @@ func (s *sftpHandler) Filecmd(req *sftp.Request) (retErr error) {
 
 	if req.Filepath == "" {
 		return os.ErrInvalid
+	}
+	if err := s.ensureReqIsAllowed(req); err != nil {
+		return err
 	}
 
 	switch req.Method {
@@ -306,6 +371,9 @@ func (s *sftpHandler) Filelist(req *sftp.Request) (_ sftp.ListerAt, retErr error
 	if req.Filepath == "" {
 		return nil, os.ErrInvalid
 	}
+	if err := s.ensureReqIsAllowed(req); err != nil {
+		return nil, err
+	}
 
 	switch req.Method {
 	case methodList:
@@ -343,6 +411,9 @@ func (s *sftpHandler) Filelist(req *sftp.Request) (_ sftp.ListerAt, retErr error
 func (s *sftpHandler) Lstat(req *sftp.Request) (sftp.ListerAt, error) {
 	if req.Filepath == "" {
 		return nil, os.ErrInvalid
+	}
+	if err := s.ensureReqIsAllowed(req); err != nil {
+		return nil, err
 	}
 
 	fi, err := os.Lstat(req.Filepath)
@@ -492,7 +563,6 @@ func onSFTP() error {
 		return trace.Wrap(err)
 	}
 	defer chw.Close()
-	ch := compositeCh{chr, chw}
 	auditFile, err := openFD(5, "audit")
 	if err != nil {
 		return trace.Wrap(err)
@@ -501,7 +571,6 @@ func onSFTP() error {
 
 	// Ensure the parent process will receive log messages from us
 	l := utils.NewLogger()
-	l.SetOutput(os.Stderr)
 	logger := l.WithField(trace.Component, teleport.ComponentSubsystemSFTP)
 
 	currentUser, err := user.Current()
@@ -513,8 +582,34 @@ func onSFTP() error {
 		return trace.Wrap(err)
 	}
 
+	// Read the file transfer request for this session if one exists
+	bufferedReader := bufio.NewReader(chr)
+	var encodedReq []byte
+	var fileTransferReq *srv.FileTransferRequest
+	for {
+		b, err := bufferedReader.ReadByte()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// the encoded request will end with a null byte
+		if b == 0x0 {
+			break
+		}
+		encodedReq = append(encodedReq, b)
+	}
+	if len(encodedReq) != 0 {
+		fileTransferReq = new(srv.FileTransferRequest)
+		if err := json.Unmarshal(encodedReq, fileTransferReq); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	ch := compositeCh{io.NopCloser(bufferedReader), chw}
+
 	sftpEvents := make(chan *apievents.SFTP, 1)
-	h := newSFTPHandler(logger, sftpEvents)
+	h, err := newSFTPHandler(logger, fileTransferReq, sftpEvents)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	handler := sftp.Handlers{
 		FileGet:  h,
 		FilePut:  h,

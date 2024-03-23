@@ -19,6 +19,7 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 
 	"github.com/gravitational/trace"
 
@@ -43,6 +44,9 @@ type Integration interface {
 	SetAWSOIDCIntegrationSpec(*AWSOIDCIntegrationSpecV1)
 	// SetAWSOIDCRoleARN sets the RoleARN of the AWS OIDC Spec.
 	SetAWSOIDCRoleARN(string)
+	// SetAWSOIDCIssuerS3URI sets the IssuerS3URI of the AWS OIDC Spec.
+	// Eg, s3://my-bucket/my-prefix
+	SetAWSOIDCIssuerS3URI(string)
 }
 
 var _ ResourceWithLabels = (*IntegrationV1)(nil)
@@ -139,6 +143,18 @@ func (s *IntegrationSpecV1_AWSOIDC) CheckAndSetDefaults() error {
 		return trace.BadParameter("role_arn is required for %q subkind", IntegrationSubKindAWSOIDC)
 	}
 
+	// The Issuer can be empty.
+	// In that case it will use the cluster's web endpoint.
+	if s.AWSOIDC.IssuerS3URI != "" {
+		issuerS3URL, err := url.Parse(s.AWSOIDC.IssuerS3URI)
+		if err != nil {
+			return trace.BadParameter("unable to parse issuer s3 uri, valid format (eg, s3://my-bucket/my-prefix)")
+		}
+		if issuerS3URL.Scheme != "s3" || issuerS3URL.Host == "" || issuerS3URL.Path == "" {
+			return trace.BadParameter("issuer s3 uri must be in a valid format (eg, s3://my-bucket/my-prefix)")
+		}
+	}
+
 	return nil
 }
 
@@ -162,6 +178,19 @@ func (ig *IntegrationV1) SetAWSOIDCRoleARN(roleARN string) {
 	}
 
 	currentSubSpec.RoleARN = roleARN
+	ig.Spec.SubKindSpec = &IntegrationSpecV1_AWSOIDC{
+		AWSOIDC: currentSubSpec,
+	}
+}
+
+// SetAWSOIDCIssuer sets the Issuer of the AWS OIDC Spec.
+func (ig *IntegrationV1) SetAWSOIDCIssuerS3URI(issuerS3URI string) {
+	currentSubSpec := ig.Spec.GetAWSOIDC()
+	if currentSubSpec == nil {
+		currentSubSpec = &AWSOIDCIntegrationSpecV1{}
+	}
+
+	currentSubSpec.IssuerS3URI = issuerS3URI
 	ig.Spec.SubKindSpec = &IntegrationSpecV1_AWSOIDC{
 		AWSOIDC: currentSubSpec,
 	}

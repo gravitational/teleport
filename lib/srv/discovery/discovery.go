@@ -140,6 +140,9 @@ type Config struct {
 	// AccessGraphConfig is the configuration for the Access Graph client
 	AccessGraphConfig servicecfg.AccessGraphConfig
 
+	// ClusterFeatures returns the features of the cluster.
+	ClusterFeatures func() proto.Features
+
 	// TriggerFetchC is a list of channels that must be notified when a off-band poll must be performed.
 	// This is used to start a polling iteration when a new DiscoveryConfig change is received.
 	TriggerFetchC  []chan struct{}
@@ -159,6 +162,10 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("no AccessPoint configured for discovery")
+	}
+
+	if c.ClusterFeatures == nil {
+		return trace.BadParameter("no ClusterFeatures configured for discovery")
 	}
 
 	if len(c.Matchers.Kubernetes) > 0 && c.DiscoveryGroup == "" {

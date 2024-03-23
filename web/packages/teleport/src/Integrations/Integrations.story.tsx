@@ -23,7 +23,7 @@ import {
 
 import { IntegrationList } from './IntegrationList';
 import { DeleteIntegrationDialog } from './RemoveIntegrationDialog';
-import { EditIntegrationDialog } from './EditIntegrationDialog';
+import { EditAwsOidcIntegrationDialog } from './EditAwsOidcIntegrationDialog';
 import { plugins, integrations } from './fixtures';
 
 export default {
@@ -44,16 +44,40 @@ export function DeleteDialog() {
   );
 }
 
-export function EditDialog() {
+export function EditDialogWithoutS3() {
   return (
-    <EditIntegrationDialog
+    <EditAwsOidcIntegrationDialog
       close={() => null}
       edit={() => null}
       integration={{
         resourceType: 'integration',
         kind: IntegrationKind.AwsOidc,
         name: 'some-integration-name',
-        spec: { roleArn: 'arn:aws:iam::123456789012:roles/johndoe' },
+        spec: {
+          roleArn: 'arn:aws:iam::123456789012:role/johndoe',
+          issuerS3Bucket: '',
+          issuerS3Prefix: '',
+        },
+        statusCode: IntegrationStatusCode.Running,
+      }}
+    />
+  );
+}
+
+export function EditDialogWithS3() {
+  return (
+    <EditAwsOidcIntegrationDialog
+      close={() => null}
+      edit={() => null}
+      integration={{
+        resourceType: 'integration',
+        kind: IntegrationKind.AwsOidc,
+        name: 'some-integration-name',
+        spec: {
+          roleArn: 'arn:aws:iam::123456789012:role/johndoe',
+          issuerS3Bucket: 'named-bucket',
+          issuerS3Prefix: 'named-prefix',
+        },
         statusCode: IntegrationStatusCode.Running,
       }}
     />

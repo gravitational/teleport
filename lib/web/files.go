@@ -140,8 +140,6 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 
 	ctx := r.Context()
 	if req.fileTransferRequestID != "" {
-		// These values should never exist independently of each other so we can set them at the same time
-		ctx = context.WithValue(ctx, sftp.FileTransferRequestID, req.fileTransferRequestID)
 		ctx = context.WithValue(ctx, sftp.ModeratedSessionID, req.moderatedSessionID)
 	}
 

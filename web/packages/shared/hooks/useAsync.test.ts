@@ -185,7 +185,7 @@ test('error and statusText are set when the callback returns a rejected promise'
   act(() => {
     runPromise = run();
   });
-  await waitFor(() => result.current[0].status === 'error');
+  await waitFor(() => expect(result.current[0].status).toBe('error'));
 
   const attempt = result.current[0];
   expect(attempt['error']).toBe(expectedError);

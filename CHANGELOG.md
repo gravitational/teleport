@@ -1,5 +1,32 @@
 # Changelog
 
+## 14.3.13 (03/20/24)
+
+* Fixed the discovery script failing when `jq` was not installed. [#39600](https://github.com/gravitational/teleport/pull/39600)
+* Improve performance when listing nodes with tsh or tctl. [#39568](https://github.com/gravitational/teleport/pull/39568)
+* Require AWS S3 bucket fields when creating/editing AWS OIDC integration in the web UI. [#39513](https://github.com/gravitational/teleport/pull/39513)
+* Removed implicit AccessList membership and ownership modes. All AccessList owners and members must be explicitly specified. [#39388](https://github.com/gravitational/teleport/pull/39388)
+
+## 14.3.11 (03/18/24)
+
+* Fixed an issue with AWS IAM permissions that may prevent AWS database access when discovery_service is enabled in the same Teleport config as the db_service, namely AWS RDS, Redshift, Elasticache, and MemoryDB. [#39487](https://github.com/gravitational/teleport/pull/39487)
+
+## 14.3.10 (03/16/24)
+
+* Fixed issue with Teleport auth server panicking when Access Graph is enabled in discovery service. [#39456](https://github.com/gravitational/teleport/pull/39456)
+
+## 14.3.8 (03/15/24)
+
+* Improve error messaging when creating resources fails because they already exist or updating resources fails because they were removed. [#39396](https://github.com/gravitational/teleport/pull/39396)
+* Support logging in with an identity file with `tsh login -i identity.pem`. This allows running `tsh app login` in CI environments where MachineID is impossible. [#39374](https://github.com/gravitational/teleport/pull/39374)
+* Only allow necessary operations during moderated file transfers and limit in-flight file transfer requests to one per session. [#39352](https://github.com/gravitational/teleport/pull/39352)
+* Make the Jira access plugin log Jira errors properly. [#39347](https://github.com/gravitational/teleport/pull/39347)
+* Teleport Enterprise now attempts to load the license file from the configured data directory if not otherwise specified. [#39313](https://github.com/gravitational/teleport/pull/39313)
+* Patched CVE-2024-27304 (Postgres driver). [#39259](https://github.com/gravitational/teleport/pull/39259)
+* Raised concurrent connection limits between Teleport Cloud regions and in clusters that use proxy peering. [#39232](https://github.com/gravitational/teleport/pull/39232)
+* Improved clean up of system resources during a fast shutdown of Teleport. [#39213](https://github.com/gravitational/teleport/pull/39213)
+* Fixed an issue where it was possible to skip providing old password when setting a new one. [#39126](https://github.com/gravitational/teleport/pull/39126)
+
 ## 14.3.7 (03/11/24)
 
 * Resolved sporadic errors caused by requests fail to comply with Kubernetes API spec by not specifying resource identifiers. [#39167](https://github.com/gravitational/teleport/pull/39167)

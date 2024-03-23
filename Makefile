@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=14.3.7
+VERSION=14.3.13
 
 DOCKER_IMAGE ?= teleport
 
@@ -1238,6 +1238,10 @@ enter/centos7:
 .PHONY:enter/grpcbox
 enter/grpcbox:
 	make -C build.assets enter/grpcbox
+
+.PHONY:enter/node
+enter/node:
+	make -C build.assets enter/node
 
 BUF := buf
 

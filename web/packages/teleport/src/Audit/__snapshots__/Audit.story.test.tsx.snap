@@ -2776,7 +2776,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Update
+              Device Updated
             </div>
           </td>
           <td
@@ -2830,7 +2830,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Enrollment
+              Device Enrolled
             </div>
           </td>
           <td
@@ -2884,7 +2884,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Enrollment
+              Device Enrolled
             </div>
           </td>
           <td
@@ -3046,7 +3046,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Delete
+              Device Deleted
             </div>
           </td>
           <td
@@ -3100,7 +3100,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Delete
+              Device Deleted
             </div>
           </td>
           <td
@@ -3154,7 +3154,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Enroll Token Create
+              Device Enroll Token Created
             </div>
           </td>
           <td
@@ -3208,7 +3208,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Enroll Token Create
+              Device Enroll Token Created
             </div>
           </td>
           <td
@@ -3262,7 +3262,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Authenticate
+              Device Authenticated
             </div>
           </td>
           <td
@@ -3316,7 +3316,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Authenticate
+              Device Authenticated
             </div>
           </td>
           <td
@@ -3370,7 +3370,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Register
+              Device Registered
             </div>
           </td>
           <td
@@ -3424,7 +3424,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Register
+              Device Registered
             </div>
           </td>
           <td
@@ -3478,7 +3478,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Update
+              Device Updated
             </div>
           </td>
           <td
@@ -3532,7 +3532,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Authenticate
+              Device Authenticated
             </div>
           </td>
           <td
@@ -3586,7 +3586,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Enrollment
+              Device Enrolled
             </div>
           </td>
           <td
@@ -3694,7 +3694,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Enroll Token Create
+              Device Enroll Token Created
             </div>
           </td>
           <td
@@ -3748,7 +3748,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Delete
+              Device Deleted
             </div>
           </td>
           <td
@@ -3802,7 +3802,7 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Device Register
+              Device Registered
             </div>
           </td>
           <td
