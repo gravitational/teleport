@@ -2771,8 +2771,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		CertificateType: events.CertificateTypeUser,
 		Identity:        &eventIdentity,
 		ClientMetadata: apievents.ClientMetadata{
-			//TODO(greedy52) currently only user-agent from GRPC clients are
-			//fetched. Need to propagate user-agent from HTTP calls.
+			// TODO(greedy52) currently only user-agent from GRPC clients are
+			// fetched. Need to propagate user-agent from HTTP calls.
 			UserAgent: trimUserAgent(metadata.UserAgentFromContext(ctx)),
 		},
 	}); err != nil {
@@ -5564,6 +5564,21 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}
 		if t.Node.Login == "" {
 			return nil, trace.BadParameter("empty Login field")
+		}
+
+		// state.MFARequired is "per-role", so if the user is joining
+		// a session, MFA is required no matter what node they are
+		// connecting to. We don't preform an RBAC check like we do
+		// below when users are starting a session to selectively
+		// require MFA because we don't know what session the user
+		// is joining, nor do we know what role allowed the session
+		// creator to start the session that is attempting to be joined.
+		// We need this info to be able to selectively skip MFA in
+		// this case.
+		if t.Node.Login == teleport.SSHSessionJoinPrincipal {
+			return &proto.IsMFARequiredResponse{
+				Required: true,
+			}, nil
 		}
 
 		// Find the target node and check whether MFA is required.
