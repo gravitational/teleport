@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -221,7 +220,7 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 		table.AddRow([]string{"Access Expires:", req.GetAccessExpiry().Local().Format(time.DateTime)})
 	}
 	if req.GetAssumeStartTime() != nil {
-		table.AddRow([]string{"Assume Start Time (UTC):", req.GetAssumeStartTime().UTC().Format(time.RFC822)})
+		table.AddRow([]string{"Assume Start Time:", req.GetAssumeStartTime().Local().Format(time.DateTime)})
 	}
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
@@ -315,10 +314,6 @@ func onRequestReview(cf *CLIConf) error {
 			return trace.BadParameter("parsing assume-start-time (required format RFC3339 e.g 2023-12-12T23:20:50.52Z): %v", err)
 		}
 		parsedAssumeStartTime = &assumeStartTime
-		if time.Until(*parsedAssumeStartTime) > constants.MaxAssumeStartDuration {
-			return trace.BadParameter("assume-start-time too far in future: latest date %q",
-				parsedAssumeStartTime.Add(constants.MaxAssumeStartDuration).Format(time.RFC3339))
-		}
 	}
 
 	var state types.RequestState

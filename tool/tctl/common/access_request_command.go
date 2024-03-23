@@ -30,7 +30,6 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -235,10 +234,6 @@ func (c *AccessRequestCommand) Approve(ctx context.Context, client *auth.Client)
 		parsedAssumeStartTime, err := time.Parse(time.RFC3339, c.assumeStartTimeRaw)
 		if err != nil {
 			return trace.BadParameter("parsing assume-start-time (required format RFC3339 e.g 2023-12-12T23:20:50.52Z): %v", err)
-		}
-		if time.Until(parsedAssumeStartTime) > constants.MaxAssumeStartDuration {
-			return trace.BadParameter("assume-start-time too far in future: latest date %q",
-				parsedAssumeStartTime.Add(constants.MaxAssumeStartDuration).Format(time.RFC3339))
 		}
 		assumeStartTime = &parsedAssumeStartTime
 	}
