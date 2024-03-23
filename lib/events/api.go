@@ -424,8 +424,12 @@ const (
 	// DatabaseSessionStartEvent is emitted when a database client attempts
 	// to connect to a database.
 	DatabaseSessionStartEvent = "db.session.start"
-	// DatabaseSessionPermissionsUpdateEvent is emitted when a database client
-	// is assigned new granular database permissions after being created.
+	// DatabaseSessionUserCreateEvent is emitted after provisioning new database user.
+	DatabaseSessionUserCreateEvent = "db.session.user.create"
+	// DatabaseSessionUserDeactivateEvent is emitted after disabling/deleting the auto-provisioned database user.
+	DatabaseSessionUserDeactivateEvent = "db.session.user.deactivate"
+	// DatabaseSessionPermissionsUpdateEvent is emitted after assigning
+	// the auto-provisioned database user permissions.
 	DatabaseSessionPermissionsUpdateEvent = "db.session.permissions.update"
 	// DatabaseSessionEndEvent is emitted when a database client disconnects
 	// from a database.

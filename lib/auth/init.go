@@ -286,6 +286,11 @@ type InitConfig struct {
 
 	// CloudClients provides clients for various cloud providers.
 	CloudClients cloud.Clients
+
+	// KubeWaitingContainers is a service that manages
+	// Kubernetes ephemeral containers that are waiting
+	// to be created until moderated session conditions are met.
+	KubeWaitingContainers services.KubeWaitingContainer
 }
 
 // Init instantiates and configures an instance of AuthServer

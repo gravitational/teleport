@@ -9,19 +9,8 @@ The Teleport team delivers a new major release roughly every 4 months.
 
 | Version | Date            |
 |---------|-----------------|
-| 15.1.5  | March 15, 2024  |
 | 15.2.0  | March 29, 2024  |
 | 16.0.0  | May 31, 2024    |
-
-### 15.1.5
-
-#### SSH remote port forwarding
-
-In Teleport 15.1, we will expose remote port forwarding via the `tsh ssh -R`
-command. Remote port forwarding will be supported for both Teleport and OpenSSH
-nodes.
-
-*Delayed from Teleport 15.1.0*
 
 ### 15.2.0
 
@@ -58,6 +47,11 @@ ensure compatibility with newer Kubernetes clusters.
 Both `tsh db connect` and `tsh proxy db` will offer the option to submit an
 access request if the user attempts to connect to a database that they don't
 already have access to.
+
+#### GCP console access via Workforce Identity Federation
+
+Teleport administrators will be able to setup access to GCP web console through
+Workforce Identity Federation using Teleport as a SAML identity provider.
 
 ### 16.0.0
 

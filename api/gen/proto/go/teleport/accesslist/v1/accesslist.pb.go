@@ -576,9 +576,12 @@ type Recurrence struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// frequency is the frequency of reviews.
+	// frequency is the frequency of reviews. This represents the period in months
+	// between two reviews.
+	// Supported values are 0, 1, 3, 6, and 12.
 	Frequency ReviewFrequency `protobuf:"varint,1,opt,name=frequency,proto3,enum=teleport.accesslist.v1.ReviewFrequency" json:"frequency,omitempty"`
 	// day_of_month is the day of month that reviews will be scheduled on.
+	// Supported values are 0, 1, 15, and 31.
 	DayOfMonth ReviewDayOfMonth `protobuf:"varint,2,opt,name=day_of_month,json=dayOfMonth,proto3,enum=teleport.accesslist.v1.ReviewDayOfMonth" json:"day_of_month,omitempty"`
 }
 
