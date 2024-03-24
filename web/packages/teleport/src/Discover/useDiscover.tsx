@@ -531,14 +531,12 @@ export type EksMeta = BaseMeta & {
 // SamlMeta describes the fields for SAML IdP
 // service provider resource that needs to be
 // preserved throughout the flow.
-export type SamlMeta = BaseMeta & {
-  samlPresetMeta: GcpWorkforceMeta;
-};
+export type SamlMeta = BaseMeta & SamlGcpWorkforceMeta;
 
 // GcpWorkforceMeta describes the fields for SAML
 // GCP workforce pool resource that needs to be
 // preserved throughout the flow.
-export type GcpWorkforceMeta = {
+export type SamlGcpWorkforceMeta = {
   isAutoConfig: boolean;
   orgId: string;
   poolName: string;
