@@ -1695,7 +1695,6 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		AssistEnabled:                  assistEnabled,
 		HideInaccessibleFeatures:       clusterFeatures.GetFeatureHiding(),
 		CustomTheme:                    clusterFeatures.GetCustomTheme(),
-		IsTeam:                         isTeam, // TODO: remove
 		IsIGSEnabled:                   clusterFeatures.GetIdentityGovernance(),
 		FeatureLimits: webclient.FeatureLimits{
 			AccessListCreateLimit:               int(clusterFeatures.GetAccessList().GetCreateLimit()),
@@ -1711,6 +1710,8 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		OIDC:                   clusterFeatures.GetOIDC(),
 		SAML:                   clusterFeatures.GetSAML(),
 		MobileDeviceManagement: clusterFeatures.GetMobileDeviceManagement(),
+		// TODO(mcbattirola): remove isTeam when it is no longer used in the web app
+		IsTeam: isTeam,
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()

@@ -96,7 +96,7 @@ type WebConfig struct {
 	// JoinActiveSessions indicates whether joining active sessions via web UI is enabled
 	JoinActiveSessions bool `json:"joinActiveSessions"`
 	// AccessRequests enables access requests
-	AccessRequests bool `json:"accessRequests"` // TODO?
+	AccessRequests bool `json:"accessRequests"`
 	// TrustedDevices enables trusted devices pages
 	TrustedDevices bool `json:"trustedDevices"`
 	// OIDC enables the OIDC integration flow
