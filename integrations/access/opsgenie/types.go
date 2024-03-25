@@ -99,6 +99,6 @@ type CreateAlertResult struct {
 // GetAlertRequestResult represents the response of a completed Opsgenie create alert request.
 type GetAlertRequestResult struct {
 	Data struct {
-		AlertID       string    `json:"alertId"`
+		AlertID string `json:"alertId"`
 	} `json:"data"`
 }
