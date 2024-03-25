@@ -150,7 +150,13 @@ func (r *resource153ToLegacyAdapter) MarshalJSON() ([]byte, error) {
 }
 
 func (r *resource153ToLegacyAdapter) Expiry() time.Time {
-	return r.inner.GetMetadata().Expires.AsTime()
+	expires := r.inner.GetMetadata().Expires
+	// return zero time.time{} for zero *timestamppb.Timestamp, instead of 01/01/1970.
+	if expires == nil {
+		return time.Time{}
+	}
+
+	return expires.AsTime()
 }
 
 func (r *resource153ToLegacyAdapter) GetKind() string {
@@ -159,7 +165,13 @@ func (r *resource153ToLegacyAdapter) GetKind() string {
 
 func (r *resource153ToLegacyAdapter) GetMetadata() Metadata {
 	md := r.inner.GetMetadata()
+
+	// use zero time.time{} for zero *timestamppb.Timestamp, instead of 01/01/1970.
 	expires := md.Expires.AsTime()
+	if md.Expires == nil {
+		expires = time.Time{}
+	}
+
 	return Metadata{
 		Name:        md.Name,
 		Namespace:   md.Namespace,
