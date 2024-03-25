@@ -255,6 +255,9 @@ type InitConfig struct {
 	// DatabaseObjectImportRule is a service that manages database object import rules.
 	DatabaseObjectImportRules services.DatabaseObjectImportRules
 
+	// DatabaseObject is a service that manages database objects.
+	DatabaseObjects services.DatabaseObjects
+
 	// UserLoginStates is a service that manages user login states.
 	UserLoginState services.UserLoginStates
 
