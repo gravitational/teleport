@@ -129,6 +129,48 @@ func TestMux(t *testing.T) {
 		}
 		require.Error(t, err)
 	})
+	t.Run("HTTP", func(t *testing.T) {
+		t.Parallel()
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+
+		mux, err := New(Config{
+			Listener: listener,
+		})
+		require.NoError(t, err)
+		go mux.Serve()
+		defer mux.Close()
+
+		backend1 := &httptest.Server{
+			Listener: mux.HTTP(),
+			Config: &http.Server{
+				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					fmt.Fprintf(w, "backend 1")
+				}),
+			},
+		}
+		backend1.Start()
+		defer backend1.Close()
+
+		re, err := http.Get(backend1.URL)
+		require.NoError(t, err)
+		defer re.Body.Close()
+		bytes, err := io.ReadAll(re.Body)
+		require.NoError(t, err)
+		require.Equal(t, "backend 1", string(bytes))
+
+		// Close mux, new requests should fail
+		mux.Close()
+		mux.Wait()
+
+		// Use new client to use new connection pool
+		client := &http.Client{Transport: &http.Transport{}}
+		re, err = client.Get(backend1.URL)
+		if err == nil {
+			re.Body.Close()
+		}
+		require.Error(t, err)
+	})
 	// ProxyLine tests proxy line protocol
 	t.Run("ProxyLines", func(t *testing.T) {
 		t.Parallel()
