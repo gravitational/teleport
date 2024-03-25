@@ -115,7 +115,9 @@ test('startAgent re-throws errors that are thrown while spawning the process', a
     .mockImplementation(
       // Hang until abort.
       (rootClusterUri, abortSignal) =>
-        new Promise((resolve, reject) => abortSignal.addEventListener(reject))
+        new Promise((resolve, reject) =>
+          abortSignal.addEventListener('abort', reject)
+        )
     );
   jest
     .spyOn(appContext.mainProcessClient, 'getAgentState')
