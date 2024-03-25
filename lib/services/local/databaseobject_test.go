@@ -20,126 +20,235 @@ package local
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
+	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
+	"github.com/mailgun/holster/v3/clock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
 )
 
-// TestDatabaseObjectCRUD tests backend operations with DatabaseObject resources.
-func TestDatabaseObjectCRUD(t *testing.T) {
-	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
-
+func getService(t *testing.T) services.DatabaseObjects {
 	backend, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
+		Context: context.Background(),
+		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
 
 	service, err := NewDatabaseObjectService(backend)
 	require.NoError(t, err)
+	return service
+}
 
-	// Create a couple objects.
-	obj1, err := databaseobject.NewDatabaseObject("obj1", &dbobjectv1.DatabaseObjectSpec{Name: "obj1", Protocol: "postgres"})
+func getObject(t *testing.T, index int) *dbobjectv1.DatabaseObject {
+	name := fmt.Sprintf("obj%v", index)
+	obj, err := databaseobject.NewDatabaseObject(name, &dbobjectv1.DatabaseObjectSpec{Name: name, Protocol: "postgres"})
 	require.NoError(t, err)
 
-	obj2, err := databaseobject.NewDatabaseObject("obj2", &dbobjectv1.DatabaseObjectSpec{Name: "obj2", Protocol: "postgres"})
-	require.NoError(t, err)
+	return obj
+}
 
-	// Initially we expect no objects.
-	out, nextToken, err := service.ListDatabaseObjects(ctx, 200, "")
-	require.NoError(t, err)
-	require.Empty(t, nextToken)
-	require.Empty(t, out)
-
-	// Create both objects.
-	obj, err := service.CreateDatabaseObject(ctx, obj1)
-	require.NoError(t, err)
-	require.Equal(t, obj1, obj)
-
-	obj, err = service.CreateDatabaseObject(ctx, obj2)
-	require.NoError(t, err)
-	require.Equal(t, obj2, obj)
-
-	// Fetch all objects.
-	out, nextToken, err = service.ListDatabaseObjects(ctx, 200, "")
-	require.NoError(t, err)
-	require.Empty(t, nextToken)
-	require.Len(t, out, 2)
-	require.Equal(t, obj1.String(), out[0].String())
-	require.Equal(t, obj2.String(), out[1].String())
-
-	// Fetch a paginated list of objects
-	paginatedOut := make([]*dbobjectv1.DatabaseObject, 0, 2)
-	for {
-		out, nextToken, err = service.ListDatabaseObjects(ctx, 1, nextToken)
-		require.NoError(t, err)
-
-		paginatedOut = append(paginatedOut, out...)
-		if nextToken == "" {
-			break
-		}
-	}
-
-	require.True(t, proto.Equal(obj1, paginatedOut[0]))
-	require.True(t, proto.Equal(obj2, paginatedOut[1]))
-
-	// Fetch a specific object.
-	obj, err = service.GetDatabaseObject(ctx, obj2.Metadata.GetName())
-	require.NoError(t, err)
-	require.True(t, proto.Equal(obj, obj2))
-
-	// Try to fetch an object that doesn't exist.
-	_, err = service.GetDatabaseObject(ctx, "doesnotexist")
-	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
-
-	// Try to create the same object.
-	_, err = service.CreateDatabaseObject(ctx, obj1)
-	require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
-
-	// Update an object.
-	obj1.Metadata.Expires = timestamppb.New(clock.Now().Add(30 * time.Minute))
-	_, err = service.UpdateDatabaseObject(ctx, obj1)
-	require.NoError(t, err)
-	obj, err = service.GetDatabaseObject(ctx, obj1.GetMetadata().GetName())
-	require.NoError(t, err)
-	//nolint:staticcheck // SA1019. Deprecated, but still needed.
-	obj.Metadata.Id = obj1.Metadata.Id
-	require.True(t, proto.Equal(obj, obj1))
-
-	// Delete an object
-	err = service.DeleteDatabaseObject(ctx, obj1.GetMetadata().GetName())
-	require.NoError(t, err)
-	out, nextToken, err = service.ListDatabaseObjects(ctx, 200, "")
-	require.NoError(t, err)
-	require.Empty(t, nextToken)
-	require.True(t, proto.Equal(obj2, out[0]))
-
-	// Try to delete an object that doesn't exist.
-	err = service.DeleteDatabaseObject(ctx, "doesnotexist")
-	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
-
-	// Delete all resources.
-	lst, nextToken, err := service.ListDatabaseObjects(ctx, 200, "")
-	require.NoError(t, err)
-	require.Equal(t, "", nextToken)
-	for _, elem := range lst {
-		err = service.DeleteDatabaseObject(ctx, elem.GetMetadata().GetName())
+func prepopulate(t *testing.T, service services.DatabaseObjects, count int) {
+	for i := 0; i < count; i++ {
+		_, err := service.CreateDatabaseObject(context.Background(), getObject(t, i))
 		require.NoError(t, err)
 	}
-	out, nextToken, err = service.ListDatabaseObjects(ctx, 200, "")
+}
+
+func TestCreateDatabaseObjects(t *testing.T) {
+	ctx := context.Background()
+	service := getService(t)
+
+	obj, err := databaseobject.NewDatabaseObject("obj", &dbobjectv1.DatabaseObjectSpec{Name: "obj", Protocol: "postgres"})
 	require.NoError(t, err)
-	require.Empty(t, nextToken)
-	require.Empty(t, out)
+
+	// first attempt should succeed
+	objOut, err := service.CreateDatabaseObject(ctx, obj)
+	require.NoError(t, err)
+	require.Equal(t, obj, objOut)
+
+	// second attempt should fail, object already exists
+	_, err = service.CreateDatabaseObject(ctx, obj)
+	require.Error(t, err)
+}
+
+func TestUpsertDatabaseObjects(t *testing.T) {
+	ctx := context.Background()
+	service := getService(t)
+
+	obj, err := databaseobject.NewDatabaseObject("obj", &dbobjectv1.DatabaseObjectSpec{Name: "obj", Protocol: "postgres"})
+	require.NoError(t, err)
+
+	// first attempt should succeed
+	objOut, err := service.UpsertDatabaseObject(ctx, obj)
+	require.NoError(t, err)
+	require.Equal(t, obj, objOut)
+
+	// second attempt should also succeed
+	objOut, err = service.UpsertDatabaseObject(ctx, obj)
+	require.NoError(t, err)
+	require.Equal(t, obj, objOut)
+}
+
+func TestGetDatabaseObject(t *testing.T) {
+	ctx := context.Background()
+	service := getService(t)
+	prepopulate(t, service, 1)
+
+	tests := []struct {
+		name    string
+		key     string
+		wantErr bool
+		wantObj *dbobjectv1.DatabaseObject
+	}{
+		{
+			name:    "object does not exist",
+			key:     "dummy",
+			wantErr: true,
+			wantObj: nil,
+		},
+		{
+			name:    "success",
+			key:     getObject(t, 0).GetMetadata().GetName(),
+			wantErr: false,
+			wantObj: getObject(t, 0),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Fetch a specific object.
+			obj, err := service.GetDatabaseObject(ctx, tt.key)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			cmpOpts := []cmp.Option{
+				protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+				protocmp.Transform(),
+			}
+			require.Equal(t, "", cmp.Diff(tt.wantObj, obj, cmpOpts...))
+		})
+	}
+}
+
+func TestUpdateDatabaseObject(t *testing.T) {
+	ctx := context.Background()
+	service := getService(t)
+	prepopulate(t, service, 1)
+
+	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
+
+	obj := getObject(t, 0)
+	obj.Metadata.Expires = expiry
+
+	objUpdated, err := service.UpdateDatabaseObject(ctx, obj)
+	require.NoError(t, err)
+	require.Equal(t, expiry, objUpdated.Metadata.Expires)
+
+	objFresh, err := service.GetDatabaseObject(ctx, obj.Metadata.Name)
+	require.NoError(t, err)
+	require.Equal(t, expiry, objFresh.Metadata.Expires)
+}
+
+func TestDeleteDatabaseObject(t *testing.T) {
+	ctx := context.Background()
+	service := getService(t)
+	prepopulate(t, service, 1)
+
+	tests := []struct {
+		name    string
+		key     string
+		wantErr bool
+	}{
+		{
+			name:    "object does not exist",
+			key:     "dummy",
+			wantErr: true,
+		},
+		{
+			name:    "success",
+			key:     getObject(t, 0).GetMetadata().GetName(),
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Fetch a specific object.
+			err := service.DeleteDatabaseObject(ctx, tt.key)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestListDatabaseObjects(t *testing.T) {
+	ctx := context.Background()
+
+	counts := []int{0, 1, 5, 10}
+	for _, count := range counts {
+		t.Run(fmt.Sprintf("count=%v", count), func(t *testing.T) {
+			service := getService(t)
+			prepopulate(t, service, count)
+
+			t.Run("one page", func(t *testing.T) {
+				// Fetch all objects.
+				elements, nextToken, err := service.ListDatabaseObjects(ctx, 200, "")
+				require.NoError(t, err)
+				require.Empty(t, nextToken)
+				require.Len(t, elements, count)
+
+				for i := 0; i < count; i++ {
+					cmpOpts := []cmp.Option{
+						protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+						protocmp.Transform(),
+					}
+					require.Equal(t, "", cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
+				}
+			})
+
+			t.Run("paginated", func(t *testing.T) {
+				// Fetch a paginated list of objects
+				elements := make([]*dbobjectv1.DatabaseObject, 0)
+				nextToken := ""
+				for {
+					out, token, err := service.ListDatabaseObjects(ctx, 2, nextToken)
+					require.NoError(t, err)
+					nextToken = token
+
+					elements = append(elements, out...)
+					if nextToken == "" {
+						break
+					}
+				}
+
+				for i := 0; i < count; i++ {
+					cmpOpts := []cmp.Option{
+						protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+						protocmp.Transform(),
+					}
+					require.Equal(t, "", cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
+				}
+			})
+		})
+	}
 }
 
 func TestMarshalDatabaseObjectRoundTrip(t *testing.T) {
