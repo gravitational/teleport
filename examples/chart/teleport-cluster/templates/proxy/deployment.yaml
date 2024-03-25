@@ -317,5 +317,8 @@ spec:
 {{- if $proxy.priorityClassName }}
       priorityClassName: {{ $proxy.priorityClassName }}
 {{- end }}
+{{- if $proxy.podSecurityContext }}
+      securityContext: {{- toYaml $proxy.podSecurityContext | nindent 8 }}
+{{- end }}
       serviceAccountName: {{ include "teleport-cluster.proxy.serviceAccountName" . }}
       terminationGracePeriodSeconds: {{ $proxy.terminationGracePeriodSeconds }}
