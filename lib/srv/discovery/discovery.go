@@ -824,7 +824,7 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 
 	switch {
 	case instances.Integration != "":
-		s.handleEC2UsingEICE(instances)
+		s.heartbeatEICEInstance(instances)
 	default:
 		if err := s.handleEC2RemoteInstallation(instances); err != nil {
 			return trace.Wrap(err)
@@ -838,37 +838,58 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	return nil
 }
 
-// handleEC2UsingEICE creates a Teleport Node (EICE subkind) from the instances list.
-func (s *Server) handleEC2UsingEICE(instances *server.EC2Instances) {
+// heartbeatEICEInstance heartbeats the list of EC2 instances as Teleport (EICE) Nodes.
+func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 	awsInfo := &types.AWSInfo{
 		AccountID:   instances.AccountID,
 		Region:      instances.Region,
 		Integration: instances.Integration,
 	}
 
-	fetchedEC2Instances := make(map[string]string, len(instances.Instances))
-	for _, ec2Instance := range instances.Instances {
-		fetchedEC2Instances[types.ServerInfoNameFromAWS(instances.AccountID, ec2Instance.InstanceID)] = ""
+	type existingNodeInfo struct {
+		name       string
+		expiration *time.Time
 	}
-	s.nodeWatcher.FillNamesFromEC2Instances(s.ctx, fetchedEC2Instances)
+
+	existingEICENodes := make(map[string]existingNodeInfo)
+
+	s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
+		if !n.IsEICE() {
+			return false
+		}
+		existingEICENodes[n.ServerInfoName()] = existingNodeInfo{
+			name:       n.GetName(),
+			expiration: n.GetMetadata().Expires,
+		}
+		return false
+	})
 
 	nodesToUpsert := make([]types.Server, 0, len(instances.Instances))
 	// Add EC2 Instances using EICE method
 	for _, ec2Instance := range instances.Instances {
 		eiceNode, err := services.NewAWSNodeFromEC2v1Instance(ec2Instance.OriginalInstance, awsInfo)
 		if err != nil {
-			s.Log.WithError(err).WithField("instance_id", ec2Instance.InstanceID).Warn("Error converting to Teleport EICE Node")
+			s.Log.WithField("instance_id", ec2Instance.InstanceID).Warnf("Error converting to Teleport EICE Node: %v", err)
 			continue
 		}
-		eiceNodeExpiration := s.clock.Now().Add(s.jitter(serverExpirationDuration))
-		eiceNode.SetExpiry(eiceNodeExpiration)
 
 		ec2InstanceServerInforName := types.ServerInfoNameFromAWS(instances.AccountID, ec2Instance.InstanceID)
 		// Re-use the same Name so that `UpsertNode` replaces the node.
-		if existingNodeName := fetchedEC2Instances[ec2InstanceServerInforName]; existingNodeName != "" {
-			eiceNode.SetName(existingNodeName)
+		if existingNode, found := existingEICENodes[ec2InstanceServerInforName]; found {
+			// To reduce load, nodes we are skipped if their expiration is far away in the future.
+			// As an example, and using the default PollInterval (5 minutes),
+			// nodes that expire after 15 minutes will be skipped.
+			// This gives at least another two iterations of the DiscoveryService before the node is actually removed.
+			// Note: heartbeats set an expiration of 90 minutes.
+			if existingNode.expiration.After(s.clock.Now().Add(3 * s.PollInterval)) {
+				continue
+			}
+
+			eiceNode.SetName(existingNode.name)
 		}
 
+		eiceNodeExpiration := s.clock.Now().Add(s.jitter(serverExpirationDuration))
+		eiceNode.SetExpiry(eiceNodeExpiration)
 		nodesToUpsert = append(nodesToUpsert, eiceNode)
 	}
 
@@ -877,15 +898,12 @@ func (s *Server) handleEC2UsingEICE(instances *server.EC2Instances) {
 	}
 	err := spreadwork.ApplyOverTime(s.ctx, applyOverTimeConfig, nodesToUpsert, func(eiceNode types.Server) {
 		if _, err := s.AccessPoint.UpsertNode(s.ctx, eiceNode); err != nil {
-			var instanceID string
-			if awsInfo := eiceNode.GetAWSInfo(); awsInfo != nil {
-				instanceID = awsInfo.InstanceID
-			}
-			s.Log.WithError(err).WithField("instance_id", instanceID).Warn("Error upserting as Node")
+			instanceID, _ := eiceNode.GetLabel(types.AWSInstanceIDLabel)
+			s.Log.WithField("instance_id", instanceID).Warnf("Error upserting EC2 instance: %v", err)
 		}
 	})
 	if err != nil {
-		s.Log.WithError(err).Warn("Failed to upsert nodes.")
+		s.Log.Warnf("Failed to upsert EC2 nodes: %v", err)
 	}
 }
 

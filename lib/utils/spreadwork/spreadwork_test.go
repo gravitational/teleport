@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,7 +45,7 @@ func TestApplyOverTime(t *testing.T) {
 			err := ApplyOverTime(ctx, conf, items, func(s string) {
 				ops.Add(1)
 			})
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 
 		require.Eventually(t, func() bool {
@@ -68,7 +69,7 @@ func TestApplyOverTime(t *testing.T) {
 			err := ApplyOverTime(ctx, conf, items, func(s string) {
 				ops.Add(1)
 			})
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 
 		require.Eventually(t, func() bool {
@@ -94,7 +95,7 @@ func TestApplyOverTime(t *testing.T) {
 			err := ApplyOverTime(ctx, conf, items, func(s string) {
 				ops.Add(1)
 			})
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 
 		require.Eventually(t, func() bool {
@@ -120,7 +121,7 @@ func TestApplyOverTime(t *testing.T) {
 			err := ApplyOverTime(ctx, conf, items, func(s string) {
 				ops.Add(1)
 			})
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 
 		require.Eventually(t, func() bool {
@@ -145,7 +146,8 @@ func TestApplyOverTime(t *testing.T) {
 			err := ApplyOverTime(ctx, conf, items, func(s string) {
 				ops.Add(1)
 			})
-			require.NoError(t, err)
+
+			assert.ErrorIs(t, err, context.Canceled)
 		}()
 
 		require.Eventually(t, func() bool {
