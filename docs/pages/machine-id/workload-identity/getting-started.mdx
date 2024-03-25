@@ -13,7 +13,7 @@ not recommend using this feature in production.
 
 ### Prerequisites
 
-## Step 1/3. Configure RBAC
+## Step 1/4. Configure RBAC
 
 First, Teleport must be configured to allow the credentials produced by `tbot`
 to modify the Teleport configuration. It's important to grant as few
@@ -42,11 +42,21 @@ spec:
       - list
 ```
 
-### Step 2/3. Configure `spiffe-workload-api` service in `tbot`
+### Step 2/4. Configure `spiffe-workload-api` service in `tbot`
 
-### Step 3/3. Using the Workload API with an example service
+### Alternative: Issue a SVID as files using the `spiffe-svid` Output
 
-### Alternative: Issue a SVID as Files using the `spiffe-svid` Outpu
+### Step 3/4. Testing the Workload API with `tbot spiffe-inspect`
+
+### Step 4/4. Configuring your workload to use the Workload API
+
+Now that you know that the Workload API is behaving as expected, you can
+configure your workload to use it. The exact steps will depend on the workload.
+
+In cases where you have used the SPIFFE SDKs, you can configure the
+`SPIFFE_ENDPOINT_SOCKET` environment variable to point to the socket created by
+`tbot`.
+
 
 ## Next Steps
 
