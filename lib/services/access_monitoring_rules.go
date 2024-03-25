@@ -22,6 +22,7 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
@@ -50,7 +51,7 @@ func MarshalAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.A
 
 	if !cfg.PreserveResourceID {
 		copy := *accessMonitoringRule
-		// copy.Metadata.ID = 0
+		copy.Metadata.Id = 0
 		copy.Metadata.Revision = ""
 		accessMonitoringRule = &copy
 	}
@@ -70,14 +71,14 @@ func UnmarshalAccessMonitoringRule(data []byte, opts ...MarshalOption) (*accessm
 	if err := utils.FastUnmarshal(data, &accessMonitoringRule); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
-	// if cfg.ID != 0 {
-	// 	accessMonitoringRule.Metadata.ID = cfg.ID
-	// }
+	if cfg.ID != 0 {
+		accessMonitoringRule.Metadata.Id = cfg.ID
+	}
 	if cfg.Revision != "" {
 		accessMonitoringRule.Metadata.Revision =  cfg.Revision
 	}
-	// if !cfg.Expires.IsZero() {
-	// 	accessMonitoringRule.Metadata.Expires = cfg.Expires
-	// }
+	if !cfg.Expires.IsZero() {
+		accessMonitoringRule.Metadata.Expires = timestamppb.New(cfg.Expires)
+	}
 	return &accessMonitoringRule, nil
 }
