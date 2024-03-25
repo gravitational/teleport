@@ -237,11 +237,11 @@ func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request
 	}
 
 	settings := scriptSettings{
-		token:                    utils.UnixShellQuote(params.ByName("token")),
+		token:                    params.ByName("token"),
 		appInstallMode:           false,
-		joinMethod:               utils.UnixShellQuote(r.URL.Query().Get("method")),
+		joinMethod:               r.URL.Query().Get("method"),
 		installUpdater:           autoUpgrades,
-		automaticUpgradesVersion: utils.UnixShellQuote(autoUpgradesVersion),
+		automaticUpgradesVersion: autoUpgradesVersion,
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -285,12 +285,12 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 	}
 
 	settings := scriptSettings{
-		token:                    utils.UnixShellQuote(params.ByName("token")),
+		token:                    params.ByName("token"),
 		appInstallMode:           true,
-		appName:                  utils.UnixShellQuote(name),
-		appURI:                   utils.UnixShellQuote(uri),
+		appName:                  name,
+		appURI:                   uri,
 		installUpdater:           autoUpgrades,
-		automaticUpgradesVersion: utils.UnixShellQuote(autoUpgradesVersion),
+		automaticUpgradesVersion: autoUpgradesVersion,
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -319,10 +319,10 @@ func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Req
 	}
 
 	settings := scriptSettings{
-		token:                    utils.UnixShellQuote(params.ByName("token")),
+		token:                    params.ByName("token"),
 		databaseInstallMode:      true,
 		installUpdater:           autoUpgrades,
-		automaticUpgradesVersion: utils.UnixShellQuote(autoUpgradesVersion),
+		automaticUpgradesVersion: autoUpgradesVersion,
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -365,11 +365,11 @@ func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Re
 	}
 
 	settings := scriptSettings{
-		token:                    utils.UnixShellQuote(params.ByName("token")),
+		token:                    params.ByName("token"),
 		discoveryInstallMode:     true,
-		discoveryGroup:           utils.UnixShellQuote(discoveryGroup),
+		discoveryGroup:           discoveryGroup,
 		installUpdater:           autoUpgrades,
-		automaticUpgradesVersion: utils.UnixShellQuote(autoUpgradesVersion),
+		automaticUpgradesVersion: autoUpgradesVersion,
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -510,16 +510,16 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		"packageName":                packageName,
 		"repoChannel":                repoChannel,
 		"installUpdater":             strconv.FormatBool(settings.installUpdater),
-		"version":                    version,
+		"version":                    utils.UnixShellQuote(version),
 		"appInstallMode":             strconv.FormatBool(settings.appInstallMode),
-		"appName":                    settings.appName,
-		"appURI":                     settings.appURI,
-		"joinMethod":                 settings.joinMethod,
+		"appName":                    utils.UnixShellQuote(settings.appName),
+		"appURI":                     utils.UnixShellQuote(settings.appURI),
+		"joinMethod":                 utils.UnixShellQuote(settings.joinMethod),
 		"labels":                     strings.Join(labelsList, ","),
 		"databaseInstallMode":        strconv.FormatBool(settings.databaseInstallMode),
 		"db_service_resource_labels": dbServiceResourceLabels,
 		"discoveryInstallMode":       settings.discoveryInstallMode,
-		"discoveryGroup":             settings.discoveryGroup,
+		"discoveryGroup":             utils.UnixShellQuote(settings.discoveryGroup),
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
