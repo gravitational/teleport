@@ -427,7 +427,7 @@ func TestS_Run_syncDefaults(t *testing.T) {
 				LastEnrolledDate: t1,
 			},
 			Hardware: &jamf.ComputerHardwareSection{
-				SerialNumber: strings.Repeat("x", 100),
+				SerialNumber: strings.Repeat("x", 121),
 			},
 		},
 	}

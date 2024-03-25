@@ -643,7 +643,7 @@ func TestS_CreateDevice_errors(t *testing.T) {
 			name: "asset_tag length",
 			createDev: func() *devicepb.Device {
 				d := proto.Clone(validDev).(*devicepb.Device)
-				d.AssetTag = strings.Repeat("A", 41)
+				d.AssetTag = strings.Repeat("A", 121)
 				return d
 			},
 			wantErr:   "asset_tag exceeds",
@@ -2170,7 +2170,7 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 			createCred: func() *devicepb.DeviceCredential { return validCred },
 			createCD: func() *devicepb.DeviceCollectedData {
 				cp := proto.Clone(validCD).(*devicepb.DeviceCollectedData)
-				cp.SerialNumber = strings.Repeat("A", 41)
+				cp.SerialNumber = strings.Repeat("A", 121)
 				return cp
 			},
 			owner:     owner,

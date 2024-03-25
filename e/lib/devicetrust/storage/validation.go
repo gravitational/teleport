@@ -17,9 +17,11 @@ import (
 )
 
 const (
-	deviceIDLength              = 36 // aka an UUID, anything else is unexpected.
-	maxCredentialIDLength       = 64 // UUID is 36 chars, TPM AK hash is 64 chars.
-	maxDeviceAssetTagLength     = 40 // macOS serial is 12 chars, UUID is 36 chars.
+	deviceIDLength        = 36 // aka an UUID, anything else is unexpected.
+	maxCredentialIDLength = 64 // UUID is 36 chars, TPM AK hash is 64 chars.
+
+	// macOS serial is 12 chars, UUID is 36 chars. GCP vTPM goes to 44 chars.
+	maxDeviceAssetTagLength     = 120
 	maxDeviceSerialNumberLength = maxDeviceAssetTagLength
 
 	maxDataModelIdentifierLength         = 200 // arbitrary, "large" number.
