@@ -9,10 +9,14 @@ improving the feature and would love to hear your feedback. We currently do
 not recommend using this feature in production.
 </Admonition>
 
-In this guide, we'll walk through the steps required to get started with
-Teleport Workload Identity. Workload Identity allows you to issue short-lived
-SPIFFE X.509 SVIDs to workloads running on your infrastructure. To do this,
-you will configure `tbot` to act as a SPIFFE Workload API endpoint.
+Teleport's Workload Identity issues flexible short-lived identities intended
+for workloads. It is compatible with the industry-standard SPIFFE specification
+meaning that it can be used in place of other SPIFFE compatible identity
+providers.
+
+In this guide, you'll configure the RBAC necessary to allow a Bot to issue
+SPIFFE SVIDs and then configure `tbot` to expose a SPIFFE Workload API endpoint.
+You can then connect your workloads to this endpoint to receive SPIFFE SVIDs.
 
 ## Getting Started
 
@@ -27,31 +31,41 @@ you will configure `tbot` to act as a SPIFFE Workload API endpoint.
 
 ## Step 1/4. Configure RBAC
 
-First, Teleport must be configured to allow the credentials produced by `tbot`
-to modify the Teleport configuration. It's important to grant as few
-privileges as possible in order to limit the blast radius of an attack, so in
-this example we grant only the ability to create and update roles.
+First, Teleport must be configured to allow the Bot to issue SPIFFE SVIDs.
+This is done by configuring a role to allow the issuance of SPIFFE SVIDs and
+then granting this role to the Bot.
 
-If you have followed a platform guide, you will have created a role and granted
-the bot the ability to impersonate it already. This role just needs to have the
-additional privileges added to it.
+Before proceeding, you'll want to determine the SPIFFE ID path that your
+workload will use. In our example, we'll use `/svc/foo`. We provide more
+guidance on choosing a SPIFFE ID structure in the
+[Best Practices](./best-practices.mdx) guide.
 
-Use `tctl edit role/example-bot` to add the following rule to the role:
+Create a new file named `spiffe-issuer-role.yaml`:
 
 ```yaml
+kind: role
+version: v6
+metadata:
+  name: svid-issuer
 spec:
   allow:
-    rules:
-    - resources:
-      # Specify the names of resources you wish to manage with tctl.
-      # For this guide, we will only manage roles.
-      - role
-      verbs:
-      - create
-      - read
-      - update
-      - delete
-      - list
+    spiffe:
+    - path: "/svc/foo"
+```
+
+Replace:
+
+- `spiffe-issuer` with a name that describes your use-case.
+- `/svc/foo` with the SPIFFE ID path you have decided on issuing.
+
+Use `tctl create -f ./spiffe-issuer-role.yaml` to create the role.
+
+Now, use `tctl bots update` to add the role to the Bot. Replace `example-bot`
+with the name of the Bot you created in the deployment guide and `spiffe-issuer`
+with the name of the role you just created:
+
+```bash
+$ tctl bots update example-bot --add-roles spiffe-issuer
 ```
 
 ### Step 2/4. Configure `spiffe-workload-api` service in `tbot`
@@ -79,10 +93,12 @@ services:
 Replace:
 
 - `/opt/machine-id/workload.sock` with the path to the socket you wish to create.
-- `/svc/foo` with the SPIFFE ID that you wish to issue SVIDs for.
+- `/svc/foo` with the SPIFFE ID path you have decided on issuing.
 - `my-hint` with a hint that will be included with the SVID. This can help
   workloads identify which SVID they should select if multiple are presented.
   This field can be omitted if not required.
+
+Start or restart your `tbot` instance to apply the new configuration
 
 #### Configuring DNS and IP SANs
 

@@ -18,6 +18,8 @@ general and the deepest part being the most specific. This allows rules to be
 created which allow access to a group of workloads that share common parts
 of the hierarchy.
 
+### Logical structure
+
 One strategy is to structure SPIFFE IDs based on the logical function of a
 workload. For example, you may have a service named `processor` that falls
 within a group of `payments` services. You could give this a SPIFFE ID of
@@ -25,6 +27,8 @@ within a group of `payments` services. You could give this a SPIFFE ID of
 decide that all `payments` services should be able to access each other and
 create a rule that allows access to any SPIFFE ID that starts with
 `spiffe://example.teleport.sh/production/payments`.
+
+### Physical structure
 
 Another strategy is to structure the SPIFFE IDs using a more "physical" location
 of a workload. This may still include elements that are "virtual". For example,
@@ -37,6 +41,8 @@ workloads which are physically proximate, such as a cache. You may say that
 the cache located in London will only accept connections from workloads with a
 SPIFFE ID that starts with `spiffe://example.teleport.sh/europe/uk`.
 
+### Hybrid structure
+
 However, it's worth noting that a workload can possess multiple SVIDs and use
 these for different purposes. This means you could actually use multiple
 strategies. You'll want to ensure you use some form of namespacing to ensure
@@ -46,6 +52,8 @@ and `svc` for the logical location:
 
 - spiffe://example.teleport.sh/phy/europe/uk/london/hypervisor-001/vm-a3847f
 - spiffe://example.teleport.sh/svc/payments/processor
+
+### Avoiding Sensitive Information
 
 It's worth noting that the SPIFFE ID contained within a SVID is not secret and
 is exposed to workloads that connect and that you connect out to. So avoid
