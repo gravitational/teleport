@@ -75,7 +75,7 @@ export function ConnectionItem(props: ConnectionItemProps) {
         css={`
           flex-shrink: 0;
         `}
-        connected={props.item.connected}
+        status={props.item.connected ? 'on' : 'off'}
       />
       <Flex
         alignItems="center"
