@@ -19,7 +19,7 @@ panic = "abort"
 
 [build-dependencies]
 embed-resource = "2.4.2"
-regex = "1.10.3"
+regex = "1.10.4"
 
 [dependencies]
 log = "0.4.21"
@@ -29,7 +29,7 @@ serde = { version = "1.0.197", features = ["derive"] }
 anyhow = "1.0.81"
 humantime = "2.1.0"
 include-flate = { version = "0.2.0", features = ["stable"] }
-itertools = "0.11.0"
+itertools = "0.12.1"
 
 [dependencies.windows]
 version = "0.54.0"
