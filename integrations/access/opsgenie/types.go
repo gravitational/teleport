@@ -76,7 +76,7 @@ type RespondersResult struct {
 // AlertResult is a wrapper around Alert
 type AlertResult struct {
 	// Alert contains the actual alert data.
-	Alert Alert `json:"alert"`
+	Alert Alert `json:"data"`
 }
 
 // AlertNote represents an Opsgenie alert note
@@ -87,4 +87,18 @@ type AlertNote struct {
 	Source string `json:"source"`
 	// Note is the alert note.
 	Note string `json:"note"`
+}
+
+// CreateAlertResult represents the resulting request information from an Opsgenie create alert request.
+type CreateAlertResult struct {
+	Result    string  `json:"result"`
+	Took      float64 `json:"took"`
+	RequestID string  `json:"requestId"`
+}
+
+// GetAlertRequestResult represents the response of a completed Opsgenie create alert request.
+type GetAlertRequestResult struct {
+	Data struct {
+		AlertID       string    `json:"alertId"`
+	} `json:"data"`
 }

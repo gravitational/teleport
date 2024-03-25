@@ -36,6 +36,9 @@ import (
 func TestCreateAlert(t *testing.T) {
 	recievedReq := ""
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		if req.URL.Path != "/v2/alerts" {
+			return
+		}
 		bodyBytes, err := io.ReadAll(req.Body)
 		if err != nil {
 			log.Fatal(err)
