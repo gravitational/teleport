@@ -83,8 +83,8 @@ func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipientSchedu
 			Reason: reqData.ResolutionReason,
 		},
 		SystemAnnotations: types.Labels{
-			types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel:      autoApprovalSchedules,
-			types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel: notificationSchedules,
+			types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel: autoApprovalSchedules,
+			types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel:  notificationSchedules,
 		},
 	}
 	opsgenieData, err := b.client.CreateAlert(ctx, reqID, opsgenieReqData)
