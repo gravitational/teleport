@@ -27,6 +27,7 @@ import {
 } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { VnetContextProvider } from 'teleterm/ui/Vnet';
 
 import {
   ConnectAppActionButton,
@@ -40,6 +41,33 @@ export default {
 };
 
 export function ActionButtons() {
+  const appContext = new MockAppContext();
+  appContext.configService.set('feature.vnet', true);
+  prepareAppContext(appContext);
+
+  return (
+    <MockAppContextProvider appContext={appContext}>
+      <VnetContextProvider>
+        <Buttons />
+      </VnetContextProvider>
+    </MockAppContextProvider>
+  );
+}
+
+export function WithoutVnet() {
+  const appContext = new MockAppContext({ platform: 'win32' });
+  prepareAppContext(appContext);
+
+  return (
+    <MockAppContextProvider appContext={appContext}>
+      <VnetContextProvider>
+        <Buttons />
+      </VnetContextProvider>
+    </MockAppContextProvider>
+  );
+}
+
+function Buttons() {
   return (
     <Flex gap={4}>
       <Flex gap={3} flexDirection="column">
@@ -76,124 +104,10 @@ export function ActionButtons() {
   );
 }
 
-function TcpApp() {
-  const appContext = new MockAppContext();
-  const testCluster = makeRootCluster();
-  appContext.workspacesService.setState(d => {
-    d.rootClusterUri = testCluster.uri;
-  });
-  appContext.clustersService.setState(d => {
-    d.clusters.set(testCluster.uri, testCluster);
-  });
+const testCluster = makeRootCluster();
+testCluster.loggedInUser.sshLogins = ['ec2-user'];
 
-  return (
-    <MockAppContextProvider appContext={appContext}>
-      <ConnectAppActionButton
-        app={makeApp({
-          uri: `${testCluster.uri}/apps/bar`,
-        })}
-      />
-    </MockAppContextProvider>
-  );
-}
-
-function HttpApp() {
-  const appContext = new MockAppContext();
-  const testCluster = makeRootCluster();
-  appContext.workspacesService.setState(d => {
-    d.rootClusterUri = testCluster.uri;
-  });
-  appContext.clustersService.setState(d => {
-    d.clusters.set(testCluster.uri, testCluster);
-  });
-
-  return (
-    <MockAppContextProvider appContext={appContext}>
-      <ConnectAppActionButton
-        app={makeApp({
-          endpointUri: 'http://localhost:3000',
-          uri: `${testCluster.uri}/apps/bar`,
-        })}
-      />
-    </MockAppContextProvider>
-  );
-}
-
-function AwsConsole() {
-  const appContext = new MockAppContext();
-  const testCluster = makeRootCluster();
-  appContext.workspacesService.setState(d => {
-    d.rootClusterUri = testCluster.uri;
-  });
-  appContext.clustersService.setState(d => {
-    d.clusters.set(testCluster.uri, testCluster);
-  });
-
-  return (
-    <MockAppContextProvider appContext={appContext}>
-      <ConnectAppActionButton
-        app={makeApp({
-          endpointUri: 'https://localhost:3000',
-          awsConsole: true,
-          awsRoles: [
-            { arn: 'foo', display: 'foo', name: 'foo' },
-            { arn: 'bar', display: 'bar', name: 'bar' },
-          ],
-          uri: `${testCluster.uri}/apps/bar`,
-        })}
-      />
-    </MockAppContextProvider>
-  );
-}
-
-function SamlApp() {
-  const appContext = new MockAppContext();
-  const testCluster = makeRootCluster();
-  appContext.workspacesService.setState(d => {
-    d.rootClusterUri = testCluster.uri;
-  });
-  appContext.clustersService.setState(d => {
-    d.clusters.set(testCluster.uri, testCluster);
-  });
-
-  return (
-    <MockAppContextProvider appContext={appContext}>
-      <ConnectAppActionButton
-        app={makeApp({
-          endpointUri: 'https://localhost:3000',
-          samlApp: true,
-          uri: `${testCluster.uri}/apps/bar`,
-        })}
-      />
-    </MockAppContextProvider>
-  );
-}
-
-function Server() {
-  const appContext = new MockAppContext();
-  const testCluster = makeRootCluster();
-  testCluster.loggedInUser.sshLogins = ['ec2-user'];
-  appContext.workspacesService.setState(d => {
-    d.rootClusterUri = testCluster.uri;
-  });
-  appContext.clustersService.setState(d => {
-    d.clusters.set(testCluster.uri, testCluster);
-  });
-
-  return (
-    <MockAppContextProvider appContext={appContext}>
-      <ConnectServerActionButton
-        server={makeServer({
-          uri: `${testCluster.uri}/servers/bar`,
-        })}
-      />
-    </MockAppContextProvider>
-  );
-}
-
-function Database() {
-  const appContext = new MockAppContext();
-  const testCluster = makeRootCluster();
+function prepareAppContext(appContext: MockAppContext): void {
   appContext.workspacesService.setState(d => {
     d.rootClusterUri = testCluster.uri;
   });
@@ -201,35 +115,83 @@ function Database() {
     d.clusters.set(testCluster.uri, testCluster);
   });
   appContext.resourcesService.getDbUsers = async () => ['postgres-user'];
+}
 
+function TcpApp() {
   return (
-    <MockAppContextProvider appContext={appContext}>
-      <ConnectDatabaseActionButton
-        database={makeDatabase({
-          uri: `${testCluster.uri}/dbs/bar`,
-        })}
-      />
-    </MockAppContextProvider>
+    <ConnectAppActionButton
+      app={makeApp({
+        uri: `${testCluster.uri}/apps/bar`,
+      })}
+    />
+  );
+}
+
+function HttpApp() {
+  return (
+    <ConnectAppActionButton
+      app={makeApp({
+        endpointUri: 'http://localhost:3000',
+        uri: `${testCluster.uri}/apps/bar`,
+      })}
+    />
+  );
+}
+
+function AwsConsole() {
+  return (
+    <ConnectAppActionButton
+      app={makeApp({
+        endpointUri: 'https://localhost:3000',
+        awsConsole: true,
+        awsRoles: [
+          { arn: 'foo', display: 'foo', name: 'foo' },
+          { arn: 'bar', display: 'bar', name: 'bar' },
+        ],
+        uri: `${testCluster.uri}/apps/bar`,
+      })}
+    />
+  );
+}
+
+function SamlApp() {
+  return (
+    <ConnectAppActionButton
+      app={makeApp({
+        endpointUri: 'https://localhost:3000',
+        samlApp: true,
+        uri: `${testCluster.uri}/apps/bar`,
+      })}
+    />
+  );
+}
+
+function Server() {
+  return (
+    <ConnectServerActionButton
+      server={makeServer({
+        uri: `${testCluster.uri}/servers/bar`,
+      })}
+    />
+  );
+}
+
+function Database() {
+  return (
+    <ConnectDatabaseActionButton
+      database={makeDatabase({
+        uri: `${testCluster.uri}/dbs/bar`,
+      })}
+    />
   );
 }
 
 function Kube() {
-  const appContext = new MockAppContext();
-  const testCluster = makeRootCluster();
-  appContext.workspacesService.setState(d => {
-    d.rootClusterUri = testCluster.uri;
-  });
-  appContext.clustersService.setState(d => {
-    d.clusters.set(testCluster.uri, testCluster);
-  });
-
   return (
-    <MockAppContextProvider appContext={appContext}>
-      <ConnectKubeActionButton
-        kube={makeKube({
-          uri: `${testCluster.uri}/kubes/bar`,
-        })}
-      />
-    </MockAppContextProvider>
+    <ConnectKubeActionButton
+      kube={makeKube({
+        uri: `${testCluster.uri}/kubes/bar`,
+      })}
+    />
   );
 }
