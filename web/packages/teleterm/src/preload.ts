@@ -36,6 +36,7 @@ import {
 } from 'teleterm/services/grpcCredentials';
 import { ElectronGlobals, RuntimeSettings } from 'teleterm/types';
 import { createTshdEventsServer } from 'teleterm/services/tshdEvents';
+import { createVnetClient } from 'teleterm/services/tshd/vnet';
 
 const mainProcessClient = createMainProcessClient();
 const runtimeSettings = mainProcessClient.getRuntimeSettings();
@@ -61,6 +62,7 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     createGrpcCredentials(runtimeSettings),
   ]);
   const tshClient = createTshdClient(addresses.tsh, credentials.tshd);
+  const vnetClient = createVnetClient(addresses.tsh, credentials.tshd);
   const ptyServiceClient = createPtyService(
     addresses.shared,
     credentials.shared,
@@ -90,6 +92,7 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
   return {
     mainProcessClient,
     tshClient,
+    vnetClient,
     ptyServiceClient,
     setupTshdEventContextBridgeService,
   };
