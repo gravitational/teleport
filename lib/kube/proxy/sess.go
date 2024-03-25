@@ -1050,10 +1050,9 @@ func (s *session) createEphemeralContainer() (bool, error) {
 			ContainerName: container,
 		},
 	)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return false, nil
-		}
+	if trace.IsNotFound(err) {
+		return false, nil
+	} else if err != nil {
 		return false, trace.Wrap(err)
 	}
 
