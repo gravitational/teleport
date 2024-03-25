@@ -125,7 +125,7 @@ func MatchResourceLabels(matchers []ResourceMatcher, labels map[string]string) b
 // ResourceSeenKey is used as a key for a map that keeps track
 // of unique resource names and address. Currently "addr"
 // only applies to resource Application.
-type ResourceSeenKey struct{ name, addr string }
+type ResourceSeenKey struct{ name, kind, addr string }
 
 // MatchResourceByFilters returns true if all filter values given matched against the resource.
 //
@@ -143,7 +143,9 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 
 	// We assume when filtering for services like KubeService, AppServer, and DatabaseServer
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
-	resourceKey := ResourceSeenKey{}
+	key := ResourceSeenKey{
+		kind: filter.ResourceKind,
+	}
 	switch filter.ResourceKind {
 	case types.KindNode,
 		types.KindDatabaseService,
@@ -151,42 +153,30 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		types.KindWindowsDesktop, types.KindWindowsDesktopService,
 		types.KindUserGroup:
 		specResource = resource
-		resourceKey.name = specResource.GetName()
-
+		key.name = resource.GetName()
 	case types.KindKubeServer:
 		if seenMap != nil {
 			return false, trace.BadParameter("checking for duplicate matches for resource kind %q is not supported", filter.ResourceKind)
 		}
+		key.name = resource.GetName()
 		return matchAndFilterKubeClusters(resource, filter)
-
-	case types.KindAppServer:
-		server, ok := resource.(types.AppServer)
-		if !ok {
-			return false, trace.BadParameter("expected types.AppServer, got %T", resource)
-		}
-		specResource = server.GetApp()
-		app := server.GetApp()
-		resourceKey.name = app.GetName()
-		resourceKey.addr = app.GetPublicAddr()
-
 	case types.KindDatabaseServer:
 		server, ok := resource.(types.DatabaseServer)
 		if !ok {
 			return false, trace.BadParameter("expected types.DatabaseServer, got %T", resource)
 		}
 		specResource = server.GetDatabase()
-		resourceKey.name = specResource.GetName()
-
-	case types.KindAppOrSAMLIdPServiceProvider:
+		key.name = specResource.GetName()
+	case types.KindAppServer, types.KindSAMLIdPServiceProvider, types.KindAppOrSAMLIdPServiceProvider:
 		switch appOrSP := resource.(type) {
 		case types.AppServer:
 			app := appOrSP.GetApp()
 			specResource = app
-			resourceKey.name = app.GetName()
-			resourceKey.addr = app.GetPublicAddr()
+			key.addr = app.GetPublicAddr()
+			key.name = app.GetName()
 		case types.SAMLIdPServiceProvider:
 			specResource = appOrSP
-			resourceKey.name = appOrSP.GetName()
+			key.name = specResource.GetName()
 		default:
 			return false, trace.BadParameter("expected types.SAMLIdPServiceProvider or types.AppServer, got %T", resource)
 		}
@@ -210,10 +200,10 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 
 	// Deduplicate matches.
 	if match && seenMap != nil {
-		if _, exists := seenMap[resourceKey]; exists {
+		if _, exists := seenMap[key]; exists {
 			return false, nil
 		}
-		seenMap[resourceKey] = struct{}{}
+		seenMap[key] = struct{}{}
 	}
 
 	return match, nil

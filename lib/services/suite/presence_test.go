@@ -30,7 +30,6 @@ func TestServerLabels(t *testing.T) {
 	emptyLabels := make(map[string]string)
 	// empty
 	server := &types.ServerV2{}
-	require.Empty(t, cmp.Diff(server.GetAllLabels(), emptyLabels))
 	require.Empty(t, server.GetAllLabels())
 	require.Equal(t, types.MatchLabels(server, emptyLabels), true)
 	require.Equal(t, types.MatchLabels(server, map[string]string{"a": "b"}), false)
