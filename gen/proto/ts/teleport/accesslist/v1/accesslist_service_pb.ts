@@ -347,6 +347,20 @@ export interface UpsertAccessListMemberRequest {
     member?: Member;
 }
 /**
+ * UpdateAccessListMemberRequest is the request for updating an access list
+ * member.
+ *
+ * @generated from protobuf message teleport.accesslist.v1.UpdateAccessListMemberRequest
+ */
+export interface UpdateAccessListMemberRequest {
+    /**
+     * member is the access list member to upsert.
+     *
+     * @generated from protobuf field: teleport.accesslist.v1.Member member = 1;
+     */
+    member?: Member;
+}
+/**
  * DeleteAccessListMemberRequest is the request for deleting a member from an
  * access list.
  *
@@ -1547,6 +1561,52 @@ class UpsertAccessListMemberRequest$Type extends MessageType<UpsertAccessListMem
  */
 export const UpsertAccessListMemberRequest = new UpsertAccessListMemberRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class UpdateAccessListMemberRequest$Type extends MessageType<UpdateAccessListMemberRequest> {
+    constructor() {
+        super("teleport.accesslist.v1.UpdateAccessListMemberRequest", [
+            { no: 1, name: "member", kind: "message", T: () => Member }
+        ]);
+    }
+    create(value?: PartialMessage<UpdateAccessListMemberRequest>): UpdateAccessListMemberRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<UpdateAccessListMemberRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpdateAccessListMemberRequest): UpdateAccessListMemberRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.accesslist.v1.Member member */ 1:
+                    message.member = Member.internalBinaryRead(reader, reader.uint32(), options, message.member);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UpdateAccessListMemberRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.accesslist.v1.Member member = 1; */
+        if (message.member)
+            Member.internalBinaryWrite(message.member, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.UpdateAccessListMemberRequest
+ */
+export const UpdateAccessListMemberRequest = new UpdateAccessListMemberRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class DeleteAccessListMemberRequest$Type extends MessageType<DeleteAccessListMemberRequest> {
     constructor() {
         super("teleport.accesslist.v1.DeleteAccessListMemberRequest", [
@@ -2275,6 +2335,7 @@ export const AccessListService = new ServiceType("teleport.accesslist.v1.AccessL
     { name: "ListAllAccessListMembers", options: {}, I: ListAllAccessListMembersRequest, O: ListAllAccessListMembersResponse },
     { name: "GetAccessListMember", options: {}, I: GetAccessListMemberRequest, O: Member },
     { name: "UpsertAccessListMember", options: {}, I: UpsertAccessListMemberRequest, O: Member },
+    { name: "UpdateAccessListMember", options: {}, I: UpdateAccessListMemberRequest, O: Member },
     { name: "DeleteAccessListMember", options: {}, I: DeleteAccessListMemberRequest, O: Empty },
     { name: "DeleteAllAccessListMembersForAccessList", options: {}, I: DeleteAllAccessListMembersForAccessListRequest, O: Empty },
     { name: "DeleteAllAccessListMembers", options: {}, I: DeleteAllAccessListMembersRequest, O: Empty },

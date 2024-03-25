@@ -289,6 +289,23 @@ func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *
 	return upserted, nil
 }
 
+// UpdateAccessListMember conditionally updates an access list member resource.
+func (a *AccessListService) UpdateAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
+	var updated *accesslist.AccessListMember
+	err := a.service.RunWhileLocked(ctx, lockName(member.Spec.AccessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		_, err := a.service.GetResource(ctx, member.Spec.AccessList)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		updated, err = a.memberService.WithPrefix(member.Spec.AccessList).ConditionalUpdateResource(ctx, member)
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return updated, nil
+}
+
 // DeleteAccessListMember hard deletes the specified access list member resource.
 func (a *AccessListService) DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error {
 	err := a.service.RunWhileLocked(ctx, lockName(accessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {

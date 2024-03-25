@@ -53,6 +53,8 @@ service AccessListService {
   rpc GetAccessListMember(GetAccessListMemberRequest) returns (Member);
   // UpsertAccessListMember creates or updates an access list member resource.
   rpc UpsertAccessListMember(UpsertAccessListMemberRequest) returns (Member);
+  // UpdateAccessListMember conditionally updates an access list member resource.
+  rpc UpdateAccessListMember(UpdateAccessListMemberRequest) returns (Member);
   // DeleteAccessListMember hard deletes the specified access list member
   // resource.
   rpc DeleteAccessListMember(DeleteAccessListMemberRequest) returns (google.protobuf.Empty);
@@ -235,6 +237,13 @@ message UpsertAccessListMemberRequest {
 
   // member is the access list member to upsert.
   Member member = 4;
+}
+
+// UpdateAccessListMemberRequest is the request for updating an access list
+// member.
+message UpdateAccessListMemberRequest {
+  // member is the access list member to upsert.
+  Member member = 1;
 }
 
 // DeleteAccessListMemberRequest is the request for deleting a member from an
