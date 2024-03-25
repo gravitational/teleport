@@ -663,6 +663,10 @@ func (s *session) launch(isEphemeralCont bool) error {
 func (s *session) setTerminationErr(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.setTerminationErrUnlocked(err)
+}
+
+func (s *session) setTerminationErrUnlocked(err error) {
 	if s.terminationErr != nil {
 		return
 	}
@@ -982,6 +986,18 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 			// running in one now that the moderated session is approved
 			startedEphemeralCont, err := s.createEphemeralContainer()
 			if err != nil {
+				// if the ephemeral container creation fails, close the session
+				// and return the error. We need to close the session here because
+				// we must inform all parties that the session is closing.
+				s.setTerminationErrUnlocked(err)
+				s.reportErrorToSessionRecorder(err)
+				s.log.WithError(err).Warning("Executor failed while creating ephemeral pod.")
+				go func() {
+					err := s.Close()
+					if err != nil {
+						s.log.WithError(err).Error("Failed to close session")
+					}
+				}()
 				return trace.Wrap(err)
 			}
 
