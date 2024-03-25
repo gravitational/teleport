@@ -153,3 +153,17 @@ This configuration is available under the `jwt_claims` property of the
 application's `rewrite` configuration. See
 [Web Application Access](./guides/connecting-apps.mdx#configuring-the-jwt-token)
 for details.
+
+## Request too large
+
+Teleport enforces a 10MB size limit for the body of each HTTP request.
+
+### Symptom
+
+When attempting to connect to an HTTP app behind Teleport, you see an error
+that states *the read limit is reached*.
+
+### Solution
+
+If your application supports sending requests with chunked encoding, use that
+to break up large requests into smaller chunks.
