@@ -2503,6 +2503,9 @@ type JamfInventoryEntry struct {
 	// OnMissing is the trigger for devices missing from the MDM inventory view.
 	// See [types.JamfInventoryEntry.OnMissing].
 	OnMissing string `yaml:"on_missing,omitempty"`
+	// Custom page size for inventory queries.
+	// A server default is used if zeroed or negative.
+	PageSize int32 `yaml:"page_size,omitempty"`
 }
 
 func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
@@ -2537,6 +2540,7 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 			SyncPeriodPartial: types.Duration(e.SyncPeriodPartial),
 			SyncPeriodFull:    types.Duration(e.SyncPeriodFull),
 			OnMissing:         e.OnMissing,
+			PageSize:          e.PageSize,
 		}
 	}
 	spec := &types.JamfSpecV1{
