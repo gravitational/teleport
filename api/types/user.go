@@ -36,6 +36,17 @@ const (
 	UserTypeLocal UserType = "local"
 )
 
+// Match checks if the given user matches this filter.
+func (f *UserFilter) Match(user *UserV2) bool {
+	if len(f.SearchKeywords) != 0 {
+		if !user.MatchSearch(f.SearchKeywords) {
+			return false
+		}
+	}
+
+	return true
+}
+
 // User represents teleport embedded user or external user.
 type User interface {
 	// ResourceWithSecrets provides common resource properties
