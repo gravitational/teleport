@@ -5033,6 +5033,130 @@ func TestListUnifiedResources_WithPredicate(t *testing.T) {
 	require.Error(t, err)
 }
 
+func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
+	const nodeCount = 150_000
+	const roleCount = 32
+
+	logger := logrus.StandardLogger()
+	logger.ReplaceHooks(make(logrus.LevelHooks))
+	logrus.SetFormatter(logutils.NewTestJSONFormatter())
+	logger.SetLevel(logrus.PanicLevel)
+	logger.SetOutput(io.Discard)
+
+	ctx := context.Background()
+	srv := newTestTLSServer(b)
+
+	var ids []string
+	for i := 0; i < roleCount; i++ {
+		ids = append(ids, uuid.New().String())
+	}
+
+	ids[0] = "hidden"
+
+	var hiddenNodes int
+	// Create test nodes.
+	for i := 0; i < nodeCount; i++ {
+		name := uuid.New().String()
+		id := ids[i%len(ids)]
+		if id == "hidden" {
+			hiddenNodes++
+		}
+
+		labels := map[string]string{
+			"kEy":   id,
+			"grouP": "useRs",
+		}
+
+		if i == 10 {
+			labels["ip"] = "10.20.30.40"
+			labels["ADDRESS"] = "10.20.30.41"
+			labels["food"] = "POTATO"
+		}
+
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{},
+			labels,
+		)
+		require.NoError(b, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(b, err)
+	}
+
+	b.Run("labels", func(b *testing.B) {
+		benchmarkListUnifiedResources(
+			b, ctx,
+			1,
+			srv,
+			ids,
+			func(role types.Role, id string) {
+				role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+			},
+			func(req *proto.ListUnifiedResourcesRequest) {
+				req.Labels = map[string]string{"ip": "10.20.30.40"}
+			},
+		)
+	})
+	b.Run("predicate path", func(b *testing.B) {
+		benchmarkListUnifiedResources(
+			b, ctx,
+			1,
+			srv,
+			ids,
+			func(role types.Role, id string) {
+				role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+			},
+			func(req *proto.ListUnifiedResourcesRequest) {
+				req.PredicateExpression = `labels.ip == "10.20.30.40"`
+			},
+		)
+	})
+	b.Run("predicate index", func(b *testing.B) {
+		benchmarkListUnifiedResources(
+			b, ctx,
+			1,
+			srv,
+			ids,
+			func(role types.Role, id string) {
+				role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+			},
+			func(req *proto.ListUnifiedResourcesRequest) {
+				req.PredicateExpression = `labels["ip"] == "10.20.30.40"`
+			},
+		)
+	})
+	b.Run("search lower", func(b *testing.B) {
+		benchmarkListUnifiedResources(
+			b, ctx,
+			1,
+			srv,
+			ids,
+			func(role types.Role, id string) {
+				role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+			},
+			func(req *proto.ListUnifiedResourcesRequest) {
+				req.SearchKeywords = []string{"10.20.30.40"}
+			},
+		)
+	})
+	b.Run("search upper", func(b *testing.B) {
+		benchmarkListUnifiedResources(
+			b, ctx,
+			1,
+			srv,
+			ids,
+			func(role types.Role, id string) {
+				role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+			},
+			func(req *proto.ListUnifiedResourcesRequest) {
+				req.SearchKeywords = []string{"POTATO"}
+			},
+		)
+	})
+}
+
 // go test ./lib/auth -bench=BenchmarkListUnifiedResources -run=^$ -v -benchtime 1x
 // goos: darwin
 // goarch: arm64
@@ -5043,7 +5167,7 @@ func TestListUnifiedResources_WithPredicate(t *testing.T) {
 // PASS
 // ok      github.com/gravitational/teleport/lib/auth      2.878s
 func BenchmarkListUnifiedResources(b *testing.B) {
-	const nodeCount = 50_000
+	const nodeCount = 150_000
 	const roleCount = 32
 
 	logger := logrus.StandardLogger()
@@ -5103,10 +5227,11 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 		b.Run(tc.desc, func(b *testing.B) {
 			benchmarkListUnifiedResources(
 				b, ctx,
-				nodeCount, hiddenNodes,
+				nodeCount-hiddenNodes,
 				srv,
 				ids,
 				tc.editRole,
+				func(req *proto.ListUnifiedResourcesRequest) {},
 			)
 		})
 	}
@@ -5114,10 +5239,11 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 
 func benchmarkListUnifiedResources(
 	b *testing.B, ctx context.Context,
-	nodeCount, hiddenNodes int,
+	expectedCount int,
 	srv *TestTLSServer,
 	ids []string,
 	editRole func(r types.Role, id string),
+	editReq func(req *proto.ListUnifiedResourcesRequest),
 ) {
 	var roles []types.Role
 	for _, id := range ids {
@@ -5151,6 +5277,9 @@ func benchmarkListUnifiedResources(
 			SortBy: types.SortBy{IsDesc: false, Field: types.ResourceMetadataName},
 			Limit:  1_000,
 		}
+
+		editReq(req)
+
 		for {
 			rsp, err := clt.ListUnifiedResources(ctx, req)
 			require.NoError(b, err)
@@ -5161,7 +5290,7 @@ func benchmarkListUnifiedResources(
 				break
 			}
 		}
-		require.Len(b, resources, nodeCount-hiddenNodes)
+		require.Len(b, resources, expectedCount)
 	}
 }
 

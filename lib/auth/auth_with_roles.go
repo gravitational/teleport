@@ -1326,18 +1326,34 @@ func (a *ServerWithRoles) checkUnifiedAccess(resource types.ResourceWithLabels, 
 		return false, trace.Wrap(canAccessErr)
 	}
 
-	if resourceKind != types.KindSAMLIdPServiceProvider {
-		if err := checker.CanAccess(resource); err != nil {
-
-			if trace.IsAccessDenied(err) {
-				return false, nil
-			}
-			return false, trace.Wrap(err)
-		}
+	// Filter first and only check RBAC if there is a match to improve perf.
+	match, err := services.MatchResourceByFilters(resource, filter, nil)
+	if err != nil {
+		log.WithFields(logrus.Fields{
+			"resource_name": resource.GetName(),
+			"resource_kind": resourceKind,
+			"error":         err,
+		}).
+			Warn("Unable to determine access to resource, matching with filter failed")
+		return false, nil
 	}
 
-	match, err := services.MatchResourceByFilters(resource, filter, nil)
-	return match, trace.Wrap(err)
+	if !match {
+		return false, nil
+	}
+
+	if resourceKind == types.KindSAMLIdPServiceProvider {
+		return true, nil
+	}
+
+	if err := checker.CanAccess(resource); err != nil {
+		if trace.IsAccessDenied(err) {
+			return false, nil
+		}
+		return false, trace.Wrap(err)
+	}
+
+	return true, nil
 }
 
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
@@ -1353,6 +1369,20 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		SearchKeywords:      req.SearchKeywords,
 		PredicateExpression: req.PredicateExpression,
 		Kinds:               req.Kinds,
+	}
+
+	// If a predicate expression was provided, evaluate it with an empty
+	// server to determine if the expression is valid before attempting
+	// to do any listing.
+	if filter.PredicateExpression != "" {
+		parser, err := services.NewResourceParser(&types.ServerV2{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if _, err := parser.EvalBoolPredicate(filter.PredicateExpression); err != nil {
+			return nil, trace.BadParameter("failed to parse predicate expression: %s", err.Error())
+		}
 	}
 
 	// Populate resourceAccessMap with any access errors the user has for each possible
