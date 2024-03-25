@@ -155,7 +155,7 @@ func (f *Forwarder) ephemeralContainersLocal(authCtx *authContext, sess *cluster
 		return trace.Wrap(err)
 	}
 
-	if err := f.createWaitingContainer(req.Context(), ephemeralContName, authCtx, podPatch); err != nil {
+	if err := f.createWaitingContainer(req.Context(), ephemeralContName, authCtx, podPatch, reqPatchType); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -209,7 +209,7 @@ func (f *Forwarder) mergeEphemeralPatchWithCurrentPod(
 	return patchedPod, ephemeralContName, nil
 }
 
-func (f *Forwarder) createWaitingContainer(ctx context.Context, ephemeralContName string, authCtx *authContext, podPatch []byte) error {
+func (f *Forwarder) createWaitingContainer(ctx context.Context, ephemeralContName string, authCtx *authContext, podPatch []byte, patchType apimachinerytypes.PatchType) error {
 	waitingCont, err := kubewaitingcontainer.NewKubeWaitingContainer(
 		ephemeralContName,
 		&kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
@@ -219,6 +219,7 @@ func (f *Forwarder) createWaitingContainer(ctx context.Context, ephemeralContNam
 			PodName:       authCtx.kubeResource.Name,
 			ContainerName: ephemeralContName,
 			Patch:         podPatch,
+			PatchType:     string(patchType),
 		})
 	if err != nil {
 		return trace.Wrap(err)
