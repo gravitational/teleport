@@ -23,13 +23,14 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/discovery"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTeleportProcessIntegrationsOnly(t *testing.T) {

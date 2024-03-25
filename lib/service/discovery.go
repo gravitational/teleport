@@ -147,6 +147,9 @@ func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servic
 		accessGraphCAData []byte
 		err               error
 	)
+	if config == nil {
+		return discovery.AccessGraphConfig{}, trace.BadParameter("config is nil")
+	}
 	if config.AccessGraph.CA != "" {
 		accessGraphCAData, err = os.ReadFile(config.AccessGraph.CA)
 		if err != nil {
@@ -160,13 +163,13 @@ func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servic
 		CA:       accessGraphCAData,
 	}
 	if !accessGraphCfg.Enabled {
-		logger.Debug("Access graph is disabled or not configured. Falling back to the Auth server's access graph configuration.")
+		logger.DebugContext(ctx, "Access graph is disabled or not configured. Falling back to the Auth server's access graph configuration.")
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		rsp, err := client.GetClusterAccessGraphConfig(ctx)
 		cancel()
 		switch {
 		case trace.IsNotImplemented(err):
-			logger.Debug("Auth server does not support access graph's GetClusterAccessGraphConfig RPC")
+			logger.DebugContext(ctx, "Auth server does not support access graph's GetClusterAccessGraphConfig RPC")
 		case err != nil:
 			return discovery.AccessGraphConfig{}, trace.Wrap(err)
 		default:
