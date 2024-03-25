@@ -1689,7 +1689,7 @@ version: v1
 
 	// Verify there is no matching resource
 	const resourceKey = "db_object_import_rule/import_all_staging_tables"
-	buf, err := runResourceCommand(t, fc, []string{"get", resourceKey, "--format=json"})
+	_, err := runResourceCommand(t, fc, []string{"get", resourceKey, "--format=json"})
 	require.Error(t, err)
 
 	// Create the resource
@@ -1699,7 +1699,7 @@ version: v1
 	require.NoError(t, err)
 
 	// Fetch the resource
-	buf, err = runResourceCommand(t, fc, []string{"get", resourceKey, "--format=json"})
+	buf, err := runResourceCommand(t, fc, []string{"get", resourceKey, "--format=json"})
 	require.NoError(t, err)
 	resources := mustDecodeJSON[[]databaseobjectimportrule.Resource](t, buf)
 	require.Len(t, resources, 1)
