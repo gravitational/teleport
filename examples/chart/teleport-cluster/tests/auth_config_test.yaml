@@ -522,6 +522,7 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "You need an audit backend. In AWS mosde, you must set at least one of `aws.auditLogTable` (Dynamo) and `aws.athernaURL` (Athena)."
+
   - it: configures dynamo when dynamo is set
     set:
       chartMode: aws
@@ -535,6 +536,7 @@ tests:
       - matchRegex:
           path: data.teleport\.yaml
           pattern: '- dynamodb://my-dynamodb-table'
+
   - it: configures athena when athenaURL is set
     set:
       chartMode: aws
@@ -548,6 +550,7 @@ tests:
       - matchRegex:
           path: data.teleport\.yaml
           pattern: '- athena://db.table'
+
   - it: configures dynamo and stdout when dynamo is set and mirroring is on
     set:
       chartMode: aws
@@ -565,6 +568,7 @@ tests:
       - matchRegex:
           path: data.teleport\.yaml
           pattern: '- stdout://'
+
   - it: fails when both athena and dynamo are set but no order is specified
     set:
       chartMode: aws
@@ -578,6 +582,7 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "Both Dynamo and Athena audit backends are enabled. You must specify the primary backend by setting `aws.auditLogPrimaryBackend` to either 'dynamo' or 'athena'."
+
   - it: uses athena as primary backend when configured
     set:
       chartMode: aws
@@ -592,6 +597,7 @@ tests:
     asserts:
       - matchSnapshot:
           path: data.teleport\.yaml
+
   - it: uses dynamo as primary backend when configured
     set:
       chartMode: aws
@@ -606,6 +612,7 @@ tests:
     asserts:
       - matchSnapshot:
           path: data.teleport\.yaml
+
   - it: uses athena, dynamo, and stdout when everything is on
     set:
       chartMode: aws
