@@ -749,11 +749,9 @@ func (s *sessionCache) watchWebSessions(ctx context.Context) {
 		return
 	}
 
-	const period = defaults.HighResPollingPeriod
 	ticker := interval.New(interval.Config{
-		Duration:      period,
-		FirstDuration: period,
-		Jitter:        retryutils.NewSeventhJitter(),
+		Duration: defaults.HighResPollingPeriod,
+		Jitter:   retryutils.NewHalfJitter(),
 	})
 	defer ticker.Stop()
 
