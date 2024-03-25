@@ -58,9 +58,9 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 		// If there are no fetchers, we don't need to continue.
 		// We will send a delete request for all resources and return.
 		upsert, toDel := aws_sync.ReconcileResults(currentTAGResources, &aws_sync.Resources{})
-		err := push(stream, upsert, toDel)
-		if err != nil {
-			s.Log.WithError(err).Error("Error pushing TAGs")
+
+		if err := push(stream, upsert, toDel); err != nil {
+			s.Log.WithError(err).Error("Error pushing empty resources to TAGs")
 		}
 		return trace.Wrap(errNoAccessGraphFetchers)
 	}

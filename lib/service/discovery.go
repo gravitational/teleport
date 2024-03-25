@@ -20,11 +20,11 @@ package service
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -76,7 +76,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		process.ExitContext(),
 		process.Config,
 		process.getInstanceClient(),
-		logger,
+		log,
 	)
 	if err != nil {
 		return trace.Wrap(err, "failed to build access graph configuration")
@@ -143,11 +143,14 @@ func (process *TeleportProcess) integrationOnlyCredentials() bool {
 
 // buildAccessGraphFromTAGOrFallbackToAuth builds the AccessGraphConfig from the Teleport Agent configuration or falls back to the Auth server's configuration.
 // If the AccessGraph configuration is not enabled locally, it will fall back to the Auth server's configuration.
-func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servicecfg.Config, client auth.ClientI, logger *slog.Logger) (discovery.AccessGraphConfig, error) {
+func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servicecfg.Config, client auth.ClientI, logger logrus.FieldLogger) (discovery.AccessGraphConfig, error) {
 	var (
 		accessGraphCAData []byte
 		err               error
 	)
+	if config == nil {
+		return discovery.AccessGraphConfig{}, trace.BadParameter("config is nil")
+	}
 	if config.AccessGraph.CA != "" {
 		accessGraphCAData, err = os.ReadFile(config.AccessGraph.CA)
 		if err != nil {
