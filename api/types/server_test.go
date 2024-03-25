@@ -566,6 +566,126 @@ func TestIsOpenSSHNodeSubKind(t *testing.T) {
 	}
 }
 
+func TestIsEICE(t *testing.T) {
+	tests := []struct {
+		name   string
+		server *ServerV2
+		want   bool
+	}{
+		{
+			name: "eice node with account and instance id labels is EICE",
+			server: &ServerV2{
+				SubKind: SubKindOpenSSHEICENode,
+				Metadata: Metadata{
+					Labels: map[string]string{
+						AWSAccountIDLabel:  "123456789012",
+						AWSInstanceIDLabel: "i-123",
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "regular node not eice",
+			server: &ServerV2{
+				SubKind: SubKindTeleportNode,
+			},
+			want: false,
+		},
+		{
+			name: "agentless openssh node is not eice",
+			server: &ServerV2{
+				SubKind: SubKindOpenSSHNode,
+			},
+			want: false,
+		},
+		{
+			name: "eice node without account id label is not EICE",
+			server: &ServerV2{
+				SubKind: SubKindOpenSSHEICENode,
+				Metadata: Metadata{
+					Labels: map[string]string{
+						AWSInstanceIDLabel: "i-123",
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "eice node without instance id label is not EICE",
+			server: &ServerV2{
+				SubKind: SubKindOpenSSHEICENode,
+				Metadata: Metadata{
+					Labels: map[string]string{
+						AWSAccountIDLabel: "123456789012",
+					},
+				},
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.server.IsEICE(); got != tt.want {
+				t.Errorf("IsEICE() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestServerInfoName(t *testing.T) {
+	tests := []struct {
+		name   string
+		server *ServerV2
+		want   string
+	}{
+		{
+			name: "node with account and instance id labels uses the aws-<account-id>-<instance-id> format",
+			server: &ServerV2{
+				Metadata: Metadata{
+					Labels: map[string]string{
+						AWSAccountIDLabel:  "123456789012",
+						AWSInstanceIDLabel: "i-123",
+					},
+				},
+			},
+			want: "aws-123456789012-i-123",
+		},
+		{
+			name: "node with aws metadata uses the aws-<account-id>-<instance-id> format",
+			server: &ServerV2{
+				Metadata: Metadata{Labels: map[string]string{}},
+				Spec: ServerSpecV2{
+					CloudMetadata: &CloudMetadata{
+						AWS: &AWSInfo{
+							AccountID:  "123456789012",
+							InstanceID: "i-123",
+						},
+					},
+				},
+			},
+			want: "aws-123456789012-i-123",
+		},
+		{
+			name: "other nodes have their server info name following the si-<namen> format",
+			server: &ServerV2{
+				Metadata: Metadata{
+					Name:   "abcd",
+					Labels: map[string]string{},
+				},
+			},
+			want: "si-abcd",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.server.ServerInfoName(); got != tt.want {
+				t.Errorf("ServerInfoName() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestGetCloudMetadataAWS(t *testing.T) {
 	for _, tt := range []struct {
 		name     string

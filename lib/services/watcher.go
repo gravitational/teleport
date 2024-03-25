@@ -1746,6 +1746,12 @@ type Node interface {
 	GetUseTunnel() bool
 	// GetProxyIDs returns a list of proxy ids this server is connected to.
 	GetProxyIDs() []string
+	// IsEICE returns whether the Node is an EICE instance.
+	// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
+	IsEICE() bool
+	// ServerInfoName returns the ServerInfo name for this resource.
+	// This name is used to match this instance against the ServerInfo resource.
+	ServerInfoName() string
 }
 
 // GetNodes allows callers to retrieve a subset of nodes that match the filter provided. The
@@ -1767,31 +1773,6 @@ func (n *nodeCollector) GetNodes(ctx context.Context, fn func(n Node) bool) []ty
 	}
 
 	return matched
-}
-
-// FillNamesFromEC2Instances iterates over all nodes (cached) and fills in the fetchedEC2Instances value for nodes
-// that already exist in the cluster.
-// It uses the AWS AccountID/InstanceID labels to detect nodes already present.
-func (n *nodeCollector) FillNamesFromEC2Instances(ctx context.Context, fetchedEC2Instances map[string]string) {
-	// Attempt to freshen our data first.
-	n.refreshStaleNodes(ctx)
-
-	n.rw.RLock()
-	defer n.rw.RUnlock()
-
-	for _, server := range n.current {
-		labels := server.GetAllLabels()
-		accountID, accountOK := labels[types.AWSAccountIDLabel]
-		instanceID, instanceOK := labels[types.AWSInstanceIDLabel]
-		// Checking only for the subkind is not enough because users can manually remove labels from agentless nodes.
-		// Account/Instance IDs are required for comparing against new nodes, nodes without those labels are discarded.
-		if accountOK && instanceOK && server.GetSubKind() == types.SubKindOpenSSHEICENode {
-			nodeEC2Key := types.ServerInfoNameFromAWS(accountID, instanceID)
-			if _, found := fetchedEC2Instances[nodeEC2Key]; found {
-				fetchedEC2Instances[nodeEC2Key] = server.GetName()
-			}
-		}
-	}
 }
 
 // refreshStaleNodes attempts to reload nodes from the NodeGetter if

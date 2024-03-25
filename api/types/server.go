@@ -91,6 +91,14 @@ type Server interface {
 	// IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
 	// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICENode.
 	IsOpenSSHNode() bool
+
+	// IsEICE returns whether the Node is an EICE instance.
+	// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
+	IsEICE() bool
+
+	// ServerInfoName returns the ServerInfo name for this resource.
+	// This name is used to match this instance against the ServerInfo resource.
+	ServerInfoName() string
 }
 
 // NewServer creates an instance of Server.
@@ -385,6 +393,42 @@ func (s *ServerV2) IsOpenSSHNode() bool {
 // OpenSSH daemon (instead of a Teleport Node).
 func IsOpenSSHNodeSubKind(subkind string) bool {
 	return subkind == SubKindOpenSSHNode || subkind == SubKindOpenSSHEICENode
+}
+
+// IsEICE returns whether the Node is an EICE instance.
+// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
+func (s *ServerV2) IsEICE() bool {
+	if s.SubKind != SubKindOpenSSHEICENode {
+		return false
+	}
+
+	awsAccountID, _ := s.GetLabel(AWSAccountIDLabel)
+	awsInstanceID, _ := s.GetLabel(AWSInstanceIDLabel)
+
+	if awsMetadata := s.GetAWSInfo(); awsMetadata != nil && awsMetadata.AccountID != "" && awsMetadata.InstanceID != "" {
+		awsAccountID = awsMetadata.AccountID
+		awsInstanceID = awsMetadata.InstanceID
+	}
+
+	return awsAccountID != "" && awsInstanceID != ""
+}
+
+// ServerInfoName returns the ServerInfo name for this resource.
+// This name is used to match this instance against the ServerInfo resource.
+func (s *ServerV2) ServerInfoName() string {
+	awsAccountID, _ := s.GetLabel(AWSAccountIDLabel)
+	awsInstanceID, _ := s.GetLabel(AWSInstanceIDLabel)
+
+	if awsMetadata := s.GetAWSInfo(); awsMetadata != nil && awsMetadata.AccountID != "" && awsMetadata.InstanceID != "" {
+		awsAccountID = awsMetadata.AccountID
+		awsInstanceID = awsMetadata.InstanceID
+	}
+
+	if awsAccountID != "" && awsInstanceID != "" {
+		return ServerInfoNameFromAWS(awsAccountID, awsInstanceID)
+	}
+
+	return ServerInfoNameFromNodeName(s.GetName())
 }
 
 // openSSHNodeCheckAndSetDefaults are common validations for OpenSSH nodes.

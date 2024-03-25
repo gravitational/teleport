@@ -74,6 +74,8 @@ func ApplyOverTime[T any](ctx context.Context, conf ApplyOverTimeConfig, items [
 	if err := conf.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	ticker := conf.clock.NewTicker(conf.BatchInterval)
+	defer ticker.Stop()
 
 	maxBatches := int(conf.MaxDuration / conf.BatchInterval)
 	dynamicBatchSize := (len(items) / maxBatches) + 1
@@ -92,7 +94,7 @@ func ApplyOverTime[T any](ctx context.Context, conf ApplyOverTimeConfig, items [
 			// If ctx is Done, return without processing the other elements of the current chunk.
 			select {
 			case <-ctx.Done():
-				return nil
+				return trace.Wrap(ctx.Err())
 			default:
 				applyFn(c)
 			}
@@ -104,8 +106,8 @@ func ApplyOverTime[T any](ctx context.Context, conf ApplyOverTimeConfig, items [
 		select {
 		// If ctx is Done, return without processing the remaining chunks.
 		case <-ctx.Done():
-			return nil
-		case <-conf.clock.After(conf.BatchInterval):
+			return trace.Wrap(ctx.Err())
+		case <-ticker.Chan():
 		}
 	}
 }
