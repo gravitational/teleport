@@ -314,4 +314,6 @@ const cfg = {
   },
 };
 
+export type EnterpriseConfig = typeof cfg;
+
 export default cfg;

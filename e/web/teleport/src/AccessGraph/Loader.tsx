@@ -26,6 +26,12 @@ import * as reactIs from 'react-is';
 import * as whatwgFetch from 'whatwg-fetch';
 import * as propTypes from 'prop-types';
 import useStickyClusterId from 'teleport/useStickyClusterId';
+import { useFeatures } from 'teleport/FeaturesContext';
+import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
+import { NavigationCategory } from 'teleport/Navigation/categories';
+
+import cfg, { EnterpriseConfig } from 'e-teleport/config';
+import { AccessGraphLoading } from 'e-teleport/AccessGraph/AccessGraphLoading';
 
 const ASSETS_PREFIX = '/enterprise/accessgraph/static';
 const STYLE_URL = `${ASSETS_PREFIX}/style.css`;
@@ -53,6 +59,8 @@ interface AccessGraphProps {
   clusterId: string;
   awsOnboardingEnabled: boolean;
   urlNavigationEnabled: boolean;
+  cfg: EnterpriseConfig;
+  backUrl: string;
 }
 
 function loadAccessGraph() {
@@ -115,12 +123,20 @@ const Graph = lazy(loadAccessGraph);
 export function AccessGraph() {
   const { clusterId } = useStickyClusterId();
 
+  const features = useFeatures();
+  const backUrl = getFirstRouteForCategory(
+    features,
+    NavigationCategory.Management
+  );
+
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<AccessGraphLoading />}>
       <Graph
         clusterId={clusterId}
         awsOnboardingEnabled={true}
         urlNavigationEnabled={true}
+        cfg={cfg}
+        backUrl={backUrl}
       />
     </Suspense>
   );
