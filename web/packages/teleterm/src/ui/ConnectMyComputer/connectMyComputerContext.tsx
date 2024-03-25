@@ -37,8 +37,10 @@ import { wait } from 'shared/utils/wait';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { Server } from 'teleterm/services/tshd/types';
-import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
-import { isNotFoundError } from 'teleterm/services/tshd/errors';
+import {
+  cloneAbortSignal,
+  isTshdRpcError,
+} from 'teleterm/services/tshd/cloneableClient';
 import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
 
@@ -281,7 +283,7 @@ export const ConnectMyComputerContextProvider: FC<
           rootClusterUri
         );
     } catch (error) {
-      if (isNotFoundError(error)) {
+      if (isTshdRpcError(error, 'NOT_FOUND')) {
         return;
       }
       throw error;

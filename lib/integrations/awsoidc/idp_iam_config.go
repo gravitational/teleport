@@ -319,7 +319,8 @@ func NewIdPIAMConfigureClient(ctx context.Context) (IdPIAMConfigureClient, error
 //   - s3:CreateBucket
 //   - s3:GetBucketPolicy
 //   - s3:PutBucketPolicy
-//   - s3:DeletePublicAccessBlock
+//   - s3:PutBucketPublicAccessBlock (used for s3:DeletePublicAccessBlock)
+//   - s3:ListBuckets (used for s3:HeadBucket)
 //   - s3:PutObject
 func ConfigureIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {

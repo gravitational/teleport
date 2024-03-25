@@ -28,10 +28,12 @@ import wasm from 'vite-plugin-wasm';
 
 import { htmlPlugin, transformPlugin } from './html';
 import { getStyledComponentsConfig } from './styled';
+import { generateAppHashFile } from './apphash';
 
 import type { UserConfig } from 'vite';
 
 const DEFAULT_PROXY_TARGET = '127.0.0.1:3080';
+const ENTRY_FILE_NAME = 'app/app.js';
 
 export function createViteConfig(
   rootDirectory: string,
@@ -71,8 +73,8 @@ export function createViteConfig(
         emptyOutDir: true,
         rollupOptions: {
           output: {
-            // removes hashing from our entry point file
-            entryFileNames: 'app/app.js',
+            // removes hashing from our entry point file.
+            entryFileNames: ENTRY_FILE_NAME,
             // assist is still lazy loaded and the telemetry bundle breaks any
             // websocket connections if included in the bundle. We will leave these two
             // files out of the bundle but without hashing so they are still discoverable.
@@ -100,6 +102,7 @@ export function createViteConfig(
           projects: [resolve(rootDirectory, 'tsconfig.json')],
         }),
         transformPlugin(),
+        generateAppHashFile(outputDirectory, ENTRY_FILE_NAME),
         wasm(),
       ],
       define: {

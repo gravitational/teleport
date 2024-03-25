@@ -264,7 +264,7 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 // to sign certificates using the Auth Server.
 type certificateSigner interface {
 	kubeutils.KubeServicesPresence
-	CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error)
+	CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error)
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
@@ -875,7 +875,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 			return trace.Wrap(err)
 		}
 
-		appSession, err := clusterAPI.CreateAppSession(ctx, types.CreateAppSessionRequest{
+		appSession, err := clusterAPI.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
 			Username:    a.genUser,
 			PublicAddr:  server.GetApp().GetPublicAddr(),
 			ClusterName: a.leafCluster,

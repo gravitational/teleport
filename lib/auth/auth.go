@@ -347,6 +347,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if cfg.KubeWaitingContainers == nil {
+		cfg.KubeWaitingContainers, err = local.NewKubeWaitingContainerService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		Trust:                     cfg.Trust,
@@ -381,6 +388,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Assistant:                 cfg.Assist,
 		UserPreferences:           cfg.UserPreferences,
 		PluginData:                cfg.PluginData,
+		KubeWaitingContainer:      cfg.KubeWaitingContainers,
 	}
 
 	as := Server{
@@ -535,6 +543,7 @@ type Services struct {
 	types.Events
 	events.AuditLogSessionStreamer
 	services.SecReports
+	services.KubeWaitingContainer
 }
 
 // SecReportsClient returns the security reports client.
@@ -583,6 +592,12 @@ func (r *Services) DiscoveryConfigClient() services.DiscoveryConfigs {
 
 // UserLoginStateClient returns the user login state client.
 func (r *Services) UserLoginStateClient() services.UserLoginStates {
+	return r
+}
+
+// KubernetesWaitingContainerClient returns the Kubernetes waiting
+// container client.
+func (r *Services) KubernetesWaitingContainerClient() services.KubeWaitingContainer {
 	return r
 }
 
@@ -5909,6 +5924,21 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.BadParameter("empty Login field")
 		}
 
+		// state.MFARequired is "per-role", so if the user is joining
+		// a session, MFA is required no matter what node they are
+		// connecting to. We don't preform an RBAC check like we do
+		// below when users are starting a session to selectively
+		// require MFA because we don't know what session the user
+		// is joining, nor do we know what role allowed the session
+		// creator to start the session that is attempting to be joined.
+		// We need this info to be able to selectively skip MFA in
+		// this case.
+		if t.Node.Login == teleport.SSHSessionJoinPrincipal {
+			return &proto.IsMFARequiredResponse{
+				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+			}, nil
+		}
+
 		// Find the target node and check whether MFA is required.
 		matches, err := client.GetResourcesWithFilters(ctx, a, proto.ListResourcesRequest{
 			ResourceType:   types.KindNode,
@@ -6037,6 +6067,14 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		noMFAAccessErr = checker.CheckAccess(desktops[0],
 			services.AccessState{},
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
+
+	case *proto.IsMFARequiredRequest_App:
+		app, err := a.GetApp(ctx, t.App.GetName())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		noMFAAccessErr = checker.CheckAccess(app, services.AccessState{})
 
 	default:
 		return nil, trace.BadParameter("unknown Target %T", req.Target)

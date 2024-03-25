@@ -161,7 +161,7 @@ func (c *Cluster) reissueAppCert(ctx context.Context, proxyClient *client.ProxyC
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	request := types.CreateAppSessionRequest{
+	request := &proto.CreateAppSessionRequest{
 		Username:          c.status.Username,
 		PublicAddr:        app.GetPublicAddr(),
 		ClusterName:       c.clusterClient.SiteName,

@@ -497,6 +497,16 @@
           ]
         },
         {
+          "title": "Access Monitoring",
+          "slug": "/access-controls/access-monitoring/",
+          "forScopes": [
+            "team",
+            "cloud",
+            "enterprise",
+            "oss"
+          ]
+        },
+        {
           "title": "Access Requests",
           "slug": "/access-controls/access-requests/",
           "forScopes": ["oss", "enterprise", "cloud"],
@@ -1831,7 +1841,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "15.1.4",
+      "version": "15.1.9",
       "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",

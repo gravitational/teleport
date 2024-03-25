@@ -93,7 +93,7 @@ func onAppLogin(cf *CLIConf) error {
 		log.Debugf("GCP service account is %q", gcpServiceAccount)
 	}
 
-	request := types.CreateAppSessionRequest{
+	request := &proto.CreateAppSessionRequest{
 		Username:          tc.Username,
 		PublicAddr:        app.GetPublicAddr(),
 		ClusterName:       tc.SiteName,
@@ -575,7 +575,7 @@ func generateSelfSignedCA(caPath, keyPath string, validUntil time.Time, dnsNames
 	}
 
 	// WriteFile truncates existing file before writing.
-	if err = os.WriteFile(caPath, certPem, 0600); err != nil {
+	if err = os.WriteFile(caPath, certPem, 0o600); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	return nil

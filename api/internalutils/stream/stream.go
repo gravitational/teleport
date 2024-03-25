@@ -186,6 +186,46 @@ func MapWhile[A, B any](stream Stream[A], fn func(A) (B, bool)) Stream[B] {
 	}
 }
 
+// chain is a stream that performs a Chain operation.
+type chain[T any] struct {
+	streams []Stream[T]
+	err     error
+}
+
+func (stream *chain[T]) Next() bool {
+	for len(stream.streams) != 0 && stream.err == nil {
+		if stream.streams[0].Next() {
+			return true
+		}
+
+		stream.err = stream.streams[0].Done()
+		stream.streams[0] = nil
+		stream.streams = stream.streams[1:]
+	}
+
+	return false
+}
+
+func (stream *chain[T]) Item() T {
+	return stream.streams[0].Item()
+}
+
+func (stream *chain[T]) Done() error {
+	for _, s := range stream.streams {
+		s.Done()
+	}
+	stream.streams = nil
+
+	return stream.err
+}
+
+// Chain joins multiple streams in order, fully consuming one before moving to the next.
+func Chain[T any](streams ...Stream[T]) Stream[T] {
+	return &chain[T]{
+		streams: streams,
+	}
+}
+
 // empty is a stream that halts immediately
 type empty[T any] struct {
 	err error
@@ -239,6 +279,45 @@ func (stream *once[T]) Done() error {
 func Once[T any](item T) Stream[T] {
 	return &once[T]{
 		item: item,
+	}
+}
+
+// onceFunc is a stream that produces zero or one items based on
+// a lazily evaluated closure.
+type onceFunc[T any] struct {
+	fn   func() (T, error)
+	item T
+	err  error
+}
+
+func (stream *onceFunc[T]) Next() bool {
+	if stream.fn == nil {
+		return false
+	}
+
+	stream.item, stream.err = stream.fn()
+	stream.fn = nil
+	return stream.err == nil
+}
+
+func (stream *onceFunc[T]) Item() T {
+	return stream.item
+}
+
+func (stream *onceFunc[T]) Done() error {
+	if errors.Is(stream.err, io.EOF) {
+		return nil
+	}
+	return stream.err
+}
+
+// OnceFunc builds a stream from a closure that will yield exactly zero or one items. This stream
+// is the lazy equivalent of the Once/Fail/Empty combinators. A nil error value results
+// in a single-element stream. An error value of io.EOF results in an empty stream. All other error
+// values result in a failing stream.
+func OnceFunc[T any](fn func() (T, error)) Stream[T] {
+	return &onceFunc[T]{
+		fn: fn,
 	}
 }
 

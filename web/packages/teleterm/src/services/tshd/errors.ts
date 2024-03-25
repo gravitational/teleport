@@ -18,24 +18,7 @@
 
 import { isTshdRpcError } from './cloneableClient';
 
-export function isAccessDeniedError(error: unknown): boolean {
-  // TODO(gzdunek): Replace it with check on the code field.
-  if (isTshdRpcError(error)) {
-    return error.message.includes('access denied');
-  }
-  return false;
-}
-
-export function isNotFoundError(error: unknown): boolean {
-  if (isTshdRpcError(error)) {
-    return error.code === 'NOT_FOUND';
-  }
-  return false;
-}
-
+/** @deprecated Use `isTshdRpcError(error, 'UNIMPLEMENTED')`. */
 export function isUnimplementedError(error: unknown): boolean {
-  if (isTshdRpcError(error)) {
-    return error.code === 'UNIMPLEMENTED';
-  }
-  return false;
+  return isTshdRpcError(error, 'UNIMPLEMENTED');
 }
