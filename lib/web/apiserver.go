@@ -309,6 +309,9 @@ type Config struct {
 	// proxy built-in version server to retrieve target versions. This is part
 	// of the automatic upgrades.
 	AutomaticUpgradesChannels automaticupgrades.Channels
+
+	// DataDir is a local server data directory.
+	DataDir string
 }
 
 // SetDefaults ensures proper default values are set if
@@ -622,6 +625,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			CipherSuites:     cfg.CipherSuites,
 			ProxyPublicAddrs: cfg.ProxyPublicAddrs,
 			WebPublicAddr:    resp.SSH.PublicAddr,
+			ServerID:         cfg.HostUUID,
+			DataDir:          cfg.DataDir,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

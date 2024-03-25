@@ -146,12 +146,12 @@ func (s *signerHandler) serveHTTP(w http.ResponseWriter, req *http.Request) erro
 func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w http.ResponseWriter, req *http.Request) error {
 	// It's important that we resolve the endpoint before modifying the request headers,
 	// as they may be needed to resolve the endpoint correctly.
-	re, err := resolveEndpoint(req)
+	re, err := ResolveEndpoint(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	unsignedReq, err := s.rewriteCommonRequest(sessCtx, w, req, re)
+	unsignedReq, responseExtraHeaders, err := RewriteCommonRequest(s.closeContext, s.Clock, sessCtx, req, re)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -169,8 +169,13 @@ func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w htt
 		return trace.Wrap(err)
 	}
 	recorder := httplib.NewResponseStatusRecorder(w)
+
+	for headerKey, headerValue := range responseExtraHeaders {
+		w.Header().Set(headerKey, strings.Join(headerValue, ";"))
+	}
+
 	s.fwd.ServeHTTP(recorder, signedReq)
-	s.emitAudit(sessCtx, unsignedReq, uint32(recorder.Status()), re)
+	EmitAudit(s.closeContext, sessCtx, unsignedReq, uint32(recorder.Status()), re)
 	return nil
 }
 
@@ -194,21 +199,19 @@ func (s *signerHandler) serveRequestByAssumedRole(sessCtx *common.SessionContext
 
 	recorder := httplib.NewResponseStatusRecorder(w)
 	s.fwd.ServeHTTP(recorder, req)
-	s.emitAudit(sessCtx, reqCloneForAudit, uint32(recorder.Status()), re)
+	if err := EmitAudit(s.closeContext, sessCtx, reqCloneForAudit, uint32(recorder.Status()), re); err != nil {
+		// log but don't return the error, because we already handed off request/response handling to the oxy forwarder.
+		s.Log.WithError(err).Warn("Failed to emit audit event.")
+	}
 	return nil
 }
 
-func (s *signerHandler) emitAudit(sessCtx *common.SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint) {
-	var auditErr error
+func EmitAudit(ctx context.Context, sessCtx *common.SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint) error {
 	if isDynamoDBEndpoint(re) {
-		auditErr = sessCtx.Audit.OnDynamoDBRequest(s.closeContext, sessCtx, req, status, re)
-	} else {
-		auditErr = sessCtx.Audit.OnRequest(s.closeContext, sessCtx, req, status, re)
+		return sessCtx.Audit.OnDynamoDBRequest(ctx, sessCtx, req, status, re)
 	}
-	if auditErr != nil {
-		// log but don't return the error, because we already handed off request/response handling to the oxy forwarder.
-		s.Log.WithError(auditErr).Warn("Failed to emit audit event.")
-	}
+
+	return sessCtx.Audit.OnRequest(ctx, sessCtx, req, status, re)
 }
 
 // rewriteRequest clones a request to rewrite the url.
@@ -238,19 +241,22 @@ func rewriteRequest(ctx context.Context, r *http.Request, re *endpoints.Resolved
 	return outReq, nil
 }
 
-// rewriteCommonRequest updates request signed with the default local proxy credentials.
-func (s *signerHandler) rewriteCommonRequest(sessCtx *common.SessionContext, w http.ResponseWriter, r *http.Request, re *endpoints.ResolvedEndpoint) (*http.Request, error) {
-	req, err := rewriteRequest(s.closeContext, r, re)
+// RewriteCommonRequest updates request signed with the default local proxy credentials.
+// The returned headers must be added to the response headers.
+func RewriteCommonRequest(ctx context.Context, clock clockwork.Clock, sessCtx *common.SessionContext, r *http.Request, re *endpoints.ResolvedEndpoint) (*http.Request, http.Header, error) {
+	req, err := rewriteRequest(ctx, r, re)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
+	var responseExtraHeaders http.Header
 	if strings.EqualFold(re.SigningName, sts.EndpointsID) {
-		if err := updateAssumeRoleDuration(sessCtx.Identity, w, req, s.Clock); err != nil {
-			return nil, trace.Wrap(err)
+		responseExtraHeaders, err = updateAssumeRoleDuration(sessCtx.Identity, req, clock)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
 		}
 	}
-	return req, nil
+	return req, responseExtraHeaders, nil
 }
 
 // rewriteRequestByAssumedRole updates headers and url for requests by assumed roles.

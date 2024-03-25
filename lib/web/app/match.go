@@ -108,6 +108,12 @@ func MatchHealthy(proxyClient reversetunnelclient.Tunnel, clusterName string) Ma
 			return true
 		}
 
+		// Apps with Integration will use the Proxy to sign requests instead of using an ApplicationServer.
+		// Those apps are always healthy.
+		if appServer.GetApp().GetIntegration() != "" {
+			return true
+		}
+
 		conn, err := dialAppServer(ctx, proxyClient, clusterName, appServer)
 		if err != nil {
 			return false

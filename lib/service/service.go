@@ -4157,6 +4157,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			AccessGraphAddr:           accessGraphAddr,
 			TracerProvider:            process.TracingProvider,
 			AutomaticUpgradesChannels: cfg.Proxy.AutomaticUpgradesChannels,
+			DataDir:                   cfg.DataDir,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {

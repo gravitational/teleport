@@ -718,6 +718,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 				AccessPoint:  authClient,
 				ProxyClient:  tunnel,
 				CipherSuites: utils.DefaultCipherSuites(),
+				ServerID:     uuid.NewString(),
 			})
 			require.NoError(t, err)
 
@@ -740,6 +741,8 @@ func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, pro
 		ProxyClient:      proxyClient,
 		CipherSuites:     utils.DefaultCipherSuites(),
 		ProxyPublicAddrs: proxyPublicAddrs,
+		ServerID:         uuid.NewString(),
+		DataDir:          t.TempDir(),
 	})
 	require.NoError(t, err)
 

@@ -56,10 +56,13 @@ type transportConfig struct {
 	clusterName  string
 	log          logrus.FieldLogger
 	clock        clockwork.Clock
+	serverID     string
+	datadir      string
+	closingCtx   context.Context
 }
 
 // Check validates configuration.
-func (c *transportConfig) Check() error {
+func (c *transportConfig) CheckAndSetDefaults() error {
 	if c.proxyClient == nil {
 		return trace.BadParameter("proxy client missing")
 	}
@@ -88,6 +91,15 @@ func (c *transportConfig) Check() error {
 		c.clock = clockwork.NewRealClock()
 	}
 
+	if c.serverID == "" {
+		return trace.BadParameter("server id missing")
+	}
+	if c.datadir == "" {
+		return trace.BadParameter("datadir is missing")
+	}
+	if c.closingCtx == nil {
+		return trace.BadParameter("closing context missing")
+	}
 	return nil
 }
 
@@ -112,9 +124,9 @@ type transport struct {
 }
 
 // newTransport creates a new transport.
-func newTransport(c *transportConfig) (*transport, error) {
+func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 	var err error
-	if err := c.Check(); err != nil {
+	if err := c.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -126,14 +138,22 @@ func newTransport(c *transportConfig) (*transport, error) {
 	}
 
 	// Clone and configure the transport.
-	tr, err := defaults.Transport()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tr.DialContext = t.DialContext
-	tr.TLSClientConfig = t.clientTLSConfig
+	if t.c.servers[0].GetApp().GetIntegration() != "" {
+		t.tr, err = roundTripperForAWSOIDCIntegration(ctx, t.c)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		tr, err := defaults.Transport()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tr.DialContext = t.DialContext
+		tr.TLSClientConfig = t.clientTLSConfig
 
-	t.tr = tr
+		t.tr = tr
+	}
+
 	return t, nil
 }
 
