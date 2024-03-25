@@ -66,6 +66,11 @@ export function AccessRequestCheckout() {
     requestedCount,
     goToRequestsList: reset, // have to pass through RequestCheckout because works differently on web
     setShowCheckout,
+    maxDuration,
+    setMaxDuration,
+    dryRunResponse,
+    requestTTL,
+    setRequestTTL,
   } = useAccessRequestCheckout();
 
   return (
@@ -126,25 +131,11 @@ export function AccessRequestCheckout() {
             numRequestedResources={requestedCount}
             isResourceRequest={data[0]?.kind !== 'role'}
             fetchStatus={'loaded'}
-            // TODO(lisa): future work, have teleterm make a dry run request
-            // And touch on
-            //  - dryRunResponse
-            //  - maxDuration
-            //  - setMaxDuration
-            //  - requestTTL
-            //  - requestTTLDurationOptions
-            //  - setRequestTTL
-            dryRunResponse={undefined}
-            maxDuration={{
-              value: 0,
-              label: '',
-            }}
-            setMaxDuration={() => null}
-            requestTTL={{
-              value: 0,
-              label: '',
-            }}
-            setRequestTTL={() => null}
+            dryRunResponse={dryRunResponse}
+            maxDuration={maxDuration}
+            setMaxDuration={setMaxDuration}
+            requestTTL={requestTTL}
+            setRequestTTL={setRequestTTL}
           />
         )}
       </Transition>

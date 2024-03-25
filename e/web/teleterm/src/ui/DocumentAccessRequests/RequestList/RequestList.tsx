@@ -97,6 +97,14 @@ export function RequestList({
             ),
           },
           {
+            key: 'expires',
+            headerText: 'Expires',
+            isSortable: true,
+            render: ({ requestTTLDuration }) => (
+              <Cell>{requestTTLDuration}</Cell>
+            ),
+          },
+          {
             altKey: 'view-btn',
             render: request =>
               renderActionCell(

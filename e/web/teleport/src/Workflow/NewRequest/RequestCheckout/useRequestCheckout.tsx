@@ -10,11 +10,10 @@ import { CreateRequest } from 'e-teleport/Workflow/Shared/types';
 import { State as NewRequestState, ResourceKind } from '../useNewRequest';
 
 import { ReviewerOption } from './types';
+import { getDryRunMaxDuration } from './utils';
 
 import type { ResourceIdKind } from 'teleport/services/agents';
 import type { AccessRequest, ResourceId } from 'e-teleport/services/workflow';
-
-const SEVEN_DAYS_IN_MS = 1000 * 60 * 60 * 24 * 7;
 
 type LoadingStatus = 'loading' | 'loaded';
 
@@ -80,10 +79,10 @@ export function useRequestCheckout({
   // Does an initial "dry run" of an empty access request to get all time
   // options and calculate suggested reviewers.
   React.useEffect(() => {
-    // duration is set to the max - 7 days
-    const maxAccessDuration = new Date(Date.now() + SEVEN_DAYS_IN_MS);
-
-    createAccessRequest({ maxDuration: maxAccessDuration, dryRun: true })
+    createAccessRequest({
+      maxDuration: getDryRunMaxDuration(),
+      dryRun: true,
+    })
       .then((resp: AccessRequest) => {
         // sessionTTL and maxDuration were introduced in v13.3.0.
         // Older backends will not return these values.

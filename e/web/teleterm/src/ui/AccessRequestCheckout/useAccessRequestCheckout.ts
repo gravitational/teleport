@@ -1,15 +1,24 @@
 import { useState, useEffect } from 'react';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { PendingAccessRequest } from 'teleterm/ui/services/workspacesService';
-import { useLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { ReviewerOption } from 'e-teleport/Workflow/NewRequest/RequestCheckout/types';
-import { CreateAccessRequestParams } from 'teleterm/services/tshd/types';
+import {
+  CreateAccessRequestParams,
+  AccessRequest as TeletermAccessRequest,
+} from 'teleterm/services/tshd/types';
 import { CreateRequest } from 'e-teleport/Workflow/Shared/types';
+import { Option } from 'shared/components/Select';
+import { getDryRunMaxDuration } from 'e-teleport/Workflow/NewRequest/RequestCheckout/utils';
 
 import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/useNewRequest';
+
+import { makeUiAccessRequest } from '../DocumentAccessRequests/useAccessRequests';
+
+import type { AccessRequest } from 'e-teleport/services/workflow';
 
 export default function useAccessRequestCheckout() {
   const ctx = useAppContext();
@@ -19,10 +28,24 @@ export default function useAccessRequestCheckout() {
     ctx.workspacesService?.getActiveWorkspace()?.localClusterUri;
   const rootClusterUri = ctx.workspacesService?.getRootClusterUri();
 
-  const loggedInUser = useLoggedInUser();
-  const suggestedReviewers = loggedInUser?.suggestedReviewers || [];
-  const [selectedReviewers, setSelectedReviewers] =
-    useState<ReviewerOption[]>();
+  // Contains max time options (to calculate max duration and requestTTL options)
+  // and suggested reviewers that were available both statically (from roles)
+  // and dynamically (from access lists).
+  const [dryRunResponse, setDryRunResponse] = useState<AccessRequest | null>();
+  // The reviewers defined in the users roles (static) and access list owners
+  // (dynamic).
+  const [suggestedReviewers, setSuggestedReviewers] = useState<string[]>([]);
+  // User selected reviewers from suggested reviewers options and/or
+  // any other reviewers they manually added.
+  const [selectedReviewers, setSelectedReviewers] = useState<ReviewerOption[]>(
+    []
+  );
+
+  // Access request lifetime upon creation.
+  // Duration countdown starts from access request creation.
+  const [maxDuration, setMaxDuration] = useState<Option<number>>();
+  // How long the request can be in a PENDING state before it expires.
+  const [requestTTL, setRequestTTL] = useState<Option<number>>();
 
   const [showCheckout, setShowCheckout] = useState(false);
   const [hasExited, setHasExited] = useState(false);
@@ -33,11 +56,8 @@ export default function useAccessRequestCheckout() {
   const [selectedResourceRequestRoles, setSelectedResourceRequestRoles] =
     useState<string[]>([]);
 
-  const {
-    attempt: createRequestAttempt,
-    setAttempt: setCreateRequestAttempt,
-    run: runCreateRequest,
-  } = useAttempt('');
+  const { attempt: createRequestAttempt, setAttempt: setCreateRequestAttempt } =
+    useAttempt('');
 
   const { attempt: fetchResourceRolesAttempt, run: runFetchResourceRoles } =
     useAttempt('success');
@@ -49,10 +69,12 @@ export default function useAccessRequestCheckout() {
     workspaceAccessRequest?.getPendingAccessRequest();
 
   useEffect(() => {
-    setSelectedReviewers(
-      suggestedReviewers.map(r => ({ label: r, value: r, isSelected: true }))
-    );
-  }, [loggedInUser, hasExited]);
+    // Do a new dry run per checkout to get the latest time options
+    // and latest calculated suggested reviewers.
+    if (showCheckout) {
+      performDryRun();
+    }
+  }, [showCheckout]);
 
   useEffect(() => {
     if (!pendingAccessRequest) {
@@ -86,6 +108,7 @@ export default function useAccessRequestCheckout() {
     ) {
       clearCreateAttempt();
       setRequestedCount(0);
+      setDryRunResponse(null);
     }
   }, [showCheckout, hasExited, createRequestAttempt.status]);
 
@@ -137,13 +160,16 @@ export default function useAccessRequestCheckout() {
     return Object.values(assumed);
   }
 
-  function createRequest(req: CreateRequest) {
+  /**
+   * Shared logic used both during dry runs and regular access request creation.
+   */
+  function prepareAndCreateRequest(req: CreateRequest) {
     const data = getPendingAccessRequestsPerResource(pendingAccessRequest);
     const params: CreateAccessRequestParams = {
       rootClusterUri,
       reason: req.reason,
-      suggestedReviewers: req.suggestedReviewers,
-      dryRun: false, // TODO(lisa): this field should be determined by caller
+      suggestedReviewers: req.suggestedReviewers || [],
+      dryRun: req.dryRun,
       resourceIds: data
         .filter(d => d.kind !== 'role')
         .map(d => ({
@@ -153,20 +179,70 @@ export default function useAccessRequestCheckout() {
           subResourceName: '',
         })),
       roles: data.filter(d => d.kind === 'role').map(d => d.name),
+      assumeStartTime: req.start && Timestamp.fromDate(req.start),
+      maxDuration: req.maxDuration && Timestamp.fromDate(req.maxDuration),
+      requestTtl: req.requestTTL && Timestamp.fromDate(req.requestTTL),
     };
 
     // if we have a resource access request, we pass along the selected roles from the checkout
     if (params.resourceIds.length > 0) {
       params.roles = selectedResourceRequestRoles;
     }
-    runCreateRequest(() =>
-      retryWithRelogin(ctx, clusterUri, () =>
-        ctx.clustersService.createAccessRequest(params).then(() => {
-          setRequestedCount(data.length);
-          reset();
-        })
-      )
+
+    setCreateRequestAttempt({ status: 'processing' });
+
+    return retryWithRelogin(ctx, clusterUri, () =>
+      ctx.clustersService.createAccessRequest(params).then(accessRequest => {
+        return { accessRequest, requestedCount: data.length };
+      })
+    ).catch(e => {
+      setCreateRequestAttempt({ status: 'failed', statusText: e.message });
+      throw e;
+    });
+  }
+
+  async function performDryRun() {
+    let teletermAccessRequest: TeletermAccessRequest;
+
+    try {
+      const { accessRequest } = await prepareAndCreateRequest({
+        dryRun: true,
+        maxDuration: getDryRunMaxDuration(),
+      });
+      teletermAccessRequest = accessRequest;
+    } catch {
+      return;
+    }
+
+    setCreateRequestAttempt({ status: '' });
+
+    const accessRequest = makeUiAccessRequest(teletermAccessRequest);
+    setDryRunResponse(accessRequest);
+
+    const reviewers = accessRequest.reviewers.map(r => r.name).sort();
+    setSuggestedReviewers(reviewers);
+    // Initially select suggested reviewers for the requestor.
+    setSelectedReviewers(
+      reviewers.map(r => ({
+        value: r,
+        label: r,
+        isSelected: true,
+      }))
     );
+  }
+
+  async function createRequest(req: CreateRequest) {
+    let requestedCount: number;
+    try {
+      const response = await prepareAndCreateRequest(req);
+      requestedCount = response.requestedCount;
+    } catch {
+      return;
+    }
+
+    setRequestedCount(requestedCount);
+    reset();
+    setCreateRequestAttempt({ status: 'success' });
   }
 
   function clearCreateAttempt() {
@@ -228,5 +304,10 @@ export default function useAccessRequestCheckout() {
     suggestedReviewers,
     selectedReviewers,
     setSelectedReviewers,
+    dryRunResponse,
+    maxDuration,
+    setMaxDuration,
+    requestTTL,
+    setRequestTTL,
   };
 }

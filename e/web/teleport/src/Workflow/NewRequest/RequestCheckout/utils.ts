@@ -109,3 +109,14 @@ export function getPendingRequestDurationOptions(
 
   return durationOpts;
 }
+
+/**
+ * Backend expects the maxDuration field to be set to some value
+ * which on dry run's will get overwritten to whatever the backend
+ * defualt max maxDuration is. Leaving maxDuration field undefined
+ * for dry run's, for some reason gets respected.
+ */
+export function getDryRunMaxDuration() {
+  const sevenDaysInMs = 1000 * 60 * 60 * 24 * 7;
+  return new Date(Date.now() + sevenDaysInMs);
+}
