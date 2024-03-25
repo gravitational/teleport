@@ -691,6 +691,8 @@ github.com/ClickHouse/clickhouse-go/v2 v2.19.0 h1:ATG+lJz750bNlGPxo6RF45awzU06Dv
 github.com/ClickHouse/clickhouse-go/v2 v2.19.0/go.mod h1:nOpS65jVgN/AjSZs7LFEr/8aGWj/0Qk1qYESKmoBioc=
 github.com/DATA-DOG/go-sqlmock v1.5.0 h1:Shsta01QNfFxHCfpW6YH2STWB0MudeXXEWMr20OEh60=
 github.com/DATA-DOG/go-sqlmock v1.5.0/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=
+github.com/DanielTitkov/go-adaptive-cards v0.2.2 h1:tBFExyvsbCcrBJEvPaV3FW4gcAkwQjXFKiKEBrE7Yuw=
+github.com/DanielTitkov/go-adaptive-cards v0.2.2/go.mod h1:RtCzt65p/zEos6+zhiCFQmiaHmro6M63l9NP7xXx/Lg=
 github.com/HdrHistogram/hdrhistogram-go v1.1.2 h1:5IcZpTvzydCQeHzK4Ef/D5rrSqwxob0t8PQPMybUNFM=
 github.com/HdrHistogram/hdrhistogram-go v1.1.2/go.mod h1:yDgFjdqOqDEKOvasDdhWNXYg9BVp4O+o5f6V/ehm6Oo=
 github.com/JohnCGriffin/overflow v0.0.0-20211019200055-46fa312c352c h1:RGWPOewvKIROun94nF7v2cua9qP+thov/7M50KEoeSU=
