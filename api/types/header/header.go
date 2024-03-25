@@ -17,6 +17,7 @@ limitations under the License.
 package header
 
 import (
+	"maps"
 	"slices"
 	"time"
 
@@ -167,6 +168,16 @@ func (h *ResourceHeader) IsEqual(i *ResourceHeader) bool {
 	return deriveTeleportEqualResourceHeader(h, i)
 }
 
+// Copy returns a copy of the resource header.
+func (h ResourceHeader) Copy() ResourceHeader {
+	return ResourceHeader{
+		Kind:     h.Kind,
+		SubKind:  h.SubKind,
+		Version:  h.Version,
+		Metadata: h.Metadata.Copy(),
+	}
+}
+
 // Metadata is resource metadata
 type Metadata struct {
 	// Name is an object name
@@ -296,4 +307,16 @@ func (m *Metadata) GetAllLabels() map[string]string {
 // IsEqual determines if two metadata resources are equivalent to one another.
 func (m *Metadata) IsEqual(i *Metadata) bool {
 	return deriveTeleportEqualMetadata(m, i)
+}
+
+// Copy returns a copy of the metadata.
+func (m Metadata) Copy() Metadata {
+	return Metadata{
+		Name:        m.Name,
+		Description: m.Description,
+		Labels:      maps.Clone(m.Labels),
+		Expires:     m.Expires,
+		ID:          m.ID,
+		Revision:    m.Revision,
+	}
 }
