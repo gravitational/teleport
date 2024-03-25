@@ -1922,6 +1922,8 @@ func (p *kubeWaitingContainerParser) parse(event backend.Event) (types.Resource,
 				Namespace:     parts[3],
 				PodName:       parts[4],
 				ContainerName: parts[5],
+				Patch:         []byte("{}"),                       // default to empty patch. It doesn't matter for delete ops.
+				PatchType:     kubewaitingcontainer.JSONPatchType, // default to JSON patch. It doesn't matter for delete ops.
 			},
 		)
 		if err != nil {
