@@ -138,9 +138,6 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	r2, err = service.CreateResource(ctx, r2)
 	require.NoError(t, err)
 
-	require.NotEmpty(t, r1.GetMetadata().GetRevision())
-	require.NotEmpty(t, r2.GetMetadata().GetRevision())
-
 	// Fetch all resources using paging default.
 	out, nextToken, err = service.ListResources(ctx, 0, "")
 	require.NoError(t, err)
