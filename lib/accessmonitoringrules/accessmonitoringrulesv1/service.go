@@ -27,8 +27,8 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accessmonitoringrule"
-	conv "github.com/gravitational/teleport/api/types/accessmonitoringrule/convert/v1"
 	"github.com/gravitational/teleport/lib/authz"
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -41,8 +41,8 @@ type ServiceConfig struct {
 
 // Cache is the subset of the cached resources that the service queries.
 type Cache interface {
-	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrule.AccessMonitoringRule, string, error)
-	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrule.AccessMonitoringRule, error)
+	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error)
 }
 
 // Service implements the teleport.accessmonitoringrules.v1.AccessMonitoringRulesService RPC service.
@@ -80,16 +80,11 @@ func (s *Service) CreateAccessMonitoringRule(ctx context.Context, req *accessmon
 	if err := authCtx.CheckAccessToKind(types.KindAccessMonitoringRule, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	amr, err := conv.FromProto(req.Rule)
+	created, err := s.backend.CreateAccessMonitoringRule(ctx, req.Rule)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	created, err := s.backend.CreateAccessMonitoringRule(ctx, amr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return conv.ToProto(created), nil
+	return created, nil
 }
 
 // UpdateAccessMonitoringRule updates the specified access monitoring rule.
@@ -102,15 +97,11 @@ func (s *Service) UpdateAccessMonitoringRule(ctx context.Context, req *accessmon
 		return nil, trace.Wrap(err)
 	}
 
-	amr, err := conv.FromProto(req.Rule)
+	created, err := s.backend.UpdateAccessMonitoringRule(ctx, req.Rule)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	created, err := s.backend.UpdateAccessMonitoringRule(ctx, amr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return conv.ToProto(created), nil
+	return created, nil
 }
 
 // GetAccessMonitoringRule gets the specified access monitoring rule.
@@ -126,7 +117,7 @@ func (s *Service) GetAccessMonitoringRule(ctx context.Context, req *accessmonito
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return conv.ToProto(got), nil
+	return got, nil
 }
 
 // DeleteAccessMonitoringRule deletes the specified access monitoring rule.
@@ -154,15 +145,11 @@ func (s *Service) UpsertAccessMonitoringRule(ctx context.Context, req *accessmon
 		return nil, trace.Wrap(err)
 	}
 
-	amr, err := conv.FromProto(req.Rule)
+	created, err := s.backend.UpsertAccessMonitoringRule(ctx, req.Rule)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	created, err := s.backend.UpsertAccessMonitoringRule(ctx, amr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return conv.ToProto(created), nil
+	return created, nil
 }
 
 // ListAccessMonitoringRule lists current access monitoring rules.
@@ -178,12 +165,8 @@ func (s *Service) ListAccessMonitoringRules(ctx context.Context, req *accessmoni
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	amrs := make([]*accessmonitoringrulesv1.AccessMonitoringRule, len(results))
-	for i, r := range results {
-		amrs[i] = conv.ToProto(r)
-	}
 	return &accessmonitoringrulesv1.ListAccessMonitoringRulesResponse{
-		Rules:         amrs,
+		Rules:         results,
 		NextPageToken: nextToken,
 	}, nil
 }
