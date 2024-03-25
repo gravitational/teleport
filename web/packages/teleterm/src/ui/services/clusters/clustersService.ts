@@ -100,7 +100,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async loginLocal(
     params: types.LoginLocalParams,
-    abortSignal: tsh.TshAbortSignal
+    abortSignal: tsh.CloneableAbortSignal
   ) {
     await this.client.loginLocal(params, abortSignal);
     // We explicitly use the `andCatchErrors` variant here. If loginLocal succeeds but syncing the
@@ -112,7 +112,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async loginSso(
     params: types.LoginSsoParams,
-    abortSignal: tsh.TshAbortSignal
+    abortSignal: tsh.CloneableAbortSignal
   ) {
     await this.client.loginSso(params, abortSignal);
     await this.syncRootClusterAndCatchErrors(params.clusterUri);
@@ -121,7 +121,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async loginPasswordless(
     params: types.LoginPasswordlessParams,
-    abortSignal: tsh.TshAbortSignal
+    abortSignal: tsh.CloneableAbortSignal
   ) {
     await this.client.loginPasswordless(params, abortSignal);
     await this.syncRootClusterAndCatchErrors(params.clusterUri);

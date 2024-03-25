@@ -80,7 +80,7 @@ describe('requiredRoleArn', () => {
     ${'arn:aws:iam::123456789012:role'}                               | ${false}
     ${''}                                                             | ${false}
     ${null}                                                           | ${false}
-  `('test role arn valid ($valid): $roleArn', ({ roleArn, valid }) => {
+  `('role arn valid ($valid): $roleArn', ({ roleArn, valid }) => {
     const result = requiredRoleArn(roleArn)();
     expect(result.valid).toEqual(valid);
   });
@@ -96,7 +96,7 @@ describe('requiredIamRoleName', () => {
     ${Array.from('x'.repeat(65)).join('')} | ${false}
     ${null}                                | ${false}
     ${''}                                  | ${false}
-  `('test IAM role name valid ($valid): $roleArn', ({ roleArn, valid }) => {
+  `('IAM role name valid ($valid): $roleArn', ({ roleArn, valid }) => {
     const result = requiredIamRoleName(roleArn)();
     expect(result.valid).toEqual(valid);
   });
