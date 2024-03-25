@@ -3753,48 +3753,37 @@ type ResourcePage[T types.ResourceWithLabels] struct {
 	NextKey string
 }
 
-// getResourceFromProtoPage extracts the resource from the PaginatedResource returned
-// from the rpc ListUnifiedResources
-func getResourceFromProtoPage(resource *proto.PaginatedResource) (types.ResourceWithLabels, error) {
-	var out types.ResourceWithLabels
+// convertEnrichedResource extracts the resource and any enriched information from the
+// PaginatedResource returned from the rpc ListUnifiedResources.
+func convertEnrichedResource(resource *proto.PaginatedResource) (*types.EnrichedResource, error) {
 	if r := resource.GetNode(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins}, nil
 	} else if r := resource.GetDatabaseServer(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetDatabaseService(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetAppServerOrSAMLIdPServiceProvider(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetWindowsDesktop(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetWindowsDesktopService(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetKubeCluster(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetKubernetesServer(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetUserGroup(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetAppServer(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
 	}
 }
 
-// ListUnifiedResourcePage is a helper for getting a single page of unified resources that match the provided request.
-func ListUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (ResourcePage[types.ResourceWithLabels], error) {
-	var out ResourcePage[types.ResourceWithLabels]
+// GetUnifiedResourcePage is a helper for getting a single page of unified resources that match the provided request.
+func GetUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) ([]*types.EnrichedResource, string, error) {
+	var out []*types.EnrichedResource
 
 	// Set the limit to the default size if one was not provided within
 	// an acceptable range.
@@ -3810,26 +3799,24 @@ func ListUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient
 				req.Limit /= 2
 				// This is an extremely unlikely scenario, but better to cover it anyways.
 				if req.Limit == 0 {
-					return out, trace.Wrap(err, "resource is too large to retrieve")
+					return nil, "", trace.Wrap(err, "resource is too large to retrieve")
 				}
 
 				continue
 			}
 
-			return out, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
 
 		for _, respResource := range resp.Resources {
-			resource, err := getResourceFromProtoPage(respResource)
+			resource, err := convertEnrichedResource(respResource)
 			if err != nil {
-				return out, trace.Wrap(err)
+				return nil, "", trace.Wrap(err)
 			}
-			out.Resources = append(out.Resources, resource)
+			out = append(out, resource)
 		}
 
-		out.NextKey = resp.NextKey
-
-		return out, nil
+		return out, resp.NextKey, nil
 	}
 }
 
@@ -3882,10 +3869,7 @@ func GetEnrichedResourcePage(ctx context.Context, clt GetResourcesClient, req *p
 			case types.KindUserGroup:
 				resource = respResource.GetUserGroup()
 			case types.KindAppOrSAMLIdPServiceProvider:
-				//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 				resource = respResource.GetAppServerOrSAMLIdPServiceProvider()
-			case types.KindSAMLIdPServiceProvider:
-				resource = respResource.GetSAMLIdPServiceProvider()
 			default:
 				out.Resources = nil
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
