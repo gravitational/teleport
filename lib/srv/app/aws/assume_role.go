@@ -35,11 +35,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func updateAssumeRoleDuration(identity *tlsca.Identity, w http.ResponseWriter, req *http.Request, clock clockwork.Clock) error {
+func updateAssumeRoleDuration(identity *tlsca.Identity, req *http.Request, clock clockwork.Clock) (http.Header, error) {
 	// Skip non-AssumeRole request
 	query, found, err := getAssumeRoleQuery(req)
 	if err != nil || !found {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Deny access if identity duration is shorter than the minimum that can be
@@ -47,20 +47,24 @@ func updateAssumeRoleDuration(identity *tlsca.Identity, w http.ResponseWriter, r
 	identityTTL := identity.Expires.Sub(clock.Now())
 	if identityTTL < assumeRoleMinDuration {
 		// TODO write error message in XML so the client can understand.
-		return trace.AccessDenied("minimum AWS session duration is %v but Teleport identity expires in %v. Please re-login the app and try again.", assumeRoleMinDuration, identityTTL)
+		return nil, trace.AccessDenied("minimum AWS session duration is %v but Teleport identity expires in %v. Please re-login the app and try again.", assumeRoleMinDuration, identityTTL)
 	}
 
 	// Use shorter requested duration (no update required).
 	if getAssumeRoleQueryDuration(query) <= identityTTL {
-		return nil
+		return nil, nil
 	}
 
 	// Rewrite the request.
 	if err := rewriteAssumeRoleQuery(req, withAssumeRoleQueryDuration(query, identityTTL)); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	w.Header().Add(common.TeleportAPIInfoHeader, fmt.Sprintf("requested DurationSeconds of AssumeRole is lowered to \"%d\" as the Teleport identity will expire at %v", int(identityTTL.Seconds()), identity.Expires))
-	return nil
+
+	return http.Header{
+		common.TeleportAPIInfoHeader: []string{
+			fmt.Sprintf("requested DurationSeconds of AssumeRole is lowered to \"%d\" as the Teleport identity will expire at %v", int(identityTTL.Seconds()), identity.Expires),
+		},
+	}, nil
 }
 
 // getAssumeRoleQuery extracts AssumeRole query values from provided request.

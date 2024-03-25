@@ -59,10 +59,10 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
-// resolveEndpoint extracts the aws-service and aws-region from the request
+// ResolveEndpoint extracts the aws-service and aws-region from the request
 // authorization header and resolves the aws-service and aws-region to AWS
 // endpoint.
-func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
+func ResolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 	// Use X-Forwarded-Host header if it is a valid AWS endpoint.
 	forwardedHost, headErr := libutils.GetSingleHeader(r.Header, "X-Forwarded-Host")
 	if headErr == nil && awsapiutils.IsAWSEndpoint(forwardedHost) {

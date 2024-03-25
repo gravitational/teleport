@@ -917,7 +917,7 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request, identity *
 	// minutes. Used to stream session chunks to the Audit Log.
 	ttl := min(identity.Expires.Sub(s.c.Clock.Now()), 5*time.Minute)
 	session, err := utils.FnCacheGetWithTTL(r.Context(), s.cache, identity.RouteToApp.SessionID, ttl, func(ctx context.Context) (*sessionChunk, error) {
-		session, err := s.newSessionChunk(ctx, identity, app, s.sessionStartTime(r.Context()), opts...)
+		session, err := s.newSessionChunk(ctx, identity, app, SessionStartTime(r.Context(), s.log), opts...)
 		return session, trace.Wrap(err)
 	})
 	if err != nil {
@@ -1109,7 +1109,7 @@ func (s *Server) newTCPServer() (*tcpServer, error) {
 		newAudit: func(ctx context.Context, sessionID string) (common.Audit, error) {
 			// Audit stream is using server context, not session context,
 			// to make sure that session is uploaded even after it is closed.
-			rec, err := s.newSessionRecorder(s.closeContext, s.sessionStartTime(ctx), sessionID)
+			rec, err := s.newSessionRecorder(s.closeContext, SessionStartTime(ctx, s.log), sessionID)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1144,14 +1144,14 @@ func (s *Server) getProxyPort() string {
 	return port
 }
 
-// sessionStartTime fetches the session start time based on the the certificate
+// SessionStartTime fetches the session start time based on the the certificate
 // valid date.
-func (s *Server) sessionStartTime(ctx context.Context) time.Time {
+func SessionStartTime(ctx context.Context, log logrus.FieldLogger) time.Time {
 	if userCert, err := authz.UserCertificateFromContext(ctx); err == nil {
 		return userCert.NotBefore
 	}
 
-	s.log.Warn("Unable to retrieve session start time from certificate.")
+	log.Warn("Unable to retrieve session start time from certificate.")
 	return time.Time{}
 }
 

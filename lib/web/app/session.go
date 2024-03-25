@@ -82,7 +82,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 	}
 
 	// Create a rewriting transport that will be used to forward requests.
-	transport, err := newTransport(&transportConfig{
+	transport, err := newTransport(ctx, &transportConfig{
 		log:          h.log,
 		proxyClient:  h.c.ProxyClient,
 		accessPoint:  h.c.AccessPoint,
@@ -91,6 +91,9 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		servers:      servers,
 		ws:           ws,
 		clusterName:  h.clusterName,
+		serverID:     h.c.ServerID,
+		closingCtx:   h.closeContext,
+		datadir:      h.c.DataDir,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -219,5 +222,6 @@ func (s *sessionCache) expireSession() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// TODO(marco): Close the recorder here.
 	s.cache.RemoveExpired(10)
 }

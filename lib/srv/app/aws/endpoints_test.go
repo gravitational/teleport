@@ -41,7 +41,7 @@ func TestResolveEndpoints(t *testing.T) {
 		_, err = signer.Sign(req, bytes.NewReader(nil), "ecr", "us-east-1", now)
 		require.NoError(t, err)
 
-		endpoint, err := resolveEndpoint(req)
+		endpoint, err := ResolveEndpoint(req)
 		require.NoError(t, err)
 		require.Equal(t, "ecr", endpoint.SigningName)
 		require.Equal(t, "https://api.ecr.us-east-1.amazonaws.com", endpoint.URL)
@@ -55,7 +55,7 @@ func TestResolveEndpoints(t *testing.T) {
 		_, err = signer.Sign(req, bytes.NewReader(nil), "some-service", region, now)
 		require.NoError(t, err)
 
-		endpoint, err := resolveEndpoint(req)
+		endpoint, err := ResolveEndpoint(req)
 		require.NoError(t, err)
 		require.Equal(t, "some-service", endpoint.SigningName)
 		require.Equal(t, "https://some-service.us-east-1.amazonaws.com", endpoint.URL)
