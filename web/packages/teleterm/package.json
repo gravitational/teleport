@@ -37,6 +37,7 @@
     "@gravitational/build": "^1.0.0",
     "@gravitational/design": "1.0.0",
     "@gravitational/shared": "1.0.0",
+    "@protobuf-ts/grpc-transport": "^2.9.3",
     "@protobuf-ts/runtime": "^2.9.3",
     "@protobuf-ts/runtime-rpc": "^2.9.3",
     "@types/google-protobuf": "^3.10.0",
