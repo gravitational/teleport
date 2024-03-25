@@ -40,6 +40,7 @@ func onSPIFFEInspect(path string) error {
 	if err != nil {
 		return trace.Wrap(err, "getting x509 context")
 	}
+
 	log.
 		WithField("svids_count", len(res.SVIDs)).
 		WithField("bundles_count", res.Bundles.Len()).
@@ -49,16 +50,16 @@ func onSPIFFEInspect(path string) error {
 		log.Error("No SVIDs received, check your configuration.")
 	} else {
 		fmt.Println("SVIDS")
-	}
-	for _, svid := range res.SVIDs {
-		fmt.Printf("- %s\n", svid.ID.String())
-		fmt.Printf("  - Hint: %s\n", svid.Hint)
-		fmt.Printf("  - Expiry: %s\n", svid.Certificates[0].NotAfter)
-		for _, san := range svid.Certificates[0].DNSNames {
-			fmt.Printf("  - DNS SAN: %s\n", san)
-		}
-		for _, san := range svid.Certificates[0].IPAddresses {
-			fmt.Printf("  - IP SAN: %s\n", san)
+		for _, svid := range res.SVIDs {
+			fmt.Printf("- %s\n", svid.ID.String())
+			fmt.Printf("  - Hint: %s\n", svid.Hint)
+			fmt.Printf("  - Expiry: %s\n", svid.Certificates[0].NotAfter)
+			for _, san := range svid.Certificates[0].DNSNames {
+				fmt.Printf("  - DNS SAN: %s\n", san)
+			}
+			for _, san := range svid.Certificates[0].IPAddresses {
+				fmt.Printf("  - IP SAN: %s\n", san)
+			}
 		}
 	}
 
@@ -66,9 +67,9 @@ func onSPIFFEInspect(path string) error {
 		log.Error("No trust bundles received, check your configuration.")
 	} else {
 		fmt.Println("Trust Bundles")
-	}
-	for _, bundle := range res.Bundles.Bundles() {
-		fmt.Printf("- %s\n", bundle.TrustDomain())
+		for _, bundle := range res.Bundles.Bundles() {
+			fmt.Printf("- %s\n", bundle.TrustDomain())
+		}
 	}
 
 	return nil
