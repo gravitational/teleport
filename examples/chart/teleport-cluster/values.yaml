@@ -344,9 +344,31 @@ aws:
   # The DynamoDB table name to use for audit log storage. Teleport will attempt to create this table automatically if it does not exist.
   # The container will need an appropriately-provisioned IAM role with permissions to create DynamoDB tables.
   # This MUST NOT be the same table name as used for 'backendTable' as the schemas are different.
+  #
+  # If you are using the athena backed, you don't need to set this value.
+  # If you set this value, audit logs will be sent both to the Athena and DynamoDB
+  # backends, this is useful when migrating backends.
+  # If both `aws.athenaURL` and `aws.auditLogTable` (DynamoDB) are set, the
+  # `aws.auditLogPrimaryBackend` value configures which backend is used for querying.
   auditLogTable: ""
   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
   auditLogMirrorOnStdout: false
+  # auditLogPrimaryBackend controls which backend is used for queries when multiple
+  # audit backends are enabled (dynamo + athena setup). This setting has no
+  # effect when a single audit log backend is enabled.
+  # This setting is used when migrating from DynamoDB to Athena.
+  # Possible values are `dynamo` and `athena`.
+  auditLogPrimaryBackend: ""
+  # athenaURL contains the Athena audit log backend configuration
+  # When this value is set, Teleport will export events to the Athena audit backend.
+  #
+  # To use the Athena audit backend, you must set up the required infrastructure
+  # (S3 buckets, SQS queue, AthenaDB, IAM roles and permissions, ...).
+  # The requirements are described in the documentation: https://goteleport.com/docs/reference/backends/#athena
+  #
+  # If both `aws.athenaURL` and `aws.auditLogTable` (DynamoDB) are set, the
+  # `aws.auditLogPrimaryBackend` value configures which backend is used for querying.
+  athenaURL: ""
   # The S3 bucket name to use for recorded session storage. Teleport will attempt to create this bucket automatically if it does not exist.
   # The container will need an appropriately-provisioned IAM role with permissions to create S3 buckets.
   sessionRecordingBucket: ""
@@ -354,6 +376,10 @@ aws:
   backups: false
 
   # Whether Teleport should configure DynamoDB's autoscaling.
+  #
+  # WARNING: DynamoDB autoscaling is not recommended anymore. Teleport now
+  # defaults to "on demand" dynamoDB billing more which is more reliable performance-wise.
+  #
   # Requires additional statements in the IAM Teleport Policy to be allowed to configure the autoscaling.
   # See https://goteleport.com/docs/setup/reference/backends/#dynamodb-autoscaling
   dynamoAutoScaling: false
