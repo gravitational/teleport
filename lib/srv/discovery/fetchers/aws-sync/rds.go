@@ -129,7 +129,7 @@ func awsRDSInstanceToRDS(instance *rds.DBInstance, region, accountID string) *ac
 	}
 
 	return &accessgraphv1alpha.AWSRDSDatabaseV1{
-		Name:      aws.StringValue(instance.DBName),
+		Name:      aws.StringValue(instance.DBInstanceIdentifier),
 		Arn:       aws.StringValue(instance.DBInstanceArn),
 		CreatedAt: awsTimeToProtoTime(instance.InstanceCreateTime),
 		Status:    aws.StringValue(instance.DBInstanceStatus),
@@ -156,7 +156,7 @@ func awsRDSClusterToRDS(instance *rds.DBCluster, region, accountID string) *acce
 	}
 
 	return &accessgraphv1alpha.AWSRDSDatabaseV1{
-		Name:      aws.StringValue(instance.DatabaseName),
+		Name:      aws.StringValue(instance.DBClusterIdentifier),
 		Arn:       aws.StringValue(instance.DBClusterArn),
 		CreatedAt: awsTimeToProtoTime(instance.ClusterCreateTime),
 		Status:    aws.StringValue(instance.Status),
