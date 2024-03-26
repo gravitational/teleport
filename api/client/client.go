@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
+	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/scim"
@@ -56,12 +57,14 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
@@ -2788,6 +2791,21 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 	return resp, nil
 }
 
+// GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
+func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
+	rsp, err := c.ClusterConfigClient().GetClusterAccessGraphConfig(ctx, &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rsp.AccessGraph, nil
+}
+
+// ClusterConfigClient returns an unadorned Cluster Configuration client, using the underlying
+// Auth gRPC connection.
+func (c *Client) ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClient {
+	return clusterconfigpb.NewClusterConfigServiceClient(c.conn)
+}
+
 // GetInstaller gets all installer script resources
 func (c *Client) GetInstallers(ctx context.Context) ([]types.Installer, error) {
 	resp, err := c.grpc.GetInstallers(ctx, &emptypb.Empty{})
@@ -3083,6 +3101,40 @@ func (c *Client) DeleteKubernetesCluster(ctx context.Context, name string) error
 func (c *Client) DeleteAllKubernetesClusters(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllKubernetesClusters(ctx, &emptypb.Empty{})
 	return trace.Wrap(err)
+}
+
+// GetKubernetesWaitingContainerClient an unadorned KubeWaitingContainers
+// client, using the underlying Auth gRPC connection.
+func (c *Client) GetKubernetesWaitingContainerClient() *kubewaitingcontainerclient.Client {
+	return kubewaitingcontainerclient.NewClient(kubewaitingcontainerpb.NewKubeWaitingContainersServiceClient(c.conn))
+}
+
+// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+// containers that are waiting to be created until moderated
+// session conditions are met.
+func (c *Client) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
+	return c.GetKubernetesWaitingContainerClient().ListKubernetesWaitingContainers(ctx, pageSize, pageToken)
+}
+
+// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
+// container that are waiting to be created until moderated
+// session conditions are met.
+func (c *Client) GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+	return c.GetKubernetesWaitingContainerClient().GetKubernetesWaitingContainer(ctx, req)
+}
+
+// CreateKubernetesWaitingContainer creates a Kubernetes ephemeral
+// container that are waiting to be created until moderated
+// session conditions are met.
+func (c *Client) CreateKubernetesWaitingContainer(ctx context.Context, waitingPod *kubewaitingcontainerpb.KubernetesWaitingContainer) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+	return c.GetKubernetesWaitingContainerClient().CreateKubernetesWaitingContainer(ctx, waitingPod)
+}
+
+// DeleteKubernetesWaitingContainer deletes a Kubernetes ephemeral
+// container that are waiting to be created until moderated
+// session conditions are met.
+func (c *Client) DeleteKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest) error {
+	return c.GetKubernetesWaitingContainerClient().DeleteKubernetesWaitingContainer(ctx, req)
 }
 
 // CreateDatabase creates a new database resource.

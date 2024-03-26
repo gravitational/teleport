@@ -44,10 +44,12 @@ type Cache struct {
 	group singleflight.Group
 }
 
+type ResolveClusterFunc func(uri uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error)
+
 // Config describes the client cache configuration.
 type Config struct {
-	Resolver clusters.Resolver
-	Log      logrus.FieldLogger
+	ResolveClusterFunc ResolveClusterFunc
+	Log                logrus.FieldLogger
 }
 
 func (c *Config) checkAndSetDefaults() {
@@ -75,14 +77,21 @@ func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.Pr
 			return fromCache, nil
 		}
 
-		_, clusterClient, err := c.cfg.Resolver.ResolveCluster(clusterURI)
+		_, clusterClient, err := c.cfg.ResolveClusterFunc(clusterURI)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		//nolint:staticcheck // SA1019. TODO(gzdunek): Update to use client.ClusterClient.
-		newProxyClient, err := clusterClient.ConnectToProxy(ctx)
-		if err != nil {
+		var newProxyClient *client.ProxyClient
+		if err := clusters.AddMetadataToRetryableError(ctx, func() error {
+			//nolint:staticcheck // SA1019. TODO(gzdunek): Update to use client.ClusterClient.
+			proxyClient, err := clusterClient.ConnectToProxy(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			newProxyClient = proxyClient
+			return nil
+		}); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -190,9 +199,9 @@ func (c *Cache) getFromCache(clusterURI uri.ResourceURI) *client.ProxyClient {
 //
 // ClearForRoot and Clear still work as expected.
 type NoCache struct {
-	mu       sync.Mutex
-	resolver clusters.Resolver
-	clients  []noCacheClient
+	mu                 sync.Mutex
+	resolveClusterFunc ResolveClusterFunc
+	clients            []noCacheClient
 }
 
 type noCacheClient struct {
@@ -200,14 +209,14 @@ type noCacheClient struct {
 	client *client.ProxyClient
 }
 
-func NewNoCache(resolver clusters.Resolver) *NoCache {
+func NewNoCache(resolveClusterFunc ResolveClusterFunc) *NoCache {
 	return &NoCache{
-		resolver: resolver,
+		resolveClusterFunc: resolveClusterFunc,
 	}
 }
 
 func (c *NoCache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
-	_, clusterClient, err := c.resolver.ResolveCluster(clusterURI)
+	_, clusterClient, err := c.resolveClusterFunc(clusterURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

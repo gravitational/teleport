@@ -62,7 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/srv/db/common/permissions"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -286,6 +286,11 @@ type InitConfig struct {
 
 	// CloudClients provides clients for various cloud providers.
 	CloudClients cloud.Clients
+
+	// KubeWaitingContainers is a service that manages
+	// Kubernetes ephemeral containers that are waiting
+	// to be created until moderated session conditions are met.
+	KubeWaitingContainers services.KubeWaitingContainer
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -941,7 +946,7 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 		return nil
 	}
 
-	rule := permissions.NewPresetImportAllObjectsRule()
+	rule := databaseobjectimportrule.NewPresetImportAllObjectsRule()
 	if rule == nil {
 		return nil
 	}

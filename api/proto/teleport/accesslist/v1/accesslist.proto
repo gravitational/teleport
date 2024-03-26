@@ -39,8 +39,8 @@ message AccessList {
 
 // AccessListSpec is the specification for an access list.
 message AccessListSpec {
-  reserved 7;
-  reserved "members";
+  reserved 7, 9, 10;
+  reserved "members", "membership", "ownership";
 
   // description is an optional plaintext description of the access list.
   string description = 1;
@@ -68,27 +68,6 @@ message AccessListSpec {
 
   // title is a plaintext short description of the access list.
   string title = 8;
-
-  // membership defines how list membership is applied. There are two possible
-  // values:
-  //   `explicit` (default): To be considered ag member of the access list, a
-  //                         user must both meet the `membership_requires`
-  //                         conditions AND be explicitly added to the list.
-  //   `implicit`: Any user meeting the `membership_requires` conditions will
-  //   automatically
-  //             be considered a member of this list.
-  string membership = 9;
-
-  // ownership defines how list ownership of this list is determined. There are
-  // two possible values:
-  //   `explicit` (default): To be considered an owner of the access list, a
-  //   user
-  //                         must both meet the `ownership_requires` conditions
-  //                         AND be explicitly added to the list.
-  //   `implicit`: Any user meeting the `ownership_requires` conditions will
-  //   automatically
-  //             be considered an owner of this list.
-  string ownership = 10;
 
   // owner_grants describes the access granted by owners to this access list.
   AccessListGrants owner_grants = 11;
@@ -142,10 +121,13 @@ enum ReviewDayOfMonth {
 
 // Recurrence is the definition for when reviews will be scheduled.
 message Recurrence {
-  // frequency is the frequency of reviews.
+  // frequency is the frequency of reviews. This represents the period in months
+  // between two reviews.
+  // Supported values are 0, 1, 3, 6, and 12.
   ReviewFrequency frequency = 1;
 
   // day_of_month is the day of month that reviews will be scheduled on.
+  // Supported values are 0, 1, 15, and 31.
   ReviewDayOfMonth day_of_month = 2;
 }
 
@@ -191,6 +173,9 @@ message Member {
 
 // MemberSpec is the specification for an access list member.
 message MemberSpec {
+  reserved 8;
+  reserved "membership";
+
   // associated access list
   string access_list = 1;
 
@@ -212,10 +197,6 @@ message MemberSpec {
   // ineligible_status describes if this member is eligible or not
   // and if not, describes how they're lacking eligibility.
   IneligibleStatus ineligible_status = 7;
-
-  // membership defines how list membership was acquired. There are two possible
-  // values: `explicit` and `implicit`.
-  string membership = 8;
 }
 
 // IneligibleStatus describes how the user is ineligible.
