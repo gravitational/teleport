@@ -40,7 +40,9 @@ You will need the following tools to use Teleport with Ansible.
 ## Step 1/4. Configure RBAC
 
 As Ansible will use the credentials produced by `tbot` to connect to the SSH
-nodes, you first need to configure Teleport to grant the bot access.
+nodes, you first need to configure Teleport to grant the bot access. This is
+done by creating a role that grants the necessary permissions and then assigning
+this role to a Bot.
 
 In this example, access will be granted to all SSH nodes for the username
 <Var name="root" />. Ensure that you set this to a username that is available
