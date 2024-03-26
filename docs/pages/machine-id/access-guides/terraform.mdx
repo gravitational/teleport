@@ -32,13 +32,13 @@ Terraform Provider and use Terraform to configure a Teleport role.
 First, Teleport must be configured to allow the credentials produced by `tbot`
 to modify the Teleport configuration.
 
-If you have followed a platform guide, you will have created a role and granted
-the bot the ability to impersonate it already. This role just needs to have the
-additional privileges added to it.
-
-Use `tctl edit role/example-bot` to add the following rule to the role:
+Create a file called `role.yaml` with the following content:
 
 ```yaml
+kind: role
+version: v6
+metadata:
+  name: example-role
 spec:
   allow:
     rules:
@@ -67,6 +67,18 @@ spec:
       - update
       - delete
       - list
+```
+
+Replace `example-role` with a descriptive name related to your use case.
+
+Use `tctl create -f ./role.yaml` to create the role.
+
+Now, use `tctl bots update` to add the role to the Bot. Replace `example`
+with the name of the Bot you created in the deployment guide and `example-role`
+with the name of the role you just created:
+
+```bash
+$ tctl bots update example --add-roles example-role
 ```
 
 ## Step 2/3. Configure `tbot` output
