@@ -125,6 +125,12 @@ func Resource153ToLegacy(r Resource153) Resource {
 	return &resource153ToLegacyAdapter{inner: r}
 }
 
+// Resource153Unwrapper returns a legacy [Resource] type from a wrapped RFD
+// 153 style resource
+type Resource153Unwrapper interface {
+	Unwrap() Resource153
+}
+
 type resource153ToLegacyAdapter struct {
 	inner Resource153
 }
