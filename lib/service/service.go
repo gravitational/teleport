@@ -3309,10 +3309,10 @@ func (process *TeleportProcess) initDebugService() error {
 		if level != currLevel {
 			message = fmt.Sprintf("Changed log level from %q to %q.", currLevel, level)
 			process.Config.SetLogLevel(level)
+			logger.InfoContext(process.ExitContext(), "Changed log level", "old", currLevel, "new", level)
 		}
 
 		w.Write([]byte(message))
-		logger.InfoContext(process.ExitContext(), message)
 	})
 
 	listener, err := process.importOrCreateListener(ListenerDebug, filepath.Join(process.Config.DataDir, constants.DebugServiceSocketName))
