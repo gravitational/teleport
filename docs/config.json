@@ -1387,8 +1387,8 @@
               "slug": "/database-access/auto-user-provisioning/postgres/"
             },
             {
-              "title": "Database object permissions",
-              "slug": "/database-access/auto-user-provisioning/database-object-permissions/"
+              "title": "Database Access Controls",
+              "slug": "/database-access/auto-user-provisioning/database-access-controls/"
             }
           ]
         },

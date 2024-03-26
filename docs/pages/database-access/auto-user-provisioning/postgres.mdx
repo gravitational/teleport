@@ -60,8 +60,8 @@ to ensure that your configuration is correct.
 </TabItem>
 </Tabs>
 
-<Admonition type="note" title="Database object permissions for `teleport-admin`">
-When [Database Object Permissions](./database-object-permissions.mdx) feature is in use, the `teleport-admin` should have permissions to relevant database objects. For example:
+<Admonition type="note" title="Database Access Controls for `teleport-admin`">
+When [Database Access Controls](./database-access-controls.mdx) feature is in use, the `teleport-admin` should have permissions to relevant database objects. For example:
 
 ```sql
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA schema1, schema2, schema3 TO "teleport-admin";
@@ -116,7 +116,7 @@ The role names must be valid and exist in the database.
 See PostgreSQL [CREATE ROLE](https://www.postgresql.org/docs/current/sql-createrole.html) for information on how to create database roles.
 
 </TabItem>
-<TabItem label="Database Object Permissions">
+<TabItem label="Database Access Controls">
 
 Required Teleport version: v15.2 or above.
 
@@ -148,7 +148,7 @@ version: v7
 
 You can define your own labels for database objects, applying them based on customizable import rules. These custom labels, such as `owner` or `environment`, can then be utilized when granting permissions.
 
-For additional information, refer to the [database object permissions](./database-object-permissions.mdx) page.
+For additional information, refer to the [Database Access Controls](./database-access-controls.mdx) page.
 
 </TabItem>
 </Tabs>
