@@ -318,14 +318,14 @@ func authorizerForDummyUser(t *testing.T, ctx context.Context, localClient local
 	})
 	require.NoError(t, err)
 
-	role, err = localClient.CreateRole(ctx, role)
+	err = localClient.CreateRole(ctx, role)
 	require.NoError(t, err)
 
 	// Create user
 	user, err := types.NewUser("user-" + uuid.NewString())
 	require.NoError(t, err)
 	user.AddRole(roleName)
-	user, err = localClient.CreateUser(ctx, user)
+	err = localClient.CreateUser(user)
 	require.NoError(t, err)
 
 	localUser := authz.LocalUser{
@@ -335,7 +335,7 @@ func authorizerForDummyUser(t *testing.T, ctx context.Context, localClient local
 			Groups:   []string{role.GetName()},
 		},
 	}
-	authCtx, err := authz.ContextForLocalUser(ctx, localUser, localClient, clusterName, true)
+	authCtx, err := authz.ContextForLocalUser(localUser, localClient, clusterName, true)
 	require.NoError(t, err)
 
 	return authCtx
@@ -344,8 +344,8 @@ func authorizerForDummyUser(t *testing.T, ctx context.Context, localClient local
 type localClient interface {
 	authz.AuthorizerAccessPoint
 
-	CreateUser(ctx context.Context, user types.User) (types.User, error)
-	CreateRole(ctx context.Context, role types.Role) (types.Role, error)
+	CreateRole(ctx context.Context, role types.Role) error
+	CreateUser(user types.User) error
 }
 
 func initSvc(t *testing.T, authorizerFn func(t *testing.T, client localClient) authz.Authorizer) (context.Context, localClient, *Service) {
@@ -361,13 +361,13 @@ func initSvc(t *testing.T, authorizerFn func(t *testing.T, client localClient) a
 
 	clusterConfigSvc, err := local.NewClusterConfigurationService(backend)
 	require.NoError(t, err)
-	_, err = clusterConfigSvc.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+	err = clusterConfigSvc.SetAuthPreference(ctx, types.DefaultAuthPreference())
 	require.NoError(t, err)
-	_, err = clusterConfigSvc.UpsertClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
+	err = clusterConfigSvc.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
 	require.NoError(t, err)
-	_, err = clusterConfigSvc.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	err = clusterConfigSvc.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 	require.NoError(t, err)
-	_, err = clusterConfigSvc.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	err = clusterConfigSvc.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
 	require.NoError(t, err)
 
 	localResourceService, err := local.NewKubeWaitingContainerService(backend)
