@@ -144,12 +144,12 @@ func TestPollAWSRDS(t *testing.T) {
 func dbInstances() []*rds.DBInstance {
 	return []*rds.DBInstance{
 		{
-			DBName:             aws.String("db1"),
-			DBInstanceArn:      aws.String("arn:us-west1:rds:instance1"),
-			InstanceCreateTime: aws.Time(date),
-			Engine:             aws.String(rds.EngineFamilyMysql),
-			DBInstanceStatus:   aws.String(rds.DBProxyStatusAvailable),
-			EngineVersion:      aws.String("v1.1"),
+			DBInstanceIdentifier: aws.String("db1"),
+			DBInstanceArn:        aws.String("arn:us-west1:rds:instance1"),
+			InstanceCreateTime:   aws.Time(date),
+			Engine:               aws.String(rds.EngineFamilyMysql),
+			DBInstanceStatus:     aws.String(rds.DBProxyStatusAvailable),
+			EngineVersion:        aws.String("v1.1"),
 			TagList: []*rds.Tag{
 				{
 					Key:   aws.String("tag"),
@@ -163,12 +163,12 @@ func dbInstances() []*rds.DBInstance {
 func dbClusters() []*rds.DBCluster {
 	return []*rds.DBCluster{
 		{
-			DatabaseName:      aws.String("cluster1"),
-			DBClusterArn:      aws.String("arn:us-west1:rds:cluster1"),
-			ClusterCreateTime: aws.Time(date),
-			Engine:            aws.String(rds.EngineFamilyMysql),
-			Status:            aws.String(rds.DBProxyStatusAvailable),
-			EngineVersion:     aws.String("v1.1"),
+			DBClusterIdentifier: aws.String("cluster1"),
+			DBClusterArn:        aws.String("arn:us-west1:rds:cluster1"),
+			ClusterCreateTime:   aws.Time(date),
+			Engine:              aws.String(rds.EngineFamilyMysql),
+			Status:              aws.String(rds.DBProxyStatusAvailable),
+			EngineVersion:       aws.String("v1.1"),
 			TagList: []*rds.Tag{
 				{
 					Key:   aws.String("tag"),
