@@ -531,9 +531,9 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 			t.Parallel()
 
 			resp, err := test.userClient.IsMFARequired(ctx, test.req)
-			require.NoError(t, err, "CreateAuthenticateChallenge")
+			require.NoError(t, err, "IsMFARequired")
 
-			assert.Equal(t, test.wantMFARequired, resp.Required, "resp.MFARequired mismatch")
+			assert.Equal(t, test.wantMFARequired, resp.Required, "resp.Required mismatch")
 		})
 	}
 }
