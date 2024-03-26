@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -20,6 +20,7 @@ package samlidp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -28,7 +29,9 @@ import (
 	"google.golang.org/api/googleapi"
 	iam "google.golang.org/api/iam/v1"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ConfigureGCPWorkforce creates GCP Workforce Identity Federation pool and pool provider
@@ -43,8 +46,10 @@ func ConfigureGCPWorkforce(ctx context.Context, params samlidpconfig.GCPWorkforc
 		return trace.BadParameter("param PoolProviderName required")
 	case params.OrganizationID == "":
 		return trace.BadParameter("param OrganizationID required")
-	case params.SAMLIdPMetadata == "":
-		return trace.BadParameter("param SAMLIdPMetadata required")
+	case params.SAMLIdPMetadataURL == "":
+		return trace.BadParameter("param SAMLIdPMetadataURL required")
+	case params.HTTPClient == nil:
+		return trace.BadParameter("param HTTPClient required")
 	}
 
 	iamService, err := iam.NewService(ctx)
@@ -69,24 +74,31 @@ func ConfigureGCPWorkforce(ctx context.Context, params samlidpconfig.GCPWorkforc
 		// TODO(sshah): parse through error type for better error handling
 		return trace.Wrap(err)
 	}
-
+	fmt.Println("Pool created.")
 	if !resp.Done {
+		// 2 minutes timeout is semi-random value chosen on the fact that
+		// wehen creating workforce pool from the GCP web console, it mentions
+		// that the operation could take up to 2 minutes.
 		pollCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
 		defer cancel()
 
 		if err := waitForPoolStatus(pollCtx, workforceService, poolFullName, params.PoolName); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("Done creating pool %q.\n", params.PoolName)
+		fmt.Printf("Pool %q is ready for use.\n", params.PoolName)
 	}
 
 	fmt.Println("\nCreating workforce pool provider: ", params.PoolProviderName)
+	metadata, err := fetchIdPMetadata(params.SAMLIdPMetadataURL, params.HTTPClient)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	provider := &iam.WorkforcePoolProvider{
 		Description: "pool provider created by Teleport",
 		Name:        fmt.Sprintf("locations/global/workforcePools/%s/providers/%s", params.PoolName, params.PoolProviderName),
 		DisplayName: params.PoolProviderName,
 		Saml: &iam.GoogleIamAdminV1WorkforcePoolProviderSaml{
-			IdpMetadataXml: params.SAMLIdPMetadata,
+			IdpMetadataXml: metadata,
 		},
 		AttributeMapping: map[string]string{
 			"google.subject": "assertion.subject",
@@ -102,15 +114,17 @@ func ConfigureGCPWorkforce(ctx context.Context, params samlidpconfig.GCPWorkforc
 	}
 
 	if !createProviderResp.Done {
-		fmt.Printf("Pool provider %s is created but it may take a few seconds more for this provider to be available.\n", params.PoolProviderName)
+		fmt.Printf("Pool provider %s is created but it may take upto a minute more for this provider to become available.\n", params.PoolProviderName)
 	}
-
-	fmt.Printf("Done creating pool provider %q.\n", params.PoolProviderName)
+	fmt.Println("Pool provider created.")
+	fmt.Printf("Pool provider %q is ready for use.\n", params.PoolProviderName)
 	return nil
 }
 
+// waitForPoolStatus waits for pool to become online. Returns immidiately if error code is other than
+// http.StatusForbidden or when context is canceld with timeout.
 func waitForPoolStatus(ctx context.Context, workforceService *iam.LocationsWorkforcePoolsService, poolName, poolDisplayName string) error {
-	fmt.Printf("Waiting for pool %q status to be available.\n", poolDisplayName)
+	fmt.Printf("Waiting for pool %q status to become available.\n", poolDisplayName)
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
@@ -121,12 +135,15 @@ func waitForPoolStatus(ctx context.Context, workforceService *iam.LocationsWorkf
 		case <-ticker.C:
 			result, err := workforceService.Get(poolName).Do()
 			if err != nil {
-				if err.(*googleapi.Error).Code == http.StatusForbidden {
-					// StatusForbidden has two meanings:
-					// Either the caller does not meet required privilege
-					// Or the pool creation is still in progress.
-					// We'll continue considering it's the latter.
-					continue
+				var googleApiErr *googleapi.Error
+				if errors.As(err, &googleApiErr) {
+					if googleApiErr.Code == http.StatusForbidden {
+						// StatusForbidden has two meanings:
+						// Either the caller does not meet required privilege
+						// Or the pool creation is still in progress.
+						// We'll continue considering it's the latter.
+						continue
+					}
 				}
 
 				return err
@@ -136,4 +153,30 @@ func waitForPoolStatus(ctx context.Context, workforceService *iam.LocationsWorkf
 			return nil
 		}
 	}
+}
+
+// fetchIdPMetadata is used to fetch Teleport SAML IdP metadata from
+// Teleport proxy. Response is returned without any data validation.
+func fetchIdPMetadata(metadataURL string, httpClient *http.Client) (string, error) {
+	if httpClient == nil {
+		return "", trace.BadParameter("missing http client")
+	}
+	fmt.Println("Fetching Teleport SAML IdP metadata.")
+	resp, err := httpClient.Get(metadataURL)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", trace.BadParameter("IdP metadata not found at given URL.")
+	}
+
+	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	fmt.Println("Fetched SAML IdP metadata.")
+	return string(body), nil
 }
