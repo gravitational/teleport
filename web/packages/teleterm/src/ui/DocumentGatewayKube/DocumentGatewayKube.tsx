@@ -67,7 +67,9 @@ export const DocumentGatewayKube = (props: {
       await retryWithRelogin(ctx, doc.targetUri, () =>
         ctx.clustersService.createGateway({
           targetUri: doc.targetUri,
-          user: '',
+          targetSubresourceName: '',
+          targetUser: '',
+          localPort: '',
         })
       );
     } catch (error) {
