@@ -3334,6 +3334,10 @@ func retryWithAccessRequest(
 		return trace.Wrap(origErr)
 	}
 
+	// Print and log the original AccessDenied error.
+	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(origErr))
+	fmt.Fprintf(os.Stdout, "You do not currently have access to %q, attempting to request access.\n\n", resource)
+
 	// Try to construct an access request for this resource.
 	req, err := onAccessRequestCreator(cf.Context, cf, tc)
 	if err != nil {
@@ -3344,10 +3348,6 @@ func retryWithAccessRequest(
 		log.Debugf("Not attempting to automatically request access, reason: %v", err)
 		return trace.Wrap(origErr)
 	}
-
-	// Print and log the original AccessDenied error.
-	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(origErr))
-	fmt.Fprintf(os.Stdout, "You do not currently have access to %q, attempting to request access.\n\n", resource)
 
 	if err := setAccessRequestReason(cf, req); err != nil {
 		return trace.Wrap(err)
