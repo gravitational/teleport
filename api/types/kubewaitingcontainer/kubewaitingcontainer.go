@@ -17,7 +17,6 @@ limitations under the License.
 package kubewaitingcontainer
 
 import (
-	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -39,15 +38,13 @@ const (
 	ApplyPatchType string = "application/apply-patch+yaml"
 )
 
-var (
-	// PatchTypes is a list of all supported patch types
-	PatchTypes = []string{
-		JSONPatchType,
-		MergePatchType,
-		StrategicMergePatchType,
-		ApplyPatchType,
-	}
-)
+// PatchTypes is a list of all supported patch types
+var PatchTypes = []string{
+	JSONPatchType,
+	MergePatchType,
+	StrategicMergePatchType,
+	ApplyPatchType,
+}
 
 // NewKubeWaitingContainer creates a new Kubernetes ephemeral
 // container that are waiting to be created until moderated
@@ -103,7 +100,14 @@ func ValidateKubeWaitingContainer(k *kubewaitingcontainerpb.KubernetesWaitingCon
 	if len(k.Spec.PatchType) == 0 {
 		return trace.BadParameter("PatchType is unset")
 	}
-	if !slices.Contains(PatchTypes, k.Spec.PatchType) {
+	var validPatchType bool
+	for _, patchType := range PatchTypes {
+		if k.Spec.PatchType == patchType {
+			validPatchType = true
+			break
+		}
+	}
+	if !validPatchType {
 		return trace.BadParameter("PatchType is invalid: valid types are %v", PatchTypes)
 	}
 	if k.Metadata.Name == "" {
