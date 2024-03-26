@@ -41,11 +41,11 @@ $ tsh svid issue --out ./svid /my-svc
 
 Additionally, flags can be used to further customize the SVID:
 
-| `flag`       | Description                          |
-|--------------|--------------------------------------|
-| `--dns-san`  | TODO |
-| `--ip-san`   | TODO |
-| `--svid-ttl` | TODO |
+| `flag`       | Description                                                                                                         |
+|--------------|---------------------------------------------------------------------------------------------------------------------|
+| `--dns-san`  | Adds a DNS SAN to the resulting X509 SVID.                                                                          |
+| `--ip-san`   | Adds an IP SAN to the resulting X509 SVID.                                                                          |
+| `--svid-ttl` | Sets the Time To Live for the resulting X509 SVID. Specify duration using `s`, `m` and `h`, e.g `12h` for 12 hours. |
 
 ### Using headless authentication to issue a SVID on a remote host
 
@@ -69,11 +69,16 @@ $ tsh --proxy=example.teleport.sh --user=example --headless svid issue \
 
 ## Step 2/2. Using the output SVID
 
-.. TODO ..
+Once the SVID has been issued, you can configure your workload to use it. This
+will differ depending on the workload.
 
-- svid_key.pem
-- svid.pem
-- svid_bundle.pem
+When written to disk, the SVID will be written as three files:
+
+| `file`            | Description                                                                                                                                                                    |
+|-------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `svid_key.pem`    | The private key for the X509 SVID. This is PEM wrapped and marshalled in PKCS8 format.                                                                                         |
+| `svid.pem`        | The X509 SVID itself. This is PEM wrapped and DER encoded.                                                                                                                     |
+| `svid_bundle.pem` | The SPIFFE trust bundle. A concatenated list of X509 certificates for the certificate authorities within the trust domain. These are individually PEM wrapped and DER encoded. |
 
 ## Next Steps
 
