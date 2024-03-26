@@ -15,7 +15,11 @@ import {
 
 import FieldInput from 'shared/components/FieldInput';
 
-import { AgentMeta } from 'teleport/Discover/useDiscover';
+import { AgentMeta, SamlGcpWorkforceMeta } from 'teleport/Discover/useDiscover';
+import {
+  SamlServiceProviderPreset,
+  type ResourceSpec,
+} from 'teleport/Discover/SelectResource/types';
 
 import { AttributeMapping } from './AttributeMapping';
 import { AddEntityDescriptor } from './EntityDescriptorEditor';
@@ -38,6 +42,7 @@ export function ConfigureServiceProvider({
   nextStep,
   prevStep,
   SpMetadataConfigComponent,
+  resourceSpec,
 }: ConfigureServiceProviderProps) {
   const [spConfig, setSPConfig] = useState<CreateSamlIdpServiceProviderRequest>(
     {
@@ -88,6 +93,7 @@ export function ConfigureServiceProvider({
     emptyName: false,
     emptyValue: false,
   });
+
   function checkAndSetAttrMapErr(attribute: AttributeMappingType) {
     if (attribute.name.length === 0) {
       setAttrMapErr({ ...attrMapErr, emptyName: true });
@@ -118,6 +124,33 @@ export function ConfigureServiceProvider({
   }
 
   useEffect(() => {
+    if (
+      resourceSpec?.samlMeta?.preset === SamlServiceProviderPreset.GcpWorkforce
+    ) {
+      const gcpWorkforceMeta = agentMeta as SamlGcpWorkforceMeta;
+      if (gcpWorkforceMeta?.isAutoConfig) {
+        const entityIdAndAcsUrl = genEntityIDAndAcsUrlForGcpWorkforce(
+          gcpWorkforceMeta.poolName,
+          gcpWorkforceMeta.poolProviderName
+        );
+        setSPConfig({
+          ...spConfig,
+          name: gcpWorkforceMeta?.poolProviderName,
+          entityID: entityIdAndAcsUrl.entityId,
+          acsURL: entityIdAndAcsUrl.acsUrl,
+          attributeMapping: [
+            {
+              name: 'roles',
+              nameFormat: 'unspecified',
+              value: 'user.spec.roles',
+            },
+          ],
+        });
+      }
+    }
+  }, [agentMeta, resourceSpec]);
+
+  useEffect(() => {
     if (attempt.status === 'success') {
       updateAgentMeta({ ...agentMeta, resourceName: spConfig.name });
       nextStep();
@@ -137,6 +170,8 @@ export function ConfigureServiceProvider({
                 spConfig={spConfig}
                 setSPConfig={setSPConfig}
                 attempt={attempt}
+                agentMeta={agentMeta}
+                resourceSpec={resourceSpec}
               />
               <AttributeMapping
                 spConfig={spConfig}
@@ -145,6 +180,8 @@ export function ConfigureServiceProvider({
                 setAttrMapErr={setAttrMapErr}
                 addAttrMap={addAttrMap}
                 attempt={attempt}
+                agentMeta={agentMeta}
+                resourceSpec={resourceSpec}
               />
               <ActionButtons
                 onProceed={() => validateAndSubmit(validator, spConfig)}
@@ -164,7 +201,22 @@ export function AddMetadataGeneric({
   setSPConfig,
   spConfig,
   attempt,
+  agentMeta,
+  resourceSpec,
 }: SamlGenericMetadataConfig) {
+  const [disabled, setDisabled] = useState(false);
+  useEffect(() => {
+    if (
+      resourceSpec?.samlMeta?.preset === SamlServiceProviderPreset.GcpWorkforce
+    ) {
+      const gcpWorkforceMeta = agentMeta as SamlGcpWorkforceMeta;
+      if (gcpWorkforceMeta?.isAutoConfig) {
+        setDisabled(true);
+        setSPConfig({ ...spConfig, name: gcpWorkforceMeta?.poolProviderName });
+      }
+    }
+  }, []);
+
   return (
     <StyledBox>
       <Text bold>Enter the SAML App Service Provider's Metadata</Text>
@@ -178,7 +230,7 @@ export function AddMetadataGeneric({
         width="500px"
         mr="3"
         onChange={e => setSPConfig({ ...spConfig, name: e.target.value })}
-        disabled={attempt.status === 'processing'}
+        disabled={attempt.status === 'processing' || disabled}
       />
       <FieldInput
         mb={3}
@@ -193,7 +245,7 @@ export function AddMetadataGeneric({
         width="500px"
         mr="3"
         onChange={e => setSPConfig({ ...spConfig, entityID: e.target.value })}
-        disabled={attempt.status === 'processing'}
+        disabled={attempt.status === 'processing' || disabled}
       />
       <FieldInput
         mb={3}
@@ -208,9 +260,11 @@ export function AddMetadataGeneric({
         width="500px"
         mr="3"
         onChange={e => setSPConfig({ ...spConfig, acsURL: e.target.value })}
-        disabled={attempt.status === 'processing'}
+        disabled={attempt.status === 'processing' || disabled}
       />
-      <AddEntityDescriptor spConfig={spConfig} setSPConfig={setSPConfig} />
+      {!disabled && (
+        <AddEntityDescriptor spConfig={spConfig} setSPConfig={setSPConfig} />
+      )}
     </StyledBox>
   );
 }
@@ -225,6 +279,7 @@ export type ConfigureServiceProviderProps = {
   prevStep: () => void;
   nextStep: () => void;
   SpMetadataConfigComponent: (props: SamlGenericMetadataConfig) => JSX.Element;
+  resourceSpec?: ResourceSpec;
 };
 
 export const ErrMissingEntityIDOrACSURL =
@@ -234,4 +289,15 @@ export type SamlGenericMetadataConfig = {
   setSPConfig: (CreateSamlIdpServiceProviderRequest) => void;
   spConfig: CreateSamlIdpServiceProviderRequest;
   attempt: AttemptState['attempt'];
+  agentMeta?: AgentMeta;
+  resourceSpec: ResourceSpec;
 };
+
+export function genEntityIDAndAcsUrlForGcpWorkforce(
+  poolName: string,
+  poolProviderName: string
+) {
+  const entityId = `https://iam.googleapis.com/locations/global/workforcePools/${poolName}/providers/${poolProviderName}`;
+  const acsUrl = `https://auth.cloud.google/signin-callback/locations/global/workforcePools/${poolName}/providers/${poolProviderName}`;
+  return { entityId, acsUrl };
+}

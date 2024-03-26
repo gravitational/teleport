@@ -1,0 +1,290 @@
+import React, { useState, useEffect } from 'react';
+
+import { Box, ButtonBorder, Link, Text, Toggle } from 'design';
+
+import { Danger } from 'design/Alert';
+
+import cfg from 'teleport/config';
+
+import {
+  ActionButtons,
+  Header,
+  HeaderSubtitle,
+  StyledBox,
+} from 'teleport/Discover/Shared';
+
+import FieldInput from 'shared/components/FieldInput';
+
+import Validation, { Validator } from 'shared/components/Validation';
+import { requiredField } from 'shared/components/Validation/rules';
+
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+
+import { useAttemptNext } from 'shared/hooks';
+
+import {
+  SamlGcpWorkforceMeta,
+  useDiscover,
+} from 'teleport/Discover/useDiscover';
+
+import { SamlServiceProviderPreset } from 'teleport/Discover/SelectResource/types';
+
+import useTeleportE from 'e-teleport/useTeleportE';
+
+import { ConfigureServiceProvider } from 'e-teleport/Discover/SamlApplication/Generic/DownloadMetadata/DownloadMetadata';
+
+import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
+
+import type { SAMLIdPMetadataResponse } from 'e-teleport/services/idp/types';
+
+export function Container() {
+  const { prevStep, nextStep, agentMeta, updateAgentMeta, resourceSpec } =
+    useDiscover();
+  const gcpWorkforceMeta = agentMeta as SamlGcpWorkforceMeta;
+
+  const { idpService } = useTeleportE();
+
+  return (
+    <ConfigurePool
+      prevStep={prevStep}
+      nextStep={nextStep}
+      fetchMetadata={idpService.getIdPMetadataValues}
+      agentMeta={gcpWorkforceMeta}
+      updateAgentMeta={updateAgentMeta}
+      resourceSpec={resourceSpec}
+    />
+  );
+}
+
+export type ConfigurePoolProps = {
+  nextStep: () => void;
+  prevStep: () => void;
+  resourceSpec: ResourceSpec;
+  fetchMetadata: () => Promise<SAMLIdPMetadataResponse>;
+  agentMeta?: SamlGcpWorkforceMeta;
+  updateAgentMeta?: (meta: SamlGcpWorkforceMeta) => void;
+};
+
+export function ConfigurePool({
+  prevStep,
+  nextStep,
+  agentMeta,
+  updateAgentMeta,
+  resourceSpec,
+  fetchMetadata,
+}: ConfigurePoolProps) {
+  const { attempt, setAttempt } = useAttemptNext('processing');
+  const [samlIdPMetadata, setSAMLIdPMetadata] =
+    useState<SAMLIdPMetadataResponse>({
+      entityID: '',
+      ssoURL: '',
+      x509PEM: '',
+    });
+
+  const [autoConfig, setAutoConfig] = useState<boolean>(
+    toggleInitialMode(agentMeta?.isAutoConfig)
+  );
+
+  function toggleInitialMode(configMode: boolean) {
+    if (typeof configMode === 'undefined') {
+      return (
+        resourceSpec?.samlMeta?.preset ===
+        SamlServiceProviderPreset.GcpWorkforce
+      );
+    }
+    return configMode;
+  }
+
+  useEffect(() => {
+    updateAgentMeta({ ...agentMeta, isAutoConfig: autoConfig });
+  }, [autoConfig]);
+
+  useEffect(() => {
+    if (!autoConfig) {
+      fetchMetadata()
+        .then(resp => {
+          setAttempt({ status: 'success' });
+          setSAMLIdPMetadata(resp);
+        })
+        .catch((err: Error) => {
+          setAttempt({ status: 'failed', statusText: err.message });
+        });
+    }
+  }, [autoConfig]);
+
+  const [scriptUrl, setScriptUrl] = useState('');
+  function genWorkforceConfigScript(validator: Validator) {
+    // TODO(sshah): The GCP resource naming convention validation
+    // is done in the backend but it will be great to do it here as well.
+    if (!validator.validate()) {
+      return;
+    }
+
+    validator.reset();
+
+    const newScriptUrl = cfg.getGcpWorkforceConfigScriptUrl({
+      orgId: agentMeta.orgId,
+      poolName: agentMeta.poolName,
+      poolProviderName: agentMeta.poolProviderName,
+    });
+
+    setScriptUrl(newScriptUrl);
+  }
+
+  function handleConfigModeChange() {
+    setAutoConfig(!autoConfig);
+    updateAgentMeta({ ...agentMeta, isAutoConfig: !autoConfig });
+  }
+  return (
+    <>
+      <Header>
+        Configure GCP Workforce Pool with Teleport's Identity Provider Metadata
+      </Header>
+      <HeaderSubtitle>
+        You can choose between a guided or a manual flow. With the guided flow,
+        Teleport generates a GCP Workforce <br /> Identity Federation
+        configuration script and pre-pulates SAML service provider spec based on
+        GCP configuration <br /> values you enter below.
+      </HeaderSubtitle>
+      <Box mb={1} data-testid="testid-box">
+        <Toggle
+          className="toggle_test"
+          isToggled={autoConfig}
+          onToggle={handleConfigModeChange}
+          data-testid="toggle_test"
+        >
+          <Text ml={2}>
+            Guided configuration flow is {autoConfig ? 'enabled' : 'disabled'}.
+          </Text>
+        </Toggle>
+      </Box>
+
+      {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
+
+      {autoConfig ? (
+        <>
+          <ScriptGenInput
+            genWorkforceConfigScript={genWorkforceConfigScript}
+            agentMeta={agentMeta}
+            updateAgentMeta={updateAgentMeta}
+          />
+          {scriptUrl && <Script scriptUrl={scriptUrl} />}
+        </>
+      ) : (
+        <ConfigureServiceProvider samlIdPMetadata={samlIdPMetadata} />
+      )}
+      <ActionButtons onProceed={nextStep} onPrev={prevStep} />
+    </>
+  );
+}
+
+type ScriptGenPropTypes = {
+  genWorkforceConfigScript: (validator: Validator) => void;
+  agentMeta?: SamlGcpWorkforceMeta;
+  updateAgentMeta?: (meta: SamlGcpWorkforceMeta) => void;
+};
+
+export function ScriptGenInput({
+  genWorkforceConfigScript,
+  agentMeta,
+  updateAgentMeta,
+}: ScriptGenPropTypes) {
+  function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
+    updateAgentMeta({
+      ...agentMeta,
+      [e.target.name]: e.target.value,
+    });
+  }
+
+  return (
+    <StyledBox>
+      <Validation>
+        {({ validator }) => (
+          <>
+            <Text bold>Step 1:</Text>
+            Generate script to configure Workforce Identity Federation pool and
+            pool provider
+            <FieldInput
+              mb={3}
+              rule={requiredField('Organization ID is required')}
+              label="GCP organization ID"
+              toolTipContent="Obtain organization ID from GCP console."
+              autoFocus
+              name="orgId"
+              value={agentMeta?.orgId || ''}
+              placeholder="10xxxxxxxxx44"
+              width="500px"
+              mr="3"
+              onChange={handleNameChange}
+            />
+            <FieldInput
+              mb={3}
+              rule={requiredField('Pool name is required')}
+              label="Workforce pool name"
+              toolTipContent="Pool name you want to configure in GCP. Name must be a unique name
+              across GCP and follow GCP resource naming convention."
+              name="poolName"
+              value={agentMeta?.poolName || ''}
+              placeholder="teleport-workforce-pool"
+              width="500px"
+              mr="3"
+              onChange={e => handleNameChange(e)}
+            />
+            <FieldInput
+              mb={3}
+              rule={requiredField('Pool provider name is required')}
+              label="Give this workforce pool provider a name"
+              toolTipContent="Pool provider name you want to configure in GCP. Name must be a unique
+              name across GCP and follow GCP resource naming convention. Pool provider name will also
+              be used as a SAML service provider name in the next step."
+              name="poolProviderName"
+              value={agentMeta?.poolProviderName || ''}
+              placeholder="gcp-workforce-pool-provider"
+              width="500px"
+              mr="3"
+              onChange={e => handleNameChange(e)}
+            />
+            <ButtonBorder
+              mt={3}
+              mb={3}
+              onClick={() => genWorkforceConfigScript(validator)}
+            >
+              Generate Command
+            </ButtonBorder>
+          </>
+        )}
+      </Validation>
+    </StyledBox>
+  );
+}
+
+export const ErrGcpOrgId = 'GCP organization ID should be numeric value';
+
+export function Script({ scriptUrl }: { scriptUrl: string }) {
+  return (
+    <StyledBox mb={5} mt={5} data-testid="scriptbox">
+      <Text bold>Step 2:</Text>
+      Configure Workforce Identity Federation pool in your GCP account.
+      <Text mb={2}>
+        Open{' '}
+        <Link
+          href="https://shell.cloud.google.com/?show=terminal"
+          target="_blank"
+        >
+          GCP CloudShell
+        </Link>{' '}
+        and copy and paste the command shown below that configures the Workforce
+        Identity Federation based on the input provided above:
+      </Text>
+      <Box mb={2}>
+        <TextSelectCopyMulti
+          lines={[
+            {
+              text: `bash -c "$(curl '${scriptUrl}')"`,
+            },
+          ]}
+        />
+      </Box>
+    </StyledBox>
+  );
+}

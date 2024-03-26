@@ -7,6 +7,10 @@ import { DownloadMetadata, AddServiceProvider } from './Generic';
 import { Finished } from './Finished';
 
 import { DownloadMetadataGrafana, AddGrafanaSaml } from './Grafana';
+import {
+  ConfigureWorkforcePool,
+  AddWorkforcePoolToTeleport,
+} from './GcpWorkforce';
 
 export const SamlApplicationResource: ResourceViewConfig = {
   kind: ResourceKind.SamlApplication,
@@ -25,6 +29,21 @@ export const SamlApplicationResource: ResourceViewConfig = {
           {
             title: "Add Grafana's Service Provider to Teleport",
             component: AddGrafanaSaml,
+            eventName: DiscoverEvent.DeployService,
+          },
+        ];
+        break;
+      case SamlServiceProviderPreset.GcpWorkforce:
+        title = 'Add SAML Application (GCP Workforce Identity Federation)';
+        configureResourceViews = [
+          {
+            title: 'Configure Workforce Pool Provider in GCP',
+            component: ConfigureWorkforcePool,
+            eventName: DiscoverEvent.Started,
+          },
+          {
+            title: 'Add GCP Workforce Pool to Teleport',
+            component: AddWorkforcePoolToTeleport,
             eventName: DiscoverEvent.DeployService,
           },
         ];

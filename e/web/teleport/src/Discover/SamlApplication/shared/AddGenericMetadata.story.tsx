@@ -4,7 +4,11 @@ import { ButtonSecondary } from 'design/Button';
 
 import Validation from 'shared/components/Validation';
 
+import { ResourceKind } from 'teleport/Discover/Shared';
+
 import { AddMetadataGeneric } from './ConfigureServiceProvider';
+
+import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
 
 export default {
   title: 'TeleportE/Discover/SAML Application/shared/AddMetadataGeneric',
@@ -24,6 +28,7 @@ export const Default = () => {
         attempt={{ status: 'processing' }}
         spConfig={spConfig}
         setSPConfig={setSPConfig}
+        resourceSpec={{ kind: ResourceKind.SamlApplication } as ResourceSpec}
       />
     </Validation>
   );
@@ -48,6 +53,9 @@ export const FieldValidation = () => {
             }}
             spConfig={spConfig}
             setSPConfig={setSPConfig}
+            resourceSpec={
+              { kind: ResourceKind.SamlApplication } as ResourceSpec
+            }
           />
           <ButtonSecondary
             mt={6}

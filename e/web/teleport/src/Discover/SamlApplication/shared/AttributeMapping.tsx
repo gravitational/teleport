@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, ButtonIcon, Flex, Text, LabelInput } from 'design';
+import { Box, ButtonIcon, Flex, Text, LabelInput, Link } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import FieldSelect, {
@@ -10,6 +10,12 @@ import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
 import { State as AttemptState } from 'shared/hooks/useAttemptNext';
 import styled from 'styled-components';
 
+import { AgentMeta, SamlGcpWorkforceMeta } from 'teleport/Discover/useDiscover';
+import {
+  SamlServiceProviderPreset,
+  type ResourceSpec,
+} from 'teleport/Discover/SelectResource/types';
+
 import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
 
 export function AttributeMapping({
@@ -19,6 +25,8 @@ export function AttributeMapping({
   attrMapErr,
   setAttrMapErr,
   attempt,
+  agentMeta,
+  resourceSpec,
 }: AttrMapProps) {
   function handleInputChange(i: InputOption | InputElementChange) {
     let value;
@@ -47,18 +55,59 @@ export function AttributeMapping({
     setSPConfig({ ...spConfig, attributeMapping: newList });
   }
 
+  function disableInput(index: number) {
+    switch (resourceSpec?.samlMeta?.preset) {
+      case SamlServiceProviderPreset.GcpWorkforce:
+        // only one preset attribute is configured for GcpWorkforce
+        // TODO(sshah): create a pre-populated GcpWorkforce preset
+        // so we can get length of attributes instead of using hardcoded
+        // zero index value.
+        const gcpWorkforceMeta = agentMeta as SamlGcpWorkforceMeta;
+        return gcpWorkforceMeta?.isAutoConfig && index == 0;
+    }
+  }
+
+  const attributeMappingDocsUrl =
+    'https://goteleport.com/docs/access-controls/idps/saml-attribute-mapping/';
+  function subHeading() {
+    switch (resourceSpec?.samlMeta?.preset) {
+      case SamlServiceProviderPreset.GcpWorkforce:
+        const gcpWorkforceMeta = agentMeta as SamlGcpWorkforceMeta;
+        if (gcpWorkforceMeta?.isAutoConfig) {
+          return (
+            <Text typography="subtitle1" mb={4}>
+              An attribute named "roles" with values containing Teleport roles
+              for user will be sent by default. You can configure additional
+              attribute mapping below. Please refer to the{' '}
+              <Link href={attributeMappingDocsUrl} target="_blank">
+                attribute mapping docs
+              </Link>{' '}
+              for reference.
+            </Text>
+          );
+        }
+        break;
+      default:
+        return (
+          <Text typography="subtitle1" mb={4}>
+            Teleport sends username as "uid" attribute and roles as
+            "eduPersonAffiliation" attribute. If you want other attributes to
+            contain username, roles or other user traits, you can specify them
+            below as{' '}
+            <Link href={attributeMappingDocsUrl} target="_blank">
+              predicate expressions.
+            </Link>
+          </Text>
+        );
+    }
+  }
+
   return (
     <>
       <Text fontSize="18px" typography="subtitle1" mb={2} mt={8}>
         Attribute mapping (optional)
       </Text>
-      <Text typography="subtitle1" mb={4}>
-        Teleport sends username as "uid" attribute and roles as
-        "eduPersonAffiliation" attribute. If you want other attributes to
-        contain username, roles or other user traits, you can specify them below
-        as predicate expressions.
-        <br />
-      </Text>
+      {subHeading()}
       <Box>
         {spConfig.attributeMapping.length > 0 && (
           <Flex mt={2}>
@@ -96,7 +145,9 @@ export function AttributeMapping({
                       index: index,
                     })
                   }
-                  disabled={attempt.status === 'processing'}
+                  disabled={
+                    attempt.status === 'processing' || disableInput(index)
+                  }
                 />
                 <Box width="140px" mr={3}>
                   <StyledFieldSelect
@@ -118,7 +169,9 @@ export function AttributeMapping({
                       value: attribute.nameFormat,
                       label: attribute.nameFormat,
                     }}
-                    isDisabled={attempt.status === 'processing'}
+                    isDisabled={
+                      attempt.status === 'processing' || disableInput(index)
+                    }
                   />
                 </Box>
                 <Box width="400px" ml={3}>
@@ -152,7 +205,9 @@ export function AttributeMapping({
                             label: attribute.value,
                           }
                     }
-                    isDisabled={attempt.status === 'processing'}
+                    isDisabled={
+                      attempt.status === 'processing' || disableInput(index)
+                    }
                     createOptionPosition="last"
                     formatCreateLabel={(i: string) => 'predicate: ' + `"${i}"`}
                     options={predicateList}
@@ -169,7 +224,9 @@ export function AttributeMapping({
                       pointer-events: none;
                     }
                   `}
-                  disabled={attempt.status === 'processing'}
+                  disabled={
+                    attempt.status === 'processing' || disableInput(index)
+                  }
                 >
                   <Icons.Trash size="medium" />
                 </ButtonIcon>
@@ -259,6 +316,8 @@ type AttrMapProps = {
   setAttrMapErr: (boolean) => void;
   addAttrMap: () => void;
   attempt: AttemptState['attempt'];
+  resourceSpec?: ResourceSpec;
+  agentMeta?: AgentMeta;
 };
 
 type InputOption = {

@@ -9,11 +9,16 @@ import {
 } from 'design/utils/testing';
 import { AgentMeta } from 'teleport/Discover/useDiscover';
 
+import { SamlServiceProviderPreset } from 'teleport/Discover/SelectResource/types';
+
 import {
   ConfigureServiceProvider,
   AddMetadataGeneric,
   ErrMissingEntityIDOrACSURL,
+  genEntityIDAndAcsUrlForGcpWorkforce,
 } from './ConfigureServiceProvider';
+
+import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
 
 import type { AttributeMapping } from 'e-teleport/services/idp/types';
 
@@ -365,5 +370,74 @@ describe('add another attribute mapping with errors', () => {
       // eslint-disable-next-line jest/no-conditional-expect
       expect(attrNameEl).toHaveLength(2);
     }
+  });
+});
+
+describe('metadada and attribute mapping renders based on resourceSpec preset', () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+    cleanup();
+  });
+
+  const poolName = 'test-pool';
+  const poolProviderName = 'test-pool-provider';
+  const renderConfigureServiceProvider = () => {
+    render(
+      <ConfigureServiceProvider
+        header="samlAppHeader"
+        subtitle="samlAppSubtitle"
+        attempt={{ status: '' }}
+        agentMeta={
+          {
+            isAutoConfig: true,
+            orgId: '',
+            poolName: poolName,
+            poolProviderName: poolProviderName,
+          } as AgentMeta
+        }
+        updateAgentMeta={jest.fn()}
+        createSP={jest.fn()}
+        prevStep={() => null}
+        nextStep={() => null}
+        SpMetadataConfigComponent={AddMetadataGeneric}
+        resourceSpec={
+          {
+            samlMeta: { preset: SamlServiceProviderPreset.GcpWorkforce },
+          } as ResourceSpec
+        }
+      />
+    );
+  };
+
+  test('disable input based on resourceSpec preset and SamlMeta isAutoConfig', async () => {
+    renderConfigureServiceProvider();
+
+    expect(screen.getByPlaceholderText('app_saml')).toBeDisabled();
+    expect(
+      screen.getByPlaceholderText('https://example.com/saml/metadata')
+    ).toBeDisabled();
+    expect(
+      screen.getByPlaceholderText('https://example.com/saml/acs')
+    ).toBeDisabled();
+  });
+
+  test('input fields are prepolutated with values', async () => {
+    renderConfigureServiceProvider();
+
+    const appNameEl = screen.getByPlaceholderText('app_saml');
+    expect(appNameEl).toHaveDisplayValue('test-pool-provider');
+
+    const entityIdAndAcsUrl = genEntityIDAndAcsUrlForGcpWorkforce(
+      poolName,
+      poolProviderName
+    );
+    const entityIdEl = screen.getByPlaceholderText(
+      'https://example.com/saml/metadata'
+    );
+    expect(entityIdEl).toHaveDisplayValue(entityIdAndAcsUrl.entityId);
+    const acsUrlEl = screen.getByPlaceholderText(
+      'https://example.com/saml/acs'
+    );
+    expect(acsUrlEl).toHaveDisplayValue(entityIdAndAcsUrl.acsUrl);
   });
 });
