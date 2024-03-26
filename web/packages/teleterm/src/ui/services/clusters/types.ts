@@ -54,6 +54,16 @@ export interface AuthSettings extends tsh.AuthSettings {
 }
 
 export type ClustersServiceState = {
-  clusters: Map<uri.ClusterUri, tsh.Cluster>;
+  clusters: Map<
+    uri.ClusterUri,
+    tsh.Cluster & {
+      // TODO(gzdunek): Remove assumedRequests from loggedInUser.
+      // The AssumedRequest objects are needed only in AssumedRolesBar.
+      // We should be able to move fetching them there.
+      loggedInUser?: tsh.LoggedInUser & {
+        assumedRequests?: Record<string, tsh.AssumedRequest>;
+      };
+    }
+  >;
   gateways: Map<uri.GatewayUri, tsh.Gateway>;
 };
