@@ -228,7 +228,7 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !canFilter {
+	if !canFilter && req.FilterRequestableRolesByResource {
 		req.ResourceIDs = nil
 	}
 
