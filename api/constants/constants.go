@@ -19,7 +19,6 @@ package constants
 
 import (
 	"encoding/json"
-	"net/http"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -462,10 +461,10 @@ const (
 	DebugServiceLogLevelEndpoint = "/log-level"
 	// DebugServiceGetLogLevelMethod is the HTTP method used to retrieve the
 	// current log level.
-	DebugServiceGetLogLevelMethod = http.MethodGet
+	DebugServiceGetLogLevelMethod = "GET"
 	// DebugServiceSetLogLevelMethod is the HTTP method used to change the log
 	// level.
-	DebugServiceSetLogLevelMethod = http.MethodPut
+	DebugServiceSetLogLevelMethod = "PUT"
 	// PProfEndpointsPrefix PProf endpoints path prefix.
 	PProfEndpointsPrefix = "/debug/pprof/"
 )

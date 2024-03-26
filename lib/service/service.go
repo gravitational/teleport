@@ -3287,9 +3287,11 @@ func (process *TeleportProcess) initDebugService() error {
 			return
 		}
 
-		rawLevel, err := io.ReadAll(r.Body)
+		// The largest supported log level string representation is 5 characters.
+		// We don't support setting custom levels such as DEBUG+1.
+		rawLevel := make([]byte, 5)
 		defer r.Body.Close()
-		if err != nil {
+		if _, err := r.Body.Read(rawLevel); err != nil && errors.Is(err, io.EOF) {
 			w.WriteHeader(http.StatusUnprocessableEntity)
 			w.Write([]byte("Unable to read request body."))
 			return

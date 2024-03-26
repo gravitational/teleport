@@ -145,7 +145,8 @@ const (
 	// ComponentDiagnostic is a diagnostic service
 	ComponentDiagnostic = "diag"
 
-	// ComponentDiagnostic is a debgu service
+	// ComponentDebug is the debug service, which exposes debugging
+	// configuration over a Unix socket.
 	ComponentDebug = "debug"
 
 	// ComponentClient is a client

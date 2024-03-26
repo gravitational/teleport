@@ -233,13 +233,13 @@ type CommandLineFlags struct {
 	// `teleport integration configure access-graph aws-iam` command
 	IntegrationConfAccessGraphAWSSyncArguments IntegrationConfAccessGraphAWSSync
 
-	// LogLevel TODO
+	// LogLevel is the new application's log level.
 	LogLevel string
 
-	// Profiles TODO
+	// Profiles comma-separated list of pprof profiles to be collected.
 	Profiles string
 
-	// ProfileSeconds
+	// ProfileSeconds defines the time the pprof will be collected.
 	ProfileSeconds int
 }
 
