@@ -118,9 +118,7 @@ Apply this file to your Kubernetes cluster:
 $ kubectl apply -f ./k8s-rbac.yaml
 ```
 
-## Step 2/4. Create a join token, role and bot user
-
-(!docs/pages/includes/machine-id/blank-role.mdx!)
+## Step 2/4. Create a join token and bot user
 
 Next, a join token needs to be configured. This will be used by `tbot` to join
 the cluster. As the `kubernetes` join method will be used, the public key of the
@@ -171,10 +169,10 @@ Use `tctl` to apply this file:
 $ tctl create -f bot-token.yaml
 ```
 
-Create the bot, specifying the token and role that you have created:
+Create the bot, specifying the token that you have created:
 
 ```code
-$ tctl bots add example --token example-bot --roles example-bot
+$ tctl bots add example --token example-bot
 ```
 
 ## Step 3/4. Create a `tbot` deployment
