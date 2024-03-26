@@ -327,12 +327,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	addr := "localhost:0"
-	if cf.LocalProxyPort != "" {
-		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
-	}
-
-	listener, err := net.Listen("tcp", addr)
+	listener, err := createProxyAppListener(cf, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -366,6 +361,65 @@ func onProxyCommandApp(cf *CLIConf) error {
 	}
 
 	return nil
+}
+
+// createProxyAppListener creates a net.Listener or tls.Listener according to the requested TLS Configuration
+func createProxyAppListener(cf *CLIConf, tc *libclient.TeleportClient) (net.Listener, error) {
+	var err error
+
+	addr := "localhost:0"
+	if cf.LocalProxyPort != "" {
+		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
+	}
+
+	// Declare the listener
+	var listener net.Listener
+
+	// Determine if we should use TLS for the local listener
+	if cf.LocalTLS {
+		var serverCert tls.Certificate
+
+		// Attempt to load the certificate from given certificate files.
+		if cf.LocalTLSCertificate != "" && cf.LocalTLSKey != "" {
+			serverCert, err = tls.LoadX509KeyPair(cf.LocalTLSCertificate, cf.LocalTLSKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else {
+			log.Debug("Generating self-signed certificate for local port.")
+
+			profile, err := cf.ProfileStatus()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			serverCert, err = loadAppSelfSignedCA(profile, tc, cf.AppName)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			fmt.Printf("Generated self-signed certficate at \"%v\".\n", profile.AppLocalCAPath(cf.AppName))
+		}
+
+		// Generate a TLS Config that uses the generated or loaded certificate, which is usable by the Listener.
+		serverTLSConf := &tls.Config{
+			Certificates: []tls.Certificate{serverCert},
+		}
+
+		// Start a TLS Listener.
+		listener, err = tls.Listen("tcp", addr, serverTLSConf)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// Start a regular Net Listener.
+		listener, err = net.Listen("tcp", addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return listener, nil
 }
 
 // onProxyCommandAWS creates local proxes for AWS apps.

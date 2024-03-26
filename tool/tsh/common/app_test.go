@@ -27,6 +27,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
+	"os"
+	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -34,10 +37,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/client"
 	defaults2 "github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -483,4 +488,43 @@ uri: https://test-tp.teleport:8443
 			}
 		})
 	}
+}
+
+func TestProxyApp_tls(t *testing.T) {
+	t.Parallel()
+
+	// Generate some TLS certificates
+	dir := t.TempDir()
+	keyFile := filepath.Join(dir, "key.pem")
+	certFile := filepath.Join(dir, "cert.pem")
+	require.NoError(t, os.WriteFile(keyFile, []byte(fixtures.TLSCAKeyPEM), 0600))
+	require.NoError(t, os.WriteFile(certFile, []byte(fixtures.TLSCACertPEM), 0600))
+
+	cf := &CLIConf{
+		Proxy:    "proxy:3080",
+		UserHost: "localhost",
+		HomePath: t.TempDir(),
+
+		// TLS
+		LocalTLS:            true,
+		LocalTLSCertificate: certFile,
+		LocalTLSKey:         keyFile,
+	}
+
+	// Create an empty testProfile, so we don't ping proxy.
+	clientStore, err := initClientStore(cf, cf.Proxy)
+	require.NoError(t, err)
+	testProfile := &profile.Profile{
+		SSHProxyAddr: "proxy:3023",
+		WebProxyAddr: "proxy:3080",
+	}
+	err = clientStore.SaveProfile(testProfile, true)
+	require.NoError(t, err)
+
+	tc, err := makeClient(cf)
+	require.NoError(t, err)
+
+	listener, err := createProxyAppListener(cf, tc)
+	require.NoError(t, err)
+	require.Equal(t, "*tls.listener", reflect.TypeOf(listener).String())
 }
