@@ -228,3 +228,7 @@ func (r testResource) GetMetadata() *headerv1.Metadata {
 func (r testResource) GetName() string {
 	return r.Metadata.GetName()
 }
+
+func (r testResource) GetKind() string {
+	return "testResource"
+}

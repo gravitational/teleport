@@ -35,11 +35,11 @@ type Resource interface {
 	GetName() string
 }
 
-// MarshalFunc is a type signature for a marshaling function.
-type MarshalFunc[T Resource] func(T, ...services.MarshalOption) ([]byte, error)
+// MarshalFunc is a type signature for a marshaling function, which converts from T to []byte, while respecting specified options.
+type MarshalFunc[T any] func(T, ...services.MarshalOption) ([]byte, error)
 
-// UnmarshalFunc is a type signature for an unmarshalling function.
-type UnmarshalFunc[T Resource] func([]byte, ...services.MarshalOption) (T, error)
+// UnmarshalFunc is a type signature for an unmarshalling function, which converts from []byte to T, while respecting specified options.
+type UnmarshalFunc[T any] func([]byte, ...services.MarshalOption) (T, error)
 
 // ServiceConfig is the configuration for the service configuration.
 type ServiceConfig[T Resource] struct {
@@ -336,18 +336,30 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 		return backend.Item{}, trace.Wrap(err)
 	}
 
-	rev := types.GetRevision(resource)
+	rev, err := types.GetRevision(resource)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
 	value, err := s.marshalFunc(resource)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     s.MakeKey(name),
-		Value:   value,
-		Expires: types.GetExpiry(resource),
-		//nolint:staticcheck // SA1019. Added for backward compatibility.
-		ID:       types.GetResourceID(resource),
+		Key:      s.MakeKey(name),
+		Value:    value,
 		Revision: rev,
+	}
+
+	item.Expires, err = types.GetExpiry(resource)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
+	//nolint:staticcheck // SA1019. Added for backward compatibility.
+	item.ID, err = types.GetResourceID(resource)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
 	}
 
 	return item, nil
