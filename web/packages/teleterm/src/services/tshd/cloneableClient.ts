@@ -149,24 +149,30 @@ export type CloneableClient<Client> = {
   [Method in keyof Client]: Client[Method] extends (
     ...args: infer Args
   ) => infer ReturnType
-    ? (
-        ...args: { [K in keyof Args]: ReplaceRpcOptions<Args[K]> }
-      ) => CloneableCallTypes<ReturnType>
+    ? CloneableCallTypes<ReturnType>
     : never;
 };
 
 type CloneableCallTypes<T> =
   T extends UnaryCall<infer Req, infer Res>
-    ? CloneableUnaryCall<Req, Res>
+    ? (
+        input: Req,
+        options?: CloneableRpcOptions
+      ) => CloneableUnaryCall<Req, Res>
     : T extends ClientStreamingCall<infer Req, infer Res>
-      ? CloneableClientStreamingCall<Req, Res>
+      ? (
+          options?: CloneableRpcOptions
+        ) => CloneableClientStreamingCall<Req, Res>
       : T extends ServerStreamingCall<infer Req, infer Res>
-        ? CloneableServerStreamingCall<Req, Res>
+        ? (
+            input: Req,
+            options?: CloneableRpcOptions
+          ) => CloneableServerStreamingCall<Req, Res>
         : T extends DuplexStreamingCall<infer Req, infer Res>
-          ? CloneableDuplexStreamingCall<Req, Res>
+          ? (
+              options?: CloneableRpcOptions
+            ) => CloneableDuplexStreamingCall<Req, Res>
           : never;
-
-type ReplaceRpcOptions<T> = T extends RpcOptions ? CloneableRpcOptions : T;
 
 type CloneableUnaryCall<I extends object, O extends object> = Pick<
   UnaryCall<I, O>,
