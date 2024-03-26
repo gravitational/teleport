@@ -70,9 +70,13 @@ installed.
 
 The original binaries will not be overwritten by automatic updates, instead
 per-cluster binaries with permissions `0555` will be stored at
-`~/.tsh/bin/proxyName/{tctl,tsh}`. This will act as both a cache and allow
-users to connect to different Teleport clusters (running different versions of
-Teleport) without juggling multiple versions of client tools.
+`~/.tsh/bin/proxyName/{tctl,tsh}`. A locking mechanism built around
+[syscall.Flock](https://pkg.go.dev/syscall#Flock) on Linux and macOS and
+[LockFileEx](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-lockfileex)
+on Windows to only allow a single writer to update the version of client tools
+at a time. This will act as both a cache and allow users to connect to
+different Teleport clusters (running different versions of Teleport) without
+juggling multiple versions of client tools.
 
 ```
 $ tree ~/.tsh
@@ -104,7 +108,7 @@ cluster and can not wait for the update to occur.
 ```
 $ tsh login --proxy=proxy.example.com
 Client tools are out of date, updating to vX.Y.Z.
-Update progress: [▒▒▒▒▒▒     ] (Ctrl-C to Cancel)
+Update progress: [▒▒▒▒▒▒     ] (Ctrl-C to cancel update)
 
 [...]
 ```
@@ -114,9 +118,13 @@ child process will inherit all environment variables and flags. Re-execution
 will occur only if the parent process is not `tsh` or `tctl`, to prevent
 infinite loops.
 
-An environment variable `TELEPORT_TOOLS_VERSION` will be introduced to enable
-overriding and using a specific version of client tools. This field can be used
-either as an emergency workaround for a known issue or for debugging purposes
+An environment variable `TELEPORT_TOOLS_VERSION` will be introduced to use a
+specific version of client tools `X.Y.Z` or turn `off` client tools updates
+completely. This environment variable can be used as a emergency workaround for
+a known issue, pinning to a specific version in CI/CD, or for debugging.
+
+Automatic updates will not be used if `tctl` is connecting to the Auth Service
+over localhost.
 
 ##### Errors and warnings
 
@@ -285,8 +293,6 @@ curl https://proxy.example.com/v1/webapi/ping | jq .
 }
 ```
 
-TODO(russjones): Teleport Connect support.
-
 ### Costs
 
 Some additional costs will be incurred as Teleport downloads will increase in
@@ -296,6 +302,11 @@ frequency.
 
 How Cloud will push changes to `cluster_maintenance_config` is out of scope
 for this RFD and will be handled by a separate Cloud specific RFD.
+
+Automatic updates for Teleport Connect are out of scope for this RFD as it uses
+a different install/update mechanism. For now it will call `tsh` with
+`TELEPORT_TOOLS_VERSION=off` until automatic updates support can be added to
+Connect.
 
 ### Security
 
