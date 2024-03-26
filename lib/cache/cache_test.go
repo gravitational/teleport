@@ -113,6 +113,7 @@ type testPack struct {
 	userLoginStates         services.UserLoginStates
 	secReports              services.SecReports
 	accessLists             services.AccessLists
+	kubeWaitingContainers   services.KubeWaitingContainer
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -288,6 +289,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.accessLists = accessListsSvc
 
+	kubeWaitingContSvc, err := local.NewKubeWaitingContainerService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.kubeWaitingContainers = kubeWaitingContSvc
+
 	return p, nil
 }
 
@@ -329,6 +336,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
+		KubeWaitingContainers:   p.kubeWaitingContainers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -727,6 +735,7 @@ func TestCompletenessInit(t *testing.T) {
 			UserLoginStates:         p.userLoginStates,
 			SecReports:              p.secReports,
 			AccessLists:             p.accessLists,
+			KubeWaitingContainers:   p.kubeWaitingContainers,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -799,6 +808,7 @@ func TestCompletenessReset(t *testing.T) {
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
+		KubeWaitingContainers:   p.kubeWaitingContainers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -983,6 +993,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
+		KubeWaitingContainers:   p.kubeWaitingContainers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1066,6 +1077,7 @@ func initStrategy(t *testing.T) {
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
+		KubeWaitingContainers:   p.kubeWaitingContainers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -3365,6 +3377,7 @@ func newKubeWaitingContainer(t *testing.T) types.Resource {
 		PodName:       "pod",
 		ContainerName: "container",
 		Patch:         []byte("patch"),
+		PatchType:     "application/json-patch+json",
 	})
 	require.NoError(t, err)
 
