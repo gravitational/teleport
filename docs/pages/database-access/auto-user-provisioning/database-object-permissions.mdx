@@ -3,11 +3,20 @@ title: Database Object Permissions
 description: Understand the concepts behind Database Object Permissions managed by Teleport.
 ---
 
-Database Object Permissions is a Teleport feature that enables the configuration of access levels for individual users to specific database objects based on their required level of access.
+**Database Object Permissions** is a Teleport feature that lets you configure
+role-based access controls for data stored within a database. A **database
+object** can be a table, view, or stored procedure. With Database Object
+Permissions, you can ensure that users only have permissions to manage the data
+they need.
 
-Database objects are labeled based on import rules, and these labels correspond to specific permissions configured within user roles.
+You can define **import rules** that instruct the Teleport Database Service to
+apply labels to database objects when it encounters these objects in a user
+session. When a user connects to a database, the Database Service allows or
+denies the session by checking database object labels against the user's
+Teleport roles.
 
-Permissions are granted for the duration of a connection and are automatically revoked upon its closure.
+The Database Service grants object-level permissions for the duration of a
+connection and revokes them automatically when the connection ends.
 
 ## Database object import rules
 
