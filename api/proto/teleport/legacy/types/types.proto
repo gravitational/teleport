@@ -2501,6 +2501,12 @@ message AccessCapabilitiesRequest {
     (gogoproto.jsontag) = "resource_ids,omitempty",
     (gogoproto.nullable) = false
   ];
+  // Login is the host login the user is requesting access for.
+  string Login = 5 [(gogoproto.jsontag) = "login,omitempty"];
+  // FilterRequestableRolesByResource is a flag indicating that the returned
+  // list of roles that the user can request should be filtered to only include
+  // roles that allow access to the provided ResourceIDs.
+  bool FilterRequestableRolesByResource = 6 [(gogoproto.jsontag) = "filter_requestable_roles_by_resource,omitempty"];
 }
 
 // ResourceID is a unique identifier for a teleport resource.

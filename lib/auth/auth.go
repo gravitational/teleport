@@ -5044,6 +5044,7 @@ func (a *Server) GetAccessCapabilities(ctx context.Context, req types.AccessCapa
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return caps, nil
 }
 
