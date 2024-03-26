@@ -14,6 +14,13 @@ Some of the things you can do with database access:
   [Access Request](../access-controls/access-requests.mdx) workflows.
 - Capture database activity in the Teleport audit log.
 
+## Connect your database
+
+- [Getting started](./getting-started.mdx): Connect Aurora PostgreSQL in a 10
+  minute guide.
+- Read the [Teleport database access guides](./guides.mdx) for instructions on
+  enrolling specific databases in your Teleport cluster.
+
 ## Architecture
 
 ![Teleport Database Access Diagram](../../img/database-access/architecture.svg)
@@ -46,13 +53,6 @@ work together to enable secure access to databases
 1. The Database Service begins proxying traffic between the user's database
    client and the database. Additionally, it interprets the database wire
    protocol messages and submits events to the Teleport audit log.
-
-## Connect your database
-
-- [Getting started](./getting-started.mdx): Connect Aurora PostgreSQL in a 10
-  minute guide.
-
-(!docs/pages/includes/database-access/guides.mdx!)
 
 ## Resources
 
