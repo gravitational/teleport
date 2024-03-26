@@ -27,7 +27,9 @@ will cover access using the Teleport CLI `tsh` as well as the OpenSSH client.
 
 First, Teleport must be configured to allow the credentials produced by the bot
 to connect to SSH servers in your infrastructure. In this example, access will
-be granted to all SSH nodes for the username `root`.
+be granted to all SSH nodes for the username `root`. This is done by creating a
+role that grants the necessary permissions and then assigning this role to a
+Bot.
 
 Create a file called `role.yaml` with the following content:
 

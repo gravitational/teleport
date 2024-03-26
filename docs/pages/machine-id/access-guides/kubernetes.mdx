@@ -64,7 +64,9 @@ $ kubectl create clusterrolebinding teleport-editor-edit \
 With the appropriate RoleBinding configured in Kubernetes to grant access to
 a specific group, you now need to add this group to the role that the bot
 will impersonate when producing credentials. You also need to grant the bot
-access through Teleport to the cluster itself.
+access through Teleport to the cluster itself. This is done by creating a
+role that grants the necessary permissions and then assigning this role to a
+Bot.
 
 Create a file called `role.yaml` with the following content:
 
