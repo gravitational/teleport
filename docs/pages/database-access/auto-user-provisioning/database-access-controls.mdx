@@ -9,7 +9,7 @@ object** can be a table, view, or stored procedure. With Database Access Control
 they need.
 
 You can define **import rules** that instruct the Teleport Database Service to
-apply labels to database objects imported from databases that match labels configured within the import rule. When a user connects to a database, the Database Service allows or denies the session by checking database object labels against the user's Teleport roles.
+apply labels to database objects imported from databases that match labels configured within the import rule. When a user connects to a database, the Database Service selectively grants permissions by checking database object labels against the user's Teleport roles.
 
 The Database Service grants object-level permissions for the duration of a
 connection and revokes them automatically when the connection ends.
