@@ -67,6 +67,8 @@ func prepopulate(t *testing.T, service services.DatabaseObjects, count int) {
 }
 
 func TestCreateDatabaseObjects(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	service := getService(t)
 
@@ -84,6 +86,8 @@ func TestCreateDatabaseObjects(t *testing.T) {
 }
 
 func TestUpsertDatabaseObjects(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	service := getService(t)
 
@@ -102,6 +106,8 @@ func TestUpsertDatabaseObjects(t *testing.T) {
 }
 
 func TestGetDatabaseObject(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	service := getService(t)
 	prepopulate(t, service, 1)
@@ -146,6 +152,8 @@ func TestGetDatabaseObject(t *testing.T) {
 }
 
 func TestUpdateDatabaseObject(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	service := getService(t)
 	prepopulate(t, service, 1)
@@ -165,6 +173,8 @@ func TestUpdateDatabaseObject(t *testing.T) {
 }
 
 func TestDeleteDatabaseObject(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	service := getService(t)
 	prepopulate(t, service, 1)
@@ -200,6 +210,8 @@ func TestDeleteDatabaseObject(t *testing.T) {
 }
 
 func TestListDatabaseObjects(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	counts := []int{0, 1, 5, 10}
@@ -252,6 +264,8 @@ func TestListDatabaseObjects(t *testing.T) {
 }
 
 func TestMarshalDatabaseObjectRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	spec := &dbobjectv1.DatabaseObjectSpec{Name: "dummy", Protocol: "postgres"}
 	obj, err := databaseobject.NewDatabaseObject("dummy-table", spec)
 	require.NoError(t, err)
