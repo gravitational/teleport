@@ -633,59 +633,6 @@ func TestIsEICE(t *testing.T) {
 	}
 }
 
-func TestServerInfoName(t *testing.T) {
-	tests := []struct {
-		name   string
-		server *ServerV2
-		want   string
-	}{
-		{
-			name: "node with account and instance id labels uses the aws-<account-id>-<instance-id> format",
-			server: &ServerV2{
-				Metadata: Metadata{
-					Labels: map[string]string{
-						AWSAccountIDLabel:  "123456789012",
-						AWSInstanceIDLabel: "i-123",
-					},
-				},
-			},
-			want: "aws-123456789012-i-123",
-		},
-		{
-			name: "node with aws metadata uses the aws-<account-id>-<instance-id> format",
-			server: &ServerV2{
-				Metadata: Metadata{Labels: map[string]string{}},
-				Spec: ServerSpecV2{
-					CloudMetadata: &CloudMetadata{
-						AWS: &AWSInfo{
-							AccountID:  "123456789012",
-							InstanceID: "i-123",
-						},
-					},
-				},
-			},
-			want: "aws-123456789012-i-123",
-		},
-		{
-			name: "other nodes have their server info name following the si-<namen> format",
-			server: &ServerV2{
-				Metadata: Metadata{
-					Name:   "abcd",
-					Labels: map[string]string{},
-				},
-			},
-			want: "si-abcd",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.server.ServerInfoName(); got != tt.want {
-				t.Errorf("ServerInfoName() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestGetCloudMetadataAWS(t *testing.T) {
 	for _, tt := range []struct {
 		name     string

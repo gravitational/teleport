@@ -1749,9 +1749,6 @@ type Node interface {
 	// IsEICE returns whether the Node is an EICE instance.
 	// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
 	IsEICE() bool
-	// ServerInfoName returns the ServerInfo name for this resource.
-	// This name is used to match this instance against the ServerInfo resource.
-	ServerInfoName() string
 }
 
 // GetNodes allows callers to retrieve a subset of nodes that match the filter provided. The
