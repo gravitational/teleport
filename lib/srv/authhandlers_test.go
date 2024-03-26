@@ -280,7 +280,7 @@ func TestRBACJoinMFA(t *testing.T) {
 	// create auth handler and dummy node
 	config := &AuthHandlerConfig{
 		Server:      server,
-		Emitter:     &eventstest.MockRecorderEmitter{},
+		Emitter:     &eventstest.MockEmitter{},
 		AccessPoint: accessPoint,
 	}
 	ah, err := NewAuthHandlers(config)
@@ -295,7 +295,7 @@ func TestRBACJoinMFA(t *testing.T) {
 
 	mfaAuthPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		SecondFactor:   constants.SecondFactorOTP,
-		RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+		RequireMFAType: types.RequireMFAType_SESSION,
 	})
 	require.NoError(t, err)
 
@@ -317,7 +317,7 @@ func TestRBACJoinMFA(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	_, err = server.auth.CreateRole(ctx, joinMFARole)
+	err = server.auth.CreateRole(ctx, joinMFARole)
 	require.NoError(t, err)
 
 	joinRole, err := types.NewRole("join", types.RoleSpecV6{
@@ -328,7 +328,7 @@ func TestRBACJoinMFA(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	_, err = server.auth.CreateRole(ctx, joinRole)
+	err = server.auth.CreateRole(ctx, joinRole)
 	require.NoError(t, err)
 
 	tests := []struct {
