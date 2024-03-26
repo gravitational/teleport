@@ -32,8 +32,8 @@ func NewServiceWrapper[T types.ResourceMetadata](
 	resourceKind string,
 	backendPrefix string,
 	marshalFunc MarshalFunc[T],
-	unmarshalFunc UnmarshalFunc[T]) (*ServiceWrapper[T], error) {
-
+	unmarshalFunc UnmarshalFunc[T],
+) (*ServiceWrapper[T], error) {
 	cfg := &ServiceConfig[resourceMetadataAdapter[T]]{
 		Backend:       backend,
 		ResourceKind:  resourceKind,
@@ -63,21 +63,18 @@ type ServiceWrapper[T types.ResourceMetadata] struct {
 }
 
 // UpsertResource upserts a resource.
-func (s ServiceWrapper[T]) UpsertResource(ctx context.Context, resource T) (T, error) {
-	adapter, err := s.service.UpsertResource(ctx, newResourceMetadataAdapter(resource))
-	return adapter.resource, trace.Wrap(err)
+func (s ServiceWrapper[T]) UpsertResource(ctx context.Context, resource T) error {
+	return trace.Wrap(s.service.UpsertResource(ctx, newResourceMetadataAdapter(resource)))
 }
 
 // UpdateResource updates an existing resource.
-func (s ServiceWrapper[T]) UpdateResource(ctx context.Context, resource T) (T, error) {
-	adapter, err := s.service.UpdateResource(ctx, newResourceMetadataAdapter(resource))
-	return adapter.resource, trace.Wrap(err)
+func (s ServiceWrapper[T]) UpdateResource(ctx context.Context, resource T) error {
+	return trace.Wrap(s.service.UpdateResource(ctx, newResourceMetadataAdapter(resource)))
 }
 
 // CreateResource creates a new resource.
-func (s ServiceWrapper[T]) CreateResource(ctx context.Context, resource T) (T, error) {
-	adapter, err := s.service.CreateResource(ctx, newResourceMetadataAdapter(resource))
-	return adapter.resource, trace.Wrap(err)
+func (s ServiceWrapper[T]) CreateResource(ctx context.Context, resource T) error {
+	return trace.Wrap(s.service.CreateResource(ctx, newResourceMetadataAdapter(resource)))
 }
 
 // GetResource returns the specified resource.
