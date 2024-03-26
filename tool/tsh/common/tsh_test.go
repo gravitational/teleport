@@ -1774,16 +1774,22 @@ func (o *output) String() string {
 // AccessDenied.
 func TestSSHAccessRequest(t *testing.T) {
 	tests := []struct {
-		name        string
-		requestMode string
+		name                        string
+		requestMode                 string
+		assertNonApprovedNodeAccess require.ErrorAssertionFunc
+		assertSearchRolesOnly       require.ErrorAssertionFunc
 	}{
 		{
-			name:        "resource-based",
-			requestMode: accessRequestModeResource,
+			name:                        "resource-based",
+			requestMode:                 accessRequestModeResource,
+			assertNonApprovedNodeAccess: require.Error,
+			assertSearchRolesOnly:       require.NoError,
 		},
 		{
-			name:        "role-based",
-			requestMode: accessRequestModeRole,
+			name:                        "role-based",
+			requestMode:                 accessRequestModeRole,
+			assertNonApprovedNodeAccess: require.NoError,
+			assertSearchRolesOnly:       require.Error,
 		},
 	}
 	for _, tc := range tests {
@@ -1798,6 +1804,18 @@ func TestSSHAccessRequest(t *testing.T) {
 				Allow: types.RoleConditions{
 					Request: &types.AccessRequestConditions{
 						Roles:         []string{"node-access"},
+						SearchAsRoles: []string{"node-access"},
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			emptyRole, err := types.NewRole("empty", types.RoleSpecV6{})
+			require.NoError(t, err)
+			searchOnlyRequester, err := types.NewRole("search-only-requester", types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Request: &types.AccessRequestConditions{
+						Roles:         []string{"empty"},
 						SearchAsRoles: []string{"node-access"},
 					},
 				},
@@ -1827,7 +1845,7 @@ func TestSSHAccessRequest(t *testing.T) {
 			alice.SetTraits(traits)
 
 			rootAuth, rootProxy := makeTestServers(t,
-				withBootstrap(requester, nodeAccessRole, connector, alice),
+				withBootstrap(requester, searchOnlyRequester, nodeAccessRole, emptyRole, connector, alice),
 				withConfig(func(cfg *servicecfg.Config) {
 					cfg.Clock = clockwork.NewFakeClock()
 				}))
@@ -1931,6 +1949,16 @@ func TestSSHAccessRequest(t *testing.T) {
 				"echo", "test",
 			}, setHomePath(tmpHomePath))
 			require.Error(t, err)
+			err = Run(ctx, []string{
+				"ssh",
+				"--insecure",
+				"--request-mode", tc.requestMode,
+				"--request-reason", "reason here to bypass prompt",
+				"--disable-access-request",
+				fmt.Sprintf("%s@%s", user.Username, sshHostname),
+				"echo", "test",
+			}, setHomePath(tmpHomePath))
+			require.Error(t, err)
 
 			// the first ssh request can fail if the proxy node watcher doesn't know
 			// about the nodes yet, retry a few times until it works
@@ -1985,26 +2013,14 @@ func TestSSHAccessRequest(t *testing.T) {
 			}, setHomePath(tmpHomePath))
 			require.NoError(t, err)
 
-			// For resource-based requests, fail to ssh to other non-approved node,
-			// do not prompt for request
-			if tc.requestMode == accessRequestModeResource {
-				err = Run(ctx, []string{
-					"ssh",
-					"--insecure",
-					fmt.Sprintf("%s@%s", user.Username, sshHostname2),
-					"echo", "test",
-				}, setHomePath(tmpHomePath))
-				require.Error(t, err)
-			} else {
-				// For role-based requests, ssh into another node works
-				err = Run(ctx, []string{
-					"ssh",
-					"--insecure",
-					fmt.Sprintf("%s@%s", user.Username, sshHostname2),
-					"echo", "test",
-				}, setHomePath(tmpHomePath))
-				require.NoError(t, err)
-			}
+			// check access to non-requested node
+			err = Run(ctx, []string{
+				"ssh",
+				"--insecure",
+				fmt.Sprintf("%s@%s", user.Username, sshHostname2),
+				"echo", "test",
+			}, setHomePath(tmpHomePath))
+			tc.assertNonApprovedNodeAccess(t, err)
 
 			// drop the current access request
 			err = Run(ctx, []string{
@@ -2034,6 +2050,32 @@ func TestSSHAccessRequest(t *testing.T) {
 				"echo", "test",
 			}, setHomePath(tmpHomePath))
 			require.NoError(t, err)
+
+			// Check access to nodes when only search_as_roles are available
+			alice.SetRoles([]string{"search-only-requester"})
+			_, err = rootAuth.GetAuthServer().UpsertUser(ctx, alice)
+			require.NoError(t, err)
+			// log out and back in with no access request
+			err = Run(ctx, []string{
+				"logout",
+			}, setHomePath(tmpHomePath))
+			require.NoError(t, err)
+			err = Run(ctx, []string{
+				"login",
+				"--insecure",
+				"--proxy", proxyAddr.String(),
+				"--user", "alice",
+			}, setHomePath(tmpHomePath), setMockSSOLogin(rootAuth.GetAuthServer(), alice, connector.GetName()))
+			require.NoError(t, err)
+			err = Run(ctx, []string{
+				"ssh",
+				"--insecure",
+				"--request-mode", tc.requestMode,
+				"--request-reason", "reason here to bypass prompt",
+				fmt.Sprintf("%s@%s", user.Username, sshHostname),
+				"echo", "test",
+			}, setHomePath(tmpHomePath))
+			tc.assertSearchRolesOnly(t, err)
 		})
 	}
 }

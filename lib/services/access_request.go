@@ -203,9 +203,35 @@ type DynamicAccessOracle interface {
 	GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error)
 }
 
+func canFilterRequestableRolesByResource(a RequestValidatorGetter, req types.AccessCapabilitiesRequest) (bool, error) {
+	if !req.FilterRequestableRolesByResource {
+		return false, nil
+	}
+	currentCluster, err := a.GetClusterName()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	for _, resourceID := range req.ResourceIDs {
+		if resourceID.ClusterName != currentCluster.GetClusterName() {
+			// Requested resource is from another cluster, so we can't know
+			// all of the roles which would grant access to it.
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 // CalculateAccessCapabilities aggregates the requested capabilities using the supplied getter
 // to load relevant resources.
 func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt RequestValidatorGetter, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
+	canFilter, err := canFilterRequestableRolesByResource(clt, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !canFilter {
+		req.ResourceIDs = nil
+	}
+
 	var caps types.AccessCapabilities
 	// all capabilities require use of a request validator.  calculating suggested reviewers
 	// requires that the validator be configured for variable expansion.
@@ -1406,25 +1432,27 @@ func (m *RequestValidator) GetRequestableRoles(ctx context.Context, resourceIDs 
 	}
 
 	var expanded []string
-outer:
 	for _, role := range allRoles {
 		n := role.GetName()
 		if slices.Contains(m.userState.GetRoles(), n) || !m.CanRequestRole(n) {
 			continue
 		}
 
+		roleAllowsAccess := true
 		for _, resource := range resources {
-			roleAllowsAccess, err := m.roleAllowsResource(ctx, role, resource, loginHint)
+			access, err := m.roleAllowsResource(ctx, role, resource, loginHint)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if !roleAllowsAccess {
-				continue outer
+			if !access {
+				roleAllowsAccess = false
 			}
 		}
 
 		// user does not currently hold this role, and is allowed to request it.
-		expanded = append(expanded, n)
+		if roleAllowsAccess {
+			expanded = append(expanded, n)
+		}
 	}
 	return expanded, nil
 }
