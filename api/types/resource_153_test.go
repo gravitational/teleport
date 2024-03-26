@@ -281,13 +281,10 @@ func TestExpiryConsistency(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bot := &machineidv1.Bot{
+			bot := &fake153Resource{
 				Kind:     "bot",
 				SubKind:  "robot",
 				Metadata: &headerv1.Metadata{Name: "Bernard", Expires: tt.expiryTimestamp},
-				Spec: &machineidv1.BotSpec{
-					Roles: []string{"robot", "human"},
-				},
 			}
 
 			legacyResource := types.Resource153ToLegacy(bot)
