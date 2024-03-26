@@ -2414,13 +2414,13 @@ func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Ser
 
 	var servers []types.Server
 	for {
-		page, err := client.ListUnifiedResourcePage(ctx, clt.AuthClient, &req)
+		page, next, err := client.GetUnifiedResourcePage(ctx, clt.AuthClient, &req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		for _, r := range page.Resources {
-			srv, ok := r.(types.Server)
+		for _, r := range page {
+			srv, ok := r.ResourceWithLabels.(types.Server)
 			if !ok {
 				log.Warnf("expected types.Server but received unexpected type %T", r)
 				continue
@@ -2429,7 +2429,7 @@ func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Ser
 			servers = append(servers, srv)
 		}
 
-		req.StartKey = page.NextKey
+		req.StartKey = next
 		if req.StartKey == "" {
 			break
 		}
@@ -2571,7 +2571,7 @@ func (tc *TeleportClient) ListAppsAllClusters(ctx context.Context, customFilter 
 }
 
 // CreateAppSession creates a new application access session.
-func (tc *TeleportClient) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
+func (tc *TeleportClient) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/CreateAppSession",

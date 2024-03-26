@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
+	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/scim"
@@ -65,6 +66,7 @@ import (
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
@@ -998,60 +1000,59 @@ func (c *Client) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) 
 // GetUsers returns all currently registered users.
 // withSecrets controls whether authentication details are returned.
 func (c *Client) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	users, next, err := c.ListUsers(ctx, defaults.DefaultChunkSize, "", withSecrets)
-	if err != nil {
-		// TODO(tross): DELETE IN 16.0.0
-		if trace.IsNotImplemented(err) {
-			//nolint:staticcheck // SA1019. Kept for backward compatibility.
-			stream, err := c.grpc.GetUsers(ctx, &proto.GetUsersRequest{
-				WithSecrets: withSecrets,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			var users []types.User
-			for user, err := stream.Recv(); !errors.Is(err, io.EOF); user, err = stream.Recv() {
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				users = append(users, user)
-			}
-			return users, nil
-		}
-
-		return nil, trace.Wrap(err)
+	req := userspb.ListUsersRequest{
+		WithSecrets: withSecrets,
 	}
 
-	out := users
-	for next != "" {
-		users, next, err = c.ListUsers(ctx, defaults.DefaultChunkSize, next, withSecrets)
+	var out []types.User
+	for {
+		rsp, err := c.ListUsers(ctx, &req)
 		if err != nil {
+			// TODO(tross): DELETE IN 16.0.0
+			if trace.IsNotImplemented(err) {
+				return c.getUsersCompat(ctx, withSecrets)
+			}
+
 			return nil, trace.Wrap(err)
 		}
 
-		out = append(out, users...)
+		for _, user := range rsp.Users {
+			out = append(out, user)
+		}
+
+		req.PageToken = rsp.NextPageToken
+		if req.PageToken == "" {
+			break
+		}
 	}
 
 	return out, nil
 }
 
-// ListUsers returns a page of users.
-func (c *Client) ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
-	resp, err := userspb.NewUsersServiceClient(c.conn).ListUsers(ctx, &userspb.ListUsersRequest{
-		PageSize:    int32(pageSize),
-		PageToken:   nextToken,
+// getUsersCompat is a fallback used to load users when talking to older auth servers that
+// don't implement the newer ListUsers method.
+func (c *Client) getUsersCompat(ctx context.Context, withSecrets bool) ([]types.User, error) {
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
+	stream, err := c.grpc.GetUsers(ctx, &proto.GetUsersRequest{
 		WithSecrets: withSecrets,
 	})
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	out := make([]types.User, 0, len(resp.Users))
-	for _, u := range resp.Users {
-		out = append(out, u)
+	var users []types.User
+	for user, err := stream.Recv(); !errors.Is(err, io.EOF); user, err = stream.Recv() {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		users = append(users, user)
 	}
+	return users, nil
+}
 
-	return out, resp.NextPageToken, nil
+// ListUsers returns a page of users.
+func (c *Client) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
+	resp, err := userspb.NewUsersServiceClient(c.conn).ListUsers(ctx, req)
+	return resp, trace.Wrap(err)
 }
 
 // DeleteUser deletes a user by name.
@@ -1512,15 +1513,8 @@ func (c *Client) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToke
 
 // CreateAppSession creates an application web session. Application web
 // sessions represent a browser session the client holds.
-func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
-	resp, err := c.grpc.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:          req.Username,
-		PublicAddr:        req.PublicAddr,
-		ClusterName:       req.ClusterName,
-		AWSRoleARN:        req.AWSRoleARN,
-		AzureIdentity:     req.AzureIdentity,
-		GCPServiceAccount: req.GCPServiceAccount,
-	})
+func (c *Client) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error) {
+	resp, err := c.grpc.CreateAppSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3271,6 +3265,40 @@ func (c *Client) DeleteAllKubernetesClusters(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
+// GetKubernetesWaitingContainerClient an unadorned KubeWaitingContainers
+// client, using the underlying Auth gRPC connection.
+func (c *Client) GetKubernetesWaitingContainerClient() *kubewaitingcontainerclient.Client {
+	return kubewaitingcontainerclient.NewClient(kubewaitingcontainerpb.NewKubeWaitingContainersServiceClient(c.conn))
+}
+
+// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+// containers that are waiting to be created until moderated
+// session conditions are met.
+func (c *Client) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
+	return c.GetKubernetesWaitingContainerClient().ListKubernetesWaitingContainers(ctx, pageSize, pageToken)
+}
+
+// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
+// container that are waiting to be created until moderated
+// session conditions are met.
+func (c *Client) GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+	return c.GetKubernetesWaitingContainerClient().GetKubernetesWaitingContainer(ctx, req)
+}
+
+// CreateKubernetesWaitingContainer creates a Kubernetes ephemeral
+// container that are waiting to be created until moderated
+// session conditions are met.
+func (c *Client) CreateKubernetesWaitingContainer(ctx context.Context, waitingPod *kubewaitingcontainerpb.KubernetesWaitingContainer) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+	return c.GetKubernetesWaitingContainerClient().CreateKubernetesWaitingContainer(ctx, waitingPod)
+}
+
+// DeleteKubernetesWaitingContainer deletes a Kubernetes ephemeral
+// container that are waiting to be created until moderated
+// session conditions are met.
+func (c *Client) DeleteKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest) error {
+	return c.GetKubernetesWaitingContainerClient().DeleteKubernetesWaitingContainer(ctx, req)
+}
+
 // CreateDatabase creates a new database resource.
 func (c *Client) CreateDatabase(ctx context.Context, database types.Database) error {
 	databaseV3, ok := database.(*types.DatabaseV3)
@@ -3706,51 +3734,39 @@ type ResourcePage[T types.ResourceWithLabels] struct {
 	NextKey string
 }
 
-// getResourceFromProtoPage extracts the resource from the PaginatedResource returned
-// from the rpc ListUnifiedResources
-func getResourceFromProtoPage(resource *proto.PaginatedResource) (types.ResourceWithLabels, error) {
-	var out types.ResourceWithLabels
+// convertEnrichedResource extracts the resource and any enriched information from the
+// PaginatedResource returned from the rpc ListUnifiedResources.
+func convertEnrichedResource(resource *proto.PaginatedResource) (*types.EnrichedResource, error) {
 	if r := resource.GetNode(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins}, nil
 	} else if r := resource.GetDatabaseServer(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetDatabaseService(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetAppServerOrSAMLIdPServiceProvider(); r != nil { //nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetWindowsDesktop(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetWindowsDesktopService(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetKubeCluster(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetKubernetesServer(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetUserGroup(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetAppServer(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetSAMLIdPServiceProvider(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
 	}
 }
 
-// ListUnifiedResourcePage is a helper for getting a single page of unified resources that match the provided request.
-func ListUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (ResourcePage[types.ResourceWithLabels], error) {
-	var out ResourcePage[types.ResourceWithLabels]
+// GetUnifiedResourcePage is a helper for getting a single page of unified resources that match the provided request.
+func GetUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) ([]*types.EnrichedResource, string, error) {
+	var out []*types.EnrichedResource
 
 	// Set the limit to the default size if one was not provided within
 	// an acceptable range.
@@ -3766,26 +3782,24 @@ func ListUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient
 				req.Limit /= 2
 				// This is an extremely unlikely scenario, but better to cover it anyways.
 				if req.Limit == 0 {
-					return out, trace.Wrap(err, "resource is too large to retrieve")
+					return nil, "", trace.Wrap(err, "resource is too large to retrieve")
 				}
 
 				continue
 			}
 
-			return out, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
 
 		for _, respResource := range resp.Resources {
-			resource, err := getResourceFromProtoPage(respResource)
+			resource, err := convertEnrichedResource(respResource)
 			if err != nil {
-				return out, trace.Wrap(err)
+				return nil, "", trace.Wrap(err)
 			}
-			out.Resources = append(out.Resources, resource)
+			out = append(out, resource)
 		}
 
-		out.NextKey = resp.NextKey
-
-		return out, nil
+		return out, resp.NextKey, nil
 	}
 }
 

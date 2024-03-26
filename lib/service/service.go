@@ -4113,7 +4113,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Emitter:          asyncEmitter,
 			PluginRegistry:   process.PluginRegistry,
 			HostUUID:         process.Config.HostUUID,
-			Context:          process.ExitContext(),
+			Context:          process.GracefulExitContext(),
 			StaticFS:         fs,
 			ClusterFeatures:  process.getClusterFeatures(),
 			GetProxyIdentity: func() (*auth.Identity, error) {
