@@ -59,12 +59,11 @@ export class HeadlessAuthenticationService {
   }
 
   async updateHeadlessAuthenticationState(
-    params: types.UpdateHeadlessAuthenticationStateParams,
+    params: types.UpdateHeadlessAuthenticationStateRequest,
     abortSignal: types.CloneableAbortSignal
   ): Promise<void> {
-    return this.tshClient.updateHeadlessAuthenticationState(
-      params,
-      abortSignal
-    );
+    await this.tshClient.updateHeadlessAuthenticationState(params, {
+      abort: abortSignal,
+    });
   }
 }
