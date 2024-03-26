@@ -34,23 +34,39 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ConfigureGCPWorkforce creates GCP Workforce Identity Federation pool and pool provider
-// with the given params.
-func ConfigureGCPWorkforce(ctx context.Context, params samlidpconfig.GCPWorkforcePrams) error {
-	fmt.Println("\nConfiguring Workforce Identity Federation pool and SAML provider.")
+// GCPWorkforceService defines GCPWorkforceService params.
+type GCPWorkforceService struct {
+	// APIParams holds basic input params required to create GCP workforce
+	// pool and pool provider.
+	APIParams samlidpconfig.GCPWorkforceParams
+	// HTTPClient is used to fetch metadata from the SAMLIdPMetadataURL
+	// endpoint.
+	HTTPClient *http.Client
+}
 
-	switch {
-	case params.PoolName == "":
-		return trace.BadParameter("param PoolName required")
-	case params.PoolProviderName == "":
-		return trace.BadParameter("param PoolProviderName required")
-	case params.OrganizationID == "":
-		return trace.BadParameter("param OrganizationID required")
-	case params.SAMLIdPMetadataURL == "":
-		return trace.BadParameter("param SAMLIdPMetadataURL required")
-	case params.HTTPClient == nil:
-		return trace.BadParameter("param HTTPClient required")
+// NewGCPWorkforceService creates new GCPWorkforceService.
+func NewGCPWorkforceService(cfg GCPWorkforceService) (*GCPWorkforceService, error) {
+	newGCPWorkforceService := &GCPWorkforceService{
+		APIParams: samlidpconfig.GCPWorkforceParams{
+			PoolName:           cfg.APIParams.PoolName,
+			PoolProviderName:   cfg.APIParams.PoolProviderName,
+			OrganizationID:     cfg.APIParams.OrganizationID,
+			SAMLIdPMetadataURL: cfg.APIParams.SAMLIdPMetadataURL,
+		},
+		HTTPClient: cfg.HTTPClient,
 	}
+
+	if err := newGCPWorkforceService.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newGCPWorkforceService, nil
+}
+
+// CreateWorkforcePoolAndProvider creates GCP Workforce Identity Federation pool and pool provider
+// with the given params.
+func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context) error {
+	fmt.Println("\nConfiguring Workforce Identity Federation pool and SAML provider.")
 
 	iamService, err := iam.NewService(ctx)
 	if err != nil {
@@ -58,17 +74,17 @@ func ConfigureGCPWorkforce(ctx context.Context, params samlidpconfig.GCPWorkforc
 	}
 	workforceService := iam.NewLocationsWorkforcePoolsService(iamService)
 
-	fmt.Println("\nCreating workforce pool: ", params.PoolName)
-	poolFullName := fmt.Sprintf("locations/global/workforcePools/%s", params.PoolName)
+	fmt.Println("\nCreating workforce pool: ", s.APIParams.PoolName)
+	poolFullName := fmt.Sprintf("locations/global/workforcePools/%s", s.APIParams.PoolName)
 	createPool := workforceService.Create(
 		"locations/global",
 		&iam.WorkforcePool{
 			Name:        poolFullName,
-			DisplayName: params.PoolName,
+			DisplayName: s.APIParams.PoolName,
 			Description: "pool created by Teleport",
-			Parent:      fmt.Sprintf("organizations/%s", params.OrganizationID),
+			Parent:      fmt.Sprintf("organizations/%s", s.APIParams.OrganizationID),
 		})
-	createPool.WorkforcePoolId(params.PoolName)
+	createPool.WorkforcePoolId(s.APIParams.PoolName)
 	resp, err := createPool.Do()
 	if err != nil {
 		// TODO(sshah): parse through error type for better error handling
@@ -82,21 +98,21 @@ func ConfigureGCPWorkforce(ctx context.Context, params samlidpconfig.GCPWorkforc
 		pollCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
 		defer cancel()
 
-		if err := waitForPoolStatus(pollCtx, workforceService, poolFullName, params.PoolName); err != nil {
+		if err := waitForPoolStatus(pollCtx, workforceService, poolFullName, s.APIParams.PoolName); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("Pool %q is ready for use.\n", params.PoolName)
+		fmt.Printf("Pool %q is ready for use.\n", s.APIParams.PoolName)
 	}
 
-	fmt.Println("\nCreating workforce pool provider: ", params.PoolProviderName)
-	metadata, err := fetchIdPMetadata(params.SAMLIdPMetadataURL, params.HTTPClient)
+	fmt.Println("\nCreating workforce pool provider: ", s.APIParams.PoolProviderName)
+	metadata, err := fetchIdPMetadata(s.APIParams.SAMLIdPMetadataURL, s.HTTPClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	provider := &iam.WorkforcePoolProvider{
 		Description: "pool provider created by Teleport",
-		Name:        fmt.Sprintf("locations/global/workforcePools/%s/providers/%s", params.PoolName, params.PoolProviderName),
-		DisplayName: params.PoolProviderName,
+		Name:        fmt.Sprintf("locations/global/workforcePools/%s/providers/%s", s.APIParams.PoolName, s.APIParams.PoolProviderName),
+		DisplayName: s.APIParams.PoolProviderName,
 		Saml: &iam.GoogleIamAdminV1WorkforcePoolProviderSaml{
 			IdpMetadataXml: metadata,
 		},
@@ -107,17 +123,17 @@ func ConfigureGCPWorkforce(ctx context.Context, params samlidpconfig.GCPWorkforc
 	}
 
 	createProviderReq := workforceService.Providers.Create(poolFullName, provider)
-	createProviderReq.WorkforcePoolProviderId(params.PoolProviderName)
+	createProviderReq.WorkforcePoolProviderId(s.APIParams.PoolProviderName)
 	createProviderResp, err := createProviderReq.Do()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	if !createProviderResp.Done {
-		fmt.Printf("Pool provider %s is created but it may take upto a minute more for this provider to become available.\n", params.PoolProviderName)
+		fmt.Printf("Pool provider %s is created but it may take upto a minute more for this provider to become available.\n", s.APIParams.PoolProviderName)
 	}
 	fmt.Println("Pool provider created.")
-	fmt.Printf("Pool provider %q is ready for use.\n", params.PoolProviderName)
+	fmt.Printf("Pool provider %q is ready for use.\n", s.APIParams.PoolProviderName)
 	return nil
 }
 
@@ -179,4 +195,14 @@ func fetchIdPMetadata(metadataURL string, httpClient *http.Client) (string, erro
 
 	fmt.Println("Fetched SAML IdP metadata.")
 	return string(body), nil
+}
+
+func (s *GCPWorkforceService) CheckAndSetDefaults() error {
+	if err := s.APIParams.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if s.HTTPClient == nil {
+		return trace.BadParameter("param HTTPClient required")
+	}
+	return nil
 }

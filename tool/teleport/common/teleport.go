@@ -1137,19 +1137,26 @@ func onIntegrationConfAccessGraphAWSSync(params config.IntegrationConfAccessGrap
 	return nil
 }
 
-func onIntegrationConfSAMLIdPGCPWorkforce(params samlidpconfig.GCPWorkforcePrams) error {
+func onIntegrationConfSAMLIdPGCPWorkforce(params samlidpconfig.GCPWorkforceParams) error {
 	ctx := context.Background()
 
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
-	params.HTTPClient = &http.Client{
-		Timeout: defaults.HTTPRequestTimeout,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
+	gcpWorkforceService, err := samlidp.NewGCPWorkforceService(samlidp.GCPWorkforceService{
+		APIParams: params,
+		HTTPClient: &http.Client{
+			Timeout: defaults.HTTPRequestTimeout,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
 		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	err := samlidp.ConfigureGCPWorkforce(ctx, params)
+
+	err = gcpWorkforceService.CreateWorkforcePoolAndProvider(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
