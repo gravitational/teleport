@@ -6,7 +6,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "teleport-cluster.labels" . | nindent 4 }}
-  {{- with .Values.podMonitor.additionalLabels }}
+  {{- with .Values.podMonitor.extraLabels }}
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:

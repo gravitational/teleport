@@ -5,6 +5,7 @@ kind: Role
 metadata:
   name: {{ include "teleport-cluster.operator.fullname" . }}
   namespace: {{ .Release.Namespace }}
+  labels: {{- include "teleport-cluster.operator.labels" . | nindent 4 }}
 rules:
   - apiGroups:
       - "resources.teleport.dev"

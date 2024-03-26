@@ -3,6 +3,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ .Release.Name }}
+  labels: {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
 rules:
 - apiGroups:
   - ""

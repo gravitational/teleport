@@ -8,7 +8,8 @@ kind: ConfigMap
 metadata:
   name: {{ .Release.Name }}-proxy
   namespace: {{ .Release.Namespace }}
-{{- if $proxy.annotations.config }}
+  labels: {{ - include "teleport-cluster.proxy.labels" . | nindent 4 }}
+  {{- if $proxy.annotations.config }}
   annotations: {{- toYaml $proxy.annotations.config | nindent 4 }}
 {{- end }}
 data:

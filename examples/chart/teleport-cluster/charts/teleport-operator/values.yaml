@@ -58,6 +58,10 @@ teleportVersionOverride: ""
 nameOverride: ""
 fullNameOverride: ""
 
+# Common labels for the all resources
+extraLabels: {}
+# app: teleport-operator
+
 # image(string) -- sets the container image used for Teleport Kubernetes Operator
 # pods run by the chart.
 #

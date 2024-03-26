@@ -4,6 +4,10 @@ kind: ServiceAccount
 metadata:
   name: {{ template "teleport-kube-agent.deleteHookServiceAccountName" . }}
   namespace: {{ .Release.Namespace }}
+  {{- if .Values.extraLabels.serviceAccount }}
+  labels:
+  {{- toYaml .Values.extraLabels.serviceAccount | nindent 4 }}
+  {{- end }}
   annotations:
     "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-4"
@@ -16,6 +20,10 @@ kind: Role
 metadata:
   name: {{ .Release.Name }}-delete-hook
   namespace: {{ .Release.Namespace }}
+  {{- if .Values.extraLabels.role }}
+  labels:
+  {{- toYaml .Values.extraLabels.role | nindent 4 }}
+  {{- end }}
   annotations:
     "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-3"
@@ -30,6 +38,10 @@ kind: RoleBinding
 metadata:
   name: {{ .Release.Name }}-delete-hook
   namespace: {{ .Release.Namespace }}
+  {{- if .Values.extraLabels.roleBinding }}
+  labels:
+  {{- toYaml .Values.extraLabels.roleBinding | nindent 4 }}
+  {{- end }}
   annotations:
     "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-2"
@@ -49,6 +61,10 @@ kind: Job
 metadata:
   name: {{ .Release.Name }}-delete-hook
   namespace: {{ .Release.Namespace }}
+  {{- if .Values.extraLabels.serviceAccount }}
+  labels:
+  {{- toYaml .Values.extraLabels.serviceAccount | nindent 4 }}
+  {{- end }}
   annotations:
     "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-1"
@@ -57,6 +73,10 @@ spec:
   template:
     metadata:
       name: {{ .Release.Name }}-delete-hook
+      {{- if .Values.extraLabels.serviceAccount }}
+      labels:
+      {{- toYaml .Values.extraLabels.serviceAccount | nindent 8 }}
+      {{- end }}
     spec:
 {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
