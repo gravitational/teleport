@@ -140,20 +140,3 @@ for Azure-hosted database servers.
 See respective [guides](./guides.mdx) for details on configuring IAM/AD
 authentication.
 
-## Discovery
-
-Teleport Discovery Service can automatically discover and enroll database
-servers hosted by cloud providers.
-
-For each configured database type, the Discovery Service scans cloud providers
-using corresponding "read" APIs and filters them with configured labels. Then
-the discovered databases are enrolled in the Teleport Cluster.
-
-The Database Service is responsible for monitoring the dynamic database
-resources including those enrolled by the Discovery Service. Once a dynamic
-database resource is added, the Database Service will start proxying it.
-
-These clouds are currently supported:
-- AWS Databases Discovery
-- Azure Databases Discovery
-
