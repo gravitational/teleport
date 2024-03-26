@@ -44,7 +44,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Service) initRouter() (*httprouter.Router, error) {
 	router := httprouter.New()
 
-	router.GET("/metadata", s.withAuthCtx(s.handleMetadata))
+	router.GET("/metadata", s.withHighLimiter(s.handleMetadata))
 	router.GET("/metadata-values", s.withAuthCtx(s.handleMetadataValues))
 	router.GET("/sso", s.withAuthCtx(s.handleSSO))
 	router.POST("/sso", s.withAuthCtx(s.handleSSO))
@@ -56,6 +56,14 @@ func (s *Service) initRouter() (*httprouter.Router, error) {
 	router.POST("/login/:shortcut/*urlsuffix", s.withAuthCtx(s.handleIdPInitiatedLogin))
 
 	return router, nil
+}
+
+// withHighLimiter limits request based on WithHighLimiter from lib/web.
+func (h *Service) withHighLimiter(fn httprouter.Handle) httprouter.Handle {
+	return h.highLimiter(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		fn(w, r, p)
+		return nil, nil
+	})
 }
 
 func (s *Service) withAuthCtx(fn httprouter.Handle) httprouter.Handle {

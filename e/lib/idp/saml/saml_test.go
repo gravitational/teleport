@@ -2,12 +2,14 @@ package saml
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/crewjam/saml"
 	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -16,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/idp/saml/samlidpv1"
 	"github.com/gravitational/teleport/e/lib/idp/saml/testenv"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -67,6 +70,12 @@ func newTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 		samlidpv1Service,
 	}
 
+	fakeRateLimiter := func(fn httplib.HandlerFunc) httprouter.Handle {
+		return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+			return fn(w, r, p)
+		})
+	}
+
 	samlIdPService, err := New(ctx, Config{
 		Log:         logrus.NewEntry(logrus.New()),
 		Clock:       clock,
@@ -75,6 +84,7 @@ func newTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 		Authorizer:  svcs.Authorizer,
 		BaseURL:     baseURL,
 		Emitter:     svcs.Emitter,
+		HighLimiter: fakeRateLimiter,
 	})
 	require.NoError(t, err)
 

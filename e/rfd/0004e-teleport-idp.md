@@ -185,7 +185,8 @@ More thorough documentation of SAML and its endpoints can be found
 
 ##### Using Teleport's `AuthenticateRequest` before allowing SAML IdP access
 
-When attempting to access any SAML IdP endpoint, Teleport will attempt to authenticate the
+When attempting to access any SAML IdP endpoint, except for the metadata endpoint `/enterprise/saml-idp/metadata`
+which will be served over unauthenticated requests, Teleport will attempt to authenticate the
 request using the `AuthenticateRequest` funcion in `lib/web/apiserver.go`. This will push the
 user through the regular Teleport authentication flow before allowing access. This works
 seamlessly for both Teleport native user management and connector enabled authentication within

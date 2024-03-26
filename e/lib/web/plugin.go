@@ -112,6 +112,13 @@ func (p *Plugin) GetAccessPoint() auth.ProxyAccessPoint {
 	return p.h.GetAccessPoint()
 }
 
+// GetHighLimiter returns the WithHighLimiter from lib/web.
+func (p *Plugin) GetHighLimiter() func(fn httplib.HandlerFunc) httprouter.Handle {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.h.WithHighLimiter
+}
+
 // RegisterAuthServices registers GRPC services
 func (p *Plugin) RegisterAuthServices(ctx context.Context, grpcServer interface{}) error {
 	return nil
@@ -330,6 +337,8 @@ func (p *Plugin) withCloudAuth(fn CloudHandler) httprouter.Handle {
 	})
 }
 
+// withSAMLAuth authenticates request against a valid Teleport web session except for
+// the SAML IdP metadata endpoint "/saml-idp/metadata", which is served unauthenticated.
 func (p *Plugin) withSAMLAuth() httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 		p.samlIdPMu.RLock()
@@ -350,6 +359,11 @@ func (p *Plugin) withSAMLAuth() httprouter.Handle {
 			return nil, trace.BadParameter("the middleware is not yet ready")
 		}
 
+		// skip authenticating request for metadata endpoint
+		if r.URL.Path == "/enterprise/saml-idp/metadata" {
+			samlIdP.ServeHTTP(w, r)
+			return nil, nil
+		}
 		sessCtx, err := p.h.AuthenticateRequest(w, r, false)
 		if err != nil {
 			redirectURI := (&url.URL{

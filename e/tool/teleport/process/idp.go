@@ -62,6 +62,7 @@ func initSAMLIdP(ctx context.Context, cfg *servicecfg.Config, plugin *web.Plugin
 		Authorizer:  authorizer,
 		BaseURL:     publicAddr,
 		Emitter:     authClient,
+		HighLimiter: plugin.GetHighLimiter(),
 	})
 	if err != nil {
 		return trace.Wrap(err)

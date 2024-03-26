@@ -37,7 +37,7 @@ func TestAuth(t *testing.T) {
 	user := setupUser(t, env.testServices, clock.Now().Add(time.Hour))
 
 	// No user.
-	path := path.Join(IdPRoute, "metadata")
+	path := path.Join(IdPRoute, "metadata-values")
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, path, nil).WithContext(ctx)
 
@@ -103,11 +103,8 @@ func TestMetadata(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	env := newTEnv(ctx, t, clock)
 
-	user := setupUser(t, env.testServices, clock.Now().Add(time.Hour))
-
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, path.Join(IdPRoute, "metadata"), nil)
-	r = r.WithContext(authz.ContextWithUser(r.Context(), user))
 
 	env.samlIdPService.ServeHTTP(w, r)
 	require.Equal(t, http.StatusOK, w.Code)
@@ -318,7 +315,7 @@ func TestLockUser(t *testing.T) {
 	user := setupUser(t, env.testServices, clock.Now().Add(time.Hour))
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, path.Join(IdPRoute, "metadata"), nil)
+	r := httptest.NewRequest(http.MethodGet, path.Join(IdPRoute, "metadata-values"), nil)
 	r = r.WithContext(authz.ContextWithUser(r.Context(), user))
 
 	// Make sure the first access works
@@ -336,7 +333,7 @@ func TestLockUser(t *testing.T) {
 	// After adding the lock, the GET should fail.
 	require.Eventually(t, func() bool {
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodGet, path.Join(IdPRoute, "metadata"), nil)
+		r := httptest.NewRequest(http.MethodGet, path.Join(IdPRoute, "metadata-values"), nil)
 		r = r.WithContext(authz.ContextWithUser(r.Context(), user))
 		env.samlIdPService.ServeHTTP(w, r)
 		return w.Code == http.StatusNotFound

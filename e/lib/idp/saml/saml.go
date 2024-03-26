@@ -9,6 +9,7 @@ import (
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/sirupsen/logrus"
 
@@ -19,6 +20,7 @@ import (
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -38,6 +40,9 @@ type Config struct {
 	BaseURL string
 	// Emitter emits audit events.
 	Emitter apievents.Emitter
+	// HighLimiter is a rate limiting middleware based on
+	// WithHighLimiter from lib/web.
+	HighLimiter func(fn httplib.HandlerFunc) httprouter.Handle
 }
 
 // Check makes sure the SAML identity provider service configuration is valid.
@@ -62,6 +67,9 @@ func (c *Config) Check() error {
 	}
 	if c.Emitter == nil {
 		return trace.BadParameter("emitter is missing")
+	}
+	if c.HighLimiter == nil {
+		return trace.BadParameter("highLimiterHandlerFunc is missing")
 	}
 	return nil
 }
@@ -119,6 +127,7 @@ type Service struct {
 	domainName      string
 	metadataURL     url.URL
 	ssoURL          url.URL
+	highLimiter     func(fn httplib.HandlerFunc) httprouter.Handle
 }
 
 // New creates a new SAML identity provider service.
@@ -158,6 +167,7 @@ func New(ctx context.Context, cfg Config) (*Service, error) {
 		signatureMethod: dsig.RSASHA256SignatureMethod,
 		metadataURL:     *parsedURL.JoinPath("metadata"),
 		ssoURL:          *parsedURL.JoinPath("sso"),
+		highLimiter:     cfg.HighLimiter,
 	}
 
 	service.idpHandler, err = service.initRouter()
