@@ -27,7 +27,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/mailgun/holster/v3/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -198,6 +197,7 @@ func TestSessionCache_watcher(t *testing.T) {
 	webSuite := newWebSuite(t)
 	authServer := webSuite.server.AuthServer.AuthServer
 	authClient := webSuite.proxyClient
+	clock := webSuite.clock
 
 	// cancel is used to make sure the sessionCache stops cleanly.
 	ctx, cancel := context.WithCancel(context.Background())
@@ -209,8 +209,9 @@ func TestSessionCache_watcher(t *testing.T) {
 		servers: []utils.NetAddr{
 			// An addr is required but unused.
 			{Addr: "localhost:12345", AddrNetwork: "tcp"}},
-		clock:                     webSuite.clock,
-		sessionLingeringThreshold: 1 * time.Minute,
+		clock:                             clock,
+		sessionLingeringThreshold:         1 * time.Minute,
+		startWebSessionWatcherImmediately: true,
 	})
 	require.NoError(t, err, "newSessionCache() failed")
 	defer sessionCache.Close()
