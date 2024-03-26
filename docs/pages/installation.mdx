@@ -497,7 +497,7 @@ total 24
 Alternatively, you can use the debug variant of the image, which contains [busybox](https://www.busybox.net/about.html) and a minimal shell invocable via `busybox sh`:
 
 ```code
-$ docker run -it --entrypoint="" public.ecr.aws/gravitational/teleport-distroless -debug:(=teleport.latest_oss_docker_image=) busybox sh
+$ docker run -it --entrypoint="" (=teleport.latest_oss_debug_docker_image=) busybox sh
 ```
 
 #### Machine ID (tbot)
