@@ -114,14 +114,14 @@ Update progress: [▒▒▒▒▒▒     ] (Ctrl-C to cancel update)
 ```
 
 After downloading, client tools will re-execute the downloaded version.  The
-child process will inherit all environment variables and flags. Re-execution
-will occur only if the parent process is not `tsh` or `tctl`, to prevent
+child process will inherit all environment variables and flags.
+`TELEPORT_TOOLS_VERSION=off` will be added during re-execution to prevent
 infinite loops.
 
-An environment variable `TELEPORT_TOOLS_VERSION` will be introduced to use a
-specific version of client tools `X.Y.Z` or turn `off` client tools updates
-completely. This environment variable can be used as a emergency workaround for
-a known issue, pinning to a specific version in CI/CD, or for debugging.
+An environment variable `TELEPORT_TOOLS_VERSION` will be introduced that can be
+`X.Y.Z` (use specific version) or `off` (do not try to update). This
+environment variable can be used as a emergency workaround for a known issue,
+pinning to a specific version in CI/CD, or for debugging.
 
 Automatic updates will not be used if `tctl` is connecting to the Auth Service
 over localhost.
