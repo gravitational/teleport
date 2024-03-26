@@ -2,6 +2,7 @@ package secreports
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -65,7 +66,12 @@ func TestService(t *testing.T) {
 		log:     logrus.New(),
 		authorizer: &mockAuthorizer{
 			checker: &mockChecker{
-				rules: []types.Rule{{Resources: []string{"security_report"}, Verbs: []string{"read", "list", "use"}}},
+				rules: []types.Rule{
+					{
+						Resources: []string{types.KindSecurityReport, types.KindAuditQuery},
+						Verbs:     []string{types.VerbRead, types.VerbList, types.VerbUse},
+					},
+				},
 				roles: nil,
 			},
 		},
@@ -77,7 +83,8 @@ func TestService(t *testing.T) {
 		reportStore: &mockReportStore{
 			m: map[string]*pb.ReportResult{},
 		},
-		ParentCtx: context.Background(),
+		ParentCtx:          context.Background(),
+		userQueriesLimiter: limiter.NewUserQuery(defaultMaxParallelUserQueries),
 	}
 	err = svc.initPrebuiltReports(ctx)
 	require.NoError(t, err)
@@ -237,7 +244,7 @@ func TestService(t *testing.T) {
 		}
 
 		go func() {
-			_, err = svc.RunReport(ctx, &pb.RunReportRequest{
+			_, err := svc.RunReport(ctx, &pb.RunReportRequest{
 				Name: reports.PrivilegeAccessReport.Name,
 				Days: 7,
 			})
@@ -268,6 +275,52 @@ func TestService(t *testing.T) {
 		}, time.Second*2, time.Millisecond*100)
 	})
 
+	t.Run("user parallel queries should be limited", func(t *testing.T) {
+		ongoingQueriesC := make(chan struct{})
+
+		var queryWg sync.WaitGroup
+		queryWg.Add(defaultMaxParallelUserQueries)
+		mockAthena.runQueryFunc = func(ctx context.Context, queryText string, days int) (*query.RunQueryResponse, error) {
+			queryWg.Done()
+			select {
+			case <-ongoingQueriesC:
+			case <-time.After(time.Second * 5):
+				t.Fatal("timeout")
+			}
+			return &query.RunQueryResponse{
+				ResultID: "1234",
+			}, nil
+		}
+
+		for i := 0; i < defaultMaxParallelUserQueries; i++ {
+			go func() {
+				_, err := svc.RunAuditQuery(ctx, &pb.RunAuditQueryRequest{
+					Query: "SELECT * FROM table",
+					Days:  7,
+				})
+				require.NoError(t, err)
+			}()
+		}
+
+		// wait for all queries to start and reach the limit before running the next user audit query.
+		queryWg.Wait()
+		_, err := svc.RunAuditQuery(ctx, &pb.RunAuditQueryRequest{
+			Query: "SELECT * FROM table",
+			Days:  7,
+		})
+		require.True(t, trace.IsLimitExceeded(err))
+
+		close(ongoingQueriesC)
+
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			queryWg.Add(1)
+			_, err := svc.RunAuditQuery(ctx, &pb.RunAuditQueryRequest{
+				Query: "SELECT * FROM table",
+				Days:  7,
+			})
+			require.NoError(t, err)
+		}, time.Second*2, time.Millisecond*100)
+	})
 }
 
 func TestUpsertSecurityReport(t *testing.T) {

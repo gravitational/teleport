@@ -34,6 +34,10 @@ func (s *Service) RunAuditQuery(ctx context.Context, req *pb.RunAuditQueryReques
 	if err := authCtx.CheckAccessToKind(types.KindAuditQuery, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !s.userQueriesLimiter.Allow() {
+		return nil, trace.LimitExceeded("Limit of users concurrent Access Monitoring queries exceeded. Please try again later.")
+	}
+	defer s.userQueriesLimiter.Release()
 
 	resp, err := s.runAuditQuery(ctx, req)
 	if err != nil {

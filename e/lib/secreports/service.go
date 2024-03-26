@@ -73,7 +73,19 @@ type ServiceConfig struct {
 	LimiterStorage services.CostLimiter
 	// Region is the AWS region.
 	Region string
+	// MaxParallelUserQueries is the query limiter that limits the number of async queries.
+	// This is a soft limit to prevent overloading the Athena service by running user queries and draining the
+	// ParallelQueryExecutions Athena limit. Note that this limit is per auth server.
+	MaxParallelUserQueries int
 }
+
+const (
+	// defaultMaxParallelUserQueries is the maximum number of parallel user queries.
+	// This is a soft limit to prevent overloading the Athena service by running user queries and draining the
+	// ParallelQueryExecutions Athena limit.
+	// https://docs.aws.amazon.com/athena/latest/ug/service-limits.html
+	defaultMaxParallelUserQueries = 3
+)
 
 // CheckAndSetDefaults validates the config and sets default values.
 func (c *ServiceConfig) CheckAndSetDefaults() error {
@@ -106,6 +118,9 @@ func (c *ServiceConfig) CheckAndSetDefaults() error {
 	}
 	if c.Limiter == nil {
 		return trace.BadParameter("limiter is missing")
+	}
+	if c.MaxParallelUserQueries == 0 {
+		c.MaxParallelUserQueries = defaultMaxParallelUserQueries
 	}
 	return nil
 }
@@ -172,36 +187,39 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &Service{
-		log:            cfg.Logger,
-		authorizer:     cfg.Authorizer,
-		clock:          cfg.Clock,
-		storage:        cfg.Storage,
-		limiterStorage: cfg.LimiterStorage,
-		athena:         &queryLimiter{queryProvider: athena, limiter: cfg.Limiter},
-		semaphore:      cfg.Semaphore,
-		emitter:        cfg.Emitter,
-		backend:        cfg.Backend,
-		reportStore:    s3store,
-		ParentCtx:      cfg.ProcessContext,
-		Scheduler:      sched,
+		log:                cfg.Logger,
+		authorizer:         cfg.Authorizer,
+		clock:              cfg.Clock,
+		storage:            cfg.Storage,
+		limiterStorage:     cfg.LimiterStorage,
+		athena:             &queryLimiter{queryProvider: athena, limiter: cfg.Limiter},
+		semaphore:          cfg.Semaphore,
+		emitter:            cfg.Emitter,
+		backend:            cfg.Backend,
+		reportStore:        s3store,
+		ParentCtx:          cfg.ProcessContext,
+		Scheduler:          sched,
+		userQueriesLimiter: limiter.NewUserQuery(defaultMaxParallelUserQueries),
 	}, nil
 }
 
 // Service implements gRPC SecReportsServiceServer Methods.
 type Service struct {
-	log            logrus.FieldLogger
-	authorizer     authz.Authorizer
-	semaphore      types.Semaphores
-	clock          clockwork.Clock
-	storage        services.SecReports
-	limiterStorage services.CostLimiter
-	athena         queryProvider
-	reportStore    reportResultStore
-	emitter        apievents.Emitter
-	backend        backend.Backend
-	ParentCtx      context.Context
-	Scheduler      *scheduler.Scheduler
+	log                logrus.FieldLogger
+	authorizer         authz.Authorizer
+	semaphore          types.Semaphores
+	clock              clockwork.Clock
+	storage            services.SecReports
+	limiterStorage     services.CostLimiter
+	athena             queryProvider
+	reportStore        reportResultStore
+	emitter            apievents.Emitter
+	backend            backend.Backend
+	ParentCtx          context.Context
+	Scheduler          *scheduler.Scheduler
+	userQueriesLimiter *limiter.UserQuery
 
 	pb.UnimplementedSecReportsServiceServer
 }
