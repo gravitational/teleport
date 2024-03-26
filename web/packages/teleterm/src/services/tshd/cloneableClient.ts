@@ -26,6 +26,7 @@ import {
   RpcError,
   RpcOptions,
   ServiceInfo,
+  FinishedUnaryCall,
 } from '@protobuf-ts/runtime-rpc';
 
 /**
@@ -372,4 +373,47 @@ function cloneThenRejection<TResult>(
     }
     return clonePromiseRejection(then(onFulfilled));
   };
+}
+
+/**
+ * A helper for mocking unary calls. Creates a promise-like instance of a class which resolves to
+ * an object where only the response field contains something.
+ *
+ * The need for this helper stems from the fact that cloneableClient returns the whole then property
+ * of a unary call, so TypeScript expects the types to match.
+ *
+ * Alternatively, we could change cloneableClient to merely return the response property, plus maybe
+ * some other fields that we need.
+ */
+export class MockedUnaryCall<Response extends object>
+  implements CloneableUnaryCall<any, Response>
+{
+  constructor(
+    public response: Response,
+    private error?: any
+  ) {}
+
+  // The signature of then was autocompleted by TypeScript language server.
+  then<TResult1 = FinishedUnaryCall<any, Response>, TResult2 = never>(
+    onfulfilled?: (
+      value: FinishedUnaryCall<any, Response>
+    ) => TResult1 | PromiseLike<TResult1>,
+    onrejected?: (reason: any) => TResult2 | PromiseLike<TResult2>
+  ): Promise<TResult1 | TResult2> {
+    if (this.error) {
+      return Promise.reject(onrejected(this.error));
+    }
+
+    return Promise.resolve(
+      onfulfilled({
+        response: this.response,
+        method: undefined,
+        requestHeaders: undefined,
+        request: undefined,
+        headers: undefined,
+        status: undefined,
+        trailers: undefined,
+      })
+    );
+  }
 }
