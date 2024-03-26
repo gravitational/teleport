@@ -45,6 +45,9 @@ const (
 	heartbeatName         = "teleport-access-heartbeat"
 	ResponderTypeSchedule = "schedule"
 	ResponderTypeUser     = "user"
+
+	ResolveAlertRequestRetryInterval = time.Second * 10
+	ResolveAlertRequestRetryTimeout  = time.Minute * 2
 )
 
 var alertBodyTemplate = template.Must(template.New("alert body").Parse(
@@ -158,7 +161,8 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 		return OpsgenieData{}, errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
 
-	logger.Get(ctx).Debugf("Create Alert Response: %+v", result)
+	// If this fails, Teleport request approval and auto-approval will still work,
+	// but incident in Opsgenie won't be auto-closed or updated as the alertID won't be available.
 	alertRequestResult, err := og.tryGetAlertRequestResult(ctx, result.RequestID)
 	if err != nil {
 		return OpsgenieData{}, trace.Wrap(err)
@@ -170,7 +174,7 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 }
 
 func (og Client) tryGetAlertRequestResult(ctx context.Context, reqID string) (GetAlertRequestResult, error) {
-	backoff := backoff.NewDecorr(time.Second*5, time.Second*30, clockwork.NewRealClock()) // TODO: Move these to constants
+	backoff := backoff.NewDecorr(ResolveAlertRequestRetryInterval, ResolveAlertRequestRetryTimeout, clockwork.NewRealClock())
 	for {
 		alertRequestResult, err := og.getAlertRequestResult(ctx, reqID)
 		if err == nil {
