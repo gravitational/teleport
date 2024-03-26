@@ -769,7 +769,6 @@ func (s *sessionCache) watchWebSessions(ctx context.Context) {
 
 		case <-linear.After():
 			linear.Inc()
-			// continue
 		}
 
 		if err := s.watchWebSessionsOnce(ctx, linear.Reset); err != nil && !errors.Is(err, context.Canceled) {
