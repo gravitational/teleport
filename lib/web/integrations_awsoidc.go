@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/deployserviceconfig"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	libutils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -261,11 +262,11 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 	// teleport integration configure deployservice-iam
 	argsList := []string{
 		"integration", "configure", "deployservice-iam",
-		fmt.Sprintf("--cluster=%s", clusterName),
-		fmt.Sprintf("--name=%s", integrationName),
-		fmt.Sprintf("--aws-region=%s", awsRegion),
-		fmt.Sprintf("--role=%s", role),
-		fmt.Sprintf("--task-role=%s", taskRole),
+		fmt.Sprintf("--cluster=%s", libutils.UnixShellQuote(clusterName)),
+		fmt.Sprintf("--name=%s", libutils.UnixShellQuote(integrationName)),
+		fmt.Sprintf("--aws-region=%s", libutils.UnixShellQuote(awsRegion)),
+		fmt.Sprintf("--role=%s", libutils.UnixShellQuote(role)),
+		fmt.Sprintf("--task-role=%s", libutils.UnixShellQuote(taskRole)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
@@ -300,8 +301,8 @@ func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request
 	// teleport integration configure eice-iam
 	argsList := []string{
 		"integration", "configure", "eice-iam",
-		fmt.Sprintf("--aws-region=%s", awsRegion),
-		fmt.Sprintf("--role=%s", role),
+		fmt.Sprintf("--aws-region=%s", libutils.UnixShellQuote(awsRegion)),
+		fmt.Sprintf("--role=%s", libutils.UnixShellQuote(role)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
@@ -749,10 +750,10 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 	// teleport integration configure awsoidc-idp
 	argsList := []string{
 		"integration", "configure", "awsoidc-idp",
-		fmt.Sprintf("--cluster=%s", clusterName),
-		fmt.Sprintf("--name=%s", integrationName),
-		fmt.Sprintf("--role=%s", role),
-		fmt.Sprintf("--s3-bucket-uri=%s", s3URI.String()),
+		fmt.Sprintf("--cluster=%s", libutils.UnixShellQuote(clusterName)),
+		fmt.Sprintf("--name=%s", libutils.UnixShellQuote(integrationName)),
+		fmt.Sprintf("--role=%s", libutils.UnixShellQuote(role)),
+		fmt.Sprintf("--s3-bucket-uri=%s", libutils.UnixShellQuote(s3URI.String())),
 		fmt.Sprintf("--s3-jwks-base64=%s", base64.StdEncoding.EncodeToString(jwksJSON)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
@@ -787,8 +788,8 @@ func (h *Handler) awsOIDCConfigureListDatabasesIAM(w http.ResponseWriter, r *htt
 	// teleport integration configure listdatabases-iam
 	argsList := []string{
 		"integration", "configure", "listdatabases-iam",
-		fmt.Sprintf("--aws-region=%s", awsRegion),
-		fmt.Sprintf("--role=%s", role),
+		fmt.Sprintf("--aws-region=%s", libutils.UnixShellQuote(awsRegion)),
+		fmt.Sprintf("--role=%s", libutils.UnixShellQuote(role)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
@@ -828,7 +829,7 @@ func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request,
 	// "teleport integration configure access-graph aws-iam"
 	argsList := []string{
 		"integration", "configure", "access-graph", "aws-iam",
-		fmt.Sprintf("--role=%s", role),
+		fmt.Sprintf("--role=%s", libutils.UnixShellQuote(role)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
