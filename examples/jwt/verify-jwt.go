@@ -40,7 +40,9 @@ type jwk struct {
 	KeyType string `json:"kty"`
 	// Algorithm used to sign.
 	Algorithm string `json:"alg"`
-	// N is the modulus of the public key.
+	// Key ID identifies a specific key.
+	KeyID string `json:"kid,omitempty"`
+        // N is the modulus of the public key.
 	N string `json:"n"`
 	// E is the exponent of the public key.
 	E string `json:"e"`
@@ -111,7 +113,23 @@ func getPublicKey(url string, insecureSkipVerify bool) (crypto.PublicKey, error)
 // verify will verify the JWT.
 func verify(publicKey crypto.PublicKey, token string) (*claims, error) {
 	// Parse the raw token.
-	t, err := jwt.ParseSigned(token)
+	t, err := jwt.ParseSignedWithClaims(token, jwt.Claims{}, func(header *jwt.Header) error {
+		kid, ok := header.ExtraHeaders["kid"]
+		if !ok {
+			return fmt.Errorf("missing key ID in JWT header")
+		}
+		// Find the public key in the JWKs that matches the Key ID.
+		for _, key := range response.Keys {
+			if key.KeyID == kid {
+				publicKey = key
+				break
+			}
+		}
+		if publicKey == nil {
+			return fmt.Errorf("public key not found for key ID %s", kid)
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
