@@ -73,8 +73,7 @@ use tokio_boring::{HandshakeError, SslStream};
 
 const RDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
-struct ResizeManager {
-    display_control_opened: bool,
+struct ResizeWithholder {
     withheld_resize: Option<(u32, u32)>,
 }
 
@@ -87,7 +86,7 @@ pub struct Client {
     write_stream: Option<RdpWriteStream>,
     function_receiver: Option<FunctionReceiver>,
     x224_processor: Arc<Mutex<x224::Processor>>,
-    resize_manager: Arc<Mutex<ResizeManager>>,
+    resize_withholder: Arc<Mutex<ResizeWithholder>>,
 }
 
 impl Client {
@@ -165,16 +164,14 @@ impl Client {
             debug!("creating rdpdr client with directory sharing disabled")
         }
 
-        let resize_manager = Arc::new(Mutex::new(ResizeManager {
-            display_control_opened: false,
+        let resize_withholder = Arc::new(Mutex::new(ResizeWithholder {
             withheld_resize: None,
         }));
 
-        let resize_manager_clone = resize_manager.clone();
-        let display_control =
-            DisplayControlClient::new().with_capabilities_received_callback(move |_| {
-                Self::on_display_ctl_capabilities_received(&resize_manager_clone)
-            });
+        let resize_manager_clone = resize_withholder.clone();
+        let display_control = DisplayControlClient::new(move |_| {
+            Self::on_display_ctl_capabilities_received(&resize_manager_clone)
+        });
         let drdynvc_client = DrdynvcClient::new().with_dynamic_channel(display_control);
 
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config.clone())
@@ -243,7 +240,7 @@ impl Client {
             write_stream,
             function_receiver,
             x224_processor,
-            resize_manager,
+            resize_withholder,
         })
     }
 
@@ -293,7 +290,7 @@ impl Client {
             write_stream,
             function_receiver,
             self.x224_processor.clone(),
-            self.resize_manager.clone(),
+            self.resize_withholder.clone(),
         );
 
         // Wait for either loop to finish. When one does, abort the other and return the result.
@@ -401,7 +398,7 @@ impl Client {
         mut write_stream: RdpWriteStream,
         mut write_receiver: FunctionReceiver,
         x224_processor: Arc<Mutex<x224::Processor>>,
-        resize_manager: Arc<Mutex<ResizeManager>>,
+        resize_withholder: Arc<Mutex<ResizeWithholder>>,
     ) -> tokio::task::JoinHandle<ClientResult<()>> {
         global::TOKIO_RT.spawn(async move {
             loop {
@@ -424,33 +421,14 @@ impl Client {
                                 .await?;
                         }
                         ClientFunction::WriteScreenResize(width, height) => {
-                            debug!("Received WriteScreenResize PDU");
-                            // Determine whether to withhold the resize or perform it immediately.
-                            let action = {
-                                let mut resize_manager =
-                                    Self::resize_manager_lock(&resize_manager)?;
-                                if !resize_manager.display_control_opened {
-                                    debug!("DisplayControl channel not opened, withholding resize");
-                                    // The client requested a resize but the DisplayControl channel has not been opened yet.
-                                    // Sending the resize now would cause an RDP error and end the session; instead we withhold
-                                    // it until the DisplayControl channel is opened.
-                                    resize_manager.withheld_resize = Some((width, height));
-                                    None // No immediate action required.
-                                } else {
-                                    Some((width, height)) // Perform the resize immediately.
-                                }
-                            }; // Drop the lock here to avoid holding it over the await below.
-
-                            if let Some((width, height)) = action {
-                                debug!("Performing resize to [{:?}x{:?}]", width, height);
-                                Client::write_screen_resize(
-                                    &mut write_stream,
-                                    x224_processor.clone(),
-                                    width,
-                                    height,
-                                )
-                                .await?;
-                            }
+                            Client::handle_screen_resize(
+                                width,
+                                height,
+                                x224_processor.clone(),
+                                &mut write_stream,
+                                resize_withholder.clone(),
+                            )
+                            .await?;
                         }
                         ClientFunction::HandleTdpSdAnnounce(sda) => {
                             Client::handle_tdp_sd_announce(
@@ -512,14 +490,13 @@ impl Client {
     }
 
     fn on_display_ctl_capabilities_received(
-        resize_manager: &Arc<Mutex<ResizeManager>>,
+        resize_withholder: &Arc<Mutex<ResizeWithholder>>,
     ) -> PduResult<Vec<DvcMessage>> {
         debug!("DisplayControlClient channel opened");
         // We've been notified that the DisplayControl dvc channel has been opened:
-        let mut resize_manager =
-            Self::resize_manager_lock(resize_manager).map_err(|err| custom_err!(err))?;
-        resize_manager.display_control_opened = true; // Set the flag to true.
-        let withheld_resize = resize_manager.withheld_resize.take();
+        let mut resize_withholder =
+            Self::resize_manager_lock(resize_withholder).map_err(|err| custom_err!(err))?;
+        let withheld_resize = resize_withholder.withheld_resize.take();
         if let Some((width, height)) = withheld_resize {
             // If there was a resize withheld, perform it now.
             debug!(
@@ -707,6 +684,46 @@ impl Client {
         Ok(())
     }
 
+    async fn handle_screen_resize(
+        width: u32,
+        height: u32,
+        x224_processor: Arc<Mutex<x224::Processor>>,
+        write_stream: &mut RdpWriteStream,
+        resize_withholder: Arc<Mutex<ResizeWithholder>>,
+    ) -> ClientResult<()> {
+        debug!("Received WriteScreenResize PDU");
+        // Determine whether to withhold the resize or perform it immediately.
+        let action = {
+            let x224_processor = Self::x224_lock(&x224_processor)?;
+            let (disp_ctl_cli, _) =
+                Self::get_dvc_processor::<DisplayControlClient>(&x224_processor)?;
+            if !disp_ctl_cli.ready() {
+                debug!("DisplayControl channel not ready, withholding resize");
+                let mut resize_withholder = Self::resize_manager_lock(&resize_withholder)?;
+                // The client requested a resize but the DisplayControl channel has not been opened yet.
+                // Sending the resize now would cause an RDP error and end the session; instead we withhold
+                // it until the DisplayControl channel is ready.
+                resize_withholder.withheld_resize = Some((width, height));
+                None // No immediate action required.
+            } else {
+                Some((width, height)) // Perform the resize immediately.
+            }
+        }; // Drop the lock here to avoid holding it over the await below.
+
+        if let Some((width, height)) = action {
+            debug!("Performing resize to [{:?}x{:?}]", width, height);
+            return Client::write_screen_resize(
+                write_stream,
+                x224_processor.clone(),
+                width,
+                height,
+            )
+            .await;
+        }
+
+        Ok(())
+    }
+
     /// Sends a screen resize to the RDP server.
     async fn write_screen_resize(
         write_stream: &mut RdpWriteStream,
@@ -718,7 +735,7 @@ impl Client {
         let messages = global::TOKIO_RT
             .spawn_blocking(move || {
                 let x224_processor = Self::x224_lock(&cloned)?;
-                let (disp_ctl_cli, channel_id): (&DisplayControlClient, Option<DynamicChannelId>) =
+                let (disp_ctl_cli, channel_id) =
                     Self::get_dvc_processor::<DisplayControlClient>(&x224_processor)?;
 
                 if channel_id.is_none() {
@@ -924,9 +941,9 @@ impl Client {
     }
 
     fn resize_manager_lock(
-        resize_manager: &Arc<Mutex<ResizeManager>>,
-    ) -> Result<MutexGuard<ResizeManager>, SessionError> {
-        resize_manager
+        resize_withholder: &Arc<Mutex<ResizeWithholder>>,
+    ) -> Result<MutexGuard<ResizeWithholder>, SessionError> {
+        resize_withholder
             .lock()
             .map_err(|err| reason_err!(function!(), "PoisonError: {:?}", err))
     }
