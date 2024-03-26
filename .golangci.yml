@@ -35,6 +35,7 @@ linters:
     - misspell
     - nolintlint
     - revive
+    - sloglint
     - staticcheck
     - unconvert
     - unused
@@ -75,6 +76,10 @@ linters-settings:
     rules:
     - name: unused-parameter
       disabled: true
+  sloglint:
+    context-only: true
+    key-naming-case: snake
+    static-msg: true
 
 output:
   uniq-by-line: false

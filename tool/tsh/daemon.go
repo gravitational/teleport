@@ -20,7 +20,7 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slog"
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/teleterm"
@@ -34,9 +34,9 @@ func onDaemonStart(cf *CLIConf) error {
 	defer cancel()
 
 	if cf.Debug {
-		utils.InitLogger(utils.LoggingForDaemon, logrus.DebugLevel)
+		utils.InitLogger(utils.LoggingForDaemon, slog.LevelDebug)
 	} else {
-		utils.InitLogger(utils.LoggingForDaemon, logrus.InfoLevel)
+		utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 	}
 
 	err := teleterm.Serve(ctx, teleterm.Config{

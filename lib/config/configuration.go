@@ -24,7 +24,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"io"
-	stdlog "log"
 	"net"
 	"net/url"
 	"os"
@@ -41,6 +40,7 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+	"golang.org/x/exp/slog"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -622,52 +623,83 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *servicecfg.Config) error {
 func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 	logger := log.StandardLogger()
 
+	var w io.Writer
 	switch loggerConfig.Output {
 	case "":
-		break // not set
+		w = os.Stderr
 	case "stderr", "error", "2":
-		logger.SetOutput(os.Stderr)
+		w = os.Stderr
 		cfg.Console = io.Discard // disable console printing
 	case "stdout", "out", "1":
-		logger.SetOutput(os.Stdout)
+		w = os.Stdout
 		cfg.Console = io.Discard // disable console printing
 	case teleport.Syslog:
-		err := utils.SwitchLoggerToSyslog(logger)
+		w = os.Stderr
+		sw, err := utils.NewSyslogWriter()
 		if err != nil {
-			// this error will go to stderr
-			log.Errorf("Failed to switch logging to syslog: %v.", err)
+			logger.Errorf("Failed to switch logging to syslog: %v.", err)
+			break
 		}
+
+		hook, err := utils.NewSyslogHook(sw)
+		if err != nil {
+			logger.Errorf("Failed to switch logging to syslog: %v.", err)
+			break
+		}
+
+		logger.ReplaceHooks(make(log.LevelHooks))
+		logger.AddHook(hook)
+		w = sw
 	default:
 		// assume it's a file path:
 		logFile, err := os.Create(loggerConfig.Output)
 		if err != nil {
 			return trace.Wrap(err, "failed to create the log file")
 		}
-		logger.SetOutput(logFile)
+		w = logFile
 	}
 
+	var level slog.Level
 	switch strings.ToLower(loggerConfig.Severity) {
 	case "", "info":
 		logger.SetLevel(log.InfoLevel)
+		level = slog.LevelInfo
 	case "err", "error":
 		logger.SetLevel(log.ErrorLevel)
+		level = slog.LevelError
 	case teleport.DebugLevel:
 		logger.SetLevel(log.DebugLevel)
+		level = slog.LevelDebug
 	case "warn", "warning":
 		logger.SetLevel(log.WarnLevel)
+		level = slog.LevelWarn
 	case "trace":
 		logger.SetLevel(log.TraceLevel)
+		level = logutils.TraceLevel
 	default:
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
 
+	configuredFields, err := logutils.ValidateFields(loggerConfig.Format.ExtraFields)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If syslog output has been configured and is supported by the operating system,
+	// then the shared writer is not needed because the syslog writer is already
+	// protected with a mutex.
+	if len(logger.Hooks) == 0 {
+		w = logutils.NewSharedWriter(w)
+	}
+	var slogLogger *slog.Logger
 	switch strings.ToLower(loggerConfig.Format.Output) {
 	case "":
 		fallthrough // not set. defaults to 'text'
 	case "text":
-		formatter := &utils.TextFormatter{
-			ExtraFields:  loggerConfig.Format.ExtraFields,
-			EnableColors: trace.IsTerminal(os.Stderr),
+		enableColors := trace.IsTerminal(os.Stderr)
+		formatter := &logutils.TextFormatter{
+			ExtraFields:  configuredFields,
+			EnableColors: enableColors,
 		}
 
 		if err := formatter.CheckAndSetDefaults(); err != nil {
@@ -675,9 +707,23 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		}
 
 		logger.SetFormatter(formatter)
+		// Disable writing output to stderr/stdout and syslog. The logging
+		// hook will take care of writing the output to the correct location.
+		if len(logger.Hooks) > 0 {
+			logger.SetOutput(io.Discard)
+		} else {
+			logger.SetOutput(w)
+		}
+
+		slogLogger = slog.New(logutils.NewSlogTextHandler(w, logutils.SlogTextHandlerConfig{
+			Level:            level,
+			EnableColors:     enableColors,
+			ConfiguredFields: configuredFields,
+		}))
+		slog.SetDefault(slogLogger)
 	case "json":
-		formatter := &utils.JSONFormatter{
-			ExtraFields: loggerConfig.Format.ExtraFields,
+		formatter := &logutils.JSONFormatter{
+			ExtraFields: configuredFields,
 		}
 
 		if err := formatter.CheckAndSetDefaults(); err != nil {
@@ -685,13 +731,25 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		}
 
 		logger.SetFormatter(formatter)
-		stdlog.SetOutput(io.Discard) // disable the standard logger used by external dependencies
-		stdlog.SetFlags(0)
+		// Disable writing output to stderr/stdout and syslog. The logging
+		// hook will take care of writing the output to the correct location.
+		if len(logger.Hooks) > 0 {
+			logger.SetOutput(io.Discard)
+		} else {
+			logger.SetOutput(w)
+		}
+
+		slogLogger = slog.New(logutils.NewSlogJSONHandler(w, logutils.SlogJSONHandlerConfig{
+			Level:            level,
+			ConfiguredFields: configuredFields,
+		}))
+		slog.SetDefault(slogLogger)
 	default:
 		return trace.BadParameter("unsupported log output format : %q", loggerConfig.Format.Output)
 	}
 
 	cfg.Log = logger
+	cfg.Logger = slogLogger
 	return nil
 }
 
