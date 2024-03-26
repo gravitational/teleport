@@ -846,23 +846,20 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 		Integration: instances.Integration,
 	}
 
-	type existingNodeInfo struct {
-		name       string
-		expiration *time.Time
-	}
-
-	existingEICENodes := make(map[string]existingNodeInfo)
-
-	s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
-		if !n.IsEICE() {
-			return false
-		}
-		existingEICENodes[n.ServerInfoName()] = existingNodeInfo{
-			name:       n.GetName(),
-			expiration: n.GetMetadata().Expires,
-		}
-		return false
+	existingEICEServersList := s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
+		return n.IsEICE()
 	})
+
+	existingEICEServersMap := make(map[string]types.Server, len(existingEICEServersList))
+	for _, eiceServer := range existingEICEServersList {
+		si, err := types.ServerInfoForServer(eiceServer)
+		if err != nil {
+			s.Log.Debugf("Failed to convert Server %q to ServerInfo: %v", eiceServer.GetName(), err)
+			continue
+		}
+
+		existingEICEServersMap[si.GetName()] = eiceServer
+	}
 
 	nodesToUpsert := make([]types.Server, 0, len(instances.Instances))
 	// Add EC2 Instances using EICE method
@@ -873,19 +870,28 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 			continue
 		}
 
-		ec2InstanceServerInforName := types.ServerInfoNameFromAWS(instances.AccountID, ec2Instance.InstanceID)
-		// Re-use the same Name so that `UpsertNode` replaces the node.
-		if existingNode, found := existingEICENodes[ec2InstanceServerInforName]; found {
-			// To reduce load, nodes we are skipped if their expiration is far away in the future.
+		serverInfo, err := types.ServerInfoForServer(eiceNode)
+		if err != nil {
+			s.Log.WithField("instance_id", ec2Instance.InstanceID).Warnf("Error converting to Teleport ServerInfo: %v", err)
+			continue
+		}
+
+		if existingNode, found := existingEICEServersMap[serverInfo.GetName()]; found {
+			// Re-use the same Name so that `UpsertNode` replaces the node.
+			eiceNode.SetName(existingNode.GetName())
+
+			// To reduce load, nodes are skipped if
+			// - they didn't change and
+			// - their expiration is far away in the future (at least 2 Poll iterations before the Node expires)
+			//
 			// As an example, and using the default PollInterval (5 minutes),
-			// nodes that expire after 15 minutes will be skipped.
+			// nodes that didn't change and have their expiration greater than now+15m will be skipped.
 			// This gives at least another two iterations of the DiscoveryService before the node is actually removed.
 			// Note: heartbeats set an expiration of 90 minutes.
-			if existingNode.expiration.After(s.clock.Now().Add(3 * s.PollInterval)) {
+			if existingNode.Expiry().After(s.clock.Now().Add(3*s.PollInterval)) &&
+				services.CompareServers(existingNode, eiceNode) == services.OnlyTimestampsDifferent {
 				continue
 			}
-
-			eiceNode.SetName(existingNode.name)
 		}
 
 		eiceNodeExpiration := s.clock.Now().Add(s.jitter(serverExpirationDuration))
@@ -898,7 +904,7 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 	}
 	err := spreadwork.ApplyOverTime(s.ctx, applyOverTimeConfig, nodesToUpsert, func(eiceNode types.Server) {
 		if _, err := s.AccessPoint.UpsertNode(s.ctx, eiceNode); err != nil {
-			instanceID, _ := eiceNode.GetLabel(types.AWSInstanceIDLabel)
+			instanceID := eiceNode.GetAWSInstanceID()
 			s.Log.WithField("instance_id", instanceID).Warnf("Error upserting EC2 instance: %v", err)
 		}
 	})
