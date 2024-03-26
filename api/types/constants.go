@@ -969,6 +969,9 @@ const (
 
 	// OktaGroupDescriptionLabel is the individual group description label.
 	OktaGroupDescriptionLabel = TeleportInternalLabelPrefix + "okta-group-description"
+
+	// PluginGenerationLabel is the label for the current generation of the plugin.
+	PluginGenerationLabel = TeleportInternalLabelPrefix + "plugin-generation"
 )
 
 const (
