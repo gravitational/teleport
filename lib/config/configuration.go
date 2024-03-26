@@ -236,7 +236,7 @@ type CommandLineFlags struct {
 
 	// IntegrationConfSAMLIdPGCPWorkforceArguments contains the arguments of
 	// `teleport integration configure samlidp gcp-workforce` command
-	IntegrationConfSAMLIdPGCPWorkforceArguments samlidpconfig.GCPWorkforcePrams
+	IntegrationConfSAMLIdPGCPWorkforceArguments samlidpconfig.GCPWorkforceParams
 }
 
 // IntegrationConfAccessGraphAWSSync contains the arguments of
