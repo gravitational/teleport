@@ -29,7 +29,6 @@ import (
 	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accessmonitoringrule"
-	convert "github.com/gravitational/teleport/api/types/accessmonitoringrule/convert/v1"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -166,7 +165,7 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
 				amr := sampleAccessMonitoringRuleFn(t, amrName)
 				_, err := resourceSvc.CreateAccessMonitoringRule(ctx, &accessmonitoringrulev1.CreateAccessMonitoringRuleRequest{
-					Rule: convert.ToProto(amr),
+					Rule: amr,
 				})
 				return err
 			},
@@ -183,7 +182,7 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
 				amr := sampleAccessMonitoringRuleFn(t, amrName)
 				_, err := resourceSvc.CreateAccessMonitoringRule(ctx, &accessmonitoringrulev1.CreateAccessMonitoringRuleRequest{
-					Rule: convert.ToProto(amr),
+					Rule: amr,
 				})
 				return err
 			},
@@ -197,7 +196,7 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
 				amr := sampleAccessMonitoringRuleFn(t, amrName)
 				_, err := resourceSvc.UpdateAccessMonitoringRule(ctx, &accessmonitoringrulev1.UpdateAccessMonitoringRuleRequest{
-					Rule: convert.ToProto(amr),
+					Rule: amr,
 				})
 				return err
 			},
@@ -218,7 +217,7 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
 				amr := sampleAccessMonitoringRuleFn(t, amrName)
 				_, err := resourceSvc.UpdateAccessMonitoringRule(ctx, &accessmonitoringrulev1.UpdateAccessMonitoringRuleRequest{
-					Rule: convert.ToProto(amr),
+					Rule: amr,
 				})
 				return err
 			},
@@ -237,7 +236,7 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
 				amr := sampleAccessMonitoringRuleFn(t, amrName)
 				_, err := resourceSvc.UpsertAccessMonitoringRule(ctx, &accessmonitoringrulev1.UpsertAccessMonitoringRuleRequest{
-					Rule: convert.ToProto(amr),
+					Rule: amr,
 				})
 				return err
 			},
@@ -255,7 +254,7 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
 				amr := sampleAccessMonitoringRuleFn(t, amrName)
 				_, err := resourceSvc.UpsertAccessMonitoringRule(ctx, &accessmonitoringrulev1.UpsertAccessMonitoringRuleRequest{
-					Rule: convert.ToProto(amr),
+					Rule: amr,
 				})
 				return err
 			},
