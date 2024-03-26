@@ -1,4 +1,4 @@
-.version: &version "14.3.7"
+.version: &version "14.3.7-dev-codingllama-jamf.1"
 
 name: teleport-operator
 apiVersion: v2
