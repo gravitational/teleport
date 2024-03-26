@@ -75,7 +75,7 @@ func generateKeys() (private, sshpub, tlspub []byte, err error) {
 // identity. Note that depending on the connection address given, this may
 // attempt to connect via the proxy and therefore requires both SSH and TLS
 // credentials.
-func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (auth.ClientI, error) {
+func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (*auth.Client, error) {
 	if id.SSHCert == nil || id.X509Cert == nil {
 		return nil, trace.BadParameter("auth client requires a fully formed identity")
 	}
@@ -243,7 +243,7 @@ func (b *Bot) generateIdentity(
 	return newIdentity, nil
 }
 
-func getDatabase(ctx context.Context, clt auth.ClientI, name string) (types.Database, error) {
+func getDatabase(ctx context.Context, clt *auth.Client, name string) (types.Database, error) {
 	servers, err := apiclient.GetAllResources[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
 		Namespace:           defaults.Namespace,
 		ResourceType:        types.KindDatabaseServer,
@@ -264,7 +264,7 @@ func getDatabase(ctx context.Context, clt auth.ClientI, name string) (types.Data
 	return db, trace.Wrap(err)
 }
 
-func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, dbCfg *config.Database) (proto.RouteToDatabase, error) {
+func (b *Bot) getRouteToDatabase(ctx context.Context, client *auth.Client, dbCfg *config.Database) (proto.RouteToDatabase, error) {
 	if dbCfg.Service == "" {
 		return proto.RouteToDatabase{}, nil
 	}
@@ -295,7 +295,7 @@ func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, dbCfg
 	}, nil
 }
 
-func getKubeCluster(ctx context.Context, clt auth.ClientI, name string) (types.KubeCluster, error) {
+func getKubeCluster(ctx context.Context, clt *auth.Client, name string) (types.KubeCluster, error) {
 	servers, err := apiclient.GetAllResources[types.KubeServer](ctx, clt, &proto.ListResourcesRequest{
 		Namespace:           defaults.Namespace,
 		ResourceType:        types.KindKubeServer,
@@ -316,7 +316,7 @@ func getKubeCluster(ctx context.Context, clt auth.ClientI, name string) (types.K
 	return cluster, trace.Wrap(err)
 }
 
-func getApp(ctx context.Context, clt auth.ClientI, appName string) (types.Application, error) {
+func getApp(ctx context.Context, clt *auth.Client, appName string) (types.Application, error) {
 	servers, err := apiclient.GetAllResources[types.AppServer](ctx, clt, &proto.ListResourcesRequest{
 		Namespace:           defaults.Namespace,
 		ResourceType:        types.KindAppServer,
@@ -340,7 +340,7 @@ func getApp(ctx context.Context, clt auth.ClientI, appName string) (types.Applic
 	return apps[0], nil
 }
 
-func (b *Bot) getRouteToApp(ctx context.Context, client auth.ClientI, appCfg *config.App) (proto.RouteToApp, error) {
+func (b *Bot) getRouteToApp(ctx context.Context, client *auth.Client, appCfg *config.App) (proto.RouteToApp, error) {
 	if appCfg.App == "" {
 		return proto.RouteToApp{}, trace.BadParameter("App name must be configured")
 	}

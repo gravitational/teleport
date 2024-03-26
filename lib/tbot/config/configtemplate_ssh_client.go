@@ -91,7 +91,7 @@ func (c *TemplateSSHClient) Describe(destination bot.Destination) []FileDescript
 // using non-filesystem backends.
 var sshConfigUnsupportedWarning sync.Once
 
-func getClusterNames(client auth.ClientI) ([]string, error) {
+func getClusterNames(client *auth.Client) ([]string, error) {
 	cn, err := client.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -216,7 +216,7 @@ func (c *TemplateSSHClient) Render(
 	return nil
 }
 
-func fetchKnownHosts(ctx context.Context, client auth.ClientI, clusterNames []string, proxyHosts string) (string, error) {
+func fetchKnownHosts(ctx context.Context, client *auth.Client, clusterNames []string, proxyHosts string) (string, error) {
 	certAuthorities := make([]types.CertAuthority, 0, len(clusterNames))
 	for _, cn := range clusterNames {
 		ca, err := client.GetCertAuthority(ctx, types.CertAuthID{
