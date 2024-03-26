@@ -26,10 +26,12 @@ use bytes::BytesMut;
 use ironrdp_cliprdr::{Cliprdr, CliprdrClient, CliprdrSvcMessages};
 use ironrdp_connector::connection_activation::ConnectionActivationState;
 use ironrdp_connector::{Config, ConnectorError, Credentials, DesktopSize};
-use ironrdp_dvc::display::{Monitor, MonitorFlags, Orientation};
-use ironrdp_dvc::DrdynvcClient;
+use ironrdp_displaycontrol::client::DisplayControlClient;
+use ironrdp_displaycontrol::pdu::DisplayControlPdu;
+use ironrdp_dvc::DvcProcessor;
 use ironrdp_dvc::DynamicChannelId;
-use ironrdp_dvc::{display::DisplayControlClient, DvcProcessor};
+use ironrdp_dvc::{DrdynvcClient, DvcMessage};
+use ironrdp_pdu::cursor::WriteCursor;
 use ironrdp_pdu::input::fast_path::{
     FastPathInput, FastPathInputEvent, KeyboardFlags, SynchronizeFlags,
 };
@@ -39,7 +41,8 @@ use ironrdp_pdu::mcs::DisconnectReason;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::write_buf::WriteBuf;
-use ironrdp_pdu::{custom_err, function, PduError, PduParsing};
+use ironrdp_pdu::{custom_err, function, PduError};
+use ironrdp_pdu::{PduEncode, PduResult};
 use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
@@ -48,7 +51,7 @@ use ironrdp_session::x224::{self, ProcessorOutput};
 use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
-use ironrdp_tokio::{single_connect_step_read, Framed, TokioStream};
+use ironrdp_tokio::{single_sequence_step_read, Framed, TokioStream};
 use log::debug;
 use rand::{Rng, SeedableRng};
 use std::fmt::{Debug, Display, Formatter};
@@ -70,6 +73,11 @@ use tokio_boring::{HandshakeError, SslStream};
 
 const RDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
+struct ResizeManager {
+    display_control_opened: bool,
+    withheld_resize: Option<(u32, u32)>,
+}
+
 /// The RDP client on the Rust side of things. Each `Client`
 /// corresponds with a Go `Client` specified by `cgo_handle`.
 pub struct Client {
@@ -79,6 +87,7 @@ pub struct Client {
     write_stream: Option<RdpWriteStream>,
     function_receiver: Option<FunctionReceiver>,
     x224_processor: Arc<Mutex<x224::Processor>>,
+    resize_manager: Arc<Mutex<ResizeManager>>,
 }
 
 impl Client {
@@ -134,6 +143,7 @@ impl Client {
 
         // Create a channel for sending/receiving function calls to/from the Client.
         let (client_handle, function_receiver) = ClientHandle::new(100);
+        let function_receiver = Some(function_receiver);
 
         let mut rdpdr = Rdpdr::new(
             Box::new(TeleportRdpdrBackend::new(
@@ -155,11 +165,21 @@ impl Client {
             debug!("creating rdpdr client with directory sharing disabled")
         }
 
+        let resize_manager = Arc::new(Mutex::new(ResizeManager {
+            display_control_opened: false,
+            withheld_resize: None,
+        }));
+
+        let resize_manager_clone = resize_manager.clone();
+        let display_control =
+            DisplayControlClient::new().with_capabilities_received_callback(move |_| {
+                Self::on_display_ctl_capabilities_received(&resize_manager_clone)
+            });
+        let drdynvc_client = DrdynvcClient::new().with_dynamic_channel(display_control);
+
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config.clone())
             .with_server_addr(server_socket_addr)
-            .with_static_channel(
-                DrdynvcClient::new().with_dynamic_channel(DisplayControlClient::new()),
-            )
+            .with_static_channel(drdynvc_client)
             .with_static_channel(Rdpsnd::new()) // required for rdpdr to work
             .with_static_channel(rdpdr);
 
@@ -206,23 +226,24 @@ impl Client {
         // Take the stream back out of the framed object for splitting.
         let rdp_stream = rdp_stream.into_inner_no_leftover();
         let (read_stream, write_stream) = split(rdp_stream);
-        let read_stream = ironrdp_tokio::TokioFramed::new(read_stream);
-        let write_stream = ironrdp_tokio::TokioFramed::new(write_stream);
+        let read_stream = Some(ironrdp_tokio::TokioFramed::new(read_stream));
+        let write_stream = Some(ironrdp_tokio::TokioFramed::new(write_stream));
 
-        let x224_processor = x224::Processor::new(
+        let x224_processor = Arc::new(Mutex::new(x224::Processor::new(
             connection_result.static_channels,
             connection_result.user_channel_id,
             connection_result.io_channel_id,
             connection_result.connection_activation,
-        );
+        )));
 
         Ok(Self {
             cgo_handle,
             client_handle,
-            read_stream: Some(read_stream),
-            write_stream: Some(write_stream),
-            function_receiver: Some(function_receiver),
-            x224_processor: Arc::new(Mutex::new(x224_processor)),
+            read_stream,
+            write_stream,
+            function_receiver,
+            x224_processor,
+            resize_manager,
         })
     }
 
@@ -272,15 +293,18 @@ impl Client {
             write_stream,
             function_receiver,
             self.x224_processor.clone(),
+            self.resize_manager.clone(),
         );
 
         // Wait for either loop to finish. When one does, abort the other and return the result.
         tokio::select! {
             res = &mut read_loop_handle => {
+                // Read loop finished, abort the other tasks and return the result.
                 write_loop_handle.abort();
                 res?
             },
             res = &mut write_loop_handle => {
+                // Write loop finished, abort the other tasks and return the result.
                 read_loop_handle.abort();
                 match res {
                     Ok(Ok(())) => Ok(None),
@@ -332,7 +356,7 @@ impl Client {
                                     debug!("Received Server Deactivate All PDU, executing Deactivation-Reactivation Sequence");
                                     let mut buf = WriteBuf::new();
                                     loop {
-                                        let written = single_connect_step_read(
+                                        let written = single_sequence_step_read(
                                             &mut read_stream,
                                             &mut sequence,
                                             &mut buf,
@@ -377,6 +401,7 @@ impl Client {
         mut write_stream: RdpWriteStream,
         mut write_receiver: FunctionReceiver,
         x224_processor: Arc<Mutex<x224::Processor>>,
+        resize_manager: Arc<Mutex<ResizeManager>>,
     ) -> tokio::task::JoinHandle<ClientResult<()>> {
         global::TOKIO_RT.spawn(async move {
             loop {
@@ -399,13 +424,33 @@ impl Client {
                                 .await?;
                         }
                         ClientFunction::WriteScreenResize(width, height) => {
-                            Client::write_screen_resize(
-                                &mut write_stream,
-                                x224_processor.clone(),
-                                width,
-                                height,
-                            )
-                            .await?;
+                            debug!("Received WriteScreenResize PDU");
+                            // Determine whether to withhold the resize or perform it immediately.
+                            let action = {
+                                let mut resize_manager =
+                                    Self::resize_manager_lock(&resize_manager)?;
+                                if !resize_manager.display_control_opened {
+                                    debug!("DisplayControl channel not opened, withholding resize");
+                                    // The client requested a resize but the DisplayControl channel has not been opened yet.
+                                    // Sending the resize now would cause an RDP error and end the session; instead we withhold
+                                    // it until the DisplayControl channel is opened.
+                                    resize_manager.withheld_resize = Some((width, height));
+                                    None // No immediate action required.
+                                } else {
+                                    Some((width, height)) // Perform the resize immediately.
+                                }
+                            }; // Drop the lock here to avoid holding it over the await below.
+
+                            if let Some((width, height)) = action {
+                                debug!("Performing resize to [{:?}x{:?}]", width, height);
+                                Client::write_screen_resize(
+                                    &mut write_stream,
+                                    x224_processor.clone(),
+                                    width,
+                                    height,
+                                )
+                                .await?;
+                            }
                         }
                         ClientFunction::HandleTdpSdAnnounce(sda) => {
                             Client::handle_tdp_sd_announce(
@@ -464,6 +509,29 @@ impl Client {
                 }
             }
         })
+    }
+
+    fn on_display_ctl_capabilities_received(
+        resize_manager: &Arc<Mutex<ResizeManager>>,
+    ) -> PduResult<Vec<DvcMessage>> {
+        debug!("DisplayControlClient channel opened");
+        // We've been notified that the DisplayControl dvc channel has been opened:
+        let mut resize_manager =
+            Self::resize_manager_lock(resize_manager).map_err(|err| custom_err!(err))?;
+        resize_manager.display_control_opened = true; // Set the flag to true.
+        let withheld_resize = resize_manager.withheld_resize.take();
+        if let Some((width, height)) = withheld_resize {
+            // If there was a resize withheld, perform it now.
+            debug!(
+                "Withheld resize for size [{:?}x{:?}] found, sending now",
+                width, height
+            );
+            let pdu = DisplayControlPdu::create_monitor_layout_pdu(width, height)?;
+            return Ok(vec![Box::new(pdu)]);
+        }
+
+        // No resize was withheld, nothing to do.
+        Ok(vec![])
     }
 
     fn send_connection_activated(
@@ -608,10 +676,9 @@ impl Client {
         write_stream: &mut RdpWriteStream,
         event: FastPathInputEvent,
     ) -> ClientResult<()> {
-        let mut data: Vec<u8> = Vec::new();
         let input_pdu = FastPathInput(vec![event]);
-        input_pdu.to_buffer(&mut data)?;
-
+        let mut data: Vec<u8> = vec![0; input_pdu.size()];
+        input_pdu.encode(&mut WriteCursor::new(&mut data))?;
         write_stream.write_all(&data).await?;
         Ok(())
     }
@@ -660,24 +727,10 @@ impl Client {
                     ));
                 }
 
-                Ok::<_, ClientError>(disp_ctl_cli.encode_monitors(
+                Ok::<_, ClientError>(disp_ctl_cli.encode_monitor(
                     channel_id.unwrap(),
-                    vec![Monitor {
-                        flags: MonitorFlags::PRIMARY,
-                        left: 0,
-                        top: 0,
-                        width,
-                        height,
-                        physical_width: 0,
-                        physical_height: 0,
-                        orientation: if width > height {
-                            Orientation::Landscape
-                        } else {
-                            Orientation::Portrait
-                        },
-                        desktop_scale_factor: 100, // percent; todo: can this be zero?
-                        device_scale_factor: 100,  // percent; todo: can this be zero?
-                    }],
+                    width,
+                    height,
                 ))
             })
             .await???;
@@ -866,6 +919,14 @@ impl Client {
         x224_processor: &Arc<Mutex<x224::Processor>>,
     ) -> Result<MutexGuard<x224::Processor>, SessionError> {
         x224_processor
+            .lock()
+            .map_err(|err| reason_err!(function!(), "PoisonError: {:?}", err))
+    }
+
+    fn resize_manager_lock(
+        resize_manager: &Arc<Mutex<ResizeManager>>,
+    ) -> Result<MutexGuard<ResizeManager>, SessionError> {
+        resize_manager
             .lock()
             .map_err(|err| reason_err!(function!(), "PoisonError: {:?}", err))
     }
