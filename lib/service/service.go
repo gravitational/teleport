@@ -3310,7 +3310,7 @@ func (process *TeleportProcess) initDebugService() error {
 		}
 
 		w.Write([]byte(message))
-		logger.Info(message)
+		logger.InfoContext(process.ExitContext(), message)
 	})
 
 	listener, err := process.importOrCreateListener(ListenerDebug, filepath.Join(process.Config.DataDir, constants.DebugServiceSocketName))

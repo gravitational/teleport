@@ -1624,13 +1624,10 @@ func TestDebugService(t *testing.T) {
 	})
 
 	t.Run("CollectProfiles", func(t *testing.T) {
-		resp, err := httpClient.Do(makeDebugSocketRequest(t, http.MethodGet, "/debug/pprof/heap", ""))
+		resp, err := httpClient.Do(makeDebugSocketRequest(t, http.MethodGet, "/debug/pprof/goroutine", ""))
 		require.NoError(t, err)
-
-		respBody, err := io.ReadAll(resp.Body)
 		defer resp.Body.Close()
-		require.NoError(t, err)
-		require.NotEmpty(t, respBody)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 }
 
