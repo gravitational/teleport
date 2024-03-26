@@ -5700,6 +5700,13 @@ message PluginSpecV1 {
     // Settings for the ServiceNow plugin
     PluginServiceNowSettings serviceNow = 10;
   }
+
+  // generation contains a unique ID that should:
+  // - Be created by the backed on plugin creation.
+  // - Be updated by the backend if the plugin is updated in any way.
+  //
+  // For older plugins, it's possible for this to be empty.
+  string generation = 11;
 }
 
 message PluginSlackAccessSettings {
