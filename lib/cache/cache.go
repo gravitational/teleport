@@ -37,6 +37,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -166,6 +168,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessList},
 		{Kind: types.KindAccessListMember},
 		{Kind: types.KindAccessListReview},
+		{Kind: types.KindKubeWaitingContainer},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -217,6 +220,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindAuditQuery},
 		{Kind: types.KindSecurityReport},
 		{Kind: types.KindSecurityReportState},
+		{Kind: types.KindKubeWaitingContainer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -229,7 +233,7 @@ func ForProxy(cfg Config) Config {
 // incompatible changes don't render a remote cluster permanently unhealthy.
 // First, the cfg.Watches of ForOldRemoteProxy must be replaced
 // with the current cfg.Watches of ForRemoteProxy. Next, the
-// version used by `lib/reversetunnel/srv/go` to determine whether
+// version used by `lib/reversetunnel/srv.go` to determine whether
 // to use ForRemoteProxy or ForOldRemoteProxy must be updated
 // to be the release in which the new resource(s) will exist in. Finally,
 // add the new types.WatchKind below. Also note that this only
@@ -340,6 +344,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindKubeWaitingContainer},
 	}
 	cfg.QueueSize = defaults.KubernetesQueueSize
 	return cfg
@@ -539,6 +544,7 @@ type Cache struct {
 	accessListCache              *simple.AccessListService
 	eventsFanout                 *services.FanoutV2
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
+	kubeWaitingContsCache        *local.KubeWaitingContainerService
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -701,6 +707,8 @@ type Config struct {
 	SecReports services.SecReports
 	// AccessLists is the access lists service.
 	AccessLists services.AccessLists
+	// KubeWaitingContainers is the Kubernetes waiting container service.
+	KubeWaitingContainers services.KubeWaitingContainer
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -906,6 +914,12 @@ func New(config Config) (*Cache, error) {
 		lowVolumeFanouts = append(lowVolumeFanouts, services.NewFanoutV2(services.FanoutV2Config{}))
 	}
 
+	kubeWaitingContsCache, err := local.NewKubeWaitingContainerService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -941,6 +955,7 @@ func New(config Config) (*Cache, error) {
 		accessListCache:              accessListCache,
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
+		kubeWaitingContsCache:        kubeWaitingContsCache,
 		Logger: log.WithFields(log.Fields{
 			teleport.ComponentKey: config.Component,
 		}),
@@ -973,7 +988,6 @@ func (c *Cache) Start() error {
 		Jitter: retryutils.NewHalfJitter(),
 		Clock:  c.Clock,
 	})
-
 	if err != nil {
 		c.Close()
 		return trace.Wrap(err)
@@ -2173,21 +2187,21 @@ func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, e
 }
 
 // ListUsers returns a page of users.
-func (c *Cache) ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
+func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
 	_, span := c.Tracer.Start(ctx, "cache/ListUsers")
 	defer span.End()
 
-	if withSecrets { // cache never tracks user secrets
-		users, token, err := c.Users.ListUsers(ctx, pageSize, nextToken, withSecrets)
-		return users, token, trace.Wrap(err)
+	if req.WithSecrets { // cache never tracks user secrets
+		rsp, err := c.Users.ListUsers(ctx, req)
+		return rsp, trace.Wrap(err)
 	}
 	rg, err := readCollectionCache(c, c.collections.users)
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	users, token, err := rg.reader.ListUsers(ctx, pageSize, nextToken, withSecrets)
-	return users, token, trace.Wrap(err)
+	rsp, err := rg.reader.ListUsers(ctx, req)
+	return rsp, trace.Wrap(err)
 }
 
 // GetTunnelConnections is a part of auth.Cache implementation
@@ -2227,6 +2241,36 @@ func (c *Cache) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, e
 	}
 	defer rg.Release()
 	return rg.reader.GetKubernetesServers(ctx)
+}
+
+// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+// containers that are waiting to be created until moderated
+// session conditions are met.
+func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListKubernetesWaitingContainers")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.kubeWaitingContainers)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListKubernetesWaitingContainers(ctx, pageSize, pageToken)
+}
+
+// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
+// container that are waiting to be created until moderated
+// session conditions are met.
+func (c *Cache) GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesWaitingContainer")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.kubeWaitingContainers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetKubernetesWaitingContainer(ctx, req)
 }
 
 // GetApplicationServers returns all registered application servers.

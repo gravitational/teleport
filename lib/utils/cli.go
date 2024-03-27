@@ -29,6 +29,7 @@ import (
 	stdlog "log"
 	"log/slog"
 	"os"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -428,6 +429,24 @@ func SplitIdentifiers(s string) []string {
 	return strings.FieldsFunc(s, func(r rune) bool {
 		return r == ',' || unicode.IsSpace(r)
 	})
+}
+
+var unixShellQuoteCharacters = regexp.MustCompile(
+	"[^" + // Match any character that is NOT one of the following:
+		"\\w" + // Word characters (letter, number, underscore)
+		"@%+=:,./-" + // Safe symbols that don't typically have a special meaning in shells
+		"]")
+
+// UnixShellQuote returns the string in quotes if quoting is necessary to prevent possible execution or injection for
+// UNIX-like systems. This is intended to be used when building shell scripts for Linux or macOS.
+func UnixShellQuote(s string) string {
+	if unixShellQuoteCharacters.MatchString(s) {
+		s = strings.ReplaceAll(s, "\n", "\\n")
+		s = strings.ReplaceAll(s, "\r", "\\r")
+		return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
+	}
+
+	return s
 }
 
 // EscapeControl escapes all ANSI escape sequences from string and returns a

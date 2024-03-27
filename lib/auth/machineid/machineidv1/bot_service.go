@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
@@ -65,7 +66,7 @@ type Cache interface {
 	// GetUser returns a user by name.
 	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
 	// ListUsers lists users
-	ListUsers(ctx context.Context, pageSize int, pageToken string, withSecrets bool) ([]types.User, string, error)
+	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 	// GetRole returns a role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
@@ -204,13 +205,14 @@ func (bs *BotService) ListBots(
 	// TODO(noah): Rewrite this to be less janky/better performing.
 	// - Concurrency for fetching roles
 	bots := []*pb.Bot{}
-	users, token, err := bs.cache.ListUsers(
-		ctx, int(req.PageSize), req.PageToken, false,
-	)
+	rsp, err := bs.cache.ListUsers(ctx, &userspb.ListUsersRequest{
+		PageSize:  req.PageSize,
+		PageToken: req.PageToken,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err, "listing users")
 	}
-	for _, u := range users {
+	for _, u := range rsp.Users {
 		botName, isBot := u.GetLabel(types.BotLabel)
 		if !isBot {
 			continue
@@ -236,7 +238,7 @@ func (bs *BotService) ListBots(
 
 	return &pb.ListBotsResponse{
 		Bots:          bots,
-		NextPageToken: token,
+		NextPageToken: rsp.NextPageToken,
 	}, nil
 }
 

@@ -502,7 +502,7 @@ func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identit
 	}
 
 	// TODO: AWS?
-	ws, err := client.CreateAppSession(ctx, types.CreateAppSessionRequest{
+	ws, err := client.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
 		ClusterName: botIdentity.ClusterName,
 		Username:    botIdentity.X509Cert.Subject.CommonName,
 		PublicAddr:  app.GetPublicAddr(),
