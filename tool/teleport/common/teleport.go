@@ -1143,21 +1143,25 @@ func onIntegrationConfSAMLIdPGCPWorkforce(params samlidpconfig.GCPWorkforceAPIPa
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
+	// httpClient is used to fetch SAML IdP metadata.
+	// we expect metadata to be available at the given SAMLIdPMetadataURL endpoint.
+	// As such client is configured not to follow redirect response.
+	httpClient, err := defaults.HTTPClient()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
 	gcpWorkforceService, err := samlidp.NewGCPWorkforceService(samlidp.GCPWorkforceService{
-		APIParams: params,
-		HTTPClient: &http.Client{
-			Timeout: defaults.HTTPRequestTimeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
+		APIParams:  params,
+		HTTPClient: httpClient,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = gcpWorkforceService.CreateWorkforcePoolAndProvider(ctx)
-	if err != nil {
+	if err := gcpWorkforceService.CreateWorkforcePoolAndProvider(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
