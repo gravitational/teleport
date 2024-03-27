@@ -26,6 +26,8 @@ import { ReactElement } from 'react';
 
 import { RecoveryCodes, ResetToken } from 'teleport/services/auth';
 
+import { QuestionnaireProps } from '../Shared/types';
+
 export type UseTokenState = {
   auth2faType: Auth2faType;
   primaryAuthType: PrimaryAuthType;
@@ -40,13 +42,6 @@ export type UseTokenState = {
   redirect: () => void;
   success: boolean;
   finishedRegister: () => void;
-};
-
-// Note: QuestionnaireProps is duplicated in Enterprise (e-teleport/Welcome/Questionnaire/Questionnaire)
-export type QuestionnaireProps = {
-  onboard: boolean;
-  username?: string;
-  onSubmit?: () => void;
 };
 
 // Note: InviteCollaboratorsCardProps is duplicated in Enterprise

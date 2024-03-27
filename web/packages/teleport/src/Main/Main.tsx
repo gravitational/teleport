@@ -57,7 +57,7 @@ import {
 import { NavigationCategory } from 'teleport/Navigation/categories';
 import { TopBarProps } from 'teleport/TopBar/TopBar';
 import { useUser } from 'teleport/User/UserContext';
-import { QuestionnaireProps } from 'teleport/Welcome/NewCredentials';
+import { QuestionnaireProps } from 'teleport/Welcome/Shared/types';
 
 import { MainContainer } from './MainContainer';
 import { OnboardDiscover } from './OnboardDiscover';

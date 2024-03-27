@@ -29,6 +29,7 @@ import cfg from 'teleport/config';
 import { loginFlows } from 'teleport/Welcome/NewCredentials/constants';
 
 import useToken from '../useToken';
+import { Questionnaire as OpenSourceQuestionnaire } from '../Questionnaire/Questionnaire';
 
 import { Expired } from './Expired';
 import { LoginFlow, NewCredentialsProps } from './types';
@@ -43,11 +44,16 @@ import { RegisterSuccess } from './Success';
  */
 export function Container({ tokenId = '', resetMode = false }) {
   const state = useToken(tokenId);
+  const [displayOpenSourceQuestionnaire, setDisplayOpenSourceQuestionnaire] =
+    useState(!cfg.isEnterprise && !resetMode);
+
   return (
     <NewCredentials
       {...state}
       resetMode={resetMode}
       isDashboard={cfg.isDashboard}
+      displayOnboardingQuestionnaire={displayOpenSourceQuestionnaire}
+      setDisplayOnboardingQuestionnaire={setDisplayOpenSourceQuestionnaire}
     />
   );
 }
@@ -118,6 +124,22 @@ export function NewCredentials(props: NewCredentialsProps) {
           username={resetToken.user}
           onSubmit={() => setDisplayOnboardingQuestionnaire(false)}
           onboard={true}
+        />
+      </OnboardCard>
+    );
+  }
+
+  if (
+    success &&
+    !cfg.isEnterprise &&
+    !resetMode &&
+    displayOnboardingQuestionnaire &&
+    setDisplayOnboardingQuestionnaire
+  ) {
+    return (
+      <OnboardCard>
+        <OpenSourceQuestionnaire
+          onSubmit={() => setDisplayOnboardingQuestionnaire(false)}
         />
       </OnboardCard>
     );
