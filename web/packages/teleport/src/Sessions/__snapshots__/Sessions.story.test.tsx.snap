@@ -123,19 +123,15 @@ exports[`active sessions CTA 1`] = `
 
 .c19:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c19:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c19:hover:enabled,
-.c19:focus:enabled {
+.c19:not(:disabled):hover,
+.c19:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c19:active:enabled {
+.c19:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -162,19 +158,15 @@ exports[`active sessions CTA 1`] = `
 
 .c21:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c21:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c21:hover:enabled,
-.c21:focus:enabled {
+.c21:not(:disabled):hover,
+.c21:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c21:active:enabled {
+.c21:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -1165,19 +1157,15 @@ exports[`loaded 1`] = `
 
 .c14:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c14:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c14:hover:enabled,
-.c14:focus:enabled {
+.c14:not(:disabled):hover,
+.c14:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c14:active:enabled {
+.c14:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -1204,19 +1192,15 @@ exports[`loaded 1`] = `
 
 .c17:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c17:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c17:hover:enabled,
-.c17:focus:enabled {
+.c17:not(:disabled):hover,
+.c17:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c17:active:enabled {
+.c17:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -2156,19 +2140,15 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
 
 .c14:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c14:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c14:hover:enabled,
-.c14:focus:enabled {
+.c14:not(:disabled):hover,
+.c14:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c14:active:enabled {
+.c14:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -2195,19 +2175,15 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
 
 .c17:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c17:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c17:hover:enabled,
-.c17:focus:enabled {
+.c17:not(:disabled):hover,
+.c17:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c17:active:enabled {
+.c17:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 

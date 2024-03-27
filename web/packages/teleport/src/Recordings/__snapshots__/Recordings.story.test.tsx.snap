@@ -73,19 +73,15 @@ exports[`rendering of Session Recordings 1`] = `
 
 .c16:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c16:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c16:hover:enabled,
-.c16:focus:enabled {
+.c16:not(:disabled):hover,
+.c16:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c16:active:enabled {
+.c16:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -112,19 +108,15 @@ exports[`rendering of Session Recordings 1`] = `
 
 .c19:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c19:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c19:hover:enabled,
-.c19:focus:enabled {
+.c19:not(:disabled):hover,
+.c19:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c19:active:enabled {
+.c19:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
