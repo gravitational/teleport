@@ -91,6 +91,15 @@ type Server interface {
 	// IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
 	// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICENode.
 	IsOpenSSHNode() bool
+
+	// IsEICE returns whether the Node is an EICE instance.
+	// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
+	IsEICE() bool
+
+	// GetAWSInstanceID returns the AWS Instance ID if this node comes from an EC2 instance.
+	GetAWSInstanceID() string
+	// GetAWSAccountID returns the AWS Account ID if this node comes from an EC2 instance.
+	GetAWSAccountID() string
 }
 
 // NewServer creates an instance of Server.
@@ -385,6 +394,38 @@ func (s *ServerV2) IsOpenSSHNode() bool {
 // OpenSSH daemon (instead of a Teleport Node).
 func IsOpenSSHNodeSubKind(subkind string) bool {
 	return subkind == SubKindOpenSSHNode || subkind == SubKindOpenSSHEICENode
+}
+
+// GetAWSAccountID returns the AWS Account ID if this node comes from an EC2 instance.
+func (s *ServerV2) GetAWSAccountID() string {
+	awsAccountID, _ := s.GetLabel(AWSAccountIDLabel)
+
+	awsMetadata := s.GetAWSInfo()
+	if awsMetadata != nil && awsMetadata.AccountID != "" {
+		awsAccountID = awsMetadata.AccountID
+	}
+	return awsAccountID
+}
+
+// GetAWSInstanceID returns the AWS Instance ID if this node comes from an EC2 instance.
+func (s *ServerV2) GetAWSInstanceID() string {
+	awsInstanceID, _ := s.GetLabel(AWSInstanceIDLabel)
+
+	awsMetadata := s.GetAWSInfo()
+	if awsMetadata != nil && awsMetadata.InstanceID != "" {
+		awsInstanceID = awsMetadata.InstanceID
+	}
+	return awsInstanceID
+}
+
+// IsEICE returns whether the Node is an EICE instance.
+// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
+func (s *ServerV2) IsEICE() bool {
+	if s.SubKind != SubKindOpenSSHEICENode {
+		return false
+	}
+
+	return s.GetAWSAccountID() != "" && s.GetAWSInstanceID() != ""
 }
 
 // openSSHNodeCheckAndSetDefaults are common validations for OpenSSH nodes.

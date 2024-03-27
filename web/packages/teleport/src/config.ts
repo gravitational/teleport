@@ -327,6 +327,9 @@ const cfg = {
 
     botsPath: '/v1/webapi/sites/:clusterId/machine-id/bot/:name?',
     botsTokenPath: '/v1/webapi/sites/:clusterId/machine-id/token',
+
+    gcpWorkforceConfigurePath:
+      '/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -1044,6 +1047,12 @@ const cfg = {
     return generatePath(cfg.api.botsPath, { clusterId, name });
   },
 
+  getGcpWorkforceConfigScriptUrl(p: UrlGcpWorkforceConfigParam) {
+    return (
+      cfg.baseUrl + generatePath(cfg.api.gcpWorkforceConfigurePath, { ...p })
+    );
+  },
+
   init(backendConfig = {}) {
     mergeDeep(this, backendConfig);
   },
@@ -1158,6 +1167,12 @@ export interface UrlAwsOidcConfigureIdp {
 export interface UrlAwsConfigureIamScriptParams {
   region: Regions;
   iamRoleName: string;
+}
+
+export interface UrlGcpWorkforceConfigParam {
+  orgId: string;
+  poolName: string;
+  poolProviderName: string;
 }
 
 export default cfg;
