@@ -86,8 +86,8 @@ type WebSession interface {
 	SetLoginTime(time.Time)
 	// GetIdleTimeout returns the max time a user can be inactive for this session.
 	GetIdleTimeout() time.Duration
-	// WithoutSecrets returns copy of the web session but without private keys
-	WithoutSecrets() WebSession
+	// CopyWithoutSecrets returns copy of the web session but without private keys
+	CopyWithoutSecrets() WebSession
 	// String returns string representation of the session.
 	String() string
 	// SetConsumedAccessRequestID sets the ID of the access request from which additional roles to assume were obtained.
@@ -192,13 +192,19 @@ func (ws *WebSessionV2) GetIdleTimeout() time.Duration {
 	return ws.Spec.IdleTimeout.Duration()
 }
 
-// WithoutSecrets returns a copy of the WebSession without secrets.
-func (ws *WebSessionV2) WithoutSecrets() WebSession {
+// CopyWithoutSecrets returns a copy of the WebSession without secrets.
+func (ws *WebSessionV2) CopyWithoutSecrets() WebSession {
 	cp := proto.Clone(ws).(*WebSessionV2)
 	cp.Spec.Priv = nil
 	cp.Spec.SAMLSession = nil
 	cp.Spec.DeviceWebToken = nil
 	return cp
+}
+
+// WithoutSecrets returns an instance of resource without secrets.
+// Implements ResourceWithSecrets.
+func (ws *WebSessionV2) WithoutSecrets() Resource {
+	return ws.CopyWithoutSecrets()
 }
 
 // SetConsumedAccessRequestID sets the ID of the access request from which additional roles to assume were obtained.

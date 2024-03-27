@@ -1454,6 +1454,12 @@ func (appSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets 
 			return nil, trace.Wrap(err)
 		}
 
+		if !loadSecrets {
+			for i := range webSessions {
+				webSessions[i] = webSessions[i].CopyWithoutSecrets()
+			}
+		}
+
 		sessions = append(sessions, webSessions...)
 
 		if nextKey == "" {
@@ -1497,7 +1503,18 @@ var _ executor[types.WebSession, appSessionGetter] = appSessionExecutor{}
 type snowflakeSessionExecutor struct{}
 
 func (snowflakeSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WebSession, error) {
-	return cache.SnowflakeSession.GetSnowflakeSessions(ctx)
+	webSessions, err := cache.SnowflakeSession.GetSnowflakeSessions(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !loadSecrets {
+		for i := range webSessions {
+			webSessions[i] = webSessions[i].CopyWithoutSecrets()
+		}
+	}
+
+	return webSessions, nil
 }
 
 func (snowflakeSessionExecutor) upsert(ctx context.Context, cache *Cache, resource types.WebSession) error {
@@ -1543,6 +1560,12 @@ func (samlIdPSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSecr
 			return nil, trace.Wrap(err)
 		}
 
+		if !loadSecrets {
+			for i := range webSessions {
+				webSessions[i] = webSessions[i].CopyWithoutSecrets()
+			}
+		}
+
 		sessions = append(sessions, webSessions...)
 
 		if nextKey == "" {
@@ -1585,7 +1608,18 @@ var _ executor[types.WebSession, samlIdPSessionGetter] = samlIdPSessionExecutor{
 type webSessionExecutor struct{}
 
 func (webSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WebSession, error) {
-	return cache.WebSession.List(ctx)
+	webSessions, err := cache.WebSession.List(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !loadSecrets {
+		for i := range webSessions {
+			webSessions[i] = webSessions[i].CopyWithoutSecrets()
+		}
+	}
+
+	return webSessions, nil
 }
 
 func (webSessionExecutor) upsert(ctx context.Context, cache *Cache, resource types.WebSession) error {

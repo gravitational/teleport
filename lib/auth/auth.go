@@ -3227,7 +3227,7 @@ func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identi
 	if err := a.upsertWebSession(ctx, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sess.WithoutSecrets(), nil
+	return sess.CopyWithoutSecrets(), nil
 }
 
 // CreateAuthenticateChallenge implements AuthService.CreateAuthenticateChallenge.
@@ -4689,7 +4689,7 @@ func (a *Server) GetWebSessionInfo(ctx context.Context, user, sessionID string) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sess.WithoutSecrets(), nil
+	return sess.CopyWithoutSecrets(), nil
 }
 
 func (a *Server) DeleteNamespace(namespace string) error {
