@@ -105,6 +105,9 @@ type Config struct {
 	// Metrics defines the metrics service configuration.
 	Metrics MetricsConfig
 
+	// DebugService defines the debug service configuration.
+	DebugService DebugConfig
+
 	// WindowsDesktop defines the Windows desktop service configuration.
 	WindowsDesktop WindowsDesktopConfig
 

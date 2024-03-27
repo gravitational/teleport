@@ -536,6 +536,12 @@ func TestConfigReading(t *testing.T) {
 			GRPCServerLatency: true,
 			GRPCClientLatency: true,
 		},
+		Debug: DebugService{
+			Service: Service{
+				defaultEnabled: true,
+				EnabledFlag:    "yes",
+			},
+		},
 		WindowsDesktop: WindowsDesktopService{
 			Service: Service{
 				EnabledFlag:   "yes",
@@ -571,6 +577,8 @@ func TestConfigReading(t *testing.T) {
 	require.True(t, conf.Databases.Enabled())
 	require.True(t, conf.Metrics.Configured())
 	require.True(t, conf.Metrics.Enabled())
+	require.True(t, conf.Debug.Configured())
+	require.True(t, conf.Debug.Enabled())
 	require.True(t, conf.WindowsDesktop.Configured())
 	require.True(t, conf.WindowsDesktop.Enabled())
 	require.True(t, conf.Tracing.Enabled())
@@ -930,6 +938,7 @@ func TestApplyConfigNoneEnabled(t *testing.T) {
 	require.False(t, cfg.Apps.Enabled)
 	require.False(t, cfg.Databases.Enabled)
 	require.False(t, cfg.Metrics.Enabled)
+	require.True(t, cfg.DebugService.Enabled)
 	require.False(t, cfg.WindowsDesktop.Enabled)
 	require.Empty(t, cfg.Proxy.PostgresPublicAddrs)
 	require.Empty(t, cfg.Proxy.MySQLPublicAddrs)
@@ -1641,6 +1650,9 @@ func makeConfigFixture() string {
 			Certificate: "/etc/teleport/proxy.crt",
 		},
 	}
+
+	// Debug service.
+	conf.Debug.EnabledFlag = "yes"
 
 	// Windows Desktop Service
 	conf.WindowsDesktop = WindowsDesktopService{

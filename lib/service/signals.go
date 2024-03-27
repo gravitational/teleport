@@ -312,7 +312,7 @@ func (process *TeleportProcess) createListener(typ ListenerType, address string)
 		return nil, trace.BadParameter("listening is blocked")
 	}
 
-	listener, err := net.Listen("tcp", address)
+	listener, err := net.Listen(typ.Network(), address)
 	if err != nil {
 		process.Lock()
 		listener, ok := process.getListenerNeedsLock(typ, address)

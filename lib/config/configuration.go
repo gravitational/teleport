@@ -232,6 +232,15 @@ type CommandLineFlags struct {
 	// IntegrationConfAccessGraphAWSSyncArguments contains the arguments of
 	// `teleport integration configure access-graph aws-iam` command
 	IntegrationConfAccessGraphAWSSyncArguments IntegrationConfAccessGraphAWSSync
+
+	// LogLevel is the new application's log level.
+	LogLevel string
+
+	// Profiles comma-separated list of pprof profiles to be collected.
+	Profiles string
+
+	// ProfileSeconds defines the time the pprof will be collected.
+	ProfileSeconds int
 }
 
 // IntegrationConfAccessGraphAWSSync contains the arguments of
@@ -396,6 +405,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	if fc.WindowsDesktop.Disabled() {
 		cfg.WindowsDesktop.Enabled = false
+	}
+	if fc.Debug.Enabled() {
+		cfg.DebugService.Enabled = true
 	}
 
 	if fc.AccessGraph.Enabled {

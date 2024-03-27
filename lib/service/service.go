@@ -1095,6 +1095,14 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		}
 	}
 
+	if cfg.DebugService.Enabled {
+		if err := process.initDebugService(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentDebug), process.logger)
+	}
+
 	// Create a process wide key generator that will be shared. This is so the
 	// key generator can pre-generate keys and share these across services.
 	if cfg.Keygen == nil {
@@ -3247,6 +3255,124 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	})
 
 	process.OnExit("diagnostic.shutdown", func(payload interface{}) {
+		if payload == nil {
+			logger.InfoContext(process.ExitContext(), "Shutting down immediately.")
+			warnOnErr(process.ExitContext(), server.Close(), logger)
+		} else {
+			logger.InfoContext(process.ExitContext(), "Shutting down gracefully.")
+			ctx := payloadContext(payload)
+			warnOnErr(process.ExitContext(), server.Shutdown(ctx), logger)
+		}
+		logger.InfoContext(process.ExitContext(), "Exited.")
+	})
+
+	return nil
+}
+
+// initDebugService starts debug service serving endpoints used for
+// troubleshooting the instance.
+func (process *TeleportProcess) initDebugService() error {
+	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDebug, process.id))
+
+	// logPProfMiddleware logs /debug/pprof requests.
+	logPProfMiddleware := func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			seconds := r.URL.Query().Get("seconds")
+			if seconds == "" {
+				seconds = "default"
+			}
+
+			logger.InfoContext(
+				process.ExitContext(),
+				"Collecting pprof profile.",
+				"profile", strings.TrimSuffix(r.URL.Path, constants.PProfEndpointsPrefix),
+				"seconds", seconds,
+			)
+
+			next(w, r)
+		}
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc(constants.PProfEndpointsPrefix, logPProfMiddleware(pprof.Index))
+	mux.HandleFunc(constants.PProfEndpointsPrefix+"cmdline", logPProfMiddleware(pprof.Cmdline))
+	mux.HandleFunc(constants.PProfEndpointsPrefix+"profile", logPProfMiddleware(pprof.Profile))
+	mux.HandleFunc(constants.PProfEndpointsPrefix+"symbol", logPProfMiddleware(pprof.Symbol))
+	mux.HandleFunc(constants.PProfEndpointsPrefix+"trace", logPProfMiddleware(pprof.Trace))
+
+	mux.HandleFunc(constants.DebugServiceLogLevelEndpoint, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == constants.DebugServiceGetLogLevelMethod {
+			switch process.Config.LoggerLevel.Level() {
+			case logutils.TraceLevel:
+				w.Write([]byte(logutils.TraceLevelString))
+			default:
+				w.Write([]byte(process.Config.LoggerLevel.Level().String()))
+			}
+
+			return
+		}
+
+		if r.Method != constants.DebugServiceSetLogLevelMethod {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		rawLevel, err := io.ReadAll(io.LimitReader(r.Body, 1024))
+		defer r.Body.Close()
+		if err != nil {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			w.Write([]byte("Unable to read request body."))
+			return
+		}
+
+		var level slog.Level
+
+		// TRACE string representaiton is not handled by slog. We need to
+		// convert it. Otherwise, parse the provided level.
+		if strings.EqualFold(string(rawLevel), logutils.TraceLevelString) {
+			level = logutils.TraceLevel
+		} else {
+			if err := level.UnmarshalText(rawLevel); err != nil {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				w.Write([]byte("Invalid log level."))
+				return
+			}
+		}
+
+		currLevel := process.Config.LoggerLevel.Level()
+		message := fmt.Sprintf("Log level already set to %q.", level)
+		if level != currLevel {
+			message = fmt.Sprintf("Changed log level from %q to %q.", currLevel, level)
+			process.Config.SetLogLevel(level)
+			logger.InfoContext(process.ExitContext(), "Changed log level.", "old", currLevel, "new", level)
+		}
+
+		w.Write([]byte(message))
+	})
+
+	listener, err := process.importOrCreateListener(ListenerDebug, filepath.Join(process.Config.DataDir, constants.DebugServiceSocketName))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	server := &http.Server{
+		Handler:           mux,
+		ReadTimeout:       apidefaults.DefaultIOTimeout,
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		WriteTimeout:      apidefaults.DefaultIOTimeout,
+		IdleTimeout:       apidefaults.DefaultIdleTimeout,
+	}
+
+	process.RegisterFunc("debug.service", func() error {
+		err := server.Serve(listener)
+		if err != nil && err != http.ErrServerClosed {
+			logger.WarnContext(process.ExitContext(), "Debug server exited with error.", "error", err)
+		}
+		return nil
+	})
+	warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentDebug), logger)
+
+	process.OnExit("debug.shutdown", func(payload interface{}) {
 		if payload == nil {
 			logger.InfoContext(process.ExitContext(), "Shutting down immediately.")
 			warnOnErr(process.ExitContext(), server.Close(), logger)

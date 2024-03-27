@@ -36,6 +36,7 @@ var (
 	ListenerDiagnostic = ListenerType(teleport.ComponentDiagnostic)
 	ListenerProxyKube  = ListenerType(teleport.Component(teleport.ComponentProxy, "kube"))
 	ListenerKube       = ListenerType(teleport.ComponentKube)
+	ListenerDebug      = ListenerType(teleport.ComponentDebug)
 	// Proxy can use the same listener for tunnels and web interface
 	// (multiplexing the requests).
 	ListenerProxyTunnelAndWeb = ListenerType(teleport.Component(teleport.ComponentProxy, "tunnel", "web"))
@@ -48,6 +49,16 @@ var (
 	ListenerMetrics           = ListenerType(teleport.ComponentMetrics)
 	ListenerWindowsDesktop    = ListenerType(teleport.ComponentWindowsDesktop)
 )
+
+// Network returns the network used by the listener.
+func (l ListenerType) Network() string {
+	switch l {
+	case ListenerDebug:
+		return "unix"
+	default:
+		return "tcp"
+	}
+}
 
 // AuthAddr returns auth server endpoint, if configured and started.
 func (process *TeleportProcess) AuthAddr() (*utils.NetAddr, error) {

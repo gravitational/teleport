@@ -24,6 +24,16 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// SupportedLevelsString list of the supported log levels in their string
+// representation. All strings are in uppercase.
+var SupportedLevelsString = []string{
+	TraceLevelString,
+	slog.LevelDebug.String(),
+	slog.LevelInfo.String(),
+	slog.LevelWarn.String(),
+	slog.LevelError.String(),
+}
+
 // SlogLevelToLogrusLevel converts a [slog.Level] to its equivalent
 // [logrus.Level].
 func SlogLevelToLogrusLevel(level slog.Level) logrus.Level {
