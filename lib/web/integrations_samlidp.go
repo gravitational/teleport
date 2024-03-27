@@ -27,7 +27,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/integrations/samlidp"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	libutils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
@@ -36,18 +35,14 @@ import (
 func (h *Handler) gcpWorkforceConfigScript(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	queryParams := r.URL.Query()
 
-	// We aren't going to run any service in this method but the NewGCPWorkforceService performs
-	// GCP resource name validation which I think is handy before handing off values to script
-	// generation func below.
-	gcpWorkforce, err := samlidp.NewGCPWorkforceService(samlidp.GCPWorkforceService{
-		APIParams: samlidpconfig.GCPWorkforceAPIParams{
-			OrganizationID:     queryParams.Get("orgId"),
-			PoolName:           queryParams.Get("poolName"),
-			PoolProviderName:   queryParams.Get("poolProviderName"),
-			SAMLIdPMetadataURL: fmt.Sprintf("https://%s/enterprise/saml-idp/metadata", h.PublicProxyAddr()),
-		},
-	})
-	if err != nil {
+	samlIdPMetadataURL := fmt.Sprintf("https://%s/enterprise/saml-idp/metadata", h.PublicProxyAddr())
+	// validate queryParams params
+	if err := (samlidpconfig.GCPWorkforceAPIParams{
+		OrganizationID:     queryParams.Get("orgId"),
+		PoolName:           queryParams.Get("poolName"),
+		PoolProviderName:   queryParams.Get("poolProviderName"),
+		SAMLIdPMetadataURL: samlIdPMetadataURL,
+	}).CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -55,10 +50,10 @@ func (h *Handler) gcpWorkforceConfigScript(w http.ResponseWriter, r *http.Reques
 	// teleport integration configure samlidp gcp-workforce
 	argsList := []string{
 		"integration", "configure", "samlidp", "gcp-workforce",
-		fmt.Sprintf("--org-id=%s", libutils.UnixShellQuote(gcpWorkforce.APIParams.OrganizationID)),
-		fmt.Sprintf("--pool-name=%s", libutils.UnixShellQuote(gcpWorkforce.APIParams.PoolName)),
-		fmt.Sprintf("--pool-provider-name=%s", libutils.UnixShellQuote(gcpWorkforce.APIParams.PoolProviderName)),
-		fmt.Sprintf("--idp-metadata-url=%s", libutils.UnixShellQuote(gcpWorkforce.APIParams.SAMLIdPMetadataURL)),
+		fmt.Sprintf("--org-id=%s", libutils.UnixShellQuote(queryParams.Get("orgId"))),
+		fmt.Sprintf("--pool-name=%s", libutils.UnixShellQuote(queryParams.Get("poolName"))),
+		fmt.Sprintf("--pool-provider-name=%s", libutils.UnixShellQuote(queryParams.Get("poolProviderName"))),
+		fmt.Sprintf("--idp-metadata-url=%s", libutils.UnixShellQuote(samlIdPMetadataURL)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
