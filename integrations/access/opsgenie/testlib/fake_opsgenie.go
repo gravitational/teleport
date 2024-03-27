@@ -100,7 +100,21 @@ func NewFakeOpsgenie(concurrency int) *FakeOpsgenie {
 		mock.StoreAlert(alert)
 		mock.newAlerts <- alert
 
-		err = json.NewEncoder(rw).Encode(opsgenie.AlertResult{Alert: alert})
+		err = json.NewEncoder(rw).Encode(opsgenie.CreateAlertResult{RequestID: alert.ID})
+		panicIf(err)
+	})
+	router.GET("/v2/alerts/requests/:requestID", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		rw.Header().Add("Content-Type", "application/json")
+		rw.WriteHeader(http.StatusCreated)
+
+		requestID := ps.ByName("requestID")
+		err := json.NewEncoder(rw).Encode(opsgenie.GetAlertRequestResult{
+			Data: struct {
+				AlertID string `json:"alertId"`
+			}{
+				AlertID: requestID,
+			},
+		})
 		panicIf(err)
 	})
 	router.POST("/v2/alerts/:alertID/close", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -171,6 +185,9 @@ func NewFakeOpsgenie(concurrency int) *FakeOpsgenie {
 		rw.WriteHeader(http.StatusOK)
 		err := json.NewEncoder(rw).Encode(response)
 		panicIf(err)
+	})
+	router.GET("/v2/heartbeats/teleport-access-heartbeat/ping", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		rw.WriteHeader(http.StatusOK)
 	})
 	return mock
 }
