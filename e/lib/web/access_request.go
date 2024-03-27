@@ -20,6 +20,8 @@ import (
 	"github.com/gravitational/teleport/e/lib/accessrequest"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web"
@@ -334,6 +336,32 @@ func splitChunks[T any](s []T, n int) [][]T {
 	return c
 }
 
+func getSortField(sortByString string) proto.AccessRequestSort {
+	switch sortByString {
+	case "created":
+		return proto.AccessRequestSort_CREATED
+	case "user":
+		return proto.AccessRequestSort_USER
+	case "state":
+		return proto.AccessRequestSort_STATE
+	default:
+		return proto.AccessRequestSort_CREATED
+	}
+}
+
+func getAccessRequestScope(scope string) types.AccessRequestScope {
+	switch scope {
+	case "my_requests":
+		return types.AccessRequestScope_MY_REQUESTS
+	case "needs_review":
+		return types.AccessRequestScope_NEEDS_REVIEW
+	case "reviewed":
+		return types.AccessRequestScope_REVIEWED
+	default:
+		return types.AccessRequestScope_DEFAULT
+	}
+}
+
 func (p *Plugin) getAccessRequestsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
@@ -342,24 +370,35 @@ func (p *Plugin) getAccessRequestsHandle(w http.ResponseWriter, r *http.Request,
 
 	query := r.URL.Query()
 	filter := &types.AccessRequestFilter{
-		User: query.Get("user"),
+		User:           query.Get("user"),
+		SearchKeywords: client.ParseSearchKeywords(query.Get("search"), ' '),
+		Scope:          getAccessRequestScope(query.Get("scope")),
 	}
+
+	sortBy := types.GetSortByFromString(query.Get("sort"))
 
 	req := &proto.ListAccessRequestsRequest{
-		Filter:   filter,
-		StartKey: query.Get("startKey"),
+		Filter:     filter,
+		StartKey:   query.Get("startKey"),
+		Sort:       getSortField(sortBy.Field),
+		Descending: sortBy.IsDesc,
 	}
 
-	limitStr := query.Get("limit")
-	if limitStr != "" {
-		limit, err := strconv.ParseInt(limitStr, 10, 32)
-		if err != nil {
-			return nil, trace.Wrap(err, "converting %s to int32", limitStr)
-		}
-		req.Limit = int32(limit)
+	limit, err := web.QueryLimitAsInt32(query, "limit", defaults.MaxIterationLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	req.Limit = limit
 
-	return p.getAccessRequests(r.Context(), clt, req, withClusterClientProvider(clusterClientProvider))
+	// if limit exists as a query parameter, this means its coming from a "new" webui
+	// and can return the new paginated response
+	// TODO (avatus) make prefixed versions instead of checking query params
+	resp, err := p.getAccessRequests(r.Context(), clt, req, withClusterClientProvider(clusterClientProvider))
+	if query.Get("limit") != "" {
+		return resp, trace.Wrap(err)
+	}
+	// old api request must return requests only
+	return resp.AccessRequests, trace.Wrap(err)
 }
 
 type accessRequestGetter interface {
@@ -367,10 +406,15 @@ type accessRequestGetter interface {
 	ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error)
 }
 
-func (p *Plugin) getAccessRequests(ctx context.Context, clt accessRequestGetter, req *proto.ListAccessRequestsRequest, opts ...getAccessRequestOption) ([]ui.AccessRequest, error) {
+type AccessRequestsPage struct {
+	AccessRequests []ui.AccessRequest `json:"requests"`
+	StartKey       string             `json:"startKey"`
+}
+
+func (p *Plugin) getAccessRequests(ctx context.Context, clt accessRequestGetter, req *proto.ListAccessRequestsRequest, opts ...getAccessRequestOption) (AccessRequestsPage, error) {
 	resp, err := clt.ListAccessRequests(ctx, req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return AccessRequestsPage{}, trace.Wrap(err)
 	}
 
 	cfg := defaultGetAccessRequestConfig()
@@ -393,7 +437,10 @@ func (p *Plugin) getAccessRequests(ctx context.Context, clt accessRequestGetter,
 		uiReqs = append(uiReqs, *uiReq)
 	}
 
-	return uiReqs, nil
+	return AccessRequestsPage{
+		AccessRequests: uiReqs,
+		StartKey:       resp.NextKey,
+	}, nil
 }
 
 func (p *Plugin) reviewAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (interface{}, error) {

@@ -42,7 +42,7 @@ export default function Workflow() {
     return (
       <FeatureBox>
         <FeatureHeader alignItems="center" justifyContent="space-between">
-          <FeatureHeaderTitle>Review Requests</FeatureHeaderTitle>
+          <FeatureHeaderTitle>Access Requests</FeatureHeaderTitle>
           <NewRequestButton clusterId={clusterId} />
         </FeatureHeader>
         <RequestList />

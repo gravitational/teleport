@@ -1,5 +1,6 @@
 import api from 'teleport/services/api';
 import session, { RenewSessionRequest } from 'teleport/services/websession';
+import { ResourcesResponse } from 'teleport/services/agents';
 
 import cfg from 'e-teleport/config';
 
@@ -18,13 +19,11 @@ class WorkflowService {
     return api.get(cfg.getAccessRequestUrl(requestId)).then(makeAccessRequest);
   }
 
-  fetchAccessRequests(filter: AccessRequestFilter): Promise<AccessRequest[]> {
-    return api.get(cfg.getAccessRequestFilterUrl(filter)).then(requests => {
-      if (!requests) {
-        return [];
-      }
-      return requests.map(req => makeAccessRequest(req));
-    });
+  fetchAccessRequests(
+    filter: AccessRequestFilter,
+    signal: AbortSignal
+  ): Promise<ResourcesResponse<AccessRequest>> {
+    return api.get(cfg.getAccessRequestFilterUrl(filter), signal);
   }
 
   fetchResourceRequestRoles(resourceIds: ResourceId[]): Promise<string[]> {

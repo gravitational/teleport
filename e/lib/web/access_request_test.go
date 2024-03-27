@@ -441,10 +441,10 @@ func TestGetAccessRequests(t *testing.T) {
 	// Test request state set to NONE, is not returned.
 	reqs, err := plugin.getAccessRequests(context.Background(), m, request)
 	require.NoError(t, err)
-	require.Len(t, reqs, 2)
-	require.Equal(t, types.RequestState_APPROVED.String(), reqs[0].State)
-	require.Equal(t, types.RequestState_PENDING.String(), reqs[1].State)
-	require.Equal(t, []ui.Resource{{ID: ui.ResourceID{ClusterName: "test-cluster", Name: "test-name", Kind: "test-kind"}}}, reqs[1].Resources)
+	require.Len(t, reqs.AccessRequests, 2)
+	require.Equal(t, types.RequestState_APPROVED.String(), reqs.AccessRequests[0].State)
+	require.Equal(t, types.RequestState_PENDING.String(), reqs.AccessRequests[1].State)
+	require.Equal(t, []ui.Resource{{ID: ui.ResourceID{ClusterName: "test-cluster", Name: "test-name", Kind: "test-kind"}}}, reqs.AccessRequests[1].Resources)
 }
 
 func TestReviewAccessRequest(t *testing.T) {

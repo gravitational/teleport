@@ -59,7 +59,8 @@ const cfg = {
 
     accessRequestPromotePath: '/v1/enterprise/accessrequest/:requestId/promote',
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
-    accessRequestFilterPath: '/v1/enterprise/accessrequest?user=:user?',
+    accessRequestFilterPath:
+      '/v1/enterprise/accessrequest?user=:user?&limit=:limit?&startKey=:startKey?&search=:search?&sort=:sort?&scope=:scope?',
     resourceRequestRolesPath:
       '/v1/enterprise/resourcerequestroles?resourceIds=:resourceIds?',
 

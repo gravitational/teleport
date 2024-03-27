@@ -1,3 +1,5 @@
+import { ResourcesResponse } from 'teleport/services/agents';
+
 import StoreAccessRequests from 'e-teleport/stores/storeAccessRequests';
 import { AccessRequest } from 'e-teleport/services/workflow';
 
@@ -333,7 +335,7 @@ export const requests = [
 ];
 
 export class MockedWorkflowService {
-  requests = [];
+  requests: ResourcesResponse<AccessRequest> = { agents: [] };
   user = '';
 
   constructor() {

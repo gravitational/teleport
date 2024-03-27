@@ -11,6 +11,7 @@ import {
 } from '../../fixtures';
 
 import { RequestList } from './RequestList';
+import { State } from './useRequestList';
 
 export default {
   title: 'TeleportE/Workflow/RequestList',
@@ -37,7 +38,7 @@ export const Failed = () => {
   );
 };
 
-const requestRows = [
+export const requestRows = [
   {
     ...requestSearchPending,
     canAssume: false,
@@ -97,10 +98,19 @@ const requestRows = [
   },
 ];
 
-const sample = {
+export const sample: State = {
   attempt: {
     status: 'success' as any,
   },
-  requests: requestRows,
+  resources: requestRows,
   assumeRole: () => null,
+  fetch: () => Promise.resolve(),
+  updateSort: () => {},
+  fetchAttempt: { status: '' },
+  setSearchString: () => {},
+  searchString: '',
+  clear: () => {},
+  updateScope: () => {},
+  scope: '',
+  sortBy: { fieldName: 'created', dir: 'ASC' },
 };

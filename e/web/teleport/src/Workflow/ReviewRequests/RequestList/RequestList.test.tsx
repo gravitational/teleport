@@ -6,17 +6,45 @@ import { requestRoleApproved } from 'e-teleport/Workflow/fixtures';
 
 import { RequestList } from './RequestList';
 import { AccessRequestWithFlags } from './useRequestList';
+import { sample } from './RequestList.story';
 
 test('disabled assume button with assume start date', async () => {
   // Set system time before the assume start date.
   jest.useFakeTimers().setSystemTime(new Date('2024-02-16T02:51:12.70087Z'));
+  global.IntersectionObserver = jest.fn(callback => {
+    callback(
+      [
+        {
+          // This is the property that triggers the fetch. We need it to be true.
+          isIntersecting: true,
+          intersectionRatio: null,
+          boundingClientRect: null,
+          intersectionRect: null,
+          rootBounds: null,
+          target: null,
+          time: null,
+        },
+      ],
+      null
+    );
+    return {
+      observe: jest.fn(),
+      unobserve: jest.fn(),
+      disconnect: jest.fn(),
+      takeRecords: jest.fn(),
+      root: null,
+      rootMargin: null,
+      thresholds: null,
+    };
+  });
 
   render(
     <MemoryRouter>
       <RequestList
+        {...sample}
         attempt={{ status: 'success' }}
         assumeRole={() => null}
-        requests={[request]}
+        resources={[request]}
       />
     </MemoryRouter>
   );
@@ -38,9 +66,10 @@ test('enabled assume button with assume start date', () => {
   render(
     <MemoryRouter>
       <RequestList
+        {...sample}
         attempt={{ status: 'success' }}
         assumeRole={() => null}
-        requests={[request]}
+        resources={[request]}
       />
     </MemoryRouter>
   );
@@ -53,9 +82,10 @@ test('enabled assume button with no assume start date', () => {
   render(
     <MemoryRouter>
       <RequestList
+        {...sample}
         attempt={{ status: 'success' }}
         assumeRole={() => null}
-        requests={[
+        resources={[
           { ...request, assumeStartTime: null, assumeStartTimeDuration: '' },
         ]}
       />

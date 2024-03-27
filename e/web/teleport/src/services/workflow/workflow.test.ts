@@ -2,17 +2,6 @@ import api from 'teleport/services/api';
 
 import Workflow from './workflow';
 
-test('handling of empty access request list', async () => {
-  // Test null response.
-  jest.spyOn(api, 'get').mockResolvedValue(null);
-
-  const workflow = new Workflow();
-  const response = await workflow.fetchAccessRequests({});
-
-  expect(response).not.toBeNull();
-  expect(response).toHaveLength(0);
-});
-
 test('handling of empty lists in an access request', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(null);
 

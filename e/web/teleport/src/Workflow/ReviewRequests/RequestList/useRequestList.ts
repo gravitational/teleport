@@ -1,23 +1,50 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import history from 'teleport/services/history';
+import { useKeyBasedPagination } from 'shared/hooks/useInfiniteScroll';
+import { AccessRequestScope, SortType } from 'teleport/services/agents';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
-import { AccessRequest } from 'e-teleport/services/workflow';
+import { AccessRequest, makeAccessRequest } from 'e-teleport/services/workflow';
 import { getBaseRequestFlags } from 'e-teleport/Workflow/Shared/Shared';
 
 export default function useRequestList(ctx: TeleportContextE) {
-  const { attempt, run, setAttempt } = useAttempt('processing');
-  const [requests, setRequests] = useState<AccessRequestWithFlags[]>([]);
+  const { attempt, setAttempt } = useAttempt('success');
+  const [searchString, setSearchString] = useState('');
+  const [scope, setScope] = useState<AccessRequestScope>('');
+  const [sortBy, setSortBy] = useState<SortType>({
+    fieldName: 'created',
+    dir: 'DESC',
+  });
 
-  useEffect(() => {
-    run(() =>
-      ctx.workflowService.fetchAccessRequests({}).then(reqs => {
-        const rows = reqs.map(req => makeRow(req, ctx));
-        setRequests(rows);
-      })
-    );
-  }, []);
+  const fetchRequests = useCallback(
+    async (params, signal) => {
+      const response = await ctx.workflowService.fetchAccessRequests(
+        {
+          search: searchString || undefined,
+          startKey: params.startKey || undefined,
+          scope: scope || undefined,
+          limit: params.limit,
+          sort: `${sortBy.fieldName}:${sortBy.dir}`,
+        },
+        signal
+      );
+      return response;
+    },
+    [searchString, ctx.workflowService, sortBy, scope]
+  );
+
+  const {
+    fetch,
+    resources,
+    attempt: fetchAttempt,
+    clear,
+  } = useKeyBasedPagination({
+    fetchFunc: fetchRequests,
+    initialFetchSize: 30,
+    fetchMoreSize: 30,
+    dataKey: 'requests',
+  });
 
   function assumeRole(req: AccessRequestWithFlags) {
     setAttempt({ status: 'processing' });
@@ -32,10 +59,29 @@ export default function useRequestList(ctx: TeleportContextE) {
       });
   }
 
+  function updateScope(scope: AccessRequestScope) {
+    setScope(scope);
+    clear();
+  }
+
+  function updateSort(newSort: SortType) {
+    setSortBy(newSort);
+    clear();
+  }
+
   return {
     attempt,
-    requests,
+    fetch,
+    updateSort,
+    fetchAttempt,
+    resources: resources.map(makeAccessRequest).map(r => makeRow(r, ctx)),
     assumeRole,
+    setSearchString,
+    scope,
+    updateScope,
+    searchString,
+    sortBy,
+    clear,
   };
 }
 

@@ -1,4 +1,7 @@
-import type { ResourceIdKind } from 'teleport/services/agents';
+import type {
+  AccessRequestScope,
+  ResourceIdKind,
+} from 'teleport/services/agents';
 
 export type RequestState =
   | 'NONE'
@@ -101,4 +104,9 @@ export interface PromoteAccessRequest {
 
 export interface AccessRequestFilter {
   user?: string;
+  search?: string;
+  limit?: number;
+  startKey?: string;
+  sort?: string;
+  scope?: AccessRequestScope;
 }

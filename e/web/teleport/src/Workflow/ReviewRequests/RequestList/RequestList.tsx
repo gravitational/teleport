@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import {
   Text,
@@ -6,13 +6,17 @@ import {
   LabelState,
   ButtonBorder,
   ButtonPrimary,
-  Box,
   Alert,
-  Indicator,
   Flex,
+  Indicator,
 } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { ArrowFatLinesUp } from 'design/Icon';
+import InputSearch from 'design/DataTable/InputSearch';
+import { Attempt } from 'shared/hooks/useAttemptNext';
+import { useInfiniteScroll } from 'shared/hooks';
+import { AccessRequestScope } from 'teleport/services/agents';
+import { ResourceTab } from 'shared/components/UnifiedResources/ResourceTab';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 import cfg from 'e-teleport/config';
@@ -37,102 +41,139 @@ export default function Container() {
   return <RequestList {...state} />;
 }
 
-export function RequestList({ attempt, requests = [], assumeRole }: State) {
-  // Delaying indicator is default behavior.
-  // This flag is used to show indicator immedidately after
-  // user clicks "assume" button, which removes the awkward blank
-  // moment where nothing seems to be happening for
-  // the duration of the default delay moment.
-  const [delayIndicator, setDelayIndicator] = useState(true);
+const scopes: { value: AccessRequestScope; label: string }[] = [
+  { value: '', label: 'All Requests' },
+  { value: 'my_requests', label: 'My Requests' },
+  { value: 'needs_review', label: 'Needs Review' },
+  { value: 'reviewed', label: 'Reviewed' },
+];
+
+export function RequestList({
+  attempt,
+  fetchAttempt,
+  fetch,
+  searchString,
+  sortBy,
+  scope,
+  clear,
+  resources,
+  updateSort,
+  updateScope,
+  setSearchString,
+  assumeRole,
+}: State) {
+  const { setTrigger } = useInfiniteScroll({
+    fetch: fetch,
+  });
 
   function onAssumeRole(request: AccessRequestWithFlags) {
-    setDelayIndicator(false);
     assumeRole(request);
   }
 
-  const renderTable = attempt.status === 'success' || attempt.status === '';
+  function onSubmitSearch(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    clear();
+  }
 
   return (
     <>
-      {attempt.status === 'processing' && (
-        <Box textAlign="center" m={10}>
-          <Indicator delay={delayIndicator ? 'short' : 'none'} />
-        </Box>
-      )}
       {attempt.status === 'failed' && (
         <Alert kind="danger" children={attempt.statusText} />
       )}
-      {renderTable && (
-        <Table
-          data={requests}
-          columns={[
-            {
-              key: 'id',
-              headerText: 'Id',
-              isSortable: true,
-              render: renderIdCell,
-            },
-            {
-              key: 'state',
-              headerText: 'Status',
-              isSortable: true,
-              render: renderStatusCell,
-            },
-            {
-              key: 'user',
-              headerText: 'User',
-              isSortable: true,
-              render: renderUserCell,
-            },
-            {
-              key: 'roles',
-              headerText: 'Requested',
-              render: ({ resources, roles, id }) => (
-                <RequestedCell resources={resources} roles={roles} id={id} />
-              ),
-            },
-            {
-              key: 'resources',
-              isNonRender: true,
-            },
-            {
-              key: 'created',
-              headerText: 'Created',
-              isSortable: true,
-              render: ({ createdDuration }) => <Cell>{createdDuration}</Cell>,
-            },
-            {
-              key: 'assumeStartTime',
-              headerText: 'Available',
-              isSortable: true,
-              render: ({ assumeStartTimeDuration }) => (
-                <Cell>{assumeStartTimeDuration}</Cell>
-              ),
-            },
-            {
-              key: 'expires',
-              headerText: 'Expires',
-              isSortable: true,
-              render: ({ requestTTLDuration }) => (
-                <Cell>{requestTTLDuration}</Cell>
-              ),
-            },
-            {
-              altKey: 'view-btn',
-              render: request =>
-                renderActionCell(
-                  request as AccessRequestWithFlags,
-                  onAssumeRole
-                ),
-            },
-          ]}
-          emptyText="No Requests Found"
-          isSearchable
-          pagination={{ pageSize: 20 }}
-          initialSort={{ key: 'created', dir: 'DESC' }}
-          customSearchMatchers={[requestdMatcher]}
-        />
+      {fetchAttempt.status === 'failed' && (
+        <Alert kind="danger" children={fetchAttempt.statusText} />
       )}
+      <Flex mb={3} gap={3}>
+        {scopes.map(s => (
+          <ResourceTab
+            onClick={() => updateScope(s.value)}
+            disabled={false}
+            isSelected={s.value === scope}
+            key={s.value}
+            title={s.label}
+          />
+        ))}
+      </Flex>
+      <Flex as="form" onSubmit={onSubmitSearch} mb={3}>
+        <InputSearch
+          searchValue={searchString}
+          setSearchValue={setSearchString}
+        />
+      </Flex>
+      <Table
+        data={resources}
+        customSort={{
+          dir: sortBy.dir,
+          fieldName: sortBy.fieldName,
+          onSort: updateSort,
+        }}
+        columns={[
+          {
+            key: 'id',
+            headerText: 'Id',
+            render: renderIdCell,
+          },
+          {
+            key: 'state',
+            headerText: 'Status',
+            isSortable: true,
+            render: renderStatusCell,
+          },
+          {
+            key: 'user',
+            headerText: 'User',
+            isSortable: true,
+            render: renderUserCell,
+          },
+          {
+            key: 'roles',
+            headerText: 'Requested',
+            render: ({ resources, roles, id }) => (
+              <RequestedCell resources={resources} roles={roles} id={id} />
+            ),
+          },
+          {
+            key: 'resources',
+            isNonRender: true,
+          },
+          {
+            key: 'requestReason',
+            headerText: 'Request Reason',
+            render: renderReasonCell,
+          },
+          {
+            key: 'created',
+            headerText: 'Created',
+            isSortable: true,
+            render: ({ createdDuration }) => (
+              <Cell width="120px">{createdDuration}</Cell>
+            ),
+          },
+          {
+            key: 'expires',
+            headerText: 'Expires',
+            render: ({ requestTTLDuration }) => (
+              <Cell width="120px">{requestTTLDuration}</Cell>
+            ),
+          },
+          {
+            altKey: 'view-btn',
+            render: request =>
+              renderActionCell(
+                request as AccessRequestWithFlags,
+                onAssumeRole,
+                attempt.status
+              ),
+          },
+        ]}
+        emptyText="No Requests Found"
+      />
+      {fetchAttempt.status === 'processing' && (
+        <Flex justifyContent="center">
+          <Indicator />
+        </Flex>
+      )}
+      <div ref={setTrigger} />
     </>
   );
 }
@@ -243,7 +284,8 @@ export const renderStatusCell = ({ state }: AccessRequestWithFlags) => {
 
 const renderActionCell = (
   request: AccessRequestWithFlags,
-  assumeRole: (request: AccessRequestWithFlags) => void
+  assumeRole: (request: AccessRequestWithFlags) => void,
+  attemptStatus: Attempt['status']
 ) => {
   let assumeBtn;
   if (request.canAssume) {
@@ -251,7 +293,7 @@ const renderActionCell = (
       assumeBtn = (
         <ButtonPrimary
           size="small"
-          disabled={request.isAssumed}
+          disabled={request.isAssumed || attemptStatus === 'processing'}
           onClick={() => assumeRole(request)}
           width="108px"
         >
@@ -266,7 +308,7 @@ const renderActionCell = (
   }
 
   return (
-    <Cell align="right">
+    <Cell align="right" style={{ whiteSpace: 'nowrap' }}>
       <Flex alignItems="center" justifyContent="right" width="184px">
         {assumeBtn}
         {request.isPromoted && (
