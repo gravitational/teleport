@@ -34,7 +34,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// GCPWorkforceService defines GCPWorkforceService params.
+// GCPWorkforceService defines workforce service configuration
+// parameters.
 type GCPWorkforceService struct {
 	// APIParams holds basic input params required to create GCP workforce
 	// pool and pool provider.
@@ -44,7 +45,7 @@ type GCPWorkforceService struct {
 	HTTPClient *http.Client
 }
 
-// NewGCPWorkforceService creates new GCPWorkforceService.
+// NewGCPWorkforceService creates a new GCPWorkforceService.
 func NewGCPWorkforceService(cfg GCPWorkforceService) (*GCPWorkforceService, error) {
 	newGCPWorkforceService := &GCPWorkforceService{
 		APIParams: samlidpconfig.GCPWorkforceAPIParams{
@@ -64,7 +65,7 @@ func NewGCPWorkforceService(cfg GCPWorkforceService) (*GCPWorkforceService, erro
 }
 
 // CreateWorkforcePoolAndProvider creates GCP Workforce Identity Federation pool and pool provider
-// with the given params.
+// with the given GCPWorkforceAPIParams values.
 func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context) error {
 	fmt.Println("\nConfiguring Workforce Identity Federation pool and SAML provider.")
 
@@ -81,7 +82,7 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 		&iam.WorkforcePool{
 			Name:        poolFullName,
 			DisplayName: s.APIParams.PoolName,
-			Description: "pool created by Teleport",
+			Description: "Workforce pool created by Teleport",
 			Parent:      fmt.Sprintf("organizations/%s", s.APIParams.OrganizationID),
 		})
 	createPool.WorkforcePoolId(s.APIParams.PoolName)
@@ -92,8 +93,8 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 	}
 	fmt.Println("Pool created.")
 	if !resp.Done {
-		// 2 minutes timeout is semi-random value chosen on the fact that
-		// wehen creating workforce pool from the GCP web console, it mentions
+		// 2 minutes timeout is semi-random decision, chosen based on the fact that
+		// when creating workforce pool from the GCP web console, it mentions
 		// that the operation could take up to 2 minutes.
 		pollCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
 		defer cancel()
@@ -110,7 +111,7 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 		return trace.Wrap(err)
 	}
 	provider := &iam.WorkforcePoolProvider{
-		Description: "pool provider created by Teleport",
+		Description: "Workforce pool provider created by Teleport",
 		Name:        fmt.Sprintf("locations/global/workforcePools/%s/providers/%s", s.APIParams.PoolName, s.APIParams.PoolProviderName),
 		DisplayName: s.APIParams.PoolProviderName,
 		Saml: &iam.GoogleIamAdminV1WorkforcePoolProviderSaml{
@@ -138,8 +139,8 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 	return nil
 }
 
-// waitForPoolStatus waits for pool to become online. Returns immediately if error code is other than
-// http.StatusForbidden or when context is canceld with timeout.
+// waitForPoolStatus waits for pool to come online. Returns immediately if error code is other than
+// http.StatusForbidden or when context is canceled with timeout.
 func waitForPoolStatus(ctx context.Context, workforceService *iam.LocationsWorkforcePoolsService, poolName, poolDisplayName string) error {
 	fmt.Printf("Waiting for pool %q status to become available.\n", poolDisplayName)
 	ticker := time.NewTicker(1 * time.Second)
@@ -156,9 +157,9 @@ func waitForPoolStatus(ctx context.Context, workforceService *iam.LocationsWorkf
 				if errors.As(err, &googleApiErr) {
 					if googleApiErr.Code == http.StatusForbidden {
 						// StatusForbidden has two meanings:
-						// Either the caller does not meet required privilege
+						// Either the caller does not meet required privilege.
 						// Or the pool creation is still in progress.
-						// We'll continue considering it's the latter.
+						// We'll continue considering it's the latter case.
 						continue
 					}
 				}
@@ -173,7 +174,9 @@ func waitForPoolStatus(ctx context.Context, workforceService *iam.LocationsWorkf
 }
 
 // fetchIdPMetadata is used to fetch Teleport SAML IdP metadata from
-// Teleport proxy. Response is returned without any data validation.
+// Teleport proxy. Response is returned without any data validation
+// as we expect proxy to return with a valid metadata as long as the proxy
+// is running as an enterprise module and with SAML IdP enabled.
 func fetchIdPMetadata(metadataURL string, httpClient *http.Client) (string, error) {
 	if httpClient == nil {
 		return "", trace.BadParameter("missing http client")
