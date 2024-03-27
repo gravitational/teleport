@@ -79,6 +79,11 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 
 	// Fetch information about the database and then issue the initial
 	// certificate. We issue the initial certificate to allow us to fail faster.
+	// We cache the routeToDatabase as these will not change during the lifetime
+	// of the service and this reduces the time needed to issue a new
+	// certificate.
+	// TODO: Use impersonated identity to fetch route to catch permissions
+	// issues sooner.
 	s.routeToDatabase, err = getRouteToDatabase(
 		ctx, s.log, s.botClient, s.cfg.Service, s.cfg.Username, s.cfg.Database,
 	)
@@ -92,16 +97,18 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 
 	proxyAddr := "leaf.tele.ottr.sh:443"
 
-	// Build the actual local proxy configuration.
 	alpnProtocol, err := common.ToALPNProtocol(s.routeToDatabase.Protocol)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err)
 
 	}
 	lpConfig := alpnproxy.LocalProxyConfig{
+		// Pass ourselves in as the middleware which is called on connection to
+		// issue certificates. See OnNewConnection.
+		Middleware: s,
+
 		RemoteProxyAddr: proxyAddr,
 		ParentContext:   ctx,
-		Middleware:      s,
 		Protocols:       []common.Protocol{alpnProtocol},
 		Certs:           []tls.Certificate{*dbCert},
 	}
@@ -147,6 +154,11 @@ func (s *DatabaseTunnelService) Run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "creating local proxy")
 	}
+	defer func() {
+		if err := lp.Close(); err != nil {
+			s.log.WithError(err).Error("Failed to close local proxy")
+		}
+	}()
 
 	return trace.Wrap(lp.Start(ctx))
 }

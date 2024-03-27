@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
-	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -372,69 +371,6 @@ func generateIdentity(
 	}
 
 	return newIdentity, nil
-}
-
-func getDatabase(ctx context.Context, clt *auth.Client, name string) (types.Database, error) {
-	ctx, span := tracer.Start(ctx, "getDatabase")
-	defer span.End()
-
-	servers, err := apiclient.GetAllResources[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
-		Namespace:           defaults.Namespace,
-		ResourceType:        types.KindDatabaseServer,
-		PredicateExpression: makeNameOrDiscoveredNamePredicate(name),
-		Limit:               int32(defaults.DefaultChunkSize),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var databases []types.Database
-	for _, server := range servers {
-		databases = append(databases, server.GetDatabase())
-	}
-
-	databases = types.DeduplicateDatabases(databases)
-	db, err := chooseOneDatabase(databases, name)
-	return db, trace.Wrap(err)
-}
-
-func getRouteToDatabase(
-	ctx context.Context,
-	log logrus.FieldLogger,
-	client *auth.Client,
-	service string,
-	username string,
-	database string,
-) (proto.RouteToDatabase, error) {
-	ctx, span := tracer.Start(ctx, "getRouteToDatabase")
-	defer span.End()
-
-	if service == "" {
-		return proto.RouteToDatabase{}, nil
-	}
-
-	db, err := getDatabase(ctx, client, service)
-	if err != nil {
-		return proto.RouteToDatabase{}, trace.Wrap(err)
-	}
-	// make sure the output matches the fully resolved db name, since it may
-	// have been just a "discovered name".
-	service = db.GetName()
-	if db.GetProtocol() == libdefaults.ProtocolMongoDB && username == "" {
-		// This isn't strictly a runtime error so killing the process seems
-		// wrong. We'll just loudly warn about it.
-		log.Errorf("Database `username` field for %q is unset but is required for MongoDB databases.", service)
-	} else if db.GetProtocol() == libdefaults.ProtocolRedis && username == "" {
-		// Per tsh's lead, fall back to the default username.
-		username = libdefaults.DefaultRedisUsername
-	}
-
-	return proto.RouteToDatabase{
-		ServiceName: service,
-		Protocol:    db.GetProtocol(),
-		Database:    database,
-		Username:    username,
-	}, nil
 }
 
 func getKubeCluster(ctx context.Context, clt *auth.Client, name string) (types.KubeCluster, error) {
