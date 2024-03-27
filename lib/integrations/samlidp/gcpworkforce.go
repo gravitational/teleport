@@ -28,10 +28,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/api/googleapi"
-
-	// Migrate to v2 once it starts supporting workforce service.
-	// https://cloud.google.com/go/docs/reference/cloud.google.com/go/iam/latest/apiv2
-	iam "google.golang.org/api/iam/v1"
+	"google.golang.org/api/iam/v1" // Migrate to v2 once it starts supporting workforce service.
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
