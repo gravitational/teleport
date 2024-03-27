@@ -47,6 +47,9 @@ const UnstableClientCredentialOutputType = "unstable_client_credential"
 // be modified. This output is currently part of an experiment and could be
 // removed in a future release.
 type UnstableClientCredentialOutput struct {
+	// Roles is the list of roles to request for the generated credentials.
+	// If empty, it defaults to all the bot's roles.
+	Roles  []string
 	mu     sync.Mutex
 	facade *identity.Facade
 	ready  chan struct{}
@@ -147,7 +150,7 @@ func (o *UnstableClientCredentialOutput) GetDestination() bot.Destination {
 // this implementation. This causes all available roles to be used with the
 // identity.
 func (o *UnstableClientCredentialOutput) GetRoles() []string {
-	return []string{}
+	return o.Roles
 }
 
 // CheckAndSetDefaults implements the Destination interface and does nothing in
