@@ -25,9 +25,12 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vulcand/predicate"
 	"golang.org/x/exp/maps"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -40,7 +43,7 @@ func TestParser(t *testing.T) {
 		traits map[string][]string
 	}
 
-	parser, err := typical.NewParser[env, bool](typical.ParserSpec{
+	parser, err := typical.NewParser[env, bool](typical.ParserSpec[env]{
 		Variables: map[string]typical.Variable{
 			"labels": typical.DynamicVariable(func(e env) (map[string]string, error) {
 				return e.labels, nil
@@ -425,13 +428,127 @@ func TestParser(t *testing.T) {
 func TestUnknownIdentifier(t *testing.T) {
 	t.Parallel()
 
-	parser, err := typical.NewParser[struct{}, bool](typical.ParserSpec{})
-	require.NoError(t, err)
+	type metadata struct {
+		Name   string            `json:"name"`
+		Labels map[string]string `json:"labels"`
+	}
 
-	_, err = parser.Parse("unknown")
+	type spec struct {
+		Hostname string `json:"hostname"`
+	}
 
-	var u typical.UnknownIdentifierError
-	require.ErrorAs(t, err, &u)
-	require.ErrorAs(t, trace.Wrap(err), &u)
-	require.Equal(t, "unknown", u.Identifier())
+	type resource struct {
+		Metadata metadata `json:"metadata"`
+		Spec     spec     `json:"spec"`
+	}
+
+	cases := []struct {
+		name               string
+		expression         string
+		knownVariablesOnly bool
+		parseAssertion     require.ErrorAssertionFunc
+		evalAssertion      func(t *testing.T, ok bool, err error)
+	}{
+		{
+			name:           "dynamic variable indexed and passed to function",
+			expression:     `hasPrefix(resource.metadata.labels["foo"], "b")`,
+			parseAssertion: require.NoError,
+			evalAssertion: func(t *testing.T, ok bool, err error) {
+				assert.True(t, ok)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:           "dynamic variable found via path not found",
+			expression:     `hasPrefix(resource.metadata.labels.foo, "b")`,
+			parseAssertion: require.NoError,
+			evalAssertion: func(t *testing.T, ok bool, err error) {
+				assert.False(t, ok)
+				require.Error(t, err)
+			},
+		},
+		{
+			name:           "incorrect type from dynamic variable passed to function",
+			expression:     `hasPrefix(resource.metadata.labels, "b")`,
+			parseAssertion: require.NoError,
+			evalAssertion: func(t *testing.T, ok bool, err error) {
+				assert.False(t, ok)
+				require.Error(t, err)
+			},
+		},
+		{
+			name:           "dynamic map",
+			expression:     `exists(resource.metadata.labels, "foo")`,
+			parseAssertion: require.NoError,
+			evalAssertion: func(t *testing.T, ok bool, err error) {
+				assert.True(t, ok)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:           "unknown dynamic variable",
+			expression:     "unknown",
+			parseAssertion: require.NoError,
+			evalAssertion: func(t *testing.T, ok bool, err error) {
+				assert.False(t, ok)
+				require.ErrorContains(t, err, "missing field names")
+			},
+		},
+		{
+			name:               "unknown variable",
+			expression:         "unknown",
+			knownVariablesOnly: true,
+			parseAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				var u typical.UnknownIdentifierError
+				require.ErrorAs(t, err, &u, i...)
+				require.ErrorAs(t, trace.Wrap(err), &u, i...)
+				require.Equal(t, "unknown", u.Identifier(), i...)
+			},
+		},
+	}
+
+	srv := resource{
+		Metadata: metadata{
+			Name:   "test",
+			Labels: map[string]string{"foo": "bar", "animal": "llama"},
+		},
+		Spec: spec{Hostname: "server01"},
+	}
+
+	for _, test := range cases {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			spec := typical.ParserSpec[resource]{
+				Functions: map[string]typical.Function{
+					"hasPrefix": typical.BinaryFunction[resource, string, string, bool](func(s, suffix string) (bool, error) {
+						return strings.HasPrefix(s, suffix), nil
+					}),
+					"exists": typical.BinaryFunction[resource, map[string]string, string, bool](func(m map[string]string, key string) (bool, error) {
+						_, ok := m[key]
+						return ok, nil
+					}),
+				},
+				GetUnknownIdentifier: func(env resource, fields []string) (any, error) {
+					f, err := predicate.GetFieldByTag(env, teleport.JSON, fields[1:])
+					return f, trace.Wrap(err)
+				},
+			}
+
+			if test.knownVariablesOnly {
+				spec.GetUnknownIdentifier = nil
+			}
+
+			parser, err := typical.NewParser[resource, bool](spec)
+			require.NoError(t, err, "creating parser")
+
+			expression, err := parser.Parse(test.expression)
+			test.parseAssertion(t, err)
+			if err != nil {
+				return
+			}
+
+			ok, err := expression.Evaluate(srv)
+			test.evalAssertion(t, ok, err)
+		})
+	}
 }

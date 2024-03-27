@@ -2422,9 +2422,14 @@ type AccessCheckable interface {
 // It also returns a flag indicating whether debug logging is enabled,
 // allowing the RBAC system to generate more verbose errors in debug mode.
 func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...interface{})) {
-	isDebugEnabled := log.IsLevelEnabled(log.TraceLevel)
-	log := log.WithField(teleport.ComponentKey, teleport.ComponentRBAC)
-	return isDebugEnabled, log.Tracef
+	debugEnabled = log.IsLevelEnabled(log.TraceLevel)
+	debugf = func(format string, args ...interface{}) {}
+
+	if debugEnabled {
+		debugf = log.WithField(teleport.ComponentKey, teleport.ComponentRBAC).Tracef
+	}
+
+	return
 }
 
 func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state AccessState, matchers ...RoleMatcher) error {

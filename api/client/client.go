@@ -31,6 +31,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -40,6 +41,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	ggzip "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
+	gmetadata "google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -1795,10 +1797,31 @@ func (c *Client) getRoles(ctx context.Context) ([]types.Role, error) {
 
 // ListRoles is a paginated role getter.
 func (c *Client) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
-	rsp, err := c.grpc.ListRoles(ctx, req)
+	var header gmetadata.MD
+	rsp, err := c.grpc.ListRoles(ctx, req, grpc.Header(&header))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if req.Filter == nil {
+		// remaining logic is all filter compat that we can skip
+		return rsp, nil
+	}
+
+	vs, _ := metadata.VersionFromMetadata(header)
+	ver, _ := semver.NewVersion(vs)
+	if ver != nil && ver.Major >= 16 {
+		// auth implements all expected filtering features
+		return rsp, nil
+	}
+
+	filtered := rsp.Roles[:0]
+	for _, role := range rsp.Roles {
+		if req.Filter.Match(role) {
+			filtered = append(filtered, role)
+		}
+	}
+	rsp.Roles = filtered
 
 	return rsp, nil
 }
@@ -3734,51 +3757,39 @@ type ResourcePage[T types.ResourceWithLabels] struct {
 	NextKey string
 }
 
-// getResourceFromProtoPage extracts the resource from the PaginatedResource returned
-// from the rpc ListUnifiedResources
-func getResourceFromProtoPage(resource *proto.PaginatedResource) (types.ResourceWithLabels, error) {
-	var out types.ResourceWithLabels
+// convertEnrichedResource extracts the resource and any enriched information from the
+// PaginatedResource returned from the rpc ListUnifiedResources.
+func convertEnrichedResource(resource *proto.PaginatedResource) (*types.EnrichedResource, error) {
 	if r := resource.GetNode(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins}, nil
 	} else if r := resource.GetDatabaseServer(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetDatabaseService(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetAppServerOrSAMLIdPServiceProvider(); r != nil { //nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetWindowsDesktop(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetWindowsDesktopService(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetKubeCluster(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetKubernetesServer(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetUserGroup(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetAppServer(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetSAMLIdPServiceProvider(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
 	}
 }
 
-// ListUnifiedResourcePage is a helper for getting a single page of unified resources that match the provided request.
-func ListUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (ResourcePage[types.ResourceWithLabels], error) {
-	var out ResourcePage[types.ResourceWithLabels]
+// GetUnifiedResourcePage is a helper for getting a single page of unified resources that match the provided request.
+func GetUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) ([]*types.EnrichedResource, string, error) {
+	var out []*types.EnrichedResource
 
 	// Set the limit to the default size if one was not provided within
 	// an acceptable range.
@@ -3794,26 +3805,24 @@ func ListUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient
 				req.Limit /= 2
 				// This is an extremely unlikely scenario, but better to cover it anyways.
 				if req.Limit == 0 {
-					return out, trace.Wrap(err, "resource is too large to retrieve")
+					return nil, "", trace.Wrap(err, "resource is too large to retrieve")
 				}
 
 				continue
 			}
 
-			return out, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
 
 		for _, respResource := range resp.Resources {
-			resource, err := getResourceFromProtoPage(respResource)
+			resource, err := convertEnrichedResource(respResource)
 			if err != nil {
-				return out, trace.Wrap(err)
+				return nil, "", trace.Wrap(err)
 			}
-			out.Resources = append(out.Resources, resource)
+			out = append(out, resource)
 		}
 
-		out.NextKey = resp.NextKey
-
-		return out, nil
+		return out, resp.NextKey, nil
 	}
 }
 

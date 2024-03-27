@@ -12,7 +12,7 @@ crate-type = ["staticlib"]
 bitflags = "2.5.0"
 boring = { git = "https://github.com/gravitational/boring", rev="605253d99d5e363e178bcf97e1d4622e33844cd5", optional = true }
 byteorder = "1.5.0"
-bytes = "1.4.0"
+bytes = "1.6.0"
 env_logger = "0.11.3"
 ironrdp-cliprdr.workspace = true
 ironrdp-connector.workspace = true
