@@ -22,8 +22,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/constants"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -104,15 +102,10 @@ func (s sortedLabels) Swap(i, j int) {
 }
 
 // MakeServer creates a server object for the web ui
-func MakeServer(clusterName string, server types.Server, accessChecker services.AccessChecker) (Server, error) {
+func MakeServer(clusterName string, server types.Server, logins []string) Server {
 	serverLabels := server.GetStaticLabels()
 	serverCmdLabels := server.GetCmdLabels()
 	uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
-
-	serverLogins, err := accessChecker.GetAllowedLoginsForResource(server)
-	if err != nil {
-		return Server{}, trace.Wrap(err)
-	}
 
 	uiServer := Server{
 		Kind:        server.GetKind(),
@@ -123,7 +116,7 @@ func MakeServer(clusterName string, server types.Server, accessChecker services.
 		Addr:        server.GetAddr(),
 		Tunnel:      server.GetUseTunnel(),
 		SubKind:     server.GetSubKind(),
-		SSHLogins:   serverLogins,
+		SSHLogins:   logins,
 	}
 
 	if server.GetSubKind() == types.SubKindOpenSSHEICENode {
@@ -138,21 +131,7 @@ func MakeServer(clusterName string, server types.Server, accessChecker services.
 		}
 	}
 
-	return uiServer, nil
-}
-
-// MakeServers creates server objects for webapp
-func MakeServers(clusterName string, servers []types.Server, accessChecker services.AccessChecker) ([]Server, error) {
-	uiServers := []Server{}
-	for _, s := range servers {
-		server, err := MakeServer(clusterName, s, accessChecker)
-		if err != nil {
-			return nil, trace.Wrap(err, "making server for ui")
-		}
-		uiServers = append(uiServers, server)
-	}
-
-	return uiServers, nil
+	return uiServer
 }
 
 // EKSCluster represents and EKS cluster, analog of awsoidc.EKSCluster, but used by web ui.
@@ -455,7 +434,7 @@ type Desktop struct {
 }
 
 // MakeDesktop converts a desktop from its API form to a type the UI can display.
-func MakeDesktop(windowsDesktop types.WindowsDesktop, accessChecker services.AccessChecker) (Desktop, error) {
+func MakeDesktop(windowsDesktop types.WindowsDesktop, logins []string) Desktop {
 	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
 	stripRdpPort := func(addr string) string {
 		splitAddr := strings.Split(addr, ":")
@@ -467,11 +446,6 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop, accessChecker services.Acc
 
 	uiLabels := makeLabels(windowsDesktop.GetAllLabels())
 
-	logins, err := accessChecker.GetAllowedLoginsForResource(windowsDesktop)
-	if err != nil {
-		return Desktop{}, trace.Wrap(err)
-	}
-
 	return Desktop{
 		Kind:   windowsDesktop.GetKind(),
 		OS:     constants.WindowsOS,
@@ -480,22 +454,7 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop, accessChecker services.Acc
 		Labels: uiLabels,
 		HostID: windowsDesktop.GetHostID(),
 		Logins: logins,
-	}, nil
-}
-
-// MakeDesktops converts desktops from their API form to a type the UI can display.
-func MakeDesktops(windowsDesktops []types.WindowsDesktop, accessChecker services.AccessChecker) ([]Desktop, error) {
-	uiDesktops := make([]Desktop, 0, len(windowsDesktops))
-
-	for _, windowsDesktop := range windowsDesktops {
-		uiDesktop, err := MakeDesktop(windowsDesktop, accessChecker)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		uiDesktops = append(uiDesktops, uiDesktop)
 	}
-
-	return uiDesktops, nil
 }
 
 // DesktopService describes a desktop service to pass to the ui.
@@ -510,7 +469,7 @@ type DesktopService struct {
 	Labels []Label `json:"labels"`
 }
 
-// MakeDesktop converts a desktop from its API form to a type the UI can display.
+// MakeDesktopService converts a desktop from its API form to a type the UI can display.
 func MakeDesktopService(desktopService types.WindowsDesktopService) DesktopService {
 	uiLabels := makeLabels(desktopService.GetAllLabels())
 

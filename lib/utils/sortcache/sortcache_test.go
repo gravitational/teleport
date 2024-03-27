@@ -220,24 +220,7 @@ func TestAscendingPagination(t *testing.T) {
 		require.Equal(t, 0, cache.Put(resource{"node", uuid.New().String()}))
 	}
 
-	// create a paginated getter that accepts optional start key and returns a non-empty next key
-	// if additional resources exist.
-	nextPage := func(start string) (page []resource, next string) {
-		page = make([]resource, 0, pageSize+1)
-
-		cache.Ascend(Kind, start, "", func(r resource) bool {
-			page = append(page, r)
-			return len(page) <= pageSize
-		})
-
-		if len(page) > pageSize {
-			next = cache.KeyOf(Kind, page[pageSize])
-			page = page[:pageSize]
-		}
-		return
-	}
-
-	// consume and aggregate pages from nextPage.
+	// consume and aggregate pages from AscendPaginated.
 	var out []resource
 	var k string
 	var n int
@@ -246,7 +229,7 @@ func TestAscendingPagination(t *testing.T) {
 		if n > totalResources {
 			require.FailNow(t, "too many iterations")
 		}
-		page, nk := nextPage(k)
+		page, nk := cache.AscendPaginated(Kind, k, "", pageSize)
 		if len(page) != pageSize {
 			require.Empty(t, nk)
 		}
@@ -286,24 +269,6 @@ func TestDescendingPagination(t *testing.T) {
 		require.Equal(t, 0, cache.Put(resource{"node", uuid.New().String()}))
 	}
 
-	// create a paginated getter that accepts optional start key and returns a non-empty next key
-	// if additional resources exist.
-	nextPage := func(start string) (page []resource, next string) {
-		page = make([]resource, 0, pageSize+1)
-
-		cache.Descend(Kind, start, "", func(r resource) bool {
-			page = append(page, r)
-			return len(page) <= pageSize
-		})
-
-		if len(page) > pageSize {
-			next = cache.KeyOf(Kind, page[pageSize])
-			page = page[:pageSize]
-		}
-
-		return
-	}
-
 	// consume and aggregate pages from nextPage.
 	var out []resource
 	var k string
@@ -313,7 +278,7 @@ func TestDescendingPagination(t *testing.T) {
 		if n > totalResources {
 			require.FailNow(t, "too many iterations")
 		}
-		page, nk := nextPage(k)
+		page, nk := cache.DescendPaginated(Kind, k, "", pageSize)
 		if len(page) != pageSize {
 			require.Empty(t, nk)
 		}

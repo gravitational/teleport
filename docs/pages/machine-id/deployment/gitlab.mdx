@@ -80,14 +80,12 @@ Apply this to your Teleport cluster using `tctl`:
 $ tctl create -f bot-token.yaml
 ```
 
-## Step 2/4. Create a role and Machine ID bot
+## Step 2/4. Create a Machine ID bot
 
-(!docs/pages/includes/machine-id/blank-role.mdx!)
-
-Create the bot, specifying the role and token that you have created:
+Create the bot, specifying the token that you have created:
 
 ```code
-$ tctl bots add example --roles=example-bot --token=example-bot
+$ tctl bots add example --token=example-bot
 ```
 
 ## Step 3/4. Configure a GitLab Pipeline

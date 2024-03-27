@@ -69,7 +69,7 @@ func (s *ServiceNowSuite) SetupTest() {
 
 	s.AnnotateRequesterRoleAccessRequests(
 		ctx,
-		types.TeleportNamespace+types.ReqAnnotationSchedulesLabel,
+		types.TeleportNamespace+types.ReqAnnotationApproveSchedulesLabel,
 		[]string{snowOnCallRotationName},
 	)
 

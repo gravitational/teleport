@@ -148,7 +148,7 @@ func (e expression) eval(spec *dbobjectv1.DatabaseObjectSpec) (string, error) {
 		}),
 	}
 
-	parser, err := typical.NewParser[evaluationEnv, string](typical.ParserSpec{Variables: envVar})
+	parser, err := typical.NewParser[evaluationEnv, string](typical.ParserSpec[evaluationEnv]{Variables: envVar})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

@@ -34,15 +34,15 @@ service changes.
 
 ### Smart card not supported for Account
 
-You connect to a Windows host and get the error message: **"Signing in with a smart card 
+You connect to a Windows host and get the error message: **"Signing in with a smart card
 isn't supported for your account."** or similar.
 
 **Solution:** Review the Security-Kerberos Log on the Windows host for causes.
 
-The Security-Kerberos Windows Event Log provides information on smart card-based 
+The Security-Kerberos Windows Event Log provides information on smart card-based
 authentication attempts. This Event Log is not enabled by default.
-Open the Windows Event Log and navigate to Event Viewer, Application and Services Logs, 
-Microsoft, Windows, Security-Kerberos, Operational. Enable this Event Log and attempt 
+Open the Windows Event Log and navigate to Event Viewer, Application and Services Logs,
+Microsoft, Windows, Security-Kerberos, Operational. Enable this Event Log and attempt
 to connect with Teleport Web UI to review log entries.
 
 ### Smart card certificate not trusted
@@ -56,9 +56,9 @@ authentication was not trusted"** (or similar).
 This means that the host does not trust the Teleport CA.
 
 First, make sure that you [import the Teleport CA into Group
-Policy](./active-directory-manual.mdx#create-the-GPO-for-the-Teleport-certificate). 
-Note that if you have rotated the Teleport CA since the last import, you need to 
-fetch the new CA using the following command, replacing <Var name="teleport.example.com" /> 
+Policy](./active-directory-manual.mdx#create-the-GPO-for-the-Teleport-certificate).
+Note that if you have rotated the Teleport CA since the last import, you need to
+fetch the new CA using the following command, replacing <Var name="teleport.example.com" />
 with the address of your Teleport cluster:
 
 ```code
@@ -81,17 +81,17 @@ If your group policy prevents the desktop from seeing this PIN, the user will
 remain at the login screen even though the smart card was detected.
 
 **Solution:** Ensure that group policy allows specifying credentials during
- RDP connection establishment. 
- 
+ RDP connection establishment.
+
 Expand Computer Configuration, Administrative Templates, Windows Components,
 Remote Desktop Services, and Remote Desktop Session Host.
 
 Under Remote Desktop Session Host, select **Security**.
 
-Right-click **Always prompt for password upon connection**, select **Edit**, 
+Right-click **Always prompt for password upon connection**, select **Edit**,
 select **Disabled**, then click **OK**.
 
-Note: despite mention of passwords in the name of this policy, no passwords are 
+Note: despite mention of passwords in the name of this policy, no passwords are
 sent on the wire. This mechanism is used only to send the smart card PIN.
 
 ## New session "hangs"
@@ -99,15 +99,15 @@ sent on the wire. This mechanism is used only to send the smart card PIN.
 ### Host unreachable
 
 You click **Connect** on a Windows host from the Teleport Web UI, and a new tab opens, but
-nothing is displayed other than the top bar. After a while, an error is displayed about a 
+nothing is displayed other than the top bar. After a while, an error is displayed about a
 failed connection.
-In most case, this error occurs when the `windows_desktop_service` can't reach the target 
+In most case, this error occurs when the `windows_desktop_service` can't reach the target
 Windows host.
 
 **Solution:** Modify firewall rules to allow inbound RDP traffic
 
-First, make sure that you open the RDP port and [allow remote desktop 
-connections](./active-directory-manual.mdx#allow-remote-desktop-connections) 
+First, make sure that you open the RDP port and [allow remote desktop
+connections](./active-directory-manual.mdx#allow-remote-desktop-connections)
 in the group policy object you have configured for Teleport connections.
 
 If that does not help, check if the target host is online and try to `ping` it
@@ -131,24 +131,6 @@ Ensure that your firewalls allow inbound DNS traffic on port `53` from the
 instance(s) running Teleport's Windows Desktop Service to the LDAP server
 (Active Directory Domain Controller).
 
-### RDP connection failed
-
-You click **Connect** on a Windows host from the Teleport Web UI, a new tab opens but
-nothing is displayed other than the top bar. You see an error that refers to a
-failed RDP connection. You may also see errors similar to:
-
-```text
-Rdp(Io(Os { code: 54, kind: ConnectionReset, message: "Connection reset by peer" }))
-```
-
-**Solution:** Configure a certificate for RDP connections
-
-This means that the desktop does not support secure cipher suites for TLS
-connections.
-
-Make sure that you [configure a certificate for RDP 
-connections](./active-directory-manual.mdx#step-47-configure-a-certificate-for-rdp-connections).
-
 ## Teleport fails to start
 
 ### Incorrect domain
@@ -171,7 +153,7 @@ field in the `ldap` section of `windows_desktop_service`.
 Teleport fails to start with an error similar to:
 
 ```text
-LDAP Result Code 200 "Network Error": dial tcp ad.example.com:389: i/o timeout
+LDAP Result Code 200 "Network Error": dial tcp ad.example.com:636: i/o timeout
 ```
 
 **Solution:** Check LDAP Address
@@ -286,6 +268,39 @@ Look for the "Require use of a specific security layer for remote (RDP)
 connections" setting. The setting should be set to **Negotiate** or **SSL**, not
 **RDP**.
 
+### RDP connection failed
+
+You click **Connect** on a Windows host from the Teleport Web UI, a new tab opens but
+nothing is displayed other than the top bar. You see an error that refers to a
+failed RDP connection. You may also see errors similar to:
+
+```text
+Rdp(Io(Os { code: 54, kind: ConnectionReset, message: "Connection reset by peer" }))
+```
+
+**Solution:** Configure a certificate for RDP connections
+
+This means that the desktop does not support secure cipher suites for TLS
+connections.
+
+Make sure that you [configure a certificate for RDP
+connections](./active-directory-manual.mdx#step-47-configure-a-certificate-for-rdp-connections).
+
+### Expired smartcard certificate
+
+The login screen displays an error of the form:
+
+```
+The smartcard certificate used for authentication has expired. Please contact your system administrator.
+```
+
+**Solution:** Check the system clock
+
+Teleport's smartcard certificates are only valid for a short period of time
+(roughly 5 minutes). If the system clock on the Teleport auth server and the
+target Windows host disagree about the current time, the system may reject the
+authentication attempt.
+
 ### Enhanced RDP security with CredSSP required
 
 Attempts to connect to a desktop fail, and the logs show an error similar to:
@@ -301,7 +316,7 @@ Teleport currently requires that NLA is disabled in order to perform its
 certificate-based passwordless login.
 
 To disable NLA, follow the instructions to [allow remote
-desktop connections](./active-directory-manual.mdx#allow-remote-desktop-connections) 
+desktop connections](./active-directory-manual.mdx#allow-remote-desktop-connections)
 in the group policy object you have configured for Teleport connections.
 If you are still encountering this error after disabling NLA in Active Directory,
 run the following command from the Windows Command prompt as an administrator

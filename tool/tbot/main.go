@@ -162,6 +162,10 @@ func Run(args []string, stdout io.Writer) error {
 	kubeCredentialsCmd := kubeCmd.Command("credentials", "Get credentials for kubectl access").Hidden()
 	kubeCredentialsCmd.Flag("destination-dir", "The destination directory with which to generate Kubernetes credentials").Required().StringVar(&cf.DestinationDir)
 
+	spiffeInspectPath := ""
+	spiffeInspectCmd := app.Command("spiffe-inspect", "Inspects a SPIFFE Workload API endpoint to ensure it is working correctly.")
+	spiffeInspectCmd.Flag("path", "The path to the SPIFFE Workload API endpoint to test.").Required().StringVar(&spiffeInspectPath)
+
 	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if err != nil {
@@ -233,6 +237,8 @@ func Run(args []string, stdout io.Writer) error {
 		err = onProxyCommand(botConfig, &cf)
 	case kubeCredentialsCmd.FullCommand():
 		err = onKubeCredentialsCommand(botConfig)
+	case spiffeInspectCmd.FullCommand():
+		err = onSPIFFEInspect(spiffeInspectPath)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)

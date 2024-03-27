@@ -18,7 +18,8 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { ButtonBorder, Text } from 'design';
+import { space } from 'design/system';
+import { ButtonBorder, Flex, Text, Box } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
 import { ChevronDown } from 'design/Icon';
 
@@ -30,14 +31,19 @@ export class AwsLaunchButton extends React.Component<Props> {
   state = {
     open: false,
     anchorEl: null,
+    filtered: '',
   };
 
   onOpen = () => {
-    this.setState({ open: true });
+    this.setState({ open: true, filtered: '' });
   };
 
   onClose = () => {
-    this.setState({ open: false });
+    this.setState({ open: false, filtered: '' });
+  };
+
+  onChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    this.setState({ filtered: event.target.value });
   };
 
   render() {
@@ -57,8 +63,9 @@ export class AwsLaunchButton extends React.Component<Props> {
         </ButtonBorder>
         <Menu
           menuListCss={() => ({
-            overflow: 'auto',
+            overflow: 'hidden',
             minWidth: '180px',
+            maxHeight: '400px',
           })}
           transformOrigin={{
             vertical: 'top',
@@ -74,10 +81,19 @@ export class AwsLaunchButton extends React.Component<Props> {
           onClose={this.onClose}
         >
           <RoleItemList
-            awsRoles={awsRoles}
+            awsRoles={awsRoles.filter(role => {
+              const lowerFilter = this.state.filtered.toLowerCase();
+              const lowerDisplay = role.display.toLowerCase();
+              const lowerName = role.name.toLowerCase();
+              return (
+                lowerDisplay.includes(lowerFilter) ||
+                lowerName.includes(lowerFilter)
+              );
+            })}
             getLaunchUrl={getLaunchUrl}
             onLaunchUrl={onLaunchUrl}
             closeMenu={this.onClose}
+            onChange={this.onChange}
           />
         </Menu>
       </>
@@ -89,10 +105,14 @@ function RoleItemList({
   awsRoles,
   getLaunchUrl,
   closeMenu,
+  onChange,
   onLaunchUrl,
-}: Props & { closeMenu: () => void }) {
+}: Props & {
+  closeMenu: () => void;
+  onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
   const awsRoleItems = awsRoles.map((item, key) => {
-    const { display, arn } = item;
+    const { display, arn, name } = item;
     const launchUrl = getLaunchUrl(arn);
     return (
       <StyledMenuItem
@@ -108,17 +128,16 @@ function RoleItemList({
           onLaunchUrl?.(item.arn);
         }}
       >
-        <Text style={{ maxWidth: '25ch' }}>{display}</Text>
+        <Text>{`${display !== name ? `${display} (${name})` : display}`}</Text>
       </StyledMenuItem>
     );
   });
 
   return (
-    <>
+    <Flex flexDirection="column">
       <Text
         px="2"
         fontSize="11px"
-        mb="2"
         css={`
           color: ${props => props.theme.colors.text.main};
           background: ${props => props.theme.colors.spotBackground[2]};
@@ -126,14 +145,30 @@ function RoleItemList({
       >
         Select IAM Role
       </Text>
-      {awsRoleItems.length ? (
-        awsRoleItems
-      ) : (
-        <Text px={2} m={2} color="text.disabled">
-          No roles found
-        </Text>
-      )}
-    </>
+      <StyledInput
+        p="2"
+        m="2"
+        type="text"
+        onChange={onChange}
+        autoFocus
+        placeholder={'Search IAM roles...'}
+        autoComplete="off"
+      />
+      <Box
+        css={`
+          max-height: 220px;
+          overflow: auto;
+        `}
+      >
+        {awsRoleItems.length ? (
+          awsRoleItems
+        ) : (
+          <Text px={2} m={2} color="text.disabled">
+            No roles found
+          </Text>
+        )}
+      </Box>
+    </Flex>
   );
 }
 
@@ -158,4 +193,27 @@ const StyledMenuItem = styled(MenuItem)(
     margin-bottom: 8px;
   }
 `
+);
+
+const StyledInput = styled.input(
+  ({ theme }) => `
+  background: transparent;
+  border: 1px solid ${theme.colors.text.muted};
+  border-radius: 4px;
+  box-sizing: border-box;
+  color: ${theme.colors.text.main};
+  height: 32px;
+  outline: none;
+
+  &:focus, &:hover {
+    border 1px solid ${theme.colors.text.slightlyMuted};
+    outline: none;
+  }
+
+  ::placeholder {
+    color: ${theme.colors.text.muted};
+    opacity: 1;
+  }
+`,
+  space
 );

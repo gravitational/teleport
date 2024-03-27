@@ -48,19 +48,15 @@ exports[`render ConsoleTabs 1`] = `
 
 .c13:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c13:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c13:hover:enabled,
-.c13:focus:enabled {
+.c13:not(:disabled):hover,
+.c13:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c13:active:enabled {
+.c13:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 

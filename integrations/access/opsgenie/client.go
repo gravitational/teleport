@@ -30,17 +30,24 @@ import (
 	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
 const (
 	// alertKeyPrefix is the prefix for Alert's alias field used when creating an Alert.
-	alertKeyPrefix = "teleport-access-request"
-	heartbeatName  = "teleport-access-heartbeat"
+	alertKeyPrefix        = "teleport-access-request"
+	heartbeatName         = "teleport-access-heartbeat"
+	ResponderTypeSchedule = "schedule"
+	ResponderTypeUser     = "user"
+
+	ResolveAlertRequestRetryInterval = time.Second * 10
+	ResolveAlertRequestRetryTimeout  = time.Minute * 2
 )
 
 var alertBodyTemplate = template.Must(template.New("alert body").Parse(
@@ -135,11 +142,11 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 		Message:     fmt.Sprintf("Access request from %s", reqData.User),
 		Alias:       fmt.Sprintf("%s/%s", alertKeyPrefix, reqID),
 		Description: bodyDetails,
-		Responders:  og.getResponders(reqData),
+		Responders:  og.getScheduleResponders(reqData),
 		Priority:    og.Priority,
 	}
 
-	var result AlertResult
+	var result CreateAlertResult
 	resp, err := og.client.NewRequest().
 		SetContext(ctx).
 		SetBody(body).
@@ -153,20 +160,60 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 	if resp.IsError() {
 		return OpsgenieData{}, errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
+
+	// If this fails, Teleport request approval and auto-approval will still work,
+	// but incident in Opsgenie won't be auto-closed or updated as the alertID won't be available.
+	alertRequestResult, err := og.tryGetAlertRequestResult(ctx, result.RequestID)
+	if err != nil {
+		return OpsgenieData{}, trace.Wrap(err)
+	}
+
 	return OpsgenieData{
-		AlertID: result.Alert.ID,
+		AlertID: alertRequestResult.Data.AlertID,
 	}, nil
 }
 
-func (og Client) getResponders(reqData RequestData) []Responder {
+func (og Client) tryGetAlertRequestResult(ctx context.Context, reqID string) (GetAlertRequestResult, error) {
+	backoff := backoff.NewDecorr(ResolveAlertRequestRetryInterval, ResolveAlertRequestRetryTimeout, clockwork.NewRealClock())
+	for {
+		alertRequestResult, err := og.getAlertRequestResult(ctx, reqID)
+		if err == nil {
+			logger.Get(ctx).Debugf("Got alert request result: %+v", alertRequestResult)
+			return alertRequestResult, nil
+		}
+		logger.Get(ctx).Debug("Failed to get alert request result:", err)
+		if err := backoff.Do(ctx); err != nil {
+			return GetAlertRequestResult{}, trace.Wrap(err)
+		}
+	}
+}
+
+func (og Client) getAlertRequestResult(ctx context.Context, reqID string) (GetAlertRequestResult, error) {
+	var result GetAlertRequestResult
+	resp, err := og.client.NewRequest().
+		SetContext(ctx).
+		SetResult(&result).
+		SetPathParams(map[string]string{"requestID": reqID}).
+		Get("v2/alerts/requests/{requestID}")
+	if err != nil {
+		return GetAlertRequestResult{}, trace.Wrap(err)
+	}
+	defer resp.RawResponse.Body.Close()
+	if resp.IsError() {
+		return GetAlertRequestResult{}, errWrapper(resp.StatusCode(), string(resp.Body()))
+	}
+	return result, nil
+}
+
+func (og Client) getScheduleResponders(reqData RequestData) []Responder {
 	schedules := og.DefaultSchedules
-	if reqSchedules, ok := reqData.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]; ok {
+	if reqSchedules, ok := reqData.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationNotifySchedulesLabel]; ok {
 		schedules = reqSchedules
 	}
 	responders := make([]Responder, 0, len(schedules))
 	for _, s := range schedules {
 		responders = append(responders, Responder{
-			Type: "schedule",
+			Type: ResponderTypeSchedule,
 			ID:   s,
 		})
 	}
@@ -231,12 +278,13 @@ func (og Client) GetOnCall(ctx context.Context, scheduleName string) (Responders
 		SetContext(ctx).
 		SetPathParams(map[string]string{"scheduleName": scheduleName}).
 		SetQueryParams(map[string]string{
+			// This is required to lookup schedules by name (as opposed to lookup by ID)
 			"scheduleIdentifierType": "name",
 			// When flat is enabled it returns the email addresses of on-call participants.
 			"flat": "true",
 		}).
 		SetResult(&result).
-		Post("v2/schedules/{scheduleName}/on-calls")
+		Get("v2/schedules/{scheduleName}/on-calls")
 	if err != nil {
 		return RespondersResult{}, trace.Wrap(err)
 	}

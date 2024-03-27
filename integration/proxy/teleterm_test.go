@@ -198,7 +198,9 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
 			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 		},
-		ClientCache:    clientcache.NewNoCache(storage),
+		CreateClientCacheFunc: func(resolveCluster daemon.ResolveClusterFunc) daemon.ClientCache {
+			return clientcache.NewNoCache(clientcache.ResolveClusterFunc(resolveCluster))
+		},
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
 	})

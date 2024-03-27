@@ -43,11 +43,9 @@ Download and install the appropriate Teleport package for your platform:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 2/4. Create a join token, role and bot user
+## Step 2/4. Create a join token and bot user
 
 **This step is completed on your local machine.**
-
-(!docs/pages/includes/machine-id/blank-role.mdx!)
 
 Create `bot-token.yaml`:
 
@@ -87,10 +85,10 @@ Use `tctl` to apply this file:
 $ tctl create -f bot-token.yaml
 ```
 
-Create the bot, specifying the token and role that you have created:
+Create the bot, specifying the token that you have created:
 
 ```code
-$ tctl bots add example --token example-bot --roles example-bot
+$ tctl bots add example --token example-bot
 ```
 
 ## Step 3/4. Configure `tbot`

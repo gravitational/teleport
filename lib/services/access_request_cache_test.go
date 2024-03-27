@@ -70,28 +70,34 @@ func TestAccessRequestCacheBasics(t *testing.T) {
 	// creation times 1 second apart, according to the order in
 	// which they are defined).
 	rrs := []struct {
+		name  string
 		id    string
 		state types.RequestState
 	}{
 		{
 			id:    "00000000-0000-0000-0000-000000000005",
 			state: types.RequestState_PENDING,
+			name:  "bob",
 		},
 		{
 			id:    "00000000-0000-0000-0000-000000000004",
 			state: types.RequestState_APPROVED,
+			name:  "bob",
 		},
 		{
 			id:    "00000000-0000-0000-0000-000000000003",
 			state: types.RequestState_DENIED,
+			name:  "alice",
 		},
 		{
 			id:    "00000000-0000-0000-0000-000000000002",
 			state: types.RequestState_APPROVED,
+			name:  "alice",
 		},
 		{
 			id:    "00000000-0000-0000-0000-000000000001",
 			state: types.RequestState_PENDING,
+			name:  "jan",
 		},
 	}
 
@@ -166,11 +172,33 @@ func TestAccessRequestCacheBasics(t *testing.T) {
 				"00000000-0000-0000-0000-000000000002", // approved
 			},
 		},
+		{
+			Sort:       proto.AccessRequestSort_USER,
+			Descending: true,
+			Expect: []string{
+				"00000000-0000-0000-0000-000000000001", // jan
+				"00000000-0000-0000-0000-000000000005", // bob
+				"00000000-0000-0000-0000-000000000004", // bob
+				"00000000-0000-0000-0000-000000000003", // alice
+				"00000000-0000-0000-0000-000000000002", // alice
+			},
+		},
+		{
+			Sort:       proto.AccessRequestSort_USER,
+			Descending: false,
+			Expect: []string{
+				"00000000-0000-0000-0000-000000000002", // alice
+				"00000000-0000-0000-0000-000000000003", // alice
+				"00000000-0000-0000-0000-000000000004", // bob
+				"00000000-0000-0000-0000-000000000005", // bob
+				"00000000-0000-0000-0000-000000000001", // jan
+			},
+		},
 	}
 
 	created := time.Now()
 	for _, rr := range rrs {
-		r, err := types.NewAccessRequest(rr.id, "alice@example.com", "some-role")
+		r, err := types.NewAccessRequest(rr.id, rr.name, "some-role")
 		require.NoError(t, err)
 		require.NoError(t, r.SetState(rr.state))
 		r.SetCreationTime(created.UTC())

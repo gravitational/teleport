@@ -218,6 +218,24 @@ func (c *SortCache[T]) Ascend(index, start, stop string, iterator func(T) bool) 
 	}
 }
 
+// AscendPaginated returns a page from a range of items in the sortcache in ascending order, and the nextKey.
+func (c *SortCache[T]) AscendPaginated(index, startKey string, endKey string, pageSize int) ([]T, string) {
+	page := make([]T, 0, pageSize+1)
+
+	c.Ascend(index, startKey, endKey, func(r T) bool {
+		page = append(page, r)
+		return len(page) <= pageSize
+	})
+
+	var nextKey string
+	if len(page) > pageSize {
+		nextKey = c.KeyOf(index, page[pageSize])
+		page = page[:pageSize]
+	}
+
+	return page, nextKey
+}
+
 // Descend iterates the specified range from greatest to least. iteration is terminated early if the
 // supplied closure returns false. if this method is being used to read a range, it is strongly recommended
 // that all values retained be cloned. any mutation that results in changing a value's index keys will put
@@ -252,6 +270,24 @@ func (c *SortCache[T]) Descend(index, start, stop string, iterator func(T) bool)
 	default:
 		tree.DescendRange(entry{key: start}, entry{key: stop}, fn)
 	}
+}
+
+// DescendPaginated returns a page from a range of items in the sortcache in descending order, and the nextKey.
+func (c *SortCache[T]) DescendPaginated(index, startKey string, endKey string, pageSize int) ([]T, string) {
+	page := make([]T, 0, pageSize+1)
+
+	c.Descend(index, startKey, endKey, func(r T) bool {
+		page = append(page, r)
+		return len(page) <= pageSize
+	})
+
+	var nextKey string
+	if len(page) > pageSize {
+		nextKey = c.KeyOf(index, page[pageSize])
+		page = page[:pageSize]
+	}
+
+	return page, nextKey
 }
 
 // Len returns the number of values currently stored.

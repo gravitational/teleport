@@ -409,6 +409,8 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 		}
 	}()
 
+	offlineThresholdTimer := time.NewTimer(s.offlineThreshold)
+	defer offlineThresholdTimer.Stop()
 	for {
 		select {
 		case <-s.ctx.Done():
@@ -468,8 +470,7 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 			tm := s.clock.Now().UTC()
 			conn.setLastHeartbeat(tm)
 			go s.registerHeartbeat(tm)
-		// Note that time.After is re-created everytime a request is processed.
-		case t := <-time.After(s.offlineThreshold):
+		case t := <-offlineThresholdTimer.C:
 			conn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", s.offlineThreshold))
 
 			// terminate and remove the connection after missing more than missedHeartBeatThreshold heartbeats if
@@ -484,7 +485,15 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 
 				logger.Warnf("Deferring closure of unhealthy connection due to %d active connections", count)
 			}
+
+			offlineThresholdTimer.Reset(s.offlineThreshold)
+			continue
 		}
+
+		if !offlineThresholdTimer.Stop() {
+			<-offlineThresholdTimer.C
+		}
+		offlineThresholdTimer.Reset(s.offlineThreshold)
 	}
 }
 

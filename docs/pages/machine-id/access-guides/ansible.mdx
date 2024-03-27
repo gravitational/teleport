@@ -40,20 +40,22 @@ You will need the following tools to use Teleport with Ansible.
 ## Step 1/4. Configure RBAC
 
 As Ansible will use the credentials produced by `tbot` to connect to the SSH
-nodes, you first need to configure Teleport to grant the bot access.
+nodes, you first need to configure Teleport to grant the bot access. This is
+done by creating a role that grants the necessary permissions and then assigning
+this role to a Bot.
 
 In this example, access will be granted to all SSH nodes for the username
 <Var name="root" />. Ensure that you set this to a username that is available
 across your SSH nodes and that will have the appropriate privileges to manage
 your nodes.
 
-If you have followed an access guide, you will have created a role and granted
-the bot the ability to impersonate it already. This role just needs to have the
-additional privileges added to it.
-
-Use `tctl edit role/example-bot` to add the following to the role:
+Create a file called `role.yaml` with the following content:
 
 ```yaml
+kind: role
+version: v6
+metadata:
+  name: example-role
 spec:
   allow:
     # Allow login to the user 'root'.
@@ -64,9 +66,21 @@ spec:
       '*': '*'
 ```
 
+Replace `example-role` with a descriptive name related to your use case.
+
 For production use, you should use labels to restrict this access to only the
 hosts that Ansible will need to access. This is known as the principal of
 least privilege and reduces damage that exfiltrated credentials can do.
+
+Use `tctl create -f ./role.yaml` to create the role.
+
+Now, use `tctl bots update` to add the role to the Bot. Replace `example`
+with the name of the Bot you created in the deployment guide and `example-role`
+with the name of the role you just created:
+
+```bash
+$ tctl bots update example --add-roles example-role
+```
 
 ## Step 2/4. Configure the `tbot` output
 

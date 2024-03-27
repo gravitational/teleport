@@ -566,6 +566,73 @@ func TestIsOpenSSHNodeSubKind(t *testing.T) {
 	}
 }
 
+func TestIsEICE(t *testing.T) {
+	tests := []struct {
+		name   string
+		server *ServerV2
+		want   bool
+	}{
+		{
+			name: "eice node with account and instance id labels is EICE",
+			server: &ServerV2{
+				SubKind: SubKindOpenSSHEICENode,
+				Metadata: Metadata{
+					Labels: map[string]string{
+						AWSAccountIDLabel:  "123456789012",
+						AWSInstanceIDLabel: "i-123",
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "regular node not eice",
+			server: &ServerV2{
+				SubKind: SubKindTeleportNode,
+			},
+			want: false,
+		},
+		{
+			name: "agentless openssh node is not eice",
+			server: &ServerV2{
+				SubKind: SubKindOpenSSHNode,
+			},
+			want: false,
+		},
+		{
+			name: "eice node without account id label is not EICE",
+			server: &ServerV2{
+				SubKind: SubKindOpenSSHEICENode,
+				Metadata: Metadata{
+					Labels: map[string]string{
+						AWSInstanceIDLabel: "i-123",
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "eice node without instance id label is not EICE",
+			server: &ServerV2{
+				SubKind: SubKindOpenSSHEICENode,
+				Metadata: Metadata{
+					Labels: map[string]string{
+						AWSAccountIDLabel: "123456789012",
+					},
+				},
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.server.IsEICE(); got != tt.want {
+				t.Errorf("IsEICE() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestGetCloudMetadataAWS(t *testing.T) {
 	for _, tt := range []struct {
 		name     string

@@ -242,6 +242,14 @@ func (d *WindowsDesktopV3) CloneResource() ResourceWithLabels {
 	return d.Copy()
 }
 
+// IsEqual determines if two windows desktop resources are equivalent to one another.
+func (d *WindowsDesktopV3) IsEqual(i WindowsDesktop) bool {
+	if other, ok := i.(*WindowsDesktopV3); ok {
+		return deriveTeleportEqualWindowsDesktopV3(d, other)
+	}
+	return false
+}
+
 // Match checks if a given desktop request matches this filter.
 func (f *WindowsDesktopFilter) Match(req WindowsDesktop) bool {
 	if f.HostID != "" && req.GetHostID() != f.HostID {

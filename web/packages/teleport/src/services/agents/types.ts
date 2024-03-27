@@ -85,6 +85,12 @@ export type ResourceIdKind =
   | 'user_group'
   | 'windows_desktop';
 
+export type AccessRequestScope =
+  | 'my_requests'
+  | 'needs_review'
+  | 'reviewed'
+  | '';
+
 export type ConnectionDiagnostic = {
   /** id is the identifier of the connection diagnostic. */
   id: string;

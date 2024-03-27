@@ -68,6 +68,143 @@ func TestUserMessageFromError(t *testing.T) {
 	}
 }
 
+func TestUnixShellQuote(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   string
+		out  string
+	}{
+		{
+			name: "emptyString",
+			in:   "",
+			out:  "",
+		},
+		{
+			name: "noQuote",
+			in:   "foo",
+			out:  "foo",
+		},
+		{
+			name: "bang",
+			in:   "foo!",
+			out:  "'foo!'",
+		},
+		{
+			name: "variable",
+			in:   "foo$BAR",
+			out:  "'foo$BAR'",
+		},
+		{
+			name: "semicolon",
+			in:   "foo;bar",
+			out:  "'foo;bar'",
+		},
+		{
+			name: "singleQuoteStart",
+			in:   "'foo",
+			out:  "''\"'\"'foo'",
+		},
+		{
+			name: "singleQuoteMid",
+			in:   "foo'bar",
+			out:  "'foo'\"'\"'bar'",
+		},
+		{
+			name: "singleQuoteEnd",
+			in:   "foo'",
+			out:  "'foo'\"'\"''",
+		},
+		{
+			name: "singleQuotesSurrounding",
+			in:   "'foo'",
+			out:  "''\"'\"'foo'\"'\"''",
+		},
+		{
+			name: "space",
+			in:   "foo bar",
+			out:  "'foo bar'",
+		},
+		{
+			name: "path",
+			in:   "/usr/local/bin",
+			out:  "/usr/local/bin",
+		},
+		{
+			name: "commandSubstitution",
+			in:   "$(ls -la)",
+			out:  "'$(ls -la)'",
+		},
+		{
+			name: "backticks",
+			in:   "`echo foo`",
+			out:  "'`echo foo`'",
+		},
+		{
+			name: "doubleQuotes",
+			in:   "foo\"bar",
+			out:  "'foo\"bar'",
+		},
+		{
+			name: "brackets",
+			in:   "[1,2,3]",
+			out:  "'[1,2,3]'",
+		},
+		{
+			name: "parentheses",
+			in:   "(1+2)",
+			out:  "'(1+2)'",
+		},
+		{
+			name: "braceExpansion",
+			in:   "{a,b}",
+			out:  "'{a,b}'",
+		},
+		{
+			name: "escapeCharacters",
+			in:   "foo\\bar",
+			out:  "'foo\\bar'",
+		},
+		{
+			name: "wildcards",
+			in:   "*",
+			out:  "'*'",
+		},
+		{
+			name: "pipe",
+			in:   "foo | bar",
+			out:  "'foo | bar'",
+		},
+		{
+			name: "andOperator",
+			in:   "foo && bar",
+			out:  "'foo && bar'",
+		},
+		{
+			name: "newline",
+			in:   "foo\nbar",
+			out:  "'foo\\nbar'",
+		},
+		{
+			name: "carriageReturn",
+			in:   "foo\rbar",
+			out:  "'foo\\rbar'",
+		},
+		{
+			name: "tab",
+			in:   "foo\tbar",
+			out:  "'foo\tbar'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.out, UnixShellQuote(tt.in))
+		})
+	}
+}
+
 // TestEscapeControl tests escape control
 func TestEscapeControl(t *testing.T) {
 	t.Parallel()

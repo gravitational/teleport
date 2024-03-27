@@ -528,6 +528,21 @@ export type EksMeta = BaseMeta & {
   kube: Kube;
 };
 
-export type AgentMeta = DbMeta | NodeMeta | KubeMeta | EksMeta;
+// SamlMeta describes the fields for SAML IdP
+// service provider resource that needs to be
+// preserved throughout the flow.
+export type SamlMeta = BaseMeta & SamlGcpWorkforceMeta;
+
+// GcpWorkforceMeta describes the fields for SAML
+// GCP workforce pool resource that needs to be
+// preserved throughout the flow.
+export type SamlGcpWorkforceMeta = {
+  isAutoConfig: boolean;
+  orgId: string;
+  poolName: string;
+  poolProviderName: string;
+};
+
+export type AgentMeta = DbMeta | NodeMeta | KubeMeta | EksMeta | SamlMeta;
 
 export type State = ReturnType<typeof useDiscover>;

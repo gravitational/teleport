@@ -195,7 +195,9 @@ func (a *AppServerOrSAMLIdPServiceProviderV1) GetLabel(key string) (value string
 		v, ok := appServer.Spec.App.Metadata.Labels[key]
 		return v, ok
 	} else {
-		return "", true
+		sp := a.GetSAMLIdPServiceProvider()
+		v, ok := sp.Metadata.Labels[key]
+		return v, ok
 	}
 }
 

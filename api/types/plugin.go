@@ -74,6 +74,7 @@ type Plugin interface {
 	GetType() PluginType
 	SetCredentials(PluginCredentials) error
 	SetStatus(PluginStatus) error
+	GetGeneration() string
 }
 
 // PluginCredentials are the credentials embedded in Plugin
@@ -397,6 +398,11 @@ func (p *PluginV1) SetStatus(status PluginStatus) error {
 		Code: status.GetCode(),
 	}
 	return nil
+}
+
+// GetGeneration returns the plugin generation.
+func (p *PluginV1) GetGeneration() string {
+	return p.Spec.Generation
 }
 
 // GetType implements Plugin

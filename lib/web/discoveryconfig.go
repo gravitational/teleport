@@ -163,7 +163,7 @@ func (h *Handler) discoveryconfigList(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	values := r.URL.Query()
-	limit, err := queryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

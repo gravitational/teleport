@@ -55,7 +55,7 @@ user:
 | `ssh_file_copy` | Allow SCP/SFTP | Logical "AND" i.e. if all roles allows file copying, it's allowed |
 | `client_idle_timeout` | Forcefully terminate active sessions after an idle interval | The shortest timeout value wins, i.e. the most restrictive value is selected |
 | `disconnect_expired_cert` | Forcefully terminate active sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
-| `max_sessions` | Total number of session channels which can be established across a single SSH connection via Teleport | |
+| `max_sessions` | Total number of session channels which can be established across a single SSH connection via Teleport | The lowest value takes precedence. |
 | `enhanced_recording` | Indicates which events should be recorded by the BFP-based session recorder | |
 | `permit_x11_forwarding` | Allow users to enable X11 forwarding with OpenSSH clients and servers | |
 | `device_trust_mode` | Enforce authenticated device access for users assigned this role (`required`, `optional`, `off`). Applies only to the resources in the roles' allow field. | |
@@ -63,7 +63,7 @@ user:
 | `lock` | Locking mode (`strict` or `best_effort`) | `strict` wins in case of conflict |
 | `request_access` | Enterprise-only Access Request strategy (`optional`, `always` or `reason`) | |
 | `request_prompt` | Prompt for the Access Request "reason" field | |
-| `max_connections` | Enterprise-only limit on how many concurrent sessions can be started via Teleport | |
+| `max_connections` | Enterprise-only limit on how many concurrent sessions can be started via Teleport | The lowest value takes precedence. |
 | `max_kubernetes_connections` | Defines the maximum number of concurrent Kubernetes sessions per user | |
 | `record_session` |Defines the [Session recording mode](../reference/audit.mdx#modes).|The strictest value takes precedence.|
 | `desktop_clipboard` | Allow clipboard sharing for desktop sessions | Logical "AND" i.e. evaluates to "yes" if all roles enable clipboard sharing |

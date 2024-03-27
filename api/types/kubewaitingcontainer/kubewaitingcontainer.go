@@ -17,6 +17,7 @@ limitations under the License.
 package kubewaitingcontainer
 
 import (
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -25,6 +26,27 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
+)
+
+const (
+	// JSONPatchType is the JSON patch type supported by Kubernetes
+	JSONPatchType string = "application/json-patch+json"
+	// MergePatchType is the merge patch type supported by Kubernetes
+	MergePatchType string = "application/merge-patch+json"
+	// StrategicMergePatchType is the strategic merge patch type supported by Kubernetes
+	StrategicMergePatchType string = "application/strategic-merge-patch+json"
+	// ApplyPatchType is the apply patch type supported by Kubernetes
+	ApplyPatchType string = "application/apply-patch+yaml"
+)
+
+var (
+	// PatchTypes is a list of all supported patch types
+	PatchTypes = []string{
+		JSONPatchType,
+		MergePatchType,
+		StrategicMergePatchType,
+		ApplyPatchType,
+	}
 )
 
 // NewKubeWaitingContainer creates a new Kubernetes ephemeral
@@ -78,7 +100,12 @@ func ValidateKubeWaitingContainer(k *kubewaitingcontainerpb.KubernetesWaitingCon
 	if len(k.Spec.Patch) == 0 {
 		return trace.BadParameter("Patch is unset")
 	}
-
+	if len(k.Spec.PatchType) == 0 {
+		return trace.BadParameter("PatchType is unset")
+	}
+	if !slices.Contains(PatchTypes, k.Spec.PatchType) {
+		return trace.BadParameter("PatchType is invalid: valid types are %v", PatchTypes)
+	}
 	if k.Metadata.Name == "" {
 		return trace.BadParameter("Name is unset")
 	}

@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"os"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -33,7 +32,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 )
@@ -44,14 +42,28 @@ const (
 	batchSize = 500
 )
 
-func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *aws_sync.Resources, stream accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient, features aws_sync.Features) {
+var (
+	// errNoAccessGraphFetchers is returned when there are no TAG fetchers.
+	errNoAccessGraphFetchers = errors.New("no Access Graph fetchers")
+)
+
+func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *aws_sync.Resources, stream accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient, features aws_sync.Features) error {
 	type fetcherResult struct {
 		result *aws_sync.Resources
 		err    error
 	}
 
 	allFetchers := s.getAllAWSSyncFetchers()
+	if len(allFetchers) == 0 {
+		// If there are no fetchers, we don't need to continue.
+		// We will send a delete request for all resources and return.
+		upsert, toDel := aws_sync.ReconcileResults(currentTAGResources, &aws_sync.Resources{})
 
+		if err := push(stream, upsert, toDel); err != nil {
+			s.Log.WithError(err).Error("Error pushing empty resources to TAGs")
+		}
+		return trace.Wrap(errNoAccessGraphFetchers)
+	}
 	resultsC := make(chan fetcherResult, len(allFetchers))
 	// Use a channel to limit the number of concurrent fetchers.
 	tokens := make(chan struct{}, 3)
@@ -91,10 +103,11 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	err = push(stream, upsert, toDel)
 	if err != nil {
 		s.Log.WithError(err).Error("Error pushing TAGs")
-		return
+		return nil
 	}
 	// Update the currentTAGResources with the result of the reconciliation.
 	*currentTAGResources = *result
+	return nil
 }
 
 // getAllAWSSyncFetchers returns all AWS sync fetchers.
@@ -184,7 +197,7 @@ func push(
 }
 
 // NewAccessGraphClient returns a new access graph service client.
-func newAccessGraphClient(ctx context.Context, certs []tls.Certificate, config servicecfg.AccessGraphConfig, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+func newAccessGraphClient(ctx context.Context, certs []tls.Certificate, config AccessGraphConfig, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	opt, err := grpcCredentials(config, certs)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -302,7 +315,13 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	ticker := time.NewTicker(15 * time.Minute)
 	defer ticker.Stop()
 	for {
-		s.reconcileAccessGraph(ctx, currentTAGResources, stream, features)
+		err := s.reconcileAccessGraph(ctx, currentTAGResources, stream, features)
+		if errors.Is(err, errNoAccessGraphFetchers) {
+			// no fetchers, no need to continue.
+			// we will wait for the config to change and re-evaluate the fetchers
+			// before starting the sync.
+			return nil
+		}
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
@@ -313,15 +332,11 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 }
 
 // grpcCredentials returns a grpc.DialOption configured with TLS credentials.
-func grpcCredentials(config servicecfg.AccessGraphConfig, certs []tls.Certificate) (grpc.DialOption, error) {
+func grpcCredentials(config AccessGraphConfig, certs []tls.Certificate) (grpc.DialOption, error) {
 	var pool *x509.CertPool
-	if config.CA != "" {
+	if len(config.CA) > 0 {
 		pool = x509.NewCertPool()
-		caBytes, err := os.ReadFile(config.CA)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if !pool.AppendCertsFromPEM(caBytes) {
+		if !pool.AppendCertsFromPEM(config.CA) {
 			return nil, trace.BadParameter("failed to append CA certificate to pool")
 		}
 	}
@@ -346,6 +361,20 @@ func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error
 		go func() {
 			reloadCh := s.newDiscoveryConfigChangedSub()
 			for {
+				allFetchers := s.getAllAWSSyncFetchers()
+				// If there are no fetchers, we don't need to start the access graph sync.
+				// We will wait for the config to change and re-evaluate the fetchers
+				// before starting the sync.
+				if len(allFetchers) == 0 {
+					s.Log.Debug("No AWS sync fetchers configured. Access graph sync will not be enabled.")
+					select {
+					case <-ctx.Done():
+						return
+					case <-reloadCh:
+						// if the config changes, we need to re-evaluate the fetchers.
+					}
+					continue
+				}
 				// reset the currentTAGResources to force a full sync
 				if err := s.initializeAndWatchAccessGraph(ctx, reloadCh); errors.Is(err, errTAGFeatureNotEnabled) {
 					s.Log.Warn("Access Graph specified in config, but the license does not include Teleport Policy. Access graph sync will not be enabled.")

@@ -1908,13 +1908,13 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *auth.Clien
 
 		var collection serverCollection
 		for {
-			page, err := apiclient.ListUnifiedResourcePage(ctx, client, &req)
+			page, next, err := apiclient.GetUnifiedResourcePage(ctx, client, &req)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
-			for _, r := range page.Resources {
-				srv, ok := r.(types.Server)
+			for _, r := range page {
+				srv, ok := r.ResourceWithLabels.(types.Server)
 				if !ok {
 					log.Warnf("expected types.Server but received unexpected type %T", r)
 					continue
@@ -1931,7 +1931,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *auth.Clien
 				}
 			}
 
-			req.StartKey = page.NextKey
+			req.StartKey = next
 			if req.StartKey == "" {
 				break
 			}

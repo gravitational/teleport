@@ -1,4 +1,12 @@
 issues:
+  exclude-dirs:
+    - (^|/)node_modules/
+    - ^api/gen/
+    - ^docs/
+    - ^gen/
+    - ^rfd/
+    - ^web/
+  exclude-dirs-use-default: false
   exclude-rules:
     - linters:
       - gosimple
@@ -104,12 +112,4 @@ output:
 run:
   go: '1.21'
   build-tags: []
-  skip-dirs:
-    - (^|/)node_modules/
-    - ^api/gen/
-    - ^docs/
-    - ^gen/
-    - ^rfd/
-    - ^web/
-  skip-dirs-use-default: false
   timeout: 15m

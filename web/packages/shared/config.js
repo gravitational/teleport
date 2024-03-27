@@ -22,6 +22,8 @@ const cfg = {
   shortFormat: 'MMM dd, yyyy',
   // Displays time as 12/25/2024 at 12:00AM
   dateWithPrefixedTime: `LL/dd/yyyy 'at' h:mma`,
+  // Displays time as December 25, 2024
+  dateWithFullMonth: 'LLLL dd, yyyy',
 };
 
 export default cfg;

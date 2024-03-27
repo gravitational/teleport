@@ -77,14 +77,24 @@ func New(cfg Config) (*Service, error) {
 
 	go connectUsageReporter.Run(closeContext)
 
-	return &Service{
+	service := &Service{
 		cfg:                    &cfg,
 		closeContext:           closeContext,
 		cancel:                 cancel,
 		gateways:               make(map[string]gateway.Gateway),
 		usageReporter:          connectUsageReporter,
 		headlessWatcherClosers: make(map[string]context.CancelFunc),
-	}, nil
+	}
+
+	// TODO(gzdunek): The client cache should be created outside of daemon.New.
+	// Unfortunately, we have to do it here, because we need to pass
+	// Daemon.ResolveClusterURI as a cluster resolver.
+	// Why can't we pass Storage.GetByResourceURI?
+	// That's because Daemon.ResolveClusterURI sets a custom MFAPromptConstructor that
+	// shows an MFA prompt in Connect.
+	// At the level of Storage.ResolveClusterFunc we don't have access to it.
+	service.clientCache = cfg.CreateClientCacheFunc(service.ResolveClusterURI)
+	return service, nil
 }
 
 // relogin makes the Electron app display a login modal to trigger re-login.
@@ -802,7 +812,7 @@ func (s *Service) Stop() {
 
 	s.StopHeadlessWatchers()
 
-	if err := s.cfg.ClientCache.Clear(); err != nil {
+	if err := s.clientCache.Clear(); err != nil {
 		s.cfg.Log.WithError(err).Error("Failed to close remote clients")
 	}
 
@@ -1084,14 +1094,14 @@ func (s *Service) findGatewayByTargetURI(targetURI uri.ResourceURI) (gateway.Gat
 // GetCachedClient returns a client from the cache if it exists,
 // otherwise it dials the remote server.
 func (s *Service) GetCachedClient(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
-	clt, err := s.cfg.ClientCache.Get(ctx, clusterURI)
+	clt, err := s.clientCache.Get(ctx, clusterURI)
 	return clt, trace.Wrap(err)
 }
 
 // ClearCachedClientsForRoot closes and removes clients from the cache
 // for the root cluster and its leaf clusters.
 func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
-	return trace.Wrap(s.cfg.ClientCache.ClearForRoot(clusterURI))
+	return trace.Wrap(s.clientCache.ClearForRoot(clusterURI))
 }
 
 // Service is the daemon service
@@ -1126,6 +1136,7 @@ type Service struct {
 	// headlessWatcherClosers holds a map of root cluster URIs to headless watchers.
 	headlessWatcherClosers   map[string]context.CancelFunc
 	headlessWatcherClosersMu sync.Mutex
+	clientCache              ClientCache
 }
 
 type CreateGatewayParams struct {

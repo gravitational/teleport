@@ -51,4 +51,6 @@ message KubernetesWaitingContainerSpec {
   // patch is the patch that should be applied to the parent pod
   // to create this ephemeral container
   bytes patch = 6;
+  // patch_type identifies the patch model to be applied.
+  string patch_type = 7;
 }

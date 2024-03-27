@@ -44,7 +44,7 @@ type Cache interface {
 	// GetUser returns a user by name.
 	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
 	// ListUsers returns a page of users.
-	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
+	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 	// GetRole returns a role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
@@ -562,25 +562,6 @@ func (s *Service) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) 
 		}
 	}
 
-	users, next, err := s.cache.ListUsers(ctx, int(req.PageSize), req.PageToken, req.WithSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp := &userspb.ListUsersResponse{
-		Users:         make([]*types.UserV2, 0, len(users)),
-		NextPageToken: next,
-	}
-
-	for _, user := range users {
-		v2, ok := user.(*types.UserV2)
-		if !ok {
-			s.logger.Warnf("expected type UserV2, got %T", user)
-		}
-
-		resp.Users = append(resp.Users, v2)
-
-	}
-
-	return resp, nil
+	rsp, err := s.cache.ListUsers(ctx, req)
+	return rsp, trace.Wrap(err)
 }

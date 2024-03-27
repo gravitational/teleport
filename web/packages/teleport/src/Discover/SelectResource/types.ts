@@ -72,6 +72,7 @@ export enum KubeLocation {
 export enum SamlServiceProviderPreset {
   Unspecified = 'unspecified',
   Grafana = 'grafana',
+  GcpWorkforce = 'gcp-workforce',
 }
 
 export interface ResourceSpec {

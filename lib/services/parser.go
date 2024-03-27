@@ -800,18 +800,17 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 		GetIdentifier: func(fields []string) (interface{}, error) {
 			switch fields[0] {
 			case ResourceLabelsIdentifier:
-				combinedLabels := resource.GetAllLabels()
 				switch {
 				// Field length of 1 means the user is using
 				// an index expression ie: labels["env"], which the
 				// parser will expect a map for lookup in `GetProperty`.
 				case len(fields) == 1:
-					return labels(combinedLabels), nil
+					return resource, nil
 				case len(fields) > 2:
 					return nil, trace.BadParameter("only two fields are supported with identifier %q, got %d: %v", ResourceLabelsIdentifier, len(fields), fields)
 				default:
 					key := fields[1]
-					val, ok := combinedLabels[key]
+					val, ok := resource.GetLabel(key)
 					if ok {
 						return label{key: key, value: val}, nil
 					}
@@ -838,7 +837,7 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 			}
 		},
 		GetProperty: func(mapVal, keyVal interface{}) (interface{}, error) {
-			m, ok := mapVal.(labels)
+			r, ok := mapVal.(types.ResourceWithLabels)
 			if !ok {
 				return GetStringMapValue(mapVal, keyVal)
 			}
@@ -848,7 +847,7 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 				return nil, trace.BadParameter("only string keys are supported")
 			}
 
-			val, ok := m[key]
+			val, ok := r.GetLabel(key)
 			if ok {
 				return label{key: key, value: val}, nil
 			}
@@ -865,5 +864,3 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 type label struct {
 	key, value string
 }
-
-type labels map[string]string

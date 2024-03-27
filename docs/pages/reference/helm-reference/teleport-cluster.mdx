@@ -963,6 +963,86 @@ You can set `volumeSize` to request a different size of persistent volume when i
 
 `aws` settings are described in the AWS guide: [Running an HA Teleport cluster using an AWS EKS Cluster](../../deploy-a-cluster/helm-deployments/aws.mdx)
 
+### `aws.region`
+
+`aws.region` is the AWS region where the DynamoDB tables are located.
+
+### `aws.backendTable`
+
+`aws.backendTable` is the DynamoDB table name to use for backend storage.
+Teleport will attempt to create this table automatically if it does not exist.
+The container will need an appropriately-provisioned IAM role with permissions
+to create DynamoDB tables.
+
+### `aws.auditLogTable`
+
+`aws.auditLogTable` is the DynamoDB table name to use for audit log storage.
+Teleport will attempt to create this table automatically if it does not exist.
+The container will need an appropriately-provisioned IAM role with permissions
+to create DynamoDB tables. This MUST NOT be the same table name as used
+for `aws.backendTable` as the schemas are different.
+
+If you are using the Athena backend, you don't need to set this value.
+If you set this value, audit logs will be sent both to the Athena and DynamoDB
+backends, this is useful when migrating backends.
+If both `aws.athenaURL` and `aws.auditLogTable` (DynamoDB) are set, the
+`aws.auditLogPrimaryBackend` value configures which backend is used for querying.
+Teleport queries the audit backend to display the audit log in the web UI,
+export events using the audit log collector, or perform any action that needs to
+inspect past audit events.
+
+### `aws.auditLogMirrorOnStdout`
+
+`aws.auditLogMirrorOnStdout` controls whether to mirror audit log entries to
+stdout in JSON format (useful for external log collectors).
+
+Defaults to `false`.
+
+### `aws.auditLogPrimaryBackend`
+
+`auditLogPrimaryBackend` controls which backend is used for queries when multiple
+audit backends are enabled. This setting has no effect when a single audit log
+backend is enabled.
+
+This setting is used when migrating from DynamoDB to Athena.
+Possible values are `dynamo` and `athena`.
+
+### `aws.athenaURL`
+
+`athenaURL` contains the Athena audit log backend configuration.
+When this value is set, Teleport will export events to the Athena audit backend.
+
+To use the Athena audit backend, you must set up the required infrastructure
+(S3 buckets, SQS queue, AthenaDB, IAM roles and permissions, ...).
+
+The requirements are described in [the Athena backend documentation](../backends.mdx#athena)
+
+If both `aws.athenaURL` and `aws.auditLogTable` (DynamoDB) are set, the
+`aws.auditLogPrimaryBackend` value configures which backend is used for querying.
+
+### `aws.sessionRecordingBucket`
+
+`aws.sessionRecordingBucket` is the S3 bucket name to use for recorded session
+storage. Teleport will attempt to create this bucket automatically if it does
+not exist.
+
+The container will need an appropriately-provisioned IAM role with permissions
+to create S3 buckets.
+
+### `aws.backups`
+
+`aws.backups` controls if DynamoDB backups are enabled when Teleport configures
+the Dynamo backend.
+
+### `aws.dynamoAutoScaling`
+
+Whether Teleport should configure DynamoDB's autoscaling. Defaults to `false`.
+
+<Admonition type="warning">
+  DynamoDB autoscaling is no longer recommended. Teleport now defaults to "on
+  demand" DynamoDB billing, which has more reliable performance.
+</Admonition>
+
 ## `gcp`
 
 `gcp` settings are described in the GCP guide: [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../deploy-a-cluster/helm-deployments/gcp.mdx)

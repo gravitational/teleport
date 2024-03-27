@@ -38,6 +38,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 	const cluster = "cluster"
 	const namespace = "default"
 	const podName = "pod"
+	const patchType = kubewaitingcontainer.JSONPatchType
 
 	sampleKubeWaitingContFn := func(t *testing.T, name string) *kubewaitingcontainerpb.KubernetesWaitingContainer {
 		wc, err := kubewaitingcontainer.NewKubeWaitingContainer(
@@ -49,6 +50,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 				PodName:       podName,
 				ContainerName: name,
 				Patch:         []byte("patch"),
+				PatchType:     patchType,
 			},
 		)
 		require.NoError(t, err)
@@ -130,6 +132,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 				require.Equal(t, namespace, out.Spec.Namespace)
 				require.Equal(t, podName, out.Spec.PodName)
 				require.Equal(t, wcName, out.Spec.ContainerName)
+				require.Equal(t, patchType, out.Spec.PatchType)
 			},
 		},
 		{
@@ -186,6 +189,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 				require.Equal(t, namespace, out.Spec.Namespace)
 				require.Equal(t, podName, out.Spec.PodName)
 				require.Equal(t, wcName, out.Spec.ContainerName)
+				require.Equal(t, patchType, out.Spec.PatchType)
 			},
 		},
 		{

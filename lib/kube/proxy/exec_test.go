@@ -126,13 +126,22 @@ func TestExecKubeService(t *testing.T) {
 			},
 		},
 		{
-			name: "Websocket protocol",
+			name: "Websocket protocol v4",
 			args: args{
 				// We can delete the dummy client once https://github.com/kubernetes/kubernetes/pull/110142
 				// is merged into k8s go-client.
 				// For now go-client does not support connections over websockets.
 				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
 					return newWebSocketClient(c, s, u)
+				},
+				config: configWithSingleKubeUser,
+			},
+		},
+		{
+			name: "Websocket protocol v5",
+			args: args{
+				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
+					return remotecommand.NewWebSocketExecutor(c, s, u.String())
 				},
 				config: configWithSingleKubeUser,
 			},
@@ -146,7 +155,7 @@ func TestExecKubeService(t *testing.T) {
 			},
 		},
 		{
-			name: "Websocket protocol for user with multiple kubernetes users",
+			name: "Websocket protocol v4 for user with multiple kubernetes users",
 			args: args{
 				// We can delete the dummy client once https://github.com/kubernetes/kubernetes/pull/110142
 				// is merged into k8s go-client.
@@ -159,10 +168,30 @@ func TestExecKubeService(t *testing.T) {
 			},
 		},
 		{
+			name: "Websocket protocol v5 for user with multiple kubernetes users",
+			args: args{
+				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
+					return remotecommand.NewWebSocketExecutor(c, s, u.String())
+				},
+				config:          configMultiKubeUsers,
+				impersonateUser: "admin",
+			},
+		},
+		{
 			name: "SPDY protocol for user with multiple kubernetes users without specifying impersonate user",
 			args: args{
 				executorBuilder: remotecommand.NewSPDYExecutor,
 				config:          configMultiKubeUsers,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Websocket protocol v5 for user with multiple kubernetes users without specifying impersonate user",
+			args: args{
+				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
+					return remotecommand.NewWebSocketExecutor(c, s, u.String())
+				},
+				config: configMultiKubeUsers,
 			},
 			wantErr: true,
 		},

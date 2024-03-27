@@ -129,6 +129,63 @@ func TestMapWhile(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestChain tests the Chain combinator.
+func TestChain(t *testing.T) {
+	t.Parallel()
+
+	// normal usage
+	s, err := Collect(Chain(
+		Slice([]int{1, 2, 3}),
+		Slice([]int{4}),
+		Slice([]int{5, 6}),
+	))
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3, 4, 5, 6}, s)
+
+	// single substream
+	s, err = Collect(Chain(Slice([]int{1, 2, 3})))
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3}, s)
+
+	// no substreams
+	s, err = Collect(Chain[int]())
+	require.NoError(t, err)
+	require.Empty(t, s)
+
+	// some empty substreams
+	s, err = Collect(Chain(
+		Empty[int](),
+		Slice([]int{4, 5, 6}),
+		Empty[int](),
+	))
+	require.NoError(t, err)
+	require.Equal(t, []int{4, 5, 6}, s)
+
+	// all empty substreams
+	s, err = Collect(Chain(
+		Empty[int](),
+		Empty[int](),
+	))
+	require.NoError(t, err)
+	require.Empty(t, s)
+
+	// late failure
+	s, err = Collect(Chain(
+		Slice([]int{7, 7, 7}),
+		Fail[int](fmt.Errorf("some error")),
+	))
+	require.Error(t, err)
+	require.Equal(t, []int{7, 7, 7}, s)
+
+	// early failure
+	s, err = Collect(Chain(
+		Fail[int](fmt.Errorf("some other error")),
+		Func(func() (int, error) { panic("unreachable") }),
+	))
+	require.Error(t, err)
+	require.Empty(t, s)
+}
+
 // TestFunc tests the Func stream.
 func TestFunc(t *testing.T) {
 	t.Parallel()
@@ -301,6 +358,32 @@ func TestEmpty(t *testing.T) {
 	// nil error case
 	s, err = Collect(Fail[int](nil))
 	require.NoError(t, err)
+	require.Empty(t, s)
+}
+
+// TestOnceFunc tests the OnceFunc stream combinator.
+func TestOnceFunc(t *testing.T) {
+	t.Parallel()
+
+	// single-element variant
+	s, err := Collect(OnceFunc(func() (int, error) {
+		return 1, nil
+	}))
+	require.NoError(t, err)
+	require.Equal(t, []int{1}, s)
+
+	// empty stream case
+	s, err = Collect(OnceFunc(func() (int, error) {
+		return 1, io.EOF
+	}))
+	require.NoError(t, err)
+	require.Empty(t, s)
+
+	// error case
+	s, err = Collect(OnceFunc(func() (int, error) {
+		return 1, fmt.Errorf("unexpected error")
+	}))
+	require.Error(t, err)
 	require.Empty(t, s)
 }
 

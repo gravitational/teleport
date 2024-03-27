@@ -43,6 +43,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
+	apiremotecommand "k8s.io/apimachinery/pkg/util/remotecommand"
+	"k8s.io/apiserver/pkg/endpoints/responsewriter"
 	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -75,6 +77,12 @@ const (
 	StreamTypeError = "error"
 	// Value for streamType header for terminal resize stream
 	StreamTypeResize = "resize"
+
+	preV4BinaryWebsocketProtocol = wsstream.ChannelWebSocketProtocol
+	preV4Base64WebsocketProtocol = wsstream.Base64ChannelWebSocketProtocol
+	v4BinaryWebsocketProtocol    = "v4." + wsstream.ChannelWebSocketProtocol
+	v4Base64WebsocketProtocol    = "v4." + wsstream.Base64ChannelWebSocketProtocol
+	v5BinaryWebsocketProtocol    = "v5." + wsstream.ChannelWebSocketProtocol
 
 	// CloseStreamMessage is an expected keyword if stdin is enable and the
 	// underlying protocol does not support half closed streams.
@@ -335,18 +343,110 @@ func createRemoteCommandProxy(req remoteCommandRequest) (*remoteCommandProxy, er
 		err   error
 	)
 	if wsstream.IsWebSocketRequest(req.httpRequest) {
-		return nil, fmt.Errorf("only SPDY streams upgrades are supported")
-	}
-
-	proxy, err = createSPDYStreams(req)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		proxy, err = createWebSocketStreams(req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		proxy, err = createSPDYStreams(req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if proxy.resizeStream != nil {
 		proxy.resizeQueue = newTermQueue(req.context, req.onResize)
 		go proxy.resizeQueue.handleResizeEvents(proxy.resizeStream)
 	}
+	return proxy, nil
+}
+
+func channelOrIgnore(channel wsstream.ChannelType, real bool) wsstream.ChannelType {
+	if real {
+		return channel
+	}
+	return wsstream.IgnoreChannel
+}
+
+func createWebSocketStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {
+	channels := make([]wsstream.ChannelType, 5)
+	channels[apiremotecommand.StreamStdIn] = channelOrIgnore(wsstream.ReadChannel, req.stdin)
+	channels[apiremotecommand.StreamStdOut] = channelOrIgnore(wsstream.WriteChannel, req.stdout)
+	channels[apiremotecommand.StreamStdErr] = channelOrIgnore(wsstream.WriteChannel, req.stderr)
+	channels[apiremotecommand.StreamErr] = wsstream.WriteChannel
+	channels[apiremotecommand.StreamResize] = wsstream.ReadChannel
+
+	conn := wsstream.NewConn(map[string]wsstream.ChannelProtocolConfig{
+		"": {
+			Binary:   true,
+			Channels: channels,
+		},
+		preV4BinaryWebsocketProtocol: {
+			Binary:   true,
+			Channels: channels,
+		},
+		preV4Base64WebsocketProtocol: {
+			Binary:   false,
+			Channels: channels,
+		},
+		v4BinaryWebsocketProtocol: {
+			Binary:   true,
+			Channels: channels,
+		},
+		v4Base64WebsocketProtocol: {
+			Binary:   false,
+			Channels: channels,
+		},
+		v5BinaryWebsocketProtocol: {
+			Binary:   true,
+			Channels: channels,
+		},
+	})
+	conn.SetIdleTimeout(IdleTimeout)
+	_, streams, err := conn.Open(
+		responsewriter.GetOriginal(req.httpResponseWriter),
+		req.httpRequest,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "unable to upgrade websocket connection")
+	}
+
+	// Send an empty message to the lowest writable channel to notify the client the connection is established
+	switch {
+	case req.stdout:
+		streams[apiremotecommand.StreamStdOut].Write([]byte{})
+	case req.stderr:
+		streams[apiremotecommand.StreamStdErr].Write([]byte{})
+	default:
+		streams[apiremotecommand.StreamErr].Write([]byte{})
+	}
+
+	proxy := &remoteCommandProxy{
+		conn:         conn,
+		stdinStream:  streams[apiremotecommand.StreamStdIn],
+		stdoutStream: streams[apiremotecommand.StreamStdOut],
+		stderrStream: streams[apiremotecommand.StreamStdErr],
+		tty:          req.tty,
+		resizeStream: streams[apiremotecommand.StreamResize],
+	}
+
+	// When stdin, stdout or stderr are not enabled, websocket creates a io.Pipe
+	// for them so they are not nil.
+	// Since we need to forward to another k8s server (Teleport or real k8s API),
+	// we must disabled the readers, otherwise the SPDY executor will wait for
+	// read/write into the streams and will hang.
+	if !req.stdin {
+		proxy.stdinStream = nil
+	}
+	if !req.stdout {
+		proxy.stdoutStream = nil
+	}
+	if !req.stderr {
+		proxy.stderrStream = nil
+	}
+
+	proxy.writeStatus = v4WriteStatusFunc(streams[apiremotecommand.StreamErr])
+
 	return proxy, nil
 }
 

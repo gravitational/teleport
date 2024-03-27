@@ -62,10 +62,13 @@ spec:
                     properties:
                       day_of_month:
                         description: day_of_month is the day of month that reviews
-                          will be scheduled on.
+                          will be scheduled on. Supported values are 0, 1, 15, and
+                          31.
                         x-kubernetes-int-or-string: true
                       frequency:
-                        description: frequency is the frequency of reviews.
+                        description: frequency is the frequency of reviews. This represents
+                          the period in months between two reviews. Supported values
+                          are 0, 1, 3, 6, and 12.
                         x-kubernetes-int-or-string: true
                     type: object
                 type: object

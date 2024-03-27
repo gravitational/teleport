@@ -25,7 +25,9 @@ import { TableWrapper, HybridListProps } from '../common';
 import { CommonListProps, LockResourceKind } from '../../common';
 
 export type HybridListOpts = {
-  getFetchFn(selectedResourceKind: LockResourceKind): (p: any) => Promise<any>;
+  getFetchFn(
+    selectedResourceKind: LockResourceKind
+  ): (p: any, signal?: AbortSignal) => Promise<any>;
   getTable(
     selectedResourceKind: LockResourceKind,
     resources: any[],

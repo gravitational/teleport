@@ -272,7 +272,9 @@ func TestGatewayCRUD(t *testing.T) {
 				GatewayCreator: mockGatewayCreator,
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
-				ClientCache:    fakeClientCache{},
+				CreateClientCacheFunc: func(resolver ResolveClusterFunc) ClientCache {
+					return fakeClientCache{}
+				},
 			})
 			require.NoError(t, err)
 
@@ -451,7 +453,9 @@ func TestRetryWithRelogin(t *testing.T) {
 				},
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
-				ClientCache:    fakeClientCache{},
+				CreateClientCacheFunc: func(resolver ResolveClusterFunc) ClientCache {
+					return fakeClientCache{}
+				},
 			})
 			require.NoError(t, err)
 
@@ -502,7 +506,9 @@ func TestImportantModalSemaphore(t *testing.T) {
 		},
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
-		ClientCache:    fakeClientCache{},
+		CreateClientCacheFunc: func(resolver ResolveClusterFunc) ClientCache {
+			return fakeClientCache{}
+		},
 	})
 	require.NoError(t, err)
 
@@ -651,7 +657,9 @@ func TestGetGatewayCLICommand(t *testing.T) {
 		},
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
-		ClientCache:    fakeClientCache{},
+		CreateClientCacheFunc: func(resolver ResolveClusterFunc) ClientCache {
+			return fakeClientCache{}
+		},
 	})
 	require.NoError(t, err)
 

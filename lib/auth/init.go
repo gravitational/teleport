@@ -291,6 +291,9 @@ type InitConfig struct {
 	// Kubernetes ephemeral containers that are waiting
 	// to be created until moderated session conditions are met.
 	KubeWaitingContainers services.KubeWaitingContainer
+
+	// Notifications is a service that manages notifications.
+	Notifications services.Notifications
 }
 
 // Init instantiates and configures an instance of AuthServer

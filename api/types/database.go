@@ -887,6 +887,14 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	return nil
 }
 
+// IsEqual determines if two database resources are equivalent to one another.
+func (d *DatabaseV3) IsEqual(i Database) bool {
+	if other, ok := i.(*DatabaseV3); ok {
+		return deriveTeleportEqualDatabaseV3(d, other)
+	}
+	return false
+}
+
 // handleDynamoDBConfig handles DynamoDB configuration checking.
 func (d *DatabaseV3) handleDynamoDBConfig() error {
 	if d.Spec.AWS.AccountID == "" {

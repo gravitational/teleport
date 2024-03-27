@@ -88,6 +88,13 @@ func getServerInfoNames(node types.Server) []string {
 
 func (a *Server) setLabelsOnNodes(ctx context.Context, nodes []types.Server) (failedUpdates int, err error) {
 	for _, node := range nodes {
+		// EICE Node labels can't be updated using the Inventory Control Stream because there's no reverse tunnel.
+		// Labels are updated by the DiscoveryService during 'Server.handleEC2Instances'.
+		// The same is valid for OpenSSH Nodes.
+		if node.IsOpenSSHNode() {
+			continue
+		}
+
 		// Get the server infos that match this node.
 		serverInfoNames := getServerInfoNames(node)
 		serverInfos := make([]types.ServerInfo, 0, len(serverInfoNames))

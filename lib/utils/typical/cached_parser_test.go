@@ -35,7 +35,7 @@ func (t *testLogger) Infof(msg string, args ...any) {
 
 func TestCachedParser(t *testing.T) {
 	// A simple cached parser with no environment that always returns an int.
-	p, err := NewCachedParser[struct{}, int](ParserSpec{
+	p, err := NewCachedParser[struct{}, int](ParserSpec[struct{}]{
 		Functions: map[string]Function{
 			"inc": UnaryFunction[struct{}](func(i int) (int, error) {
 				return i + 1, nil

@@ -1749,6 +1749,9 @@ type Node interface {
 	GetUseTunnel() bool
 	// GetProxyIDs returns a list of proxy ids this server is connected to.
 	GetProxyIDs() []string
+	// IsEICE returns whether the Node is an EICE instance.
+	// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
+	IsEICE() bool
 }
 
 // GetNodes allows callers to retrieve a subset of nodes that match the filter provided. The

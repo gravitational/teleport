@@ -1,0 +1,24 @@
+{{- /* This template iterates over every CRD in the `operator-crds/` directory
+and creates them if needed. It also adds common labels, like any other
+Helm-deployed resource.
+
+We cannot rely on the "crds/" Helm directory as Helm's startegy is "fire and forget".
+We have no way to update the CRDs after the initial deployment. As Teleport keeps
+adding new field to existing CRs, we need a deployment strategy that supports
+updating CRDs.
+
+The obvious solution would be to have a separate chart for CRs but we wanted to
+have everything functional in a single "helm install", hence the rube goldberg
+mechanism to try to guess what to do with the CRDs (see the implementation of
+shouldInstallCRDs in _helpers.yaml for more details). */ -}}
+{{- if eq (include "teleport-cluster.operator.shouldInstallCRDs" . ) "true" -}}
+{{ $currentScope := .}}
+{{ range $path, $_ :=  .Files.Glob  "operator-crds/*" }}
+  {{- with $currentScope}}
+    {{- $crd := (.Files.Get $path | fromYaml) -}}
+    {{- $injectedCRD := mustMergeOverwrite $crd (include "teleport-cluster.operator.crdOverrides" $currentScope | fromYaml) -}}
+    {{- toYaml $injectedCRD -}}
+  {{- end }}
+---
+{{ end }}
+{{- end -}}

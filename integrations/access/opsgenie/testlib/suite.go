@@ -28,17 +28,17 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/opsgenie"
-	"github.com/gravitational/teleport/integrations/access/pagerduty"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 )
 
 const (
-	NotifyServiceName       = "Teleport Notifications"
-	NotifyServiceAnnotation = types.TeleportNamespace + types.ReqAnnotationNotifyServicesLabel
-	ResponderName1          = "Responder 1"
-	ResponderName2          = "Responder 2"
-	ResponderName3          = "Responder 3"
+	NotifyScheduleName         = "Teleport Notifications"
+	NotifyScheduleAnnotation   = types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel
+	ApprovalScheduleName       = "Teleport Approval"
+	ApprovalScheduleAnnotation = types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
+	ResponderName1             = "Responder 1"
+	ResponderName2             = "Responder 2"
 )
 
 // OpsgenieSuite is the OpsGenie access plugin test suite.
@@ -52,7 +52,6 @@ type OpsgenieSuite struct {
 	ogNotifyResponder opsgenie.Responder
 	ogResponder1      opsgenie.Responder
 	ogResponder2      opsgenie.Responder
-	ogResponder3      opsgenie.Responder
 }
 
 // SetupTest starts a fake OpsGenie and generates the plugin configuration.
@@ -72,30 +71,24 @@ func (s *OpsgenieSuite) SetupTest() {
 
 	// This service should be notified for every access request.
 	s.ogNotifyResponder = s.fakeOpsgenie.StoreResponder(opsgenie.Responder{
-		Name: NotifyServiceName,
+		Name: NotifyScheduleName,
 	})
 	s.AnnotateRequesterRoleAccessRequests(
 		ctx,
-		NotifyServiceAnnotation,
-		[]string{NotifyServiceName},
+		NotifyScheduleAnnotation,
+		[]string{NotifyScheduleName},
 	)
 
 	// Responder 1 and 2 are on-call and should be automatically approved.
 	// Responder 3 is not.
 	s.ogResponder1 = s.fakeOpsgenie.StoreResponder(opsgenie.Responder{
-		Name: ResponderName1,
+		Name: integration.Requester1UserName,
+		Type: opsgenie.ResponderTypeUser,
 	})
 	s.ogResponder2 = s.fakeOpsgenie.StoreResponder(opsgenie.Responder{
-		Name: ResponderName2,
+		Name: "Not a Teleport user",
+		Type: opsgenie.ResponderTypeUser,
 	})
-	s.ogResponder3 = s.fakeOpsgenie.StoreResponder(opsgenie.Responder{
-		Name: ResponderName3,
-	})
-	s.AnnotateRequesterRoleAccessRequests(
-		ctx,
-		pagerduty.ServicesDefaultAnnotation,
-		[]string{ResponderName1, ResponderName2},
-	)
 
 	var conf opsgenie.Config
 	conf.Teleport = s.TeleportConfig()
@@ -381,4 +374,86 @@ func (s *OpsgenieSuite) TestDenialByReview() {
 	alertUpdate, err := s.fakeOpsgenie.CheckAlertUpdate(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, "resolved", alertUpdate.Status)
+}
+
+// TestAutoApprovalWhenNotOnCall tests that access requests are not automatically
+// approved when the user is not on-call.
+func (s *OpsgenieSuite) TestAutoApprovalWhenNotOnCall() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	if !s.TeleportFeatures().AdvancedAccessWorkflows {
+		t.Skip("Doesn't work in OSS version")
+	}
+
+	// Test setup: create an on-call schedule with a non-Teleport user in it.
+	s.fakeOpsgenie.StoreSchedule(ApprovalScheduleName, s.ogResponder2)
+	s.AnnotateRequesterRoleAccessRequests(
+		ctx,
+		ApprovalScheduleAnnotation,
+		[]string{ApprovalScheduleName},
+	)
+
+	s.startApp()
+
+	// Test Execution: we create an access request and wait for its alert.
+	req := s.CreateAccessRequest(ctx, integration.Requester1UserName, nil)
+
+	// Validate the alert has been created in OpsGenie and its ID is stored in
+	// the plugin_data.
+	_ = s.checkPluginData(ctx, req.GetName(), func(data opsgenie.PluginData) bool {
+		return data.AlertID != ""
+	})
+
+	_, err := s.fakeOpsgenie.CheckNewAlert(ctx)
+	require.NoError(t, err, "no new alerts stored")
+
+	// Fetch updated access request
+	req, err = s.Ruler().GetAccessRequest(ctx, req.GetName())
+	require.NoError(t, err)
+
+	require.Empty(t, req.GetReviews(), "no review should be submitted automatically")
+}
+
+// TestAutoApprovalWhenOnCall tests that access requests are automatically
+// approved when the user is not on-call.
+func (s *OpsgenieSuite) TestAutoApprovalWhenOnCall() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	if !s.TeleportFeatures().AdvancedAccessWorkflows {
+		t.Skip("Doesn't work in OSS version")
+	}
+
+	// Test setup: create an on-call schedule with a non-Teleport user in it.
+	s.fakeOpsgenie.StoreSchedule(ApprovalScheduleName, s.ogResponder1, s.ogResponder2)
+	s.AnnotateRequesterRoleAccessRequests(
+		ctx,
+		ApprovalScheduleAnnotation,
+		[]string{ApprovalScheduleName},
+	)
+
+	s.startApp()
+
+	// Test Execution: we create an access request and wait for its alert.
+	req := s.CreateAccessRequest(ctx, integration.Requester1UserName, nil)
+
+	// Validate the alert has been created in OpsGenie and its ID is stored in
+	// the plugin_data.
+	_ = s.checkPluginData(ctx, req.GetName(), func(data opsgenie.PluginData) bool {
+		return data.AlertID != ""
+	})
+
+	_, err := s.fakeOpsgenie.CheckNewAlert(ctx)
+	require.NoError(t, err, "no new alerts stored")
+
+	// Fetch updated access request
+	req, err = s.Ruler().GetAccessRequest(ctx, req.GetName())
+	require.NoError(t, err)
+
+	reviews := req.GetReviews()
+	require.Len(t, reviews, 1, "a review should be submitted automatically")
+	require.Equal(t, types.RequestState_APPROVED, reviews[0].ProposedState)
 }
