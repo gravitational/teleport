@@ -120,7 +120,8 @@ func NewMockEventsProcess(ctx context.Context, t *testing.T, config Config, fn E
 	}
 	t.Cleanup(func() {
 		process.Terminate()
-		assert.NoError(t, process.Shutdown(ctx))
+		err := process.Shutdown(ctx)
+		assert.ErrorContains(t, err, context.Canceled.Error(), "if a non-nil error is returned, it should be canceled context")
 		process.Close()
 	})
 	var err error
