@@ -437,6 +437,26 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	userNotificationCache, err := services.NewUserNotificationCache(services.NotificationCacheConfig{
+		Events: srv.AuthServer.Services,
+		Getter: srv.AuthServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	srv.AuthServer.SetUserNotificationCache(userNotificationCache)
+
+	globalNotificationCache, err := services.NewGlobalNotificationCache(services.NotificationCacheConfig{
+		Events: srv.AuthServer.Services,
+		Getter: srv.AuthServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	srv.AuthServer.SetGlobalNotificationCache(globalNotificationCache)
+
 	// Auth initialization is done (including creation/updating of all singleton
 	// configuration resources) so now we can start the cache.
 	if c, ok := srv.AuthServer.Cache.(*cache.Cache); ok {
