@@ -55,8 +55,16 @@ type App struct {
 	// aws_console is true if this app is AWS management console.
 	AwsConsole bool `protobuf:"varint,5,opt,name=aws_console,json=awsConsole,proto3" json:"aws_console,omitempty"`
 	// public_addr is the public address the application is accessible at.
+	// By default, it is a subdomain of the cluster (e.g., dumper.example.com).
+	// Optionally, it can be overridden (by the 'public_addr' field in the app config)
+	// with an address available on the internet.
+	//
+	// Always empty for SAML applications.
 	PublicAddr string `protobuf:"bytes,6,opt,name=public_addr,json=publicAddr,proto3" json:"public_addr,omitempty"`
 	// friendly_name is a user readable name of the app.
+	// Right now, it is set only for Okta applications.
+	// It is constructed from a label value.
+	// See more in api/types/resource.go.
 	FriendlyName string `protobuf:"bytes,7,opt,name=friendly_name,json=friendlyName,proto3" json:"friendly_name,omitempty"`
 	// saml_app is true if the application is a SAML Application (Service Provider).
 	SamlApp bool `protobuf:"varint,8,opt,name=saml_app,json=samlApp,proto3" json:"saml_app,omitempty"`

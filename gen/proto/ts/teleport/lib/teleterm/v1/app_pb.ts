@@ -70,12 +70,20 @@ export interface App {
     awsConsole: boolean;
     /**
      * public_addr is the public address the application is accessible at.
+     * By default, it is a subdomain of the cluster (e.g., dumper.example.com).
+     * Optionally, it can be overridden (by the 'public_addr' field in the app config)
+     * with an address available on the internet.
+     *
+     * Always empty for SAML applications.
      *
      * @generated from protobuf field: string public_addr = 6;
      */
     publicAddr: string;
     /**
      * friendly_name is a user readable name of the app.
+     * Right now, it is set only for Okta applications.
+     * It is constructed from a label value.
+     * See more in api/types/resource.go.
      *
      * @generated from protobuf field: string friendly_name = 7;
      */

@@ -67,54 +67,14 @@ export interface Server extends apiServer.Server {
 
 export interface App extends apiApp.App {
   uri: uri.AppUri;
-  /** Name of the application. */
-  name: string;
-  /** URI and port the target application is available at. */
-  endpointUri: string;
-  /** Description of the application. */
-  desc: string;
-  /** Indicates if the application is an AWS management console. */
-  awsConsole: boolean;
-  /**
-   * The application public address.
-   * By default, it is a subdomain of the cluster (e.g., dumper.example.com).
-   * Optionally, it can be overridden (by the 'public_addr' field in the app config)
-   * with an address available on the internet.
-   *
-   * Always empty for SAML applications.
-   */
-  publicAddr: string;
-  /**
-   * Right now, `friendlyName` is set only for Okta applications.
-   * It is constructed from a label value.
-   * See more in api/types/resource.go.
-   */
-  friendlyName: string;
-  /** Indicates if the application is a SAML Application (SAML IdP Service Provider). */
-  samlApp: boolean;
 }
 
 export interface Gateway extends apiGateway.Gateway {
   uri: uri.GatewayUri;
   targetUri: uri.GatewayTargetUri;
-  // The type of gatewayCliCommand was repeated here just to refer to the type with the JSDoc.
   gatewayCliCommand: GatewayCLICommand;
 }
 
-/**
- * GatewayCLICommand follows the API of os.exec.Cmd from Go.
- * https://pkg.go.dev/os/exec#Cmd
- *
- * @property {string} path - The absolute path to the CLI client of a gateway if the client is
- * in PATH. Otherwise, the name of the program we were trying to find.
- * @property {string[]} argsList - A list containing the name of the program as the first element
- * and the actual args as the other elements.
- * @property {string[]} envList – A list of env vars that need to be set for the command
- * invocation. The elements of the list are in the format of NAME=value.
- * @property {string} preview - A string showing how the invocation of the command would look like
- * if the user was to invoke it manually from the terminal. Should not be actually used to execute
- * anything in the shell.
- */
 export type GatewayCLICommand = apiGateway.GatewayCLICommand;
 
 export type AccessRequest = apiAccessRequest.AccessRequest;
@@ -160,46 +120,12 @@ export interface Database extends apiDb.Database {
 }
 
 export interface Cluster extends apiCluster.Cluster {
-  /**
-   * The URI of the cluster.
-   *
-   * For root clusters, it has the form of `/clusters/:rootClusterId` where `rootClusterId` is the
-   * name of the profile, that is the hostname of the proxy used to connect to the root cluster.
-   * `rootClusterId` is not equal to the name of the root cluster.
-   *
-   * For leaf clusters, it has the form of `/clusters/:rootClusterId/leaves/:leafClusterId` where
-   * `leafClusterId` is equal to the `name` property of the cluster.
-   */
   uri: uri.ClusterUri;
-  /**
-   * loggedInUser is present if the user has logged in to the cluster at least once. This
-   * includes a situation in which the cert has expired. If the cluster was added to the app but the
-   * user is yet to log in, loggedInUser is not present.
-   */
   loggedInUser?: LoggedInUser;
-  /**
-   * Address of the proxy used to connect to this cluster. Always includes port number. Present only
-   * for root clusters.
-   *
-   * @example
-   * "teleport-14-ent.example.com:3090"
-   */
-  proxyHost: string;
 }
 
-/**
- * LoggedInUser describes loggedInUser field available on root clusters.
- *
- * loggedInUser is present if the user has logged in to the cluster at least once. This
- * includes a situation in which the cert has expired. If the cluster was added to the app but the
- * user is yet to log in, loggedInUser is not present.
- */
 export type LoggedInUser = apiCluster.LoggedInUser & {
   assumedRequests?: Record<string, AssumedRequest>;
-  /**
-   * acl is available only after the cluster details are fetched, as acl is not stored on disk.
-   */
-  acl?: apiCluster.ACL;
 };
 export type AuthProvider = apiAuthSettings.AuthProvider;
 export type AuthSettings = apiAuthSettings.AuthSettings;

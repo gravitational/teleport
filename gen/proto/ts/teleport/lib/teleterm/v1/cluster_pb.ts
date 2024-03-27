@@ -31,13 +31,19 @@ import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
 /**
- * Cluster describes cluster fields
+ * Cluster describes cluster fields.
  *
  * @generated from protobuf message teleport.lib.teleterm.v1.Cluster
  */
 export interface Cluster {
     /**
-     * uri is the cluster resource URI
+     * uri is the cluster resource URI.
+     * For root clusters, it has the form of /clusters/:rootClusterId where rootClusterId is the
+     * name of the profile, that is the hostname of the proxy used to connect to the root cluster.
+     * rootClusterId is not equal to the name of the root cluster.
+     *
+     * For leaf clusters, it has the form of /clusters/:rootClusterId/leaves/:leafClusterId where
+     * leafClusterId is equal to the name property of the cluster.
      *
      * @generated from protobuf field: string uri = 1;
      */
@@ -49,7 +55,10 @@ export interface Cluster {
      */
     name: string;
     /**
-     * proxy address (only for root clusters)
+     * proxy_host is address of the proxy used to connect to this cluster.
+     * Always includes port number. Present only for root clusters.
+     *
+     * Example: "teleport-14-ent.example.com:3090"
      *
      * @generated from protobuf field: string proxy_host = 3;
      */
@@ -68,7 +77,9 @@ export interface Cluster {
      */
     leaf: boolean;
     /**
-     * User is the cluster access control list of the logged-in user
+     * logged_in_user is present if the user has logged in to the cluster at least once, even
+     * if the cert has since expired. If the cluster was added to the app but the
+     * user is yet to log in, logged_in_user is not present.
      *
      * @generated from protobuf field: teleport.lib.teleterm.v1.LoggedInUser logged_in_user = 7;
      */
@@ -121,7 +132,8 @@ export interface LoggedInUser {
      */
     sshLogins: string[];
     /**
-     * acl is the user acl
+     * acl is a user access control list.
+     * It is available only after the cluster details are fetched, as it is not stored on disk.
      *
      * @generated from protobuf field: teleport.lib.teleterm.v1.ACL acl = 4;
      */
