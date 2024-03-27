@@ -2589,11 +2589,11 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	err = funcs.deleteAll(ctx)
 	require.NoError(t, err)
 	// Check that information has been replicated to the cache.
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Check that the cache is now empty.
 		out, err = funcs.cacheList(ctx)
 		assert.NoError(t, err)
-		return len(out) == 0
+		assert.Empty(t, out)
 	}, time.Second*2, time.Millisecond*250)
 }
 
@@ -2665,11 +2665,11 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 	require.NoError(t, err)
 
 	// Check that information has been replicated to the cache.
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Check that the cache is now empty.
 		out, err = funcs.cacheList(ctx)
 		assert.NoError(t, err)
-		return len(out) == 0
+		assert.Empty(t, out)
 	}, time.Second*2, time.Millisecond*250)
 }
 
