@@ -41,7 +41,7 @@ func TestSetLogLevel(t *testing.T) {
 	defer closeFn()
 
 	// All supported log levels should be accepted here.
-	for _, level := range logutils.SupportedLogLevelsString {
+	for _, level := range logutils.SupportedLevelsString {
 		t.Run(level, func(t *testing.T) {
 			err := onSetLogLevel(configFilePath, level)
 			require.NoError(t, err)

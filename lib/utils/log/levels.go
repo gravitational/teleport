@@ -24,9 +24,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// SupportedLogLevelsString list of the supported log levels in their string
+// SupportedLevelsString list of the supported log levels in their string
 // representation. All strings are in uppercase.
-var SupportedLogLevelsString = []string{
+var SupportedLevelsString = []string{
 	TraceLevelString,
 	slog.LevelDebug.String(),
 	slog.LevelInfo.String(),

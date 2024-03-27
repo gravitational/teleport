@@ -141,7 +141,7 @@ func (c *debugServiceClient) do(ctx context.Context, method, path string, body [
 func onSetLogLevel(configPath string, level string) error {
 	ctx := context.Background()
 
-	if contains := slices.Contains(logutils.SupportedLogLevelsString, strings.ToUpper(level)); !contains {
+	if contains := slices.Contains(logutils.SupportedLevelsString, strings.ToUpper(level)); !contains {
 		return trace.BadParameter("%q log level not supported", level)
 	}
 
