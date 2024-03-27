@@ -41,14 +41,14 @@ by continuously scanning the configured AWS accounts.
 At intervals of 15 minutes, it retrieves the following resources from your
 AWS account:
 
-- AWS Users
-- AWS Groups
-- AWS User Groups
-- AWS IAM Roles
-- AWS IAM Policies
-- AWS EKS Clusters
-- AWS RDS Databases
-- AWS S3 Buckets
+- Users
+- Groups
+- User Groups
+- IAM Roles
+- IAM Policies
+- EKS Clusters
+- RDS Databases
+- S3 Buckets
 
 Once all the necessary resources are fetched, the Teleport Discovery
 Service pushes them to the Teleport Access Graph (TAG) service, 
@@ -61,18 +61,11 @@ Teleport Access Graph delves into the IAM policies, identities,
 and resources retrieved from your AWS account, crafting a 
 graphical representation thereof.
 
-Throughout this procedure, Access Graph seamlessly aligns
-Teleport resources operating within the AWS account with
-their corresponding AWS IAM identities. This integration
-provides an enriched perspective, facilitating a deeper
-comprehension of users' AWS access patterns, especially
-when utilizing one of the nodes as a jump host.
-
 
 ## Prerequisites
 
 - A running Teleport Enterprise cluster v14.3.9/v15.2.0 or later.
-- An updated `license.pem` with Teleport Policy enabled.
+- For self-hosted clusters, an updated `license.pem` with Teleport Policy enabled.
 - Docker version v(=docker.version=) or later.
 - A running Teleport Access Graph node v1.7.0 or later.
 - The node running the Access Graph service must be reachable
