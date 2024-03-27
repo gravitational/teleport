@@ -630,7 +630,6 @@ func TestSuggestAccessLists(t *testing.T) {
 	// assign the admin role and preferred_drink=fanta to reviewer
 	user, err := types.NewUser("reviewer")
 	require.NoError(t, err)
-	require.NoError(t, err)
 	user.SetRoles([]string{requesterRoleName})
 	user.SetTraits(trait.Traits{"preferred_drink": []string{"fanta"}})
 	_, err = authServer.UpsertUser(ctx, user)
@@ -744,10 +743,7 @@ func TestPromoteAccessRequest(t *testing.T) {
 	ctx := context.Background()
 	s := newWebSuite(t)
 
-	// Create users
-	s.createUser(t, "reviewer", "reviewer", s.testPassword(), s.testOtpSecret())
-	s.createUser(t, "requester", "requester", s.testPassword(), s.testOtpSecret())
-
+	authServer := s.testAuthServer.AuthServer.AuthServer
 	authClient := s.newAdminAuthClient(s.ctx, t)
 
 	createNode := func() types.Server {
@@ -760,7 +756,7 @@ func TestPromoteAccessRequest(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		_, err = authClient.UpsertNode(ctx, node)
+		_, err = authServer.UpsertNode(ctx, node)
 		require.NoError(t, err)
 
 		return node
@@ -825,16 +821,9 @@ func TestPromoteAccessRequest(t *testing.T) {
 	}
 
 	upsertRole := func(roleName string, allow types.RoleConditions) {
-		_, err := auth.CreateRole(context.Background(), authClient, roleName, types.RoleSpecV6{
+		_, err := auth.CreateRole(context.Background(), authServer, roleName, types.RoleSpecV6{
 			Allow: allow,
 		})
-		require.NoError(t, err)
-	}
-	assignRole := func(userName string, role string) {
-		user, err := authClient.GetUser(ctx, userName, false)
-		require.NoError(t, err)
-		user.SetRoles([]string{role})
-		_, err = authClient.UpsertUser(ctx, user)
 		require.NoError(t, err)
 	}
 
@@ -859,9 +848,21 @@ func TestPromoteAccessRequest(t *testing.T) {
 		},
 	})
 
-	// assign roles to users
-	assignRole("reviewer", "reviewerRole")
-	assignRole("requester", "requesterRole")
+	createUserWithRole := func(username string, role string) {
+		user, err := types.NewUser(username)
+		require.NoError(t, err)
+		user.SetRoles([]string{role})
+		_, err = authServer.Services.UpsertUser(ctx, user)
+		require.NoError(t, err)
+
+		// Create password, so we can log in as the user
+		err = authServer.UpsertPassword(username, []byte(s.testPassword()))
+		require.NoError(t, err)
+	}
+
+	// create users with required roles
+	createUserWithRole("reviewer", "reviewerRole")
+	createUserWithRole("requester", "requesterRole")
 
 	accessList := createAccessList()
 	accessListNoAccess := createAccessListNoAccess()
