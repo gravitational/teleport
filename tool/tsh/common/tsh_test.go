@@ -1450,7 +1450,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			stderrAssertion: func(t require.TestingT, v any, i ...any) {
 				out, ok := v.(string)
 				require.True(t, ok, i...)
-				require.Contains(t, out, fmt.Sprintf("access denied to %s connecting to", user.Username), i...)
+				require.Contains(t, out, fmt.Sprintf("access denied connecting to %v as %v", sshHostID, user.Username), i...)
 			},
 			errAssertion: require.Error,
 		},
@@ -1620,7 +1620,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			stderrAssertion: func(t require.TestingT, v any, i ...any) {
 				out, ok := v.(string)
 				require.True(t, ok, i...)
-				require.Contains(t, out, "access denied to invalid connecting to", i...)
+				require.Contains(t, out, "access denied connecting to", i...)
 			},
 			errAssertion: require.Error,
 		},
@@ -1635,7 +1635,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			stderrAssertion: func(t require.TestingT, v any, i ...any) {
 				out, ok := v.(string)
 				require.True(t, ok, i...)
-				require.Contains(t, out, "access denied to invalid connecting to", i...)
+				require.Contains(t, out, "access denied connecting to", i...)
 			},
 			errAssertion: require.Error,
 		},
