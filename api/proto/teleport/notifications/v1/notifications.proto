@@ -48,6 +48,8 @@ message NotificationSpec {
   google.protobuf.Timestamp created = 2;
   // unscoped is whether the notification shouldn't be restricted to a specific audience. This is to prevent the potential future possibility that a user-specific notification contains information that the user should no longer be allowed to see. Default is true.
   bool unscoped = 3;
+  // username is the username of the target user if this is a user-specific notification. Requests for global notifications with a username will be rejected.
+  string username = 4;
 }
 
 // GlobalNotification represents a global notification.
