@@ -29,8 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-var _ AccessMonitoringRules = (*accessmonitoringrules.Client)(nil)
-
 // AccessMonitoringRules is the AccessMonitoringRule service
 type AccessMonitoringRules interface {
 	CreateAccessMonitoringRule(ctx context.Context, in *accessmonitoringrulesv1.AccessMonitoringRule) (*accessmonitoringrulesv1.AccessMonitoringRule, error)
