@@ -98,7 +98,7 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 		// 2 minutes timeout is semi-random decision, chosen based on the fact that
 		// when creating workforce pool from the GCP web console, it mentions
 		// that the operation could take up to 2 minutes.
-		pollCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
+		pollCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 		defer cancel()
 
 		if err := waitForPoolStatus(pollCtx, workforceService, poolFullName, s.APIParams.PoolName); err != nil {
