@@ -29,6 +29,10 @@ import (
 )
 
 const (
+	// Avoid page sizes that are too large, it can cause "the read limit is
+	// reached" errors.
+	inventoryReadDefaultPageSize = 100
+
 	sortByID             = "id:asc"
 	sortByReportDateDesc = "general.reportDate:desc"
 )
@@ -263,6 +267,7 @@ func (s *S) Run(ctx context.Context) error {
 				OnMissing:  e.Entry.onMissing,
 				FilterRSQL: e.Entry.FilterRsql,
 				CutTime:    e.Entry.cutTime,
+				PageSize:   int(e.Entry.PageSize),
 			})
 			syncsTotal.WithLabelValues(
 				strconv.Itoa(int(e.Mode)),
@@ -302,17 +307,26 @@ type RunSpec struct {
 	// CutTime is the cut time for partial syncs. The sync stops as soon as the
 	// first computer modified before `CutTime` is found.
 	CutTime time.Time
+	// PageSize is the page size to use when querying the Jamf inventory.
+	// If zero or negative a default value is used.
+	PageSize int
 }
 
 // RunOnce attempts to perform a single sync operation with the given [RunSpec].
 // Returns the cut time for the next sync, acquired from the first computer read
 // from Jamf.
 func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, err error) {
+	pageSize := spec.PageSize
+	if pageSize <= 0 {
+		pageSize = inventoryReadDefaultPageSize
+	}
+
 	s.logger.WithFields(log.Fields{
 		"Mode":       spec.Mode,
 		"FilterRSQL": spec.FilterRSQL,
 		"OnMissing":  spec.OnMissing,
 		"CutTime":    spec.CutTime,
+		"PageSize":   pageSize,
 	}).Info("Starting sync")
 	start := s.clock.Now()
 
@@ -366,7 +380,7 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 				jamf.SectionLocalUserAccounts,
 				jamf.SectionOperatingSystem,
 			},
-			PageSize: 1000,               // arbitrary
+			PageSize: pageSize,
 			Sort:     []string{sortByID}, // expected to be more "stable" than timestamps
 			Filter:   spec.FilterRSQL,
 		}
