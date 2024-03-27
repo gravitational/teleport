@@ -443,6 +443,28 @@ instance and attach an IAM role to it.
 
 (!docs/pages/includes/aws-no-credential-provider.mdx service="Application"!)
 
+### `the read limit is reached` error when updating AWS lambda function
+
+Teleport enforces a 10MB size limit for each HTTP request's body.
+You may encounter this error when updating an AWS lambda function using
+`tsh aws update-function-code --function-name myfunction --zip-file ./file.zip`
+if `file.zip` is larger than 10MB.
+
+AWS also limits zip file size to 50MB.
+You can workaround this issue in the same way you would work around AWS's direct
+upload size limit: upload your lambda function archive to an s3 bucket,
+and then update your lambda function by referencing the s3 bucket instead of
+uploading an archive directly:
+
+```code
+# create an s3 bucket
+$ tsh aws s3 mb s3://mybucket
+# upload function to the bucket
+$ tsh aws s3 cp ./file.zip s3://mybucket/path/to/file.zip
+# update your lambda function by using the s3 bucket
+$ tsh aws lambda update-function-code --function-name myfunction --s3-bucket mybucket --s3-key path/to/file.zip
+```
+
 ## Next steps
 
 - Take a closer look at [role-based access controls](../controls.mdx).
