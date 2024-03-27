@@ -28,6 +28,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
+	"github.com/gravitational/teleport/integrations/operator/controllers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 )
 
 // roleClient implements TeleportResourceClient and offers CRUD methods needed to reconcile roles
@@ -62,12 +64,12 @@ func (r roleClient) Delete(ctx context.Context, name string) error {
 }
 
 // NewRoleReconciler instantiates a new Kubernetes controller reconciling legacy role v5 resources
-func NewRoleReconciler(client kclient.Client, tClient *client.Client) (Reconciler, error) {
+func NewRoleReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
 	roleClient := &roleClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler, err := NewTeleportResourceReconciler[types.Role, *resourcesv5.TeleportRole](
+	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Role, *resourcesv5.TeleportRole](
 		client,
 		roleClient,
 	)
@@ -76,12 +78,12 @@ func NewRoleReconciler(client kclient.Client, tClient *client.Client) (Reconcile
 }
 
 // NewRoleV6Reconciler instantiates a new Kubernetes controller reconciling role v6 resources
-func NewRoleV6Reconciler(client kclient.Client, tClient *client.Client) (Reconciler, error) {
+func NewRoleV6Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
 	roleClient := &roleClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler, err := NewTeleportResourceReconciler[types.Role, *resourcesv1.TeleportRoleV6](
+	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Role, *resourcesv1.TeleportRoleV6](
 		client,
 		roleClient,
 	)
@@ -90,12 +92,12 @@ func NewRoleV6Reconciler(client kclient.Client, tClient *client.Client) (Reconci
 }
 
 // NewRoleV7Reconciler instantiates a new Kubernetes controller reconciling role v7 resources
-func NewRoleV7Reconciler(client kclient.Client, tClient *client.Client) (Reconciler, error) {
+func NewRoleV7Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
 	roleClient := &roleClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler, err := NewTeleportResourceReconciler[types.Role, *resourcesv1.TeleportRoleV7](
+	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Role, *resourcesv1.TeleportRoleV7](
 		client,
 		roleClient,
 	)

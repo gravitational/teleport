@@ -21,7 +21,6 @@ import { Platform } from 'design/platform';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
 import { DiscoverEventResource } from 'teleport/services/userEvent';
-import cfg from 'teleport/config';
 
 import { ResourceKind } from '../Shared/ResourceKind';
 
@@ -37,7 +36,6 @@ import {
   ResourceSpec,
   ServerLocation,
 } from './types';
-import { SAML_APPLICATIONS } from './resourcesE';
 
 const baseServerKeywords = 'server node';
 const awsKeywords = 'aws amazon ';
@@ -151,7 +149,7 @@ export const KUBERNETES: ResourceSpec[] = [
   },
 ];
 
-const BASE_RESOURCES: ResourceSpec[] = [
+export const BASE_RESOURCES: ResourceSpec[] = [
   ...APPLICATIONS,
   ...KUBERNETES,
   ...WINDOWS_DESKTOPS,
@@ -160,10 +158,6 @@ const BASE_RESOURCES: ResourceSpec[] = [
   ...DATABASES_UNGUIDED,
   ...DATABASES_UNGUIDED_DOC,
 ];
-
-export const RESOURCES = !cfg.isEnterprise
-  ? BASE_RESOURCES
-  : [...BASE_RESOURCES, ...SAML_APPLICATIONS];
 
 export function getResourcePretitle(r: ResourceSpec) {
   if (!r) {
