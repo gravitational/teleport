@@ -46,7 +46,7 @@ type GCPWorkforceService struct {
 	HTTPClient *http.Client
 }
 
-// NewGCPWorkforceService creates a new GCPWorkforceService.
+// NewGCPWorkforceService creates a new GCPWorkforceService with input validation.
 func NewGCPWorkforceService(cfg GCPWorkforceService) (*GCPWorkforceService, error) {
 	newGCPWorkforceService := &GCPWorkforceService{
 		APIParams: samlidpconfig.GCPWorkforceAPIParams{
