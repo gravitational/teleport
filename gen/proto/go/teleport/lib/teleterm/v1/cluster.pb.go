@@ -100,7 +100,7 @@ type Cluster struct {
 	// rootClusterId is not equal to the name of the root cluster.
 	//
 	// For leaf clusters, it has the form of /clusters/:rootClusterId/leaves/:leafClusterId where
-	// leafClusterId` is equal to the name property of the cluster.
+	// leafClusterId is equal to the name property of the cluster.
 	Uri string `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
 	// name is used throughout the Teleport Connect codebase as the cluster name.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
