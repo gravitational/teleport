@@ -167,6 +167,13 @@ repositories.
    $ export TELEPORT_CHANNEL=stable/cloud
    ```
 
+   If you are installing Teleport on Debian or Ubuntu, `TELEPORT_PKG` is
+   slightly different:
+
+   ```code
+   $ export TELEPORT_PKG="teleport-ent=${TELEPORT_VERSION?} teleport-ent-updater"
+   ```
+
    </TabItem>
    <TabItem label="Teleport Enterprise (Self-Hosted)">
    
