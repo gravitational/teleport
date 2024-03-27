@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -67,7 +68,7 @@ func NewGCPWorkforceService(cfg GCPWorkforceService) (*GCPWorkforceService, erro
 // CreateWorkforcePoolAndProvider creates GCP Workforce Identity Federation pool and pool provider
 // with the given GCPWorkforceAPIParams values.
 func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context) error {
-	fmt.Println("\nConfiguring Workforce Identity Federation pool and SAML provider.")
+	slog.Info("Configuring Workforce Identity Federation pool and SAML provider.")
 
 	iamService, err := iam.NewService(ctx)
 	if err != nil {
@@ -75,7 +76,7 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 	}
 	workforceService := iam.NewLocationsWorkforcePoolsService(iamService)
 
-	fmt.Println("\nCreating workforce pool: ", s.APIParams.PoolName)
+	slog.With("pool name", s.APIParams.PoolName).Info("Creating workforce pool.")
 	poolFullName := fmt.Sprintf("locations/global/workforcePools/%s", s.APIParams.PoolName)
 	createPool := workforceService.Create(
 		"locations/global",
@@ -91,7 +92,8 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 		// TODO(sshah): parse through error type for better error handling
 		return trace.Wrap(err)
 	}
-	fmt.Println("Pool created.")
+
+	slog.Info("Pool created.")
 	if !resp.Done {
 		// 2 minutes timeout is semi-random decision, chosen based on the fact that
 		// when creating workforce pool from the GCP web console, it mentions
@@ -102,10 +104,10 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 		if err := waitForPoolStatus(pollCtx, workforceService, poolFullName, s.APIParams.PoolName); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("Pool %q is ready for use.\n", s.APIParams.PoolName)
+		slog.With("pool name", s.APIParams.PoolName, "Pool ready for use.")
 	}
 
-	fmt.Println("\nCreating workforce pool provider: ", s.APIParams.PoolProviderName)
+	slog.With("pool provider name", s.APIParams.PoolProviderName).Info("Creating workforce pool provider.")
 	metadata, err := fetchIdPMetadata(s.APIParams.SAMLIdPMetadataURL, s.HTTPClient)
 	if err != nil {
 		return trace.Wrap(err)
@@ -131,18 +133,18 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 	}
 
 	if !createProviderResp.Done {
-		fmt.Printf("Pool provider %q is created but it may take upto a minute more for this provider to become available.\n\n", s.APIParams.PoolProviderName)
+		slog.With("pool provider name", s.APIParams.PoolProviderName).Info("Pool provider is created but it may take upto a minute more for this provider to become available.")
 		return nil
 	}
-	fmt.Println("Pool provider created.")
-	fmt.Printf("Pool provider %q is ready for use.\n", s.APIParams.PoolProviderName)
+	slog.Info("Pool provider created.")
+	slog.With("pool provider name", s.APIParams.PoolProviderName).Info("Pool provider is ready for use.")
 	return nil
 }
 
 // waitForPoolStatus waits for pool to come online. Returns immediately if error code is other than
 // http.StatusForbidden or when context is canceled with timeout.
 func waitForPoolStatus(ctx context.Context, workforceService *iam.LocationsWorkforcePoolsService, poolName, poolDisplayName string) error {
-	fmt.Printf("Waiting for pool %q status to become available.\n", poolDisplayName)
+	slog.With("pool name", poolDisplayName).Info("Waiting for pool status to become available.")
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
@@ -167,8 +169,11 @@ func waitForPoolStatus(ctx context.Context, workforceService *iam.LocationsWorkf
 				return err
 			}
 
-			fmt.Printf("Pool %q found at localtion %q.\n", poolDisplayName, result.Name)
-			return nil
+			if result.State == "ACTIVE" {
+				slog.With("pool name", poolDisplayName).Info("Pool found.")
+				return nil
+			}
+
 		}
 	}
 }
@@ -181,7 +186,7 @@ func fetchIdPMetadata(metadataURL string, httpClient *http.Client) (string, erro
 	if httpClient == nil {
 		return "", trace.BadParameter("missing http client")
 	}
-	fmt.Println("Fetching Teleport SAML IdP metadata.")
+	slog.Info("Fetching Teleport SAML IdP metadata.")
 	resp, err := httpClient.Get(metadataURL)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -197,7 +202,7 @@ func fetchIdPMetadata(metadataURL string, httpClient *http.Client) (string, erro
 		return "", trace.Wrap(err)
 	}
 
-	fmt.Println("Fetched Teleport SAML IdP metadata.")
+	slog.Info("Fetched Teleport SAML IdP metadata.")
 	return string(body), nil
 }
 
