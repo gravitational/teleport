@@ -622,7 +622,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onIntegrationConfExternalAuditCmd(ccf.IntegrationConfExternalAuditStorageArguments)
 	case integrationConfTAGSyncCmd.FullCommand():
 		err = onIntegrationConfAccessGraphAWSSync(ccf.IntegrationConfAccessGraphAWSSyncArguments)
-	case integrationConfSAMLIdP.FullCommand():
+	case integrationSAMLIdPGCPWorkforce.FullCommand():
 		err = onIntegrationConfSAMLIdPGCPWorkforce(ccf.IntegrationConfSAMLIdPGCPWorkforceArguments)
 	}
 	if err != nil {
@@ -1140,7 +1140,7 @@ func onIntegrationConfAccessGraphAWSSync(params config.IntegrationConfAccessGrap
 	return nil
 }
 
-func onIntegrationConfSAMLIdPGCPWorkforce(params samlidpconfig.GCPWorkforceParams) error {
+func onIntegrationConfSAMLIdPGCPWorkforce(params samlidpconfig.GCPWorkforceAPIParams) error {
 	ctx := context.Background()
 
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
