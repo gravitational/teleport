@@ -1028,6 +1028,11 @@ func TestWebSessionsBadInput(t *testing.T) {
 	otpSecret := newOTPSharedSecret()
 	badSecret := newOTPSharedSecret()
 
+	u, err := types.NewUser(user)
+	require.NoError(t, err)
+	_, err = authServer.CreateUser(ctx, u)
+	require.NoError(t, err)
+
 	err = authServer.UpsertPassword(user, []byte(pass))
 	require.NoError(t, err)
 
@@ -4966,6 +4971,12 @@ func TestCreateRegisterChallenge(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Create a user.
+	u, err := types.NewUser("llama")
+	require.NoError(t, err)
+	_, err = env.server.Auth().CreateUser(ctx, u)
 	require.NoError(t, err)
 
 	// Acquire an accepted token.

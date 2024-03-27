@@ -27,6 +27,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -58,6 +59,171 @@ func newIdentityService(t *testing.T, clock clockwork.Clock) *local.IdentityServ
 	})
 	require.NoError(t, err)
 	return local.NewIdentityService(backend)
+}
+
+func TestIdentityService_CreateUser(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+
+	tests := []struct {
+		desc, username, password, role string
+	}{{
+		desc:     "user without a password",
+		username: "capybara",
+		role:     "access",
+	}, {
+		desc:     "user with a password",
+		username: "llama",
+		password: "verysecret",
+		role:     "editor",
+	}}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			user, err := types.NewUser(tt.username)
+			require.NoError(t, err)
+			user.AddRole(tt.role)
+			if tt.password != "" {
+				hash, err := bcrypt.GenerateFromPassword(([]byte(tt.password)), bcrypt.MinCost)
+				require.NoError(t, err, "Unable to generate password hash")
+				user.SetLocalAuth(&types.LocalAuthSecrets{PasswordHash: hash})
+			}
+			created, err := identity.CreateUser(ctx, user)
+			require.NoError(t, err, "failed to create the user")
+			assert.Empty(t, cmp.Diff(user, created), "incorrect value returned from CreateUser")
+
+			got, err := identity.GetUser(ctx, tt.username, true /* withSecrets */)
+			require.NoError(t, err, "failed to get the user")
+			assert.Equal(t, []string{tt.role}, got.GetRoles(), "roles are not set")
+			if tt.password != "" {
+				bcrypt.CompareHashAndPassword(got.GetLocalAuth().PasswordHash, []byte(tt.password))
+				assert.NoError(t, err, "password hash does not match")
+			}
+			assert.Empty(t, cmp.Diff(
+				created, got, cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+			), "got user different from created")
+		})
+	}
+}
+
+func newFakeWebauthnDevice(name string, credentialId []byte) *types.MFADevice {
+	d := types.NewMFADevice(name, uuid.NewString(), time.Now())
+	d.Device = &types.MFADevice_Webauthn{
+		Webauthn: &types.WebauthnDevice{
+			CredentialId:  credentialId,
+			PublicKeyCbor: []byte("public-key"),
+		},
+	}
+	return d
+}
+
+func TestIdentityService_CreateUser_withMfaDevices(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+
+	user, err := types.NewUser("foobar")
+	user.SetLocalAuth(&types.LocalAuthSecrets{MFA: []*types.MFADevice{
+		newFakeWebauthnDevice("dev1", []byte{1, 2, 3}),
+		newFakeWebauthnDevice("dev2", []byte{2, 3, 4}),
+	}})
+	require.NoError(t, err)
+	created, err := identity.CreateUser(ctx, user)
+	require.NoError(t, err, "failed to create the user")
+	assert.Empty(t, cmp.Diff(user, created), "incorrect value returned from CreateUser")
+
+	got, err := identity.GetUser(ctx, "foobar", true /* withSecrets */)
+	require.NoError(t, err, "failed to get the user")
+	devicesSort := func(a *types.MFADevice, b *types.MFADevice) bool { return a.GetName() < b.GetName() }
+	assert.Empty(t, cmp.Diff(
+		created, got, cmpopts.SortSlices(devicesSort), cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	), "got user different from created")
+}
+
+func TestWithTxLock(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+	user, err := types.NewUser("alice")
+	require.NoError(t, err)
+	_, err = identity.CreateUser(ctx, user)
+	require.NoError(t, err)
+
+	rev, err := identity.WithRevLock(ctx, "alice", func() ([]backend.ConditionalAction, error) {
+		return []backend.ConditionalAction{{
+			Key:       backend.Key("foo"),
+			Condition: backend.Whatever(),
+			Action:    backend.Put(backend.Item{Value: []byte("bar")}),
+		}}, nil
+	})
+	require.NoError(t, err)
+
+	u, err := identity.GetUser(ctx, "alice", false /* withSecrets */)
+	require.NoError(t, err)
+	assert.Equal(t, rev, u.GetRevision())
+
+	it, err := identity.Get(ctx, backend.Key("foo"))
+	require.NoError(t, err)
+	assert.Equal(t, []byte("bar"), it.Value)
+}
+
+func TestWithTxLock_locks(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+	user, err := types.NewUser("alice")
+	require.NoError(t, err)
+	_, err = identity.CreateUser(ctx, user)
+	require.NoError(t, err)
+
+	var txStart, txContinue sync.WaitGroup
+	txStart.Add(2)
+	txContinue.Add(1)
+	createItem := func(key string) func() ([]backend.ConditionalAction, error) {
+		return func() ([]backend.ConditionalAction, error) {
+			txStart.Done()
+			txContinue.Wait()
+			return []backend.ConditionalAction{{
+				Key:       backend.Key(key),
+				Condition: backend.NotExists(),
+				Action:    backend.Put(backend.Item{Value: []byte("dummy")}),
+			}}, nil
+		}
+	}
+
+	ch := make(chan error)
+	go func() {
+		_, err := identity.WithRevLock(ctx, "alice", createItem("foo1"))
+		ch <- err
+	}()
+	go func() {
+		_, err := identity.WithRevLock(ctx, "alice", createItem("foo2"))
+		ch <- err
+	}()
+
+	txStart.Wait()
+	txContinue.Done()
+
+	nErr := 0
+	if <-ch != nil {
+		nErr++
+	}
+	if <-ch != nil {
+		nErr++
+	}
+	assert.Equal(t, 1, nErr)
+
+	nErr = 0
+	_, err = identity.Get(ctx, backend.Key("foo1"))
+	if err != nil {
+		nErr++
+	}
+	_, err = identity.Get(ctx, backend.Key("foo2"))
+	if err != nil {
+		nErr++
+	}
+	assert.Equal(t, 1, nErr)
 }
 
 func TestRecoveryCodesCRUD(t *testing.T) {
@@ -215,7 +381,13 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 
 func TestIdentityService_UpsertMFADevice(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 	identity := newIdentityService(t, clockwork.NewFakeClock())
+
+	u, err := types.NewUser("llama")
+	require.NoError(t, err)
+	_, err = identity.CreateUser(ctx, u)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name string
@@ -261,7 +433,7 @@ func TestIdentityService_UpsertMFADevice(t *testing.T) {
 			},
 		},
 	}
-	ctx := context.Background()
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			err := identity.UpsertMFADevice(ctx, test.user, test.dev)
@@ -273,7 +445,8 @@ func TestIdentityService_UpsertMFADevice(t *testing.T) {
 			for _, dev := range devs {
 				if dev.GetName() == test.dev.GetName() {
 					found = true
-					if diff := cmp.Diff(dev, test.dev); diff != "" {
+					diff := cmp.Diff(dev, test.dev, cmpopts.IgnoreFields(types.Metadata{}, "Revision"))
+					if diff != "" {
 						t.Fatalf("GetMFADevices() mismatch (-want +got):\n%s", diff)
 					}
 					break
@@ -287,6 +460,12 @@ func TestIdentityService_UpsertMFADevice(t *testing.T) {
 func TestIdentityService_UpsertMFADevice_errors(t *testing.T) {
 	t.Parallel()
 	identity := newIdentityService(t, clockwork.NewFakeClock())
+	ctx := context.Background()
+
+	u, err := types.NewUser("llama")
+	require.NoError(t, err)
+	_, err = identity.CreateUser(ctx, u)
+	require.NoError(t, err)
 
 	totpDev := &types.MFADevice{
 		Metadata: types.Metadata{
@@ -329,7 +508,7 @@ func TestIdentityService_UpsertMFADevice_errors(t *testing.T) {
 			},
 		},
 	}
-	ctx := context.Background()
+
 	const user = "llama"
 	for _, dev := range []*types.MFADevice{totpDev, u2fDev, webauthnDev} {
 		err := identity.UpsertMFADevice(ctx, user, dev)
@@ -503,11 +682,11 @@ func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := test.update(ctx, test.name, test.wal)
+			err := test.update(ctx, test.user, test.wal)
 			require.NoError(t, err)
 
 			wantWLA := test.wal
-			gotWLA, err := test.get(ctx, test.name)
+			gotWLA, err := test.get(ctx, test.user)
 			require.NoError(t, err)
 			if diff := cmp.Diff(wantWLA, gotWLA); diff != "" {
 				t.Fatalf("WebauthnLocalAuth mismatch (-want +got):\n%s", diff)
@@ -515,7 +694,7 @@ func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 
 			gotUser, err := identity.GetTeleportUserByWebauthnID(ctx, gotWLA.UserID)
 			require.NoError(t, err)
-			require.Equal(t, test.name, gotUser)
+			require.Equal(t, test.user, gotUser)
 		})
 	}
 }
@@ -1041,7 +1220,7 @@ func TestIdentityService_ListUsers(t *testing.T) {
 	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{})
 	assert.NoError(t, err, "no error returned when no users exist")
 	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no users exist")
-	assert.Empty(t, cmp.Diff(expectedUsers, rsp.Users), "not all users returned from listing operation")
+	assert.Empty(t, cmp.Diff(expectedUsers, rsp.Users, cmpopts.IgnoreFields(types.Metadata{}, "ID")), "not all users returned from listing operation")
 
 	// Create a number of users.
 	usernames := []string{"llama", "alpaca", "fox", "fish", "fish+", "fish2"}
@@ -1125,7 +1304,7 @@ func TestIdentityService_ListUsers(t *testing.T) {
 
 	devicesSort := func(a *types.MFADevice, b *types.MFADevice) bool { return a.GetName() < b.GetName() }
 
-	require.Empty(t, cmp.Diff(expectedUsers, users, cmpopts.SortSlices(devicesSort)), "not all users returned from listing operation")
+	require.Empty(t, cmp.Diff(expectedUsers, users, cmpopts.SortSlices(devicesSort), cmpopts.IgnoreFields(types.Metadata{}, "ID")), "not all users returned from listing operation")
 
 	// List a few users at a time and validate that all users are eventually returned with their secrets.
 	retrieved = nil
@@ -1152,7 +1331,7 @@ func TestIdentityService_ListUsers(t *testing.T) {
 	slices.SortFunc(retrieved, func(a, b *types.UserV2) int {
 		return strings.Compare(a.GetName(), b.GetName())
 	})
-	require.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.SortSlices(devicesSort)), "not all users returned from listing operation")
+	require.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.SortSlices(devicesSort), cmpopts.IgnoreFields(types.Metadata{}, "ID")), "not all users returned from listing operation")
 
 	ssoUser := expectedUsers[2]
 	expectedUsers = slices.Delete(expectedUsers, 2, 3)
@@ -1174,7 +1353,7 @@ func TestIdentityService_ListUsers(t *testing.T) {
 	slices.SortFunc(retrieved, func(a, b *types.UserV2) int {
 		return strings.Compare(a.GetName(), b.GetName())
 	})
-	require.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.SortSlices(devicesSort)), "not all users returned from listing operation")
+	require.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.SortSlices(devicesSort), cmpopts.IgnoreFields(types.Metadata{}, "ID")), "not all users returned from listing operation")
 }
 
 func TestCompareAndSwapUser(t *testing.T) {

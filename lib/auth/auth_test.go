@@ -3578,7 +3578,7 @@ func compareDevices(t *testing.T, ignoreUpdateAndCounter bool, got []*types.MFAD
 	}
 
 	// Ignore LastUsed and SignatureCounter?
-	var opts []cmp.Option
+	opts := []cmp.Option{cmpopts.IgnoreFields(types.Metadata{}, "Revision")}
 	if ignoreUpdateAndCounter {
 		opts = append(opts, cmp.FilterPath(func(path cmp.Path) bool {
 			p := path.String()

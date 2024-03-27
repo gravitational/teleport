@@ -536,6 +536,7 @@ func TestListUsers(t *testing.T) {
 	assert.Equal(t, len(createdUsers), len(listedUsersWithSecrets), "expected to eventually retrieve all users from listing")
 	assert.Empty(t, cmp.Diff(createdUsers, listedUsersWithSecrets,
 		cmpopts.SortSlices(func(a, b *types.UserV2) bool { return a.GetName() < b.GetName() }),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 }
 

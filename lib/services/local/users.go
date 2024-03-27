@@ -269,7 +269,9 @@ func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (type
 		return nil, trace.Wrap(err)
 	}
 
-	// Confirm user doesn't exist before creating.
+	// Confirm user doesn't exist before creating. Note that we can't rely on
+	// AtomicWrite conditions here, because AtomicWrite doesn't distinguish
+	// between various types of condition failures.
 	_, err := s.GetUser(ctx, user.GetName(), false)
 	if !trace.IsNotFound(err) {
 		if err != nil {
@@ -283,23 +285,32 @@ func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (type
 		return nil, trace.Wrap(err)
 	}
 
+	// Create the user item and compile the list of conditional actions for adding
+	// it to the backend.
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:   value,
 		Expires: user.Expiry(),
 	}
+	condacts := []backend.ConditionalAction{{
+		Key:       backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
+		Condition: backend.NotExists(),
+		Action:    backend.Put(item),
+	}}
 
-	lease, err := s.Create(ctx, item)
+	if auth := user.GetLocalAuth(); auth != nil {
+		a, err := s.upsertLocalAuthSecretsActions(ctx, user.GetName(), *auth)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		condacts = append(condacts, a...)
+	}
+
+	rev, err := s.AtomicWrite(ctx, condacts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if auth := user.GetLocalAuth(); auth != nil {
-		if err = s.upsertLocalAuthSecrets(ctx, user.GetName(), *auth); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	user.SetRevision(lease.Revision)
+	user.SetRevision(rev)
 	return user, nil
 }
 
@@ -563,23 +574,40 @@ func (s *IdentityService) getUserWithSecrets(ctx context.Context, user string) (
 }
 
 func (s *IdentityService) upsertLocalAuthSecrets(ctx context.Context, user string, auth types.LocalAuthSecrets) error {
+	_, err := s.WithRevLock(ctx, user, func() ([]backend.ConditionalAction, error) {
+		return s.upsertLocalAuthSecretsActions(ctx, user, auth)
+	})
+	return trace.Wrap(err)
+}
+
+// upsertLocalAuthSecretsActions returns a list of conditional actions that
+// upsert local auth secrets.
+func (s *IdentityService) upsertLocalAuthSecretsActions(
+	ctx context.Context, user string, auth types.LocalAuthSecrets,
+) ([]backend.ConditionalAction, error) {
+	cas := []backend.ConditionalAction{}
+
 	if len(auth.PasswordHash) > 0 {
-		err := s.UpsertPasswordHash(user, auth.PasswordHash)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		cas = append(cas, s.upsertPasswordHashAction(user, auth.PasswordHash))
 	}
+
 	for _, d := range auth.MFA {
-		if err := s.UpsertMFADevice(ctx, user, d); err != nil {
-			return trace.Wrap(err)
+		a, err := s.upsertMFADeviceAction(ctx, user, d)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+		cas = append(cas, *a)
 	}
+
 	if auth.Webauthn != nil {
-		if err := s.UpsertWebauthnLocalAuth(ctx, user, auth.Webauthn); err != nil {
-			return trace.Wrap(err)
+		a, err := s.upsertWebauthnLocalAuthActions(ctx, user, auth.Webauthn)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+		cas = append(cas, a...)
 	}
-	return nil
+
+	return cas, nil
 }
 
 // GetUserByOIDCIdentity returns a user by it's specified OIDC Identity, returns first
@@ -647,25 +675,20 @@ func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
 
 // UpsertPasswordHash upserts user password hash
 func (s *IdentityService) UpsertPasswordHash(username string, hash []byte) error {
-	userPrototype, err := types.NewUser(username)
-	if err != nil {
-		return trace.Wrap(err)
+	_, err := s.WithRevLock(context.TODO(), username, func() ([]backend.ConditionalAction, error) {
+		return []backend.ConditionalAction{s.upsertPasswordHashAction(username, hash)}, nil
+	})
+	return trace.Wrap(err)
+}
+
+// upsertPasswordHashAction returns a conditional action that upserts a password
+// hash.
+func (s *IdentityService) upsertPasswordHashAction(username string, hash []byte) backend.ConditionalAction {
+	return backend.ConditionalAction{
+		Key:       backend.Key(webPrefix, usersPrefix, username, pwdPrefix),
+		Condition: backend.Whatever(),
+		Action:    backend.Put(backend.Item{Value: hash}),
 	}
-	_, err = s.CreateUser(context.TODO(), userPrototype)
-	if err != nil {
-		if !trace.IsAlreadyExists(err) {
-			return trace.Wrap(err)
-		}
-	}
-	item := backend.Item{
-		Key:   backend.Key(webPrefix, usersPrefix, username, pwdPrefix),
-		Value: hash,
-	}
-	_, err = s.Put(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // GetPasswordHash returns the password hash for a given user
@@ -800,55 +823,54 @@ func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 }
 
 func (s *IdentityService) UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error {
+	_, err := s.WithRevLock(ctx, user, func() ([]backend.ConditionalAction, error) {
+		return s.upsertWebauthnLocalAuthActions(ctx, user, wla)
+	})
+	return trace.Wrap(err)
+}
+
+// upsertWebauthnLocalAuthActions returns a list of conditional actions that
+// upsert a WebauthnLocalAuth object.
+func (s *IdentityService) upsertWebauthnLocalAuthActions(
+	ctx context.Context, user string, wla *types.WebauthnLocalAuth,
+) ([]backend.ConditionalAction, error) {
 	switch {
 	case user == "":
-		return trace.BadParameter("missing parameter user")
+		return nil, trace.BadParameter("missing parameter user")
 	case wla == nil:
-		return trace.BadParameter("missing parameter webauthn local auth")
+		return nil, trace.BadParameter("missing parameter webauthn local auth")
 	}
 	if err := wla.Check(); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Marshal both values before writing, we want to minimize the chances of
 	// having to "undo" a write below.
 	wlaJSON, err := json.Marshal(wla)
 	if err != nil {
-		return trace.Wrap(err, "marshal webauthn local auth")
+		return nil, trace.Wrap(err, "marshal webauthn local auth")
 	}
 	userJSON, err := json.Marshal(&wanpb.User{
 		TeleportUser: user,
 	})
 	if err != nil {
-		return trace.Wrap(err, "marshal webauthn user")
+		return nil, trace.Wrap(err, "marshal webauthn user")
 	}
 
-	// Write WebauthnLocalAuth.
-	wlaKey := webauthnLocalAuthKey(user)
-	if _, err = s.Put(ctx, backend.Item{
-		Key:   wlaKey,
-		Value: wlaJSON,
-	}); err != nil {
-		return trace.Wrap(err, "writing webauthn local auth")
-	}
-
-	// Write wla.UserID->user mapping, used for usernameless logins.
-	if _, err = s.Put(ctx, backend.Item{
-		Key:   webauthnUserKey(wla.UserID),
-		Value: userJSON,
-	}); err != nil {
-		// Undo the first write if the one below fails.
-		// This is a best-effort attempt, as both the 2nd write and the delete may
-		// fail (it's even likely that both do, depending on the error).
-		// lib/auth/webauthn is prepared to deal with eventual inconsistencies
-		// between "web/users/.../webauthnlocalauth" and "webauthn/users/" keys.
-		if err := s.Delete(ctx, wlaKey); err != nil {
-			s.log.WithError(err).Warn("Failed to undo WebauthnLocalAuth update")
-		}
-		return trace.Wrap(err, "writing webauthn user")
-	}
-
-	return nil
+	return []backend.ConditionalAction{
+		// Write WebauthnLocalAuth.
+		{
+			Key:       webauthnLocalAuthKey(user),
+			Condition: backend.Whatever(),
+			Action:    backend.Put(backend.Item{Value: wlaJSON}),
+		},
+		// Write wla.UserID->user mapping, used for usernameless logins.
+		{
+			Key:       webauthnUserKey(wla.UserID),
+			Condition: backend.Whatever(),
+			Action:    backend.Put(backend.Item{Value: userJSON}),
+		},
+	}, nil
 }
 
 func (s *IdentityService) GetWebauthnLocalAuth(ctx context.Context, user string) (*types.WebauthnLocalAuth, error) {
@@ -1054,25 +1076,78 @@ func globalSessionDataKey(scope, id string) []byte {
 }
 
 func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
+	_, err := s.WithRevLock(ctx, user, func() ([]backend.ConditionalAction, error) {
+		a, err := s.upsertMFADeviceAction(ctx, user, d)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return []backend.ConditionalAction{*a}, nil
+	})
+	return trace.Wrap(err)
+}
+
+// WithRevLock performs an atomic write of a list of conditional actions that
+// are related to backend items belonging to a single user, but that are
+// otherwise separate. It uses the user item itself as a lock: it takes the
+// current user revision, asserts that it didn't change, and updates it
+// atomically without modifying the user item itself. This ensures that the data
+// is consistent; any other operation performed in parallel with the same
+// revision lock will fail.
+func (s *IdentityService) WithRevLock(
+	ctx context.Context,
+	user string,
+	f func() ([]backend.ConditionalAction, error),
+) (revision string, err error) {
+	uitem, err := s.Get(ctx, backend.Key(webPrefix, usersPrefix, user, paramsPrefix))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	actions, err := f()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	actions = append(actions, backend.ConditionalAction{
+		Key:       uitem.Key,
+		Condition: backend.Revision(uitem.Revision),
+		Action:    backend.Put(*uitem),
+	})
+
+	return s.AtomicWrite(ctx, actions)
+}
+
+// upsertMFADeviceAction returns a conditional action that upserts an MFA
+// device. This function is expected to be run inside the WithRevLock wrapper to
+// prevent phantom reads on the MFA collection, which could otherwise lead to
+// breaking data consistency rules.
+func (s *IdentityService) upsertMFADeviceAction(
+	ctx context.Context, user string, d *types.MFADevice,
+) (*backend.ConditionalAction, error) {
 	if user == "" {
-		return trace.BadParameter("missing parameter user")
+		return nil, trace.BadParameter("missing parameter user")
 	}
 	if err := d.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
+
+	// Unless we find this device in the array, we shall assume that it doesn't
+	// exists.
+	condition := backend.NotExists()
 
 	devs, err := s.GetMFADevices(ctx, user, false)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	for _, dd := range devs {
 		switch {
 		case d.Metadata.Name == dd.Metadata.Name && d.Id == dd.Id:
-			// OK. Same Name and ID means we are doing an update.
+			// OK. Same Name and ID means we are doing an update. Make sure that
+			condition = backend.Revision(dd.GetRevision())
 			continue
 		case d.Metadata.Name == dd.Metadata.Name && d.Id != dd.Id:
 			// NOK. Same Name but different ID means it's a duplicate device.
-			return trace.AlreadyExists("MFA device with name %q already exists", d.Metadata.Name)
+			return nil, trace.AlreadyExists("MFA device with name %q already exists", d.Metadata.Name)
 		}
 
 		// Disallow duplicate credential IDs if the new device is Webauthn.
@@ -1088,25 +1163,23 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 			continue
 		}
 		if bytes.Equal(id1, id2) {
-			return trace.AlreadyExists("credential ID already in use by device %q", dd.Metadata.Name)
+			return nil, trace.AlreadyExists("credential ID already in use by device %q", dd.Metadata.Name)
 		}
 	}
 
-	rev := d.GetRevision()
 	value, err := json.Marshal(d)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:      backend.Key(webPrefix, usersPrefix, user, mfaDevicePrefix, d.Id),
-		Value:    value,
-		Revision: rev,
+		return nil, trace.Wrap(err)
 	}
 
-	if _, err := s.Put(ctx, item); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return &backend.ConditionalAction{
+		Key:       backend.Key(webPrefix, usersPrefix, user, mfaDevicePrefix, d.Id),
+		Condition: condition,
+		Action: backend.Put(backend.Item{
+			Value:    value,
+			Revision: d.GetRevision(),
+		}),
+	}, nil
 }
 
 func getCredentialID(d *types.MFADevice) ([]byte, bool) {
@@ -1147,6 +1220,7 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 		if err := json.Unmarshal(item.Value, &d); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		d.Metadata.Revision = item.Revision
 		if !withSecrets {
 			devWithoutSensitiveData, err := d.WithoutSensitiveData()
 			if err != nil {
