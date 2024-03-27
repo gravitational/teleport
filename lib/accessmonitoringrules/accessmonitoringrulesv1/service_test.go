@@ -27,9 +27,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accessmonitoringrule"
-	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -49,15 +48,14 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 
 	ctx, localClient, resourceSvc := initSvc(t, clusterName)
 
-	sampleAccessMonitoringRuleFn := func(t *testing.T, name string) *accessmonitoringrule.AccessMonitoringRule {
-		rule, _ := accessmonitoringrule.NewAccessMonitoringRule(
-			header.Metadata{Name: name},
-			accessmonitoringrule.Spec{
+	sampleAccessMonitoringRuleFn := func(t *testing.T, name string) *accessmonitoringrulev1.AccessMonitoringRule {
+		return &accessmonitoringrulev1.AccessMonitoringRule{
+			Metadata: &v1.Metadata{Name: name},
+			Spec: &accessmonitoringrulev1.AccessMonitoringRuleSpec{
 				Subjects:  []string{"someSubject"},
 				Condition: "someCondition",
 			},
-		)
-		return rule
+		}
 	}
 
 	tt := []struct {
