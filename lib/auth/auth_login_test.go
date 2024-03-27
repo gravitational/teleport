@@ -160,7 +160,8 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 
 			authPreference, err := types.NewAuthPreference(*test.spec)
 			require.NoError(t, err)
-			require.NoError(t, authServer.SetAuthPreference(ctx, authPreference))
+			_, err = authServer.UpsertAuthPreference(ctx, authPreference)
+			require.NoError(t, err)
 
 			challenge, err := authServer.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 				Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
@@ -677,9 +678,8 @@ func TestCreateRegisterChallenge_unusableDevice(t *testing.T) {
 	require.NoError(t, err, "NewAuthPreference")
 
 	setAuthPref := func(t *testing.T, authPref types.AuthPreference) {
-		require.NoError(t,
-			authServer.SetAuthPreference(ctx, authPref),
-			"SetAuthPreference")
+		_, err = authServer.UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err, "UpsertAuthPreference")
 	}
 	setAuthPref(t, initialPref)
 
@@ -859,7 +859,8 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, authServer.SetAuthPreference(ctx, authPreference))
+	_, err = authServer.UpsertAuthPreference(ctx, authPreference)
+	require.NoError(t, err)
 
 	// Create user and initial WebAuthn device (MFA).
 	const user = "llama"
@@ -1270,7 +1271,8 @@ func configureForMFA(t *testing.T, srv *TestTLSServer) *configureMFAResp {
 
 	authServer := srv.Auth()
 	ctx := context.Background()
-	require.NoError(t, authServer.SetAuthPreference(ctx, authPreference))
+	_, err = authServer.UpsertAuthPreference(ctx, authPreference)
+	require.NoError(t, err)
 
 	// Create user with a default password.
 	const username = "llama@goteleport.com"
