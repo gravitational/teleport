@@ -51,7 +51,7 @@ type AppI interface {
 }
 
 type contexts struct {
-	// baseCtx is the the base context for appCtx and testCtx.
+	// baseCtx is the base context for appCtx and testCtx.
 	// It could store some test-specific information stored using context.WithValue()
 	// such as test name for the logger etc.
 	baseCtx context.Context

@@ -52,7 +52,7 @@ const (
 	// granted for.
 	MaxAccessDuration = 14 * day
 
-	// requestTTL is the the TTL for an access request, i.e. the amount of time that
+	// requestTTL is the TTL for an access request, i.e. the amount of time that
 	// the access request can be reviewed. Defaults to 1 week.
 	requestTTL = 7 * day
 )

@@ -1144,7 +1144,7 @@ func (s *Server) getProxyPort() string {
 	return port
 }
 
-// sessionStartTime fetches the session start time based on the the certificate
+// sessionStartTime fetches the session start time based on the certificate
 // valid date.
 func (s *Server) sessionStartTime(ctx context.Context) time.Time {
 	if userCert, err := authz.UserCertificateFromContext(ctx); err == nil {

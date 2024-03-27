@@ -782,7 +782,7 @@ func SelfSignedMetadataCertificate(subject pkix.Name) (*x509.Certificate, error)
 // YubiKey 5 nano (5.2.7) and a YubiKey NFC (5.4.3).
 const (
 	// piv.ECDSAPrivateKey.Sign consistently takes ~70 milliseconds. However, 200ms
-	// should be imperceptible the the user and should avoid misfired prompts for
+	// should be imperceptible to the user and should avoid misfired prompts for
 	// slower cards (if there are any).
 	signTouchPromptDelay = time.Millisecond * 200
 )

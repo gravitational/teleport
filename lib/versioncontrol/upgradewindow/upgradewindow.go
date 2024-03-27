@@ -121,7 +121,7 @@ func (c *ExporterConfig[C]) CheckAndSetDefaults() error {
 	fastExport := os.Getenv("TELEPORT_UNSTABLE_FAST_MW_EXPORT") == "yes"
 
 	if c.UnhealthyThreshold == 0 {
-		// 9m is fairly arbitrary, but was picked based on the the idea that a good unhealthy threshold aught to be
+		// 9m is fairly arbitrary, but was picked based on the idea that a good unhealthy threshold aught to be
 		// long enough to minimize sensitivity to control plane restarts, but short enough that by the time an instance
 		// appears offline in the teleport UI, we aught to be able to assume that its unhealthy status has been propagated
 		// to its upgrader.

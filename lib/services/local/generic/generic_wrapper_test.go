@@ -248,7 +248,7 @@ func TestGenericWrapperWithPrefix(t *testing.T) {
 	// Verify that the service's backend prefix matches the initial backend prefix.
 	require.Equal(t, initialBackendPrefix, service.service.backendPrefix)
 
-	// Verify that withPrefix appends the the additional prefix.
+	// Verify that withPrefix appends the additional prefix.
 	serviceWithPrefix := service.WithPrefix(additionalBackendPrefix)
 	require.Equal(t, "initial_prefix/additional_prefix", serviceWithPrefix.service.backendPrefix)
 }
