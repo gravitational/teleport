@@ -76,7 +76,7 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 	}
 	workforceService := iam.NewLocationsWorkforcePoolsService(iamService)
 
-	slog.With("pool name", s.APIParams.PoolName).InfoContext(ctx, "Creating workforce pool.")
+	slog.With("pool_name", s.APIParams.PoolName).InfoContext(ctx, "Creating workforce pool.")
 	poolFullName := fmt.Sprintf("locations/global/workforcePools/%s", s.APIParams.PoolName)
 	createPool := workforceService.Create(
 		"locations/global",
@@ -104,10 +104,10 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 		if err := waitForPoolStatus(pollCtx, workforceService, poolFullName, s.APIParams.PoolName); err != nil {
 			return trace.Wrap(err)
 		}
-		slog.With("pool name", s.APIParams.PoolName, "Pool ready for use.")
+		slog.With("pool_name", s.APIParams.PoolName, "Pool ready for use.")
 	}
 
-	slog.With("pool provider name", s.APIParams.PoolProviderName).InfoContext(ctx, "Creating workforce pool provider.")
+	slog.With("pool_provider_name", s.APIParams.PoolProviderName).InfoContext(ctx, "Creating workforce pool provider.")
 	metadata, err := fetchIdPMetadata(ctx, s.APIParams.SAMLIdPMetadataURL, s.HTTPClient)
 	if err != nil {
 		return trace.Wrap(err)
@@ -133,18 +133,18 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 	}
 
 	if !createProviderResp.Done {
-		slog.With("pool provider name", s.APIParams.PoolProviderName).InfoContext(ctx, "Pool provider is created but it may take upto a minute more for this provider to become available.")
+		slog.With("pool_provider_name", s.APIParams.PoolProviderName).InfoContext(ctx, "Pool provider is created but it may take up to a minute more for this provider to become available.")
 		return nil
 	}
 	slog.InfoContext(ctx, "Pool provider created.")
-	slog.With("pool provider name", s.APIParams.PoolProviderName).InfoContext(ctx, "Pool provider is ready for use.")
+	slog.With("pool_provider_name", s.APIParams.PoolProviderName).InfoContext(ctx, "Pool provider is ready for use.")
 	return nil
 }
 
 // waitForPoolStatus waits for pool to come online. Returns immediately if error code is other than
 // http.StatusForbidden or when context is canceled with timeout.
 func waitForPoolStatus(ctx context.Context, workforceService *iam.LocationsWorkforcePoolsService, poolName, poolDisplayName string) error {
-	slog.InfoContext(ctx, "Waiting for pool status. It may take upto 2 minutes for new pool to become available.")
+	slog.InfoContext(ctx, "Waiting for pool status. It may take up to 2 minutes for new pool to become available.")
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
@@ -165,11 +165,11 @@ func waitForPoolStatus(ctx context.Context, workforceService *iam.LocationsWorkf
 						continue
 					}
 				}
-				return err
+				return trace.Wrap(err)
 			}
 
 			if result.State == "ACTIVE" {
-				slog.With("pool name", poolDisplayName).InfoContext(ctx, "Pool found.")
+				slog.With("pool_name", poolDisplayName).InfoContext(ctx, "Pool found.")
 				return nil
 			}
 		}
