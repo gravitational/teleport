@@ -48,16 +48,20 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 
 	switch req.SubKind {
 	case types.IntegrationSubKindAWSOIDC:
-		issuerS3URI := url.URL{
-			Scheme: "s3",
-			Host:   req.AWSOIDC.IssuerS3Bucket,
-			Path:   req.AWSOIDC.IssuerS3Prefix,
+		var s3Location string
+		if req.AWSOIDC.IssuerS3Bucket != "" {
+			issuerS3URI := url.URL{
+				Scheme: "s3",
+				Host:   req.AWSOIDC.IssuerS3Bucket,
+				Path:   req.AWSOIDC.IssuerS3Prefix,
+			}
+			s3Location = issuerS3URI.String()
 		}
 		ig, err = types.NewIntegrationAWSOIDC(
 			types.Metadata{Name: req.Name},
 			&types.AWSOIDCIntegrationSpecV1{
 				RoleARN:     req.AWSOIDC.RoleARN,
-				IssuerS3URI: issuerS3URI.String(),
+				IssuerS3URI: s3Location,
 			},
 		)
 
@@ -121,13 +125,17 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 			return nil, trace.BadParameter("cannot update %q fields for a %q integration", types.IntegrationSubKindAWSOIDC, integration.GetSubKind())
 		}
 
-		issuerS3URI := url.URL{
-			Scheme: "s3",
-			Host:   req.AWSOIDC.IssuerS3Bucket,
-			Path:   req.AWSOIDC.IssuerS3Prefix,
+		var s3Location string
+		if req.AWSOIDC.IssuerS3Bucket != "" {
+			issuerS3URI := url.URL{
+				Scheme: "s3",
+				Host:   req.AWSOIDC.IssuerS3Bucket,
+				Path:   req.AWSOIDC.IssuerS3Prefix,
+			}
+			s3Location = issuerS3URI.String()
 		}
+		integration.SetAWSOIDCIssuerS3URI(s3Location)
 		integration.SetAWSOIDCRoleARN(req.AWSOIDC.RoleARN)
-		integration.SetAWSOIDCIssuerS3URI(issuerS3URI.String())
 	}
 
 	if _, err := clt.UpdateIntegration(r.Context(), integration); err != nil {
