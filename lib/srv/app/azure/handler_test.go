@@ -50,7 +50,7 @@ func TestForwarder_getToken(t *testing.T) {
 		{
 			name: "base case",
 			config: HandlerConfig{
-				getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
+				accessTokenGetter: accessTokenGetterFunc(func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
 					if managedIdentity != "MY_IDENTITY" {
 						return nil, trace.BadParameter("wrong managedIdentity")
 					}
@@ -58,7 +58,7 @@ func TestForwarder_getToken(t *testing.T) {
 						return nil, trace.BadParameter("wrong scope")
 					}
 					return &azcore.AccessToken{Token: "foobar"}, nil
-				},
+				}),
 			},
 			managedIdentity: "MY_IDENTITY",
 			scope:           "MY_SCOPE",
@@ -69,7 +69,7 @@ func TestForwarder_getToken(t *testing.T) {
 			name: "timeout",
 			config: HandlerConfig{
 				Clock: clockwork.NewFakeClock(),
-				getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
+				accessTokenGetter: accessTokenGetterFunc(func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
 					// find the fake clock from above
 					var clock clockwork.FakeClock
 					for _, test := range tests {
@@ -90,7 +90,7 @@ func TestForwarder_getToken(t *testing.T) {
 					clock.Sleep(getTokenTimeout * 2)
 
 					return &azcore.AccessToken{Token: "foobar"}, nil
-				},
+				}),
 			},
 			checkErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "timeout waiting for access token for 5s")
@@ -100,9 +100,9 @@ func TestForwarder_getToken(t *testing.T) {
 		{
 			name: "non-timeout error",
 			config: HandlerConfig{
-				getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
+				accessTokenGetter: accessTokenGetterFunc(func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
 					return nil, trace.BadParameter("bad param foo")
-				},
+				}),
 			},
 			checkErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "bad param foo")
@@ -134,10 +134,10 @@ func TestForwarder_getToken_cache(t *testing.T) {
 	calls := 0
 	hnd, err := newAzureHandler(ctx, HandlerConfig{
 		Clock: clock,
-		getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
+		accessTokenGetter: accessTokenGetterFunc(func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
 			calls++
 			return &azcore.AccessToken{Token: "OK"}, nil
-		},
+		}),
 	})
 	require.NoError(t, err)
 
