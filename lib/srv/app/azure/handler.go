@@ -59,7 +59,7 @@ type HandlerConfig struct {
 }
 
 // CheckAndSetDefaults validates the HandlerConfig.
-func (s *HandlerConfig) CheckAndSetDefaults() error {
+func (s *HandlerConfig) CheckAndSetDefaults(ctx context.Context) error {
 	if s.RoundTripper == nil {
 		tr, err := defaults.Transport()
 		if err != nil {
@@ -74,7 +74,11 @@ func (s *HandlerConfig) CheckAndSetDefaults() error {
 		s.Log = logrus.WithField(teleport.ComponentKey, "azure:fwd")
 	}
 	if s.getAccessToken == nil {
-		s.getAccessToken = getAccessTokenManagedIdentity
+		credProvider, err := findDefaultCredentialProvider(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		s.getAccessToken = getAccessTokenFromCredentialProvider(credProvider)
 	}
 	return nil
 }
@@ -99,7 +103,7 @@ func NewAzureHandler(ctx context.Context, config HandlerConfig) (http.Handler, e
 
 // newAzureHandler creates a new instance of a handler for Azure requests. Used by NewAzureHandler and in tests.
 func newAzureHandler(ctx context.Context, config HandlerConfig) (*handler, error) {
-	if err := config.CheckAndSetDefaults(); err != nil {
+	if err := config.CheckAndSetDefaults(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
