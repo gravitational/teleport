@@ -275,6 +275,12 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.AUTH_PREFERENCE_UPDATE]: Icons.Info,
   [eventCodes.CLUSTER_NETWORKING_CONFIG_UPDATE]: Icons.Info,
   [eventCodes.SESSION_RECORDING_CONFIG_UPDATE]: Icons.Info,
+  [eventCodes.SCIM_RESOURCE_PROVISION]: Icons.Info,
+  [eventCodes.SCIM_RESOURCE_PROVISION_FAILURE]: Icons.Warning,
+  [eventCodes.SCIM_RESOURCE_UPDATE]: Icons.Info,
+  [eventCodes.SCIM_RESOURCE_UPDATE_FAILURE]: Icons.Warning,
+  [eventCodes.SCIM_RESOURCE_DELETE]: Icons.Info,
+  [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: Icons.Warning,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 

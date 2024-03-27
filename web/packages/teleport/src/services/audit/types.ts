@@ -295,6 +295,12 @@ export const eventCodes = {
   AUTH_PREFERENCE_UPDATE: 'TCAUTH001I',
   CLUSTER_NETWORKING_CONFIG_UPDATE: 'TCNET002I',
   SESSION_RECORDING_CONFIG_UPDATE: 'TCREC003I',
+  SCIM_RESOURCE_PROVISION: 'TSCIM001I',
+  SCIM_RESOURCE_PROVISION_FAILURE: 'TSCIM001E',
+  SCIM_RESOURCE_UPDATE: 'TSCIM002I',
+  SCIM_RESOURCE_UPDATE_FAILURE: 'TSCIM002E',
+  SCIM_RESOURCE_DELETE: 'TSCIM003I',
+  SCIM_RESOURCE_DELETE_FAILURE: 'TSCIM003E',
 } as const;
 
 /**
@@ -1626,6 +1632,60 @@ export type RawEvents = {
     typeof eventCodes.SESSION_RECORDING_CONFIG_UPDATE,
     {
       user: string;
+    }
+  >;
+  [eventCodes.SCIM_RESOURCE_PROVISION]: RawEvent<
+    typeof eventCodes.SCIM_RESOURCE_PROVISION,
+    {
+      integration: string;
+      resource_type: string;
+      teleport_id: string;
+      external_id: string;
+    }
+  >;
+  [eventCodes.SCIM_RESOURCE_PROVISION_FAILURE]: RawEvent<
+    typeof eventCodes.SCIM_RESOURCE_PROVISION_FAILURE,
+    {
+      integration: string;
+      resource_type: string;
+      teleport_id: string;
+      external_id: string;
+    }
+  >;
+  [eventCodes.SCIM_RESOURCE_UPDATE]: RawEvent<
+    typeof eventCodes.SCIM_RESOURCE_UPDATE,
+    {
+      integration: string;
+      resource_type: string;
+      teleport_id: string;
+      external_id: string;
+    }
+  >;
+  [eventCodes.SCIM_RESOURCE_UPDATE_FAILURE]: RawEvent<
+    typeof eventCodes.SCIM_RESOURCE_UPDATE_FAILURE,
+    {
+      integration: string;
+      resource_type: string;
+      teleport_id: string;
+      external_id: string;
+    }
+  >;
+  [eventCodes.SCIM_RESOURCE_DELETE]: RawEvent<
+    typeof eventCodes.SCIM_RESOURCE_DELETE,
+    {
+      integration: string;
+      resource_type: string;
+      teleport_id: string;
+      external_id: string;
+    }
+  >;
+  [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: RawEvent<
+    typeof eventCodes.SCIM_RESOURCE_DELETE_FAILURE,
+    {
+      integration: string;
+      resource_type: string;
+      teleport_id: string;
+      external_id: string;
     }
   >;
 };

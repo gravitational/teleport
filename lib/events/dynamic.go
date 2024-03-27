@@ -375,6 +375,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.ClusterNetworkingConfigUpdate{}
 	case SessionRecordingConfigUpdateEvent:
 		e = &events.SessionRecordingConfigUpdate{}
+	case SCIMProvisionEvent, SCIMUpdateEvent, SCIMDeleteEvent:
+		e = &events.SCIMResourceEvent{}
 
 	case UnknownEvent:
 		e = &events.Unknown{}

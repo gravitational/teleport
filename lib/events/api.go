@@ -752,6 +752,17 @@ const (
 	ClusterNetworkingConfigUpdateEvent = "cluster_networking_config.update"
 	// SessionRecordingConfigUpdateEvent is emitted when a user updates the cluster session recording configuration.
 	SessionRecordingConfigUpdateEvent = "session_recording_config.update"
+
+	// SCIMProvisionEvent is emitted when a new resource is provisioned by the
+	// SCIM service. This includes taking ownership of existing users.
+	SCIMProvisionEvent = "scim.provision"
+
+	// SCIMUpdateEvent is emitted when a resource is updated via the SCIM
+	// service. Includes "deactivating" resources (per Okta).
+	SCIMUpdateEvent = "scim.update"
+
+	// SCIMDeleteEvent is emitted when a resource is deleted via SCIM.
+	SCIMDeleteEvent = "scim.delete"
 )
 
 const (
