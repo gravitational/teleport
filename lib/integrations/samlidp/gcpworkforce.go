@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/api/googleapi"
+
 	// Migrate to v2 once it starts supporting workforce service.
 	// https://cloud.google.com/go/docs/reference/cloud.google.com/go/iam/latest/apiv2
 	iam "google.golang.org/api/iam/v1"
@@ -91,7 +92,11 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 	createPool.WorkforcePoolId(s.APIParams.PoolName)
 	resp, err := createPool.Do()
 	if err != nil {
-		// TODO(sshah): parse through error type for better error handling
+		if checkGoogleAPIAlreadyExistErr(err) {
+			slog.With("pool_name", s.APIParams.PoolName).WarnContext(ctx, "Pool already exists.")
+			return s.createWorkforceProvider(ctx, workforceService, poolFullName)
+		}
+		// TODO(sshah): parse through error type for better error messaging
 		return trace.Wrap(err)
 	}
 
@@ -108,6 +113,10 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 		slog.With("pool_name", s.APIParams.PoolName, "Pool ready for use.")
 	}
 
+	return s.createWorkforceProvider(ctx, workforceService, poolFullName)
+}
+
+func (s *GCPWorkforceService) createWorkforceProvider(ctx context.Context, workforceService *iam.LocationsWorkforcePoolsService, poolFullName string) error {
 	slog.With("pool_provider_name", s.APIParams.PoolProviderName).InfoContext(ctx, "Creating workforce pool provider.")
 	metadata, err := fetchIdPMetadata(ctx, s.APIParams.SAMLIdPMetadataURL, s.HTTPClient)
 	if err != nil {
@@ -130,11 +139,15 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 	createProviderReq.WorkforcePoolProviderId(s.APIParams.PoolProviderName)
 	createProviderResp, err := createProviderReq.Do()
 	if err != nil {
+		if checkGoogleAPIAlreadyExistErr(err) {
+			slog.With("pool_provider_name", s.APIParams.PoolName).ErrorContext(ctx, "Pool provider already exists.")
+		}
 		return trace.Wrap(err)
 	}
 
 	if !createProviderResp.Done {
-		slog.With("pool_provider_name", s.APIParams.PoolProviderName).InfoContext(ctx, "Pool provider is created but it may take up to a minute more for this provider to become available.")
+		slog.With("pool_provider_name", s.APIParams.PoolProviderName).
+			InfoContext(ctx, "Pool provider is created but it may take up to a minute more for this provider to become available.")
 		return nil
 	}
 	slog.InfoContext(ctx, "Pool provider created.")
@@ -152,7 +165,7 @@ func waitForPoolStatus(ctx context.Context, workforceService *iam.LocationsWorkf
 	for {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("timeout waiting for pool to be created")
+			return fmt.Errorf(`timeout while waiting for pool to be available. If you can confirm that the pool is already created, rerun the command again`)
 		case <-ticker.C:
 			result, err := workforceService.Get(poolName).Do()
 			if err != nil {
@@ -220,4 +233,14 @@ func (s *GCPWorkforceService) CheckAndSetDefaults() error {
 		}
 	}
 	return nil
+}
+
+func checkGoogleAPIAlreadyExistErr(err error) bool {
+	var googleApiErr *googleapi.Error
+	if errors.As(err, &googleApiErr) {
+		if googleApiErr.Code == http.StatusConflict {
+			return true
+		}
+	}
+	return false
 }
