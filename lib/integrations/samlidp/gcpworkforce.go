@@ -28,6 +28,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/api/googleapi"
+	// Migrate to v2 once it starts supporting workforce service.
+	// https://cloud.google.com/go/docs/reference/cloud.google.com/go/iam/latest/apiv2
 	iam "google.golang.org/api/iam/v1"
 
 	"github.com/gravitational/teleport"
@@ -95,10 +97,9 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 
 	slog.InfoContext(ctx, "Pool created.")
 	if !resp.Done {
-		// 2 minutes timeout is semi-random decision, chosen based on the fact that
-		// when creating workforce pool from the GCP web console, it mentions
-		// that the operation could take up to 2 minutes.
-		pollCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		// The GCP web console, mentions that the pool create operation could take up to 2 minutes.
+		// We will wait for 5 minutes so we have enough time to ensure pool is available.
+		pollCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 		defer cancel()
 
 		if err := waitForPoolStatus(pollCtx, workforceService, poolFullName, s.APIParams.PoolName); err != nil {
@@ -144,7 +145,7 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 // waitForPoolStatus waits for pool to come online. Returns immediately if error code is other than
 // http.StatusForbidden or when context is canceled with timeout.
 func waitForPoolStatus(ctx context.Context, workforceService *iam.LocationsWorkforcePoolsService, poolName, poolDisplayName string) error {
-	slog.InfoContext(ctx, "Waiting for pool status. It may take up to 2 minutes for new pool to become available.")
+	slog.InfoContext(ctx, "Waiting for pool status. It may take up to 5 minutes for new pool to become available.")
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
@@ -210,6 +211,13 @@ func (s *GCPWorkforceService) CheckAndSetDefaults() error {
 	}
 	if s.HTTPClient == nil {
 		return trace.BadParameter("param HTTPClient required")
+	}
+	if s.HTTPClient.CheckRedirect == nil {
+		// we expect metadata to be available at the given SAMLIdPMetadataURL endpoint.
+		// As such client should be configured to not to follow redirect response.
+		s.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
 	}
 	return nil
 }
