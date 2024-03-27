@@ -26,53 +26,49 @@ import (
 
 func TestSAMLIdPBuildScriptCheckAndSetDefaults(t *testing.T) {
 	tests := []struct {
-		name             string
-		orgID            string
-		poolName         string
-		poolProviderName string
-		errAssertion     require.ErrorAssertionFunc
+		name               string
+		organizationID     string
+		poolName           string
+		poolProviderName   string
+		samlIdPMetadataURL string
+		errAssertion       require.ErrorAssertionFunc
 	}{
 		{
-			name:  "empty organization id",
-			orgID: "",
+			name:           "empty organization id",
+			organizationID: "",
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "required")
 			},
 		},
 		{
-			name:             "organization id with alphabet",
-			orgID:            "123abc123",
-			poolName:         "test-pool-name",
-			poolProviderName: "test-pool-provider-name",
+			name:               "organization id with alphabet",
+			organizationID:     "123abc123",
+			poolName:           "test-pool-name",
+			poolProviderName:   "test-pool-provider-name",
+			samlIdPMetadataURL: "https://metadata",
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "numeric value")
 			},
 		},
 		{
-			name:             "valid organization name",
-			orgID:            "123423452",
-			poolName:         "test-pool-name",
-			poolProviderName: "test-pool-provider-name",
-			errAssertion:     require.NoError,
+			name:               "valid organization name",
+			organizationID:     "123423452",
+			poolName:           "test-pool-name",
+			poolProviderName:   "test-pool-provider-name",
+			samlIdPMetadataURL: "https://metadata",
+			errAssertion:       require.NoError,
 		},
 		{
-			name:     "empty pool name",
-			orgID:    "123423452",
-			poolName: "",
+			name:           "empty pool name",
+			organizationID: "123423452",
+			poolName:       "",
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "required")
 			},
 		},
 		{
-			name:             "empty pool name",
-			orgID:            "123423452",
-			poolName:         "test-pool-name",
-			poolProviderName: "test-pool-provider-name",
-			errAssertion:     require.NoError,
-		},
-		{
 			name:             "empty pool provider name",
-			orgID:            "123423452",
+			organizationID:   "123423452",
 			poolName:         "test-pool-name",
 			poolProviderName: "",
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
@@ -80,21 +76,24 @@ func TestSAMLIdPBuildScriptCheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name:             "empty pool name",
-			orgID:            "123423452",
-			poolName:         "test-pool-name",
-			poolProviderName: "test-pool-provider-name",
-			errAssertion:     require.NoError,
+			name:               "empty idpMetadataURL",
+			organizationID:     "123423452",
+			poolName:           "test-pool-name",
+			poolProviderName:   "test-pool-provider-name",
+			samlIdPMetadataURL: "",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "required")
+			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			newParams := &GCPWorkforceAPIParams{
-				OrganizationID:     test.orgID,
+				OrganizationID:     test.organizationID,
 				PoolName:           test.poolName,
 				PoolProviderName:   test.poolProviderName,
-				SAMLIdPMetadataURL: "https://metadata",
+				SAMLIdPMetadataURL: test.samlIdPMetadataURL,
 			}
 			err := newParams.CheckAndSetDefaults()
 			test.errAssertion(t, err)

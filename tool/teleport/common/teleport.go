@@ -1142,14 +1142,8 @@ func onIntegrationConfSAMLIdPGCPWorkforce(params samlidpconfig.GCPWorkforceAPIPa
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
-	// httpClient is used to fetch SAML IdP metadata.
-	httpClient, err := defaults.HTTPClient()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	gcpWorkforceService, err := samlidp.NewGCPWorkforceService(samlidp.GCPWorkforceService{
-		APIParams:  params,
-		HTTPClient: httpClient,
+		APIParams: params,
 	})
 	if err != nil {
 		return trace.Wrap(err)
