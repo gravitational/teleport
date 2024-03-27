@@ -149,7 +149,7 @@ ssh_service:
 ```
 
 In low-security environments, you can also set `create_host_user_mode` to
-`insecure_drop`, which deletes users once the session ends. However, in this
+`insecure-drop`, which deletes users once the session ends. However, in this
 mode it is possible for a created user to get the same UID as a previously
 deleted user, which would give the new user access to all of the old user's
 files if they are not deleted. Use `keep` mode unless you really need users to
