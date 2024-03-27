@@ -629,8 +629,8 @@ server with improper authorization, and the API server will deny the request.
 Before evaluating a user's request to a Kubernetes API server, the Teleport
 Kubernetes Service checks each of the user's roles. If one role's
 `spec.allow.kubernetes_labels` or `spec.allow.kubernetes_resources` conditions
-do not match the user's request, the Kubernetes Service checks the next role,
-and so on.
+do not match the cluster's labels and the request's resources, the Kubernetes
+Service checks the next role.
 
 If the Kubernetes Service finds a role with a `spec.allow` condition that
 matches all of the cluster's labels and the request's resources, it looks up the
@@ -639,16 +639,25 @@ these values to a list of RBAC principals it will use to write impersonation
 headers later on.
 
 Next, the Kubernetes Service checks each of the user's roles for `spec.deny`
-conditions. If one role's `spec.deny.kubernetes_labels` or
-`spec.deny.kubernetes_resources` fields match the user's request, the Kubernetes
-Service looks up the role's `spec.deny.kubernetes_groups` and
-`spec.deny.kubernetes_users` fields. It removes each of these values from the
-list of users and groups it created earlier, denying the user access to these
-RBAC principals.
+conditions that might apply to the request:
+
+- For `spec.deny.kubernetes_labels`, if any labels match the cluster's labels 
+  for the request, the Service denies the request before it is made to the 
+  Kubernetes API. 
+- For `spec.deny.kubernetes_resources`, if the resource matches a `deny` condition, 
+  the associated `deny.kubernetes_groups` and `deny.kubernetes_users` are 
+  removed from the previously developed list of allowed RBAC principals from 
+  `spec.allow`. 
+
+Please note that a match in `spec.deny.kubernetes_labels` leads to an immediate 
+denial without a chance to adjust the user's impersonation data based on allow 
+rules of other roles they may have. On the other hand, a match in 
+`spec.deny.kubernetes_resources` only affects the user's RBAC principals but does 
+not result in an immediate denial.
 
 #### Example
 
-Let's say you have assigned the following three roles to a user:
+Let's say a user has the following three roles assigned:
 
 ```yaml
 kind: role
@@ -672,7 +681,7 @@ spec:
 kind: role
 metadata:
   name: allow-exec
-  version: v7
+version: v7
 spec:
   allow:
     kubernetes_labels:
@@ -687,7 +696,7 @@ spec:
 kind: role
 metadata:
   name: deny-redis-exec
-  version: v7
+version: v7
 spec:
   deny:
     kubernetes_resources:
@@ -707,13 +716,13 @@ namespace, and the cluster has the label `region:us-east-2`, the Kubernetes
 Service will accept the request. Since the `deny-redis-exec` role denies the
 `executors` group for `redis-*` pods, the Kubernetes Service will forward the
 request while impersonating the `dev-viewers` group but *not* the `executors`
-group,
+group.
 
 However, if the same user runs `kubectl exec -it nginx /bin/bash` in the
 `development` namespace, against the same cluster, the Kubernetes Service will
-forward the request with an impersonation header for both the `dev-viewers` and
-the `executors` groups, since the `deny-redis-exec` role's `deny` condition does
-not match the request.
+forward the request with impersonation for both the `dev-viewers` and the
+`executors` groups, as the `deny-redis-exec` role's `deny` condition doesn't match
+the request.
 
 #### Progressively enabling access to resources
 
