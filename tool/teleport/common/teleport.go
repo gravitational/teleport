@@ -519,7 +519,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	getLogLevelCmd := debugCmd.Command("get-log-level", "Fetches current log level.")
 	collectProfilesCmd := debugCmd.Command("profile", "Export the application profiles (pprof format).")
 	collectProfilesCmd.Arg("PROFILES", fmt.Sprintf("Comma-separated profile names to be exported. Supported profiles: %s. Default: %s", strings.Join(maps.Keys(supportedProfiles), ","), strings.Join(defaultCollectProfiles, ","))).StringVar(&ccf.Profiles)
-	collectProfilesCmd.Flag("seconds", "For CPU and trace profiles, profile for the given duration. For other profiles, return a delta profile.").Short('s').Default("29").IntVar(&ccf.ProfileSeconds)
+	collectProfilesCmd.Flag("seconds", "For CPU and trace profiles, profile for the given duration. For other profiles, return a delta profile.").Short('s').Default("10").IntVar(&ccf.ProfileSeconds)
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
