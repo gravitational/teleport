@@ -43,10 +43,16 @@ export type {
   CloneableClient,
 } from './cloneableClient';
 
-// Available types are listed here:
-// https://github.com/gravitational/teleport/blob/v9.0.3/lib/defaults/defaults.go#L513-L530
-//
-// The list below can get out of sync with what tsh actually implements.
+export type TshdClient = CloneableClient<ITerminalServiceClient>;
+
+/**
+ * Available types are listed here:
+ * https://github.com/gravitational/teleport/blob/v9.0.3/lib/defaults/defaults.go#L513-L530
+ *
+ * The list below can get out of sync with what tsh actually implements.
+ *
+ * @depreacate Move to a better suited file.
+ */
 export type GatewayProtocol =
   | 'postgres'
   | 'mysql'
@@ -55,8 +61,7 @@ export type GatewayProtocol =
   | 'redis'
   | 'sqlserver';
 
-export type TshdClient = CloneableClient<ITerminalServiceClient>;
-
+/** @depreacate Move to a better suited file. */
 export type GetResourcesParams = {
   clusterUri: uri.ClusterUri;
   // sort is a required field because it has direct implications on performance of ListResources.
@@ -72,6 +77,7 @@ export type GetResourcesParams = {
   query?: string;
 };
 
+/** @depreacate Use `AccessRequest` instead. */
 export type AssumedRequest = {
   id: string;
   expires: Date;

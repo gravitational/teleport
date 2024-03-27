@@ -25,6 +25,16 @@ import type { RouteProps } from 'react-router';
  * These are for identifying a specific resource within a root cluster.
  */
 
+// TODO(gzdunek): These types used to be template literals
+// (for example, RootClusterUri = `/clusters/${RootClusterId}`).
+// They were replaced with strings here https://github.com/gravitational/teleport/pull/39828,
+// because we started using the generated proto types directly
+// (so it was not possible to assign these types to plain strings).
+// However, I didn't remove the type aliases below, because:
+// 1. Ripping them out is too much work.
+// 2. They still carry some useful information.
+// 3. We might be able to add them back in the future
+// (maybe with some sort of TypeScript declaration merging).
 export type RootClusterUri = string;
 export type RootClusterServerUri = string;
 export type RootClusterKubeUri = string;
