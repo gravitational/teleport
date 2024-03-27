@@ -219,3 +219,25 @@ func ServerInfoNameFromAWS(accountID, instanceID string) string {
 func ServerInfoNameFromNodeName(name string) string {
 	return fmt.Sprintf("si-%v", name)
 }
+
+// ServerInfoForServer returns a ServerInfo from a Server
+func ServerInfoForServer(server Server) (ServerInfo, error) {
+	return NewServerInfo(
+		Metadata{
+			Name: serverInfoNameFromServer(server),
+		},
+		ServerInfoSpecV1{},
+	)
+}
+
+// serverInfoNameFromServer returns the ServerInfo name for this Server.
+func serverInfoNameFromServer(s Server) string {
+	awsAccountID := s.GetAWSAccountID()
+	awsInstanceID := s.GetAWSInstanceID()
+
+	if awsAccountID != "" && awsInstanceID != "" {
+		return ServerInfoNameFromAWS(awsAccountID, awsInstanceID)
+	}
+
+	return ServerInfoNameFromNodeName(s.GetName())
+}
