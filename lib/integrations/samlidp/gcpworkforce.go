@@ -31,6 +31,7 @@ import (
 	"google.golang.org/api/iam/v1" // Migrate to v2 once it starts supporting workforce service.
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -220,15 +221,18 @@ func (s *GCPWorkforceService) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	if s.HTTPClient == nil {
-		return trace.BadParameter("param HTTPClient required")
-	}
-	if s.HTTPClient.CheckRedirect == nil {
+		httpClient, err := defaults.HTTPClient()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		s.HTTPClient = httpClient
 		// we expect metadata to be available at the given SAMLIdPMetadataURL endpoint.
 		// As such client should be configured to not to follow redirect response.
 		s.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
 	}
+
 	return nil
 }
 

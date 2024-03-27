@@ -30,18 +30,20 @@ import (
 
 func TestNewGCPWorkforceService(t *testing.T) {
 	tests := []struct {
-		name             string
-		orgID            string
-		poolName         string
-		poolProviderName string
-		httpClient       *http.Client
-		errAssertion     require.ErrorAssertionFunc
+		name               string
+		organizationID     string
+		poolName           string
+		poolProviderName   string
+		samlIdPMetadataURL string
+		httpClient         *http.Client
+		errAssertion       require.ErrorAssertionFunc
 	}{
 		{
-			name:             "valid organization name",
-			orgID:            "123423452",
-			poolName:         "test-pool-name",
-			poolProviderName: "test-pool-provider-name",
+			name:               "valid organization name",
+			organizationID:     "123423452",
+			poolName:           "test-pool-name",
+			poolProviderName:   "test-pool-provider-name",
+			samlIdPMetadataURL: "https://metadata",
 			httpClient: &http.Client{
 				Timeout: defaults.HTTPRequestTimeout,
 				CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -51,12 +53,37 @@ func TestNewGCPWorkforceService(t *testing.T) {
 			errAssertion: require.NoError,
 		},
 		{
-			name:             "missing http client",
-			orgID:            "123423452",
-			poolName:         "test-pool-name",
-			poolProviderName: "test-pool-provider-name",
+			name:           "missing organization id",
+			organizationID: "",
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "param HTTPClient required")
+				require.ErrorContains(t, err, "required")
+			},
+		},
+		{
+			name:           "missing pool name",
+			organizationID: "123423452",
+			poolName:       "",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "required")
+			},
+		},
+		{
+			name:             "missing provider name",
+			organizationID:   "123423452",
+			poolName:         "test-pool-name",
+			poolProviderName: "",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "required")
+			},
+		},
+		{
+			name:               "missing IdP metadata URL value",
+			organizationID:     "123423452",
+			poolName:           "test-pool-name",
+			poolProviderName:   "test-pool-provider-name",
+			samlIdPMetadataURL: "",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "required")
 			},
 		},
 	}
@@ -65,10 +92,10 @@ func TestNewGCPWorkforceService(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := NewGCPWorkforceService(GCPWorkforceService{
 				APIParams: samlidpconfig.GCPWorkforceAPIParams{
-					OrganizationID:     test.orgID,
+					OrganizationID:     test.organizationID,
 					PoolName:           test.poolName,
 					PoolProviderName:   test.poolProviderName,
-					SAMLIdPMetadataURL: "http://metadata",
+					SAMLIdPMetadataURL: test.samlIdPMetadataURL,
 				},
 				HTTPClient: test.httpClient,
 			})
