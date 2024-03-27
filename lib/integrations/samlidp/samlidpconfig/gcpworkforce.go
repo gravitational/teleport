@@ -28,7 +28,7 @@ import (
 // GCPWorkforcePrams defines input params
 // to configure GCP Workforce Identity Federation pool
 // and pool provider.
-type GCPWorkforceParams struct {
+type GCPWorkforceAPIParams struct {
 	// PoolName is a GCP workforce pool name.
 	PoolName string
 	// PoolProviderName is a GCP workforce pool provider name.
@@ -40,7 +40,7 @@ type GCPWorkforceParams struct {
 	SAMLIdPMetadataURL string
 }
 
-func (p GCPWorkforceParams) CheckAndSetDefaults() error {
+func (p GCPWorkforceAPIParams) CheckAndSetDefaults() error {
 	if err := validateGCPResourceName(p.PoolName, "PoolName"); err != nil {
 		return trace.Wrap(err)
 	}

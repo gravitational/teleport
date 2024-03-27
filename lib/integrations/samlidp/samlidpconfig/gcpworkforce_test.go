@@ -90,7 +90,7 @@ func TestSAMLIdPBuildScriptCheckAndSetDefaults(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			newParams := &GCPWorkforceParams{
+			newParams := &GCPWorkforceAPIParams{
 				OrganizationID:     test.orgID,
 				PoolName:           test.poolName,
 				PoolProviderName:   test.poolProviderName,

@@ -38,7 +38,7 @@ import (
 type GCPWorkforceService struct {
 	// APIParams holds basic input params required to create GCP workforce
 	// pool and pool provider.
-	APIParams samlidpconfig.GCPWorkforceParams
+	APIParams samlidpconfig.GCPWorkforceAPIParams
 	// HTTPClient is used to fetch metadata from the SAMLIdPMetadataURL
 	// endpoint.
 	HTTPClient *http.Client
@@ -47,7 +47,7 @@ type GCPWorkforceService struct {
 // NewGCPWorkforceService creates new GCPWorkforceService.
 func NewGCPWorkforceService(cfg GCPWorkforceService) (*GCPWorkforceService, error) {
 	newGCPWorkforceService := &GCPWorkforceService{
-		APIParams: samlidpconfig.GCPWorkforceParams{
+		APIParams: samlidpconfig.GCPWorkforceAPIParams{
 			PoolName:           cfg.APIParams.PoolName,
 			PoolProviderName:   cfg.APIParams.PoolProviderName,
 			OrganizationID:     cfg.APIParams.OrganizationID,
@@ -137,7 +137,7 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 	return nil
 }
 
-// waitForPoolStatus waits for pool to become online. Returns immidiately if error code is other than
+// waitForPoolStatus waits for pool to become online. Returns immediately if error code is other than
 // http.StatusForbidden or when context is canceld with timeout.
 func waitForPoolStatus(ctx context.Context, workforceService *iam.LocationsWorkforcePoolsService, poolName, poolDisplayName string) error {
 	fmt.Printf("Waiting for pool %q status to become available.\n", poolDisplayName)
