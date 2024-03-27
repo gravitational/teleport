@@ -2586,6 +2586,12 @@ message PluginDataUpdateParams {
   map<string, string> Expect = 5 [(gogoproto.jsontag) = "expect,omitempty"];
 }
 
+// RoleFilter matches role resources.
+message RoleFilter {
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+}
+
 // RoleV6 represents role resource specification
 message RoleV6 {
   option (gogoproto.goproto_stringer) = false;
@@ -5700,6 +5706,13 @@ message PluginSpecV1 {
     // Settings for the ServiceNow plugin
     PluginServiceNowSettings serviceNow = 10;
   }
+
+  // generation contains a unique ID that should:
+  // - Be created by the backed on plugin creation.
+  // - Be updated by the backend if the plugin is updated in any way.
+  //
+  // For older plugins, it's possible for this to be empty.
+  string generation = 11;
 }
 
 message PluginSlackAccessSettings {

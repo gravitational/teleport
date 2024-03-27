@@ -92,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
@@ -1930,11 +1931,11 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 
 	tmpl := installers.Template{
 		PublicProxyAddr:   h.PublicProxyAddr(),
-		MajorVersion:      version,
+		MajorVersion:      utils.UnixShellQuote(version),
 		TeleportPackage:   teleportPackage,
-		RepoChannel:       repoChannel,
+		RepoChannel:       utils.UnixShellQuote(repoChannel),
 		AutomaticUpgrades: strconv.FormatBool(installUpdater),
-		AzureClientID:     azureClientID,
+		AzureClientID:     utils.UnixShellQuote(azureClientID),
 	}
 	err = instTmpl.Execute(w, tmpl)
 	return nil, trace.Wrap(err)
@@ -2654,7 +2655,65 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 		PredicateExpression: values.Get("query"),
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
 		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",
+		IncludeLogins:       true,
 	}, nil
+}
+
+type loginGetter interface {
+	GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error)
+}
+
+// calculateSSHLogins returns the subset of the allowedLogins that exist in
+// the principals of the identity. This is required because SSH authorization
+// only allows using a login that exists in the certificates valid principals.
+// When connecting to servers in a leaf cluster, the root certificate is used,
+// so we need to ensure that we only present the allowed logins that would
+// result in a successful connection, if any exists.
+func calculateSSHLogins(identity *tlsca.Identity, loginGetter loginGetter, r types.ResourceWithLabels, allowedLogins []string) ([]string, error) {
+	// TODO(tross) DELETE IN V17.0.0
+	// This is here for backward compatibility in case the auth server
+	// does not support enriched resources yet.
+	if len(allowedLogins) == 0 {
+		logins, err := loginGetter.GetAllowedLoginsForResource(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		slices.Sort(logins)
+		return logins, nil
+	}
+
+	localLogins := identity.Principals
+
+	allowed := make(map[string]struct{})
+	for _, login := range allowedLogins {
+		allowed[login] = struct{}{}
+	}
+
+	var logins []string
+	for _, local := range localLogins {
+		if _, ok := allowed[local]; ok {
+			logins = append(logins, local)
+		}
+	}
+
+	slices.Sort(logins)
+	return logins, nil
+}
+
+// calculateDesktopLogins determines the desktop logins allowed for the provided resource.
+// If no logins are provided, then the checker is interrogated to determine which logins
+// are allowed.
+//
+// TODO(tross) DELETE IN V17.0.0
+// This is here for backward compatibility if the auth server doesn't yet support enriching
+// resources with login information.
+func calculateDesktopLogins(loginGetter loginGetter, r types.ResourceWithLabels, allowedLogins []string) ([]string, error) {
+	if len(allowedLogins) > 0 {
+		return allowedLogins, nil
+	}
+
+	logins, err := loginGetter.GetAllowedLoginsForResource(r)
+	return logins, trace.Wrap(err)
 }
 
 // clusterUnifiedResourcesGet returns a list of resources for a given cluster site. This includes all resources available to be displayed in the web ui
@@ -2675,7 +2734,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 		return nil, trace.Wrap(err)
 	}
 
-	page, err := apiclient.ListUnifiedResourcePage(request.Context(), clt, req)
+	page, next, err := apiclient.GetUnifiedResourcePage(request.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2718,15 +2777,16 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 	var dbNames, dbUsers []string
 	hasFetchedDBUsersAndNames := false
 
-	unifiedResources := make([]any, 0, len(page.Resources))
-	for _, resource := range page.Resources {
-		switch r := resource.(type) {
+	unifiedResources := make([]any, 0, len(page))
+	for _, enriched := range page {
+		switch r := enriched.ResourceWithLabels.(type) {
 		case types.Server:
-			server, err := ui.MakeServer(site.GetName(), r, accessChecker)
+			logins, err := calculateSSHLogins(identity, accessChecker, r, enriched.Logins)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			unifiedResources = append(unifiedResources, server)
+
+			unifiedResources = append(unifiedResources, ui.MakeServer(site.GetName(), r, logins))
 		case types.DatabaseServer:
 			if !hasFetchedDBUsersAndNames {
 				dbNames, dbUsers, err = getDatabaseUsersAndNames(accessChecker)
@@ -2779,11 +2839,12 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.WindowsDesktop:
-			desktop, err := ui.MakeDesktop(r, accessChecker)
+			logins, err := calculateDesktopLogins(accessChecker, r, enriched.Logins)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			unifiedResources = append(unifiedResources, desktop)
+
+			unifiedResources = append(unifiedResources, ui.MakeDesktop(r, logins))
 		case types.KubeCluster:
 			kube := ui.MakeKubeCluster(r, accessChecker)
 			unifiedResources = append(unifiedResources, kube)
@@ -2791,14 +2852,13 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			kube := ui.MakeKubeCluster(r.GetCluster(), accessChecker)
 			unifiedResources = append(unifiedResources, kube)
 		default:
-			return nil, trace.Errorf("UI Resource has unknown type: %T", resource)
+			return nil, trace.Errorf("UI Resource has unknown type: %T", enriched)
 		}
 	}
 
 	resp := listResourcesGetResponse{
-		Items:      unifiedResources,
-		StartKey:   page.NextKey,
-		TotalCount: page.Total,
+		Items:    unifiedResources,
+		StartKey: next,
 	}
 
 	return resp, nil
@@ -2817,8 +2877,14 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	req.IncludeLogins = true
 
-	page, err := apiclient.GetResourcePage[types.Server](r.Context(), clt, req)
+	page, err := apiclient.GetEnrichedResourcePage(r.Context(), clt, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity, err := sctx.GetIdentity()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2828,9 +2894,19 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	uiServers, err := ui.MakeServers(site.GetName(), page.Resources, accessChecker)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	uiServers := make([]ui.Server, 0, len(page.Resources))
+	for _, resource := range page.Resources {
+		server, ok := resource.ResourceWithLabels.(types.Server)
+		if !ok {
+			continue
+		}
+
+		logins, err := calculateSSHLogins(identity, accessChecker, server, resource.Logins)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		uiServers = append(uiServers, ui.MakeServer(site.GetName(), server, logins))
 	}
 
 	return listResourcesGetResponse{
