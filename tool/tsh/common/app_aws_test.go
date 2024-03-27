@@ -176,9 +176,20 @@ func TestAWS(t *testing.T) {
 	})
 }
 
-func makeUserWithAWSRole(t *testing.T) (types.User, types.Role) {
+func makeUserAlice(t *testing.T) types.User {
+	t.Helper()
+
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
+
+	alice.AddRole("access")
+	return alice
+}
+
+func makeUserWithAWSRole(t *testing.T) (types.User, types.Role) {
+	t.Helper()
+
+	alice := makeUserAlice(t)
 
 	awsRole, err := types.NewRole("aws", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -192,7 +203,7 @@ func makeUserWithAWSRole(t *testing.T) (types.User, types.Role) {
 	})
 	require.NoError(t, err)
 
-	alice.SetRoles([]string{"access", awsRole.GetName()})
+	alice.AddRole(awsRole.GetName())
 	return alice, awsRole
 }
 
