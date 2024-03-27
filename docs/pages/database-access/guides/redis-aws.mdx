@@ -15,6 +15,12 @@ description: How to configure Teleport database access with AWS ElastiCache and 
 
 </Tabs>
 
+This guide shows how to enroll a single AWS Elasticache or MemoryDB cluster
+through the Teleport Database Service. For a more scalable approach, learn how
+to [configure the Teleport Discovery
+Service](../../auto-discovery/databases.mdx) to automatically enroll all AWS
+databases in your infrastructure.
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -25,7 +31,6 @@ description: How to configure Teleport database access with AWS ElastiCache and 
 - `redis-cli` version `6.2` or newer installed and added to your system's `PATH` environment variable.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
-- (!docs/pages/includes/database-access/aws-auto-discovery-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/7. Create a Teleport user
@@ -38,21 +43,51 @@ description: How to configure Teleport database access with AWS ElastiCache and 
 
 (!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+Create the Database Service configuration:
+
 <Tabs>
+  <TabItem label="ElastiCache">
 
-<TabItem label="ElastiCache">
+  Change `example.teleport.sh:443` to the host and port of your Teleport Proxy
+  Service. Set `ELASTICACHE_URI` to the domain name and port of your ElastiCache
+  database:
 
-(!docs/pages/includes/database-access/aws-create-db-configuration.mdx type="ElastiCache" matcher="elasticache" protocol="redis" example="clustercfg.my-redis-cluster.xxxxxx.usw1.cache.amazonaws.com:6379" !)
+  ```code
+  $ ELASTICACHE_URI=""
+  $ sudo teleport db configure create \
+     -o file \
+     --name="elasticache" \
+     --proxy=example.teleport.sh:443 \
+     --protocol="redis" \
+     --uri=${ELASTICACHE_URI?} \
+     --token=/tmp/token
+  ```
+  </TabItem>
+  <TabItem label="MemoryDB">
 
-</TabItem>
+  Change `example.teleport.sh:443` to the host and port of your Teleport Proxy
+  Service. Set `MEMORYDB_URI` to the domain name and port of your ElastiCache
+  database:
 
-<TabItem label="MemoryDB">
-
-(!docs/pages/includes/database-access/aws-create-db-configuration.mdx type="MemoryDB" matcher="memorydb" protocol="redis" example="clustercfg.my-memorydb.xxxxxx.memorydb.us-west-1.amazonaws.com:6379" !)
-
-</TabItem>
-
+  ```code
+  $ MEMORYDB_URI=""
+  $ sudo teleport db configure create \
+     -o file \
+     --name="memorydb" \
+     --proxy=example.teleport.sh:443 \
+     --protocol="redis" \ \
+     --uri=${MEMORYDB_URI} \
+     --token=/tmp/token
+  ```
+  </TabItem>
 </Tabs>
+
+The command will generate a Database Service configuration and place it at the
+`/etc/teleport.yaml` location.
 
 ## Step 3/7. Create an IAM policy for Teleport
 
@@ -67,14 +102,7 @@ Service access to AWS credentials.
 
 (!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
 
-<Tabs>
-<TabItem label="ElastiCache">
-(!docs/pages/includes/database-access/aws-bootstrap.mdx type="elasticache" !)
-</TabItem>
-<TabItem label="MemoryDB">
-(!docs/pages/includes/database-access/aws-bootstrap.mdx type="memorydb" !)
-</TabItem>
-</Tabs>
+(!docs/pages/includes/database-access/aws-bootstrap.mdx!)
 
 ## Step 4/7. Start the Database Service
 
@@ -233,10 +261,10 @@ $ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
 # Name                        Description                                               Labels
 # --------------------------- --------------------------------------------------------- --------
-# my-cluster-mode-elasticache ElastiCache cluster in us-west-1 (configuration endpoint) ...
-# my-elasticache              ElastiCache cluster in us-west-1 (primary endpoint)       ...
-# my-elasticache-reader       ElastiCache cluster in us-west-1 (reader endpoint)        ...
-# my-memorydb                 MemoryDB cluster in us-west-1                             ...
+# my-cluster-mode-elasticache                                                           ...
+# my-elasticache                                                                        ...
+# my-elasticache-reader                                                                 ...
+# my-memorydb                                                                           ...
 ```
 
 </TabItem>
@@ -247,10 +275,10 @@ $ tsh login --proxy=mytenant.teleport.sh --user=alice
 $ tsh db ls
 # Name                        Description                                               Labels
 # --------------------------- --------------------------------------------------------- --------
-# my-cluster-mode-elasticache ElastiCache cluster in us-west-1 (configuration endpoint) ...
-# my-elasticache              ElastiCache cluster in us-west-1 (primary endpoint)       ...
-# my-elasticache-reader       ElastiCache cluster in us-west-1 (reader endpoint)        ...
-# my-memorydb                 MemoryDB cluster in us-west-1                             ...
+# my-cluster-mode-elasticache                                                           ...
+# my-elasticache                                                                        ...
+# my-elasticache-reader                                                                 ...
+# my-memorydb                                                                           ...
 ```
 
 </TabItem>

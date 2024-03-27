@@ -40,6 +40,11 @@ which supports IAM authentication.
 
 </Admonition>
 
+This guide shows how to enroll a single database through the Teleport Database
+Service. For a more scalable approach, learn how to [configure the Teleport
+Discovery Service](../../auto-discovery/databases.mdx) to automatically enroll
+all AWS databases in your infrastructure.
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -57,7 +62,6 @@ which supports IAM authentication.
 - A Linux host or Amazon Elastic Kubernetes Service cluster where you will run
   the Teleport Database Service, which proxies connections to your RDS
   databases. 
-- (!docs/pages/includes/database-access/aws-auto-discovery-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
 If you plan to run the Teleport Database Service on Kubernetes, you will need
@@ -136,7 +140,52 @@ Next, get your environment ready to run the Teleport Database Service:
 <Tabs>
 <TabItem label="Linux Host">
 
-(!docs/pages/includes/database-access/aws-create-db-configuration.mdx type="RDS" matcher="rds" protocol="&lt;Var name&equals;&quot;mysql or postgres&quot;&sol;&gt;" example="my-aurora-cluster.abcdefghijklm.us-west-1.rds.amazonaws.com:5432" !)
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+Generate a configuration for the Teleport Database Service:
+
+Generate a configuration file for the Teleport Database Service. Run one of the
+following commands, depending on whether you want to proxy an AWS Aurora or
+Amazon RDS instance. 
+
+Assign <Var name="example.teleport.sh:443" /> to the host **and port** of your
+Teleport Proxy Service or Enterprise Cloud site. Assign <Var name="us-west-1" />
+to the region associated with the RDS database.
+
+Run the following command to proxy an AWS Aurora cluster, assigning <Var
+name="RDS_URI" /> to your cluster's domain name and port and <Var
+name="protocol" /> to either `postgres` or `mysql`, depending on the database
+you want to proxy:
+
+```code
+$ sudo teleport db configure create \
+   -o file \
+   --name="postgres-rds" \
+   --proxy=<Var name="example.teleport.sh:443" />  \
+   --protocol=<Var name="protocol" /> \
+   --uri=<Var name="RDS_URI" /> \
+   --token=/tmp/token
+```
+
+Run the following command to proxy an AWS RDS instance, assigning <Var
+name="RDS_URI" /> to your instance's domain name and port and <Var
+name="protocol" /> to either `postgres` or `mysql`, depending on the database
+you want to proxy:
+
+```code
+$ sudo teleport db configure create \
+   -o file \
+   --name="postgres-rds" \
+   --proxy=<Var name="example.teleport.sh:443" />  \
+   --protocol=<Var name="protocol" /> \
+   --uri=<Var name="RDS_URI" /> \
+   --token=/tmp/token
+```
+
+The command will generate a Teleport Database Service configuration file and
+place it at the `/etc/teleport.yaml` location.
 
 </TabItem>
 <TabItem label="Kubernetes Cluster">
@@ -148,9 +197,8 @@ Next, get your environment ready to run the Teleport Database Service:
 
 ## Step 3/6. Create IAM policies for Teleport
 
-The Teleport Database Service needs AWS IAM permissions to be able to:
-
-- Configure IAM authentication.
+The Teleport Database Service needs AWS IAM permissions to be able to configure
+IAM authentication for RDS instances and Aurora clusters.
 
 In this step, we will show you how to provide the Teleport Database Service
 access to AWS credentials:
@@ -162,7 +210,7 @@ Follow these instructions on your Linux host.
 
 (!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
 
-(!docs/pages/includes/database-access/aws-bootstrap.mdx type="rds"!)
+(!docs/pages/includes/database-access/aws-bootstrap.mdx!)
 
 <Admonition type="note">
 Teleport uses `rds:ModifyDBInstance` and `rds:ModifyDBCluster` to automatically
@@ -309,7 +357,7 @@ roles: db
 databases:
 - name: example
   uri: "<Var name="rds-uri" />"
-  protocol: "postgres"
+  protocol: <Var name="protocol" />
   static_labels:
     env: dev
   aws:
@@ -337,11 +385,6 @@ teleport-kube-agent-0   1/1     Running   0          32s
 
 </TabItem>
 </Tabs>
-
-The Database Service will attempt to enable IAM authentication and configure
-IAM access policies for the registered databases. Keep in mind that AWS IAM
-changes may not propagate immediately and can take a few minutes to come into
-effect.
 
 ## Step 5/6. Create a database IAM user
 
@@ -386,22 +429,10 @@ Once the Database Service has started and joined the cluster, log in as the
 ```code
 $ tsh login --proxy=<Var name="example.teleport.sh:443" /> --user=alice
 $ tsh db ls
-# Name                           Description                                   Labels
-# ------------------------------ --------------------------------------------- --------
-# postgres-rds                   RDS instance in us-west-1                     ...
-# aurora-mysql                   Aurora cluster in us-west-1                   ...
-# aurora-mysql-custom-myendpoint Aurora cluster in us-west-1 (custom endpoint) ...
-# aurora-mysql-reader            Aurora cluster in us-west-1 (reader endpoint) ...
+# Name         Description Labels
+# ------------ ----------- --------
+# postgres-rds 
 ```
-
-<Admonition type="note" title="Discovered endpoints">
-
-  Primary, reader, and custom endpoints of Aurora clusters have names with the
-  format
-  `<cluster-id>`, `<cluster-id>-reader`, and
-  `<cluster-id>-custom-<endpoint-name>` respectively.
-
-</Admonition>
 
 Retrieve credentials for a database and connect to it as the `alice` user,
 assigning <Var name="postgres-rds" /> to the name of a database resource listed
