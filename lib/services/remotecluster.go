@@ -57,10 +57,6 @@ func UnmarshalRemoteCluster(bytes []byte, opts ...MarshalOption) (types.RemoteCl
 
 // MarshalRemoteCluster marshals the RemoteCluster resource to JSON.
 func MarshalRemoteCluster(remoteCluster types.RemoteCluster, opts ...MarshalOption) ([]byte, error) {
-	if err := remoteCluster.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -68,6 +64,10 @@ func MarshalRemoteCluster(remoteCluster types.RemoteCluster, opts ...MarshalOpti
 
 	switch remoteCluster := remoteCluster.(type) {
 	case *types.RemoteClusterV3:
+		if err := remoteCluster.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -150,10 +151,6 @@ func MarshalGithubConnector(connector types.GithubConnector, opts ...MarshalOpti
 }
 
 func marshalGithubConnector(githubConnector types.GithubConnector, opts ...MarshalOption) ([]byte, error) {
-	if err := githubConnector.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -161,7 +158,15 @@ func marshalGithubConnector(githubConnector types.GithubConnector, opts ...Marsh
 
 	switch githubConnector := githubConnector.(type) {
 	case *types.GithubConnectorV3:
-		if githubConnector.Spec.EndpointURL != "" {
+		if err := githubConnector.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Only return an error if the endpoint url is set and the build is OSS
+		// so that the enterprise marshaler can call this marshaler to produce
+		// the final output without receiving an error.
+		if modules.GetModules().BuildType() == modules.BuildOSS &&
+			githubConnector.Spec.EndpointURL != "" {
 			return nil, fmt.Errorf("GitHub endpoint URL is set: %w", ErrRequiresEnterprise)
 		}
 

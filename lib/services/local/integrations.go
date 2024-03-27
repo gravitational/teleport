@@ -56,7 +56,7 @@ func NewIntegrationsService(backend backend.Backend) (*IntegrationsService, erro
 	}, nil
 }
 
-// ListIntegrationss returns a paginated list of Integration resources.
+// ListIntegrations returns a paginated list of Integration resources.
 func (s *IntegrationsService) ListIntegrations(ctx context.Context, pageSize int, pageToken string) ([]types.Integration, string, error) {
 	igs, nextKey, err := s.svc.ListResources(ctx, pageSize, pageToken)
 	if err != nil {
@@ -66,7 +66,7 @@ func (s *IntegrationsService) ListIntegrations(ctx context.Context, pageSize int
 	return igs, nextKey, nil
 }
 
-// GetIntegrations returns the specified Integration resource.
+// GetIntegration returns the specified Integration resource.
 func (s *IntegrationsService) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
 	ig, err := s.svc.GetResource(ctx, name)
 	if err != nil {
@@ -76,9 +76,9 @@ func (s *IntegrationsService) GetIntegration(ctx context.Context, name string) (
 	return ig, nil
 }
 
-// CreateIntegrations creates a new Integration resource.
+// CreateIntegration creates a new Integration resource.
 func (s *IntegrationsService) CreateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
-	if err := ig.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(ig); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -89,9 +89,9 @@ func (s *IntegrationsService) CreateIntegration(ctx context.Context, ig types.In
 	return ig, nil
 }
 
-// UpdateIntegrations updates an existing Integration resource.
+// UpdateIntegration updates an existing Integration resource.
 func (s *IntegrationsService) UpdateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
-	if err := ig.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(ig); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -102,12 +102,12 @@ func (s *IntegrationsService) UpdateIntegration(ctx context.Context, ig types.In
 	return ig, nil
 }
 
-// DeleteIntegrations removes the specified Integration resource.
+// DeleteIntegration removes the specified Integration resource.
 func (s *IntegrationsService) DeleteIntegration(ctx context.Context, name string) error {
 	return trace.Wrap(s.svc.DeleteResource(ctx, name))
 }
 
-// DeleteAllIntegrationss removes all Integration resources.
+// DeleteAllIntegrations removes all Integration resources.
 func (s *IntegrationsService) DeleteAllIntegrations(ctx context.Context) error {
 	return trace.Wrap(s.svc.DeleteAllResources(ctx))
 }

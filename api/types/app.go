@@ -120,6 +120,16 @@ func (a *AppV3) SetResourceID(id int64) {
 	a.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (a *AppV3) GetRevision() string {
+	return a.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (a *AppV3) SetRevision(rev string) {
+	a.Metadata.SetRevision(rev)
+}
+
 // GetMetadata returns the app resource metadata.
 func (a *AppV3) GetMetadata() Metadata {
 	return a.Metadata

@@ -42,8 +42,25 @@ func UnmarshalUserToken(bytes []byte, opts ...MarshalOption) (types.UserToken, e
 
 // MarshalUserToken marshals the UserToken resource to JSON.
 func MarshalUserToken(token types.UserToken, opts ...MarshalOption) ([]byte, error) {
-	if err := token.CheckAndSetDefaults(); err != nil {
+	cfg, err := CollectOptions(opts)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return utils.FastMarshal(token)
+
+	switch t := token.(type) {
+	case *types.UserTokenV3:
+		if err := t.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if !cfg.PreserveResourceID {
+			copy := *t
+			copy.SetResourceID(0)
+			copy.SetRevision("")
+			t = &copy
+		}
+		return utils.FastMarshal(t)
+	default:
+		return nil, trace.BadParameter("unsupported user token resource %T", t)
+	}
 }

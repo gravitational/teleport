@@ -30,6 +30,10 @@ import (
 )
 
 // Resource represents common properties for all resources.
+//
+// Please avoid adding new uses of Resource in the codebase. Instead, consider
+// using concrete proto types directly or a manually declared subset of the
+// Resource153 interface for new-style resources.
 type Resource interface {
 	// GetKind returns resource kind
 	GetKind() string
@@ -50,12 +54,15 @@ type Resource interface {
 	// GetMetadata returns object metadata
 	GetMetadata() Metadata
 	// GetResourceID returns resource ID
+	// Deprecated: use GetRevision instead
 	GetResourceID() int64
 	// SetResourceID sets resource ID
+	// Deprecated: use SetRevision instead
 	SetResourceID(int64)
-	// CheckAndSetDefaults validates the Resource and sets any empty fields to
-	// default values.
-	CheckAndSetDefaults() error
+	// GetRevision returns the revision
+	GetRevision() string
+	// SetRevision sets the revision
+	SetRevision(string)
 }
 
 // IsSystemResource checks to see if the given resource is considered
@@ -277,13 +284,25 @@ func (h *ResourceHeader) GetVersion() string {
 }
 
 // GetResourceID returns resource ID
+// Deprecated: Use GetRevision instead.
 func (h *ResourceHeader) GetResourceID() int64 {
 	return h.Metadata.ID
 }
 
 // SetResourceID sets resource ID
+// Deprecated: Use SetRevision instead.
 func (h *ResourceHeader) SetResourceID(id int64) {
 	h.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (h *ResourceHeader) GetRevision() string {
+	return h.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (h *ResourceHeader) SetRevision(rev string) {
+	h.Metadata.SetRevision(rev)
 }
 
 // GetName returns the name of the resource
@@ -376,6 +395,16 @@ func (m *Metadata) GetID() int64 {
 // SetID sets resource ID
 func (m *Metadata) SetID(id int64) {
 	m.ID = id
+}
+
+// GetRevision returns the revision
+func (m *Metadata) GetRevision() string {
+	return m.Revision
+}
+
+// SetRevision sets the revision
+func (m *Metadata) SetRevision(rev string) {
+	m.Revision = rev
 }
 
 // GetMetadata returns object metadata
@@ -532,31 +561,102 @@ func ValidateResourceName(validationRegex *regexp.Regexp, name string) error {
 	)
 }
 
-// GetOrigin returns the origin if one can be obtained.
-func GetOrigin(v any) string {
+// GetOrigin returns the value set for the [OriginLabel].
+// If the label is missing, an empty string is returned.
+//
+// Works for both [ResourceWithOrigin] and [ResourceMetadata] instances.
+func GetOrigin(v any) (string, error) {
 	switch r := v.(type) {
 	case ResourceWithOrigin:
-		return r.Origin()
+		return r.Origin(), nil
 	case ResourceMetadata:
 		meta := r.GetMetadata()
 		if meta.Labels == nil {
-			return ""
+			return "", nil
 		}
-		return meta.Labels[OriginLabel]
+		return meta.Labels[OriginLabel], nil
 	}
-
-	return ""
+	return "", trace.BadParameter("unable to determine origin from resource of type %T", v)
 }
 
-// GetKind returns the kind if one can be obtained.
-func GetKind(v any) string {
+// GetKind returns the kind, if one can be obtained, otherwise
+// an empty string is returned.
+//
+// Works for both [Resource] and [ResourceMetadata] instances.
+func GetKind(v any) (string, error) {
 	type kinder interface {
 		GetKind() string
 	}
-
 	if k, ok := v.(kinder); ok {
-		return k.GetKind()
+		return k.GetKind(), nil
 	}
+	return "", trace.BadParameter("unable to determine kind from resource of type %T", v)
+}
 
-	return ""
+// GetRevision returns the revision, if one can be obtained, otherwise
+// an empty string is returned.
+//
+// Works for both [Resource] and [ResourceMetadata] instances.
+func GetRevision(v any) (string, error) {
+	switch r := v.(type) {
+	case Resource:
+		return r.GetRevision(), nil
+	case ResourceMetadata:
+		return r.GetMetadata().Revision, nil
+	}
+	return "", trace.BadParameter("unable to determine revision from resource of type %T", v)
+}
+
+// SetRevision updates the revision if v supports the concept of revisions.
+//
+// Works for both [Resource] and [ResourceMetadata] instances.
+func SetRevision(v any, revision string) error {
+	switch r := v.(type) {
+	case Resource:
+		r.SetRevision(revision)
+		return nil
+	case ResourceMetadata:
+		r.GetMetadata().Revision = revision
+		return nil
+	}
+	return trace.BadParameter("unable to set revision on resource of type %T", v)
+}
+
+// GetExpiry returns the expiration, if one can be obtained, otherwise returns
+// an empty time `time.Time{}`, which is equivalent to no expiry.
+//
+// Works for both [Resource] and [ResourceMetadata] instances.
+func GetExpiry(v any) (time.Time, error) {
+	switch r := v.(type) {
+	case Resource:
+		return r.Expiry(), nil
+	case ResourceMetadata:
+		// ResourceMetadata uses *timestamppb.Timestamp instead of time.Time. The zero value for this type is 01/01/1970.
+		// This is a problem for resources without explicit expiry set: they'd become obsolete on creation.
+		// For this reason, we check for nil expiry explicitly, and default it to time.Time{}.
+		exp := r.GetMetadata().GetExpires()
+		if exp == nil {
+			return time.Time{}, nil
+		}
+		return exp.AsTime(), nil
+	}
+	return time.Time{}, trace.BadParameter("unable to determine expiry from resource of type %T", v)
+}
+
+// GetResourceID returns the id, if one can be obtained, otherwise returns
+// zero.
+//
+// Works for both [Resource] and [ResourceMetadata] instances.
+//
+// Deprecated: GetRevision should be used instead.
+func GetResourceID(v any) (int64, error) {
+	switch r := v.(type) {
+	case Resource:
+		//nolint:staticcheck // SA1019. Added for backward compatibility.
+		return r.GetResourceID(), nil
+	case ResourceMetadata:
+		//nolint:staticcheck // SA1019. Added for backward compatibility.
+		return r.GetMetadata().Id, nil
+	}
+	return 0, trace.BadParameter("unable to determine resource ID from resource of type %T", v)
 }

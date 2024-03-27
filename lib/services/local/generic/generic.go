@@ -29,14 +29,20 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// MarshalFunc is a type signature for a marshaling function.
-type MarshalFunc[T types.Resource] func(T, ...services.MarshalOption) ([]byte, error)
+// Resource represents a Teleport resource that may be generically
+// persisted into the backend.
+type Resource interface {
+	GetName() string
+}
 
-// UnmarshalFunc is a type signature for an unmarshaling function.
-type UnmarshalFunc[T types.Resource] func([]byte, ...services.MarshalOption) (T, error)
+// MarshalFunc is a type signature for a marshaling function, which converts from T to []byte, while respecting specified options.
+type MarshalFunc[T any] func(T, ...services.MarshalOption) ([]byte, error)
+
+// UnmarshalFunc is a type signature for an unmarshalling function, which converts from []byte to T, while respecting specified options.
+type UnmarshalFunc[T any] func([]byte, ...services.MarshalOption) (T, error)
 
 // ServiceConfig is the configuration for the service configuration.
-type ServiceConfig[T types.Resource] struct {
+type ServiceConfig[T Resource] struct {
 	Backend       backend.Backend
 	ResourceKind  string
 	PageLimit     uint
@@ -71,7 +77,7 @@ func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
 }
 
 // Service is a generic service for interacting with resources in the backend.
-type Service[T types.Resource] struct {
+type Service[T Resource] struct {
 	backend       backend.Backend
 	resourceKind  string
 	pageLimit     uint
@@ -82,7 +88,7 @@ type Service[T types.Resource] struct {
 
 // NewService will return a new generic service with the given config. This will
 // panic if the configuration is invalid.
-func NewService[T types.Resource](cfg *ServiceConfig[T]) (*Service[T], error) {
+func NewService[T Resource](cfg *ServiceConfig[T]) (*Service[T], error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -209,6 +215,9 @@ func (s *Service[T]) CreateResource(ctx context.Context, resource T) error {
 	if trace.IsAlreadyExists(err) {
 		return trace.AlreadyExists("%s %q already exists", s.resourceKind, resource.GetName())
 	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	return trace.Wrap(err)
 }
@@ -223,6 +232,9 @@ func (s *Service[T]) UpdateResource(ctx context.Context, resource T) error {
 	_, err = s.backend.Update(ctx, item)
 	if trace.IsNotFound(err) {
 		return trace.NotFound("%s %q doesn't exist", s.resourceKind, resource.GetName())
+	}
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	return trace.Wrap(err)
@@ -290,18 +302,28 @@ func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, mod
 
 // MakeBackendItem will check and make the backend item.
 func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, error) {
-	if err := resource.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(resource); err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
+
 	value, err := s.marshalFunc(resource)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     s.MakeKey(name),
-		Value:   value,
-		Expires: resource.Expiry(),
-		ID:      resource.GetResourceID(),
+		Key:   s.MakeKey(name),
+		Value: value,
+	}
+
+	item.Expires, err = types.GetExpiry(resource)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
+	//nolint:staticcheck // SA1019. Added for backward compatibility.
+	item.ID, err = types.GetResourceID(resource)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
 	}
 
 	return item, nil

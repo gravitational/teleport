@@ -74,7 +74,7 @@ func (s *DatabaseService) GetDatabase(ctx context.Context, name string) (types.D
 
 // CreateDatabase creates a new database resource.
 func (s *DatabaseService) CreateDatabase(ctx context.Context, database types.Database) error {
-	if err := database.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(database); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.MarshalDatabase(database)
@@ -100,7 +100,7 @@ func (s *DatabaseService) CreateDatabase(ctx context.Context, database types.Dat
 
 // UpdateDatabase updates an existing database resource.
 func (s *DatabaseService) UpdateDatabase(ctx context.Context, database types.Database) error {
-	if err := database.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(database); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.MarshalDatabase(database)

@@ -30,7 +30,7 @@ type DatabaseServices interface {
 	// UpsertDatabaseService updates an existing DatabaseService resource.
 	UpsertDatabaseService(context.Context, types.DatabaseService) (*types.KeepAlive, error)
 
-	// DeleteDatabasService removes the specified DatabaseService resource.
+	// DeleteDatabaseService removes the specified DatabaseService resource.
 	DeleteDatabaseService(ctx context.Context, name string) error
 
 	// DeleteAllDatabaseServices removes all DatabaseService resources.
@@ -39,10 +39,6 @@ type DatabaseServices interface {
 
 // MarshalDatabaseService marshals the DatabaseService resource to JSON.
 func MarshalDatabaseService(databaseService types.DatabaseService, opts ...MarshalOption) ([]byte, error) {
-	if err := databaseService.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -50,6 +46,10 @@ func MarshalDatabaseService(databaseService types.DatabaseService, opts ...Marsh
 
 	switch databaseService := databaseService.(type) {
 	case *types.DatabaseServiceV1:
+		if err := databaseService.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

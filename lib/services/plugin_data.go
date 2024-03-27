@@ -25,10 +25,6 @@ import (
 
 // MarshalPluginData marshals the PluginData resource to JSON.
 func MarshalPluginData(pluginData types.PluginData, opts ...MarshalOption) ([]byte, error) {
-	if err := pluginData.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -36,6 +32,10 @@ func MarshalPluginData(pluginData types.PluginData, opts ...MarshalOption) ([]by
 
 	switch pluginData := pluginData.(type) {
 	case *types.PluginDataV3:
+		if err := pluginData.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

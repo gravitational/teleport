@@ -71,12 +71,12 @@ func UnmarshalSessionTracker(bytes []byte) (types.SessionTracker, error) {
 
 // MarshalSessionTracker marshals the Session resource to JSON.
 func MarshalSessionTracker(session types.SessionTracker) ([]byte, error) {
-	if err := session.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	switch session := session.(type) {
 	case *types.SessionTrackerV1:
+		if err := session.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		return utils.FastMarshal(session)
 	default:
 		return nil, trace.BadParameter("unrecognized session version %T", session)

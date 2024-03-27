@@ -82,15 +82,16 @@ type Databases interface {
 
 // MarshalDatabase marshals the database resource to JSON.
 func MarshalDatabase(database types.Database, opts ...MarshalOption) ([]byte, error) {
-	if err := database.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch database := database.(type) {
 	case *types.DatabaseV3:
+		if err := database.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
@@ -142,7 +143,8 @@ func ValidateDatabase(db types.Database) error {
 	if err := enterprise.ProtocolValidation(db.GetProtocol()); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := db.CheckAndSetDefaults(); err != nil {
+
+	if err := CheckAndSetDefaults(db); err != nil {
 		return trace.Wrap(err)
 	}
 

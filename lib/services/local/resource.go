@@ -173,7 +173,7 @@ func itemFromCertAuthority(ca types.CertAuthority) (*backend.Item, error) {
 // itemFromProvisionToken attempts to encode the supplied provision token
 // as an instance of `backend.Item` suitable for storage.
 func itemFromProvisionToken(p types.ProvisionToken) (*backend.Item, error) {
-	if err := p.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(p); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalProvisionToken(p)
@@ -192,7 +192,7 @@ func itemFromProvisionToken(p types.ProvisionToken) (*backend.Item, error) {
 // itemFromTrustedCluster attempts to encode the supplied trusted cluster
 // as an instance of `backend.Item` suitable for storage.
 func itemFromTrustedCluster(tc types.TrustedCluster) (*backend.Item, error) {
-	if err := tc.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(tc); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalTrustedCluster(tc)
@@ -211,7 +211,7 @@ func itemFromTrustedCluster(tc types.TrustedCluster) (*backend.Item, error) {
 // itemFromGithubConnector attempts to encode the supplied github connector
 // as an instance of `backend.Item` suitable for storage.
 func itemFromGithubConnector(gc types.GithubConnector) (*backend.Item, error) {
-	if err := gc.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(gc); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalGithubConnector(gc)
@@ -355,7 +355,7 @@ func itemsFromLocalAuthSecrets(user string, auth types.LocalAuthSecrets) ([]back
 // itemFromLock attempts to encode the supplied lock as an
 // instance of `backend.Item` suitable for storage.
 func itemFromLock(l types.Lock) (*backend.Item, error) {
-	if err := l.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(l); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalLock(l)

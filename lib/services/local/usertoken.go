@@ -87,7 +87,7 @@ func (s *IdentityService) GetUserToken(ctx context.Context, tokenID string) (typ
 
 // CreateUserToken creates a user token.
 func (s *IdentityService) CreateUserToken(ctx context.Context, token types.UserToken) (types.UserToken, error) {
-	if err := token.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(token); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -129,7 +129,7 @@ func (s *IdentityService) GetUserTokenSecrets(ctx context.Context, tokenID strin
 
 // UpsertUserTokenSecrets upserts token secrets
 func (s *IdentityService) UpsertUserTokenSecrets(ctx context.Context, secrets types.UserTokenSecrets) error {
-	if err := secrets.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(secrets); err != nil {
 		return trace.Wrap(err)
 	}
 

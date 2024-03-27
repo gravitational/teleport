@@ -49,15 +49,16 @@ type Apps interface {
 
 // MarshalApp marshals Application resource to JSON.
 func MarshalApp(app types.Application, opts ...MarshalOption) ([]byte, error) {
-	if err := app.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch app := app.(type) {
 	case *types.AppV3:
+		if err := app.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if !cfg.PreserveResourceID {
 			copy := *app
 			copy.SetResourceID(0)
@@ -104,10 +105,6 @@ func UnmarshalApp(data []byte, opts ...MarshalOption) (types.Application, error)
 
 // MarshalAppServer marshals the AppServer resource to JSON.
 func MarshalAppServer(appServer types.AppServer, opts ...MarshalOption) ([]byte, error) {
-	if err := appServer.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -115,6 +112,10 @@ func MarshalAppServer(appServer types.AppServer, opts ...MarshalOption) ([]byte,
 
 	switch appServer := appServer.(type) {
 	case *types.AppServerV3:
+		if err := appServer.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if !cfg.PreserveResourceID {
 			copy := *appServer
 			copy.SetResourceID(0)

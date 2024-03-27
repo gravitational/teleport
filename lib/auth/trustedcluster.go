@@ -484,8 +484,8 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 		return nil, trace.AccessDenied("expected exactly one certificate authority, received %v", len(validateRequest.CAs))
 	}
 	remoteCA := validateRequest.CAs[0]
-	err = remoteCA.CheckAndSetDefaults()
-	if err != nil {
+
+	if err := services.CheckAndSetDefaults(remoteCA); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

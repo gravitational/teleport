@@ -42,7 +42,7 @@ func NewConnectionsDiagnosticService(backend backend.Backend) *ConnectionDiagnos
 
 // CreateConnectionDiagnostic creates a Connection Diagnostic resource.
 func (s *ConnectionDiagnosticService) CreateConnectionDiagnostic(ctx context.Context, connectionDiagnostic types.ConnectionDiagnostic) error {
-	if err := connectionDiagnostic.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(connectionDiagnostic); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -64,7 +64,7 @@ func (s *ConnectionDiagnosticService) CreateConnectionDiagnostic(ctx context.Con
 
 // UpdateConnectionDiagnostic updates a Connection Diagnostic resource.
 func (s *ConnectionDiagnosticService) UpdateConnectionDiagnostic(ctx context.Context, connectionDiagnostic types.ConnectionDiagnostic) error {
-	if err := connectionDiagnostic.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(connectionDiagnostic); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.MarshalConnectionDiagnostic(connectionDiagnostic)

@@ -42,8 +42,25 @@ func UnmarshalUserTokenSecrets(bytes []byte, opts ...MarshalOption) (types.UserT
 
 // MarshalUserTokenSecrets marshals the UserTokenSecrets resource to JSON.
 func MarshalUserTokenSecrets(secrets types.UserTokenSecrets, opts ...MarshalOption) ([]byte, error) {
-	if err := secrets.CheckAndSetDefaults(); err != nil {
+	cfg, err := CollectOptions(opts)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return utils.FastMarshal(secrets)
+
+	switch t := secrets.(type) {
+	case *types.UserTokenSecretsV3:
+		if err := t.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if !cfg.PreserveResourceID {
+			copy := *t
+			copy.SetResourceID(0)
+			copy.SetRevision("")
+			t = &copy
+		}
+		return utils.FastMarshal(t)
+	default:
+		return nil, trace.BadParameter("unsupported user token secrets resource %T", t)
+	}
 }

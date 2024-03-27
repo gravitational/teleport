@@ -39,7 +39,7 @@ func NewDatabaseServicesService(backend backend.Backend) *DatabaseServicesServic
 
 // UpsertDatabaseService creates or updates (by name) a DatabaseService resource.
 func (s *DatabaseServicesService) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) (*types.KeepAlive, error) {
-	if err := service.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(service); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalDatabaseService(service)

@@ -74,7 +74,7 @@ func (s *KubernetesService) GetKubernetesCluster(ctx context.Context, name strin
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
 func (s *KubernetesService) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
-	if err := cluster.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(cluster); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.MarshalKubeCluster(cluster)
@@ -100,7 +100,7 @@ func (s *KubernetesService) CreateKubernetesCluster(ctx context.Context, cluster
 
 // UpdateKubernetesCluster updates an existing kubernetes cluster resource.
 func (s *KubernetesService) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
-	if err := cluster.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(cluster); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.MarshalKubeCluster(cluster)

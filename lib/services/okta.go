@@ -80,10 +80,6 @@ type OktaAssignments interface {
 
 // MarshalOktaImportRule marshals the Okta import rule resource to JSON.
 func MarshalOktaImportRule(importRule types.OktaImportRule, opts ...MarshalOption) ([]byte, error) {
-	if err := importRule.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -91,6 +87,10 @@ func MarshalOktaImportRule(importRule types.OktaImportRule, opts ...MarshalOptio
 
 	switch i := importRule.(type) {
 	case *types.OktaImportRuleV1:
+		if err := i.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if !cfg.PreserveResourceID {
 			copy := *i
 			copy.SetResourceID(0)
@@ -137,10 +137,6 @@ func UnmarshalOktaImportRule(data []byte, opts ...MarshalOption) (types.OktaImpo
 
 // MarshalOktaAssignment marshals the Okta assignment resource to JSON.
 func MarshalOktaAssignment(assignment types.OktaAssignment, opts ...MarshalOption) ([]byte, error) {
-	if err := assignment.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -148,6 +144,10 @@ func MarshalOktaAssignment(assignment types.OktaAssignment, opts ...MarshalOptio
 
 	switch a := assignment.(type) {
 	case *types.OktaAssignmentV1:
+		if err := a.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if !cfg.PreserveResourceID {
 			copy := *a
 			copy.SetResourceID(0)

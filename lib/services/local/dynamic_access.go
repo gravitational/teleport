@@ -441,9 +441,6 @@ func (s *DynamicAccessService) updateAccessRequestPluginData(ctx context.Context
 		if err := data.Update(params); err != nil {
 			return trace.Wrap(err)
 		}
-		if err := data.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
 		newItem, err := itemFromPluginData(data)
 		if err != nil {
 			return trace.Wrap(err)

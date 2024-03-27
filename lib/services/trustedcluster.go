@@ -28,7 +28,7 @@ import (
 
 // ValidateTrustedCluster checks and sets Trusted Cluster defaults
 func ValidateTrustedCluster(tc types.TrustedCluster, allowEmptyRolesOpts ...bool) error {
-	if err := tc.CheckAndSetDefaults(); err != nil {
+	if err := CheckAndSetDefaults(tc); err != nil {
 		return trace.Wrap(err)
 	}
 

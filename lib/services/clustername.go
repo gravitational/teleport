@@ -67,10 +67,6 @@ func UnmarshalClusterName(bytes []byte, opts ...MarshalOption) (types.ClusterNam
 
 // MarshalClusterName marshals the ClusterName resource to JSON.
 func MarshalClusterName(clusterName types.ClusterName, opts ...MarshalOption) ([]byte, error) {
-	if err := clusterName.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -78,6 +74,10 @@ func MarshalClusterName(clusterName types.ClusterName, opts ...MarshalOption) ([
 
 	switch clusterName := clusterName.(type) {
 	case *types.ClusterNameV2:
+		if err := clusterName.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

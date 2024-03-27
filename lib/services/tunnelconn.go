@@ -92,10 +92,6 @@ func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (types.Tunnel
 
 // MarshalTunnelConnection marshals the TunnelConnection resource to JSON.
 func MarshalTunnelConnection(tunnelConnection types.TunnelConnection, opts ...MarshalOption) ([]byte, error) {
-	if err := tunnelConnection.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -103,6 +99,10 @@ func MarshalTunnelConnection(tunnelConnection types.TunnelConnection, opts ...Ma
 
 	switch tunnelConnection := tunnelConnection.(type) {
 	case *types.TunnelConnectionV2:
+		if err := tunnelConnection.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
