@@ -616,6 +616,8 @@ func (r *NewWebSessionRequest) CheckAndSetDefaults() error {
 
 // NewWebSessionRequest defines a request to create a new user
 // web session
+// TODO (Joerger): Remove this and replace it with lib/auth.NewWebSessionRequest
+// once /e is no longer dependent on this.
 type NewWebSessionRequest struct {
 	// User specifies the user this session is bound to
 	User string
