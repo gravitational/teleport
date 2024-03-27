@@ -3291,7 +3291,7 @@ func (process *TeleportProcess) initDebugService() error {
 		// We don't support setting custom levels such as DEBUG+1.
 		rawLevel := make([]byte, 5)
 		defer r.Body.Close()
-		if _, err := r.Body.Read(rawLevel); err != nil && errors.Is(err, io.EOF) {
+		if _, err := r.Body.Read(rawLevel); err != nil && !errors.Is(err, io.EOF) {
 			w.WriteHeader(http.StatusUnprocessableEntity)
 			w.Write([]byte("Unable to read request body."))
 			return
