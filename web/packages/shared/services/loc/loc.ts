@@ -83,3 +83,19 @@ export function displayDateTime(date: Date) {
 export function dateToUtc(date: Date) {
   return new Date(date.getTime() + date.getTimezoneOffset() * 60 * 1000);
 }
+
+export function dateTimeShortFormat(date: Date) {
+  try {
+    if (isTest) {
+      return new Intl.DateTimeFormat('en-US', { timeStyle: 'short' }).format(
+        date
+      );
+    }
+    return new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(
+      date
+    );
+  } catch (err) {
+    logger.error('dateTimeShortFormat()', err);
+    return 'undefined';
+  }
+}
