@@ -1458,6 +1458,26 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		return nil, trace.Wrap(err, "making paginated unified resources")
 	}
 
+	if req.IncludeLogins {
+		for _, r := range paginatedResources {
+			if n := r.GetNode(); n != nil {
+				logins, err := checker.GetAllowedLoginsForResource(n)
+				if err != nil {
+					log.WithError(err).WithField("resource", n.GetName()).Warn("Unable to determine logins for node")
+					continue
+				}
+				r.Logins = logins
+			} else if d := r.GetWindowsDesktop(); d != nil {
+				logins, err := checker.GetAllowedLoginsForResource(d)
+				if err != nil {
+					log.WithError(err).WithField("resource", d.GetName()).Warn("Unable to determine logins for desktop")
+					continue
+				}
+				r.Logins = logins
+			}
+		}
+	}
+
 	return &proto.ListUnifiedResourcesResponse{
 		NextKey:   nextKey,
 		Resources: paginatedResources,
@@ -1720,6 +1740,17 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		case err != nil:
 			return trace.Wrap(err)
 		case match:
+			if req.IncludeLogins {
+				logins, err := resourceChecker.GetAllowedLoginsForResource(resource)
+				if err != nil {
+					log.WithError(err).WithField("resource", resource.GetName()).Warn("Unable to determine logins for resource")
+				}
+
+				resource = &types.EnrichedResource{
+					ResourceWithLabels: resource,
+					Logins:             logins,
+				}
+			}
 			resp.Resources = append(resp.Resources, resource)
 			return nil
 		}
@@ -1735,6 +1766,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 // resourceAccessChecker allows access to be checked differently per resource type.
 type resourceAccessChecker interface {
 	CanAccess(resource types.Resource) error
+	GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error)
 }
 
 // resourceChecker is a pass through checker that utilizes the provided
@@ -1923,6 +1955,23 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		SearchKeywords:      req.SearchKeywords,
 		PredicateExpression: req.PredicateExpression,
 		StartKey:            req.StartKey,
+		EnrichResourceFn: func(r types.ResourceWithLabels) (types.ResourceWithLabels, error) {
+			if req.IncludeLogins && (r.GetKind() == types.KindNode || r.GetKind() == types.KindWindowsDesktop) {
+				resourceChecker, err := a.newResourceAccessChecker(req.ResourceType)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				logins, err := resourceChecker.GetAllowedLoginsForResource(r)
+				if err != nil {
+					log.WithError(err).WithField("resource", r.GetName()).Warn("Unable to determine logins for resource")
+				}
+
+				return &types.EnrichedResource{ResourceWithLabels: r, Logins: logins}, nil
+			}
+
+			return r, nil
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

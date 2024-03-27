@@ -1956,6 +1956,9 @@ message PaginatedResource {
     types.AppServerOrSAMLIdPServiceProviderV1 AppServerOrSAMLIdPServiceProvider = 11;
   }
 
+  // Logins allowed for the included resource. Only to be populated for SSH and Desktops.
+  repeated string Logins = 13 [(gogoproto.jsontag) = "logins,omitempty"];
+
   reserved 4;
   reserved "KubeService";
 }
@@ -1996,6 +1999,9 @@ message ListUnifiedResourcesRequest {
   // PinnedOnly indicates that the request will pull only the pinned resources
   // of the requesting user
   bool PinnedOnly = 11 [(gogoproto.jsontag) = "pinned_only,omitempty"];
+  // IncludeLogins indicates that the response should include a users allowed logins
+  // for all returned resources.
+  bool IncludeLogins = 12 [(gogoproto.jsontag) = "include_logins,omitempty"];
 }
 
 // ListUnifiedResourceResponse response of ListUnifiedResources.
@@ -2055,6 +2061,9 @@ message ListResourcesRequest {
   // UsePreviewAsRoles indicates that the response should include all resources
   // the caller would be able to access with their preview_as_roles
   bool UsePreviewAsRoles = 12 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
+  // IncludeLogins indicates that the response should include a users allowed logins
+  // for all returned resources.
+  bool IncludeLogins = 13 [(gogoproto.jsontag) = "include_logins,omitempty"];
 }
 
 // GetSSHTargetsRequest gets all servers that might match an equivalent ssh dial request.
