@@ -485,6 +485,9 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 
 				logger.Warnf("Deferring closure of unhealthy connection due to %d active connections", count)
 			}
+
+			offlineThresholdTimer.Reset(s.offlineThreshold)
+			continue
 		}
 
 		if !offlineThresholdTimer.Stop() {
