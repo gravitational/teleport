@@ -4973,6 +4973,12 @@ func TestCreateRegisterChallenge(t *testing.T) {
 	_, err = env.server.Auth().UpsertAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
+	// Create a user.
+	u, err := types.NewUser("llama")
+	require.NoError(t, err)
+	_, err = env.server.Auth().CreateUser(ctx, u)
+	require.NoError(t, err)
+
 	// Acquire an accepted token.
 	token, err := types.NewUserToken("some-token-id")
 	require.NoError(t, err)
