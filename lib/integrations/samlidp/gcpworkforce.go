@@ -68,7 +68,7 @@ func NewGCPWorkforceService(cfg GCPWorkforceService) (*GCPWorkforceService, erro
 // CreateWorkforcePoolAndProvider creates GCP Workforce Identity Federation pool and pool provider
 // with the given GCPWorkforceAPIParams values.
 func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context) error {
-	slog.Info("Configuring Workforce Identity Federation pool and SAML provider.")
+	slog.InfoContext(ctx, "Configuring Workforce Identity Federation pool and SAML provider.")
 
 	iamService, err := iam.NewService(ctx)
 	if err != nil {
@@ -76,7 +76,7 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 	}
 	workforceService := iam.NewLocationsWorkforcePoolsService(iamService)
 
-	slog.With("pool name", s.APIParams.PoolName).Info("Creating workforce pool.")
+	slog.With("pool name", s.APIParams.PoolName).InfoContext(ctx, "Creating workforce pool.")
 	poolFullName := fmt.Sprintf("locations/global/workforcePools/%s", s.APIParams.PoolName)
 	createPool := workforceService.Create(
 		"locations/global",
@@ -93,7 +93,7 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 		return trace.Wrap(err)
 	}
 
-	slog.Info("Pool created.")
+	slog.InfoContext(ctx, "Pool created.")
 	if !resp.Done {
 		// 2 minutes timeout is semi-random decision, chosen based on the fact that
 		// when creating workforce pool from the GCP web console, it mentions
@@ -107,8 +107,8 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 		slog.With("pool name", s.APIParams.PoolName, "Pool ready for use.")
 	}
 
-	slog.With("pool provider name", s.APIParams.PoolProviderName).Info("Creating workforce pool provider.")
-	metadata, err := fetchIdPMetadata(s.APIParams.SAMLIdPMetadataURL, s.HTTPClient)
+	slog.With("pool provider name", s.APIParams.PoolProviderName).InfoContext(ctx, "Creating workforce pool provider.")
+	metadata, err := fetchIdPMetadata(ctx, s.APIParams.SAMLIdPMetadataURL, s.HTTPClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -133,18 +133,18 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 	}
 
 	if !createProviderResp.Done {
-		slog.With("pool provider name", s.APIParams.PoolProviderName).Info("Pool provider is created but it may take upto a minute more for this provider to become available.")
+		slog.With("pool provider name", s.APIParams.PoolProviderName).InfoContext(ctx, "Pool provider is created but it may take upto a minute more for this provider to become available.")
 		return nil
 	}
-	slog.Info("Pool provider created.")
-	slog.With("pool provider name", s.APIParams.PoolProviderName).Info("Pool provider is ready for use.")
+	slog.InfoContext(ctx, "Pool provider created.")
+	slog.With("pool provider name", s.APIParams.PoolProviderName).InfoContext(ctx, "Pool provider is ready for use.")
 	return nil
 }
 
 // waitForPoolStatus waits for pool to come online. Returns immediately if error code is other than
 // http.StatusForbidden or when context is canceled with timeout.
 func waitForPoolStatus(ctx context.Context, workforceService *iam.LocationsWorkforcePoolsService, poolName, poolDisplayName string) error {
-	slog.With("pool name", poolDisplayName).Info("Waiting for pool status to become available.")
+	slog.InfoContext(ctx, "Waiting for pool status. It may take upto 2 minutes for new pool to become available.")
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
@@ -165,15 +165,13 @@ func waitForPoolStatus(ctx context.Context, workforceService *iam.LocationsWorkf
 						continue
 					}
 				}
-
 				return err
 			}
 
 			if result.State == "ACTIVE" {
-				slog.With("pool name", poolDisplayName).Info("Pool found.")
+				slog.With("pool name", poolDisplayName).InfoContext(ctx, "Pool found.")
 				return nil
 			}
-
 		}
 	}
 }
@@ -182,11 +180,11 @@ func waitForPoolStatus(ctx context.Context, workforceService *iam.LocationsWorkf
 // Teleport proxy. Response is returned without any data validation
 // as we expect proxy to return with a valid metadata as long as the proxy
 // is running as an enterprise module and with SAML IdP enabled.
-func fetchIdPMetadata(metadataURL string, httpClient *http.Client) (string, error) {
+func fetchIdPMetadata(ctx context.Context, metadataURL string, httpClient *http.Client) (string, error) {
 	if httpClient == nil {
 		return "", trace.BadParameter("missing http client")
 	}
-	slog.Info("Fetching Teleport SAML IdP metadata.")
+	slog.InfoContext(ctx, "Fetching Teleport SAML IdP metadata.")
 	resp, err := httpClient.Get(metadataURL)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -202,7 +200,7 @@ func fetchIdPMetadata(metadataURL string, httpClient *http.Client) (string, erro
 		return "", trace.Wrap(err)
 	}
 
-	slog.Info("Fetched Teleport SAML IdP metadata.")
+	slog.InfoContext(ctx, "Fetched Teleport SAML IdP metadata.")
 	return string(body), nil
 }
 
