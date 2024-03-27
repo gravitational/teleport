@@ -2174,6 +2174,63 @@ export interface OktaAccessListSyncEvent {
     numAccessListMembers: number;
 }
 /**
+ * DatabaseUserCreatedEvent is an event that is emitted after database service performs automatic user provisioning.
+ *
+ * @generated from protobuf message prehog.v1alpha.DatabaseUserCreatedEvent
+ */
+export interface DatabaseUserCreatedEvent {
+    /**
+     * Database metadata.
+     *
+     * @generated from protobuf field: prehog.v1alpha.SessionStartDatabaseMetadata database = 1;
+     */
+    database?: SessionStartDatabaseMetadata;
+    /**
+     * Teleport user name. Anonymized.
+     *
+     * @generated from protobuf field: string user_name = 2;
+     */
+    userName: string;
+    /**
+     * Number of database roles.
+     *
+     * @generated from protobuf field: int32 num_roles = 3;
+     */
+    numRoles: number;
+}
+/**
+ * DatabaseUserPermissionsUpdateEvent is an event that is emitted after database service updates the permissions for the database user.
+ *
+ * @generated from protobuf message prehog.v1alpha.DatabaseUserPermissionsUpdateEvent
+ */
+export interface DatabaseUserPermissionsUpdateEvent {
+    /**
+     * Database metadata.
+     *
+     * @generated from protobuf field: prehog.v1alpha.SessionStartDatabaseMetadata database = 1;
+     */
+    database?: SessionStartDatabaseMetadata;
+    /**
+     * Teleport user name. Anonymized.
+     *
+     * @generated from protobuf field: string user_name = 2;
+     */
+    userName: string;
+    /**
+     * How many tables were affected.
+     *
+     * @generated from protobuf field: int32 num_tables = 3;
+     */
+    numTables: number;
+    /**
+     * How many total table permissions were given to the user.
+     * For example {SELECT,UPDATE} on ten tables gives a total of twenty.
+     *
+     * @generated from protobuf field: int32 num_tables_permissions = 4;
+     */
+    numTablesPermissions: number;
+}
+/**
  * @generated from protobuf message prehog.v1alpha.SubmitEventRequest
  */
 export interface SubmitEventRequest {
@@ -2665,6 +2722,18 @@ export interface SubmitEventRequest {
          * @generated from protobuf field: prehog.v1alpha.OktaAccessListSyncEvent okta_access_list_sync = 80;
          */
         oktaAccessListSync: OktaAccessListSyncEvent;
+    } | {
+        oneofKind: "databaseUserCreated";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.DatabaseUserCreatedEvent database_user_created = 81;
+         */
+        databaseUserCreated: DatabaseUserCreatedEvent;
+    } | {
+        oneofKind: "databaseUserPermissionsUpdated";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.DatabaseUserPermissionsUpdateEvent database_user_permissions_updated = 82;
+         */
+        databaseUserPermissionsUpdated: DatabaseUserPermissionsUpdateEvent;
     } | {
         oneofKind: undefined;
     };
@@ -8411,6 +8480,138 @@ class OktaAccessListSyncEvent$Type extends MessageType<OktaAccessListSyncEvent> 
  */
 export const OktaAccessListSyncEvent = new OktaAccessListSyncEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class DatabaseUserCreatedEvent$Type extends MessageType<DatabaseUserCreatedEvent> {
+    constructor() {
+        super("prehog.v1alpha.DatabaseUserCreatedEvent", [
+            { no: 1, name: "database", kind: "message", T: () => SessionStartDatabaseMetadata },
+            { no: 2, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "num_roles", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<DatabaseUserCreatedEvent>): DatabaseUserCreatedEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.userName = "";
+        message.numRoles = 0;
+        if (value !== undefined)
+            reflectionMergePartial<DatabaseUserCreatedEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DatabaseUserCreatedEvent): DatabaseUserCreatedEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* prehog.v1alpha.SessionStartDatabaseMetadata database */ 1:
+                    message.database = SessionStartDatabaseMetadata.internalBinaryRead(reader, reader.uint32(), options, message.database);
+                    break;
+                case /* string user_name */ 2:
+                    message.userName = reader.string();
+                    break;
+                case /* int32 num_roles */ 3:
+                    message.numRoles = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DatabaseUserCreatedEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* prehog.v1alpha.SessionStartDatabaseMetadata database = 1; */
+        if (message.database)
+            SessionStartDatabaseMetadata.internalBinaryWrite(message.database, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* string user_name = 2; */
+        if (message.userName !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.userName);
+        /* int32 num_roles = 3; */
+        if (message.numRoles !== 0)
+            writer.tag(3, WireType.Varint).int32(message.numRoles);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.DatabaseUserCreatedEvent
+ */
+export const DatabaseUserCreatedEvent = new DatabaseUserCreatedEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DatabaseUserPermissionsUpdateEvent$Type extends MessageType<DatabaseUserPermissionsUpdateEvent> {
+    constructor() {
+        super("prehog.v1alpha.DatabaseUserPermissionsUpdateEvent", [
+            { no: 1, name: "database", kind: "message", T: () => SessionStartDatabaseMetadata },
+            { no: 2, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "num_tables", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 4, name: "num_tables_permissions", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<DatabaseUserPermissionsUpdateEvent>): DatabaseUserPermissionsUpdateEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.userName = "";
+        message.numTables = 0;
+        message.numTablesPermissions = 0;
+        if (value !== undefined)
+            reflectionMergePartial<DatabaseUserPermissionsUpdateEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DatabaseUserPermissionsUpdateEvent): DatabaseUserPermissionsUpdateEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* prehog.v1alpha.SessionStartDatabaseMetadata database */ 1:
+                    message.database = SessionStartDatabaseMetadata.internalBinaryRead(reader, reader.uint32(), options, message.database);
+                    break;
+                case /* string user_name */ 2:
+                    message.userName = reader.string();
+                    break;
+                case /* int32 num_tables */ 3:
+                    message.numTables = reader.int32();
+                    break;
+                case /* int32 num_tables_permissions */ 4:
+                    message.numTablesPermissions = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DatabaseUserPermissionsUpdateEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* prehog.v1alpha.SessionStartDatabaseMetadata database = 1; */
+        if (message.database)
+            SessionStartDatabaseMetadata.internalBinaryWrite(message.database, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* string user_name = 2; */
+        if (message.userName !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.userName);
+        /* int32 num_tables = 3; */
+        if (message.numTables !== 0)
+            writer.tag(3, WireType.Varint).int32(message.numTables);
+        /* int32 num_tables_permissions = 4; */
+        if (message.numTablesPermissions !== 0)
+            writer.tag(4, WireType.Varint).int32(message.numTablesPermissions);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.DatabaseUserPermissionsUpdateEvent
+ */
+export const DatabaseUserPermissionsUpdateEvent = new DatabaseUserPermissionsUpdateEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
     constructor() {
         super("prehog.v1alpha.SubmitEventRequest", [
@@ -8492,7 +8693,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 77, name: "access_list_review_compliance", kind: "message", oneof: "event", T: () => AccessListReviewComplianceEvent },
             { no: 78, name: "mfa_authentication_event", kind: "message", oneof: "event", T: () => MFAAuthenticationEvent },
             { no: 79, name: "spiffe_svid_issued", kind: "message", oneof: "event", T: () => SPIFFESVIDIssuedEvent },
-            { no: 80, name: "okta_access_list_sync", kind: "message", oneof: "event", T: () => OktaAccessListSyncEvent }
+            { no: 80, name: "okta_access_list_sync", kind: "message", oneof: "event", T: () => OktaAccessListSyncEvent },
+            { no: 81, name: "database_user_created", kind: "message", oneof: "event", T: () => DatabaseUserCreatedEvent },
+            { no: 82, name: "database_user_permissions_updated", kind: "message", oneof: "event", T: () => DatabaseUserPermissionsUpdateEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -8976,6 +9179,18 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         oktaAccessListSync: OktaAccessListSyncEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).oktaAccessListSync)
                     };
                     break;
+                case /* prehog.v1alpha.DatabaseUserCreatedEvent database_user_created */ 81:
+                    message.event = {
+                        oneofKind: "databaseUserCreated",
+                        databaseUserCreated: DatabaseUserCreatedEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).databaseUserCreated)
+                    };
+                    break;
+                case /* prehog.v1alpha.DatabaseUserPermissionsUpdateEvent database_user_permissions_updated */ 82:
+                    message.event = {
+                        oneofKind: "databaseUserPermissionsUpdated",
+                        databaseUserPermissionsUpdated: DatabaseUserPermissionsUpdateEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).databaseUserPermissionsUpdated)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -9225,6 +9440,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.OktaAccessListSyncEvent okta_access_list_sync = 80; */
         if (message.event.oneofKind === "oktaAccessListSync")
             OktaAccessListSyncEvent.internalBinaryWrite(message.event.oktaAccessListSync, writer.tag(80, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.DatabaseUserCreatedEvent database_user_created = 81; */
+        if (message.event.oneofKind === "databaseUserCreated")
+            DatabaseUserCreatedEvent.internalBinaryWrite(message.event.databaseUserCreated, writer.tag(81, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.DatabaseUserPermissionsUpdateEvent database_user_permissions_updated = 82; */
+        if (message.event.oneofKind === "databaseUserPermissionsUpdated")
+            DatabaseUserPermissionsUpdateEvent.internalBinaryWrite(message.event.databaseUserPermissionsUpdated, writer.tag(82, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

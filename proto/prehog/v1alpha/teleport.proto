@@ -1244,6 +1244,34 @@ message OktaAccessListSyncEvent {
   int32 num_access_list_members = 7;
 }
 
+// DatabaseUserCreatedEvent is an event that is emitted after database service performs automatic user provisioning.
+message DatabaseUserCreatedEvent {
+  // Database metadata.
+  SessionStartDatabaseMetadata database = 1;
+
+  // Teleport user name. Anonymized.
+  string user_name = 2;
+
+  // Number of database roles.
+  int32 num_roles = 3;
+}
+
+// DatabaseUserPermissionsUpdateEvent is an event that is emitted after database service updates the permissions for the database user.
+message DatabaseUserPermissionsUpdateEvent {
+  // Database metadata.
+  SessionStartDatabaseMetadata database = 1;
+
+  // Teleport user name. Anonymized.
+  string user_name = 2;
+
+  // How many tables were affected.
+  int32 num_tables = 3;
+
+  // How many total table permissions were given to the user.
+  // For example {SELECT,UPDATE} on ten tables gives a total of twenty.
+  int32 num_tables_permissions = 4;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -1372,6 +1400,10 @@ message SubmitEventRequest {
     SPIFFESVIDIssuedEvent spiffe_svid_issued = 79;
 
     OktaAccessListSyncEvent okta_access_list_sync = 80;
+
+    DatabaseUserCreatedEvent database_user_created = 81;
+
+    DatabaseUserPermissionsUpdateEvent database_user_permissions_updated = 82;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

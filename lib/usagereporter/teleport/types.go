@@ -1051,6 +1051,48 @@ func (u *OktaAccessListSyncEvent) Anonymize(a utils.Anonymizer) prehogv1a.Submit
 	}
 }
 
+// DatabaseUserCreatedEvent is an event that is emitted after database service performs automatic user provisioning.
+type DatabaseUserCreatedEvent prehogv1a.DatabaseUserCreatedEvent
+
+// Anonymize anonymizes the event.
+func (u *DatabaseUserCreatedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	event := &prehogv1a.DatabaseUserCreatedEvent{
+		UserName: a.AnonymizeString(u.UserName),
+		NumRoles: u.NumRoles,
+	}
+
+	if u.Database != nil {
+		event.Database = &prehogv1a.SessionStartDatabaseMetadata{
+			DbType:     u.Database.DbType,
+			DbProtocol: u.Database.DbProtocol,
+			DbOrigin:   u.Database.DbOrigin,
+		}
+	}
+
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_DatabaseUserCreated{
+			DatabaseUserCreated: event,
+		},
+	}
+}
+
+// DatabaseUserPermissionsUpdateEvent is an event that is emitted after database service updates the permissions for the database user.
+type DatabaseUserPermissionsUpdateEvent prehogv1a.DatabaseUserPermissionsUpdateEvent
+
+// Anonymize anonymizes the event.
+func (u *DatabaseUserPermissionsUpdateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_DatabaseUserPermissionsUpdated{
+			DatabaseUserPermissionsUpdated: &prehogv1a.DatabaseUserPermissionsUpdateEvent{
+				UserName:             a.AnonymizeString(u.UserName),
+				NumTables:            u.NumTables,
+				NumTablesPermissions: u.NumTablesPermissions,
+				Database:             u.Database,
+			},
+		},
+	}
+}
+
 // SPIFFESVIDIssuedEvent is an event emitted when a SPIFFE SVID has been
 // issued.
 type SPIFFESVIDIssuedEvent prehogv1a.SPIFFESVIDIssuedEvent
