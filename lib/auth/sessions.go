@@ -22,7 +22,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -77,6 +76,12 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		verifiedMFADeviceID = mfaData.Device.Id
 	}
 
+	// Create services.WebSession for this session.
+	sessionID, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create certificate for this session.
 	privateKey, publicKey, err := native.GenerateKeyPair()
 	if err != nil {
@@ -90,10 +95,10 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		ttl:            ttl,
 		traits:         traits,
 		activeRequests: services.RequestIDs{AccessRequests: identity.ActiveRequests},
+		// Set the app session ID in the certificate - used in auditing from the App Service.
+		appSessionID: sessionID,
 		// Only allow this certificate to be used for applications.
-		usage: []string{teleport.UsageAppsOnly},
-		// Add in the application routing information.
-		appSessionID:      uuid.New().String(),
+		usage:             []string{teleport.UsageAppsOnly},
 		appPublicAddr:     req.PublicAddr,
 		appClusterName:    req.ClusterName,
 		awsRoleARN:        req.AWSRoleARN,
@@ -110,11 +115,6 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		return nil, trace.Wrap(err)
 	}
 
-	// Create services.WebSession for this session.
-	sessionID, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	bearer, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
