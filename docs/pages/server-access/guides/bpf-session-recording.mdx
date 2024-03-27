@@ -163,7 +163,21 @@ ssh_service:
     # Optional: Controls where cgroupv2 hierarchy is mounted. Default value:
     # /cgroup2.
     cgroup_path: /cgroup2
+
+    # Optional: Controls the path inside cgroupv2 hierarchy where Teleport
+    # cgroups will be placed. Default value: /teleport
+    root_path: /teleport
 ```
+
+<Details title="Isolate session system resources">
+
+If you operate multiple Teleport instances on the same system, customize the
+`root_path` configuration to change the base cgroupv2 slice path for session
+system resources. This ensures security isolation between sessions from
+different Teleport instances, allowing you to apply distinct security rules and
+resource controls.
+
+</Details>
 
 ### Start Teleport on your Node
 
