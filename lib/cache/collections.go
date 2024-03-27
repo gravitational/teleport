@@ -2890,16 +2890,27 @@ type accessListReviewsGetter interface {
 }
 
 type notificationGetter interface {
-	GetAllUserNotifications(ctx context.Context) ([]*notificationsv1.Notification, error)
-	GetAllGlobalNotifications(ctx context.Context) ([]*notificationsv1.GlobalNotification, error)
+	ListUserNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.Notification, string, error)
+	ListGlobalNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.GlobalNotification, string, error)
 }
 
 type userNotificationExecutor struct{}
 
 func (userNotificationExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*notificationsv1.Notification, error) {
-	notifications, err := cache.notificationsCache.GetAllUserNotifications(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var notifications []*notificationsv1.Notification
+	var startKey string
+	for {
+		notifs, nextKey, err := cache.notificationsCache.ListUserNotifications(ctx, 0, startKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		notifications = append(notifications, notifs...)
+
+		if nextKey == "" {
+			break
+		}
+		startKey = nextKey
 	}
 
 	return notifications, nil
@@ -2950,9 +2961,20 @@ var _ executor[*notificationsv1.Notification, notificationGetter] = userNotifica
 type globalNotificationExecutor struct{}
 
 func (globalNotificationExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*notificationsv1.GlobalNotification, error) {
-	notifications, err := cache.notificationsCache.GetAllGlobalNotifications(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var notifications []*notificationsv1.GlobalNotification
+	var startKey string
+	for {
+		notifs, nextKey, err := cache.notificationsCache.ListGlobalNotifications(ctx, 0, startKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		notifications = append(notifications, notifs...)
+
+		if nextKey == "" {
+			break
+		}
+		startKey = nextKey
 	}
 
 	return notifications, nil

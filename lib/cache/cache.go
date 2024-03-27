@@ -3069,35 +3069,35 @@ func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pa
 	return rg.reader.ListAccessListReviews(ctx, accessList, pageSize, pageToken)
 }
 
-// GetAllUserNotifications returns all user-specific notifications for all users. This should only ever be called to initialize the UserNotificationCache.
-func (c *Cache) GetAllUserNotifications(ctx context.Context) ([]*notificationsv1.Notification, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAllUserNotifications")
+// ListUserNotifications returns a paginated list of user-specific notifications for all users.
+func (c *Cache) ListUserNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.Notification, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListUserNotifications")
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.userNotifications)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
 	defer rg.Release()
 
-	out, err := rg.reader.GetAllUserNotifications(ctx)
-	return out, trace.Wrap(err)
+	out, nextKey, err := rg.reader.ListUserNotifications(ctx, pageSize, startKey)
+	return out, nextKey, trace.Wrap(err)
 }
 
-// GetAllGlobalNotifications returns all global notifications. This should only ever be called to initialize the GlobalNotificationCache.
-func (c *Cache) GetAllGlobalNotifications(ctx context.Context) ([]*notificationsv1.GlobalNotification, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAllGlobalNotifications")
+// ListGlobalNotifications returns a paginated list of global notifications.
+func (c *Cache) ListGlobalNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.GlobalNotification, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListGlobalNotifications")
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.globalNotifications)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 	defer rg.Release()
 
-	out, err := rg.reader.GetAllGlobalNotifications(ctx)
-	return out, trace.Wrap(err)
+	out, nextKey, err := rg.reader.ListGlobalNotifications(ctx, pageSize, startKey)
+	return out, nextKey, trace.Wrap(err)
 }
 
 // ListResources is a part of auth.Cache implementation

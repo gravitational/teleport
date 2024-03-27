@@ -2486,11 +2486,11 @@ func TestUserNotifications(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*notificationsv1.Notification, error) {
-			items, err := p.notifications.GetAllUserNotifications(ctx)
+			items, _, err := p.notifications.ListUserNotifications(ctx, 0, "")
 			return items, trace.Wrap(err)
 		},
 		cacheList: func(ctx context.Context) ([]*notificationsv1.Notification, error) {
-			items, err := p.cache.GetAllUserNotifications(ctx)
+			items, _, err := p.cache.ListUserNotifications(ctx, 0, "")
 			return items, trace.Wrap(err)
 		},
 		deleteAll: p.notifications.DeleteAllUserNotifications,
@@ -2514,11 +2514,11 @@ func TestGlobalNotifications(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*notificationsv1.GlobalNotification, error) {
-			items, err := p.notifications.GetAllGlobalNotifications(ctx)
+			items, _, err := p.notifications.ListGlobalNotifications(ctx, 0, "")
 			return items, trace.Wrap(err)
 		},
 		cacheList: func(ctx context.Context) ([]*notificationsv1.GlobalNotification, error) {
-			items, err := p.cache.GetAllGlobalNotifications(ctx)
+			items, _, err := p.cache.ListGlobalNotifications(ctx, 0, "")
 			return items, trace.Wrap(err)
 		},
 		deleteAll: p.notifications.DeleteAllGlobalNotifications,

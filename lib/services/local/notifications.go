@@ -159,8 +159,6 @@ func (s *NotificationsService) CreateUserNotification(ctx context.Context, notif
 }
 
 // UpsertUserNotification upserts a user notification resource that has already had its contents validated and its defaults such as the generated UUID, created date, and expiry date set.
-// This should ONLY be called by the user notification cache collections executor to upsert the notification to the cache.
-// All other consumers should use CreateUserNotification.
 func (s *NotificationsService) UpsertUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
 	if err := services.ValidateNotification(notification); err != nil {
 		return nil, trace.Wrap(err)
@@ -248,8 +246,6 @@ func (s *NotificationsService) CreateGlobalNotification(ctx context.Context, glo
 }
 
 // UpsertGlobalNotification upserts a global notification resource that has already had its contents validated and its defaults such as the generated UUID, created date, and expiry date set.
-// This should ONLY be called by the global notification cache collections executor to upsert the notification to the cache.
-// All other consumers should use CreateGlobalNotification.
 func (s *NotificationsService) UpsertGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
 	if err := services.ValidateGlobalNotification(globalNotification); err != nil {
 		return nil, trace.Wrap(err)
