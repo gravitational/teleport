@@ -21,25 +21,48 @@ package web
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/lib/httplib"
-	samlidpscripts "github.com/gravitational/teleport/lib/web/scripts/samlidp"
+	"github.com/gravitational/teleport/lib/integrations/samlidp"
+	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
+	libutils "github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 )
 
 func (h *Handler) gcpWorkforceConfigScript(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	queryParams := r.URL.Query()
-	orgId := queryParams.Get("orgId")
-	poolName := queryParams.Get("poolName")
-	poolProviderName := queryParams.Get("poolProviderName")
-	metadataEndpoint := fmt.Sprintf("https://%s/enterprise/saml-idp/metadata", h.PublicProxyAddr())
-	script, err := samlidpscripts.BuildScript(samlidpscripts.GCPWorkforceConfigParams{
-		OrgID:            orgId,
-		PoolName:         poolName,
-		PoolProviderName: poolProviderName,
-		MetadataEndpoint: metadataEndpoint,
+
+	// We aren't going to run any service in this method but the NewGCPWorkforceService performs
+	// GCP resource name validation which I think is handy before handing off values to script
+	// generation func below.
+	gcpWorkforce, err := samlidp.NewGCPWorkforceService(samlidp.GCPWorkforceService{
+		APIParams: samlidpconfig.GCPWorkforceAPIParams{
+			OrganizationID:     queryParams.Get("orgId"),
+			PoolName:           queryParams.Get("poolName"),
+			PoolProviderName:   queryParams.Get("poolProviderName"),
+			SAMLIdPMetadataURL: fmt.Sprintf("https://%s/enterprise/saml-idp/metadata", h.PublicProxyAddr()),
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// The script must execute the following command:
+	// teleport integration configure samlidp gcp-workforce
+	argsList := []string{
+		"integration", "configure", "samlidp", "gcp-workforce",
+		fmt.Sprintf("--org-id=%s", libutils.UnixShellQuote(gcpWorkforce.APIParams.OrganizationID)),
+		fmt.Sprintf("--pool-name=%s", libutils.UnixShellQuote(gcpWorkforce.APIParams.PoolName)),
+		fmt.Sprintf("--pool-provider-name=%s", libutils.UnixShellQuote(gcpWorkforce.APIParams.PoolProviderName)),
+		fmt.Sprintf("--idp-metadata-url=%s", libutils.UnixShellQuote(gcpWorkforce.APIParams.SAMLIdPMetadataURL)),
+	}
+	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
+		TeleportArgs:   strings.Join(argsList, " "),
+		SuccessMessage: "Success! You can now go back to the browser to complete the database enrollment.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
