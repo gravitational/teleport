@@ -1614,13 +1614,15 @@ func TestDebugService(t *testing.T) {
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
 
-		updatedLogLevelString := slog.LevelDebug.String()
-		resp, err = httpClient.Do(makeDebugSocketRequest(t, http.MethodPut, constants.DebugServiceLogLevelEndpoint, updatedLogLevelString))
-		require.NoError(t, err)
-		defer resp.Body.Close()
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-
-		require.Equal(t, updatedLogLevelString, retrieveLogLevel(t, httpClient))
+		for _, logLevel := range logutils.SupportedLogLevelsString {
+			t.Run("Set"+logLevel, func(t *testing.T) {
+				resp, err = httpClient.Do(makeDebugSocketRequest(t, http.MethodPut, constants.DebugServiceLogLevelEndpoint, logLevel))
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				require.Equal(t, logLevel, retrieveLogLevel(t, httpClient))
+			})
+		}
 	})
 
 	t.Run("CollectProfiles", func(t *testing.T) {
@@ -1628,6 +1630,10 @@ func TestDebugService(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		respBody, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.NotEmpty(t, respBody)
 	})
 }
 

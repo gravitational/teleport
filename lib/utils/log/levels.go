@@ -20,7 +20,6 @@ package log
 
 import (
 	"log/slog"
-	"strings"
 
 	"github.com/sirupsen/logrus"
 )
@@ -28,7 +27,7 @@ import (
 // SupportedLogLevelsString list of the supported log levels in their string
 // representation. All strings are in uppercase.
 var SupportedLogLevelsString = []string{
-	strings.ToUpper(logrus.TraceLevel.String()),
+	TraceLevelString,
 	slog.LevelDebug.String(),
 	slog.LevelInfo.String(),
 	slog.LevelWarn.String(),

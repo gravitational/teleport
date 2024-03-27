@@ -3266,6 +3266,8 @@ func (process *TeleportProcess) initDebugService() error {
 				"profile", strings.TrimSuffix(r.URL.Path, constants.PProfEndpointsPrefix),
 				"seconds", seconds,
 			)
+
+			next(w, r)
 		}
 	}
 
@@ -3278,7 +3280,13 @@ func (process *TeleportProcess) initDebugService() error {
 
 	mux.HandleFunc(constants.DebugServiceLogLevelEndpoint, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == constants.DebugServiceGetLogLevelMethod {
-			w.Write([]byte(process.Config.LoggerLevel.Level().String()))
+			switch process.Config.LoggerLevel.Level() {
+			case logutils.TraceLevel:
+				w.Write([]byte(logutils.TraceLevelString))
+			default:
+				w.Write([]byte(process.Config.LoggerLevel.Level().String()))
+			}
+
 			return
 		}
 
@@ -3287,21 +3295,26 @@ func (process *TeleportProcess) initDebugService() error {
 			return
 		}
 
-		// The largest supported log level string representation is 5 characters.
-		// We don't support setting custom levels such as DEBUG+1.
-		rawLevel := make([]byte, 5)
+		rawLevel, err := io.ReadAll(io.LimitReader(r.Body, 1024))
 		defer r.Body.Close()
-		if _, err := r.Body.Read(rawLevel); err != nil && !errors.Is(err, io.EOF) {
+		if err != nil {
 			w.WriteHeader(http.StatusUnprocessableEntity)
 			w.Write([]byte("Unable to read request body."))
 			return
 		}
 
 		var level slog.Level
-		if err := level.UnmarshalText(rawLevel); err != nil {
-			w.WriteHeader(http.StatusUnprocessableEntity)
-			w.Write([]byte("Invalid log level."))
-			return
+
+		// TRACE string representaiton is not handled by slog. We need to
+		// convert it. Otherwise, parse the provided level.
+		if strings.EqualFold(string(rawLevel), logutils.TraceLevelString) {
+			level = logutils.TraceLevel
+		} else {
+			if err := level.UnmarshalText(rawLevel); err != nil {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				w.Write([]byte("Invalid log level."))
+				return
+			}
 		}
 
 		currLevel := process.Config.LoggerLevel.Level()
@@ -3309,7 +3322,7 @@ func (process *TeleportProcess) initDebugService() error {
 		if level != currLevel {
 			message = fmt.Sprintf("Changed log level from %q to %q.", currLevel, level)
 			process.Config.SetLogLevel(level)
-			logger.InfoContext(process.ExitContext(), "Changed log level", "old", currLevel, "new", level)
+			logger.InfoContext(process.ExitContext(), "Changed log level.", "old", currLevel, "new", level)
 		}
 
 		w.Write([]byte(message))
