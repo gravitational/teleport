@@ -289,15 +289,15 @@ type identityConfigurator = func(req *proto.UserCertsRequest)
 // impersonated identity that already has the relevant permissions, much like
 // `tsh (app|db|kube) login` is already used to generate an additional set of
 // certs.
-func (s *outputsService) generateIdentity(
+func generateIdentity(
 	ctx context.Context,
 	client *auth.Client,
 	currentIdentity *identity.Identity,
-	output config.Output,
-	defaultRoles []string,
+	roles []string,
+	ttl time.Duration,
 	configurator identityConfigurator,
 ) (*identity.Identity, error) {
-	ctx, span := tracer.Start(ctx, "outputsService/generateIdentity")
+	ctx, span := tracer.Start(ctx, "generateIdentity")
 	defer span.End()
 
 	// TODO: enforce expiration > renewal period (by what margin?)
@@ -312,19 +312,11 @@ func (s *outputsService) generateIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	var roleRequests []string
-	if roles := output.GetRoles(); len(roles) > 0 {
-		roleRequests = roles
-	} else {
-		s.log.Debugf("Output specified no roles, defaults will be requested: %v", defaultRoles)
-		roleRequests = defaultRoles
-	}
-
 	req := proto.UserCertsRequest{
 		PublicKey:      publicKey,
 		Username:       currentIdentity.X509Cert.Subject.CommonName,
-		Expires:        time.Now().Add(s.cfg.CertificateTTL),
-		RoleRequests:   roleRequests,
+		Expires:        time.Now().Add(ttl),
+		RoleRequests:   roles,
 		RouteToCluster: currentIdentity.ClusterName,
 
 		// Make sure to specify this is an impersonated cert request. If unset,
@@ -407,36 +399,41 @@ func getDatabase(ctx context.Context, clt *auth.Client, name string) (types.Data
 	return db, trace.Wrap(err)
 }
 
-func (s *outputsService) getRouteToDatabase(ctx context.Context, client *auth.Client, output *config.DatabaseOutput) (proto.RouteToDatabase, error) {
-	ctx, span := tracer.Start(ctx, "outputsService/getRouteToDatabase")
+func getRouteToDatabase(
+	ctx context.Context,
+	log logrus.FieldLogger,
+	client *auth.Client,
+	service string,
+	username string,
+	database string,
+) (proto.RouteToDatabase, error) {
+	ctx, span := tracer.Start(ctx, "getRouteToDatabase")
 	defer span.End()
 
-	if output.Service == "" {
+	if service == "" {
 		return proto.RouteToDatabase{}, nil
 	}
 
-	db, err := getDatabase(ctx, client, output.Service)
+	db, err := getDatabase(ctx, client, service)
 	if err != nil {
 		return proto.RouteToDatabase{}, trace.Wrap(err)
 	}
 	// make sure the output matches the fully resolved db name, since it may
 	// have been just a "discovered name".
-	output.Service = db.GetName()
-
-	username := output.Username
+	service = db.GetName()
 	if db.GetProtocol() == libdefaults.ProtocolMongoDB && username == "" {
 		// This isn't strictly a runtime error so killing the process seems
 		// wrong. We'll just loudly warn about it.
-		s.log.Errorf("Database `username` field for %q is unset but is required for MongoDB databases.", output.Service)
+		log.Errorf("Database `username` field for %q is unset but is required for MongoDB databases.", service)
 	} else if db.GetProtocol() == libdefaults.ProtocolRedis && username == "" {
 		// Per tsh's lead, fall back to the default username.
 		username = libdefaults.DefaultRedisUsername
 	}
 
 	return proto.RouteToDatabase{
-		ServiceName: output.Service,
+		ServiceName: service,
 		Protocol:    db.GetProtocol(),
-		Database:    output.Database,
+		Database:    database,
 		Username:    username,
 	}, nil
 }
@@ -537,8 +534,14 @@ func (s *outputsService) generateImpersonatedIdentity(
 	ctx, span := tracer.Start(ctx, "outputsService/generateImpersonatedIdentity")
 	defer span.End()
 
-	impersonatedIdentity, err = s.generateIdentity(
-		ctx, botClient, botIdentity, output, defaultRoles, nil,
+	roles := output.GetRoles()
+	if len(roles) == 0 {
+		s.log.Debugf("Output specified no roles, defaults will be requested: %v", defaultRoles)
+		roles = defaultRoles
+	}
+
+	impersonatedIdentity, err = generateIdentity(
+		ctx, botClient, botIdentity, roles, s.cfg.CertificateTTL, nil,
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -567,16 +570,29 @@ func (s *outputsService) generateImpersonatedIdentity(
 			return impersonatedIdentity, impersonatedClient, nil
 		}
 
-		routedIdentity, err := s.generateIdentity(ctx, botClient, impersonatedIdentity, output, defaultRoles, func(req *proto.UserCertsRequest) {
-			req.RouteToCluster = output.Cluster
-		},
+		routedIdentity, err := generateIdentity(
+			ctx,
+			botClient,
+			impersonatedIdentity,
+			roles,
+			s.cfg.CertificateTTL,
+			func(req *proto.UserCertsRequest) {
+				req.RouteToCluster = output.Cluster
+			},
 		)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 		return routedIdentity, impersonatedClient, nil
 	case *config.DatabaseOutput:
-		route, err := s.getRouteToDatabase(ctx, impersonatedClient, output)
+		route, err := getRouteToDatabase(
+			ctx,
+			s.log,
+			impersonatedClient,
+			output.Service,
+			output.Username,
+			output.Database,
+		)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -585,9 +601,16 @@ func (s *outputsService) generateImpersonatedIdentity(
 		// so we'll request the database access identity using the main bot
 		// identity (having gathered the necessary info for RouteToDatabase
 		// using the correct impersonated unroutedIdentity.)
-		routedIdentity, err := s.generateIdentity(ctx, botClient, impersonatedIdentity, output, defaultRoles, func(req *proto.UserCertsRequest) {
-			req.RouteToDatabase = route
-		})
+		routedIdentity, err := generateIdentity(
+			ctx,
+			botClient,
+			impersonatedIdentity,
+			roles,
+			s.cfg.CertificateTTL,
+			func(req *proto.UserCertsRequest) {
+				req.RouteToDatabase = route
+			},
+		)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -606,9 +629,16 @@ func (s *outputsService) generateImpersonatedIdentity(
 		// Note: the Teleport server does attempt to verify k8s cluster names
 		// and will fail to generate certs if the cluster doesn't exist or is
 		// offline.
-		routedIdentity, err := s.generateIdentity(ctx, botClient, impersonatedIdentity, output, defaultRoles, func(req *proto.UserCertsRequest) {
-			req.KubernetesCluster = output.KubernetesCluster
-		})
+		routedIdentity, err := generateIdentity(
+			ctx,
+			botClient,
+			impersonatedIdentity,
+			roles,
+			s.cfg.CertificateTTL,
+			func(req *proto.UserCertsRequest) {
+				req.KubernetesCluster = output.KubernetesCluster
+			},
+		)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -622,9 +652,16 @@ func (s *outputsService) generateImpersonatedIdentity(
 			return nil, nil, trace.Wrap(err)
 		}
 
-		routedIdentity, err := s.generateIdentity(ctx, botClient, impersonatedIdentity, output, defaultRoles, func(req *proto.UserCertsRequest) {
-			req.RouteToApp = routeToApp
-		})
+		routedIdentity, err := generateIdentity(
+			ctx,
+			botClient,
+			impersonatedIdentity,
+			roles,
+			s.cfg.CertificateTTL,
+			func(req *proto.UserCertsRequest) {
+				req.RouteToApp = routeToApp
+			},
+		)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
