@@ -326,3 +326,15 @@ func (c *websocketALPNServerConn) SetDeadline(t time.Time) error {
 		c.Conn.SetWriteDeadline(t),
 	)
 }
+
+func (c *websocketALPNServerConn) SetWriteDeadline(t time.Time) error {
+	c.writeMutex.Lock()
+	defer c.writeMutex.Unlock()
+	return trace.Wrap(c.Conn.SetWriteDeadline(t))
+}
+
+func (c *websocketALPNServerConn) SetReadDeadline(t time.Time) error {
+	c.writeMutex.Lock()
+	defer c.writeMutex.Unlock()
+	return trace.Wrap(c.Conn.SetReadDeadline(t))
+}
