@@ -18,7 +18,7 @@ connection and revokes them automatically when the connection ends.
 
 A database object import rule in Teleport is a resource that defines the labels to be applied to database objects imported into Teleport. If a specific object does not match any of the rules, it will not be imported.
 
-By default, if no import rules are present, Teleport will automatically create the `import_all_objects` rule on startup:
+By default, if no import rules are present (e.g. you create a fresh cluster or delete all your rules), Teleport will automatically create the `import_all_objects` rule on startup:
 
 ```yaml
 kind: db_object_import_rule
@@ -56,7 +56,7 @@ version: v1
 
 This rule will import all objects and label them by their inherent properties using the template syntax.
 
-Feel free to customize this rule to meet your specific requirements or add more rules. For instance, consider the following rule designed to designate particular tables as accessible to developers, either in a read-only or read-write capacity.
+Feel free to modify this rule with `tctl edit` to meet your specific requirements or add more rules. For instance, consider the following rule designed to designate particular tables as accessible to developers, either in a read-only or read-write capacity.
 
 ```yaml
 kind: db_object_import_rule
