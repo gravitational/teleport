@@ -3,7 +3,7 @@ title: Discover AWS access patterns with Teleport Access Graph
 description: Describes how to import and visualize AWS accounts access patterns using Teleport Access Graph.
 ---
 
-The Teleport Access Graph offers invaluable insights into access patterns within
+The Teleport Access Graph offers insights into access patterns within
 your AWS account. By scanning IAM permissions, users, groups, resources, and 
 identities, it provides a visual representation and aids in enhancing the 
 permission model within your AWS environment. This functionality enables you
@@ -21,7 +21,7 @@ Teleport Access Graph is a feature of the [Teleport
 Policy](https://goteleport.com/platform/policy/) product that is only available
 to Teleport Enterprise customers.
 
-After logging into the Teleport UI, go to the Management tab. If enabled, 
+After logging in to the Teleport UI, go to the Management tab. If enabled, 
 Access Graph options can be found under the Permission Management section.
 
 ## How AWS Sync Process works
@@ -80,7 +80,7 @@ from Teleport Auth Service and Discovery Service. Check
 [Access Graph page](../access-graph.mdx) for details on
 how to setup Teleport Access Graph.
 
-## Step 1/2. Configure Discovery Service (On-Prem only)
+## Step 1/2. Configure Discovery Service (Self-hosted only)
 
 <Notice type="warning">
 
@@ -89,7 +89,7 @@ this step, as Teleport Cloud already operates a properly configured
 Discovery Service within your cluster.
 </Notice>
 
-To activate the Teleport Discovery Service, it's necessary to
+To activate the Teleport Discovery Service,
 add the provided snippet to your Auth Service configuration. 
 This service monitors dynamic `discovery_config` resources
 that are set up with the `discovery_group` matching 
@@ -117,10 +117,10 @@ navigate to the Management tab, and choose the Access Graph option within the
 Permission Management section.
 
 If both Teleport and Access Graph support AWS sync, you'll notice a new button
-adjacent to the Access Graph navigation bar labeled `Setup AWS sync with
+adjacent to the Access Graph navigation bar labeled `Set up AWS sync with
 Access Graph`.
 
-The setup process is intuitive, guiding you through the steps. You'll be
+You'll be
 prompted to create a new Teleport AWS integration if you haven't configured
 one already. Alternatively, you can opt for a previously established integration.
 
@@ -213,7 +213,7 @@ which Teleport should import resources. This selection solely pertains
 to regional resources and does not impact global resources such as S3
 Buckets, IAM Policies, or IAM Users.
 
-If you're operating an on-premises cluster, you'll additionally need to
+If you're operating a self-hosted cluster, you'll additionally need to
 provide input for the `discovery_group` configured during Step 1.
 
 
