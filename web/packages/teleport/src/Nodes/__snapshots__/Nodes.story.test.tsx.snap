@@ -401,19 +401,15 @@ exports[`failed 1`] = `
 
 .c39:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c39:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c39:hover:enabled,
-.c39:focus:enabled {
+.c39:not(:disabled):hover,
+.c39:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c39:active:enabled {
+.c39:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -440,19 +436,15 @@ exports[`failed 1`] = `
 
 .c41:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c41:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c41:hover:enabled,
-.c41:focus:enabled {
+.c41:not(:disabled):hover,
+.c41:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c41:active:enabled {
+.c41:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -1621,19 +1613,15 @@ exports[`loaded 1`] = `
 
 .c39:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c39:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c39:hover:enabled,
-.c39:focus:enabled {
+.c39:not(:disabled):hover,
+.c39:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c39:active:enabled {
+.c39:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -1660,19 +1648,15 @@ exports[`loaded 1`] = `
 
 .c41:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c41:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c41:hover:enabled,
-.c41:focus:enabled {
+.c41:not(:disabled):hover,
+.c41:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c41:active:enabled {
+.c41:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
