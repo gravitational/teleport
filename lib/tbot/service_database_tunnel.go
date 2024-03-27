@@ -29,6 +29,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -37,26 +38,156 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// DatabaseTunnelService
+// DatabaseTunnelService is a service that listens on a local port and forwards
+// connections to a remote database service. It is an authenticating tunnel and
+// will automatically issue and renew certificates as needed.
 type DatabaseTunnelService struct {
-	svcIdentity *config.UnstableClientCredentialOutput
-	botCfg      *config.BotConfig
-	cfg         *config.DatabaseTunnelService
-	log         logrus.FieldLogger
-	botClient   *auth.Client
-	resolver    reversetunnelclient.Resolver
+	botCfg         *config.BotConfig
+	cfg            *config.DatabaseTunnelService
+	log            logrus.FieldLogger
+	resolver       reversetunnelclient.Resolver
+	botClient      *auth.Client
+	getBotIdentity getBotIdentityFn
 
-	dbRoute tlsca.RouteToDatabase
+	// routeToDatabase is the cached route to database parameters. We determine
+	// this once and then reuse it to reduce latency associated with issuing
+	// the certificates on connection. Set by buildLocalProxyConfig.
+	routeToDatabase proto.RouteToDatabase
+	// roles is the list of roles to request for the impersonated teleport
+	// identity. This is the configured value, or if unconfigured, all the
+	// roles the bot has. Set by buildLocalProxyConfig.
+	roles []string
+}
 
-	// client holds the impersonated client for the service
-	client *auth.Client
+var _ alpnproxy.LocalProxyMiddleware = (*DatabaseTunnelService)(nil)
+
+// buildLocalProxyConfig initializes the service, fetching any initial information and setting
+// up the localproxy.
+func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnproxy.LocalProxyConfig, err error) {
+	ctx, span := tracer.Start(ctx, "DatabaseTunnelService/buildLocalProxyConfig")
+	defer span.End()
+
+	// Determine the roles to use for the impersonated db access user. We fall
+	// back to all the roles the bot has if none are configured.
+	s.roles = s.cfg.Roles
+	if len(s.roles) == 0 {
+		s.roles, err = fetchDefaultRoles(ctx, s.botClient, s.getBotIdentity())
+		if err != nil {
+			return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "fetching default roles")
+		}
+	}
+
+	// Fetch information about the database and then issue the initial
+	// certificate. We issue the initial certificate to allow us to fail faster.
+	s.routeToDatabase, err = getRouteToDatabase(
+		ctx, s.log, s.botClient, s.cfg.Service, s.cfg.Username, s.cfg.Database,
+	)
+	if err != nil {
+		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err)
+	}
+	dbCert, err := s.issueCert(ctx)
+	if err != nil {
+		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err)
+	}
+
+	proxyAddr := "leaf.tele.ottr.sh:443"
+
+	// Build the actual local proxy configuration.
+	alpnProtocol, err := common.ToALPNProtocol(s.routeToDatabase.Protocol)
+	if err != nil {
+		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err)
+
+	}
+	lpConfig := alpnproxy.LocalProxyConfig{
+		RemoteProxyAddr: proxyAddr,
+		ParentContext:   ctx,
+		Middleware:      s,
+		Protocols:       []common.Protocol{alpnProtocol},
+		Certs:           []tls.Certificate{*dbCert},
+	}
+	if client.IsALPNConnUpgradeRequired(
+		ctx,
+		proxyAddr,
+		s.botCfg.Insecure,
+	) {
+		lpConfig.ALPNConnUpgradeRequired = true
+		// If ALPN Conn Upgrade will be used, we need to set the cluster CAs
+		// to validate the Proxy's auth issued host cert.
+		lpConfig.RootCAs = s.getBotIdentity().TLSCAPool
+	}
+
+	return lpConfig, nil
+}
+
+func (s *DatabaseTunnelService) Run(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "DatabaseTunnelService/Run")
+	defer span.End()
+
+	listenUrl, err := url.Parse(s.cfg.Listen)
+	if err != nil {
+		return trace.Wrap(err, "parsing listen url")
+	}
+
+	lpCfg, err := s.buildLocalProxyConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err, "building local proxy config")
+	}
+
+	l, err := net.Listen("tcp", listenUrl.Host)
+	if err != nil {
+		return trace.Wrap(err, "opening listener")
+	}
+	defer func() {
+		if err := l.Close(); err != nil {
+			s.log.WithError(err).Error("Failed to close listener")
+		}
+	}()
+
+	lp, err := alpnproxy.NewLocalProxy(lpCfg)
+	if err != nil {
+		return trace.Wrap(err, "creating local proxy")
+	}
+
+	return trace.Wrap(lp.Start(ctx))
+}
+
+func (s *DatabaseTunnelService) issueCert(ctx context.Context) (*tls.Certificate, error) {
+	ctx, span := tracer.Start(ctx, "DatabaseTunnelService/issueCert")
+	defer span.End()
+
+	s.log.Debug("Issuing certificate for database tunnel.")
+	ident, err := generateIdentity(
+		ctx,
+		s.botClient,
+		s.getBotIdentity(),
+		s.roles,
+		s.botCfg.CertificateTTL,
+		func(req *proto.UserCertsRequest) {
+			req.RouteToDatabase = s.routeToDatabase
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.log.Info("Certificate issued for database tunnel.")
+
+	return ident.TLSCert, nil
 }
 
 // OnNewConnection is called by the localproxy when a new connection is made.
 // Implements the LocalProxyMiddleware interface.
-func (s *DatabaseTunnelService) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy, conn net.Conn) error {
+func (s *DatabaseTunnelService) OnNewConnection(
+	ctx context.Context, lp *alpnproxy.LocalProxy, _ net.Conn,
+) error {
+	ctx, span := tracer.Start(ctx, "DatabaseTunnelService/OnNewConnection")
+	defer span.End()
+
 	// Check if the certificate needs reissuing, if so, reissue.
-	if err := lp.CheckDBCerts(s.dbRoute); err != nil {
+	if err := lp.CheckDBCerts(tlsca.RouteToDatabase{
+		ServiceName: s.routeToDatabase.ServiceName,
+		Protocol:    s.routeToDatabase.Protocol,
+		Database:    s.routeToDatabase.Database,
+		Username:    s.routeToDatabase.Username,
+	}); err != nil {
 		s.log.WithField("reason", err.Error()).Info("Certificate for tunnel needs reissuing.")
 		cert, err := s.issueCert(ctx)
 		if err != nil {
@@ -72,86 +203,6 @@ func (s *DatabaseTunnelService) OnNewConnection(ctx context.Context, lp *alpnpro
 func (s *DatabaseTunnelService) OnStart(_ context.Context, _ *alpnproxy.LocalProxy) error {
 	// Nothing to do here. We already inject an initial cert.
 	return nil
-}
-
-func (s *DatabaseTunnelService) issueCert(ctx context.Context) (*tls.Certificate, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-var _ alpnproxy.LocalProxyMiddleware = (*DatabaseTunnelService)(nil)
-
-// setup initializes the service
-func (s *DatabaseTunnelService) setup(ctx context.Context) (*alpnproxy.LocalProxy, error) {
-	ctx, span := tracer.Start(ctx, "DatabaseTunnelService/setup")
-	defer span.End()
-
-	listenUrl, err := url.Parse(s.cfg.Listen)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// TODO(noah): To support Oracle we need to offer a TLS listener instead
-	l, err := net.Listen("tcp", listenUrl.Host)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer func() {
-		if err := l.Close(); err != nil {
-			s.log.WithError(err).Error("failed to close listener")
-		}
-	}()
-
-	// TODO: Fetch!
-	s.dbRoute = tlsca.RouteToDatabase{}
-	protocol := ""
-	proxyAddr := ""
-	cert := &tls.Certificate{}
-
-	alpnProtocol, err := common.ToALPNProtocol(protocol)
-	if err != nil {
-		return nil, trace.Wrap(err)
-
-	}
-
-	lpConfig := alpnproxy.LocalProxyConfig{
-		Listener:        l,
-		RemoteProxyAddr: proxyAddr,
-		ParentContext:   ctx,
-		Middleware:      s,
-		Protocols:       []common.Protocol{alpnProtocol},
-		Certs:           []tls.Certificate{*cert}, // TODO
-	}
-
-	if client.IsALPNConnUpgradeRequired(
-		ctx,
-		proxyAddr,
-		s.botCfg.Insecure,
-	) {
-		lpConfig.ALPNConnUpgradeRequired = true
-		// If ALPN Conn Upgrade will be used, we need to set the cluster CAs
-		// to validate the Proxy's auth issued host cert.
-		lpConfig.RootCAs = nil // TODO
-	}
-	lp, err := alpnproxy.NewLocalProxy(lpConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return lp, nil
-}
-
-func (s *DatabaseTunnelService) Run(ctx context.Context) error {
-	ctx, span := tracer.Start(ctx, "DatabaseTunnelService/Run")
-	defer span.End()
-
-	lp, err := s.setup(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-
-	}
-
-	return trace.Wrap(lp.Start(ctx))
 }
 
 // String returns a human-readable string that can uniquely identify the
