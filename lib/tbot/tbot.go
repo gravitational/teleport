@@ -245,6 +245,18 @@ func (b *Bot) Run(ctx context.Context) error {
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
 			services = append(services, svc)
+		case *config.DatabaseTunnelService:
+			svcIdentity := &config.UnstableClientCredentialOutput{}
+			b.cfg.Outputs = append(b.cfg.Outputs, svcIdentity)
+			svc := &DatabaseTunnelService{
+				botClient: b.botIdentitySvc.GetClient(),
+				botCfg:    b.cfg,
+				cfg:       svcCfg,
+			}
+			svc.log = b.log.WithField(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
 		case *config.ExampleService:
 			services = append(services, &ExampleService{
 				cfg: svcCfg,
