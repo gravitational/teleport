@@ -77,8 +77,8 @@ export interface Cluster {
      */
     leaf: boolean;
     /**
-     * logged_in_user is present if the user has logged in to the cluster at least once. This
-     * includes a situation in which the cert has expired. If the cluster was added to the app but the
+     * logged_in_user is present if the user has logged in to the cluster at least once, even
+     * if the cert has since expired. If the cluster was added to the app but the
      * user is yet to log in, logged_in_user is not present.
      *
      * @generated from protobuf field: teleport.lib.teleterm.v1.LoggedInUser logged_in_user = 7;

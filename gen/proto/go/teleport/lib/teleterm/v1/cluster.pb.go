@@ -114,8 +114,8 @@ type Cluster struct {
 	Connected bool `protobuf:"varint,4,opt,name=connected,proto3" json:"connected,omitempty"`
 	// leaf indicates if this is a leaf cluster
 	Leaf bool `protobuf:"varint,5,opt,name=leaf,proto3" json:"leaf,omitempty"`
-	// logged_in_user is present if the user has logged in to the cluster at least once. This
-	// includes a situation in which the cert has expired. If the cluster was added to the app but the
+	// logged_in_user is present if the user has logged in to the cluster at least once, even
+	// if the cert has since expired. If the cluster was added to the app but the
 	// user is yet to log in, logged_in_user is not present.
 	LoggedInUser *LoggedInUser `protobuf:"bytes,7,opt,name=logged_in_user,json=loggedInUser,proto3" json:"logged_in_user,omitempty"`
 	// features describes the auth servers features.
