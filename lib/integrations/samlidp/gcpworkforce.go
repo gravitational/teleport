@@ -145,7 +145,7 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 // http.StatusForbidden or when context is canceled with timeout.
 func waitForPoolStatus(ctx context.Context, workforceService *iam.LocationsWorkforcePoolsService, poolName, poolDisplayName string) error {
 	slog.InfoContext(ctx, "Waiting for pool status. It may take upto 2 minutes for new pool to become available.")
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for {
