@@ -130,7 +130,8 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 	}
 
 	if !createProviderResp.Done {
-		fmt.Printf("Pool provider %s is created but it may take upto a minute more for this provider to become available.\n", s.APIParams.PoolProviderName)
+		fmt.Printf("Pool provider %q is created but it may take upto a minute more for this provider to become available.\n\n", s.APIParams.PoolProviderName)
+		return nil
 	}
 	fmt.Println("Pool provider created.")
 	fmt.Printf("Pool provider %q is ready for use.\n", s.APIParams.PoolProviderName)
@@ -193,7 +194,7 @@ func fetchIdPMetadata(metadataURL string, httpClient *http.Client) (string, erro
 		return "", trace.Wrap(err)
 	}
 
-	fmt.Println("Fetched SAML IdP metadata.")
+	fmt.Println("Fetched Teleport SAML IdP metadata.")
 	return string(body), nil
 }
 
