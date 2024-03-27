@@ -5360,7 +5360,7 @@ func (a *ServerWithRoles) GetAppSession(ctx context.Context, req types.GetAppSes
 		// that `tsh proxy azure` will fail for old clients when used with Per-session
 		// MFA or Hardware Key support, which is planned for release in v16.0.0.
 		identity := a.context.Identity.GetIdentity()
-		if identity.MFAVerified == "" || identity.PrivateKeyPolicy != keys.PrivateKeyPolicyWebSession {
+		if !identity.IsMFAVerified() && identity.PrivateKeyPolicy != keys.PrivateKeyPolicyWebSession {
 			return session, nil
 		}
 

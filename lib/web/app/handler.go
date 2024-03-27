@@ -29,7 +29,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -40,10 +39,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
-	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -431,79 +428,9 @@ func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, erro
 		return nil, err
 	}
 
-	if identity.AzureIdentities != nil {
-		if err := h.tryResignAzureJWTCookie(r, ws); err != nil {
-			h.log.WithError(err).Debugf("failed to re-sign jwt cookie")
-		}
-	}
-
 	return ws, nil
 }
 
-// tryResignAzureJWTCookie checks the auth header bearer token for a JWT
-// token containing Azure claims signed by the client's private key. If
-// found, the token is resigned using the app session's private key so
-// that the App Service can validate it using the app session's public key.
-func (h *Handler) tryResignAzureJWTCookie(r *http.Request, ws types.WebSession) error {
-	bearerToken := r.Header.Get("Authorization")
-	if bearerToken == "" {
-		// No bearer token to check
-		return nil
-	}
-
-	bearer, token, found := strings.Cut(bearerToken, " ")
-	if !found {
-		return trace.BadParameter("Unable to parse auth header")
-	}
-	if bearer != "Bearer" {
-		return trace.BadParameter("Unable to parse auth header")
-	}
-
-	// Create a new key that can sign and verify tokens.
-	clientJWT, err := jwt.New(&jwt.Config{
-		Clock:       h.c.Clock,
-		PublicKey:   r.TLS.PeerCertificates[0].PublicKey,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
-		ClusterName: types.TeleportAzureMSIEndpoint,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	claims, err := clientJWT.VerifyAzureToken(token)
-	if err != nil {
-		// TODO (Joerger): DELETE IN 17.0.0 - return error
-		// If we fail to parse the token using the client's public key,
-		// that likely means the client is on an old version and is
-		// signing the token with the web session key directly, meaning
-		// we don't need to resign it, just let it through.
-		return nil
-	}
-
-	wsPrivateKey, err := utils.ParsePrivateKey(ws.GetPriv())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	wsJWT, err := jwt.New(&jwt.Config{
-		Clock:       h.c.Clock,
-		PrivateKey:  wsPrivateKey,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
-		ClusterName: types.TeleportAzureMSIEndpoint,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	newToken, err := wsJWT.SignAzureToken(*claims)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Set new authorization
-	r.Header.Set("Authorization", "Bearer "+newToken)
-	return nil
-}
 
 func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, error) {
 	subjectValue, err := extractCookie(r, SubjectCookieName)

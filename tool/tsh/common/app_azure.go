@@ -234,7 +234,7 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 
 	signer, ok := appCerts.PrivateKey.(crypto.Signer)
 	if !ok {
-		return trace.BadParameter("private key type %T does not implement crypto.Signer", appCerts.PrivateKey)
+		return trace.BadParameter("private key type %T does not implement crypto.Signer (this is a bug)", appCerts.PrivateKey)
 	}
 
 	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
