@@ -43,7 +43,7 @@ export interface Cluster {
      * rootClusterId is not equal to the name of the root cluster.
      *
      * For leaf clusters, it has the form of /clusters/:rootClusterId/leaves/:leafClusterId where
-     * leafClusterId` is equal to the name property of the cluster.
+     * leafClusterId is equal to the name property of the cluster.
      *
      * @generated from protobuf field: string uri = 1;
      */
