@@ -1,5 +1,17 @@
 # Changelog
 
+## 14.3.14 (03/27/24)
+
+* Fixed possible phishing links which could result in code execution with install and join scripts. [#39838](https://github.com/gravitational/teleport/pull/39838)
+* Fixed MFA checks not being prompted when joining a session. [#39815](https://github.com/gravitational/teleport/pull/39815)
+* Fixed potential issue with some resources expiry being set to 01/01/1970 instead of never. [#39774](https://github.com/gravitational/teleport/pull/39774)
+* Added support for Kubernetes websocket streaming subprotocol v5 connections. [#39771](https://github.com/gravitational/teleport/pull/39771)
+* Fixed broken SSO login landing page on certain versions of Google Chrome. [#39722](https://github.com/gravitational/teleport/pull/39722)
+* Updated Electron to v29 in Teleport Connect. [#39658](https://github.com/gravitational/teleport/pull/39658)
+* Fixed a bug in Teleport Cloud causing the hosted ServiceNow plugin to crash when setting up the integration. [#39604](https://github.com/gravitational/teleport/pull/39604)
+* Fixed Teleport updater metrics for AWS OIDC deployments. [#39531](https://github.com/gravitational/teleport/pull/39531)
+* Fixed allowing invalid access request start time date to be set. [#39324](https://github.com/gravitational/teleport/pull/39324)
+
 ## 14.3.13 (03/20/24)
 
 * Fixed the discovery script failing when `jq` was not installed. [#39600](https://github.com/gravitational/teleport/pull/39600)
