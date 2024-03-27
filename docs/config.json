@@ -650,6 +650,13 @@
               "forScopes": [
                 "enterprise"
               ]
+            },
+            {
+              "title": "Setup AWS sync with Access Graph",
+              "slug": "/access-controls/access-graph/aws-sync/",
+              "forScopes": [
+                "enterprise"
+              ]
             }
           ]
         },
