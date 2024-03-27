@@ -462,27 +462,28 @@ func (s *Service) ListGateways() []gateway.Gateway {
 }
 
 // GetGatewayCLICommand creates the CLI command used for the provided gateway.
-func (s *Service) GetGatewayCLICommand(gateway gateway.Gateway) (*exec.Cmd, error) {
+func (s *Service) GetGatewayCLICommand(gateway gateway.Gateway) (cmd.Cmds, error) {
 	targetURI := gateway.TargetURI()
 	switch {
 	case targetURI.IsDB():
 		cluster, _, err := s.cfg.Storage.GetByResourceURI(targetURI)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return cmd.Cmds{}, trace.Wrap(err)
 		}
 
-		cmd, err := cmd.NewDBCLICommand(cluster, gateway)
-		return cmd, trace.Wrap(err)
+		cmds, err := cmd.NewDBCLICommand(cluster, gateway)
+		return cmds, trace.Wrap(err)
 
 	case targetURI.IsKube():
-		cmd, err := cmd.NewKubeCLICommand(gateway)
-		return cmd, trace.Wrap(err)
+		cmds, err := cmd.NewKubeCLICommand(gateway)
+		return cmds, trace.Wrap(err)
 
 	case targetURI.IsApp():
-		return exec.Command(""), nil
+		blankCmd := exec.Command("")
+		return cmd.Cmds{Exec: blankCmd, Preview: blankCmd}, nil
 
 	default:
-		return nil, trace.NotImplemented("gateway not supported for %v", targetURI)
+		return cmd.Cmds{}, trace.NotImplemented("gateway not supported for %v", targetURI)
 	}
 }
 
