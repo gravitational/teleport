@@ -319,10 +319,12 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     }
 
     const response = await this.client.createAccessRequest(params);
-    this.usageService.captureAccessRequestCreate(
-      params.rootClusterUri,
-      params.roles.length ? 'role' : 'resource'
-    );
+    if (!params.dryRun) {
+      this.usageService.captureAccessRequestCreate(
+        params.rootClusterUri,
+        params.roles.length ? 'role' : 'resource'
+      );
+    }
     return response;
   }
 
