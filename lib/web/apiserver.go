@@ -475,6 +475,16 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	// serve the web UI from the embedded filesystem
 	var indexPage *template.Template
+	// we will set our etag based on the teleport version and
+	// the webasset app hash if available. The version only will not
+	// suffice as it can cause incorrect caching for local development.
+
+	// The hash of the webasset app.js is used to ensure that builds at
+	// different times or different OSes will be the same and not cause
+	// cache invalidation for production users. For example, using a timestamp
+	// at build time would cause different OS builds to be different, and timestamps
+	// at process start would mean multiple proxies would serving different etags)
+	etag := fmt.Sprintf("W/%q", teleport.Version)
 	if cfg.StaticFS != nil {
 		index, err := cfg.StaticFS.Open("/index.html")
 		if err != nil {
@@ -493,6 +503,13 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 		h.Handle("GET", "/robots.txt", httplib.MakeHandler(serveRobotsTxt))
 		h.Handle("GET", "/web/config.js", h.WithUnauthenticatedLimiter(h.getWebConfig))
+
+		etagFromAppHash, err := readEtagFromAppHash(cfg.StaticFS)
+		if err != nil {
+			h.log.WithError(err).Error("Could not read apphash from embedded webassets. Using version only as ETag for Web UI assets.")
+		} else {
+			etag = etagFromAppHash
+		}
 	}
 
 	if cfg.NodeWatcher != nil {
@@ -524,10 +541,18 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 		// serve Web UI:
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
+
+			// Check if the incoming request wants to check the version
+			// and if the version has not changed, return a Not Modified response
+			if match := r.Header.Get("If-None-Match"); match == etag {
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+
 			fs := http.FileServer(cfg.StaticFS)
 
 			fs = makeGzipHandler(fs)
-			fs = makeCacheHandler(fs)
+			fs = makeCacheHandler(fs, etag)
 
 			http.StripPrefix("/web", fs).ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web/") || r.URL.Path == "/web" {
@@ -4581,4 +4606,22 @@ func serveRobotsTxt(w http.ResponseWriter, r *http.Request, p httprouter.Params)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(robots))
 	return nil, nil
+}
+
+func readEtagFromAppHash(fs http.FileSystem) (string, error) {
+	hashFile, err := fs.Open("/apphash")
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer hashFile.Close()
+
+	appHash, err := io.ReadAll(hashFile)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	versionWithHash := fmt.Sprintf("%s-%s", teleport.Version, string(appHash))
+	etag := fmt.Sprintf("%q", versionWithHash)
+
+	return etag, nil
 }

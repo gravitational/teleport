@@ -36,7 +36,7 @@ import RecordingsList from './RecordingsList';
 
 import useRecordings, { State } from './useRecordings';
 
-export default function Container() {
+export function RecordingsContainer() {
   const ctx = useTeleport();
   const state = useRecordings(ctx);
   return <Recordings {...state} />;
