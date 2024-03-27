@@ -26,6 +26,7 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 	// Legacy enterprise cloud (non-usage based) will continue to maintain
 	// legacy behavior where all (most) features were enabled, and license
 	// settings were ignored.
+	// 14-day self-signup trials of Enterprise Cloud are currently set up as "legacy", non-usage-based products.
 	//
 	// Mimic's how we used to set legacy cloud from [func getLicenseFeatures]:
 	// https://github.com/gravitational/teleport.e/blob/9b826916ba7d79b1b649286607c358252061f5c5/tool/modules/modules.go#L184
@@ -50,6 +51,9 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 			Assist: false,
 			DeviceTrust: modules.DeviceTrustFeature{
 				Enabled: true,
+			},
+			Policy: modules.PolicyFeature{
+				Enabled: resp.Policy,
 			},
 		}
 
