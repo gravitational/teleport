@@ -240,7 +240,7 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 		return nil, trace.Wrap(err)
 	}
 
-	if len(req.ResourceIDs) != 0 {
+	if len(req.ResourceIDs) != 0 && !req.FilterRequestableRolesByResource {
 		caps.ApplicableRolesForResources, err = v.applicableSearchAsRoles(ctx, req.ResourceIDs, req.Login)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1414,6 +1414,17 @@ func (m *RequestValidator) truncateTTL(ctx context.Context, identity tlsca.Ident
 	return ttl, nil
 }
 
+// getResourceViewingRoles gets the subset of the user's roles that could be used
+// to view resources (i.e. base roles + search as roles).
+func (m *RequestValidator) getResourceViewingRoles(ctx context.Context) ([]string, error) {
+	// No need to filter by resource IDs as that will be done later.
+	searchAsRoles, err := m.applicableSearchAsRoles(ctx, nil, "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return apiutils.Deduplicate(slices.Concat(searchAsRoles, m.userState.GetRoles())), nil
+}
+
 // GetRequestableRoles gets the list of all existent roles which the user is
 // able to request.  This operation is expensive since it loads all existent
 // roles in order to determine the role list.  Prefer calling CanRequestRole
@@ -1431,6 +1442,31 @@ func (m *RequestValidator) GetRequestableRoles(ctx context.Context, resourceIDs 
 		return nil, trace.Wrap(err)
 	}
 
+	cluster, err := m.getter.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roles, err := m.getResourceViewingRoles(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessChecker, err := NewAccessChecker(&AccessInfo{
+		Roles:    roles,
+		Traits:   m.userState.GetTraits(),
+		Username: m.userState.GetName(),
+	}, cluster.GetClusterName(), m.getter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Filter out resources the user requested but doesn't have access to.
+	filteredResources := make([]types.ResourceWithLabels, 0, len(resources))
+	for _, resource := range resources {
+		if err := accessChecker.CheckAccess(resource, AccessState{MFAVerified: true}); err == nil {
+			filteredResources = append(filteredResources, resource)
+		}
+	}
+
 	var expanded []string
 	for _, role := range allRoles {
 		n := role.GetName()
@@ -1439,7 +1475,7 @@ func (m *RequestValidator) GetRequestableRoles(ctx context.Context, resourceIDs 
 		}
 
 		roleAllowsAccess := true
-		for _, resource := range resources {
+		for _, resource := range filteredResources {
 			access, err := m.roleAllowsResource(ctx, role, resource, loginHint)
 			if err != nil {
 				return nil, trace.Wrap(err)
