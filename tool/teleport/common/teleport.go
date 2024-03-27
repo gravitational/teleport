@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net/http"
 	"net/url"
 	"os"
 	"os/user"
@@ -1144,14 +1143,9 @@ func onIntegrationConfSAMLIdPGCPWorkforce(params samlidpconfig.GCPWorkforceAPIPa
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
 	// httpClient is used to fetch SAML IdP metadata.
-	// we expect metadata to be available at the given SAMLIdPMetadataURL endpoint.
-	// As such client is configured not to follow redirect response.
 	httpClient, err := defaults.HTTPClient()
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
 	}
 	gcpWorkforceService, err := samlidp.NewGCPWorkforceService(samlidp.GCPWorkforceService{
 		APIParams:  params,
