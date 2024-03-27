@@ -141,6 +141,7 @@ func NewAccessCache(cfg AccessCacheConfig) (*cache.Cache, error) {
 		WindowsDesktops:         cfg.Services,
 		SAMLIdPServiceProviders: cfg.Services,
 		UserGroups:              cfg.Services,
+		Notifications:           cfg.Services,
 		Okta:                    cfg.Services.OktaClient(),
 		AccessLists:             cfg.Services.AccessListClient(),
 		SecReports:              cfg.Services.SecReportsClient(),
