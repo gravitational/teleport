@@ -129,6 +129,11 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 				continue
 			}
 
+			// if a filter was provided, skip roles that fail to match.
+			if req.Filter != nil && !req.Filter.Match(role) {
+				continue
+			}
+
 			roles = append(roles, role)
 		}
 
