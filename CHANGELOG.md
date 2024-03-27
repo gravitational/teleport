@@ -1,5 +1,13 @@
 # Changelog
 
+## 13.4.21 (03/27/24)
+
+* Fixed possible phishing links which could result in code execution with install and join scripts. [#39839](https://github.com/gravitational/teleport/pull/39839)
+* Fixed MFA checks not being prompted when joining a session. [#39816](https://github.com/gravitational/teleport/pull/39816)
+* Fixed broken SSO login landing page on certain versions of Google Chrome. [#39721](https://github.com/gravitational/teleport/pull/39721)
+* Updated Electron to v29 in Teleport Connect. [#39659](https://github.com/gravitational/teleport/pull/39659)
+* Fixed a bug in the discovery script failing when `jq` was not installed. [#39601](https://github.com/gravitational/teleport/pull/39601)
+
 ## 13.4.20 (03/16/24)
 
 * Improved error messaging when creating resources fails because they already exist or updating resources fails because they were removed. [#39397](https://github.com/gravitational/teleport/pull/39397)
