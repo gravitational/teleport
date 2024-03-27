@@ -55,6 +55,10 @@ message CreatePluginRequest {
   // credentials secified in the StaticCredentialsList. Ignored if
   // StaticCredentials is used
   map<string, string> credential_labels = 5;
+
+  // Cleanup indicates that the backend should perform cleanup prior to starting
+  // the plugin.
+  bool cleanup = 6;
 }
 
 // GetPluginRequest is a request to return a plugin instance by name.
