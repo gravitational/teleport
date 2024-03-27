@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// GCPWorkforcePrams defines input params
+// GCPWorkforcePrams defines input params required
 // to configure GCP Workforce Identity Federation pool
 // and pool provider.
 type GCPWorkforceAPIParams struct {
@@ -73,7 +73,8 @@ func validateOrganizationID(orgID string) error {
 var isValidGCPResourceName = regexp.MustCompile(`^[a-z]([-a-z0-9]*[a-z0-9])?$`)
 
 // validateGCPResourceName validates name based on GCP naming convention.
-// https://cloud.google.com/compute/docs/naming-resources#resource-name-format
+// https://cloud.google.com/compute/docs/naming-resources#resource-name-format.
+// paramFriendlyName is only in error message.
 func validateGCPResourceName(param, paramFriendlyName string) error {
 	if param == "" {
 		return trace.BadParameter("param %s required", paramFriendlyName)
