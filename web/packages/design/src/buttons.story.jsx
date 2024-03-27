@@ -66,40 +66,18 @@ export const Buttons = () => (
       <ButtonText>Button Text</ButtonText>
     </Flex>
 
-    <Flex gap={3}>
-      <ButtonIcon size={2}>
-        <AddUsers />
-      </ButtonIcon>
-      <ButtonIcon size={2}>
-        <Ellipsis />
-      </ButtonIcon>
-      <ButtonIcon size={2}>
-        <Trash />
-      </ButtonIcon>
-    </Flex>
-
-    <Flex gap={3}>
-      <ButtonIcon size={1}>
-        <AddUsers />
-      </ButtonIcon>
-      <ButtonIcon size={1}>
-        <Ellipsis />
-      </ButtonIcon>
-      <ButtonIcon size={1}>
-        <Trash />
-      </ButtonIcon>
-    </Flex>
-
-    <Flex gap={3}>
-      <ButtonIcon size={0}>
-        <AddUsers />
-      </ButtonIcon>
-      <ButtonIcon size={0}>
-        <Ellipsis />
-      </ButtonIcon>
-      <ButtonIcon size={0}>
-        <Trash />
-      </ButtonIcon>
-    </Flex>
+    {[2, 1, 0].map(size => (
+      <Flex gap={3} key={`size-${size}`}>
+        <ButtonIcon size={size}>
+          <AddUsers />
+        </ButtonIcon>
+        <ButtonIcon size={size}>
+          <Ellipsis />
+        </ButtonIcon>
+        <ButtonIcon size={size} disabled>
+          <Trash />
+        </ButtonIcon>
+      </Flex>
+    ))}
   </Flex>
 );
