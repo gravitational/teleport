@@ -37,7 +37,7 @@
       {{- fail "Both Dynamo and Athena audit backends are enabled. You must specify the primary backend by setting `aws.auditLogPrimaryBackend` to either 'dynamo' or 'athena'." -}}
     {{- end -}}
   {{- else -}}
-    {{- fail "You need an audit backend. In AWS mosde, you must set at least one of `aws.auditLogTable` (Dynamo) and `aws.athernaURL` (Athena)." -}}
+    {{- fail "You need an audit backend. In AWS mode, you must set at least one of `aws.auditLogTable` (Dynamo) and `aws.athenaURL` (Athena)." -}}
   {{- end -}}
   {{- if .Values.aws.auditLogMirrorOnStdout }}
 - 'stdout://'

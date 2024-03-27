@@ -521,7 +521,7 @@ tests:
         sessionRecordingBucket: asd
     asserts:
       - failedTemplate:
-          errorMessage: "You need an audit backend. In AWS mosde, you must set at least one of `aws.auditLogTable` (Dynamo) and `aws.athernaURL` (Athena)."
+          errorMessage: "You need an audit backend. In AWS mode, you must set at least one of `aws.auditLogTable` (Dynamo) and `aws.athenaURL` (Athena)."
 
   - it: configures dynamo when dynamo is set
     set:
