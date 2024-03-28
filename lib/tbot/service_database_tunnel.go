@@ -152,10 +152,11 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 	lpConfig := alpnproxy.LocalProxyConfig{
 		Middleware: middleware,
 
-		RemoteProxyAddr: proxyAddr,
-		ParentContext:   ctx,
-		Protocols:       []common.Protocol{alpnProtocol},
-		Certs:           []tls.Certificate{*dbCert},
+		RemoteProxyAddr:    proxyAddr,
+		ParentContext:      ctx,
+		Protocols:          []common.Protocol{alpnProtocol},
+		Certs:              []tls.Certificate{*dbCert},
+		InsecureSkipVerify: s.botCfg.Insecure,
 	}
 	if client.IsALPNConnUpgradeRequired(
 		ctx,
