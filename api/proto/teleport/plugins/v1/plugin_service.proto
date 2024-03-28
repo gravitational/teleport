@@ -138,6 +138,26 @@ message SearchPluginStaticCredentialsResponse {
   repeated types.PluginStaticCredentialsV1 credentials = 1;
 }
 
+// NeedsCleanupRequest is the request type for NeedsCleanup.
+message NeedsCleanupRequest {
+  // Type is the plugin type. We only need the string representation of the plugin type and not
+  // the PluginType message, as we don't want the oauth client ID here.
+  string type = 1;
+}
+
+// NeedsCleanupResponse is the response type for NeedsCleanup.
+message NeedsCleanupResponse {
+  // NeedsCleanup will be set to true if the plugin needs cleanup.
+  bool needs_cleanup = 1;
+}
+
+// CleanupRequest is the request type for NeedsCleanup.
+message CleanupRequest {
+  // Type is the plugin type. We only need the string representation of the plugin type and not
+  // the PluginType message, as we don't want the oauth client ID here.
+  string type = 1;
+}
+
 // PluginService provides CRUD operations for Plugin resources.
 service PluginService {
   // CreatePlugin creates a new plugin instance.
@@ -165,4 +185,10 @@ service PluginService {
   // SearchPluginStaticCredentials returns static credentials that are searched for. Only accessible by RoleAdmin and,
   // in the case of Teleport Assist, RoleProxy.
   rpc SearchPluginStaticCredentials(SearchPluginStaticCredentialsRequest) returns (SearchPluginStaticCredentialsResponse);
+
+  // NeedsCleanup will indicate whether a plugin of the given type needs cleanup before it can be created.
+  rpc NeedsCleanup(NeedsCleanupRequest) returns (NeedsCleanupResponse);
+
+  // Cleanup will clean up the resources for the given plugin type.
+  rpc Cleanup(CleanupRequest) returns (google.protobuf.Empty);
 }
