@@ -80,7 +80,7 @@ func TestAuthPOST(t *testing.T) {
 	stateValue := fmt.Sprintf("%s_%s", secretToken, cookieID)
 	appCookieValue := "5588e2be54a2834b4f152c56bafcd789f53b15477129d2ab4044e9a3c1bf0f3b"
 
-	fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 0o5, 10, 18, 53, 0, 0, time.UTC))
+	fakeClock := clockwork.NewFakeClock()
 	clusterName := "test-cluster"
 	publicAddr := "app.example.com"
 	// Generate CA TLS key and cert with the cluster and application DNS.
@@ -249,7 +249,7 @@ func TestAuthPOST_Legacy(t *testing.T) {
 		cookieValue = "5588e2be54a2834b4f152c56bafcd789f53b15477129d2ab4044e9a3c1bf0f3b" // random value we set in the header and expect to get back as a cookie
 	)
 
-	fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 0o5, 10, 18, 53, 0, 0, time.UTC))
+	fakeClock := clockwork.NewFakeClock()
 	clusterName := "test-cluster"
 	publicAddr := "proxy.goteleport.com:443"
 
@@ -681,7 +681,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 0o5, 10, 18, 53, 0, 0, time.UTC))
+			fakeClock := clockwork.NewFakeClock()
 			appSession := createAppSession(t, fakeClock, key, cert, clusterName, tc.publicAddr)
 			authClient := &mockAuthClient{
 				clusterName: clusterName,
