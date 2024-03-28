@@ -51,7 +51,7 @@ export enum MessageType {
   NOTIFICATION = 28,
   RDP_FASTPATH_PDU = 29,
   RDP_RESPONSE_PDU = 30,
-  RDP_CONNECTION_INITIALIZED = 31,
+  RDP_CONNECTION_ACTIVATED = 31,
   SYNC_KEYS = 32,
   __LAST, // utility value
 }
@@ -106,7 +106,7 @@ export type ClipboardData = {
 };
 
 // | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
-export type RDPConnectionInitialized = {
+export type RDPConnectionActivated = {
   ioChannelId: number;
   userChannelId: number;
   screenWidth: number;
@@ -846,7 +846,7 @@ export default class Codec {
   }
 
   // | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
-  decodeRDPConnectionInitialied(buffer: ArrayBuffer): RDPConnectionInitialized {
+  decodeRDPConnectionActivated(buffer: ArrayBuffer): RDPConnectionActivated {
     const dv = new DataView(buffer);
     let offset = 0;
     offset += BYTE_LEN; // eat message type

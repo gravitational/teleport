@@ -172,7 +172,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     spec: ClientScreenSpec
   ) {
     this.logger.debug(
-      `initializing fast path processor with screen spec ${spec.width} x ${spec.height}`
+      `setting up fast path processor with screen spec ${spec.width} x ${spec.height}`
     );
 
     this.fastPathProcessor = new FastPathProcessor(
@@ -195,8 +195,8 @@ export default class Client extends EventEmitterWebAuthnSender {
         case MessageType.PNG2_FRAME:
           this.handlePng2Frame(buffer);
           break;
-        case MessageType.RDP_CONNECTION_INITIALIZED:
-          this.handleRDPConnectionInitialized(buffer);
+        case MessageType.RDP_CONNECTION_ACTIVATED:
+          this.handleRDPConnectionActivated(buffer);
           break;
         case MessageType.RDP_FASTPATH_PDU:
           this.handleRDPFastPathPDU(buffer);
@@ -321,12 +321,12 @@ export default class Client extends EventEmitterWebAuthnSender {
     );
   }
 
-  handleRDPConnectionInitialized(buffer: ArrayBuffer) {
+  handleRDPConnectionActivated(buffer: ArrayBuffer) {
     const { ioChannelId, userChannelId, screenWidth, screenHeight } =
-      this.codec.decodeRDPConnectionInitialied(buffer);
+      this.codec.decodeRDPConnectionActivated(buffer);
     const spec = { width: screenWidth, height: screenHeight };
     this.logger.info(
-      `setting screen spec received from server ${spec.width} x ${spec.height}`
+      `screen spec received from server ${spec.width} x ${spec.height}`
     );
 
     this.initFastPathProcessor(ioChannelId, userChannelId, {
@@ -685,7 +685,7 @@ export default class Client extends EventEmitterWebAuthnSender {
   }
 
   resize(spec: ClientScreenSpec) {
-    this.send(this.codec.encodeClientScreenSpec(spec));
+    this.sendClientScreenSpec(spec);
   }
 
   sendRDPResponsePDU(responseFrame: ArrayBuffer) {

@@ -19,6 +19,7 @@
 import React, { useState } from 'react';
 import { ButtonPrimary } from 'design/Button';
 import { NotificationItem } from 'shared/components/Notification';
+import { throttle } from 'shared/utils/highbar';
 
 import { TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
 
@@ -90,6 +91,7 @@ const props: State = {
   setShowAnotherSessionActiveDialog: () => {},
   warnings: [],
   onRemoveWarning: () => {},
+  windowOnResize: throttle(() => {}, 1000),
 };
 
 export const BothProcessing = () => (

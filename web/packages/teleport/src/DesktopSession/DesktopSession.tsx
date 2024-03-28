@@ -77,6 +77,7 @@ export function DesktopSession(props: State) {
     canvasOnMouseUp,
     canvasOnMouseWheelScroll,
     canvasOnContextMenu,
+    windowOnResize,
     clientScreenSpecToRequest,
     clipboardSharingState,
     onShareDirectory,
@@ -169,6 +170,7 @@ export function DesktopSession(props: State) {
         canvasOnMouseUp={canvasOnMouseUp}
         canvasOnMouseWheelScroll={canvasOnMouseWheelScroll}
         canvasOnContextMenu={canvasOnContextMenu}
+        windowOnResize={windowOnResize}
         updatePointer={true}
       />
     </Flex>
