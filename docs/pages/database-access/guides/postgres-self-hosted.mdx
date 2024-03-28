@@ -3,7 +3,7 @@ title: Database Access with Self-Hosted PostgreSQL
 description: How to configure Teleport database access with self-hosted PostgreSQL.
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="PostgreSQL" dbConfigure="PostgreSQL database with mutual TLS authentication" dbName="PostgreSQL" !)
+(!docs/pages/includes/database-access/self-hosted-introduction.mdx  dbType="PostgreSQL" dbConfigure="PostgreSQL database with mutual TLS authentication" dbName="PostgreSQL" !)
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -23,6 +23,8 @@ description: How to configure Teleport database access with self-hosted PostgreS
 - Command-line client `psql` installed and added to your system's `PATH` environment variable.
 - A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database
   Service.
+- Optional: a certificate authority that issues certificates and private keys for
+  your self-hosted database.
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Create a Teleport token and user
@@ -35,28 +37,14 @@ description: How to configure Teleport database access with self-hosted PostgreS
 
 ## Step 2/5. Create a certificate/key pair
 
-(!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
-
-Create the secrets:
-
-```code
-# Export Teleport's certificate authority and a generate certificate/key pair
-# for host db.example.com with a 1-year validity period.
-$ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
-```
-
-In this example, `db.example.com` is the hostname where the Teleport Database
-Service can reach the PostgreSQL server.
-
-(!docs/pages/includes/database-access/ttl-note.mdx!)
-
-The command will create 3 files: `server.cas`, `server.crt` and `server.key`
-which you'll need to enable mutual TLS on your PostgreSQL server.
+(!docs/pages/includes/database-access/tctl-auth-sign-3-files.mdx dbname="PostgreSQL" !)
 
 ## Step 3/5. Configure your PostgreSQL server
 
 To configure your PostgreSQL server to accept TLS connections, add the following
-to the PostgreSQL configuration file, `postgresql.conf`:
+to the PostgreSQL configuration file, `postgresql.conf`, using the paths where
+you placed the `server.crt`, `server.key`, and `server.cas` files you generated
+earlier:
 
 ```conf
 ssl = on
@@ -65,26 +53,27 @@ ssl_key_file = '/path/to/server.key'
 ssl_ca_file = '/path/to/server.cas'
 ```
 
-See [Secure TCP/IP Connections with SSL](https://www.postgresql.org/docs/current/ssl-tcp.html)
-in the PostgreSQL documentation for more details.
+See [Secure TCP/IP Connections with
+SSL](https://www.postgresql.org/docs/current/ssl-tcp.html) in the PostgreSQL
+documentation for more details.
 
-Additionally, PostgreSQL should be configured to require client certificate
-authentication from clients connecting over TLS. This can be done by adding
-the following entries to PostgreSQL's host-based authentication file `pg_hba.conf`:
+Configure PostgreSQL to require client certificate authentication from clients
+connecting over TLS. This can be done by adding the following entries to
+PostgreSQL's host-based authentication file `pg_hba.conf`:
 
 ```conf
 hostssl all             all             ::/0                    cert
 hostssl all             all             0.0.0.0/0               cert
 ```
 
-You should also ensure that you have no higher-priority `md5` authentication
-rules that will match, otherwise PostgreSQL will offer them first, and the
+You should also ensure that you have no higher-priority authentication rules
+that will match, otherwise PostgreSQL will offer them first, and the
 certificate-based Teleport login will fail.
 
 See [The pg_hba.conf File](https://www.postgresql.org/docs/current/auth-pg-hba-conf.html)
 in the PostgreSQL documentation for more details.
 
-## Step 4/5. Configure and Start the Database Service
+## Step 4/5. Configure and start the Database Service
 
 Install and configure Teleport where you will run the Teleport Database Service:
 
@@ -93,7 +82,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-(!docs/pages/includes/database-access/db-configure-start.mdx dbName="example-postgres" dbProtocol="postgres" databaseAddress="postgres.example.com:5432" !)
+(!docs/pages/includes/database-access/self-hosted-config-start.mdx dbName="example-postgres" dbProtocol="postgres" databaseAddress="postgres.example.com:5432" !)
 
 </TabItem>
 <TabItem label="Kubernetes Cluster">
@@ -101,7 +90,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
   (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-postgres" dbProtocol="postgres" databaseAddress="postgres.example.com:5432" !)
+  (!docs/pages/includes/database-access/self-hosted-db-helm-install.mdx dbName="example-postgres" dbProtocol="postgres" databaseAddress="postgres.example.com:5432" !)
 </TabItem>
 </Tabs>
 
