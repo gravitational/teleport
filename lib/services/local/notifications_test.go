@@ -32,6 +32,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
@@ -375,7 +376,9 @@ func newUserNotification(t *testing.T, description string) *notificationsv1.Noti
 		SubKind: "test-subkind",
 		Spec:    &notificationsv1.NotificationSpec{},
 		Metadata: &headerv1.Metadata{
-			Labels: map[string]string{"description": description},
+			Labels: map[string]string{
+				types.NotificationTitleLabel:       "test-title",
+				types.NotificationDescriptionLabel: description},
 		},
 	}
 
@@ -394,7 +397,9 @@ func newGlobalNotification(t *testing.T, description string) *notificationsv1.Gl
 				SubKind: "test-subkind",
 				Spec:    &notificationsv1.NotificationSpec{},
 				Metadata: &headerv1.Metadata{
-					Labels: map[string]string{"description": description},
+					Labels: map[string]string{
+						types.NotificationTitleLabel:       "test-title",
+						types.NotificationDescriptionLabel: description},
 				},
 			},
 		},
