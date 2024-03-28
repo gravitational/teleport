@@ -3206,30 +3206,6 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 	return trace.WithField(retErr, ErrFieldKeyUserMaxedAttempts, true)
 }
 
-// PreAuthenticatedSignIn is for MFA authentication methods where the password
-// is already checked before issuing the second factor challenge
-func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identity tlsca.Identity) (types.WebSession, error) {
-	accessInfo, err := services.AccessInfoFromLocalIdentity(identity, a)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
-		User:                 user,
-		LoginIP:              identity.LoginIP,
-		Roles:                accessInfo.Roles,
-		Traits:               accessInfo.Traits,
-		AccessRequests:       identity.ActiveRequests,
-		RequestedResourceIDs: accessInfo.AllowedResourceIDs,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := a.upsertWebSession(ctx, sess); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sess.WithoutSecrets(), nil
-}
-
 // CreateAuthenticateChallenge implements AuthService.CreateAuthenticateChallenge.
 func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 	var username string
