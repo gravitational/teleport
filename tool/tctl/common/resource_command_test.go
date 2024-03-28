@@ -1924,7 +1924,7 @@ version: v1
 	require.NoError(t, err)
 
 	resources := mustDecodeJSON[[]databaseobject.Resource](t, buf)
-	require.Len(t, resources, 0)
+	require.Empty(t, resources)
 
 	// Create the resource
 	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
