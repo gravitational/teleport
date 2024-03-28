@@ -110,6 +110,12 @@ Create the node resource:
 $ tctl create openssh-node-resource.yaml
 ```
 
+<Admonition type="note">
+  This step can be done with Infrastructure-as-Code (IaC) tools (tctl,
+  Terraform, or Kubernetes Operator). This is described [in the OpenSSH server
+  IaC guide](../../management/dynamic-resources/agentless-ssh-servers.mdx).
+</Admonition>
+
 ## Step 2/5. Configure `sshd` to trust the Teleport CA
 
 Later in this guide, we will generate an SSH client configuration that will use

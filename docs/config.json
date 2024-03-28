@@ -625,6 +625,10 @@
               "slug": "/management/dynamic-resources/user-and-role/"
             },
             {
+              "title": "Registering Agentless OpenSSH",
+              "slug": "/management/dynamic-resources/agentless-ssh-servers/"
+            },
+            {
               "title": "Managing Access Lists",
               "slug": "/management/dynamic-resources/access-list/"
             },
