@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import grpc from '@grpc/grpc-js';
 import { GrpcTransport } from '@protobuf-ts/grpc-transport';
 import * as api from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import { TerminalServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
+import * as vnetServiceProtobuf from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb.client';
 
 import Logger from 'teleterm/logger';
 import * as uri from 'teleterm/ui/uri';
@@ -31,24 +31,19 @@ import {
   resourceOneOfIsServer,
 } from 'teleterm/helpers';
 
-import { CloneableAbortSignal, cloneClient } from './cloneableClient';
+import {
+  CloneableAbortSignal,
+  CloneableClient,
+  cloneClient,
+} from './cloneableClient';
 import * as types from './types';
 import {
   UpdateHeadlessAuthenticationStateParams,
   UnifiedResourceResponse,
 } from './types';
-import { loggingInterceptor } from './interceptors';
 
-export function createTshdClient(
-  addr: string,
-  credentials: grpc.ChannelCredentials
-): types.TshdClient {
+export function createTshdClient(transport: GrpcTransport): types.TshdClient {
   const logger = new Logger('tshd');
-  const transport = new GrpcTransport({
-    host: addr,
-    channelCredentials: credentials,
-    interceptors: [loggingInterceptor(logger)],
-  });
   const tshd = cloneClient(new TerminalServiceClient(transport));
 
   // Create a client instance that could be shared with the  renderer (UI) via Electron contextBridge
@@ -625,3 +620,14 @@ export function createTshdClient(
 
   return client;
 }
+
+export function createVnetClient(transport: GrpcTransport): VnetServiceClient {
+  const client = cloneClient(
+    new vnetServiceProtobuf.VnetServiceClient(transport)
+  );
+
+  return client;
+}
+
+export type VnetServiceClient =
+  CloneableClient<vnetServiceProtobuf.VnetServiceClient>;

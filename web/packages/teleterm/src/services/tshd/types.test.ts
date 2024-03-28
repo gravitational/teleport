@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { GrpcTransport } from '@protobuf-ts/grpc-transport';
+
 import { createInsecureClientCredentials } from 'teleterm/services/grpcCredentials';
 
 import { createTshdClient } from './createClient';
@@ -24,6 +26,11 @@ import { createTshdClient } from './createClient';
 // Dependencies must be provided as `--path` values to `buf generate` in build.assets/genproto.sh.
 test('generated protos import necessary dependencies', () => {
   expect(() => {
-    createTshdClient('localhost:0', createInsecureClientCredentials());
+    createTshdClient(
+      new GrpcTransport({
+        host: 'localhost:1337',
+        channelCredentials: createInsecureClientCredentials(),
+      })
+    );
   }).not.toThrow();
 });
