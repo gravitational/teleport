@@ -44,11 +44,10 @@ func (r *IntegrationAWSOIDCSpec) CheckAndSetDefaults() error {
 	if r.RoleARN == "" {
 		return trace.BadParameter("missing awsoidc.roleArn field")
 	}
-	if r.IssuerS3Bucket == "" {
-		return trace.BadParameter("missing awsoidc.issuerS3Bucket field")
-	}
-	if r.IssuerS3Prefix == "" {
-		return trace.BadParameter("missing awsoidc.issuerS3Prefix field")
+
+	// Either both empty or both are filled.
+	if (r.IssuerS3Bucket == "") != (r.IssuerS3Prefix == "") {
+		return trace.BadParameter("missing awsoidc s3 fields")
 	}
 
 	return nil
@@ -128,21 +127,33 @@ func MakeIntegrations(igs []types.Integration) ([]*Integration, error) {
 
 // MakeIntegration creates a UI Integration representation.
 func MakeIntegration(ig types.Integration) (*Integration, error) {
-	issuerS3BucketURL, err := url.Parse(ig.GetAWSOIDCIntegrationSpec().IssuerS3URI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	prefix := strings.TrimLeft(issuerS3BucketURL.Path, "/")
-
-	return &Integration{
+	ret := &Integration{
 		Name:    ig.GetName(),
 		SubKind: ig.GetSubKind(),
-		AWSOIDC: &IntegrationAWSOIDCSpec{
+	}
+
+	switch ig.GetSubKind() {
+	case types.IntegrationSubKindAWSOIDC:
+		var s3Bucket string
+		var s3Prefix string
+
+		if s3Location := ig.GetAWSOIDCIntegrationSpec().IssuerS3URI; s3Location != "" {
+			issuerS3BucketURL, err := url.Parse(s3Location)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			s3Bucket = issuerS3BucketURL.Host
+			s3Prefix = strings.TrimLeft(issuerS3BucketURL.Path, "/")
+		}
+
+		ret.AWSOIDC = &IntegrationAWSOIDCSpec{
 			RoleARN:        ig.GetAWSOIDCIntegrationSpec().RoleARN,
-			IssuerS3Bucket: issuerS3BucketURL.Host,
-			IssuerS3Prefix: prefix,
-		},
-	}, nil
+			IssuerS3Bucket: s3Bucket,
+			IssuerS3Prefix: s3Prefix,
+		}
+	}
+
+	return ret, nil
 }
 
 // AWSOIDCListDatabasesRequest is a request to ListDatabases using the AWS OIDC Integration.

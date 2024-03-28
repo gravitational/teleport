@@ -99,6 +99,18 @@ func TestIntegrationCRUD(t *testing.T) {
 	respStatusCode, respBody = webPack.DoRequest(t, http.MethodPost, integrationsEndpoint, createIntegrationReq)
 	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
+	// Create Integration without S3 location
+	createIntegrationWithoutS3LocationReq := ui.Integration{
+		Name:    "MyAWSAccountWithoutS3",
+		SubKind: types.IntegrationSubKindAWSOIDC,
+		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
+			RoleARN: "arn:aws:iam::123456789012:role/DevTeam",
+		},
+	}
+
+	respStatusCode, respBody = webPack.DoRequest(t, http.MethodPost, integrationsEndpoint, createIntegrationWithoutS3LocationReq)
+	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
+
 	// Get One Integration by name
 	respStatusCode, respBody = webPack.DoRequest(t, http.MethodGet, integrationsEndpoint+"/MyAWSAccount", nil)
 	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
@@ -136,6 +148,25 @@ func TestIntegrationCRUD(t *testing.T) {
 			RoleARN:        "arn:aws:iam::123456789012:role/OpsTeam",
 			IssuerS3Bucket: "my-bucket",
 			IssuerS3Prefix: "my-prefix",
+		},
+	}, integrationResp, string(respBody))
+
+	// Update the integration to remove the S3 Location
+	respStatusCode, respBody = webPack.DoRequest(t, http.MethodPut, integrationsEndpoint+"/MyAWSAccount", ui.UpdateIntegrationRequest{
+		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
+			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam2",
+		},
+	})
+	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
+
+	integrationResp = ui.Integration{}
+	require.NoError(t, json.Unmarshal(respBody, &integrationResp))
+
+	require.Equal(t, ui.Integration{
+		Name:    "MyAWSAccount",
+		SubKind: types.IntegrationSubKindAWSOIDC,
+		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
+			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam2",
 		},
 	}, integrationResp, string(respBody))
 
@@ -180,13 +211,13 @@ func TestIntegrationCRUD(t *testing.T) {
 
 	require.Len(t, listResp.Items, pageSize)
 
-	// Requesting the 3rd page should return a single item and empty StartKey
+	// Requesting the 3rd page should return two items and empty StartKey
 	respStatusCode, respBody = webPack.DoRequest(t, http.MethodGet, integrationsEndpoint+"?limit=10&startKey="+listResp.NextKey, nil)
 	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 	listResp = ui.IntegrationsListResponse{}
 	require.NoError(t, json.Unmarshal(respBody, &listResp))
 
-	require.Len(t, listResp.Items, 1)
+	require.Len(t, listResp.Items, 2)
 	require.Empty(t, listResp.NextKey)
 }
