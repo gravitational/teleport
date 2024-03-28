@@ -63,6 +63,10 @@ type HandlerConfig struct {
 	CipherSuites []uint16
 	// WebPublicAddr
 	WebPublicAddr string
+	// ServerID is the host UUID.
+	ServerID string
+	// DataDir is a local server data directory.
+	DataDir string
 }
 
 // CheckAndSetDefaults validates configuration.
@@ -79,6 +83,12 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 	}
 	if len(c.CipherSuites) == 0 {
 		return trace.BadParameter("ciphersuites missing")
+	}
+	if c.ServerID == "" {
+		return trace.BadParameter("server id missing")
+	}
+	if c.DataDir == "" {
+		return trace.BadParameter("data dir missing")
 	}
 
 	return nil

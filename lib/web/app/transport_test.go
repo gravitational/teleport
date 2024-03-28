@@ -40,6 +40,7 @@ import (
 )
 
 func Test_transport_rewriteRedirect(t *testing.T) {
+	ctx := context.Background()
 	rootCluster := "root.teleport.example.com"
 	leafCluster := "leaf.teleport.example.com"
 
@@ -191,7 +192,7 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			tr, err := newTransport(&tt.transportConfig)
+			tr, err := newTransport(ctx, &tt.transportConfig)
 			require.NoError(t, err)
 
 			response := &http.Response{Header: make(http.Header)}
