@@ -1949,8 +1949,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 	userNotificationCache, err := services.NewUserNotificationCache(services.NotificationCacheConfig{
 		Events: authServer.Services,
-		// TODO(rudream): Use getter from cache instead of real backend.
-		Getter: authServer.Services,
+		Getter: authServer.Cache,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1960,8 +1959,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 	globalNotificationCache, err := services.NewGlobalNotificationCache(services.NotificationCacheConfig{
 		Events: authServer.Services,
-		// TODO(rudream): Use getter from cache instead of real backend.
-		Getter: authServer.Services,
+		Getter: authServer.Cache,
 	})
 	if err != nil {
 		return trace.Wrap(err)

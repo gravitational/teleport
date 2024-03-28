@@ -42,7 +42,9 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -114,10 +116,22 @@ type testPack struct {
 	secReports              services.SecReports
 	accessLists             services.AccessLists
 	kubeWaitingContainers   services.KubeWaitingContainer
+	notifications           services.Notifications
 }
 
 // testFuncs are functions to support testing an object in a cache.
 type testFuncs[T types.Resource] struct {
+	newResource func(string) (T, error)
+	create      func(context.Context, T) error
+	list        func(context.Context) ([]T, error)
+	cacheGet    func(context.Context, string) (T, error)
+	cacheList   func(context.Context) ([]T, error)
+	update      func(context.Context, T) error
+	deleteAll   func(context.Context) error
+}
+
+// testFuncs153 are functions to support testing an RFD153-style resource in a cache.
+type testFuncs153[T types.Resource153] struct {
 	newResource func(string) (T, error)
 	create      func(context.Context, T) error
 	list        func(context.Context) ([]T, error)
@@ -294,6 +308,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 	p.kubeWaitingContainers = kubeWaitingContSvc
+	notificationsSvc, err := local.NewNotificationsService(p.backend, p.backend.Clock())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.notifications = notificationsSvc
 
 	return p, nil
 }
@@ -337,6 +356,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
+		Notifications:           p.notifications,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -736,6 +756,7 @@ func TestCompletenessInit(t *testing.T) {
 			SecReports:              p.secReports,
 			AccessLists:             p.accessLists,
 			KubeWaitingContainers:   p.kubeWaitingContainers,
+			Notifications:           p.notifications,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -809,6 +830,7 @@ func TestCompletenessReset(t *testing.T) {
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
+		Notifications:           p.notifications,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -994,6 +1016,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
+		Notifications:           p.notifications,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1078,6 +1101,7 @@ func initStrategy(t *testing.T) {
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
+		Notifications:           p.notifications,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -2445,6 +2469,62 @@ func TestAccessListReviews(t *testing.T) {
 	})
 }
 
+// TestUserNotifications tests that CRUD operations on user notification resources are
+// replicated from the backend to the cache.
+func TestUserNotifications(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*notificationsv1.Notification]{
+		newResource: func(name string) (*notificationsv1.Notification, error) {
+			return newUserNotification(t, name), nil
+		},
+		create: func(ctx context.Context, item *notificationsv1.Notification) error {
+			_, err := p.notifications.CreateUserNotification(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*notificationsv1.Notification, error) {
+			items, _, err := p.notifications.ListUserNotifications(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*notificationsv1.Notification, error) {
+			items, _, err := p.cache.ListUserNotifications(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		deleteAll: p.notifications.DeleteAllUserNotifications,
+	})
+}
+
+// TestGlobalNotifications tests that CRUD operations on global notification resources are
+// replicated from the backend to the cache.
+func TestGlobalNotifications(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*notificationsv1.GlobalNotification]{
+		newResource: func(name string) (*notificationsv1.GlobalNotification, error) {
+			return newGlobalNotification(t, name), nil
+		},
+		create: func(ctx context.Context, item *notificationsv1.GlobalNotification) error {
+			_, err := p.notifications.CreateGlobalNotification(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*notificationsv1.GlobalNotification, error) {
+			items, _, err := p.notifications.ListGlobalNotifications(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*notificationsv1.GlobalNotification, error) {
+			items, _, err := p.cache.ListGlobalNotifications(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		deleteAll: p.notifications.DeleteAllGlobalNotifications,
+	})
+}
+
 // testResources is a generic tester for resources.
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	ctx := context.Background()
@@ -2508,13 +2588,88 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	// Remove all service providers from the backend.
 	err = funcs.deleteAll(ctx)
 	require.NoError(t, err)
-
 	// Check that information has been replicated to the cache.
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Check that the cache is now empty.
 		out, err = funcs.cacheList(ctx)
 		assert.NoError(t, err)
-		return len(out) == 0
+		assert.Empty(t, out)
+	}, time.Second*2, time.Millisecond*250)
+}
+
+// testResources153 is a generic tester for RFD153-style resources.
+func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs testFuncs153[T]) {
+	ctx := context.Background()
+
+	// Create a resource.
+	r, err := funcs.newResource("test-resource")
+	require.NoError(t, err)
+	// update is optional as not every resource implements it
+	if funcs.update != nil {
+		r.GetMetadata().Labels = map[string]string{"label": "value1"}
+	}
+
+	err = funcs.create(ctx, r)
+	require.NoError(t, err)
+
+	cmpOpts := []cmp.Option{
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+		protocmp.Transform(),
+	}
+
+	// Check that the resource is now in the backend.
+	out, err := funcs.list(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
+
+	// Wait until the information has been replicated to the cache.
+	require.Eventually(t, func() bool {
+		// Make sure the cache has a single resource in it.
+		out, err = funcs.cacheList(ctx)
+		assert.NoError(t, err)
+		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
+	}, time.Second*2, time.Millisecond*250)
+
+	// cacheGet is optional as not every resource implements it
+	if funcs.cacheGet != nil {
+		// Make sure a single cache get works.
+		getR, err := funcs.cacheGet(ctx, r.GetMetadata().GetName())
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(r, getR, cmpOpts...))
+	}
+
+	// update is optional as not every resource implements it
+	if funcs.update != nil {
+		// Update the resource and upsert it into the backend again.
+		r.GetMetadata().Labels["label"] = "value2"
+		err = funcs.update(ctx, r)
+		require.NoError(t, err)
+	}
+
+	// Check that the resource is in the backend and only one exists (so an
+	// update occurred).
+	out, err = funcs.list(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
+
+	// Check that information has been replicated to the cache.
+	require.Eventually(t, func() bool {
+		// Make sure the cache has a single resource in it.
+		out, err = funcs.cacheList(ctx)
+		assert.NoError(t, err)
+		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
+	}, time.Second*2, time.Millisecond*250)
+
+	// Remove all resources from the backend.
+	err = funcs.deleteAll(ctx)
+	require.NoError(t, err)
+
+	// Check that information has been replicated to the cache.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// Check that the cache is now empty.
+		out, err = funcs.cacheList(ctx)
+		assert.NoError(t, err)
+		assert.Empty(t, out)
 	}, time.Second*2, time.Millisecond*250)
 }
 
@@ -2940,6 +3095,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAccessListMember:        newAccessListMember(t, "access-list", "member"),
 		types.KindAccessListReview:        newAccessListReview(t, "access-list", "review"),
 		types.KindKubeWaitingContainer:    newKubeWaitingContainer(t),
+		types.KindNotification:            types.Resource153ToLegacy(newUserNotification(t, "test")),
+		types.KindGlobalNotification:      types.Resource153ToLegacy(newGlobalNotification(t, "test")),
 	}
 
 	for name, cfg := range cases {
@@ -3388,6 +3545,43 @@ func newKubeWaitingContainer(t *testing.T) types.Resource {
 	require.NoError(t, err)
 
 	return types.Resource153ToLegacy(waitingCont)
+}
+
+func newUserNotification(t *testing.T, name string) *notificationsv1.Notification {
+	t.Helper()
+
+	notification := &notificationsv1.Notification{
+		SubKind: "test-subkind",
+		Spec: &notificationsv1.NotificationSpec{
+			Username: name,
+		},
+		Metadata: &headerv1.Metadata{
+			Labels: map[string]string{"description": "test-description"},
+		},
+	}
+
+	return notification
+}
+
+func newGlobalNotification(t *testing.T, description string) *notificationsv1.GlobalNotification {
+	t.Helper()
+
+	notification := &notificationsv1.GlobalNotification{
+		Spec: &notificationsv1.GlobalNotificationSpec{
+			Matcher: &notificationsv1.GlobalNotificationSpec_All{
+				All: true,
+			},
+			Notification: &notificationsv1.Notification{
+				SubKind: "test-subkind",
+				Spec:    &notificationsv1.NotificationSpec{},
+				Metadata: &headerv1.Metadata{
+					Labels: map[string]string{"description": description},
+				},
+			},
+		},
+	}
+
+	return notification
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {
