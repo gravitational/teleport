@@ -249,6 +249,7 @@ func (b *Bot) Run(ctx context.Context) error {
 			svc := &DatabaseTunnelService{
 				getBotIdentity: b.botIdentitySvc.GetIdentity,
 				botClient:      b.botIdentitySvc.GetClient(),
+				resolver:       resolver,
 				botCfg:         b.cfg,
 				cfg:            svcCfg,
 			}
