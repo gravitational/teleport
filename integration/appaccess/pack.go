@@ -40,7 +40,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -48,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -303,9 +303,10 @@ func (p *Pack) GenerateAndSetupUserCreds(t *testing.T, tc *client.TeleportClient
 	require.NoError(t, err)
 }
 
-// CreateAppSession creates an application session with the root cluster. The
-// application that the user connects to may be running in a leaf cluster.
-func (p *Pack) CreateAppSession(t *testing.T, publicAddr, clusterName string) []*http.Cookie {
+// CreateAppSessionCookies creates an application session with the root cluster through the web
+// API and returns the app session cookies. The application that the user connects to may be
+// running in a leaf cluster.
+func (p *Pack) CreateAppSessionCookies(t *testing.T, publicAddr, clusterName string) []*http.Cookie {
 	require.NotEmpty(t, p.webCookie)
 	require.NotEmpty(t, p.webToken)
 
@@ -339,14 +340,36 @@ func (p *Pack) CreateAppSession(t *testing.T, publicAddr, clusterName string) []
 // cluster and returns the client cert that can be used for an application
 // request.
 func (p *Pack) CreateAppSessionWithClientCert(t *testing.T) []tls.Certificate {
-	session, err := p.tc.CreateAppSession(context.Background(), &proto.CreateAppSessionRequest{
-		Username:    p.username,
-		PublicAddr:  p.rootAppPublicAddr,
-		ClusterName: p.rootAppClusterName,
-	})
-	require.NoError(t, err)
+	session := p.CreateAppSession(t, p.username, p.rootAppPublicAddr, p.rootAppClusterName)
 	config := p.makeTLSConfig(t, session.GetName(), session.GetUser(), p.rootAppPublicAddr, p.rootAppClusterName, "")
 	return config.Certificates
+}
+
+func (p *Pack) CreateAppSession(t *testing.T, username, clusterName, appPublicAddr string) types.WebSession {
+	privateKey, publicKey, err := native.GenerateKeyPair()
+	require.NoError(t, err)
+
+	certificate, err := p.rootCluster.Process.GetAuthServer().GenerateUserAppTestCert(
+		auth.AppTestCertRequest{
+			PublicKey:   publicKey,
+			Username:    username,
+			TTL:         time.Hour,
+			PublicAddr:  appPublicAddr,
+			ClusterName: clusterName,
+		})
+	require.NoError(t, err)
+
+	token, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
+	require.NoError(t, err)
+
+	ws, err := types.NewWebSession(token, types.KindAppSession, types.WebSessionSpecV2{
+		Priv:    privateKey,
+		Pub:     publicKey,
+		TLSCert: certificate,
+	})
+	require.NoError(t, err)
+
+	return ws
 }
 
 // LockUser will lock the configured user for this pack.

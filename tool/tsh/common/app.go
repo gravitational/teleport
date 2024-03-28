@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -93,8 +94,8 @@ func onAppLogin(cf *CLIConf) error {
 		log.Debugf("GCP service account is %q", gcpServiceAccount)
 	}
 
-	request := &proto.CreateAppSessionRequest{
-		Username:          tc.Username,
+	routeToApp := proto.RouteToApp{
+		Name:              app.GetName(),
 		PublicAddr:        app.GetPublicAddr(),
 		ClusterName:       tc.SiteName,
 		AWSRoleARN:        awsRoleARN,
@@ -102,26 +103,25 @@ func onAppLogin(cf *CLIConf) error {
 		GCPServiceAccount: gcpServiceAccount,
 	}
 
-	ws, err := tc.CreateAppSession(cf.Context, request)
+	// TODO (Joerger): DELETE IN v17.0.0
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	rootClient, err := clusterClient.ConnectToRootCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	routeToApp.SessionID, err = auth.TryCreateAppSessionForClientCertV15(cf.Context, rootClient, tc.Username, routeToApp)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	params := client.ReissueParams{
+	err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: profile.Cluster,
-		RouteToApp: proto.RouteToApp{
-			Name:              app.GetName(),
-			SessionID:         ws.GetName(),
-			PublicAddr:        app.GetPublicAddr(),
-			ClusterName:       tc.SiteName,
-			AWSRoleARN:        awsRoleARN,
-			AzureIdentity:     azureIdentity,
-			GCPServiceAccount: gcpServiceAccount,
-		},
+		RouteToApp:     routeToApp,
 		AccessRequests: profile.ActiveRequests.AccessRequests,
-	}
-
-	err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, params)
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
