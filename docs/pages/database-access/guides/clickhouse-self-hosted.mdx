@@ -6,6 +6,14 @@ description: How to configure Teleport database access with ClickHouse.
 The Teleport Clickhouse integration allows you to enroll ClickHouse databases
 with Teleport.
 
+This guide will help you to:
+
+- Install and configure a Teleport database agent.
+- Set up Teleport to access your self-hosted ClickHouse database.
+- Connect to your database through Teleport.
+
+## How it works
+
 The Teleport Database Service authenticates to ClickHouse using x509
 certificates, which are available for the ClickHouse HTTP and Native (TCP)
 [interfaces](https://clickhouse.com/docs/en/interfaces/overview). The Teleport
@@ -16,12 +24,6 @@ Service.
 Teleport audit logs for query activity are only supported for the ClickHouse
 HTTP interface. Teleport support for ClickHouse's native interfaces does not
 include audit logs for database query activity.
-
-This guide will help you to:
-
-- Install and configure a Teleport database agent.
-- Set up Teleport to access your self-hosted ClickHouse database.
-- Connect to your database through Teleport.
 
 <Tabs>
 <TabItem label="Self-Hosted">
