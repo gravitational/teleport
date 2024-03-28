@@ -1153,6 +1153,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	workloadIdentityCmd := newSVIDCommands(app)
 
+	vnetCmd := newVnetCommands(app)
+
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
@@ -1511,6 +1513,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onHeadlessApprove(&cf)
 	case workloadIdentityCmd.issue.FullCommand():
 		err = workloadIdentityCmd.issue.run(&cf)
+	case vnetCmd.vnet.FullCommand():
+		err = vnetCmd.vnet.run(&cf)
+	case vnetCmd.adminSetup.FullCommand():
+		err = vnetCmd.adminSetup.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
