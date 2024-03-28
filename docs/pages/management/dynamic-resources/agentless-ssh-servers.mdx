@@ -175,36 +175,26 @@ Declare the server with the following command:
 
 ```code
 $ tctl create -f openssh-node-resource.yaml
-TODO fill me
+node "a100fdd0-52db-4eca-a7ab-c3afa7a1564a" has been created
 ```
 
 
 </TabItem>
 <TabItem label="Kubernetes Operator">
 
+Apply the Kubernetes manifest with the following command:
+
 ```code
 $ kubectl apply -n "$OPERATOR_NAMESPACE" -f openssh-node-resource.yaml
 teleportopensshserverv2.resources.teleport.dev/a100fdd0-52db-4eca-a7ab-c3afa7a1564a created
 ```
 
-List the created Kubernetes resources:
+Then list the `TeleportOpenSSHServerV2` Kubernetes custom resources:
 
 ```code
 $ kubectl get teleportopensshserverv2 -n "$OPERATOR_NAMESPACE"
 # NAME                                   AGE
 # a100fdd0-52db-4eca-a7ab-c3afa7a1564a   10m
-```
-
-And the created Teleport resources:
-```code
-# List nodes with a given hostname or IP address
-$ tsh ls --search="<Var name="ssh-server-hostname" />"
-
-# Get the node details by hostname
-$ tctl get "node/<Var name="ssh-server-hostname" />"
-
-# Get the node details by ID
-$ tctl get node/a100fdd0-52db-4eca-a7ab-c3afa7a1564a
 ```
 
 </TabItem>
@@ -227,6 +217,9 @@ the OpenSSH server:
 ```code
 # List nodes with a given hostname or IP address
 $ tsh ls --search="<Var name="ssh-server-hostname" />"
+Node Name                                           Address        Labels
+--------------------- ------------ --------------- --------------------------
+<Var name="ssh-server-hostname" /> <Var name="198.51.100.1:22" /> env=test,team=engineering
 
 # Get the node details by hostname
 $ tctl get "node/<Var name="ssh-server-hostname" />"
