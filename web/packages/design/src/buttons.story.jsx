@@ -18,7 +18,7 @@ import React from 'react';
 
 import ButtonLink from './ButtonLink';
 import ButtonIcon from './ButtonIcon';
-import { AddUsers, Trash, Ellipsis } from './Icon';
+import { AddUsers, Trash, Ellipsis, Link } from './Icon';
 import Flex from './Flex';
 import Button, {
   ButtonPrimary,
@@ -68,6 +68,9 @@ export const Buttons = () => (
       <ButtonSecondary as="a" href="https://example.com" target="_blank">
         Link as button
       </ButtonSecondary>
+      <ButtonIcon size={1} as="a" href="https://example.com" target="_blank">
+        <Link />
+      </ButtonIcon>
     </Flex>
 
     <Flex gap={3}>
@@ -75,40 +78,18 @@ export const Buttons = () => (
       <ButtonText>Button Text</ButtonText>
     </Flex>
 
-    <Flex gap={3}>
-      <ButtonIcon size={2}>
-        <AddUsers />
-      </ButtonIcon>
-      <ButtonIcon size={2}>
-        <Ellipsis />
-      </ButtonIcon>
-      <ButtonIcon size={2}>
-        <Trash />
-      </ButtonIcon>
-    </Flex>
-
-    <Flex gap={3}>
-      <ButtonIcon size={1}>
-        <AddUsers />
-      </ButtonIcon>
-      <ButtonIcon size={1}>
-        <Ellipsis />
-      </ButtonIcon>
-      <ButtonIcon size={1}>
-        <Trash />
-      </ButtonIcon>
-    </Flex>
-
-    <Flex gap={3}>
-      <ButtonIcon size={0}>
-        <AddUsers />
-      </ButtonIcon>
-      <ButtonIcon size={0}>
-        <Ellipsis />
-      </ButtonIcon>
-      <ButtonIcon size={0}>
-        <Trash />
-      </ButtonIcon>
-    </Flex>
+    {[2, 1, 0].map(size => (
+      <Flex gap={3} key={`size-${size}`}>
+        <ButtonIcon size={size}>
+          <AddUsers />
+        </ButtonIcon>
+        <ButtonIcon size={size}>
+          <Ellipsis />
+        </ButtonIcon>
+        <ButtonIcon size={size} disabled>
+          <Trash />
+        </ButtonIcon>
+      </Flex>
+    ))}
   </Flex>
 );
