@@ -241,16 +241,19 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	// resign it with the web session private key.
 	if HasClientCert(r) && t.c.identity.RouteToApp.AzureIdentity != "" {
 		for _, server := range t.c.servers {
-			if server.GetApp().IsAzureCloud() {
-				if err := t.resignAzureJWTCookie(r); err != nil {
-					// If we failed to resign the JWT, do nothing and continue anyways.
-					// The App Service should fail to parse the JWT and reject the request,
-					// but rejecting here could cause forward compatibility issues, if
-					// for example we add new types of JWT tokens.
-					t.c.log.WithError(err).Debug("failed to re-sign azure JWT")
-				}
-				break
+			if !server.GetApp().IsAzureCloud() {
+				continue
 			}
+
+			if err := t.resignAzureJWTCookie(r); err != nil {
+				// If we failed to resign the JWT, treat it as a noop. The App
+				// Service should fail to parse the JWT and reject the request,
+				// but rejecting here could cause forward compatibility issues,
+				// if for example we add new types of JWT tokens.
+				t.c.log.WithError(err).Debug("failed to re-sign azure JWT")
+			}
+
+			break
 		}
 	}
 
