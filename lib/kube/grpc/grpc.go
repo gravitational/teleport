@@ -221,10 +221,17 @@ func (s *Server) listKubernetesResources(
 
 	limit := int(req.Limit)
 	filter := services.MatchResourceFilter{
-		ResourceKind:        req.ResourceType,
-		Labels:              req.Labels,
-		SearchKeywords:      req.SearchKeywords,
-		PredicateExpression: req.PredicateExpression,
+		ResourceKind:   req.ResourceType,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+	}
+
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		filter.PredicateExpression = expression
 	}
 
 	rsp := &proto.ListKubernetesResourcesResponse{}
@@ -530,19 +537,26 @@ func (s *Server) listResourcesUsingFakePagination(
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	// map the request to the fake pagination request.
+	params := local.FakePaginateParams{
+		StartKey:       req.StartKey,
+		Limit:          req.Limit,
+		ResourceType:   req.ResourceType,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+	}
+
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		params.PredicateExpression = expression
+	}
+
 	// Apply request filters and get pagination info.
-	fakeRsp, err := local.FakePaginate(
-		sortedClusters.AsResources(),
-		// map the request to the fake pagination request.
-		local.FakePaginateParams{
-			StartKey:            req.StartKey,
-			Limit:               req.Limit,
-			ResourceType:        req.ResourceType,
-			Labels:              req.Labels,
-			PredicateExpression: req.PredicateExpression,
-			SearchKeywords:      req.SearchKeywords,
-		},
-	)
+	fakeRsp, err := local.FakePaginate(sortedClusters.AsResources(), params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
