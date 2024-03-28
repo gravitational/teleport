@@ -18,8 +18,13 @@
 
 import { contextBridge } from 'electron';
 import { ChannelCredentials, ServerCredentials } from '@grpc/grpc-js';
+import { GrpcTransport } from '@protobuf-ts/grpc-transport';
 
-import { createTshdClient } from 'teleterm/services/tshd/createClient';
+import {
+  createTshdClient,
+  createVnetClient,
+} from 'teleterm/services/tshd/createClient';
+import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import createMainProcessClient from 'teleterm/mainProcess/mainProcessClient';
 import { createFileLoggerService } from 'teleterm/services/logger';
 import Logger from 'teleterm/logger';
@@ -36,7 +41,6 @@ import {
 } from 'teleterm/services/grpcCredentials';
 import { ElectronGlobals, RuntimeSettings } from 'teleterm/types';
 import { createTshdEventsServer } from 'teleterm/services/tshdEvents';
-import { createVnetClient } from 'teleterm/services/tshd/vnet';
 
 const mainProcessClient = createMainProcessClient();
 const runtimeSettings = mainProcessClient.getRuntimeSettings();
@@ -61,8 +65,13 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     mainProcessClient.getResolvedChildProcessAddresses(),
     createGrpcCredentials(runtimeSettings),
   ]);
-  const tshClient = createTshdClient(addresses.tsh, credentials.tshd);
-  const vnetClient = createVnetClient(addresses.tsh, credentials.tshd);
+  const tshdTransport = new GrpcTransport({
+    host: addresses.tsh,
+    channelCredentials: credentials.tshd,
+    interceptors: [loggingInterceptor(new Logger('tshd'))],
+  });
+  const tshClient = createTshdClient(tshdTransport);
+  const vnetClient = createVnetClient(tshdTransport);
   const ptyServiceClient = createPtyService(
     addresses.shared,
     credentials.shared,

@@ -44,7 +44,7 @@ import { TshdClient } from 'teleterm/services/tshd/types';
 import { IAppContext } from 'teleterm/ui/types';
 import { DeepLinksService } from 'teleterm/ui/services/deepLinks';
 import { parseDeepLink } from 'teleterm/deepLinks';
-import { VnetServiceClient } from 'teleterm/services/tshd/vnet';
+import { VnetServiceClient } from 'teleterm/services/tshd/createClient';
 
 import { CommandLauncher } from './commandLauncher';
 import { createTshdEventsContextBridgeService } from './tshdEvents';

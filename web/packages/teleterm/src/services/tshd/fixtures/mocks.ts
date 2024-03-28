@@ -22,7 +22,7 @@ import {
 } from 'teleterm/services/tshd/testHelpers';
 
 import * as types from '../types';
-import { VnetServiceClient } from '../vnet';
+import { VnetServiceClient } from '../createClient';
 import { MockedUnaryCall } from '../cloneableClient';
 
 export class MockTshClient implements types.TshdClient {

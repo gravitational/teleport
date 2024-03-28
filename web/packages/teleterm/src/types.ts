@@ -25,7 +25,7 @@ import { FileStorage } from 'teleterm/services/fileStorage';
 import { MainProcessClient, RuntimeSettings } from 'teleterm/mainProcess/types';
 import { PtyServiceClient } from 'teleterm/services/pty';
 import { TshdClient } from 'teleterm/services/tshd/types';
-import { VnetServiceClient } from 'teleterm/services/tshd/vnet';
+import { VnetServiceClient } from 'teleterm/services/tshd/createClient';
 
 export type {
   Logger,

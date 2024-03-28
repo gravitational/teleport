@@ -38,7 +38,7 @@ import { ConfigService } from 'teleterm/services/config';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
 import { HeadlessAuthenticationService } from 'teleterm/ui/services/headlessAuthn/headlessAuthnService';
 import { TshdClient } from 'teleterm/services/tshd/types';
-import { VnetServiceClient } from 'teleterm/services/tshd/vnet';
+import { VnetServiceClient } from 'teleterm/services/tshd/createClient';
 
 export interface IAppContext {
   clustersService: ClustersService;
