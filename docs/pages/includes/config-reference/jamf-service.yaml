@@ -68,3 +68,9 @@ jamf_service:
     # for the possible filter values.
     # Default is ''
     filter_rsql: ''
+
+    # Custom page size for inventory queries.
+    # Useful if Jamf reads are failing due to the page length, but otherwise
+    # better left alone.
+    # If absent, zeroed or negative a server default is used.
+    page_size: 0
