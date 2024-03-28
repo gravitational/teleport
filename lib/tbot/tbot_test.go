@@ -720,7 +720,6 @@ func TestBotDatabaseTunnel(t *testing.T) {
 
 	// Make a new auth server.
 	fc, fds := testhelpers.DefaultConfig(t)
-
 	process := testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
 	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
 
@@ -794,12 +793,14 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	// EventuallyWithT to retry.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		conn, err := pgconn.Connect(ctx, "postgres://127.0.0.1:39933/mydb?user=llama")
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return
+		}
 		defer func() {
 			conn.Close(ctx)
 		}()
 		_, err = conn.Exec(ctx, "SELECT 1;").ReadAll()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}, 5*time.Second, 100*time.Millisecond)
 
 	// Shut down bot and make sure it exits cleanly.
