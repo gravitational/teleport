@@ -3,9 +3,12 @@ package storage_test
 import (
 	"context"
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -44,6 +47,12 @@ func newTestPack(t *testing.T) *testPack {
 		mem:   mem,
 		s:     s,
 	}
+}
+
+// cmpOpts are general cmpOpts for all comparisons.
+var cmpOpts = []cmp.Option{
+	cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+	cmpopts.IgnoreUnexported(loginrulepb.LoginRule{}),
 }
 
 func TestCreateAndUpsertLoginRule(t *testing.T) {
@@ -109,7 +118,7 @@ func TestCreateAndUpsertLoginRule(t *testing.T) {
 					return
 				}
 				require.NoError(t, err, "unexpected error from CreateLoginRule")
-				require.Equal(t, tc.rule.String(), outRule.String(), "returned rule from CreateLoginRule does not match expected")
+				require.Empty(t, cmp.Diff(tc.rule, outRule, cmpOpts...), "returned rule from CreateLoginRule does not match expected")
 			})
 		}
 	})
@@ -123,7 +132,7 @@ func TestCreateAndUpsertLoginRule(t *testing.T) {
 					return
 				}
 				require.NoError(t, err, "unexpected error from UpsertLoginRule")
-				require.Equal(t, tc.rule.String(), outRule.String(), "returned rule from UpsertLoginRule does not match expected")
+				require.Empty(t, cmp.Diff(tc.rule, outRule, cmpOpts...), "returned rule from UpsertLoginRule does not match expected")
 			})
 		}
 	})
@@ -208,7 +217,7 @@ func TestGetLoginRule(t *testing.T) {
 				return
 			}
 			require.NoError(t, err, "unexpected error from GetLoginRule")
-			require.Equal(t, seededRules[tc.name].String(), rule.String())
+			require.Empty(t, cmp.Diff(seededRules[tc.name], rule, cmpOpts...))
 		})
 	}
 }
@@ -267,7 +276,7 @@ func TestListLoginRules(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			p := newTestPack(t)
 
-			var seededRules []string
+			var seededRules []*loginrulepb.LoginRule
 			for i := 0; i < tc.totalRules; i++ {
 				ruleName := fmt.Sprintf("rule%d", i)
 				rule := &loginrulepb.LoginRule{
@@ -280,7 +289,7 @@ func TestListLoginRules(t *testing.T) {
 				}
 				outRule, err := p.s.CreateLoginRule(ctx, rule)
 				require.NoError(t, err)
-				seededRules = append(seededRules, outRule.String())
+				seededRules = append(seededRules, outRule)
 			}
 
 			pageCount := 1
@@ -306,12 +315,16 @@ func TestListLoginRules(t *testing.T) {
 				require.Equal(t, optimalPageCount, pageCount, "expected to fetch the optimal number of pages (%d)", optimalPageCount)
 			}
 
-			var allRulesStrings []string
-			for _, rule := range allRules {
-				allRulesStrings = append(allRulesStrings, rule.String())
+			if len(allRules) == 0 {
+				return
 			}
-
-			require.ElementsMatch(t, seededRules, allRulesStrings, "listed login rules do not match the expected")
+			sort.SliceStable(allRules, func(i, j int) bool {
+				return allRules[i].Metadata.Name < allRules[j].Metadata.Name
+			})
+			sort.SliceStable(seededRules, func(i, j int) bool {
+				return seededRules[i].Metadata.Name < seededRules[j].Metadata.Name
+			})
+			require.Empty(t, cmp.Diff(seededRules, allRules, cmpOpts...), "listed login rules do not match the expected")
 		})
 	}
 }
@@ -362,13 +375,15 @@ func TestDeleteLoginRule(t *testing.T) {
 			return
 		}
 		require.NoError(t, err)
-		require.Equal(t, seededRules[ruleName].String(), rule.String())
+
+		require.Empty(t, cmp.Diff(seededRules[ruleName], rule, cmpOpts...))
 	}
 }
 
-// TestLoginRuleIDs asserts that the metadata.id field of the login rule changes
-// after the rule is updated. The Terraform provider relies on changes to this
-// ID to ensure that updates have been applied.
+// TestLoginRuleIDs asserts that the metadata.id and metadata.revision field of the login rule changes
+// after the rule is updated.
+// Old versions (< 15.2.0) of teleport's terraform provider rely on metadata.id,
+// but newer versions rely on metadata.revision to ensure that updates have been applied.
 func TestLoginRuleIDs(t *testing.T) {
 	t.Parallel()
 
@@ -399,6 +414,7 @@ func TestLoginRuleIDs(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotEqual(t, ruleBefore.Metadata.ID, ruleAfter.Metadata.ID, "expected updated resource ID not to match original resource ID")
+	require.NotEqual(t, ruleBefore.Metadata.Revision, ruleAfter.Metadata.Revision, "expected updated revision not to match original revision")
 
 	rulesAfter, _, err := p.s.ListLoginRules(ctx, 0 /* pageSize */, "" /* pageToken */)
 	require.NoError(t, err)
@@ -406,4 +422,5 @@ func TestLoginRuleIDs(t *testing.T) {
 	ruleAfter = rulesAfter[0]
 
 	require.NotEqual(t, ruleBefore.Metadata.ID, ruleAfter.Metadata.ID, "expected updated resource ID not to match original resource ID")
+	require.NotEqual(t, ruleBefore.Metadata.Revision, ruleAfter.Metadata.Revision, "expected updated revision not to match original revision")
 }

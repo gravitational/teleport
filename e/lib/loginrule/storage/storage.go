@@ -41,11 +41,16 @@ func (s *S) CreateLoginRule(ctx context.Context, rule *loginrulepb.LoginRule) (*
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.backend.Create(ctx, *item)
+	lease, err := s.backend.Create(ctx, *item)
 	if trace.IsAlreadyExists(err) {
 		return nil, trace.AlreadyExists("login rule %q already exists", rule.Metadata.Name)
 	}
-	return rule, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rule.Metadata.SetRevision(lease.Revision)
+
+	return rule, nil
 }
 
 // UpsertLoginRule validates and upserts a login rule in the backend.
@@ -55,8 +60,14 @@ func (s *S) UpsertLoginRule(ctx context.Context, rule *loginrulepb.LoginRule) (*
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.backend.Put(ctx, *item)
-	return rule, trace.Wrap(err)
+	lease, err := s.backend.Put(ctx, *item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rule.Metadata.SetRevision(lease.Revision)
+
+	return rule, nil
 }
 
 // GetLoginRule returns a login rule from the backend by name.
@@ -185,6 +196,7 @@ func unmarshalFromItem(item *backend.Item) (*loginrulepb.LoginRule, error) {
 		return nil, trace.BadParameter("unable to unmarshal login rule metadata from storage")
 	}
 	rule.Metadata.ID = item.ID
+	rule.Metadata.Revision = item.Revision
 	expires := item.Expires
 	if !expires.IsZero() {
 		rule.Metadata.Expires = &expires
