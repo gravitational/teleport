@@ -185,8 +185,8 @@ endif
 
 CGOFLAG_TSH ?= $(CGOFLAG)
 
-# All build Enterprise version of "teleport" and "tctl" binaries and copy
-# over tsh from OSS.
+# All build Enterprise version of teleport binaries and copy
+# over tsh, tctl, and tbot from OSS.
 .PHONY: all
 all: version
 	@echo "---> $(RELEASE_ENT_MESSAGE)"
@@ -199,7 +199,7 @@ all: version
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
 $(BUILDDIR)/tctl:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(BPF_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(BPF_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ../tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets-e bpf-bytecode-e teleport-fips-check rdpclient

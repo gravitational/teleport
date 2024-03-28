@@ -40,7 +40,6 @@ jobs:
 
       - name: Build
         run: |
-          go build ${GITHUB_WORKSPACE}/e/tool/tctl
           go build ${GITHUB_WORKSPACE}/e/tool/teleport
 
       - name: Run tests
