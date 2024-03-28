@@ -295,8 +295,8 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 			},
 		},
 		{
-			name:     "for cloud based usage, Team product (with stripe, no wasm)",
-			features: proto.Features{Cloud: true, IsUsageBased: true, ProductType: proto.ProductType_PRODUCT_TYPE_TEAM},
+			name:     "for cloud based usage, Stripe managed product (with stripe, no wasm)",
+			features: proto.Features{Cloud: true, IsUsageBased: true, IsStripeManaged: true},
 			urlPath:  "/web/index.js",
 			expectedCspVals: map[string]string{
 				"default-src":     "'self'",
@@ -346,8 +346,8 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 			},
 		},
 		{
-			name:     "for cloud based usage & desktop session, Team product (with stripe, with wasm)",
-			features: proto.Features{Cloud: true, IsUsageBased: true, ProductType: proto.ProductType_PRODUCT_TYPE_TEAM},
+			name:     "for cloud based usage & desktop session, Stripe managed product (with stripe, with wasm)",
+			features: proto.Features{Cloud: true, IsUsageBased: true, IsStripeManaged: true},
 			urlPath:  "/web/cluster/:clusterId/desktops/:desktopName/:username",
 			expectedCspVals: map[string]string{
 				"default-src":     "'self'",

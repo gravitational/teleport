@@ -201,7 +201,7 @@ var indexCSPStringCache *cspCache = newCSPCache()
 
 func getIndexContentSecurityPolicyString(cfg proto.Features, urlPath string) string {
 	// Check for result with this cfg and urlPath in cache
-	withStripe := cfg.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM
+	withStripe := cfg.GetIsStripeManaged()
 	key := fmt.Sprintf("%v-%v", withStripe, urlPath)
 	if cspString, ok := indexCSPStringCache.get(key); ok {
 		return cspString
