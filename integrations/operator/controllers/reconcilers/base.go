@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package resources
+package reconcilers
 
 import (
 	"context"
@@ -30,15 +30,19 @@ import (
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+// TODO(hugoShaka) : merge the base reconciler with the generic reocnciler.
+// This was a separate struct for backward compatibility but we removed the last
+// controller relying directly on the base reconciler.
+
 const (
-	// DeletionFinalizer is a name of finalizer added to resource's 'finalizers' field
+	// DeletionFinalizer is a name of finalizer added to Resource's 'finalizers' field
 	// for tracking deletion events.
 	DeletionFinalizer = "resources.teleport.dev/deletion"
 	// AnnotationFlagIgnore is the Kubernetes annotation containing the "ignore" flag.
 	// When set to true, the operator will not reconcile the CR.
 	AnnotationFlagIgnore = "teleport.dev/ignore"
 	// AnnotationFlagKeep is the Kubernetes annotation containing the "keep" flag.
-	// When set to true, the operator will not delete the Teleport resource if the
+	// When set to true, the operator will not delete the Teleport Resource if the
 	// CR is deleted.
 	AnnotationFlagKeep = "teleport.dev/keep"
 )
@@ -53,26 +57,26 @@ type ResourceBaseReconciler struct {
 }
 
 /*
-Do will receive an update request and reconcile the resource.
+Do will receive an update request and reconcile the Resource.
 
 When an event arrives we must propagate that change into the Teleport cluster.
 We have two types of events: update/create and delete.
 
-For creating/updating we check if the resource exists in Teleport
+For creating/updating we check if the Resource exists in Teleport
 - if it does, we update it
 - otherwise we create it
-Always using the state of the resource in the cluster as the source of truth.
+Always using the state of the Resource in the cluster as the source of truth.
 
 For deleting, the recommendation is to use finalizers.
-Finalizers allow us to map an external resource to a kubernetes resource.
-So, when we create or update a resource, we add our own finalizer to the kubernetes resource list of finalizers.
+Finalizers allow us to map an external Resource to a kubernetes Resource.
+So, when we create or update a Resource, we add our own finalizer to the kubernetes Resource list of finalizers.
 
-For a delete event which has our finalizer: the resource is deleted in Teleport.
+For a delete event which has our finalizer: the Resource is deleted in Teleport.
 If it doesn't have the finalizer, we do nothing.
 
 ----
 
-Every time we update a resource in Kubernetes (adding finalizers or the OriginLabel), we end the reconciliation process.
+Every time we update a Resource in Kubernetes (adding finalizers or the OriginLabel), we end the reconciliation process.
 Afterwards, we receive the request again and we progress to the next step.
 This allow us to progress with smaller changes and avoid a long-running reconciliation.
 */
@@ -85,7 +89,7 @@ func (r ResourceBaseReconciler) Do(ctx context.Context, req ctrl.Request, obj kc
 			log.Info("not found")
 			return ctrl.Result{}, nil
 		}
-		log.Error(err, "failed to get resource")
+		log.Error(err, "failed to get Resource")
 		return ctrl.Result{}, trace.Wrap(err)
 	}
 
@@ -140,7 +144,7 @@ func isIgnored(obj kclient.Object) bool {
 	return checkAnnotationFlag(obj, AnnotationFlagIgnore, false /* defaults to false */)
 }
 
-// isKept checks if the Teleport resource should be kept if the CR is deleted
+// isKept checks if the Teleport Resource should be kept if the CR is deleted
 func isKept(obj kclient.Object) bool {
 	return checkAnnotationFlag(obj, AnnotationFlagKeep, false /* defaults to false */)
 }

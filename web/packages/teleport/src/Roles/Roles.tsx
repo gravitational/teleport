@@ -36,7 +36,7 @@ import useRoles, { State } from './useRoles';
 
 import templates from './templates';
 
-export default function Container() {
+export function RolesContainer() {
   const ctx = useTeleport();
   const state = useRoles(ctx);
   return <Roles {...state} />;

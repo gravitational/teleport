@@ -21,51 +21,20 @@ package resources
 import (
 	"github.com/go-logr/logr"
 	"github.com/gravitational/trace"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
-	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
-	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
-	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
+	"github.com/gravitational/teleport/integrations/operator/controllers"
 )
-
-// Scheme is a singleton scheme for all controllers
-var Scheme = runtime.NewScheme()
-
-func init() {
-	utilruntime.Must(resourcesv5.AddToScheme(Scheme))
-	utilruntime.Must(resourcesv3.AddToScheme(Scheme))
-	utilruntime.Must(resourcesv2.AddToScheme(Scheme))
-	utilruntime.Must(resourcesv1.AddToScheme(Scheme))
-
-	// Not needed to reconcile the teleport CRs, but needed for the controller manager.
-	// We are not doing something very kubernetes friendly, but it's easier to have a single
-	// scheme rather than having to build and propagate schemes in multiple places, which
-	// is error-prone and can lead to inconsistencies.
-	utilruntime.Must(clientgoscheme.AddToScheme(Scheme))
-	utilruntime.Must(apiextv1.AddToScheme(Scheme))
-}
 
 type reconcilerFactory struct {
 	cr      string
-	factory func(kclient.Client, *client.Client) (Reconciler, error)
+	factory func(kclient.Client, *client.Client) (controllers.Reconciler, error)
 }
 
-// Reconciler extends the reconcile.Reconciler interface by adding a
-// SetupWithManager function that creates a controller in the given manager.
-type Reconciler interface {
-	reconcile.Reconciler
-	SetupWithManager(mgr manager.Manager) error
-}
-
+// SetupAllControllers sets up all controllers
 func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *client.Client, features *proto.Features) error {
 	reconcilers := []reconcilerFactory{
 		{"TeleportRole", NewRoleReconciler},
@@ -75,6 +44,8 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		{"TeleportGithubConnector", NewGithubConnectorReconciler},
 		{"TeleportProvisionToken", NewProvisionTokenReconciler},
 		{"TeleportOktaImportRule", NewOktaImportRuleReconciler},
+		{"TeleportOpenSSHServerV2", NewOpenSSHServerV2Reconciler},
+		{"TeleportOpenSSHEICEServerV2", NewOpenSSHEICEServerV2Reconciler},
 	}
 
 	if features.GetOIDC() {

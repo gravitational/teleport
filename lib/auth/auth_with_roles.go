@@ -1458,6 +1458,26 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		return nil, trace.Wrap(err, "making paginated unified resources")
 	}
 
+	if req.IncludeLogins {
+		for _, r := range paginatedResources {
+			if n := r.GetNode(); n != nil {
+				logins, err := checker.GetAllowedLoginsForResource(n)
+				if err != nil {
+					log.WithError(err).WithField("resource", n.GetName()).Warn("Unable to determine logins for node")
+					continue
+				}
+				r.Logins = logins
+			} else if d := r.GetWindowsDesktop(); d != nil {
+				logins, err := checker.GetAllowedLoginsForResource(d)
+				if err != nil {
+					log.WithError(err).WithField("resource", d.GetName()).Warn("Unable to determine logins for desktop")
+					continue
+				}
+				r.Logins = logins
+			}
+		}
+	}
+
 	return &proto.ListUnifiedResourcesResponse{
 		NextKey:   nextKey,
 		Resources: paginatedResources,
@@ -1720,6 +1740,17 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		case err != nil:
 			return trace.Wrap(err)
 		case match:
+			if req.IncludeLogins {
+				logins, err := resourceChecker.GetAllowedLoginsForResource(resource)
+				if err != nil {
+					log.WithError(err).WithField("resource", resource.GetName()).Warn("Unable to determine logins for resource")
+				}
+
+				resource = &types.EnrichedResource{
+					ResourceWithLabels: resource,
+					Logins:             logins,
+				}
+			}
 			resp.Resources = append(resp.Resources, resource)
 			return nil
 		}
@@ -1735,6 +1766,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 // resourceAccessChecker allows access to be checked differently per resource type.
 type resourceAccessChecker interface {
 	CanAccess(resource types.Resource) error
+	GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error)
 }
 
 // resourceChecker is a pass through checker that utilizes the provided
@@ -1923,6 +1955,23 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		SearchKeywords:      req.SearchKeywords,
 		PredicateExpression: req.PredicateExpression,
 		StartKey:            req.StartKey,
+		EnrichResourceFn: func(r types.ResourceWithLabels) (types.ResourceWithLabels, error) {
+			if req.IncludeLogins && (r.GetKind() == types.KindNode || r.GetKind() == types.KindWindowsDesktop) {
+				resourceChecker, err := a.newResourceAccessChecker(req.ResourceType)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				logins, err := resourceChecker.GetAllowedLoginsForResource(r)
+				if err != nil {
+					log.WithError(err).WithField("resource", r.GetName()).Warn("Unable to determine logins for resource")
+				}
+
+				return &types.EnrichedResource{ResourceWithLabels: r, Logins: logins}, nil
+			}
+
+			return r, nil
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3226,7 +3275,8 @@ func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Cont
 	}
 
 	authPreference.SetConnectorName(constants.PasswordlessConnector)
-	return trace.Wrap(a.authServer.SetAuthPreference(ctx, authPreference))
+	_, err = a.authServer.UpdateAuthPreference(ctx, authPreference)
+	return trace.Wrap(err)
 }
 
 // UpdateUser updates an existing user in a backend.
@@ -4359,6 +4409,7 @@ func (a *ServerWithRoles) DeleteAllInstallers(ctx context.Context) error {
 }
 
 // SetAuthPreference sets cluster auth preference.
+// Deprecated: Use Update/UpsertAuthPreference where appropriate.
 func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref types.AuthPreference) error {
 	storedAuthPref, err := a.authServer.GetAuthPreference(ctx)
 	if err != nil {
@@ -4385,7 +4436,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		return trace.Wrap(err)
 	}
 
-	err = a.authServer.SetAuthPreference(ctx, newAuthPref)
+	_, err = a.authServer.UpsertAuthPreference(ctx, newAuthPref)
 
 	var msg string
 	if err != nil {
@@ -4428,7 +4479,7 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	err = a.authServer.SetAuthPreference(ctx, types.DefaultAuthPreference())
+	_, err = a.authServer.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
 
 	var msg string
 	if err != nil {
@@ -4500,7 +4551,7 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 		return trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
-	err = a.authServer.SetClusterNetworkingConfig(ctx, newNetConfig)
+	_, err = a.authServer.UpsertClusterNetworkingConfig(ctx, newNetConfig)
 	var msg string
 	if err != nil {
 		msg = err.Error()
@@ -4545,7 +4596,7 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 		return trace.Wrap(err)
 	}
 
-	err = a.authServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	_, err = a.authServer.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 
 	var msg string
 	if err != nil {
@@ -4598,7 +4649,7 @@ func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, newRecC
 		return trace.Wrap(err)
 	}
 
-	err = a.authServer.SetSessionRecordingConfig(ctx, newRecConfig)
+	_, err = a.authServer.UpsertSessionRecordingConfig(ctx, newRecConfig)
 
 	var msg string
 	if err != nil {
@@ -4643,7 +4694,7 @@ func (a *ServerWithRoles) ResetSessionRecordingConfig(ctx context.Context) error
 		return trace.Wrap(err)
 	}
 
-	err = a.authServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	_, err = a.authServer.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
 
 	var msg string
 	if err != nil {

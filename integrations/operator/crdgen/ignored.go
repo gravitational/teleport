@@ -39,4 +39,9 @@ var ignoredFields = map[string]stringSet{
 	"GithubConnectorSpecV3": {
 		"TeamsToLogins": struct{}{}, // Deprecated field, removed since v11
 	},
+	"ServerSpecV2": {
+		// Useless field for agentless servers, and potentially dangerous as it
+		// allows remote exec on agentful nodes.
+		"CmdLabels": struct{}{},
+	},
 }
