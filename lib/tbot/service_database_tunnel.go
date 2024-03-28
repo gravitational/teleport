@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var _ alpnproxy.LocalProxyMiddleware = (*alpnProxyMiddleware)(nil)
@@ -86,6 +87,7 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 		if err != nil {
 			return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "fetching default roles")
 		}
+		s.log.WithField("roles", roles).Debug("No roles configured, using all roles available.")
 	}
 
 	// Fetch information about the database and then issue the initial
@@ -93,14 +95,24 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 	// We cache the routeToDatabase as these will not change during the lifetime
 	// of the service and this reduces the time needed to issue a new
 	// certificate.
+	s.log.Debug("Determining route to database.")
 	routeToDatabase, err := s.getRouteToDatabaseWithImpersonation(ctx, roles)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err)
 	}
+	s.log.WithFields(logrus.Fields{
+		"serviceName": routeToDatabase.ServiceName,
+		"protocol":    routeToDatabase.Protocol,
+		"database":    routeToDatabase.Database,
+		"username":    routeToDatabase.Username,
+	}).Debug("Identified route to database.")
+
+	s.log.Debug("Issuing initial certificate for local proxy.")
 	dbCert, err := s.issueCert(ctx, routeToDatabase, roles)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err)
 	}
+	s.log.Debug("Issued initial certificate for local proxy.")
 
 	proxyAddr := "leaf.tele.ottr.sh:443"
 
@@ -163,20 +175,22 @@ func (s *DatabaseTunnelService) Run(ctx context.Context) error {
 		return trace.Wrap(err, "parsing listen url")
 	}
 
-	lpCfg, err := s.buildLocalProxyConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err, "building local proxy config")
-	}
-
+	s.log.WithField("address", listenUrl.String()).Debug("Opening listener for database tunnel.")
 	l, err := net.Listen("tcp", listenUrl.Host)
 	if err != nil {
 		return trace.Wrap(err, "opening listener")
 	}
 	defer func() {
-		if err := l.Close(); err != nil {
+		if err := l.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
 			s.log.WithError(err).Error("Failed to close listener")
 		}
 	}()
+
+	lpCfg, err := s.buildLocalProxyConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err, "building local proxy config")
+	}
+	lpCfg.Listener = l
 
 	lp, err := alpnproxy.NewLocalProxy(lpCfg)
 	if err != nil {
@@ -187,8 +201,23 @@ func (s *DatabaseTunnelService) Run(ctx context.Context) error {
 			s.log.WithError(err).Error("Failed to close local proxy")
 		}
 	}()
+	// Closed further down.
 
-	return trace.Wrap(lp.Start(ctx))
+	// lp.Start will block and continues to block until lp.Close() is called.
+	// Despite taking a context, it will not exit until the first connection is
+	// made after the context is cancelled.
+	var errCh = make(chan error, 1)
+	go func() {
+		errCh <- lp.Start(ctx)
+	}()
+	s.log.WithField("address", l.Addr().String()).Info("Listening for connections.")
+
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-errCh:
+		return trace.Wrap(err, "local proxy failed")
+	}
 }
 
 // getRouteToDatabaseWithImpersonation fetches the route to the database with
@@ -237,7 +266,7 @@ func (s *DatabaseTunnelService) issueCert(
 	ctx, span := tracer.Start(ctx, "DatabaseTunnelService/issueCert")
 	defer span.End()
 
-	s.log.Debug("Issuing certificate for database tunnel.")
+	s.log.Debug("Requesting issuance of certificate for tunnel proxy.")
 	ident, err := generateIdentity(
 		ctx,
 		s.botClient,
@@ -250,7 +279,7 @@ func (s *DatabaseTunnelService) issueCert(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.log.Info("Certificate issued for database tunnel.")
+	s.log.Info("Certificate issued for tunnel proxy.")
 
 	return ident.TLSCert, nil
 }
@@ -258,5 +287,5 @@ func (s *DatabaseTunnelService) issueCert(
 // String returns a human-readable string that can uniquely identify the
 // service.
 func (s *DatabaseTunnelService) String() string {
-	return fmt.Sprintf("%s:%s", config.DatabaseTunnelServiceType, s.cfg.Listen)
+	return fmt.Sprintf("%s:%s:%s", config.DatabaseTunnelServiceType, s.cfg.Listen, s.cfg.Service)
 }
