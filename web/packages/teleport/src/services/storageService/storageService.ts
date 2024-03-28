@@ -48,7 +48,9 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
 export const storageService = {
   clear() {
     Object.keys(window.localStorage).forEach(key => {
-      if (!KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT.includes(key)) {
+      const isAccessGraph = key.startsWith('tag_');
+
+      if (!isAccessGraph && !KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT.includes(key)) {
         window.localStorage.removeItem(key);
       }
     });
