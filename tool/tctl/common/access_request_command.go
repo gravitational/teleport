@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
@@ -32,6 +31,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -63,6 +63,8 @@ type AccessRequestCommand struct {
 	// assumeStartTimeRaw format is RFC3339
 	assumeStartTimeRaw string
 
+	sortOrder, sortIndex string
+
 	requestList    *kingpin.CmdClause
 	requestGet     *kingpin.CmdClause
 	requestApprove *kingpin.CmdClause
@@ -80,6 +82,8 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *serv
 
 	c.requestList = requests.Command("ls", "Show active access requests.")
 	c.requestList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
+	c.requestList.Flag("sort-index", "Request sort index, 'created' or 'state'").Default("created").StringVar(&c.sortIndex)
+	c.requestList.Flag("sort-order", "Request sort order, 'ascending' or 'descending'").Default("descending").StringVar(&c.sortOrder)
 
 	c.requestGet = requests.Command("get", "Show access request by ID.")
 	c.requestGet.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
@@ -146,7 +150,30 @@ func (c *AccessRequestCommand) TryRun(ctx context.Context, cmd string, client *a
 }
 
 func (c *AccessRequestCommand) List(ctx context.Context, client *auth.Client) error {
-	reqs, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{})
+	var index proto.AccessRequestSort
+	switch c.sortIndex {
+	case "created":
+		index = proto.AccessRequestSort_CREATED
+	case "state":
+		index = proto.AccessRequestSort_STATE
+	default:
+		return trace.BadParameter("unsupported sort index %q (expected one of 'created' or 'state')", c.sortIndex)
+	}
+
+	var descending bool
+	switch c.sortOrder {
+	case "ascending":
+		descending = false
+	case "descending":
+		descending = true
+	default:
+		return trace.BadParameter("unsupported sort order %q (expected one of 'ascending' or 'descending')", c.sortOrder)
+	}
+
+	reqs, err := client.ListAllAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+		Sort:       index,
+		Descending: descending,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -158,9 +185,6 @@ func (c *AccessRequestCommand) List(ctx context.Context, client *auth.Client) er
 			activeReqs = append(activeReqs, req)
 		}
 	}
-	sort.Slice(activeReqs, func(i, j int) bool {
-		return activeReqs[i].GetCreationTime().After(activeReqs[j].GetCreationTime())
-	})
 
 	if err := printRequestsOverview(activeReqs, c.format); err != nil {
 		return trace.Wrap(err)
