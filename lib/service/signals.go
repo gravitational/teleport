@@ -62,7 +62,7 @@ func (process *TeleportProcess) printShutdownStatus(ctx context.Context) {
 		case <-t.C:
 			statusInterval = min(statusInterval*2, defaults.LowResPollingPeriod)
 			t.Reset(statusInterval)
-			process.log.Infof("Waiting for services: %v to finish.", process.Supervisor.Services())
+			process.logger.InfoContext(process.ExitContext(), "Waiting for services to finish.", "services", process.Supervisor.Services())
 		}
 	}
 }
@@ -98,10 +98,10 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				timeoutCtx, cancel := context.WithTimeout(ctx, apidefaults.MaxCertDuration)
 				defer cancel()
 				process.Shutdown(timeoutCtx)
-				process.log.Infof("All services stopped, exiting.")
+				process.logger.InfoContext(process.ExitContext(), "All services stopped, exiting.")
 				return nil
 			case syscall.SIGTERM, syscall.SIGINT:
-				process.log.Infof("Got signal %q, exiting within %s.", signal, fastShutdownTimeout)
+				process.logger.InfoContext(process.ExitContext(), "Got shutdown signal, exiting within timeout.", "signal", signal, "timeout", fastShutdownTimeout.Seconds())
 				// we run the shutdown in a goroutine so we can return and exit
 				// the process even if Shutdown takes longer to return than we
 				// expected (due to bugs, for example)
@@ -116,9 +116,9 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				defer graceTimer.Stop()
 				select {
 				case <-graceTimer.C:
-					process.log.Warn("Shutdown still hasn't completed, exiting anyway.")
+					process.logger.WarnContext(process.ExitContext(), "Shutdown still hasn't completed, exiting anyway.")
 				case <-shutdownDone:
-					process.log.Info("All services stopped, exiting.")
+					process.logger.InfoContext(process.ExitContext(), "All services stopped or timeout passed, exiting immediately.")
 				}
 				return nil
 			case syscall.SIGUSR1:
@@ -131,29 +131,29 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				// That was not quite enough. With pipelines diagnostics could come from any of several programs running simultaneously.
 				// Diagnostics needed to identify themselves.
 				// - Doug McIllroy, "A Research UNIX Reader: Annotated Excerpts from the Programmer’s Manual, 1971-1986"
-				process.log.Infof("Got signal %q, logging diagnostic info to stderr.", signal)
+				process.logger.InfoContext(process.ExitContext(), "Got signal SIGUSR1, logging diagnostic info to stderr.")
 				writeDebugInfo(os.Stderr)
 			case syscall.SIGUSR2:
-				process.log.Infof("Got signal %q, forking a new process.", signal)
+				process.logger.InfoContext(process.ExitContext(), "Got signal SIGUSR2, forking a new process.")
 				if err := process.forkChild(); err != nil {
-					process.log.Warningf("Failed to fork: %v", err)
+					process.logger.WarnContext(process.ExitContext(), "Failed to fork process", "error", err)
 				} else {
-					process.log.Infof("Successfully started new process.")
+					process.logger.InfoContext(process.ExitContext(), "Successfully started new process.")
 				}
 			case syscall.SIGHUP:
-				process.log.Infof("Got signal %q, performing graceful restart.", signal)
+				process.logger.InfoContext(process.ExitContext(), "Got signal SIGHUP, performing graceful restart.")
 				if err := process.forkChild(); err != nil {
-					process.log.Warningf("Failed to fork: %v", err)
+					process.logger.WarnContext(process.ExitContext(), "Failed to fork process", "error", err)
 					continue
 				}
-				process.log.Infof("Successfully started new process, shutting down gracefully.")
+				process.logger.InfoContext(process.ExitContext(), "Successfully started new process, shutting down gracefully.")
 				timeoutCtx, cancel := context.WithTimeout(ctx, apidefaults.MaxCertDuration)
 				defer cancel()
 				process.Shutdown(timeoutCtx)
-				process.log.Infof("All services stopped, exiting.")
+				process.logger.InfoContext(process.ExitContext(), "All services stopped, exiting.")
 				return nil
 			default:
-				process.log.Infof("Ignoring %q.", signal)
+				process.logger.InfoContext(process.ExitContext(), "Ignoring unknown signal.", "signal", signal)
 			}
 		case <-process.ReloadContext().Done():
 			// it's fine to signal.Stop the same channel multiple times, and
@@ -166,32 +166,32 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				// miss signals to exit or to graceful restart instead
 				continue
 			}
-			process.log.Infof("Exiting signal handler: process has started internal reload.")
+			process.logger.InfoContext(process.ExitContext(), "Exiting signal handler: process has started internal reload.")
 			return ErrTeleportReloading
 		case <-process.ExitContext().Done():
-			process.log.Infof("Someone else has closed context, exiting.")
+			process.logger.InfoContext(process.ExitContext(), "Someone else has closed context, exiting.")
 			return nil
 		case <-ctx.Done():
 			process.Close()
 			if err := process.Wait(); err != nil {
-				process.log.Warnf("Error waiting for all services to exit: %v", err)
+				process.logger.WarnContext(process.ExitContext(), "Error waiting for all services to exit", "error", err)
 			}
-			process.log.Info("Got request to shutdown, context is closing")
+			process.logger.InfoContext(process.ExitContext(), "Got request to shutdown, context is closing")
 			return nil
 		case event := <-serviceErrorsC:
 			se, ok := event.Payload.(ExitEventPayload)
 			if !ok {
-				process.log.Warningf("Failed to decode service exit event, %T", event.Payload)
+				process.logger.WarnContext(process.ExitContext(), "Failed to decode service exit event", "payload", event.Payload)
 				continue
 			}
 			if se.Service.IsCritical() {
-				process.log.Errorf("Critical service %v has exited with error %v, aborting.", se.Service, se.Error)
+				process.logger.ErrorContext(process.ExitContext(), "Critical service has exited with error, aborting.", "service", se.Service, "error", se.Error)
 				if err := process.Close(); err != nil {
-					process.log.Errorf("Error when shutting down teleport %v.", err)
+					process.logger.ErrorContext(process.ExitContext(), "Error when shutting down teleport.", "error", err)
 				}
 				return trace.Wrap(se.Error)
 			}
-			process.log.Warningf("Non-critical service %v has exited with error %v, continuing to operate.", se.Service, se.Error)
+			process.logger.WarnContext(process.ExitContext(), "Non-critical service has exited with error , continuing to operate.", "service", se.Service, "error", se.Error)
 		}
 	}
 }
@@ -211,7 +211,7 @@ func (process *TeleportProcess) writeToSignalPipe(signalPipe *os.File, message s
 	go func() {
 		_, err := signalPipe.Write([]byte(message))
 		if err != nil {
-			process.log.Debugf("Failed to write to pipe: %v.", trace.DebugReport(err))
+			process.logger.DebugContext(process.ExitContext(), "Failed to write to pipe.", "error", trace.DebugReport(err))
 			return
 		}
 		cancel()
@@ -221,7 +221,7 @@ func (process *TeleportProcess) writeToSignalPipe(signalPipe *os.File, message s
 	case <-time.After(signalPipeTimeout):
 		return trace.BadParameter("Failed to write to parent process pipe.")
 	case <-messageSignalled.Done():
-		process.log.Infof("Signaled success to parent process.")
+		process.logger.InfoContext(process.ExitContext(), "Signaled success to parent process.")
 	}
 	return nil
 }
@@ -236,7 +236,7 @@ func (process *TeleportProcess) closeImportedDescriptors(prefix string) error {
 	openDescriptors := make([]*servicecfg.FileDescriptor, 0, len(process.importedDescriptors))
 	for _, d := range process.importedDescriptors {
 		if strings.HasPrefix(d.Type, prefix) {
-			process.log.Infof("Closing imported but unused descriptor %v %v.", d.Type, d.Address)
+			process.logger.InfoContext(process.ExitContext(), "Closing imported but unused descriptor.", "type", d.Type, "address", d.Address)
 			errors = append(errors, d.Close())
 		} else {
 			openDescriptors = append(openDescriptors, d)
@@ -251,13 +251,13 @@ func (process *TeleportProcess) closeImportedDescriptors(prefix string) error {
 func (process *TeleportProcess) importOrCreateListener(typ ListenerType, address string) (net.Listener, error) {
 	l, err := process.importListener(typ, address)
 	if err == nil {
-		process.log.Infof("Using file descriptor %v %v passed by the parent process.", typ, address)
+		process.logger.InfoContext(process.ExitContext(), "Using file descriptor passed by the parent process.", "type", typ, "address", address)
 		return l, nil
 	}
 	if !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	process.log.Infof("Service %v is creating new listener on %v.", typ, address)
+	process.logger.InfoContext(process.ExitContext(), "Service is creating new listener.", "type", typ, "address", address)
 	return process.createListener(typ, address)
 }
 
@@ -308,7 +308,7 @@ func (process *TeleportProcess) createListener(typ ListenerType, address string)
 	}
 
 	if listenersClosed() {
-		process.log.Debugf("Listening is blocked, not opening listener for type %v and address %v.", typ, address)
+		process.logger.DebugContext(process.ExitContext(), "Listening is blocked, not opening listener.", "type", typ, "address", address)
 		return nil, trace.BadParameter("listening is blocked")
 	}
 
@@ -318,7 +318,7 @@ func (process *TeleportProcess) createListener(typ ListenerType, address string)
 		listener, ok := process.getListenerNeedsLock(typ, address)
 		process.Unlock()
 		if ok {
-			process.log.Debugf("Using existing listener for type %v and address %v.", typ, address)
+			process.logger.DebugContext(process.ExitContext(), "Using existing listener.", "type", typ, "address", address)
 			return listener, nil
 		}
 		return nil, trace.Wrap(err)
@@ -330,12 +330,12 @@ func (process *TeleportProcess) createListener(typ ListenerType, address string)
 	// needs a dns lookup, so we can't do it while holding the lock)
 	if process.listenersClosed {
 		listener.Close()
-		process.log.Debugf("Listening is blocked, closing newly-created listener for type %v and address %v.", typ, address)
+		process.logger.DebugContext(process.ExitContext(), "Listening is blocked, closing newly-created listener.", "type", typ, "address", address)
 		return nil, trace.BadParameter("listening is blocked")
 	}
 	if l, ok := process.getListenerNeedsLock(typ, address); ok {
 		listener.Close()
-		process.log.Debugf("Using existing listener for type %v and address %v.", typ, address)
+		process.logger.DebugContext(process.ExitContext(), "Using existing listener.", "type", typ, "address", address)
 		return l, nil
 	}
 	r := registeredListener{typ: typ, address: address, listener: listener}
@@ -500,9 +500,9 @@ func (process *TeleportProcess) forkChild() error {
 		return err
 	}
 
-	log := process.log.WithFields(logrus.Fields{"path": path, "workingDir": workingDir})
+	logger := process.logger.With("path", path, "working_dir", workingDir)
 
-	log.Info("Forking child.")
+	logger.InfoContext(process.ExitContext(), "Forking child.")
 
 	listenerFiles, err := process.ExportFileDescriptors()
 	if err != nil {
@@ -527,7 +527,7 @@ func (process *TeleportProcess) forkChild() error {
 		return trace.Wrap(err)
 	}
 
-	log.Infof("Passing %s to child", vals)
+	logger.InfoContext(process.ExitContext(), "Passing files to child", "files", vals)
 	env := append(os.Environ(), fmt.Sprintf("%s=%s", teleportFilesEnvVar, vals))
 
 	p, err := os.StartProcess(path, os.Args, &os.ProcAttr{
@@ -539,19 +539,18 @@ func (process *TeleportProcess) forkChild() error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	log.WithField("pid", p.Pid).Infof("Forked new child process.")
-	log = process.log.WithField("pid", p.Pid)
+	logger.InfoContext(process.ExitContext(), "Forked new child process.", "pid", p.Pid)
+	logger = process.logger.With("pid", p.Pid)
 
 	process.forkedTeleportCount.Add(1)
 	go func() {
 		defer process.forkedTeleportCount.Add(-1)
 		state, err := p.Wait()
 		if err != nil {
-			log.WithError(err).
-				Error("Failed waiting for forked Teleport process.")
+			logger.ErrorContext(process.ExitContext(), "Failed waiting for forked Teleport process.", "error", err)
 			return
 		}
-		log.WithField("status", state.String()).Warn("Forked Teleport process has exited.")
+		logger.WarnContext(process.ExitContext(), "Forked Teleport process has exited.", "status", state.String())
 	}()
 
 	_ = writePipe.Close()
@@ -565,7 +564,7 @@ func (process *TeleportProcess) forkChild() error {
 	if err != nil {
 		return trace.Wrap(err, "waiting for forked Teleport process to signal successful start")
 	}
-	log.WithField("data", string(buf[:n])).Infof("Forked Teleport process signaled successful start.")
+	logger.InfoContext(process.ExitContext(), "Forked Teleport process signaled successful start.", "data", string(buf[:n]))
 
 	return nil
 }

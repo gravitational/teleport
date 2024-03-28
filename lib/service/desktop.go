@@ -20,12 +20,12 @@ package service
 
 import (
 	"crypto/tls"
+	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -44,28 +44,26 @@ import (
 )
 
 func (process *TeleportProcess) initWindowsDesktopService() {
-	log := process.log.WithFields(logrus.Fields{
-		trace.Component: teleport.Component(teleport.ComponentWindowsDesktop, process.id),
-	})
+	logger := process.logger.With(trace.Component, teleport.Component(teleport.ComponentWindowsDesktop, process.id))
 	process.RegisterWithAuthServer(types.RoleWindowsDesktop, WindowsDesktopIdentityEvent)
 	process.RegisterCriticalFunc("windows_desktop.init", func() error {
-		conn, err := process.WaitForConnector(WindowsDesktopIdentityEvent, log)
+		conn, err := process.WaitForConnector(WindowsDesktopIdentityEvent, logger)
 		if conn == nil {
 			return trace.Wrap(err)
 		}
 
-		if err := process.initWindowsDesktopServiceRegistered(log, conn); err != nil {
-			warnOnErr(conn.Close(), log)
+		if err := process.initWindowsDesktopServiceRegistered(logger, conn); err != nil {
+			warnOnErr(process.ExitContext(), conn.Close(), logger)
 			return trace.Wrap(err)
 		}
 		return nil
 	})
 }
 
-func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.Entry, conn *Connector) (retErr error) {
+func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog.Logger, conn *Connector) (retErr error) {
 	defer func() {
 		if err := process.closeImportedDescriptors(teleport.ComponentWindowsDesktop); err != nil {
-			log.WithError(err).Warn("Failed closing imported file descriptors.")
+			logger.WarnContext(process.ExitContext(), "Failed closing imported file descriptors.")
 		}
 	}()
 	cfg := process.Config
@@ -98,14 +96,14 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 
 	// Start a local listener and let proxies dial in.
 	case !useTunnel && !cfg.WindowsDesktop.ListenAddr.IsEmpty():
-		log.Info("Using local listener and registering directly with auth server")
+		logger.InfoContext(process.ExitContext(), "Using local listener and registering directly with auth server")
 		listener, err = process.importOrCreateListener(ListenerWindowsDesktop, cfg.WindowsDesktop.ListenAddr.Addr)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer func() {
 			if retErr != nil {
-				warnOnErr(listener.Close(), log)
+				warnOnErr(process.ExitContext(), listener.Close(), logger)
 			}
 		}()
 
@@ -139,13 +137,13 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 				agentPool.Stop()
 			}
 		}()
-		log.Info("Using a reverse tunnel to register and handle proxy connections")
+		logger.InfoContext(process.ExitContext(), "Using a reverse tunnel to register and handle proxy connections")
 	}
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentWindowsDesktop,
-			Log:       log,
+			Log:       process.log.WithField(trace.Component, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
 			Clock:     cfg.Clock,
 			Client:    conn.Client,
 		},
@@ -160,7 +158,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
-		Logger:      log,
+		Logger:      process.log.WithField(trace.Component, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
 		// Device authorization breaks browser-based access.
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
 			DisableGlobalMode: true,
@@ -183,7 +181,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		if info.ServerName != "" {
 			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
 			if err != nil && !trace.IsNotFound(err) {
-				log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
+				logger.DebugContext(process.ExitContext(), "Ignoring unsupported cluster name.", "cluster_name", info.ServerName)
 			}
 		}
 		pool, _, err := auth.DefaultClientCertPool(accessPoint, clusterName)
@@ -213,7 +211,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 
 	srv, err := desktop.NewWindowsService(desktop.WindowsServiceConfig{
 		DataDir:      process.Config.DataDir,
-		Log:          log,
+		Log:          process.log.WithField(trace.Component, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
 		Clock:        process.Clock,
 		Authorizer:   authorizer,
 		Emitter:      conn.Client,
@@ -244,14 +242,14 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	}
 	defer func() {
 		if retErr != nil {
-			warnOnErr(srv.Close(), log)
+			warnOnErr(process.ExitContext(), srv.Close(), logger)
 		}
 	}()
 	process.RegisterCriticalFunc("windows_desktop.serve", func() error {
 		if useTunnel {
-			log.Info("Starting Windows desktop service via proxy reverse tunnel.")
+			logger.InfoContext(process.ExitContext(), "Starting Windows desktop service via proxy reverse tunnel.")
 		} else {
-			log.Infof("Starting Windows desktop service on %v.", listener.Addr())
+			logger.InfoContext(process.ExitContext(), "Starting Windows desktop service.", "listen_address", listener.Addr())
 		}
 		process.BroadcastEvent(Event{Name: WindowsDesktopReady, Payload: nil})
 
@@ -286,16 +284,16 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	// Cleanup, when process is exiting.
 	process.OnExit("windows_desktop.shutdown", func(payload interface{}) {
 		// Fast shutdown.
-		warnOnErr(srv.Close(), log)
+		warnOnErr(process.ExitContext(), srv.Close(), logger)
 		agentPool.Stop()
 		if payload != nil {
 			// Graceful shutdown.
 			agentPool.Wait()
 		}
-		warnOnErr(listener.Close(), log)
-		warnOnErr(conn.Close(), log)
+		warnOnErr(process.ExitContext(), listener.Close(), logger)
+		warnOnErr(process.ExitContext(), conn.Close(), logger)
 
-		log.Info("Exited.")
+		logger.InfoContext(process.ExitContext(), "Exited.")
 	})
 	return nil
 }
