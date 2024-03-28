@@ -50,9 +50,9 @@ export function useGateway(doc: types.DocumentGateway) {
       gw = await retryWithRelogin(ctx, doc.targetUri, () =>
         ctx.clustersService.createGateway({
           targetUri: doc.targetUri,
-          port: port,
-          user: doc.targetUser,
-          subresource_name: doc.targetSubresourceName,
+          localPort: port,
+          targetUser: doc.targetUser,
+          targetSubresourceName: doc.targetSubresourceName,
         })
       );
     } catch (error) {

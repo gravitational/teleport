@@ -22,6 +22,7 @@ import {
   makeServer,
   makeApp,
 } from 'teleterm/services/tshd/testHelpers';
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 
 import {
   AmbiguousHostnameError,
@@ -36,7 +37,7 @@ describe('getServerByHostname', () => {
   const getServerByHostnameTests: Array<
     {
       name: string;
-      getServersMockedValue: Awaited<ReturnType<tsh.TshdClient['getServers']>>;
+      getServersMockedValue: ReturnType<tsh.TshdClient['getServers']>;
     } & (
       | { expectedServer: tsh.Server; expectedErr?: never }
       | { expectedErr: any; expectedServer?: never }
@@ -44,29 +45,29 @@ describe('getServerByHostname', () => {
   > = [
     {
       name: 'returns a server when the hostname matches a single server',
-      getServersMockedValue: {
+      getServersMockedValue: new MockedUnaryCall({
         agents: [server],
         totalCount: 1,
         startKey: 'foo',
-      },
+      }),
       expectedServer: server,
     },
     {
       name: 'throws an error when the hostname matches multiple servers',
-      getServersMockedValue: {
+      getServersMockedValue: new MockedUnaryCall({
         agents: [server, server],
         totalCount: 2,
         startKey: 'foo',
-      },
+      }),
       expectedErr: AmbiguousHostnameError,
     },
     {
       name: 'returns nothing if the hostname does not match any servers',
-      getServersMockedValue: {
+      getServersMockedValue: new MockedUnaryCall({
         agents: [],
         totalCount: 0,
         startKey: 'foo',
-      },
+      }),
       expectedServer: undefined,
     },
   ];
@@ -93,6 +94,10 @@ describe('getServerByHostname', () => {
         query: 'name == "foo"',
         limit: 2,
         sort: null,
+        sortBy: '',
+        startKey: '',
+        search: '',
+        searchAsRoles: '',
       });
     }
   );
@@ -106,26 +111,34 @@ describe('searchResources', () => {
     const app = makeApp();
 
     const tshClient: Partial<tsh.TshdClient> = {
-      getServers: jest.fn().mockResolvedValueOnce({
-        agents: [server],
-        totalCount: 1,
-        startKey: '',
-      }),
-      getDatabases: jest.fn().mockResolvedValueOnce({
-        agents: [db],
-        totalCount: 1,
-        startKey: '',
-      }),
-      getKubes: jest.fn().mockResolvedValueOnce({
-        agents: [kube],
-        totalCount: 1,
-        startKey: '',
-      }),
-      getApps: jest.fn().mockResolvedValueOnce({
-        agents: [app],
-        totalCount: 1,
-        startKey: '',
-      }),
+      getServers: jest.fn().mockResolvedValueOnce(
+        new MockedUnaryCall({
+          agents: [server],
+          totalCount: 1,
+          startKey: '',
+        })
+      ),
+      getDatabases: jest.fn().mockResolvedValueOnce(
+        new MockedUnaryCall({
+          agents: [db],
+          totalCount: 1,
+          startKey: '',
+        })
+      ),
+      getKubes: jest.fn().mockResolvedValueOnce(
+        new MockedUnaryCall({
+          agents: [kube],
+          totalCount: 1,
+          startKey: '',
+        })
+      ),
+      getApps: jest.fn().mockResolvedValueOnce(
+        new MockedUnaryCall({
+          agents: [app],
+          totalCount: 1,
+          startKey: '',
+        })
+      ),
     };
     const service = new ResourcesService(tshClient as tsh.TshdClient);
 
@@ -160,11 +173,13 @@ describe('searchResources', () => {
   it('returns a single item if a filter is supplied', async () => {
     const server = makeServer();
     const tshClient: Partial<tsh.TshdClient> = {
-      getServers: jest.fn().mockResolvedValueOnce({
-        agents: [server],
-        totalCount: 1,
-        startKey: '',
-      }),
+      getServers: jest.fn().mockResolvedValueOnce(
+        new MockedUnaryCall({
+          agents: [server],
+          totalCount: 1,
+          startKey: '',
+        })
+      ),
     };
     const service = new ResourcesService(tshClient as tsh.TshdClient);
 

@@ -25,6 +25,7 @@ import {
   makeRootCluster,
   makeLeafCluster,
 } from 'teleterm/services/tshd/testHelpers';
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 
 import { ClustersService } from './clustersService';
 
@@ -70,27 +71,35 @@ function createService(client: Partial<tsh.TshdClient>): ClustersService {
 
 function getClientMocks(): Partial<tsh.TshdClient> {
   return {
-    loginLocal: jest.fn().mockResolvedValueOnce(undefined),
-    logout: jest.fn().mockResolvedValueOnce(undefined),
-    addRootCluster: jest.fn().mockResolvedValueOnce(clusterMock),
-    removeCluster: jest.fn().mockResolvedValueOnce(undefined),
-    getCluster: jest.fn().mockResolvedValueOnce(clusterMock),
-    listLeafClusters: jest.fn().mockResolvedValueOnce([leafClusterMock]),
-    listGateways: jest.fn().mockResolvedValueOnce([gatewayMock]),
-    createGateway: jest.fn().mockResolvedValueOnce(gatewayMock),
-    removeGateway: jest.fn().mockResolvedValueOnce(undefined),
+    login: jest.fn().mockReturnValueOnce(new MockedUnaryCall({})),
+    logout: jest.fn().mockReturnValueOnce(new MockedUnaryCall({})),
+    addCluster: jest.fn().mockReturnValueOnce(new MockedUnaryCall(clusterMock)),
+    removeCluster: jest.fn().mockReturnValueOnce(new MockedUnaryCall({})),
+    getCluster: jest.fn().mockReturnValueOnce(new MockedUnaryCall(clusterMock)),
+    listLeafClusters: jest
+      .fn()
+      .mockReturnValueOnce(
+        new MockedUnaryCall({ clusters: [leafClusterMock] })
+      ),
+    listGateways: jest
+      .fn()
+      .mockReturnValueOnce(new MockedUnaryCall({ gateways: [gatewayMock] })),
+    createGateway: jest
+      .fn()
+      .mockReturnValueOnce(new MockedUnaryCall(gatewayMock)),
+    removeGateway: jest.fn().mockReturnValueOnce(new MockedUnaryCall({})),
   };
 }
 
 test('add cluster', async () => {
-  const { addRootCluster } = getClientMocks();
+  const { addCluster } = getClientMocks();
   const service = createService({
-    addRootCluster,
+    addCluster,
   });
 
   await service.addRootCluster(clusterUri);
 
-  expect(addRootCluster).toHaveBeenCalledWith(clusterUri);
+  expect(addCluster).toHaveBeenCalledWith({ name: clusterUri });
   expect(service.state.clusters).toStrictEqual(
     new Map([[clusterUri, clusterMock]])
   );
@@ -132,9 +141,15 @@ test('remove cluster', async () => {
     new Map([[gatewayFromOtherCluster.uri, gatewayFromOtherCluster]])
   );
 
-  expect(removeGateway).toHaveBeenCalledWith(gatewayFromRootCluster.uri);
-  expect(removeGateway).toHaveBeenCalledWith(gatewayFromLeafCluster.uri);
-  expect(removeGateway).not.toHaveBeenCalledWith(gatewayFromOtherCluster.uri);
+  expect(removeGateway).toHaveBeenCalledWith({
+    gatewayUri: gatewayFromRootCluster.uri,
+  });
+  expect(removeGateway).toHaveBeenCalledWith({
+    gatewayUri: gatewayFromLeafCluster.uri,
+  });
+  expect(removeGateway).not.toHaveBeenCalledWith({
+    gatewayUri: gatewayFromOtherCluster.uri,
+  });
 });
 
 test('sync root cluster', async () => {
@@ -146,11 +161,17 @@ test('sync root cluster', async () => {
 
   await service.syncRootClusterAndCatchErrors(clusterUri);
 
-  expect(service.findCluster(clusterUri)).toStrictEqual(clusterMock);
+  const clusterMockWithRequests = {
+    ...clusterMock,
+    loggedInUser: { ...clusterMock.loggedInUser, assumedRequests: {} },
+  };
+  expect(service.findCluster(clusterUri)).toStrictEqual(
+    clusterMockWithRequests
+  );
   expect(service.findCluster(leafClusterMock.uri)).toStrictEqual(
     leafClusterMock
   );
-  expect(listLeafClusters).toHaveBeenCalledWith(clusterUri);
+  expect(listLeafClusters).toHaveBeenCalledWith({ clusterUri });
 });
 
 test('login into cluster and sync cluster', async () => {
@@ -166,7 +187,20 @@ test('login into cluster and sync cluster', async () => {
 
   await service.loginLocal(loginParams, undefined);
 
-  expect(client.loginLocal).toHaveBeenCalledWith(loginParams, undefined);
+  expect(client.login).toHaveBeenCalledWith(
+    {
+      clusterUri: loginParams.clusterUri,
+      params: {
+        oneofKind: 'local',
+        local: {
+          password: loginParams.password,
+          user: loginParams.username,
+          token: loginParams.token,
+        },
+      },
+    },
+    { abort: undefined }
+  );
   expect(service.findCluster(clusterUri).connected).toBe(true);
 });
 
@@ -175,7 +209,7 @@ test('logout from cluster', async () => {
   const service = createService({
     logout,
     removeCluster,
-    getCluster: () => Promise.resolve({ ...clusterMock, connected: false }),
+    getCluster: () => new MockedUnaryCall({ ...clusterMock, connected: false }),
   });
   service.setState(draftState => {
     draftState.clusters = new Map([
@@ -186,8 +220,8 @@ test('logout from cluster', async () => {
 
   await service.logout(clusterUri);
 
-  expect(logout).toHaveBeenCalledWith(clusterUri);
-  expect(removeCluster).toHaveBeenCalledWith(clusterUri);
+  expect(logout).toHaveBeenCalledWith({ clusterUri });
+  expect(removeCluster).toHaveBeenCalledWith({ clusterUri });
   expect(service.findCluster(clusterMock.uri).connected).toBe(false);
   expect(service.findCluster(leafClusterMock.uri).connected).toBe(false);
 });
@@ -201,9 +235,19 @@ test('create a gateway', async () => {
   const port = '2000';
   const user = 'alice';
 
-  await service.createGateway({ targetUri, port, user });
+  await service.createGateway({
+    targetUri,
+    localPort: port,
+    targetUser: user,
+    targetSubresourceName: '',
+  });
 
-  expect(createGateway).toHaveBeenCalledWith({ targetUri, port, user });
+  expect(createGateway).toHaveBeenCalledWith({
+    targetUri,
+    localPort: port,
+    targetUser: user,
+    targetSubresourceName: '',
+  });
   expect(service.state.gateways).toStrictEqual(
     new Map([[gatewayMock.uri, gatewayMock]])
   );
@@ -218,7 +262,7 @@ test('remove a gateway', async () => {
 
   await service.removeGateway(gatewayUri);
 
-  expect(removeGateway).toHaveBeenCalledWith(gatewayUri);
+  expect(removeGateway).toHaveBeenCalledWith({ gatewayUri });
   expect(service.findGateway(gatewayUri)).toBeUndefined();
 });
 
@@ -238,7 +282,9 @@ test('remove a kube gateway', async () => {
 
   await service.removeKubeGateway(kubeGatewayMock.targetUri as uri.KubeUri);
   expect(removeGateway).toHaveBeenCalledTimes(1);
-  expect(removeGateway).toHaveBeenCalledWith(kubeGatewayMock.uri);
+  expect(removeGateway).toHaveBeenCalledWith({
+    gatewayUri: kubeGatewayMock.uri,
+  });
   expect(service.findGateway(kubeGatewayMock.uri)).toBeUndefined();
 
   // Calling it again should not increase mock calls.
@@ -257,7 +303,7 @@ test('sync gateways', async () => {
   expect(service.state.gateways).toStrictEqual(
     new Map([[gatewayMock.uri, gatewayMock]])
   );
-  expect(listGateways).toHaveBeenCalledWith();
+  expect(listGateways).toHaveBeenCalledWith({});
 });
 
 test('find root cluster by resource URI', () => {

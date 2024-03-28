@@ -111,7 +111,6 @@ export const makeLoggedInUser = (
   props: Partial<tsh.LoggedInUser> = {}
 ): tsh.LoggedInUser => ({
   activeRequests: [],
-  assumedRequests: {},
   name: 'alice',
   acl: {
     recordedSessions: {
@@ -223,7 +222,7 @@ export const makeLoggedInUser = (
   roles: [],
   requestableRoles: [],
   suggestedReviewers: [],
-  userType: tsh.UserType.LOCAL,
+  userType: tsh.LoggedInUser_UserType.LOCAL,
   ...props,
 });
 

@@ -25,34 +25,32 @@ import type { RouteProps } from 'react-router';
  * These are for identifying a specific resource within a root cluster.
  */
 
-type RootClusterId = string;
-type LeafClusterId = string;
-type ServerId = string;
-type KubeId = string;
-type DbId = string;
-type AppId = string;
-export type RootClusterUri = `/clusters/${RootClusterId}`;
-export type RootClusterServerUri =
-  `/clusters/${RootClusterId}/servers/${ServerId}`;
-export type RootClusterKubeUri = `/clusters/${RootClusterId}/kubes/${KubeId}`;
-export type RootClusterDatabaseUri = `/clusters/${RootClusterId}/dbs/${DbId}`;
-export type RootClusterAppUri = `/clusters/${RootClusterId}/apps/${AppId}`;
+// TODO(gzdunek): These types used to be template literals
+// (for example, RootClusterUri = `/clusters/${RootClusterId}`).
+// They were replaced with strings here https://github.com/gravitational/teleport/pull/39828,
+// because we started using the generated proto types directly
+// (so it was not possible to assign these types to plain strings).
+// However, I didn't remove the type aliases below, because:
+// 1. Ripping them out is too much work.
+// 2. They still carry some useful information.
+// 3. We might be able to add them back in the future
+// (maybe with some sort of TypeScript declaration merging).
+export type RootClusterUri = string;
+export type RootClusterServerUri = string;
+export type RootClusterKubeUri = string;
+export type RootClusterDatabaseUri = string;
+export type RootClusterAppUri = string;
 export type RootClusterResourceUri =
   | RootClusterServerUri
   | RootClusterKubeUri
   | RootClusterDatabaseUri
   | RootClusterAppUri;
 export type RootClusterOrResourceUri = RootClusterUri | RootClusterResourceUri;
-export type LeafClusterUri =
-  `/clusters/${RootClusterId}/leaves/${LeafClusterId}`;
-export type LeafClusterServerUri =
-  `/clusters/${RootClusterId}/leaves/${LeafClusterId}/servers/${ServerId}`;
-export type LeafClusterKubeUri =
-  `/clusters/${RootClusterId}/leaves/${LeafClusterId}/kubes/${KubeId}`;
-export type LeafClusterDatabaseUri =
-  `/clusters/${RootClusterId}/leaves/${LeafClusterId}/dbs/${DbId}`;
-export type LeafClusterAppUri =
-  `/clusters/${RootClusterId}/leaves/${LeafClusterId}/apps/${AppId}`;
+export type LeafClusterUri = string;
+export type LeafClusterServerUri = string;
+export type LeafClusterKubeUri = string;
+export type LeafClusterDatabaseUri = string;
+export type LeafClusterAppUri = string;
 export type LeafClusterResourceUri =
   | LeafClusterServerUri
   | LeafClusterKubeUri
@@ -82,8 +80,7 @@ export type DocumentUri = `/docs/${DocumentId}`;
  * These are for gateways (proxies) managed by the tsh daemon.
  */
 
-type GatewayId = string;
-export type GatewayUri = `/gateways/${GatewayId}`;
+export type GatewayUri = string;
 
 export const paths = {
   // Resources.
