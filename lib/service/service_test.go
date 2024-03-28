@@ -77,7 +77,7 @@ func TestServiceSelfSignedHTTPS(t *testing.T) {
 	cfg := &servicecfg.Config{
 		DataDir:  t.TempDir(),
 		Hostname: "example.com",
-		Log:      utils.WrapLogger(logrus.New().WithField("test", "TestServiceSelfSignedHTTPS")),
+		Logger:   slog.Default(),
 	}
 	require.NoError(t, initSelfSignedHTTPSCert(cfg))
 	require.Len(t, cfg.Proxy.KeyPairs, 1)
@@ -1157,7 +1157,7 @@ func Test_readOrGenerateHostID(t *testing.T) {
 
 			cfg := &servicecfg.Config{
 				DataDir:    dataDir,
-				Log:        logrus.New(),
+				Logger:     slog.Default(),
 				JoinMethod: types.JoinMethodToken,
 				Identities: tt.args.identity,
 			}
