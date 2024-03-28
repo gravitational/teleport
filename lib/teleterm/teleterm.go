@@ -20,6 +20,7 @@ package teleterm
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -27,7 +28,6 @@ import (
 	"syscall"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -90,9 +90,9 @@ func Serve(ctx context.Context, cfg Config) error {
 
 		select {
 		case <-ctx.Done():
-			log.Info("Context closed, stopping service.")
+			slog.InfoContext(ctx, "Context closed, stopping service")
 		case sig := <-c:
-			log.Infof("Captured %s, stopping service.", sig)
+			slog.InfoContext(ctx, "Captured signal, stopping service", "signal", sig)
 		}
 
 		daemonService.Stop()

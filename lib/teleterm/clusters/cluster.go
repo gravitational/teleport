@@ -20,10 +20,10 @@ package clusters
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -47,7 +47,7 @@ type Cluster struct {
 	// ProfileName is the name of the tsh profile
 	ProfileName string
 	// Log is a component logger
-	Log *logrus.Entry
+	Log *slog.Logger
 	// dir is the directory where cluster certificates are stored
 	dir string
 	// Status is the cluster status
