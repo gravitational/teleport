@@ -269,18 +269,7 @@ function AppButton(props: {
         target="_blank"
         title="Launch the app in the browser"
       >
-        {props.isVnetSupported ? (
-          <>
-            <MenuItem
-              onClick={() => window.alert('TODO(ravicious): Open VNet')}
-            >
-              Connect and copy VNet address
-            </MenuItem>
-            <MenuItem onClick={props.connect}>Connect to local port</MenuItem>
-          </>
-        ) : (
-          <MenuItem onClick={props.connect}>Set up connection</MenuItem>
-        )}
+        <MenuItem onClick={props.connect}>Set up connection</MenuItem>
       </ButtonWithMenu>
     );
   }
