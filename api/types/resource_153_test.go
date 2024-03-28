@@ -238,3 +238,65 @@ func TestResourceMethods(t *testing.T) {
 		require.Equal(t, "mars", origin)
 	})
 }
+
+// Tests that expiry is consistent across the different types and transformations.
+func TestExpiryConsistency(t *testing.T) {
+	tests := []struct {
+		name            string
+		expiryTimestamp *timestamppb.Timestamp
+		expectedExpiry  time.Time
+	}{
+		{
+			name:            "nil expiry",
+			expiryTimestamp: nil,
+			expectedExpiry:  time.Time{},
+		},
+		{
+			name:            "zero expiry",
+			expiryTimestamp: timestamppb.New(time.Time{}),
+			expectedExpiry:  time.Time{},
+		},
+		{
+			name:            "set expiry",
+			expiryTimestamp: timestamppb.New(time.Date(2024, 11, 11, 11, 11, 11, 00, time.UTC)),
+			expectedExpiry:  time.Date(2024, 11, 11, 11, 11, 11, 00, time.UTC),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bot := &machineidv1.Bot{
+				Kind:     "bot",
+				SubKind:  "robot",
+				Metadata: &headerv1.Metadata{Name: "Bernard", Expires: tt.expiryTimestamp},
+				Spec: &machineidv1.BotSpec{
+					Roles: []string{"robot", "human"},
+				},
+			}
+
+			legacyResource := types.Resource153ToLegacy(bot)
+
+			// verify expiry time in different ways
+			t.Run("GetExpiry() resource", func(t *testing.T) {
+				expiry, err := types.GetExpiry(bot)
+				require.NoError(t, err)
+				require.Equal(t, tt.expectedExpiry, expiry)
+			})
+
+			t.Run("GetExpiry() wrapper", func(t *testing.T) {
+				expiry, err := types.GetExpiry(legacyResource)
+				require.NoError(t, err)
+				require.Equal(t, tt.expectedExpiry, expiry)
+			})
+
+			t.Run("wrapper .Expiry()", func(t *testing.T) {
+				require.Equal(t, tt.expectedExpiry, legacyResource.Expiry())
+			})
+
+			t.Run("wrapper metadata .Expiry()", func(t *testing.T) {
+				md := legacyResource.GetMetadata()
+				require.Equal(t, tt.expectedExpiry, md.Expiry())
+			})
+		})
+	}
+}

@@ -270,7 +270,8 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			require.NoError(t, err)
 			if pref.GetSecondFactor() != test.secondFactor {
 				pref.SetSecondFactor(test.secondFactor)
-				require.NoError(t, authServer.SetAuthPreference(ctx, pref))
+				_, err = authServer.UpsertAuthPreference(ctx, pref)
+				require.NoError(t, err)
 			}
 
 			tc, err := client.NewClient(cfg)
@@ -311,9 +312,8 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		SecondFactor: constants.SecondFactorOff,
 	})
 	require.NoError(t, err, "NewAuthPreference failed")
-	require.NoError(t,
-		authServer.SetAuthPreference(ctx, authPref),
-		"SetAuthPreference failed")
+	_, err = authServer.UpsertAuthPreference(ctx, authPref)
+	require.NoError(t, err, "UpsertAuthPreference failed")
 
 	// Prepare client config, it won't change throughout the test.
 	cfg := client.MakeDefaultConfig()
@@ -450,11 +450,11 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 			}, nil
 		})
 
-		proxyClient, err := teleportClient.ConnectToProxy(ctx)
+		clusterClient, err := teleportClient.ConnectToCluster(ctx)
 		require.NoError(t, err)
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		rootAuthClient, err := proxyClient.ConnectToRootCluster(ctx)
+		rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
 		require.NoError(t, err)
 		defer rootAuthClient.Close()
 

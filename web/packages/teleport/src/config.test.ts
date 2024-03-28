@@ -40,10 +40,12 @@ test('getAwsOidcConfigureIdpScriptUrl formatting', async () => {
   const params: UrlAwsOidcConfigureIdp = {
     integrationName: 'int-name',
     roleName: 'role-arn',
+    s3Bucket: 's3-bucket',
+    s3Prefix: 's3-prefix',
   };
   const base =
     'http://localhost/webapi/scripts/integrations/configure/awsoidc-idp.sh?';
-  const expected = `integrationName=${'int-name'}&role=${'role-arn'}`;
+  const expected = `integrationName=int-name&role=role-arn&s3Bucket=s3-bucket&s3Prefix=s3-prefix`;
   expect(cfg.getAwsOidcConfigureIdpScriptUrl(params)).toBe(
     `${base}${expected}`
   );

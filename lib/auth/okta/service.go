@@ -25,6 +25,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -57,7 +58,7 @@ func (c *ServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = logrus.New().WithField(trace.Component, "okta_crud_service")
+		c.Logger = logrus.New().WithField(teleport.ComponentKey, "okta_crud_service")
 	}
 
 	if c.Authorizer == nil {
@@ -116,7 +117,7 @@ func (s *Service) ListOktaImportRules(ctx context.Context, req *oktapb.ListOktaI
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindOktaImportRule, types.VerbRead, types.VerbList); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindOktaImportRule, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -147,7 +148,7 @@ func (s *Service) GetOktaImportRule(ctx context.Context, req *oktapb.GetOktaImpo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindOktaImportRule, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindOktaImportRule, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	importRule, err := s.oktaImportRules.GetOktaImportRule(ctx, req.GetName())
@@ -170,7 +171,7 @@ func (s *Service) CreateOktaImportRule(ctx context.Context, req *oktapb.CreateOk
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindOktaImportRule, types.VerbCreate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindOktaImportRule, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	returnedRule, err := s.oktaImportRules.CreateOktaImportRule(ctx, req.GetImportRule())
@@ -191,7 +192,7 @@ func (s *Service) UpdateOktaImportRule(ctx context.Context, req *oktapb.UpdateOk
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindOktaImportRule, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindOktaImportRule, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	returnedRule, err := s.oktaImportRules.UpdateOktaImportRule(ctx, req.GetImportRule())
@@ -212,7 +213,7 @@ func (s *Service) DeleteOktaImportRule(ctx context.Context, req *oktapb.DeleteOk
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindOktaImportRule, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindOktaImportRule, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, trace.Wrap(s.oktaImportRules.DeleteOktaImportRule(ctx, req.GetName()))
@@ -225,7 +226,7 @@ func (s *Service) DeleteAllOktaImportRules(ctx context.Context, _ *oktapb.Delete
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindOktaImportRule, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindOktaImportRule, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, trace.Wrap(s.oktaImportRules.DeleteAllOktaImportRules(ctx))
@@ -238,7 +239,7 @@ func (s *Service) ListOktaAssignments(ctx context.Context, req *oktapb.ListOktaA
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindOktaAssignment, types.VerbList, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindOktaAssignment, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -269,7 +270,7 @@ func (s *Service) GetOktaAssignment(ctx context.Context, req *oktapb.GetOktaAssi
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindOktaAssignment, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindOktaAssignment, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	assignment, err := s.oktaAssignments.GetOktaAssignment(ctx, req.GetName())
@@ -292,7 +293,7 @@ func (s *Service) CreateOktaAssignment(ctx context.Context, req *oktapb.CreateOk
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindOktaAssignment, types.VerbCreate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindOktaAssignment, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	returnedAssignment, err := s.oktaAssignments.CreateOktaAssignment(ctx, req.GetAssignment())
@@ -313,7 +314,7 @@ func (s *Service) UpdateOktaAssignment(ctx context.Context, req *oktapb.UpdateOk
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindOktaAssignment, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindOktaAssignment, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	returnedAssignment, err := s.oktaAssignments.UpdateOktaAssignment(ctx, req.GetAssignment())
@@ -334,7 +335,7 @@ func (s *Service) UpdateOktaAssignmentStatus(ctx context.Context, req *oktapb.Up
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindOktaAssignment, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindOktaAssignment, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	err = s.oktaAssignments.UpdateOktaAssignmentStatus(ctx, req.GetName(), types.OktaAssignmentStatusProtoToString(req.GetStatus()),
@@ -349,7 +350,7 @@ func (s *Service) DeleteOktaAssignment(ctx context.Context, req *oktapb.DeleteOk
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindOktaAssignment, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindOktaAssignment, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, trace.Wrap(s.oktaAssignments.DeleteOktaAssignment(ctx, req.GetName()))
@@ -362,7 +363,7 @@ func (s *Service) DeleteAllOktaAssignments(ctx context.Context, _ *oktapb.Delete
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindOktaAssignment, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindOktaAssignment, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, trace.Wrap(s.oktaAssignments.DeleteAllOktaAssignments(ctx))

@@ -92,6 +92,14 @@ type Backend interface {
 	// ConditionalDelete deletes the item by key if the revision matches the stored revision.
 	ConditionalDelete(ctx context.Context, key []byte, revision string) error
 
+	// AtomicWrite executes a batch of conditional actions atomically s.t. all actions happen if all
+	// conditions are met, but no actions happen if any condition fails to hold. If one or more conditions
+	// failed to hold, [ErrConditionFailed] is returned. The number of conditional actions must not
+	// exceed [MaxAtomicWriteSize] and no two conditional actions may point to the same key. If successful,
+	// the returned revision is the new revision associated with all [Put] actions that were part of the
+	// operation (the revision value has no meaning outside of the context of puts).
+	AtomicWrite(ctx context.Context, condacts []ConditionalAction) (revision string, err error)
+
 	// NewWatcher returns a new event watcher
 	NewWatcher(ctx context.Context, watch Watch) (Watcher, error)
 

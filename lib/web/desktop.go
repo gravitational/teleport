@@ -122,7 +122,16 @@ func (h *Handler) createDesktopConnection(
 	if err != nil {
 		return sendTDPError(err)
 	}
-	log.Debugf("Received screen spec: %v\n", screenSpec)
+
+	width, height := screenSpec.Width, screenSpec.Height
+	if width > types.MaxRDPScreenWidth || height > types.MaxRDPScreenHeight {
+		return sendTDPError(trace.BadParameter(
+			"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
+			width, height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight,
+		))
+	}
+
+	log.Debugf("Attempting to connect to desktop using username=%v, width=%v, height=%v\n", username, width, height)
 
 	// Pick a random Windows desktop service as our gateway.
 	// When agent mode is implemented in the service, we'll have to filter out
@@ -495,7 +504,7 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 	go func() {
 		defer closeOnce.Do(close)
 
-		buf := make([]byte, 4096)
+		var buf bytes.Buffer
 		for {
 			_, reader, err := ws.NextReader()
 			switch {
@@ -506,13 +515,13 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 				errs <- err
 				return
 			}
-			n, err := reader.Read(buf)
-			if err != nil {
+			buf.Reset()
+			if _, err := io.Copy(&buf, reader); err != nil {
 				errs <- err
 				return
 			}
 
-			if _, err := wds.Write(buf[:n]); err != nil {
+			if _, err := wds.Write(buf.Bytes()); err != nil {
 				errs <- trace.Wrap(err, "sending TDP message to desktop agent")
 				return
 			}

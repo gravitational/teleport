@@ -187,6 +187,7 @@ func handleIncomingResizeEvents(stream *streamproto.SessionStream, term *termina
 
 func (s *KubeSession) handleMFA(ctx context.Context, tc *TeleportClient, mode types.SessionParticipantMode, stdout io.Writer) error {
 	if s.stream.MFARequired && mode == types.SessionModeratorMode {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxy, err := tc.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)

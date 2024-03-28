@@ -107,7 +107,7 @@ const config = defineConfig(env => {
         },
       },
       server: {
-        host: '0.0.0.0',
+        host: 'localhost',
         port: 8080,
         fs: {
           allow: [rootDirectory, '.'],

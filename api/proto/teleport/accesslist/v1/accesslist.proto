@@ -32,12 +32,15 @@ message AccessList {
 
   // spec is the specification for the access list.
   AccessListSpec spec = 2;
+
+  // status contains dynamically calculated fields.
+  AccessListStatus status = 3;
 }
 
 // AccessListSpec is the specification for an access list.
 message AccessListSpec {
-  reserved 7;
-  reserved "members";
+  reserved 7, 9, 10;
+  reserved "members", "membership", "ownership";
 
   // description is an optional plaintext description of the access list.
   string description = 1;
@@ -48,14 +51,16 @@ message AccessListSpec {
   // audit describes the frequency that this access list must be audited.
   AccessListAudit audit = 3;
 
-  // membership_requires describes the requirements for a user to be a member of the access list.
-  // For a membership to an access list to be effective, the user must meet the requirements of
-  // Membership_requires and must be in the members list.
+  // membership_requires describes the requirements for a user to be a member of
+  // the access list. For a membership to an access list to be effective, the
+  // user must meet the requirements of Membership_requires and must be in the
+  // members list.
   AccessListRequires membership_requires = 4;
 
-  // ownership_requires describes the requirements for a user to be an owner of the access list.
-  // For ownership of an access list to be effective, the user must meet the requirements of
-  // ownership_requires and must be in the owners list.
+  // ownership_requires describes the requirements for a user to be an owner of
+  // the access list. For ownership of an access list to be effective, the user
+  // must meet the requirements of ownership_requires and must be in the owners
+  // list.
   AccessListRequires ownership_requires = 5;
 
   // grants describes the access granted by membership to this access list.
@@ -63,24 +68,6 @@ message AccessListSpec {
 
   // title is a plaintext short description of the access list.
   string title = 8;
-
-  // membership defines how list membership is applied. There are two possible
-  // values:
-  //   `explicit` (default): To be considered ag member of the access list, a
-  //                         user must both meet the `membership_requires`
-  //                         conditions AND be explicitly added to the list.
-  //   `implicit`: Any user meeting the `membership_requires` conditions will automatically
-  //             be considered a member of this list.
-  string membership = 9;
-
-  // ownership defines how list ownership of this list is determined. There are
-  // two possible values:
-  //   `explicit` (default): To be considered an owner of the access list, a user
-  //                         must both meet the `ownership_requires` conditions AND be
-  //                         explicitly added to the list.
-  //   `implicit`: Any user meeting the `ownership_requires` conditions will automatically
-  //             be considered an owner of this list.
-  string ownership = 10;
 
   // owner_grants describes the access granted by owners to this access list.
   AccessListGrants owner_grants = 11;
@@ -91,7 +78,8 @@ message AccessListOwner {
   // name is the username of the owner.
   string name = 1;
 
-  // description is the plaintext description of the owner and why they are an owner.
+  // description is the plaintext description of the owner and why they are an
+  // owner.
   string description = 2;
 
   // ineligible_status describes if this owner is eligible or not
@@ -133,35 +121,44 @@ enum ReviewDayOfMonth {
 
 // Recurrence is the definition for when reviews will be scheduled.
 message Recurrence {
-  // frequency is the frequency of reviews.
+  // frequency is the frequency of reviews. This represents the period in months
+  // between two reviews.
+  // Supported values are 0, 1, 3, 6, and 12.
   ReviewFrequency frequency = 1;
 
   // day_of_month is the day of month that reviews will be scheduled on.
+  // Supported values are 0, 1, 15, and 31.
   ReviewDayOfMonth day_of_month = 2;
 }
 
-// Notifications contains the configuration for notifying users of a nearing next audit date.
+// Notifications contains the configuration for notifying users of a nearing
+// next audit date.
 message Notifications {
-  // start specifies when to start notifying users that the next audit date is coming up.
+  // start specifies when to start notifying users that the next audit date is
+  // coming up.
   google.protobuf.Duration start = 1;
 }
 
-// AccessListRequires describes a requirement section for an access list. A user must
-// meet the following criteria to obtain the specific access to the list.
+// AccessListRequires describes a requirement section for an access list. A user
+// must meet the following criteria to obtain the specific access to the list.
 message AccessListRequires {
-  // roles are the user roles that must be present for the user to obtain access.
+  // roles are the user roles that must be present for the user to obtain
+  // access.
   repeated string roles = 1;
 
   // traits are the traits that must be present for the user to obtain access.
   repeated teleport.trait.v1.Trait traits = 2;
 }
 
-// AccessListGrants describes what access is granted by membership to the access list.
+// AccessListGrants describes what access is granted by membership to the access
+// list.
 message AccessListGrants {
-  // roles are the roles that are granted to users who are members of the access list.
+  // roles are the roles that are granted to users who are members of the access
+  // list.
   repeated string roles = 1;
 
-  // traits are the traits that are granted to users who are members of the access list.
+  // traits are the traits that are granted to users who are members of the
+  // access list.
   repeated teleport.trait.v1.Trait traits = 2;
 }
 
@@ -176,6 +173,9 @@ message Member {
 
 // MemberSpec is the specification for an access list member.
 message MemberSpec {
+  reserved 8;
+  reserved "membership";
+
   // associated access list
   string access_list = 1;
 
@@ -197,23 +197,20 @@ message MemberSpec {
   // ineligible_status describes if this member is eligible or not
   // and if not, describes how they're lacking eligibility.
   IneligibleStatus ineligible_status = 7;
-
-  // membership defines how list membership was acquired. There are two possible
-  // values: `explicit` and `implicit`.
-  string membership = 8;
 }
 
 // IneligibleStatus describes how the user is ineligible.
 enum IneligibleStatus {
   // INELIGIBLE_STATUS_UNSPECIFIED means eligiblity is unknown.
   INELIGIBLE_STATUS_UNSPECIFIED = 0;
-  // INELIGIBLE_STATUS_ELIGIBLE means checks were done and user met all requirements.
+  // INELIGIBLE_STATUS_ELIGIBLE means checks were done and user met all
+  // requirements.
   INELIGIBLE_STATUS_ELIGIBLE = 1;
   // INELIGIBLE_STATUS_USER_NOT_EXIST means user was not found in backend.
   INELIGIBLE_STATUS_USER_NOT_EXIST = 2;
-  // INELIGIBLE_STATUS_MISSING_REQUIREMENTS means user is missing some requirements
-  // defined by AccessListRequires (fields can be either ownership_requires
-  // or membership_requires)
+  // INELIGIBLE_STATUS_MISSING_REQUIREMENTS means user is missing some
+  // requirements defined by AccessListRequires (fields can be either
+  // ownership_requires or membership_requires)
   INELIGIBLE_STATUS_MISSING_REQUIREMENTS = 3;
   // INELIGIBLE_STATUS_EXPIRED means user is expired.
   // Only applicable to members.
@@ -240,8 +237,8 @@ message ReviewSpec {
   // review_date is the date that this review was created.
   google.protobuf.Timestamp review_date = 3;
 
-  // notes is an optional plaintext attached to the review that can be used by the review for arbitrary
-  // note taking on the review.
+  // notes is an optional plaintext attached to the review that can be used by
+  // the review for arbitrary note taking on the review.
   string notes = 4;
 
   // changes are the changes made as part of the review.
@@ -253,15 +250,24 @@ message ReviewChanges {
   reserved 1;
   reserved "frequency_changed";
 
-  // membership_requirements_changed is populated if the requirements were changed as part of this review.
+  // membership_requirements_changed is populated if the requirements were
+  // changed as part of this review.
   AccessListRequires membership_requirements_changed = 2;
 
-  // removed_members contains the members that were removed as part of this review.
+  // removed_members contains the members that were removed as part of this
+  // review.
   repeated string removed_members = 3;
 
   // review_frequency_changed is populated if the review frequency has changed.
   ReviewFrequency review_frequency_changed = 4;
 
-  // review_day_of_month_changed is populated if the review day of month has changed.
+  // review_day_of_month_changed is populated if the review day of month has
+  // changed.
   ReviewDayOfMonth review_day_of_month_changed = 5;
+}
+
+// AccessListStatus contains dynamic fields calculated during retrieval.
+message AccessListStatus {
+  // member_count is the number of members in the in the access list.
+  optional uint32 member_count = 1;
 }

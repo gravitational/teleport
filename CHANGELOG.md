@@ -1,5 +1,17 @@
 # Changelog
 
+## 16.0.0 (xx/xx/xx)
+
+### Breaking changes
+
+#### Opsgenie plugin annotations
+
+Opsgenie plugin users, role annotations must now contain
+`teleport.dev/notify-services` to receive notification on Opsgenie.
+`teleport.dev/schedules` is now the label used to determine auto approval flow.
+See [the Opsgenie plugin documentation](docs/pages/access-controls/access-request-plugins/opsgenie.mdx)
+for setup instructions.
+
 ## 15.0.0 (xx/xx/24)
 
 ### New features
@@ -152,6 +164,17 @@ Do not run debug container images in production environments.
 Heavy container images will continue to be published for Teleport 13 and 14
 throughout the remainder of these releases' lifecycle.
 
+##### Helm cluster chart FIPS mode changes
+
+The teleport-cluster chart no longer uses versionOverride and extraArgs to set FIPS mode. 
+
+Instead, you should use the following values file configuration:
+```
+enterpriseImage: public.ecr.aws/gravitational/teleport-ent-fips-distroless
+authentication:
+  localAuth: false
+```
+
 ##### Multi-architecture Teleport Operator images
 
 Teleport Operator container images will no longer be published with architecture
@@ -230,6 +253,19 @@ deploy a specific Teleport version, use Helm's `--version X.Y.Z` instead.
 The operator now joins using a Kubernetes ServiceAccount token. To validate the
 token, the Teleport Auth Service must have access to the `TokenReview` API.
 The chart configures this for you since v12, unless you disabled `rbac` creation.
+
+##### Helm cluster chart FIPS mode changes
+
+The teleport-cluster chart no longer uses versionOverride and extraArgs to set FIPS mode. 
+
+Instead, you should use the following values file configuration:
+
+```
+enterpriseImage: public.ecr.aws/gravitational/teleport-ent-fips-distroless
+authentication:
+  localAuth: false
+
+```
 
 #### Resource version is now mandatory and immutable in the Terraform provider
 
@@ -315,7 +351,7 @@ applications in Kubernetes clusters. When connected to a Kubernetes cluster (or
 deployed as a Helm chart), Teleport discovery service will automatically find
 and enroll web applications for use with app access.
 
-See documentation [here](docs/pages/application-access/enroll-kubernetes-applications.mdx).
+See documentation [here](docs/pages/auto-discovery/kubernetes-applications.mdx).
 
 #### Extended Kubernetes per-resource RBAC
 
@@ -388,7 +424,7 @@ Teleport 14 before upgrading.
 #### SSH node open dial no longer supported
 
 Teleport 14 no longer allows connecting to OpenSSH servers not registered with
-the cluster. Follow the updated agentless OpenSSH integration [guide](docs/pages/server-access/guides/openssh.mdx)
+the cluster. Follow the updated agentless OpenSSH integration [guide](docs/pages/server-access/openssh/openssh.mdx)
 to register your OpenSSH nodes in the cluster’s inventory.
 
 You can set `TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING=yes` environment variable
@@ -637,7 +673,7 @@ This will allow users to view the OpenSSH nodes in Web UI and using `tsh ls`
 and use RBAC to control access to them.
 
 See the updated [OpenSSH integration
-guide](docs/pages/server-access/guides/openssh.mdx).
+guide](docs/pages/server-access/openssh/openssh.mdx).
 
 ### Cross-cluster search for Teleport Connect
 
@@ -3409,7 +3445,7 @@ can limit access by changing the options on the new `event` resource.
 The minimum set of Kubernetes permissions that need to be granted to Teleport
 proxies has been updated. If you use the Kubernetes integration, please make
 sure that the ClusterRole used by the proxy has [sufficient
-permissions](./docs/pages/kubernetes-access/manage-access/rbac.mdx).
+permissions](./docs/pages/kubernetes-access/controls.mdx).
 
 ##### Path prefix for etcd
 

@@ -57,6 +57,8 @@ func denyPatternsMatch(s []byte) bool {
 	return false
 }
 
+var _ Backend = (*Sanitizer)(nil)
+
 // Sanitizer wraps a Backend implementation to make sure all values requested
 // of the backend are whitelisted.
 type Sanitizer struct {
@@ -158,6 +160,16 @@ func (s *Sanitizer) DeleteRange(ctx context.Context, startKey []byte, endKey []b
 	}
 
 	return s.backend.DeleteRange(ctx, startKey, endKey)
+}
+
+func (s *Sanitizer) AtomicWrite(ctx context.Context, condacts []ConditionalAction) (revision string, err error) {
+	for _, ca := range condacts {
+		if !isKeySafe(ca.Key) {
+			return "", trace.BadParameter(errorMessage, ca.Key)
+		}
+	}
+
+	return s.backend.AtomicWrite(ctx, condacts)
 }
 
 // KeepAlive keeps object from expiring, updates lease on the existing object,

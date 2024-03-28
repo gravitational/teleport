@@ -18,8 +18,6 @@ is published, since the PR will include an update to the plugins version as well
 ### Major releases only
 
 - [ ] Update support matrix in docs FAQ page
-- [ ] Update `branchMajorVersion` const in Dronegen `/dronegen/container_images.go`, then run `make dronegen`
-- [ ] Update `CURRENT_VERSION_ROOT`, `PREVIOUS_VERSION_ONE_ROOT`, and `PREVIOUS_VERSION_TWO_ROOT` variables in `.drone.yml`, then run `make dronegen`
   - Example: https://github.com/gravitational/teleport/pull/4602
 - [ ] Update the list of OCI images to monitor and rebuild nightly in
   [`monitor-teleport-oci-distroless.yml` on `master`](https://github.com/gravitational/teleport.e/blob/master/.github/workflows/monitor-teleport-oci-distroless.yml) and

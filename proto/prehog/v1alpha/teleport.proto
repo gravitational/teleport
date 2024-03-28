@@ -1219,6 +1219,31 @@ message DiscoveryFetchEvent {
   string resource_type = 2;
 }
 
+// OktaAccessListSyncEvent is an event that is emitted after the Okta service synchronizes
+// access lists from Okta.
+message OktaAccessListSyncEvent {
+  // NumAppFilters is the number of application filters used for this sync.
+  int32 num_app_filters = 1;
+
+  // NumGroupFilters is the number of group filters used for this sync.
+  int32 num_group_filters = 2;
+
+  // NumApps is the number of apps that were synchronized from this sync event.
+  int32 num_apps = 3;
+
+  // NumGroups is the number of groups that were synchronized from this sync event.
+  int32 num_groups = 4;
+
+  // NumRoles are the number of roles that were created/updated.
+  int32 num_roles = 5;
+
+  // NumAccessLists are the number of access lists that were created/updated.
+  int32 num_access_lists = 6;
+
+  // NumAccessListMembers are the number of access list members that were created/updated.
+  int32 num_access_list_members = 7;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -1345,6 +1370,8 @@ message SubmitEventRequest {
     MFAAuthenticationEvent mfa_authentication_event = 78;
 
     SPIFFESVIDIssuedEvent spiffe_svid_issued = 79;
+
+    OktaAccessListSyncEvent okta_access_list_sync = 80;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

@@ -272,6 +272,9 @@ func TestGatewayCRUD(t *testing.T) {
 				GatewayCreator: mockGatewayCreator,
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
+				CreateClientCacheFunc: func(resolver ResolveClusterFunc) ClientCache {
+					return fakeClientCache{}
+				},
 			})
 			require.NoError(t, err)
 
@@ -450,6 +453,9 @@ func TestRetryWithRelogin(t *testing.T) {
 				},
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
+				CreateClientCacheFunc: func(resolver ResolveClusterFunc) ClientCache {
+					return fakeClientCache{}
+				},
 			})
 			require.NoError(t, err)
 
@@ -500,6 +506,9 @@ func TestImportantModalSemaphore(t *testing.T) {
 		},
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
+		CreateClientCacheFunc: func(resolver ResolveClusterFunc) ClientCache {
+			return fakeClientCache{}
+		},
 	})
 	require.NoError(t, err)
 
@@ -648,6 +657,9 @@ func TestGetGatewayCLICommand(t *testing.T) {
 		},
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
+		CreateClientCacheFunc: func(resolver ResolveClusterFunc) ClientCache {
+			return fakeClientCache{}
+		},
 	})
 	require.NoError(t, err)
 
@@ -723,4 +735,12 @@ type fakeStorage struct {
 
 func (f fakeStorage) GetByResourceURI(resourceURI uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error) {
 	return &clusters.Cluster{}, &client.TeleportClient{}, nil
+}
+
+type fakeClientCache struct {
+	ClientCache
+}
+
+func (f fakeClientCache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
+	return &client.ProxyClient{}, nil
 }

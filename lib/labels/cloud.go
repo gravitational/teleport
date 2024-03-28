@@ -29,6 +29,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 )
@@ -66,7 +67,7 @@ func (conf *CloudConfig) checkAndSetDefaults() error {
 		conf.Clock = clockwork.NewRealClock()
 	}
 	if conf.Log == nil {
-		conf.Log = logrus.WithField(trace.Component, "cloudlabels")
+		conf.Log = logrus.WithField(teleport.ComponentKey, "cloudlabels")
 	}
 	return nil
 }

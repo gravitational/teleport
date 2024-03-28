@@ -61,7 +61,7 @@ export function fetchBots(
   signal: AbortSignal,
   flags: FeatureFlags
 ): Promise<BotList> {
-  if (!flags.users) {
+  if (!flags.listBots) {
     return;
   }
 
@@ -89,7 +89,7 @@ export function editBot(
   name: string,
   req: EditBotRequest
 ): Promise<FlatBot> {
-  if (!flags.users || !flags.roles) {
+  if (!flags.editBots || !flags.roles) {
     return;
   }
 
@@ -99,7 +99,7 @@ export function editBot(
 }
 
 export function deleteBot(flags: FeatureFlags, name: string) {
-  if (!flags.users) {
+  if (!flags.removeBots) {
     return;
   }
 

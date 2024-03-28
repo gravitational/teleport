@@ -251,7 +251,7 @@ const (
 // It's an implementation of backend API's NewFunc
 func New(ctx context.Context, cfg Config) (*Log, error) {
 	l := log.WithFields(log.Fields{
-		trace.Component: teleport.Component(teleport.ComponentDynamoDB),
+		teleport.ComponentKey: teleport.Component(teleport.ComponentDynamoDB),
 	})
 	l.Info("Initializing event backend.")
 
@@ -264,9 +264,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		Config: cfg,
 	}
 
-	awsConfig := aws.Config{
-		EC2MetadataEnableFallback: aws.Bool(false),
-	}
+	awsConfig := aws.Config{}
 
 	// Override the default environment's region if value set in YAML file:
 	if cfg.Region != "" {
@@ -446,8 +444,9 @@ func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamod
 		return nil, trace.Wrap(err)
 	}
 	return &dynamodb.PutItemInput{
-		Item:      av,
-		TableName: aws.String(l.Tablename),
+		Item:                av,
+		TableName:           aws.String(l.Tablename),
+		ConditionExpression: aws.String("attribute_not_exists(SessionID) AND attribute_not_exists(EventIndex)"),
 	}, nil
 }
 

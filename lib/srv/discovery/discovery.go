@@ -20,6 +20,7 @@ package discovery
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"slices"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
@@ -51,8 +53,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
+	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
+	"github.com/gravitational/teleport/lib/utils/spreadwork"
 )
 
 var errNoInstances = errors.New("all fetched nodes already enrolled")
@@ -67,10 +71,16 @@ type Matchers struct {
 	GCP []types.GCPMatcher
 	// Kubernetes is a list of Kubernetes matchers to discovery resources.
 	Kubernetes []types.KubernetesMatcher
+	// AccessGraph is the configuration for the Access Graph Cloud sync.
+	AccessGraph *types.AccessGraphSync
 }
 
 func (m Matchers) IsEmpty() bool {
-	return len(m.GCP) == 0 && len(m.AWS) == 0 && len(m.Azure) == 0 && len(m.Kubernetes) == 0
+	return len(m.GCP) == 0 &&
+		len(m.AWS) == 0 &&
+		len(m.Azure) == 0 &&
+		len(m.Kubernetes) == 0 &&
+		(m.AccessGraph == nil || len(m.AccessGraph.AWS) == 0)
 }
 
 // ssmInstaller handles running SSM commands that install Teleport on EC2 instances.
@@ -107,6 +117,8 @@ type Config struct {
 	AccessPoint auth.DiscoveryAccessPoint
 	// Log is the logger.
 	Log logrus.FieldLogger
+	// ServerID identifies the Teleport instance where this service runs.
+	ServerID string
 	// onDatabaseReconcile is called after each database resource reconciliation.
 	onDatabaseReconcile func()
 	// protocolChecker is used by Kubernetes fetchers to check port's protocol if needed.
@@ -125,6 +137,16 @@ type Config struct {
 	// discovery cycles.
 	PollInterval time.Duration
 
+	// ServerCredentials are the credentials used to identify the discovery service
+	// to the Access Graph service.
+	ServerCredentials *tls.Config
+	// AccessGraphConfig is the configuration for the Access Graph client
+	AccessGraphConfig AccessGraphConfig
+
+	// ClusterFeatures returns flags for supported/unsupported features.
+	// Used as a function because cluster features might change on Auth restarts.
+	ClusterFeatures func() proto.Features
+
 	// TriggerFetchC is a list of channels that must be notified when a off-band poll must be performed.
 	// This is used to start a polling iteration when a new DiscoveryConfig change is received.
 	TriggerFetchC  []chan struct{}
@@ -133,6 +155,25 @@ type Config struct {
 	// clock is passed to watchers to handle poll intervals.
 	// Mostly used in tests.
 	clock clockwork.Clock
+
+	// jitter is a function which applies random jitter to a duration.
+	// It is used to add Expiration times to Resources that don't support Heartbeats (eg EICE Nodes).
+	jitter retryutils.Jitter
+}
+
+// AccessGraphConfig represents TAG server config.
+type AccessGraphConfig struct {
+	// Enabled indicates if Access Graph reporting is enabled.
+	Enabled bool
+
+	// Addr of the Access Graph service.
+	Addr string
+
+	// CA is the CA in PEM format used by the Access Graph service.
+	CA []byte
+
+	// Insecure is true if the connection to the Access Graph service should be insecure.
+	Insecure bool
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -194,7 +235,11 @@ kubernetes matchers are present.`)
 		c.clock = clockwork.NewRealClock()
 	}
 
-	c.Log = c.Log.WithField(trace.Component, teleport.ComponentDiscovery)
+	if c.ClusterFeatures == nil {
+		return trace.BadParameter("cluster features are required")
+	}
+
+	c.Log = c.Log.WithField(teleport.ComponentKey, teleport.ComponentDiscovery)
 
 	if c.DiscoveryGroup == "" {
 		c.Log.Warn("discovery_service.discovery_group is not set. This field is required for the discovery service to work properly.\n" +
@@ -202,6 +247,9 @@ kubernetes matchers are present.`)
 	}
 
 	c.Matchers.Azure = services.SimplifyAzureMatchers(c.Matchers.Azure)
+
+	c.jitter = retryutils.NewSeventhJitter()
+
 	return nil
 }
 
@@ -230,7 +278,7 @@ type Server struct {
 	// gcpInstaller is used to start the installation process on discovered GCP
 	// virtual machines
 	gcpInstaller gcpInstaller
-	// kubeFetchers holds all kubernetes fetchers for Azure and other clouds.
+	// kubeFetchers holds all non-integration based kubernetes fetchers for Azure and other clouds.
 	kubeFetchers []common.Fetcher
 	// kubeAppsFetchers holds all kubernetes fetchers for apps.
 	kubeAppsFetchers []common.Fetcher
@@ -264,6 +312,18 @@ type Server struct {
 	muDynamicServerGCPFetchers sync.RWMutex
 	staticServerGCPFetchers    []server.Fetcher
 
+	// dynamicTAGSyncFetchers holds the current TAG Fetchers for the Dynamic Matchers (those coming from DiscoveryConfig resource).
+	// The key is the DiscoveryConfig name.
+	dynamicTAGSyncFetchers   map[string][]aws_sync.AWSSync
+	muDynamicTAGSyncFetchers sync.RWMutex
+	staticTAGSyncFetchers    []aws_sync.AWSSync
+
+	// dynamicKubeIntegrationFetchers holds the current kube fetchers that use integration as a source of credentials,
+	// for the Dynamic Matchers (those coming from DiscoveryConfig resource).
+	// The key is the DiscoveryConfig name.
+	dynamicKubeIntegrationFetchers   map[string][]common.Fetcher
+	muDynamicKubeIntegrationFetchers sync.RWMutex
+
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
 	// reconciler periodically reconciles the labels of discovered instances
@@ -284,14 +344,16 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 
 	localCtx, cancelfn := context.WithCancel(ctx)
 	s := &Server{
-		Config:                     cfg,
-		ctx:                        localCtx,
-		cancelfn:                   cancelfn,
-		usageEventCache:            make(map[string]struct{}),
-		dynamicDatabaseFetchers:    make(map[string][]common.Fetcher),
-		dynamicServerAWSFetchers:   make(map[string][]server.Fetcher),
-		dynamicServerAzureFetchers: make(map[string][]server.Fetcher),
-		dynamicServerGCPFetchers:   make(map[string][]server.Fetcher),
+		Config:                         cfg,
+		ctx:                            localCtx,
+		cancelfn:                       cancelfn,
+		usageEventCache:                make(map[string]struct{}),
+		dynamicKubeIntegrationFetchers: make(map[string][]common.Fetcher),
+		dynamicDatabaseFetchers:        make(map[string][]common.Fetcher),
+		dynamicServerAWSFetchers:       make(map[string][]server.Fetcher),
+		dynamicServerAzureFetchers:     make(map[string][]server.Fetcher),
+		dynamicServerGCPFetchers:       make(map[string][]server.Fetcher),
+		dynamicTAGSyncFetchers:         make(map[string][]aws_sync.AWSSync),
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
@@ -327,6 +389,10 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if err := s.initAccessGraphWatchers(ctx, cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return s, nil
 }
 
@@ -357,6 +423,10 @@ func (s *Server) startDynamicMatchersWatcher(ctx context.Context) error {
 	}
 
 	s.dynamicMatcherWatcher = watcher
+
+	if err := s.loadExistingDynamicDiscoveryConfigs(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	go s.startDynamicWatcherUpdater()
 	return nil
@@ -404,42 +474,14 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	// Database fetchers were added in databaseFetchersFromMatchers.
 	_, otherMatchers = splitMatchers(otherMatchers, db.IsAWSMatcherType)
 
-	// Add kube fetchers.
-	for _, matcher := range otherMatchers {
-		matcherAssumeRole := types.AssumeRole{}
-		if matcher.AssumeRole != nil {
-			matcherAssumeRole = *matcher.AssumeRole
-		}
-
-		for _, t := range matcher.Types {
-			for _, region := range matcher.Regions {
-				switch t {
-				case types.AWSMatcherEKS:
-					fetcher, err := s.getEKSFetcher(region, matcherAssumeRole, matcher.Tags)
-					if err != nil {
-						s.Log.WithError(err).Warnf("Could not initialize EKS fetcher(Region=%q, Labels=%q, AssumeRole=%q), skipping.", region, matcher.Tags, matcherAssumeRole.RoleARN)
-						continue
-					}
-					s.kubeFetchers = append(s.kubeFetchers, fetcher)
-				}
-			}
-		}
+	// Add non-integration kube fetchers.
+	kubeFetchers, _, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.CloudClients, otherMatchers)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	s.kubeFetchers = append(s.kubeFetchers, kubeFetchers...)
 
 	return nil
-}
-
-func (s *Server) getEKSFetcher(region string, assumeRole types.AssumeRole, tags types.Labels) (common.Fetcher, error) {
-	fetcher, err := fetchers.NewEKSFetcher(
-		fetchers.EKSFetcherConfig{
-			EKSClientGetter: s.CloudClients,
-			AssumeRole:      assumeRole,
-			Region:          region,
-			FilterLabels:    tags,
-			Log:             s.Log,
-		},
-	)
-	return fetcher, trace.Wrap(err)
 }
 
 func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
@@ -544,6 +586,26 @@ func (s *Server) databaseFetchersFromMatchers(matchers Matchers) ([]common.Fetch
 	// There are no Database Matchers for Kube Matchers.
 
 	return fetchers, nil
+}
+
+func (s *Server) kubeIntegrationFetchersFromMatchers(matchers Matchers) ([]common.Fetcher, error) {
+	var result []common.Fetcher
+
+	// AWS
+	awsKubeMatchers, _ := splitMatchers(matchers.AWS, func(matcherType string) bool {
+		return matcherType == types.AWSMatcherEKS
+	})
+	if len(awsKubeMatchers) > 0 {
+		_, kubeIntegrationFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.CloudClients, awsKubeMatchers)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result = append(result, kubeIntegrationFetchers...)
+	}
+
+	// There can't be kube integration fetchers for other matcher types.
+
+	return result, nil
 }
 
 // initAzureWatchers starts Azure resource watchers based on types provided.
@@ -741,12 +803,6 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 
 func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	// TODO(marco): support AWS SSM Client backed by an integration
-	// TODO(gavin): support assume_role_arn for ec2.
-	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx, instances.Region, cloud.WithAmbientCredentials())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	serverInfos, err := instances.ServerInfos()
 	if err != nil {
 		return trace.Wrap(err)
@@ -756,11 +812,112 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	// instances.Rotation is true whenever the instances received need
 	// to be rotated, we don't want to filter out existing OpenSSH nodes as
 	// they all need to have the command run on them
-	if !instances.Rotation {
+	//
+	// Integration/EICE Nodes don't have heartbeat.
+	// Those Nodes must not be filtered, so that we can extend their expiration and sync labels.
+	if !instances.Rotation && instances.Integration == "" {
 		s.filterExistingEC2Nodes(instances)
 	}
 	if len(instances.Instances) == 0 {
 		return trace.NotFound("all fetched nodes already enrolled")
+	}
+
+	switch {
+	case instances.Integration != "":
+		s.heartbeatEICEInstance(instances)
+	default:
+		if err := s.handleEC2RemoteInstallation(instances); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
+		s.Log.WithError(err).Debug("Error emitting usage event.")
+	}
+
+	return nil
+}
+
+// heartbeatEICEInstance heartbeats the list of EC2 instances as Teleport (EICE) Nodes.
+func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
+	awsInfo := &types.AWSInfo{
+		AccountID:   instances.AccountID,
+		Region:      instances.Region,
+		Integration: instances.Integration,
+	}
+
+	existingEICEServersList := s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
+		return n.IsEICE()
+	})
+
+	existingEICEServersMap := make(map[string]types.Server, len(existingEICEServersList))
+	for _, eiceServer := range existingEICEServersList {
+		si, err := types.ServerInfoForServer(eiceServer)
+		if err != nil {
+			s.Log.Debugf("Failed to convert Server %q to ServerInfo: %v", eiceServer.GetName(), err)
+			continue
+		}
+
+		existingEICEServersMap[si.GetName()] = eiceServer
+	}
+
+	nodesToUpsert := make([]types.Server, 0, len(instances.Instances))
+	// Add EC2 Instances using EICE method
+	for _, ec2Instance := range instances.Instances {
+		eiceNode, err := services.NewAWSNodeFromEC2v1Instance(ec2Instance.OriginalInstance, awsInfo)
+		if err != nil {
+			s.Log.WithField("instance_id", ec2Instance.InstanceID).Warnf("Error converting to Teleport EICE Node: %v", err)
+			continue
+		}
+
+		serverInfo, err := types.ServerInfoForServer(eiceNode)
+		if err != nil {
+			s.Log.WithField("instance_id", ec2Instance.InstanceID).Warnf("Error converting to Teleport ServerInfo: %v", err)
+			continue
+		}
+
+		if existingNode, found := existingEICEServersMap[serverInfo.GetName()]; found {
+			// Re-use the same Name so that `UpsertNode` replaces the node.
+			eiceNode.SetName(existingNode.GetName())
+
+			// To reduce load, nodes are skipped if
+			// - they didn't change and
+			// - their expiration is far away in the future (at least 2 Poll iterations before the Node expires)
+			//
+			// As an example, and using the default PollInterval (5 minutes),
+			// nodes that didn't change and have their expiration greater than now+15m will be skipped.
+			// This gives at least another two iterations of the DiscoveryService before the node is actually removed.
+			// Note: heartbeats set an expiration of 90 minutes.
+			if existingNode.Expiry().After(s.clock.Now().Add(3*s.PollInterval)) &&
+				services.CompareServers(existingNode, eiceNode) == services.OnlyTimestampsDifferent {
+				continue
+			}
+		}
+
+		eiceNodeExpiration := s.clock.Now().Add(s.jitter(serverExpirationDuration))
+		eiceNode.SetExpiry(eiceNodeExpiration)
+		nodesToUpsert = append(nodesToUpsert, eiceNode)
+	}
+
+	applyOverTimeConfig := spreadwork.ApplyOverTimeConfig{
+		MaxDuration: s.PollInterval,
+	}
+	err := spreadwork.ApplyOverTime(s.ctx, applyOverTimeConfig, nodesToUpsert, func(eiceNode types.Server) {
+		if _, err := s.AccessPoint.UpsertNode(s.ctx, eiceNode); err != nil {
+			instanceID := eiceNode.GetAWSInstanceID()
+			s.Log.WithField("instance_id", instanceID).Warnf("Error upserting EC2 instance: %v", err)
+		}
+	})
+	if err != nil {
+		s.Log.Warnf("Failed to upsert EC2 nodes: %v", err)
+	}
+}
+
+func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) error {
+	// TODO(gavin): support assume_role_arn for ec2.
+	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx, instances.Region, cloud.WithAmbientCredentials())
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	s.Log.Debugf("Running Teleport installation on these instances: AccountID: %s, Instances: %s",
@@ -776,9 +933,6 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	}
 	if err := s.ec2Installer.Run(s.ctx, req); err != nil {
 		return trace.Wrap(err)
-	}
-	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
-		s.Log.WithError(err).Debug("Error emitting usage event.")
 	}
 	return nil
 }
@@ -1188,6 +1342,9 @@ func (s *Server) Start() error {
 	if err := s.startKubeWatchers(); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := s.startKubeIntegrationWatchers(); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := s.startKubeAppsWatchers(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1197,25 +1354,23 @@ func (s *Server) Start() error {
 	return nil
 }
 
-// startDynamicWatcherUpdater watches for DiscoveryConfig resource change events.
-// Before consuming changes, it iterates over all DiscoveryConfigs and
-// For deleted resources, it deletes the matchers.
-// For new/updated resources, it replaces the set of fetchers.
-func (s *Server) startDynamicWatcherUpdater() {
+// loadExistingDynamicDiscoveryConfigs loads all the dynamic discovery configs for the current discovery group
+// and setups their matchers.
+func (s *Server) loadExistingDynamicDiscoveryConfigs() error {
 	// Add all existing DiscoveryConfigs as matchers.
 	nextKey := ""
 	for {
 		dcs, respNextKey, err := s.AccessPoint.ListDiscoveryConfigs(s.ctx, 0, nextKey)
 		if err != nil {
 			s.Log.WithError(err).Warnf("failed to list discovery configs")
-			return
+			return trace.Wrap(err)
 		}
+
 		for _, dc := range dcs {
 			if dc.GetDiscoveryGroup() != s.DiscoveryGroup {
 				continue
 			}
-
-			if err := s.upsertDynamicMatchers(dc); err != nil {
+			if err := s.upsertDynamicMatchers(s.ctx, dc); err != nil {
 				s.Log.WithError(err).Warnf("failed to update dynamic matchers for discovery config %q", dc.GetName())
 				continue
 			}
@@ -1225,7 +1380,14 @@ func (s *Server) startDynamicWatcherUpdater() {
 		}
 		nextKey = respNextKey
 	}
+	return nil
+}
 
+// startDynamicWatcherUpdater watches for DiscoveryConfig resource change events.
+// Before consuming changes, it iterates over all DiscoveryConfigs and
+// For deleted resources, it deletes the matchers.
+// For new/updated resources, it replaces the set of fetchers.
+func (s *Server) startDynamicWatcherUpdater() {
 	// Consume DiscoveryConfig events to update Matchers as they change.
 	for {
 		select {
@@ -1247,7 +1409,7 @@ func (s *Server) startDynamicWatcherUpdater() {
 					continue
 				}
 
-				if err := s.upsertDynamicMatchers(dc); err != nil {
+				if err := s.upsertDynamicMatchers(s.ctx, dc); err != nil {
 					s.Log.WithError(err).Warnf("failed to update dynamic matchers for discovery config %q", dc.GetName())
 					continue
 				}
@@ -1306,15 +1468,24 @@ func (s *Server) deleteDynamicFetchers(name string) {
 	s.muDynamicServerGCPFetchers.Lock()
 	delete(s.dynamicServerGCPFetchers, name)
 	s.muDynamicServerGCPFetchers.Unlock()
+
+	s.muDynamicTAGSyncFetchers.Lock()
+	delete(s.dynamicTAGSyncFetchers, name)
+	s.muDynamicTAGSyncFetchers.Unlock()
+
+	s.muDynamicKubeIntegrationFetchers.Lock()
+	delete(s.dynamicKubeIntegrationFetchers, name)
+	s.muDynamicKubeIntegrationFetchers.Unlock()
 }
 
 // upsertDynamicMatchers upserts the internal set of dynamic matchers given a particular discovery config.
-func (s *Server) upsertDynamicMatchers(dc *discoveryconfig.DiscoveryConfig) error {
+func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) error {
 	matchers := Matchers{
-		AWS:        dc.Spec.AWS,
-		Azure:      dc.Spec.Azure,
-		GCP:        dc.Spec.GCP,
-		Kubernetes: dc.Spec.Kube,
+		AWS:         dc.Spec.AWS,
+		Azure:       dc.Spec.Azure,
+		GCP:         dc.Spec.GCP,
+		Kubernetes:  dc.Spec.Kube,
+		AccessGraph: dc.Spec.AccessGraph,
 	}
 	s.discardUnsupportedMatchers(&matchers)
 
@@ -1347,6 +1518,25 @@ func (s *Server) upsertDynamicMatchers(dc *discoveryconfig.DiscoveryConfig) erro
 	s.muDynamicDatabaseFetchers.Lock()
 	s.dynamicDatabaseFetchers[dc.GetName()] = databaseFetchers
 	s.muDynamicDatabaseFetchers.Unlock()
+
+	awsSyncMatchers, err := s.accessGraphFetchersFromMatchers(
+		ctx, matchers,
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.muDynamicTAGSyncFetchers.Lock()
+	s.dynamicTAGSyncFetchers[dc.GetName()] = awsSyncMatchers
+	s.muDynamicTAGSyncFetchers.Unlock()
+
+	kubeIntegrationFetchers, err := s.kubeIntegrationFetchersFromMatchers(matchers)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.muDynamicKubeIntegrationFetchers.Lock()
+	s.dynamicKubeIntegrationFetchers[dc.GetName()] = kubeIntegrationFetchers
+	s.muDynamicKubeIntegrationFetchers.Unlock()
 
 	// TODO(marco): add other fetchers: Kube Clusters and Kube Resources (Apps)
 	return nil

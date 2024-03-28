@@ -37,6 +37,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -1210,7 +1212,36 @@ func TestConnectToProxyCancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	proxy, err := clt.ConnectToProxy(ctx)
-	require.Nil(t, proxy)
+	clusterClient, err := clt.ConnectToCluster(ctx)
+	require.Nil(t, clusterClient)
 	require.Error(t, err)
+}
+
+func TestIsErrorResolvableWithRelogin(t *testing.T) {
+	for _, tt := range []struct {
+		name             string
+		err              error
+		expectResolvable bool
+	}{
+		{
+			name:             "private key policy error should be resolvable",
+			err:              keys.NewPrivateKeyPolicyError(keys.PrivateKeyPolicyHardwareKey),
+			expectResolvable: true,
+		}, {
+			name: "wrapped private key policy error should be resolvable",
+			err: &interceptors.RemoteError{
+				Err: keys.NewPrivateKeyPolicyError(keys.PrivateKeyPolicyHardwareKey),
+			},
+			expectResolvable: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			resolvable := IsErrorResolvableWithRelogin(tt.err)
+			if tt.expectResolvable {
+				require.True(t, resolvable, "Expected error to be resolvable with relogin")
+			} else {
+				require.False(t, resolvable, "Expected error to be unresolvable with relogin")
+			}
+		})
+	}
 }

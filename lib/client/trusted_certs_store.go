@@ -171,7 +171,7 @@ type FSTrustedCertsStore struct {
 func NewFSTrustedCertsStore(dirPath string) *FSTrustedCertsStore {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &FSTrustedCertsStore{
-		log: logrus.WithField(trace.Component, teleport.ComponentKeyStore),
+		log: logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
 		Dir: dirPath,
 	}
 }

@@ -161,6 +161,8 @@ export function StepSlider<T>(props: Props<T>) {
           rootRef.current.style.height = `${height}px`;
         }}
         hasTransitionEnded={hasTransitionEnded}
+        stepIndex={step}
+        flowLength={flows[currFlow].length}
         {...stepProps}
       />
     );
@@ -329,6 +331,8 @@ export type StepComponentProps = {
   // prev goes back a step in the flow.
   prev(): void;
   hasTransitionEnded: boolean;
+  stepIndex: number;
+  flowLength: number;
 };
 
 // NewFlow defines fields for a new flow.

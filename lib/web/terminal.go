@@ -122,8 +122,8 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 	return &TerminalHandler{
 		sshBaseHandler: sshBaseHandler{
 			log: logrus.WithFields(logrus.Fields{
-				trace.Component: teleport.ComponentWebsocket,
-				"session_id":    cfg.SessionData.ID.String(),
+				teleport.ComponentKey: teleport.ComponentWebsocket,
+				"session_id":          cfg.SessionData.ID.String(),
 			}),
 			ctx:                cfg.SessionCtx,
 			userAuthClient:     cfg.UserAuthClient,
@@ -135,6 +135,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 			interactiveCommand: cfg.InteractiveCommand,
 			router:             cfg.Router,
 			tracer:             cfg.tracer,
+			resolver:           cfg.HostNameResolver,
 		},
 		displayLogin:    cfg.DisplayLogin,
 		term:            cfg.Term,
@@ -161,6 +162,9 @@ type TerminalHandlerConfig struct {
 	// Requests that should be made on behalf of the user should
 	// use [UserAuthClient].
 	LocalAccessPoint localAccessPoint
+	// HostNameResolver allows the hostname to be determined from a server UUID
+	// so that a friendly name can be displayed in the console tab.
+	HostNameResolver func(serverID string) (hostname string, err error)
 	// DisplayLogin is the login name to display in the UI.
 	DisplayLogin string
 	// SessionData is the data to send to the client on the initial session creation.
@@ -275,6 +279,8 @@ type sshBaseHandler struct {
 	localAccessPoint localAccessPoint
 	// interactiveCommand is a command to execute.
 	interactiveCommand []string
+	// resolver looks up the hostname for the server UUID.
+	resolver func(serverID string) (hostname string, err error)
 }
 
 // localAccessPoint is a subset of the cache used to look up
@@ -282,7 +288,6 @@ type sshBaseHandler struct {
 type localAccessPoint interface {
 	GetUser(ctx context.Context, username string, withSecrets bool) (types.User, error)
 	GetRole(ctx context.Context, name string) (types.Role, error)
-	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 }
 
 // TerminalHandler connects together an SSH session with a web-based
@@ -370,11 +375,12 @@ func (t *TerminalHandler) writeSessionData(ctx context.Context) error {
 		// not be ok since this bypasses user RBAC, however, since at this point we have already
 		// established a connection to the target host via the user identity, the user MUST have
 		// access to the target host.
-		server, err := t.localAccessPoint.GetNode(ctx, apidefaults.Namespace, sessionDataTemp.ServerID)
+
+		hostname, err := t.resolver(sessionDataTemp.ServerID)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		sessionDataTemp.ServerHostname = server.GetHostname()
+		sessionDataTemp.ServerHostname = hostname
 
 		sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: sessionDataTemp})
 		if err != nil {
@@ -925,14 +931,12 @@ func (t *TerminalHandler) streamEvents(ctx context.Context, tc *client.TeleportC
 			logger.Debug("Sending audit event to web client.")
 
 			if err := t.stream.writeAuditEvent(data); err != nil {
-				if err != nil {
-					if errors.Is(err, websocket.ErrCloseSent) {
-						logger.WithError(err).Debug("Websocket was closed, no longer streaming events")
-						return
-					}
-					logger.WithError(err).Error("Unable to send audit event to web client")
-					continue
+				if errors.Is(err, websocket.ErrCloseSent) {
+					logger.WithError(err).Debug("Websocket was closed, no longer streaming events")
+					return
 				}
+				logger.WithError(err).Error("Unable to send audit event to web client")
+				continue
 			}
 
 		// Once the terminal stream is over (and the close envelope has been sent),
@@ -1095,6 +1099,14 @@ func (t *WSStream) writeError(msg string) {
 	}
 }
 
+func isOKWebsocketCloseError(err error) bool {
+	return websocket.IsCloseError(err,
+		websocket.CloseAbnormalClosure,
+		websocket.CloseGoingAway,
+		websocket.CloseNormalClosure,
+	)
+}
+
 func (t *WSStream) processMessages(ctx context.Context) {
 	defer func() {
 		t.close()
@@ -1108,8 +1120,7 @@ func (t *WSStream) processMessages(ctx context.Context) {
 		default:
 			ty, bytes, err := t.ws.ReadMessage()
 			if err != nil {
-				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) ||
-					websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
+				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || isOKWebsocketCloseError(err) {
 					return
 				}
 

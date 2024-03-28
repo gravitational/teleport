@@ -18,7 +18,7 @@
 
 import { GitHubIcon } from 'design/SVGIcon';
 
-import { BotType } from 'teleport/Bots/types';
+import { BotFlowType } from 'teleport/Bots/types';
 
 import cfg from 'teleport/config';
 
@@ -35,7 +35,7 @@ import { GitHubFlowProvider } from './useGitHubFlow';
 
 export const GitHubActionsFlow = {
   title: 'GitHub Actions',
-  link: cfg.getBotsNewRoute(BotType.GitHubActions),
+  link: cfg.getBotsNewRoute(BotFlowType.GitHubActions),
   icon: <GitHubIcon size={80} />,
   kind: IntegrationEnrollKind.MachineIDGitHubActions,
   guided: true,

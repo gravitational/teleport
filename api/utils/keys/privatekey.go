@@ -224,7 +224,7 @@ func MarshalPrivateKey(key crypto.Signer) ([]byte, error) {
 			Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
 		})
 		return privPEM, nil
-	case *ecdsa.PrivateKey, *ed25519.PrivateKey:
+	case *ecdsa.PrivateKey, ed25519.PrivateKey:
 		der, err := x509.MarshalPKCS8PrivateKey(privateKey)
 		if err != nil {
 			return nil, trace.Wrap(err)

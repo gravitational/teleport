@@ -19,11 +19,8 @@
 package teleport
 
 import (
-	"fmt"
 	"strings"
 	"time"
-
-	"github.com/coreos/go-semver/semver"
 )
 
 // WebAPIVersion is a current webapi version
@@ -72,6 +69,12 @@ const (
 )
 
 const (
+	// ComponentKey is a field that represents a component - e.g. service or
+	// function
+	ComponentKey = "teleport.ComponentKey"
+	// ComponentFields is a fields component
+	ComponentFields = "trace.fields"
+
 	// ComponentMemory is a memory backend
 	ComponentMemory = "memory"
 
@@ -674,6 +677,16 @@ const (
 	// during the setup of Connect My Computer. The prefix is followed by the name of the cluster
 	// user. See teleterm.connectmycomputer.RoleSetup.
 	ConnectMyComputerRoleNamePrefix = "connect-my-computer-"
+
+	// SystemOktaRequesterRoleName is a name of a system role that allows
+	// for requesting access to Okta resources. This differs from the requester role
+	// in that it allows for requesting longer lived access.
+	SystemOktaRequesterRoleName = "okta-requester"
+
+	// SystemOktaAccessRoleName is the name of the system role that allows
+	// access to Okta resources. This will be used by the Okta requester role to
+	// search for Okta resources.
+	SystemOktaAccessRoleName = "okta-access"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
@@ -683,16 +696,6 @@ const (
 	// an Access Request approver for access plugins
 	SystemAccessApproverUserName = "@teleport-access-approval-bot"
 )
-
-// MinClientVersion is the minimum client version required by the server.
-var MinClientVersion string
-
-func init() {
-	// Per https://github.com/gravitational/teleport/blob/master/rfd/0012-teleport-versioning.md,
-	// only one major version backwards is supported for clients.
-	ver := semver.New(Version)
-	MinClientVersion = fmt.Sprintf("%d.0.0", ver.Major-1)
-}
 
 const (
 	// RemoteClusterStatusOffline indicates that cluster is considered as
@@ -725,6 +728,14 @@ const (
 
 	// TerminalSizeRequest is a request for the terminal size of the session.
 	TerminalSizeRequest = "x-teleport-terminal-size"
+
+	// TCPIPForwardRequest is an SSH request for the server to open a listener
+	// for port forwarding.
+	TCPIPForwardRequest = "tcpip-forward"
+
+	// CancelTCPIPForwardRequest is an SSHRequest to cancel a previous
+	// TCPIPForwardRequest.
+	CancelTCPIPForwardRequest = "cancel-tcpip-forward"
 
 	// MFAPresenceRequest is an SSH request to notify clients that MFA presence is required for a session.
 	MFAPresenceRequest = "x-teleport-mfa-presence"
@@ -813,9 +824,13 @@ const (
 	// command execution (exec and shells).
 	ExecSubCommand = "exec"
 
-	// ForwardSubCommand is the sub-command Teleport uses to re-exec itself
-	// for port forwarding.
-	ForwardSubCommand = "forwardv2"
+	// LocalForwardSubCommand is the sub-command Teleport uses to re-exec itself
+	// for local port forwarding.
+	LocalForwardSubCommand = "forwardv2"
+
+	// RemoteForwardSubCommand is the sub-command Teleport uses to re-exec itself
+	// for remote port forwarding.
+	RemoteForwardSubCommand = "remoteforward"
 
 	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
 	// to check if the user's home directory exists.
@@ -837,10 +852,13 @@ const (
 )
 
 const (
-	// ChanDirectTCPIP is a SSH channel of type "direct-tcpip".
+	// ChanDirectTCPIP is an SSH channel of type "direct-tcpip".
 	ChanDirectTCPIP = "direct-tcpip"
 
-	// ChanSession is a SSH channel of type "session".
+	// ChanForwardedTCPIP is an SSH channel of type "forwarded-tcpip".
+	ChanForwardedTCPIP = "forwarded-tcpip"
+
+	// ChanSession is an SSH channel of type "session".
 	ChanSession = "session"
 )
 

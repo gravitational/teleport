@@ -39,6 +39,10 @@ const GlobalStyle = createGlobalStyle`
 
   input {
     accent-color: ${props => props.theme.colors.brand};
+
+    ::placeholder {
+      color: ${props => props.theme.colors.text.muted};
+    }
   }
 
   // custom scrollbars with the ability to use the default scrollbar behavior via adding the attribute [data-scrollbar=default]

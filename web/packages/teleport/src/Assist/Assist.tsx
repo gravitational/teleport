@@ -201,7 +201,7 @@ const Container = styled.div<{ docked: boolean }>`
   opacity: 0;
   animation: forwards ${fadeIn} 0.3s ease-in-out;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 1000;
+  z-index: ${p => (p.docked ? 2 : 100)};
   display: flex;
   justify-content: flex-end;
 `;

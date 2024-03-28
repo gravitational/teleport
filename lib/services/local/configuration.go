@@ -189,33 +189,87 @@ func (s *ClusterConfigurationService) GetAuthPreference(ctx context.Context) (ty
 		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
-// SetAuthPreference sets the cluster authentication preferences
-// on the backend.
-func (s *ClusterConfigurationService) SetAuthPreference(ctx context.Context, preferences types.AuthPreference) error {
+// CreateAuthPreference creates an auth preference if once does not already exist.
+func (s *ClusterConfigurationService) CreateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error) {
 	// Perform the modules-provided checks.
-	rev := preferences.GetRevision()
-	if err := modules.ValidateResource(preferences); err != nil {
-		return trace.Wrap(err)
+	if err := modules.ValidateResource(preference); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	value, err := services.MarshalAuthPreference(preferences)
+	value, err := services.MarshalAuthPreference(preference)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:   backend.Key(authPrefix, preferencePrefix, generalPrefix),
+		Value: value,
+	}
+
+	lease, err := s.Backend.Create(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	preference.SetRevision(lease.Revision)
+	return preference, nil
+}
+
+// UpdateAuthPreference updates an existing auth preference.
+func (s *ClusterConfigurationService) UpdateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error) {
+	// Perform the modules-provided checks.
+	rev := preference.GetRevision()
+	if err := modules.ValidateResource(preference); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	value, err := services.MarshalAuthPreference(preference)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	item := backend.Item{
 		Key:      backend.Key(authPrefix, preferencePrefix, generalPrefix),
 		Value:    value,
-		ID:       preferences.GetResourceID(),
+		ID:       preference.GetResourceID(),
 		Revision: rev,
 	}
 
-	_, err = s.Put(ctx, item)
+	lease, err := s.ConditionalUpdate(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return nil
+	preference.SetRevision(lease.Revision)
+	return preference, nil
+}
+
+// UpsertAuthPreference creates a new auth preference or overwrites an existing auth preference.
+func (s *ClusterConfigurationService) UpsertAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error) {
+	// Perform the modules-provided checks.
+	if err := modules.ValidateResource(preference); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rev := preference.GetRevision()
+	value, err := services.MarshalAuthPreference(preference)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:      backend.Key(authPrefix, preferencePrefix, generalPrefix),
+		Value:    value,
+		Revision: rev,
+	}
+
+	lease, err := s.Put(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	preference.SetRevision(lease.Revision)
+	return preference, nil
 }
 
 // DeleteAuthPreference deletes types.AuthPreference from the backend.
@@ -231,7 +285,7 @@ func (s *ClusterConfigurationService) DeleteAuthPreference(ctx context.Context) 
 }
 
 // GetClusterAuditConfig gets cluster audit config from the backend.
-func (s *ClusterConfigurationService) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+func (s *ClusterConfigurationService) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
 	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, auditPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -239,29 +293,77 @@ func (s *ClusterConfigurationService) GetClusterAuditConfig(ctx context.Context,
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalClusterAuditConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
+	return services.UnmarshalClusterAuditConfig(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // SetClusterAuditConfig sets the cluster audit config on the backend.
-func (s *ClusterConfigurationService) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
-	rev := auditConfig.GetRevision()
-	value, err := services.MarshalClusterAuditConfig(auditConfig)
+func (s *ClusterConfigurationService) SetClusterAuditConfig(ctx context.Context, cfg types.ClusterAuditConfig) error {
+	_, err := s.UpsertClusterAuditConfig(ctx, cfg)
+	return trace.Wrap(err)
+}
+
+// CreateClusterAuditConfig creates a cluster audit config if once does not already exist.
+func (s *ClusterConfigurationService) CreateClusterAuditConfig(ctx context.Context, cfg types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
+	value, err := services.MarshalClusterAuditConfig(cfg)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:   backend.Key(clusterConfigPrefix, auditPrefix),
+		Value: value,
+	}
+
+	lease, err := s.Backend.Create(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg.SetRevision(lease.Revision)
+	return cfg, nil
+}
+
+// UpdateClusterAuditConfig updates an existing cluster audit config.
+func (s *ClusterConfigurationService) UpdateClusterAuditConfig(ctx context.Context, cfg types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
+	rev := cfg.GetRevision()
+	value, err := services.MarshalClusterAuditConfig(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	item := backend.Item{
 		Key:      backend.Key(clusterConfigPrefix, auditPrefix),
 		Value:    value,
-		ID:       auditConfig.GetResourceID(),
 		Revision: rev,
 	}
 
-	_, err = s.Put(ctx, item)
+	lease, err := s.Backend.ConditionalUpdate(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
+	cfg.SetRevision(lease.Revision)
+	return cfg, nil
+}
+
+// UpsertClusterAuditConfig creates a new cluster audit config or overwrites the existing cluster audit config.
+func (s *ClusterConfigurationService) UpsertClusterAuditConfig(ctx context.Context, cfg types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
+	value, err := services.MarshalClusterAuditConfig(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:   backend.Key(clusterConfigPrefix, auditPrefix),
+		Value: value,
+	}
+
+	lease, err := s.Backend.Put(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg.SetRevision(lease.Revision)
+	return cfg, nil
 }
 
 // DeleteClusterAuditConfig deletes ClusterAuditConfig from the backend.
@@ -277,7 +379,7 @@ func (s *ClusterConfigurationService) DeleteClusterAuditConfig(ctx context.Conte
 }
 
 // GetClusterNetworkingConfig gets cluster networking config from the backend.
-func (s *ClusterConfigurationService) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (s *ClusterConfigurationService) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, networkingPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -285,35 +387,88 @@ func (s *ClusterConfigurationService) GetClusterNetworkingConfig(ctx context.Con
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalClusterNetworkingConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
+	return services.UnmarshalClusterNetworkingConfig(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
-// SetClusterNetworkingConfig sets the cluster networking config
-// on the backend.
-func (s *ClusterConfigurationService) SetClusterNetworkingConfig(ctx context.Context, netConfig types.ClusterNetworkingConfig) error {
+// CreateClusterNetworkingConfig creates a cluster networking config if once does not already exist.
+func (s *ClusterConfigurationService) CreateClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
 	// Perform the modules-provided checks.
-	if err := modules.ValidateResource(netConfig); err != nil {
-		return trace.Wrap(err)
+	if err := modules.ValidateResource(cfg); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	rev := netConfig.GetRevision()
-	value, err := services.MarshalClusterNetworkingConfig(netConfig)
+	value, err := services.MarshalClusterNetworkingConfig(cfg)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:   backend.Key(clusterConfigPrefix, networkingPrefix),
+		Value: value,
+	}
+
+	lease, err := s.Backend.Create(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg.SetRevision(lease.Revision)
+	return cfg, nil
+}
+
+// UpdateClusterNetworkingConfig updates an existing cluster networking config.
+func (s *ClusterConfigurationService) UpdateClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
+	// Perform the modules-provided checks.
+	if err := modules.ValidateResource(cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rev := cfg.GetRevision()
+	value, err := services.MarshalClusterNetworkingConfig(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	item := backend.Item{
 		Key:      backend.Key(clusterConfigPrefix, networkingPrefix),
 		Value:    value,
-		ID:       netConfig.GetResourceID(),
 		Revision: rev,
 	}
 
-	_, err = s.Put(ctx, item)
+	lease, err := s.Backend.ConditionalUpdate(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
+	cfg.SetRevision(lease.Revision)
+	return cfg, nil
+}
+
+// UpsertClusterNetworkingConfig creates a new cluster networking config or overwrites the existing cluster networking config.
+func (s *ClusterConfigurationService) UpsertClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
+	// Perform the modules-provided checks.
+	if err := modules.ValidateResource(cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rev := cfg.GetRevision()
+	value, err := services.MarshalClusterNetworkingConfig(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:      backend.Key(clusterConfigPrefix, networkingPrefix),
+		Value:    value,
+		Revision: rev,
+	}
+
+	lease, err := s.Backend.Put(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg.SetRevision(lease.Revision)
+	return cfg, nil
 }
 
 // DeleteClusterNetworkingConfig deletes ClusterNetworkingConfig from the backend.
@@ -329,7 +484,7 @@ func (s *ClusterConfigurationService) DeleteClusterNetworkingConfig(ctx context.
 }
 
 // GetSessionRecordingConfig gets session recording config from the backend.
-func (s *ClusterConfigurationService) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+func (s *ClusterConfigurationService) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
 	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, sessionRecordingPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -337,34 +492,89 @@ func (s *ClusterConfigurationService) GetSessionRecordingConfig(ctx context.Cont
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalSessionRecordingConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
+	return services.UnmarshalSessionRecordingConfig(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
-// SetSessionRecordingConfig sets session recording config on the backend.
-func (s *ClusterConfigurationService) SetSessionRecordingConfig(ctx context.Context, recConfig types.SessionRecordingConfig) error {
+// CreateSessionRecordingConfig creates a session recording config if once does not already exist.
+func (s *ClusterConfigurationService) CreateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
 	// Perform the modules-provided checks.
-	if err := modules.ValidateResource(recConfig); err != nil {
-		return trace.Wrap(err)
+	if err := modules.ValidateResource(cfg); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	rev := recConfig.GetRevision()
-	value, err := services.MarshalSessionRecordingConfig(recConfig)
+	value, err := services.MarshalSessionRecordingConfig(cfg)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:   backend.Key(clusterConfigPrefix, sessionRecordingPrefix),
+		Value: value,
+	}
+
+	lease, err := s.Backend.Create(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg.SetRevision(lease.Revision)
+	return cfg, nil
+}
+
+// UpdateSessionRecordingConfig updates an existing session recording config.
+func (s *ClusterConfigurationService) UpdateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	// Perform the modules-provided checks.
+	if err := modules.ValidateResource(cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rev := cfg.GetRevision()
+	value, err := services.MarshalSessionRecordingConfig(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	item := backend.Item{
 		Key:      backend.Key(clusterConfigPrefix, sessionRecordingPrefix),
 		Value:    value,
-		ID:       recConfig.GetResourceID(),
 		Revision: rev,
 	}
 
-	_, err = s.Put(ctx, item)
+	lease, err := s.Backend.ConditionalUpdate(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
+
+	cfg.SetRevision(lease.Revision)
+	return cfg, nil
+}
+
+// UpsertSessionRecordingConfig creates a new session recording or overwrites the existing session recording.
+func (s *ClusterConfigurationService) UpsertSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	// Perform the modules-provided checks.
+	if err := modules.ValidateResource(cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rev := cfg.GetRevision()
+	value, err := services.MarshalSessionRecordingConfig(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:      backend.Key(clusterConfigPrefix, sessionRecordingPrefix),
+		Value:    value,
+		Revision: rev,
+	}
+
+	lease, err := s.Backend.Put(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg.SetRevision(lease.Revision)
+	return cfg, nil
 }
 
 // DeleteSessionRecordingConfig deletes SessionRecordingConfig from the backend.

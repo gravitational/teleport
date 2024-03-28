@@ -21,7 +21,7 @@ updates:
       - dependency-name: github.com/microsoft/go-mssqldb
       - dependency-name: github.com/redis/go-redis/v9
       - dependency-name: github.com/vulcand/predicate
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -43,7 +43,7 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -68,7 +68,7 @@ updates:
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -91,7 +91,7 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -116,7 +116,7 @@ updates:
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -139,7 +139,7 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       rust:
         update-types:
@@ -162,7 +162,7 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       rust:
         update-types:
@@ -180,7 +180,24 @@ updates:
       - "no-changelog"
 
   - package-ecosystem: github-actions
-    directory: "/"
+    directory: "/.github/workflows"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    reviewers:
+      - wadells
+      - jentfoo
+      - fheinecke
+      - camscale
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "no-changelog"
+
+  - package-ecosystem: github-actions
+    directory: "/.github/actions"
     schedule:
       interval: weekly
       day: monday

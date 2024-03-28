@@ -110,6 +110,18 @@ type Features struct {
 	// Policy holds settings for the Teleport Policy feature set.
 	// At the time of writing, this includes Teleport Access Graph (TAG).
 	Policy PolicyFeature
+	// Questionnaire indicates whether cluster users should get an onboarding questionnaire
+	Questionnaire bool
+	// IsStripeManaged indicates if the cluster billing is managed via Stripe
+	IsStripeManaged bool
+	// ExternalAuditStorage indicates whether the EAS feature is enabled in the cluster.
+	ExternalAuditStorage bool
+	// SupportType indicates the type of customer's support
+	SupportType proto.SupportType
+	// JoinActiveSessions indicates whether joining active sessions via web UI is enabled
+	JoinActiveSessions bool
+	// MobileDeviceManagement indicates whether endpoints management (like Jamf Plugin) can be used in the cluster
+	MobileDeviceManagement bool
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -199,6 +211,12 @@ func (f Features) ToProto() *proto.Features {
 		Policy: &proto.PolicyFeature{
 			Enabled: f.Policy.Enabled,
 		},
+		Questionnaire:          f.Questionnaire,
+		IsStripeManaged:        f.IsStripeManaged,
+		ExternalAuditStorage:   f.ExternalAuditStorage,
+		SupportType:            f.SupportType,
+		JoinActiveSessions:     f.JoinActiveSessions,
+		MobileDeviceManagement: f.MobileDeviceManagement,
 	}
 }
 
@@ -225,6 +243,7 @@ func (f Features) IGSEnabled() bool {
 	return f.IdentityGovernanceSecurity
 }
 
+// TODO(mcbattirola): Deprecate IsTeam once it's unused.
 func (f Features) IsTeam() bool {
 	return f.ProductType == ProductTypeTeam
 }
@@ -274,7 +293,7 @@ type Modules interface {
 	// BuildType returns build type (OSS or Enterprise)
 	BuildType() string
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
-	AttestHardwareKey(context.Context, interface{}, keys.PrivateKeyPolicy, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (keys.PrivateKeyPolicy, error)
+	AttestHardwareKey(context.Context, interface{}, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
 	GenerateAccessRequestPromotions(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 	// GetSuggestedAccessLists generates a list of valid promotions for given access request.
@@ -357,12 +376,14 @@ func (p *defaultModules) Features() Features {
 	})
 
 	return Features{
-		Kubernetes:        true,
-		DB:                true,
-		App:               true,
-		Desktop:           true,
-		AutomaticUpgrades: p.automaticUpgrades,
-		Assist:            true,
+		Kubernetes:         true,
+		DB:                 true,
+		App:                true,
+		Desktop:            true,
+		AutomaticUpgrades:  p.automaticUpgrades,
+		Assist:             true,
+		JoinActiveSessions: true,
+		SupportType:        proto.SupportType_SUPPORT_TYPE_FREE,
 	}
 }
 
@@ -376,9 +397,9 @@ func (p *defaultModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
+func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	// Default modules do not support attesting hardware keys.
-	return keys.PrivateKeyPolicyNone, nil
+	return nil, trace.NotFound("no attestation data for the given key")
 }
 
 // GenerateAccessRequestPromotions is a noop since OSS teleport does not support generating access list promotions.

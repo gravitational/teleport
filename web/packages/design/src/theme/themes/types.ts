@@ -60,6 +60,9 @@ export type ThemeColors = {
       primary: string[];
       neutral: string[];
       success: string[];
+      danger: string[];
+      alert: string[];
+      informational: string[];
     };
   };
 
@@ -138,6 +141,12 @@ export type ThemeColors = {
   };
 
   success: {
+    main: string;
+    hover: string;
+    active: string;
+  };
+
+  accent: {
     main: string;
     hover: string;
     active: string;

@@ -35,7 +35,7 @@ import (
 // with a shim that converts all calls to single-write methods (all write methods but DeleteRange) into calls to
 // AtomicWrite. This is done to ensure that the relationship between the conditional actions of AtomicWrite and the
 // single-write methods is well defined, and to improve overall coverage of AtomicWrite implementations via reuse.
-func RunBackendComplianceSuiteWithAtomicWriteShim(t *testing.T, newBackend AtomicWriteConstructor) {
+func RunBackendComplianceSuiteWithAtomicWriteShim(t *testing.T, newBackend Constructor) {
 	RunBackendComplianceSuite(t, func(options ...ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
 		bk, clock, err := newBackend(options...)
 		if err != nil {
@@ -43,15 +43,15 @@ func RunBackendComplianceSuiteWithAtomicWriteShim(t *testing.T, newBackend Atomi
 		}
 
 		return AtomicWriteShim{
-			AtomicWriterBackend: bk,
-			sentinel:            []byte(uuid.New().String()),
+			Backend:  bk,
+			sentinel: []byte(uuid.New().String()),
 		}, clock, nil
 	})
 }
 
 // atomciWriteShim reimplements all single-write backend methods as calls to AtomicWrite.
 type AtomicWriteShim struct {
-	backend.AtomicWriterBackend
+	backend.Backend
 	sentinel []byte
 }
 

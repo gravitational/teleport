@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -63,7 +64,7 @@ type UsersService interface {
 	// GetUsers returns a list of users registered with the local auth server
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// ListUsers returns a page of users.
-	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
+	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers(ctx context.Context) error
 }
@@ -270,7 +271,7 @@ type Identity interface {
 	UpsertKeyAttestationData(ctx context.Context, attestationData *keys.AttestationData, ttl time.Duration) error
 
 	// GetKeyAttestationData gets a verified public key attestation response.
-	GetKeyAttestationData(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationData, error)
+	GetKeyAttestationData(ctx context.Context, pubDer []byte) (*keys.AttestationData, error)
 
 	HeadlessAuthenticationService
 

@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -58,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
+	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/pam"
@@ -227,6 +229,21 @@ type CommandLineFlags struct {
 	// IntegrationConfExternalAuditStorageArguments contains the arguments of the
 	// `teleport integration configure externalauditstorage` command
 	IntegrationConfExternalAuditStorageArguments easconfig.ExternalAuditStorageConfiguration
+
+	// IntegrationConfAccessGraphAWSSyncArguments contains the arguments of
+	// `teleport integration configure access-graph aws-iam` command
+	IntegrationConfAccessGraphAWSSyncArguments IntegrationConfAccessGraphAWSSync
+
+	// IntegrationConfSAMLIdPGCPWorkforceArguments contains the arguments of
+	// `teleport integration configure samlidp gcp-workforce` command
+	IntegrationConfSAMLIdPGCPWorkforceArguments samlidpconfig.GCPWorkforceAPIParams
+}
+
+// IntegrationConfAccessGraphAWSSync contains the arguments of
+// `teleport integration configure access-graph aws-iam` command.
+type IntegrationConfAccessGraphAWSSync struct {
+	// Role is the AWS Role associated with the Integration
+	Role string
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -274,6 +291,22 @@ type IntegrationConfAWSOIDCIdP struct {
 	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
 	// Eg, https://<tenant>.teleport.sh
 	ProxyPublicURL string
+
+	// S3BucketURI is the S3 URI which contains the bucket name and prefix for the issuer.
+	// Format: s3://<bucket-name>/<prefix>
+	// Eg, s3://my-bucket/idp-teleport
+	// This is used in two places:
+	// - create openid configuration and jwks objects
+	// - set up the issuer
+	// The bucket must be public and will be created if it doesn't exist.
+	//
+	// If empty, the ProxyPublicAddress is used as issuer and no s3 objects are created.
+	S3BucketURI string
+
+	// S3JWKSContentsB64 must contain the public keys for the Issuer.
+	// The contents must be Base64 encoded.
+	// Eg. base64(`{"keys":[{"kty":"RSA","alg":"RS256","n":"<value of n>","e":"<value of e>","use":"sig","kid":""}]}`)
+	S3JWKSContentsB64 string
 }
 
 // IntegrationConfListDatabasesIAM contains the arguments of
@@ -373,7 +406,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.AccessGraph.Enabled {
 		cfg.AccessGraph.Enabled = true
 		if fc.AccessGraph.Endpoint == "" {
-			return trace.Errorf("Please, provide access_graph_service.addr configuration variable")
+			return trace.BadParameter("access_graph.endpoint is required when access graph integration is enabled")
 		}
 		cfg.AccessGraph.Addr = fc.AccessGraph.Endpoint
 		cfg.AccessGraph.CA = fc.AccessGraph.CA
@@ -693,23 +726,23 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		w = logFile
 	}
 
-	var level slog.Level
+	level := new(slog.LevelVar)
 	switch strings.ToLower(loggerConfig.Severity) {
 	case "", "info":
 		logger.SetLevel(log.InfoLevel)
-		level = slog.LevelInfo
+		level.Set(slog.LevelInfo)
 	case "err", "error":
 		logger.SetLevel(log.ErrorLevel)
-		level = slog.LevelError
+		level.Set(slog.LevelError)
 	case teleport.DebugLevel:
 		logger.SetLevel(log.DebugLevel)
-		level = slog.LevelDebug
+		level.Set(slog.LevelDebug)
 	case "warn", "warning":
 		logger.SetLevel(log.WarnLevel)
-		level = slog.LevelWarn
+		level.Set(slog.LevelWarn)
 	case "trace":
 		logger.SetLevel(log.TraceLevel)
-		level = logutils.TraceLevel
+		level.Set(logutils.TraceLevel)
 	default:
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
@@ -730,7 +763,7 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 	case "":
 		fallthrough // not set. defaults to 'text'
 	case "text":
-		enableColors := trace.IsTerminal(os.Stderr)
+		enableColors := utils.IsTerminal(os.Stderr)
 		formatter := &logutils.TextFormatter{
 			ExtraFields:  configuredFields,
 			EnableColors: enableColors,
@@ -784,6 +817,7 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 
 	cfg.Log = logger
 	cfg.Logger = slogLogger
+	cfg.LoggerLevel = level
 	return nil
 }
 
@@ -930,13 +964,13 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	// read in and set the license file path (not used in open-source version)
-	licenseFile := fc.Auth.LicenseFile
-	if licenseFile != "" {
-		if filepath.IsAbs(licenseFile) {
-			cfg.Auth.LicenseFile = licenseFile
-		} else {
-			cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, licenseFile)
-		}
+	switch licenseFile := fc.Auth.LicenseFile; {
+	case licenseFile == "":
+		cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)
+	case filepath.IsAbs(licenseFile):
+		cfg.Auth.LicenseFile = licenseFile
+	default:
+		cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, licenseFile)
 	}
 
 	cfg.Auth.LoadAllCAs = fc.Auth.LoadAllCAs
@@ -950,7 +984,7 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	if fc.Auth.AccessMonitoring != nil {
-		if fc.Auth.AccessMonitoring.CheckAndSetDefaults(); err != nil {
+		if err := fc.Auth.AccessMonitoring.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "failed to validate access monitoring config")
 		}
 		cfg.Auth.AccessMonitoring = fc.Auth.AccessMonitoring
@@ -1152,6 +1186,11 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.Proxy.AutomaticUpgradesChannels != nil {
 		cfg.Proxy.AutomaticUpgradesChannels = fc.Proxy.AutomaticUpgradesChannels
+	} else {
+		cfg.Proxy.AutomaticUpgradesChannels = make(automaticupgrades.Channels)
+	}
+	if err = cfg.Proxy.AutomaticUpgradesChannels.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating the automatic upgrades configuration")
 	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
@@ -1597,6 +1636,28 @@ kubernetes matchers are present`)
 		}
 
 		cfg.Discovery.KubernetesMatchers = append(cfg.Discovery.KubernetesMatchers, serviceMatcher)
+	}
+
+	if fc.Discovery.AccessGraph != nil {
+		var tMatcher types.AccessGraphSync
+		for _, awsMatcher := range fc.Discovery.AccessGraph.AWS {
+			regions := awsMatcher.Regions
+			if len(regions) == 0 {
+				return trace.BadParameter("missing regions in access_graph")
+			}
+			var assumeRole *types.AssumeRole
+			if awsMatcher.AssumeRoleARN != "" || awsMatcher.ExternalID != "" {
+				assumeRole = &types.AssumeRole{
+					RoleARN:    awsMatcher.AssumeRoleARN,
+					ExternalID: awsMatcher.ExternalID,
+				}
+			}
+			tMatcher.AWS = append(tMatcher.AWS, &types.AccessGraphAWSSync{
+				Regions:    regions,
+				AssumeRole: assumeRole,
+			})
+		}
+		cfg.Discovery.AccessGraph = &tMatcher
 	}
 
 	return nil
@@ -2224,10 +2285,9 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		// log level right away. Otherwise allow the command line flag to override
 		// logger severity in file configuration.
 		if fileConf == nil {
-			log.SetLevel(log.DebugLevel)
-			cfg.Log.SetLevel(log.DebugLevel)
+			cfg.SetLogLevel(slog.LevelDebug)
 		} else {
-			if fileConf.Logger.Severity != "trace" {
+			if strings.ToLower(fileConf.Logger.Severity) != "trace" {
 				fileConf.Logger.Severity = teleport.DebugLevel
 			}
 		}
@@ -2541,8 +2601,7 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 
 	// Apply command line --debug flag to override logger severity.
 	if clf.Debug {
-		log.SetLevel(log.DebugLevel)
-		cfg.Log.SetLevel(log.DebugLevel)
+		cfg.SetLogLevel(slog.LevelDebug)
 		cfg.Debug = clf.Debug
 	}
 

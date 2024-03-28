@@ -41,6 +41,30 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+func TestGetChartUrl(t *testing.T) {
+	testCases := []struct {
+		version  string
+		expected string
+	}{
+		{
+			version:  "14.3.3",
+			expected: "https://charts.releases.teleport.dev/teleport-kube-agent-14.3.3.tgz",
+		},
+		{
+			version:  "15.0.2",
+			expected: "https://charts.releases.teleport.dev/teleport-kube-agent-15.0.2.tgz",
+		},
+		{
+			version:  "15.0.0-alpha.5",
+			expected: "https://charts.releases.teleport.dev/teleport-kube-agent-15.0.0-alpha.5.tgz",
+		},
+	}
+
+	for _, tt := range testCases {
+		require.Equal(t, tt.expected, getChartURL(tt.version).String())
+	}
+}
+
 func TestEnrollEKSClusters(t *testing.T) {
 	t.Parallel()
 
@@ -97,6 +121,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 	}
 	baseRequest := EnrollEKSClustersRequest{
 		Region:             "us-east-1",
+		AgentVersion:       "1.2.3",
 		EnableAppDiscovery: true,
 	}
 
@@ -199,7 +224,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 				clt := baseClient(t, clusters)
 				mockClt, ok := clt.(*mockEnrollEKSClusterClient)
 				require.True(t, ok)
-				mockClt.checkAgentAlreadyInstalled = func(getter genericclioptions.RESTClientGetter, logger logrus.FieldLogger) (bool, error) {
+				mockClt.checkAgentAlreadyInstalled = func(ctx context.Context, getter genericclioptions.RESTClientGetter, logger logrus.FieldLogger) (bool, error) {
 					return true, nil
 				}
 				return mockClt
@@ -251,8 +276,9 @@ func TestEnrollEKSClusters(t *testing.T) {
 				req.ClusterNames = tc.requestClusterNames
 			}
 
-			response := EnrollEKSClusters(
+			response, err := EnrollEKSClusters(
 				ctx, utils.NewLoggerForTests().WithField("test", t.Name()), clock, proxyAddr, credsProvider, tc.enrollClient(t, tc.eksClusters), req)
+			require.NoError(t, err)
 
 			tc.responseCheck(t, response)
 		})
@@ -274,9 +300,9 @@ func TestEnrollEKSClusters(t *testing.T) {
 			return nil, nil
 		}
 
-		response := EnrollEKSClusters(
+		response, err := EnrollEKSClusters(
 			ctx, utils.NewLoggerForTests().WithField("test", t.Name()), clock, proxyAddr, credsProvider, mockClt, req)
-
+		require.NoError(t, err)
 		require.Len(t, response.Results, 1)
 		require.Equal(t, "EKS1", response.Results[0].ClusterName)
 		require.True(t, createCalled)
@@ -418,7 +444,7 @@ type mockEnrollEKSClusterClient struct {
 	deleteAccessEntry          func(context.Context, *eks.DeleteAccessEntryInput, ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error)
 	describeCluster            func(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
 	getCallerIdentity          func(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
-	checkAgentAlreadyInstalled func(genericclioptions.RESTClientGetter, logrus.FieldLogger) (bool, error)
+	checkAgentAlreadyInstalled func(context.Context, genericclioptions.RESTClientGetter, logrus.FieldLogger) (bool, error)
 	installKubeAgent           func(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, logrus.FieldLogger, EnrollEKSClustersRequest) error
 	createToken                func(ctx context.Context, token types.ProvisionToken) error
 }
@@ -465,9 +491,9 @@ func (m *mockEnrollEKSClusterClient) GetCallerIdentity(ctx context.Context, para
 	return &sts.GetCallerIdentityOutput{}, nil
 }
 
-func (m *mockEnrollEKSClusterClient) CheckAgentAlreadyInstalled(kubeconfig genericclioptions.RESTClientGetter, log logrus.FieldLogger) (bool, error) {
+func (m *mockEnrollEKSClusterClient) CheckAgentAlreadyInstalled(ctx context.Context, kubeconfig genericclioptions.RESTClientGetter, log logrus.FieldLogger) (bool, error) {
 	if m.checkAgentAlreadyInstalled != nil {
-		return m.checkAgentAlreadyInstalled(kubeconfig, log)
+		return m.checkAgentAlreadyInstalled(ctx, kubeconfig, log)
 	}
 	return false, nil
 }

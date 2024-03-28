@@ -23,6 +23,7 @@ import {
   ClusterConnectReason,
 } from 'teleterm/ui/services/modals';
 import { ClustersService } from 'teleterm/ui/services/clusters';
+import { reloginReasonOneOfIsGatewayCertExpired } from 'teleterm/helpers';
 
 export class ReloginService {
   constructor(
@@ -38,13 +39,13 @@ export class ReloginService {
     this.mainProcessClient.forceFocusWindow();
     let reason: ClusterConnectReason;
 
-    if (request.gatewayCertExpired) {
+    if (reloginReasonOneOfIsGatewayCertExpired(request.reason)) {
       const gateway = this.clustersService.findGateway(
-        request.gatewayCertExpired.gatewayUri
+        request.reason.gatewayCertExpired.gatewayUri
       );
       reason = {
         kind: 'reason.gateway-cert-expired',
-        targetUri: request.gatewayCertExpired.targetUri,
+        targetUri: request.reason.gatewayCertExpired.targetUri,
         gateway: gateway,
       };
     }

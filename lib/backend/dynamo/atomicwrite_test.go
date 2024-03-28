@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/test"
 )
 
-func newAtomicWriteBackend(options ...test.ConstructionOption) (backend.AtomicWriterBackend, clockwork.FakeClock, error) {
+func newAtomicWriteBackend(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
 	dynamoCfg := map[string]interface{}{
 		"table_name":         dynamoDBTestTable(),
 		"poll_stream_period": 300 * time.Millisecond,

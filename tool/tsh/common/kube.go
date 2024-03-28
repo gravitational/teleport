@@ -115,14 +115,13 @@ func newKubeJoinCommand(parent *kingpin.CmdClause) *kubeJoinCommand {
 }
 
 func (c *kubeJoinCommand) getSessionMeta(ctx context.Context, tc *client.TeleportClient) (types.SessionTracker, error) {
-	proxy, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	site := proxy.CurrentCluster()
-
-	return site.GetSessionTracker(ctx, c.session)
+	tracker, err := clusterClient.AuthClient.GetSessionTracker(ctx, c.session)
+	return tracker, trace.Wrap(err)
 }
 
 func (c *kubeJoinCommand) run(cf *CLIConf) error {
@@ -528,13 +527,13 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxy, err := tc.ConnectToProxy(cf.Context)
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer clusterClient.Close()
 
-	site := proxy.CurrentCluster()
-	sessions, err := site.GetActiveSessionTrackers(cf.Context)
+	sessions, err := clusterClient.AuthClient.GetActiveSessionTrackers(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -728,7 +727,12 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 				if cf.MockSSOLogin != nil {
 					lockTimeout = utils.FSLockRetryDelay
 				}
-				unlockKubeCred, err = takeKubeCredLock(cf.Context, cf.HomePath, cf.Proxy, lockTimeout)
+				proxy := cf.Proxy
+				// if proxy is empty, fallback to WebProxyAddr
+				if proxy == "" {
+					proxy = tc.WebProxyAddr
+				}
+				unlockKubeCred, err = takeKubeCredLock(cf.Context, cf.HomePath, proxy, lockTimeout)
 				return trace.Wrap(err)
 			},
 		),
@@ -1356,17 +1360,14 @@ Learn more at https://goteleport.com/docs/architecture/tls-routing/#working-with
 
 func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []types.KubeCluster, err error) {
 	err = client.RetryWithRelogin(ctx, tc, func() error {
-		pc, err := tc.ConnectToProxy(ctx)
+		clusterClient, err := tc.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer pc.Close()
+		defer clusterClient.Close()
 
-		ac := pc.CurrentCluster()
-		defer ac.Close()
-
-		teleportCluster = pc.ClusterName()
-		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, ac, proto.ListResourcesRequest{
+		teleportCluster = clusterClient.ClusterName()
+		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, clusterClient.AuthClient, proto.ListResourcesRequest{
 			SearchKeywords:      tc.SearchKeywords,
 			PredicateExpression: tc.PredicateExpression,
 			Labels:              tc.Labels,

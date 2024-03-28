@@ -81,6 +81,53 @@ func TestRootCreate(t *testing.T) {
 	require.NoDirExists(t, service.teleportRoot)
 }
 
+// TestRootCreateCustomRootPath given a service configured with a custom root
+// path, cgroups must be placed on the correct path.
+func TestRootCreateCustomRootPath(t *testing.T) {
+	// This test must be run as root. Only root can create cgroups.
+	if !isRoot() {
+		t.Skip("Tests for package cgroup can only be run as root.")
+	}
+
+	t.Parallel()
+
+	for _, rootPath := range []string{
+		"custom",
+		"/custom",
+		"nested/custom",
+		"/deep/nested/custom",
+	} {
+		rootPath := rootPath
+		t.Run(rootPath, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			service, err := New(&Config{
+				MountPath: dir,
+				RootPath:  rootPath,
+			})
+			require.NoError(t, err)
+			defer service.Close(false)
+
+			sessionID := uuid.New().String()
+			err = service.Create(sessionID)
+			require.NoError(t, err)
+
+			cgroupPath := path.Join(service.teleportRoot, sessionID)
+			require.DirExists(t, cgroupPath)
+			require.Contains(t, cgroupPath, rootPath)
+
+			err = service.Remove(sessionID)
+			require.NoError(t, err)
+			require.NoDirExists(t, cgroupPath)
+
+			// Teardown
+			err = service.Close(false)
+			require.NoError(t, err)
+			require.NoDirExists(t, service.teleportRoot)
+		})
+	}
+}
+
 // TestRootCleanup tests the ability for Teleport to remove and cleanup all
 // cgroups which is performed upon startup.
 func TestRootCleanup(t *testing.T) {

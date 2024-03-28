@@ -23,24 +23,25 @@ use crate::{
 #[cfg(feature = "fips")]
 use boring::error::ErrorStack;
 use bytes::BytesMut;
-use ironrdp_cliprdr::{Cliprdr, CliprdrSvcMessages};
+use ironrdp_cliprdr::{Client as ClientRole, Cliprdr, CliprdrSvcMessages};
 use ironrdp_connector::{Config, ConnectorError, Credentials};
 use ironrdp_pdu::input::fast_path::{
     FastPathInput, FastPathInputEvent, KeyboardFlags, SynchronizeFlags,
 };
 use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
+use ironrdp_pdu::mcs::DisconnectReason;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
-use ironrdp_pdu::{custom_err, function, PduError, PduParsing};
+use ironrdp_pdu::{custom_err, function, PduError};
 use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
 use ironrdp_rdpsnd::Rdpsnd;
-use ironrdp_session::x224::{Processor as X224Processor, Processor};
+use ironrdp_session::x224::{self, ProcessorOutput};
 use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
-use ironrdp_svc::{StaticVirtualChannelProcessor, SvcMessage, SvcProcessorMessages};
+use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
 use ironrdp_tokio::{Framed, TokioStream};
 use log::debug;
 use rand::{Rng, SeedableRng};
@@ -71,7 +72,7 @@ pub struct Client {
     read_stream: Option<RdpReadStream>,
     write_stream: Option<RdpWriteStream>,
     function_receiver: Option<FunctionReceiver>,
-    x224_processor: Arc<Mutex<X224Processor>>,
+    x224_processor: Arc<Mutex<x224::Processor>>,
 }
 
 impl Client {
@@ -84,7 +85,10 @@ impl Client {
     ///
     /// This function hangs until the RDP session ends or a [`ClientFunction::Stop`] is dispatched
     /// (see [`ClientHandle::stop`]).
-    pub fn run(cgo_handle: CgoHandle, params: ConnectParams) -> ClientResult<()> {
+    pub fn run(
+        cgo_handle: CgoHandle,
+        params: ConnectParams,
+    ) -> ClientResult<Option<DisconnectReason>> {
         global::TOKIO_RT.block_on(async {
             Self::connect(cgo_handle, params)
                 .await?
@@ -199,12 +203,13 @@ impl Client {
         let read_stream = ironrdp_tokio::TokioFramed::new(read_stream);
         let write_stream = ironrdp_tokio::TokioFramed::new(write_stream);
 
-        let x224_processor = X224Processor::new(
+        let x224_processor = x224::Processor::new(
             connection_result.static_channels,
             connection_result.user_channel_id,
             connection_result.io_channel_id,
             None,
             None,
+            connection_result.connection_activation,
         );
 
         Ok(Self {
@@ -235,7 +240,7 @@ impl Client {
     ///    which it then executes.
     ///
     /// When either loop returns, the other is aborted and the result is returned.
-    async fn run_loops(mut self) -> ClientResult<()> {
+    async fn run_loops(mut self) -> ClientResult<Option<DisconnectReason>> {
         let read_stream = self
             .read_stream
             .take()
@@ -273,7 +278,11 @@ impl Client {
             },
             res = &mut write_loop_handle => {
                 read_loop_handle.abort();
-                res?
+                match res {
+                    Ok(Ok(())) => Ok(None),
+                    Ok(Err(client_error)) => Err(client_error),
+                    Err(join_error) => Err(join_error.into()),
+                }
             }
         }
     }
@@ -281,9 +290,9 @@ impl Client {
     fn run_read_loop(
         cgo_handle: CgoHandle,
         mut read_stream: RdpReadStream,
-        x224_processor: Arc<Mutex<X224Processor>>,
+        x224_processor: Arc<Mutex<x224::Processor>>,
         write_requester: ClientHandle,
-    ) -> tokio::task::JoinHandle<ClientResult<()>> {
+    ) -> tokio::task::JoinHandle<ClientResult<Option<DisconnectReason>>> {
         global::TOKIO_RT.spawn(async move {
             loop {
                 let (action, mut frame) = read_stream.read_pdu().await?;
@@ -305,8 +314,24 @@ impl Client {
                         // X224 PDU, process it and send any immediate response frames to the write loop
                         // for writing to the RDP server.
                         let res = Client::x224_process(x224_processor.clone(), frame).await?;
-                        // Send response frames to write loop for writing to RDP server.
-                        write_requester.write_raw_pdu_async(res).await?;
+                        for output in res {
+                            match output {
+                                ProcessorOutput::ResponseFrame(frame) => {
+                                    // Send response frames to write loop for writing to RDP server.
+                                    write_requester.write_raw_pdu_async(frame).await?;
+                                }
+                                ProcessorOutput::Disconnect(reason) => {
+                                    return Ok(Some(reason));
+                                }
+                                ProcessorOutput::DeactivateAll(_) => {
+                                    // DeactivateAll is not implemented yet, but will
+                                    // be in the near future when resize support lands.
+                                    return Err(ClientError::InternalError(
+                                        "DeactivateAll not implemented".to_string(),
+                                    ));
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -317,7 +342,7 @@ impl Client {
         cgo_handle: CgoHandle,
         mut write_stream: RdpWriteStream,
         mut write_receiver: FunctionReceiver,
-        x224_processor: Arc<Mutex<X224Processor>>,
+        x224_processor: Arc<Mutex<x224::Processor>>,
     ) -> tokio::task::JoinHandle<ClientResult<()>> {
         global::TOKIO_RT.spawn(async move {
             loop {
@@ -399,7 +424,7 @@ impl Client {
     }
 
     async fn update_clipboard(
-        x224_processor: Arc<Mutex<Processor>>,
+        x224_processor: Arc<Mutex<x224::Processor>>,
         data: String,
     ) -> ClientResult<()> {
         global::TOKIO_RT
@@ -422,15 +447,15 @@ impl Client {
     }
 
     async fn write_cliprdr(
-        x224_processor: Arc<Mutex<X224Processor>>,
+        x224_processor: Arc<Mutex<x224::Processor>>,
         write_stream: &mut RdpWriteStream,
         fun: Box<dyn ClipboardFn>,
     ) -> ClientResult<()> {
         let processor = x224_processor.clone();
-        let messages: ClientResult<CliprdrSvcMessages> = global::TOKIO_RT
+        let messages: ClientResult<CliprdrSvcMessages<ClientRole>> = global::TOKIO_RT
             .spawn_blocking(move || {
                 let mut x224_processor = Self::x224_lock(&processor)?;
-                let cliprdr = Self::get_svc_processor::<Cliprdr>(&mut x224_processor)?;
+                let cliprdr = Self::get_svc_processor::<Cliprdr<ClientRole>>(&mut x224_processor)?;
                 Ok(fun.call(cliprdr)?)
             })
             .await?;
@@ -447,6 +472,11 @@ impl Client {
         if !key.down {
             flags = KeyboardFlags::RELEASE;
         }
+        let extended = key.code & 0xE000 == 0xE000;
+        if extended {
+            flags |= KeyboardFlags::EXTENDED;
+        }
+
         let event = FastPathInputEvent::KeyboardEvent(flags, key.code as u8);
 
         Self::write_fast_path_input_event(write_stream, event).await
@@ -518,11 +548,9 @@ impl Client {
         write_stream: &mut RdpWriteStream,
         event: FastPathInputEvent,
     ) -> ClientResult<()> {
-        let mut data: Vec<u8> = Vec::new();
-        let input_pdu = FastPathInput(vec![event]);
-        input_pdu.to_buffer(&mut data)?;
-
-        write_stream.write_all(&data).await?;
+        write_stream
+            .write_all(&ironrdp_pdu::encode_vec(&FastPathInput(vec![event]))?)
+            .await?;
         Ok(())
     }
 
@@ -534,7 +562,7 @@ impl Client {
 
     async fn write_rdpdr(
         write_stream: &mut RdpWriteStream,
-        x224_processor: Arc<Mutex<X224Processor>>,
+        x224_processor: Arc<Mutex<x224::Processor>>,
         pdu: RdpdrPdu,
     ) -> ClientResult<()> {
         debug!("sending rdp: {:?}", pdu);
@@ -552,7 +580,7 @@ impl Client {
 
     async fn handle_tdp_sd_announce(
         write_stream: &mut RdpWriteStream,
-        x224_processor: Arc<Mutex<X224Processor>>,
+        x224_processor: Arc<Mutex<x224::Processor>>,
         sda: tdp::SharedDirectoryAnnounce,
     ) -> ClientResult<()> {
         debug!("received tdp: {:?}", sda);
@@ -567,7 +595,7 @@ impl Client {
     }
 
     async fn handle_tdp_sd_info_response(
-        x224_processor: Arc<Mutex<X224Processor>>,
+        x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryInfoResponse,
     ) -> ClientResult<()> {
         global::TOKIO_RT
@@ -582,7 +610,7 @@ impl Client {
     }
 
     async fn handle_tdp_sd_create_response(
-        x224_processor: Arc<Mutex<X224Processor>>,
+        x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryCreateResponse,
     ) -> ClientResult<()> {
         global::TOKIO_RT
@@ -597,7 +625,7 @@ impl Client {
     }
 
     async fn handle_tdp_sd_delete_response(
-        x224_processor: Arc<Mutex<X224Processor>>,
+        x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryDeleteResponse,
     ) -> ClientResult<()> {
         global::TOKIO_RT
@@ -612,7 +640,7 @@ impl Client {
     }
 
     async fn handle_tdp_sd_list_response(
-        x224_processor: Arc<Mutex<X224Processor>>,
+        x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryListResponse,
     ) -> ClientResult<()> {
         global::TOKIO_RT
@@ -627,7 +655,7 @@ impl Client {
     }
 
     async fn handle_tdp_sd_read_response(
-        x224_processor: Arc<Mutex<X224Processor>>,
+        x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryReadResponse,
     ) -> ClientResult<()> {
         global::TOKIO_RT
@@ -642,7 +670,7 @@ impl Client {
     }
 
     async fn handle_tdp_sd_write_response(
-        x224_processor: Arc<Mutex<X224Processor>>,
+        x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryWriteResponse,
     ) -> ClientResult<()> {
         global::TOKIO_RT
@@ -657,7 +685,7 @@ impl Client {
     }
 
     async fn handle_tdp_sd_move_response(
-        x224_processor: Arc<Mutex<X224Processor>>,
+        x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryMoveResponse,
     ) -> ClientResult<()> {
         global::TOKIO_RT
@@ -672,7 +700,7 @@ impl Client {
     }
 
     async fn add_drive(
-        x224_processor: Arc<Mutex<X224Processor>>,
+        x224_processor: Arc<Mutex<x224::Processor>>,
         sda: tdp::SharedDirectoryAnnounce,
     ) -> ClientResult<ClientDeviceListAnnounce> {
         global::TOKIO_RT
@@ -692,9 +720,9 @@ impl Client {
     /// This function ensures `x224_processor` is locked only for the necessary duration
     /// of the function call.
     async fn x224_process(
-        x224_processor: Arc<Mutex<X224Processor>>,
+        x224_processor: Arc<Mutex<x224::Processor>>,
         frame: BytesMut,
-    ) -> SessionResult<Vec<u8>> {
+    ) -> SessionResult<Vec<ProcessorOutput>> {
         global::TOKIO_RT
             .spawn_blocking(move || Self::x224_lock(&x224_processor)?.process(&frame))
             .await
@@ -707,8 +735,8 @@ impl Client {
     /// while waiting for the `x224_processor` lock, or while processing the frame.
     /// This function ensures `x224_processor` is locked only for the necessary duration
     /// of the function call.
-    async fn x224_process_svc_messages<C: StaticVirtualChannelProcessor + 'static>(
-        x224_processor: Arc<Mutex<X224Processor>>,
+    async fn x224_process_svc_messages<C: SvcProcessor + 'static>(
+        x224_processor: Arc<Mutex<x224::Processor>>,
         messages: SvcProcessorMessages<C>,
     ) -> SessionResult<Vec<u8>> {
         global::TOKIO_RT
@@ -720,14 +748,14 @@ impl Client {
     }
 
     fn x224_lock(
-        x224_processor: &Arc<Mutex<X224Processor>>,
-    ) -> Result<MutexGuard<X224Processor>, SessionError> {
+        x224_processor: &Arc<Mutex<x224::Processor>>,
+    ) -> Result<MutexGuard<x224::Processor>, SessionError> {
         x224_processor
             .lock()
             .map_err(|err| reason_err!(function!(), "PoisonError: {:?}", err))
     }
 
-    /// Returns an immutable reference to the [`StaticVirtualChannelProcessor`] of type `S`.
+    /// Returns an immutable reference to the [`SvcProcessor`] of type `S`.
     ///
     /// # Example
     ///
@@ -737,10 +765,10 @@ impl Client {
     /// // Now we can call methods on the Cliprdr processor.
     /// ```
     fn get_svc_processor<'a, S>(
-        x224_processor: &'a mut MutexGuard<'_, X224Processor>,
+        x224_processor: &'a mut MutexGuard<'_, x224::Processor>,
     ) -> Result<&'a S, ClientError>
     where
-        S: StaticVirtualChannelProcessor + 'static,
+        S: SvcProcessor + 'static,
     {
         x224_processor
             .get_svc_processor::<S>()
@@ -750,7 +778,7 @@ impl Client {
             )))
     }
 
-    /// Returns a mutable reference to the [`StaticVirtualChannelProcessor`] of type `S`.
+    /// Returns a mutable reference to the [`SvcProcessor`] of type `S`.
     ///
     /// # Example
     ///
@@ -760,10 +788,10 @@ impl Client {
     /// // Now we can call mutating methods on the Cliprdr processor.
     /// ```
     fn get_svc_processor_mut<'a, S>(
-        x224_processor: &'a mut MutexGuard<'_, X224Processor>,
+        x224_processor: &'a mut MutexGuard<'_, x224::Processor>,
     ) -> Result<&'a mut S, ClientError>
     where
-        S: StaticVirtualChannelProcessor + 'static,
+        S: SvcProcessor + 'static,
     {
         x224_processor
             .get_svc_processor_mut::<S>()
@@ -775,10 +803,10 @@ impl Client {
 
     /// Returns a mutable reference to the [`TeleportCliprdrBackend`] of the [`Cliprdr`] processor.
     fn cliprdr_backend(
-        x224_processor: &mut X224Processor,
+        x224_processor: &mut x224::Processor,
     ) -> ClientResult<&mut TeleportCliprdrBackend> {
         x224_processor
-            .get_svc_processor_mut::<Cliprdr>()
+            .get_svc_processor_mut::<Cliprdr<ClientRole>>()
             .and_then(|c| c.downcast_backend_mut::<TeleportCliprdrBackend>())
             .ok_or(ClientError::InternalError(
                 "cliprdr_backend returned None".to_string(),
@@ -787,7 +815,7 @@ impl Client {
 
     /// Returns a mutable reference to the [`TeleportRdpdrBackend`] of the [`Rdpdr`] processor.
     fn rdpdr_backend(
-        x224_processor: &mut X224Processor,
+        x224_processor: &mut x224::Processor,
     ) -> ClientResult<&mut TeleportRdpdrBackend> {
         x224_processor
             .get_svc_processor_mut::<Rdpdr>()
@@ -1101,7 +1129,7 @@ fn create_config(width: u16, height: u16, pin: String) -> Config {
         // https://github.com/FreeRDP/FreeRDP/blob/4e24b966c86fdf494a782f0dfcfc43a057a2ea60/libfreerdp/core/settings.c#LL49C34-L49C70
         client_dir: "C:\\Windows\\System32\\mstscax.dll".to_string(),
         platform: MajorPlatformType::UNSPECIFIED,
-        no_server_pointer: true,
+        no_server_pointer: false,
         autologon: true,
         pointer_software_rendering: false,
     }

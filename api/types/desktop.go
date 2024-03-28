@@ -25,6 +25,11 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
+const (
+	MaxRDPScreenWidth  = 8192
+	MaxRDPScreenHeight = 8192
+)
+
 // WindowsDesktopService represents a Windows desktop service instance.
 type WindowsDesktopService interface {
 	// ResourceWithLabels provides common resource methods.
@@ -132,6 +137,10 @@ type WindowsDesktop interface {
 	// NonAD checks whether this is a standalone host that
 	// is not joined to an Active Directory domain.
 	NonAD() bool
+	// GetScreenSize returns the desired size of the screen to use for sessions
+	// to this host. Returns (0, 0) if no screen size is set, which means to
+	// use the size passed by the client over TDP.
+	GetScreenSize() (width, height uint32)
 	// Copy returns a copy of this windows desktop
 	Copy() *WindowsDesktopV3
 	// CloneResource returns a copy of the WindowDesktop as a ResourceWithLabels
@@ -179,7 +188,22 @@ func (d *WindowsDesktopV3) CheckAndSetDefaults() error {
 	if err := d.ResourceHeader.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if d.Spec.ScreenSize != nil {
+		if d.Spec.ScreenSize.Width > MaxRDPScreenWidth || d.Spec.ScreenSize.Height > MaxRDPScreenHeight {
+			return trace.BadParameter("invalid screen size %dx%d (maximum %dx%d)",
+				d.Spec.ScreenSize.Width, d.Spec.ScreenSize.Height, MaxRDPScreenWidth, MaxRDPScreenHeight)
+		}
+	}
+
 	return nil
+}
+
+func (d *WindowsDesktopV3) GetScreenSize() (width, height uint32) {
+	if d.Spec.ScreenSize == nil {
+		return 0, 0
+	}
+	return d.Spec.ScreenSize.Width, d.Spec.ScreenSize.Height
 }
 
 // NonAD checks whether host is part of Active Directory
@@ -216,6 +240,14 @@ func (d *WindowsDesktopV3) Copy() *WindowsDesktopV3 {
 
 func (d *WindowsDesktopV3) CloneResource() ResourceWithLabels {
 	return d.Copy()
+}
+
+// IsEqual determines if two windows desktop resources are equivalent to one another.
+func (d *WindowsDesktopV3) IsEqual(i WindowsDesktop) bool {
+	if other, ok := i.(*WindowsDesktopV3); ok {
+		return deriveTeleportEqualWindowsDesktopV3(d, other)
+	}
+	return false
 }
 
 // Match checks if a given desktop request matches this filter.

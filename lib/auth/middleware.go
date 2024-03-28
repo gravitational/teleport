@@ -26,12 +26,14 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"os"
 	"slices"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
-	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
+	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -42,6 +44,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
@@ -163,14 +166,20 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 		return nil, trace.Wrap(err)
 	}
 
+	var oldestSupportedVersion *semver.Version
+	if os.Getenv("TELEPORT_UNSTABLE_REJECT_OLD_CLIENTS") == "yes" {
+		oldestSupportedVersion = &teleport.MinClientSemVersion
+	}
+
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &Middleware{
-		ClusterName:   localClusterName.GetClusterName(),
-		AcceptedUsage: cfg.AcceptedUsage,
-		Limiter:       limiter,
-		GRPCMetrics:   grpcMetrics,
+		ClusterName:            localClusterName.GetClusterName(),
+		AcceptedUsage:          cfg.AcceptedUsage,
+		Limiter:                limiter,
+		GRPCMetrics:            grpcMetrics,
+		OldestSupportedVersion: oldestSupportedVersion,
 	}
 
 	apiServer, err := NewAPIServer(&cfg.APIConfig)
@@ -201,7 +210,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 			},
 		},
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: cfg.Component,
+			teleport.ComponentKey: cfg.Component,
 		}),
 	}
 	server.cfg.TLS.GetConfigForClient = server.GetConfigForClient
@@ -360,12 +369,16 @@ type Middleware struct {
 	// Limiter is a rate and connection limiter
 	Limiter *limiter.Limiter
 	// GRPCMetrics is the configured gRPC metrics for the interceptors
-	GRPCMetrics *om.ServerMetrics
+	GRPCMetrics *grpcprom.ServerMetrics
 	// EnableCredentialsForwarding allows the middleware to receive impersonation
 	// identity from the client if it presents a valid proxy certificate.
 	// This is used by the proxy to forward the identity of the user who
 	// connected to the proxy to the next hop.
 	EnableCredentialsForwarding bool
+	// OldestSupportedVersion optionally allows the middleware to reject any connections
+	// originated from a client that is using an unsupported version. If not set, then no
+	// rejection occurs.
+	OldestSupportedVersion *semver.Version
 }
 
 // Wrap sets next handler in chain
@@ -404,6 +417,40 @@ func getCustomRate(endpoint string) *ratelimit.RateSet {
 	return nil
 }
 
+// ValidateClientVersion inspects the client version for the connection and terminates
+// the [IdentityInfo.Conn] if the client is unsupported. Requires the [Middleware.OldestSupportedVersion]
+// to be configured before any connection rejection occurs.
+func (a *Middleware) ValidateClientVersion(ctx context.Context, info IdentityInfo) error {
+	if a.OldestSupportedVersion == nil {
+		return nil
+	}
+
+	clientVersionString, versionExists := metadata.ClientVersionFromContext(ctx)
+	if !versionExists {
+		return nil
+	}
+
+	logger := log.WithFields(logrus.Fields{"identity": info.IdentityGetter.GetIdentity().Username, "version": clientVersionString})
+	clientVersion, err := semver.NewVersion(clientVersionString)
+	if err != nil {
+		logger.WithError(err).Warn("Failed to determine client version")
+		if err := info.Conn.Close(); err != nil {
+			logger.WithError(err).Warn("Failed to close client connection")
+		}
+		return trace.AccessDenied("client version is unsupported")
+	}
+
+	if clientVersion.LessThan(*a.OldestSupportedVersion) {
+		logger.Info("Terminating connection of client using unsupported version")
+		if err := info.Conn.Close(); err != nil {
+			logger.WithError(err).Warn("Failed to close client connection")
+		}
+		return trace.AccessDenied("client version is unsupported")
+	}
+
+	return nil
+}
+
 // withAuthenticatedUser returns a new context with the ContextUser field set to
 // the caller's user identity as authenticated by their client TLS certificate.
 func (a *Middleware) withAuthenticatedUser(ctx context.Context) (context.Context, error) {
@@ -423,6 +470,10 @@ func (a *Middleware) withAuthenticatedUser(ctx context.Context) (context.Context
 	case IdentityInfo:
 		connState = &info.TLSInfo.State
 		identityGetter = info.IdentityGetter
+
+		if err := a.ValidateClientVersion(ctx, info); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	// credentials.TLSInfo is provided if the grpc server is configured with
 	// credentials.NewTLS.
 	case credentials.TLSInfo:
@@ -482,11 +533,12 @@ func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 	}
 
 	if a.GRPCMetrics != nil {
-		is = append(is, om.UnaryServerInterceptor(a.GRPCMetrics))
+		is = append(is, a.GRPCMetrics.UnaryServerInterceptor())
 	}
 
 	return append(is,
 		interceptors.GRPCServerUnaryErrorInterceptor,
+		metadata.UnaryServerInterceptor,
 		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 		a.withAuthenticatedUserUnaryInterceptor,
 	)
@@ -501,11 +553,12 @@ func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
 	}
 
 	if a.GRPCMetrics != nil {
-		is = append(is, om.StreamServerInterceptor(a.GRPCMetrics))
+		is = append(is, a.GRPCMetrics.StreamServerInterceptor())
 	}
 
 	return append(is,
 		interceptors.GRPCServerStreamErrorInterceptor,
+		metadata.StreamServerInterceptor,
 		a.Limiter.StreamServerInterceptor,
 		a.withAuthenticatedUserStreamInterceptor,
 	)

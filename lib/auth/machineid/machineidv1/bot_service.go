@@ -21,6 +21,7 @@ package machineidv1
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -29,8 +30,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
@@ -63,7 +66,7 @@ type Cache interface {
 	// GetUser returns a user by name.
 	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
 	// ListUsers lists users
-	ListUsers(ctx context.Context, pageSize int, pageToken string, withSecrets bool) ([]types.User, string, error)
+	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 	// GetRole returns a role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
@@ -124,7 +127,7 @@ func NewBotService(cfg BotServiceConfig) (*BotService, error) {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = logrus.WithField(trace.Component, "bot.service")
+		cfg.Logger = logrus.WithField(teleport.ComponentKey, "bot.service")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -161,7 +164,7 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -195,20 +198,21 @@ func (bs *BotService) ListBots(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbList); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// TODO(noah): Rewrite this to be less janky/better performing.
 	// - Concurrency for fetching roles
 	bots := []*pb.Bot{}
-	users, token, err := bs.cache.ListUsers(
-		ctx, int(req.PageSize), req.PageToken, false,
-	)
+	rsp, err := bs.cache.ListUsers(ctx, &userspb.ListUsersRequest{
+		PageSize:  req.PageSize,
+		PageToken: req.PageToken,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err, "listing users")
 	}
-	for _, u := range users {
+	for _, u := range rsp.Users {
 		botName, isBot := u.GetLabel(types.BotLabel)
 		if !isBot {
 			continue
@@ -234,7 +238,7 @@ func (bs *BotService) ListBots(
 
 	return &pb.ListBotsResponse{
 		Bots:          bots,
-		NextPageToken: token,
+		NextPageToken: rsp.NextPageToken,
 	}, nil
 }
 
@@ -247,10 +251,10 @@ func (bs *BotService) CreateBot(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbCreate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -356,12 +360,12 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Support reused MFA for bulk tctl create requests.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -405,11 +409,11 @@ func (bs *BotService) UpdateBot(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -440,6 +444,11 @@ func (bs *BotService) UpdateBot(
 	for _, path := range req.UpdateMask.Paths {
 		switch {
 		case path == "spec.roles":
+			if slices.Contains(req.Bot.Spec.Roles, "") {
+				return nil, trace.BadParameter(
+					"spec.roles: must not contain empty strings",
+				)
+			}
 			role.SetImpersonateConditions(types.Allow, types.ImpersonateConditions{
 				Roles: req.Bot.Spec.Roles,
 			})
@@ -533,11 +542,11 @@ func (bs *BotService) DeleteBot(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -582,7 +591,19 @@ func validateBot(b *pb.Bot) error {
 	if b.Spec == nil {
 		return trace.BadParameter("spec: must be non-nil")
 	}
+	if slices.Contains(b.Spec.Roles, "") {
+		return trace.BadParameter("spec.roles: must not contain empty strings")
+	}
 	return nil
+}
+
+// nonPropagatedLabels are labels that are not propagated from the User to the
+// Bot when converting a User and Role to a Bot. Typically, these are internal
+// labels that are managed by this service and exposing them to the end user
+// would allow for misconfiguration.
+var nonPropagatedLabels = map[string]struct{}{
+	types.BotLabel:           {},
+	types.BotGenerationLabel: {},
 }
 
 // botFromUserAndRole
@@ -612,6 +633,18 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 		},
 	}
 
+	// Copy in labels from the user
+	b.Metadata.Labels = map[string]string{}
+	for k, v := range user.GetMetadata().Labels {
+		// We exclude the labels that are implicitly added to the user by the
+		// bot service.
+		if _, ok := nonPropagatedLabels[k]; ok {
+			continue
+		}
+		b.Metadata.Labels[k] = v
+	}
+
+	// Copy in traits
 	for k, v := range user.GetTraits() {
 		if len(v) == 0 {
 			continue
@@ -661,12 +694,19 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 	}
 	user.SetRoles([]string{resourceName})
 	userMeta := user.GetMetadata()
-	userMeta.Labels = map[string]string{
-		types.BotLabel: bot.Metadata.Name,
-		// We always set this to zero here - but in Upsert, we copy from the
-		// previous user before writing if necessary.
-		types.BotGenerationLabel: "0",
+
+	// First copy in the labels from the Bot resource
+	userMeta.Labels = map[string]string{}
+	for k, v := range bot.Metadata.Labels {
+		userMeta.Labels[k] = v
 	}
+	// Then set these labels over the top - we exclude these when converting
+	// back.
+	userMeta.Labels[types.BotLabel] = bot.Metadata.Name
+	// We always set this to zero here - but in Upsert, we copy from the
+	// previous user before writing if necessary
+	userMeta.Labels[types.BotGenerationLabel] = "0"
+
 	user.SetMetadata(userMeta)
 
 	traits := map[string][]string{}

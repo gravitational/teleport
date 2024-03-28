@@ -43,13 +43,14 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.SHOW_ASSIST_POPUP,
   KeysEnum.USER_PREFERENCES,
   KeysEnum.RECOMMEND_FEATURE,
-  KeysEnum.NEW_ADD_AUTH_DEVICE_DIALOG,
 ];
 
 export const storageService = {
   clear() {
     Object.keys(window.localStorage).forEach(key => {
-      if (!KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT.includes(key)) {
+      const isAccessGraph = key.startsWith('tag_');
+
+      if (!isAccessGraph && !KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT.includes(key)) {
         window.localStorage.removeItem(key);
       }
     });
@@ -253,9 +254,5 @@ export const storageService = {
       KeysEnum.EXTERNAL_AUDIT_STORAGE_CTA_DISABLED,
       JSON.stringify(true)
     );
-  },
-
-  isNewAddAuthDeviceDialogEnabled(): boolean {
-    return this.getParsedJSONValue(KeysEnum.NEW_ADD_AUTH_DEVICE_DIALOG, false);
   },
 };

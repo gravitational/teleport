@@ -26,6 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -43,7 +44,7 @@ type Cache interface {
 	// GetUser returns a user by name.
 	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
 	// ListUsers returns a page of users.
-	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
+	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 	// GetRole returns a role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
@@ -103,7 +104,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = logrus.WithField(trace.Component, "users.service")
+		cfg.Logger = logrus.WithField(teleport.ComponentKey, "users.service")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -128,7 +129,7 @@ func currentUserAction(authzContext authz.Context, username string) error {
 		return nil
 	}
 	return authzContext.Checker.CheckAccessToRule(&services.Context{User: authzContext.User},
-		apidefaults.Namespace, types.KindUser, types.VerbCreate, true)
+		apidefaults.Namespace, types.KindUser, types.VerbCreate)
 }
 
 func (s *Service) getCurrentUser(ctx context.Context, authCtx *authz.Context) (*types.UserV2, error) {
@@ -192,7 +193,7 @@ func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*us
 		// their own info.
 		if err := currentUserAction(*authCtx, req.Name); err != nil {
 			// not current user, perform normal permission check.
-			if err := authCtx.CheckAccessToKind(true, types.KindUser, types.VerbRead); err != nil {
+			if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
@@ -218,12 +219,12 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindUser, types.VerbCreate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Support reused MFA for bulk tctl create requests and chained invite commands (CreateResetPasswordToken).
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -290,12 +291,12 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindUser, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Allow reused MFA responses to allow Updating a user after get (WebUI).
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -377,12 +378,12 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Support reused MFA for bulk tctl create requests.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -467,11 +468,11 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindUser, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -556,30 +557,11 @@ func (s *Service) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) 
 			return nil, trace.AccessDenied("this request can be only executed by an admin")
 		}
 	} else {
-		if err := authCtx.CheckAccessToKind(true, types.KindUser, types.VerbList, types.VerbRead); err != nil {
+		if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbList, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	users, next, err := s.cache.ListUsers(ctx, int(req.PageSize), req.PageToken, req.WithSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp := &userspb.ListUsersResponse{
-		Users:         make([]*types.UserV2, 0, len(users)),
-		NextPageToken: next,
-	}
-
-	for _, user := range users {
-		v2, ok := user.(*types.UserV2)
-		if !ok {
-			s.logger.Warnf("expected type UserV2, got %T", user)
-		}
-
-		resp.Users = append(resp.Users, v2)
-
-	}
-
-	return resp, nil
+	rsp, err := s.cache.ListUsers(ctx, req)
+	return rsp, trace.Wrap(err)
 }

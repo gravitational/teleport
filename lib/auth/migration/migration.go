@@ -19,6 +19,7 @@
 package migration
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"slices"
@@ -51,7 +52,7 @@ func withMigrations(m []migration) func(c *applyConfig) {
 }
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentAuth,
+	teleport.ComponentKey: teleport.ComponentAuth,
 })
 
 var tracer = tracing.NewTracer("migrations")
@@ -97,7 +98,7 @@ func Apply(ctx context.Context, b backend.Backend, opts ...func(c *applyConfig))
 	}()
 
 	slices.SortFunc(cfg.migrations, func(a, b migration) int {
-		return int(a.Version() - b.Version())
+		return cmp.Compare(a.Version(), b.Version())
 	})
 
 	current, err := getCurrentMigration(ctx, b)

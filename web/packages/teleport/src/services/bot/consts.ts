@@ -18,6 +18,8 @@
 
 import {
   ApiBot,
+  BotType,
+  BotUiFlow,
   FlatBot,
   GitHubRepoRule,
   ProvisionTokenSpecV2GitHub,
@@ -72,6 +74,10 @@ export function makeBot(bot: ApiBot): FlatBot {
     return;
   }
 
+  const labels = bot?.metadata?.labels
+    ? new Map(Object.entries(bot.metadata.labels))
+    : new Map<string, string>();
+
   return {
     kind: bot?.kind || '',
     status: bot?.status || '',
@@ -81,10 +87,29 @@ export function makeBot(bot: ApiBot): FlatBot {
     name: bot?.metadata?.name || '',
     namespace: bot?.metadata?.namespace || '',
     description: bot?.metadata?.description || '',
-    labels: bot?.metadata?.labels || new Map<string, string>(),
+    labels: labels,
     revision: bot?.metadata?.revision || '',
+    type: getBotType(labels),
 
     roles: bot?.spec?.roles || [],
     traits: bot?.spec?.traits || [],
   };
 }
+
+export function getBotType(labels: Map<string, string>): BotType {
+  if (!labels) {
+    return null;
+  }
+
+  for (let [key, value] of labels) {
+    if (key === GITHUB_ACTIONS_LABEL_KEY) {
+      if (Object.values(BotUiFlow).includes(value as BotUiFlow)) {
+        return value as BotUiFlow;
+      }
+    }
+  }
+
+  return null;
+}
+
+export const GITHUB_ACTIONS_LABEL_KEY = 'teleport.internal/ui-flow';

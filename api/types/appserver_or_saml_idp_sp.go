@@ -25,6 +25,8 @@ import (
 )
 
 // AppServerOrSAMLIdPServiceProvider describes methods shared between an AppServer and a SAMLIdpServiceProvider resource.
+//
+// DEPRECATED: Use AppServer and SAMLIdPServiceProvider types individually.
 type AppServerOrSAMLIdPServiceProvider interface {
 	ResourceWithLabels
 	GetAppServer() *AppServerV3
@@ -193,7 +195,9 @@ func (a *AppServerOrSAMLIdPServiceProviderV1) GetLabel(key string) (value string
 		v, ok := appServer.Spec.App.Metadata.Labels[key]
 		return v, ok
 	} else {
-		return "", true
+		sp := a.GetSAMLIdPServiceProvider()
+		v, ok := sp.Metadata.Labels[key]
+		return v, ok
 	}
 }
 

@@ -37,6 +37,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -365,6 +366,7 @@ func TestKubeSelection(t *testing.T) {
 			cfg.Kube.ResourceMatchers = []services.ResourceMatcher{{
 				Labels: map[string]apiutils.Strings{"*": {"*"}},
 			}}
+			cfg.Clock = clockwork.NewFakeClock()
 		}),
 	)
 	kubeBarEKS := "bar-eks-us-west-1-123456789012"
@@ -556,7 +558,7 @@ func TestKubeSelection(t *testing.T) {
 					cmdRunner = func(cmd *exec.Cmd) error {
 						config := kubeConfigFromCmdEnv(t, cmd)
 						for _, kube := range test.wantProxied {
-							checkKubeLocalProxyConfig(t, s, config, rootClusterName, kube)
+							checkKubeLocalProxyConfig(t, config, rootClusterName, kube)
 						}
 						return nil
 					}

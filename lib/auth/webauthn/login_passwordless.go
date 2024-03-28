@@ -41,6 +41,10 @@ type PasswordlessIdentity interface {
 }
 
 // PasswordlessFlow provides passwordless authentication.
+//
+// PasswordlessFlow is used mainly for the initial passwordless login.
+// For UV=1 assertions after login, use [LoginFlow.Begin] with the desired
+// [mfav1.ChallengeExtensions.UserVerificationRequirement].
 type PasswordlessFlow struct {
 	Webauthn *types.Webauthn
 	Identity PasswordlessIdentity

@@ -200,7 +200,7 @@ func NewHandler(ctx context.Context, cancelFunc context.CancelFunc, cfg Config, 
 	}
 	h := &Handler{
 		Entry: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(teleport.SchemeGCS),
+			teleport.ComponentKey: teleport.Component(teleport.SchemeGCS),
 		}),
 		Config:        cfg,
 		gcsClient:     client,

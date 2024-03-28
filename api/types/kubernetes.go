@@ -77,6 +77,18 @@ type KubeCluster interface {
 	GetCloud() string
 }
 
+// DiscoveredEKSCluster represents a server discovered by EKS discovery fetchers.
+type DiscoveredEKSCluster interface {
+	// KubeCluster is base discovered cluster.
+	KubeCluster
+	// GetKubeCluster returns base cluster.
+	GetKubeCluster() KubeCluster
+	// GetIntegration returns integration name used when discovering this cluster.
+	GetIntegration() string
+	// GetKubeAppDiscovery returns setting showing if Kubernetes App Discovery show be enabled for the discovered cluster.
+	GetKubeAppDiscovery() bool
+}
+
 // NewKubernetesClusterV3FromLegacyCluster creates a new Kubernetes cluster resource
 // from the legacy type.
 func NewKubernetesClusterV3FromLegacyCluster(namespace string, cluster *KubernetesCluster) (*KubernetesClusterV3, error) {
@@ -390,6 +402,14 @@ func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// IsEqual determines if two user resources are equivalent to one another.
+func (k *KubernetesClusterV3) IsEqual(i KubeCluster) bool {
+	if other, ok := i.(*KubernetesClusterV3); ok {
+		return deriveTeleportEqualKubernetesClusterV3(k, other)
+	}
+	return false
 }
 
 func (k KubeAzure) CheckAndSetDefaults() error {

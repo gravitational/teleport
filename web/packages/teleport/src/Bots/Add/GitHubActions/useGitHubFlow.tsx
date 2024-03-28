@@ -25,8 +25,10 @@ import { ResourceLabel } from 'teleport/services/agents';
 import {
   createBot as serviceCreateBot,
   createBotToken,
+  GITHUB_ACTIONS_LABEL_KEY,
 } from 'teleport/services/bot';
 import {
+  BotUiFlow,
   CreateBotRequest,
   GitHubRepoRule,
   RefType,
@@ -35,8 +37,7 @@ import {
 import useTeleport from 'teleport/useTeleport';
 
 export const GITHUB_HOST = 'github.com';
-const GITHUB_ACTIONS_LABEL_KEY = 'teleport.internal/ui-flow';
-const GITHUB_ACTIONS_LABEL_VAL = 'github-actions-ssh';
+const GITHUB_ACTIONS_LABEL_VAL = BotUiFlow.GitHubActionsSsh;
 
 type GitHubFlowContext = {
   attempt: Attempt;

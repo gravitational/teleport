@@ -179,6 +179,8 @@ export interface FeatureFlags {
   externalAuditStorage: boolean;
   listBots: boolean;
   addBots: boolean;
+  editBots: boolean;
+  removeBots: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.

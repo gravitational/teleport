@@ -137,7 +137,7 @@ func SetIngressReporter(service string, r *ingress.Reporter) ServerOption {
 // SetLogger sets the logger for the server
 func SetLogger(logger logrus.FieldLogger) ServerOption {
 	return func(s *Server) error {
-		s.log = logger.WithField(trace.Component, "ssh:"+s.component)
+		s.log = logger.WithField(teleport.ComponentKey, "ssh:"+s.component)
 		return nil
 	}
 }
@@ -205,7 +205,7 @@ func NewServer(
 	closeContext, cancel := context.WithCancel(context.TODO())
 	s := &Server{
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "ssh:" + component,
+			teleport.ComponentKey: "ssh:" + component,
 		}),
 		addr:           a,
 		newChanHandler: h,
@@ -374,20 +374,30 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	if activeConnections == 0 {
 		return err
 	}
+	minReportInterval := 10 * s.shutdownPollPeriod
+	maxReportInterval := 600 * s.shutdownPollPeriod
 	s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
-	lastReport := time.Time{}
+	reportedConnections := activeConnections
+	lastReport := time.Now()
+	reportInterval := minReportInterval
 	ticker := time.NewTicker(s.shutdownPollPeriod)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-ticker.C:
+		case now := <-ticker.C:
 			activeConnections = s.trackUserConnections(0)
 			if activeConnections == 0 {
 				return err
 			}
-			if time.Since(lastReport) > 10*s.shutdownPollPeriod {
+			if activeConnections != reportedConnections || now.Sub(lastReport) > reportInterval {
 				s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
-				lastReport = time.Now()
+				lastReport = now
+				if activeConnections == reportedConnections {
+					reportInterval = min(reportInterval*2, maxReportInterval)
+				} else {
+					reportInterval = minReportInterval
+					reportedConnections = activeConnections
+				}
 			}
 		case <-ctx.Done():
 			s.log.Infof("Context canceled wait, returning.")
@@ -625,7 +635,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			if s.reqHandler != nil {
 				go func(span oteltrace.Span) {
 					defer span.End()
-					s.reqHandler.HandleRequest(ctx, req)
+					s.reqHandler.HandleRequest(ctx, ccx, req)
 				}(span)
 			} else {
 				span.End()
@@ -668,7 +678,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 type RequestHandler interface {
-	HandleRequest(ctx context.Context, r *ssh.Request)
+	HandleRequest(ctx context.Context, ccx *ConnectionContext, r *ssh.Request)
 }
 
 type NewChanHandler interface {

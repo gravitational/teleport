@@ -39,7 +39,14 @@ import (
 )
 
 // UnifiedResourceKinds is a list of all kinds that are stored in the unified resource cache.
-var UnifiedResourceKinds []string = []string{types.KindNode, types.KindKubeServer, types.KindDatabaseServer, types.KindAppServer, types.KindSAMLIdPServiceProvider, types.KindWindowsDesktop}
+var UnifiedResourceKinds []string = []string{
+	types.KindNode,
+	types.KindKubeServer,
+	types.KindDatabaseServer,
+	types.KindAppServer,
+	types.KindWindowsDesktop,
+	types.KindSAMLIdPServiceProvider,
+}
 
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
 type UnifiedResourceCacheConfig struct {
@@ -90,7 +97,7 @@ func NewUnifiedResourceCache(ctx context.Context, cfg UnifiedResourceCacheConfig
 
 	m := &UnifiedResourceCache{
 		log: log.WithFields(log.Fields{
-			trace.Component: cfg.Component,
+			teleport.ComponentKey: cfg.Component,
 		}),
 		cfg: cfg,
 		nameTree: btree.NewG(cfg.BTreeDegree, func(a, b *item) bool {
@@ -392,7 +399,12 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 	case types.AppServer:
 		app := r.GetApp()
 		if app != nil {
-			name = app.GetName()
+			friendlyName := types.FriendlyName(app)
+			if friendlyName != "" {
+				name = friendlyName
+			} else {
+				name = app.GetName()
+			}
 			kind = types.KindApp
 		}
 	case types.SAMLIdPServiceProvider:
@@ -732,12 +744,20 @@ const (
 // MakePaginatedResources converts a list of resources into a list of paginated proto representations.
 func MakePaginatedResources(requestType string, resources []types.ResourceWithLabels) ([]*proto.PaginatedResource, error) {
 	paginatedResources := make([]*proto.PaginatedResource, 0, len(resources))
-	for _, resource := range resources {
+	for _, r := range resources {
 		var protoResource *proto.PaginatedResource
 		resourceKind := requestType
 		if requestType == types.KindUnifiedResource {
-			resourceKind = resource.GetKind()
+			resourceKind = r.GetKind()
 		}
+
+		var logins []string
+		resource := r
+		if enriched, ok := r.(*types.EnrichedResource); ok {
+			resource = enriched.ResourceWithLabels
+			logins = enriched.Logins
+		}
+
 		switch resourceKind {
 		case types.KindDatabaseServer:
 			database, ok := resource.(*types.DatabaseServerV3)
@@ -766,7 +786,7 @@ func MakePaginatedResources(requestType string, resources []types.ResourceWithLa
 				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 			}
 
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: srv}}
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: srv}, Logins: logins}
 		case types.KindKubeServer:
 			srv, ok := resource.(*types.KubernetesServerV3)
 			if !ok {
@@ -780,7 +800,7 @@ func MakePaginatedResources(requestType string, resources []types.ResourceWithLa
 				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 			}
 
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}, Logins: logins}
 		case types.KindWindowsDesktopService:
 			desktopService, ok := resource.(*types.WindowsDesktopServiceV3)
 			if !ok {
@@ -802,7 +822,8 @@ func MakePaginatedResources(requestType string, resources []types.ResourceWithLa
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_UserGroup{UserGroup: userGroup}}
-		case types.KindSAMLIdPServiceProvider, types.KindAppOrSAMLIdPServiceProvider:
+		case types.KindAppOrSAMLIdPServiceProvider:
+			//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 			switch appOrSP := resource.(type) {
 			case *types.AppServerV3:
 				protoResource = &proto.PaginatedResource{
@@ -825,6 +846,13 @@ func MakePaginatedResources(requestType string, resources []types.ResourceWithLa
 			default:
 				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 			}
+		case types.KindSAMLIdPServiceProvider:
+			serviceProvider, ok := resource.(*types.SAMLIdPServiceProviderV1)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{SAMLIdPServiceProvider: serviceProvider}}
 		default:
 			return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
 		}

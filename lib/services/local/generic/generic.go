@@ -37,11 +37,11 @@ type Resource interface {
 	GetName() string
 }
 
-// MarshalFunc is a type signature for a marshaling function.
-type MarshalFunc[T Resource] func(T, ...services.MarshalOption) ([]byte, error)
+// MarshalFunc is a type signature for a marshaling function, which converts from T to []byte, while respecting specified options.
+type MarshalFunc[T any] func(T, ...services.MarshalOption) ([]byte, error)
 
-// UnmarshalFunc is a type signature for an unmarshalling function.
-type UnmarshalFunc[T Resource] func([]byte, ...services.MarshalOption) (T, error)
+// UnmarshalFunc is a type signature for an unmarshalling function, which converts from []byte to T, while respecting specified options.
+type UnmarshalFunc[T any] func([]byte, ...services.MarshalOption) (T, error)
 
 // ServiceConfig is the configuration for the service configuration.
 type ServiceConfig[T Resource] struct {
@@ -119,6 +119,21 @@ func (s *Service[T]) WithPrefix(parts ...string) *Service[T] {
 		marshalFunc:   s.marshalFunc,
 		unmarshalFunc: s.unmarshalFunc,
 	}
+}
+
+// CountResources will return a count of all resources in the prefix range.
+func (s *Service[T]) CountResources(ctx context.Context) (uint, error) {
+	rangeStart := backend.ExactKey(s.backendPrefix)
+	rangeEnd := backend.RangeEnd(rangeStart)
+
+	count := uint(0)
+	err := backend.IterateRange(ctx, s.backend, rangeStart, rangeEnd, int(s.pageLimit),
+		func(items []backend.Item) (stop bool, err error) {
+			count += uint(len(items))
+			return false, nil
+		})
+
+	return count, trace.Wrap(err)
 }
 
 // GetResources returns a list of all resources.

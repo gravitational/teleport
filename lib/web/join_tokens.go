@@ -510,16 +510,16 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		"packageName":                packageName,
 		"repoChannel":                repoChannel,
 		"installUpdater":             strconv.FormatBool(settings.installUpdater),
-		"version":                    version,
+		"version":                    utils.UnixShellQuote(version),
 		"appInstallMode":             strconv.FormatBool(settings.appInstallMode),
-		"appName":                    settings.appName,
-		"appURI":                     settings.appURI,
-		"joinMethod":                 settings.joinMethod,
+		"appName":                    utils.UnixShellQuote(settings.appName),
+		"appURI":                     utils.UnixShellQuote(settings.appURI),
+		"joinMethod":                 utils.UnixShellQuote(settings.joinMethod),
 		"labels":                     strings.Join(labelsList, ","),
 		"databaseInstallMode":        strconv.FormatBool(settings.databaseInstallMode),
 		"db_service_resource_labels": dbServiceResourceLabels,
 		"discoveryInstallMode":       settings.discoveryInstallMode,
-		"discoveryGroup":             settings.discoveryGroup,
+		"discoveryGroup":             utils.UnixShellQuote(settings.discoveryGroup),
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

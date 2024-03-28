@@ -109,6 +109,7 @@ func NewSchema() *Schema {
 }
 
 type resourceSchemaConfig struct {
+	nameOverride        string
 	versionOverride     string
 	customSpecFields    []string
 	kindContainsVersion bool
@@ -119,6 +120,12 @@ type resourceSchemaOption func(*resourceSchemaConfig)
 func withVersionOverride(version string) resourceSchemaOption {
 	return func(cfg *resourceSchemaConfig) {
 		cfg.versionOverride = version
+	}
+}
+
+func withNameOverride(name string) resourceSchemaOption {
+	return func(cfg *resourceSchemaConfig) {
+		cfg.nameOverride = name
 	}
 }
 
@@ -189,6 +196,9 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 	}
 	if cfg.versionOverride != "" {
 		resourceVersion = cfg.versionOverride
+	}
+	if cfg.nameOverride != "" {
+		resourceKind = cfg.nameOverride
 	}
 	kubernetesKind := resourceKind
 	if cfg.kindContainsVersion {
