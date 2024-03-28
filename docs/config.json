@@ -381,6 +381,11 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
+              "title": "GCP Workforce Identity Federation",
+              "slug": "/access-controls/idps/saml-gcp-workforce-identity-federation/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
               "title": "SAML Identity Provider Reference",
               "slug": "/access-controls/idps/saml-reference/",
               "forScopes": ["enterprise", "cloud"]
