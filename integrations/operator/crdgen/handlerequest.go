@@ -20,7 +20,6 @@ package main
 
 import (
 	"fmt"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"os"
 
 	gogodesc "github.com/gogo/protobuf/protoc-gen-gogo/descriptor"
@@ -29,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/pluginpb"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"sigs.k8s.io/yaml"
 
 	"github.com/gravitational/teleport/api/types"
