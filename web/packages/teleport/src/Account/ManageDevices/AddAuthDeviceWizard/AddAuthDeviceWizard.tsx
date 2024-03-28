@@ -21,7 +21,6 @@ import Box from 'design/Box';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
-import * as Icon from 'design/Icon';
 import Image from 'design/Image';
 import Indicator from 'design/Indicator';
 import { RadioGroup } from 'design/RadioGroup';
@@ -35,7 +34,8 @@ import { useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
-import styled from 'styled-components';
+
+import { PasskeyIcons } from 'teleport/components/PasskeyIcons';
 
 import { DialogHeader } from 'teleport/Account/DialogHeader';
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
@@ -517,18 +517,7 @@ function PasskeyBlurb() {
       borderRadius={3}
       p={3}
     >
-      <OverlappingChip>
-        <Icon.FingerprintSimple p={2} />
-      </OverlappingChip>
-      <OverlappingChip>
-        <Icon.UsbDrive p={2} />
-      </OverlappingChip>
-      <OverlappingChip>
-        <Icon.UserFocus p={2} />
-      </OverlappingChip>
-      <OverlappingChip>
-        <Icon.DeviceMobileCamera p={2} />
-      </OverlappingChip>
+      <PasskeyIcons />
       <p>
         Teleport supports passkeys, a password replacement that validates your
         identity using touch, facial recognition, a device password, or a PIN.
@@ -540,12 +529,3 @@ function PasskeyBlurb() {
     </Box>
   );
 }
-
-const OverlappingChip = styled.span`
-  display: inline-block;
-  background: ${props => props.theme.colors.levels.surface};
-  border: ${props => props.theme.borders[1]};
-  border-color: ${props => props.theme.colors.interactive.tonal.neutral[2]};
-  border-radius: 50%;
-  margin-right: -6px;
-`;
