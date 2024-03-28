@@ -5,6 +5,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/opsgenie"
@@ -27,21 +28,23 @@ func opsgenieInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps i
 	}
 
 	opsgenieConfig := plugin.Spec.GetOpsgenie()
-	pc := &pluginConfiguration{
-		client: deps.client,
-		pluginConfig: &opsgenie.Config{
-			ClientConfig: opsgenie.ClientConfig{
-				APIKey:           staticToken,
-				APIEndpoint:      opsgenieConfig.ApiEndpoint,
-				DefaultSchedules: opsgenieConfig.DefaultSchedules,
-				Priority:         opsgenieConfig.Priority,
-				StatusSink:       deps.statusSink,
-			},
+	app, err := opsgenie.NewOpsgenieApp(ctx, &opsgenie.Config{
+		ClientConfig: opsgenie.ClientConfig{
+			APIKey:           staticToken,
+			APIEndpoint:      opsgenieConfig.ApiEndpoint,
+			DefaultSchedules: opsgenieConfig.DefaultSchedules,
+			Priority:         opsgenieConfig.Priority,
+			StatusSink:       deps.statusSink,
 		},
-		pluginType: types.PluginTypeOpsgenie,
+		BaseConfig: common.BaseConfig{
+			PluginType: types.PluginTypeOpsgenie,
+		},
+		TeleportUserName: teleport.SystemAccessApproverUserName,
+		Client:           deps.client,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	app := common.NewApp(pc, plugin.GetName())
 	return func() error {
 		err := app.Run(deps.lifetime)
 		return trace.Wrap(err)
