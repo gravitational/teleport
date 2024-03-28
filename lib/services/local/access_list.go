@@ -368,7 +368,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 							}
 
 							existingMember.SetRevision(upserted.GetRevision())
-							outMembers = append(outMembers, existingMember)
+							outMembers = append(outMembers, upserted)
 						}
 					}
 
