@@ -127,7 +127,7 @@ func (s *SPIFFEWorkloadAPIService) fetchBundle(ctx context.Context) error {
 // trust domain, fetching the initial trust bundle and creating an impersonated
 // client.
 func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) (err error) {
-	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/setup")
+	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/buildLocalProxyConfig")
 	defer span.End()
 
 	// Wait for the impersonated identity to be ready for us to consume here.
