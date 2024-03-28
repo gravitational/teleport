@@ -27,11 +27,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/tun"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/profile"
 )
 
 func CreateAndSetupTUNDevice(ctx context.Context, customDNSZones []string) (tun.Device, func(), error) {
@@ -262,7 +263,7 @@ do shell script quoted form of executableName & " %s --socket " & quoted form of
 // create and setup a TUN device and pass the file descriptor for that device
 // over the unix socket found at socketPath.
 func AdminSubcommand(ctx context.Context, socketPath, pidFilePath string, customDNSZones []string) error {
-	ctx, err := withPidfileCancellation(ctx, pidFilePath)
+	ctx, err := withPidfileContext(ctx, pidFilePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -274,7 +275,7 @@ func AdminSubcommand(ctx context.Context, socketPath, pidFilePath string, custom
 	if err := sendTUNNameAndFd(socketPath, tunName, tun.File().Fd()); err != nil {
 		return trace.Wrap(err)
 	}
-	// Defer cleanup until context is cancelled.
+	// Defer cleanup until context is canceled.
 	<-ctx.Done()
 	return trace.Wrap(ctx.Err())
 }

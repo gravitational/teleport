@@ -227,8 +227,13 @@ func (m *Manager) Close() error {
 
 // ResolveA implements [dns.Resolver.ResolveA]
 func (m *Manager) ResolveA(ctx context.Context, fqdn string) (dns.Result, error) {
-	appPublicAddr := strings.TrimSuffix(fqdn, ".")
+	if ip, ok := m.cachedIP(fqdn); ok {
+		return dns.Result{
+			A: ip.As4(),
+		}, nil
+	}
 
+	appPublicAddr := strings.TrimSuffix(fqdn, ".")
 	matchingProfile, ok, err := m.matchingProfile(appPublicAddr)
 	if err != nil {
 		return dns.Result{}, trace.Wrap(err)
@@ -412,7 +417,7 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 	go func() {
 		select {
 		case <-notifyCh:
-			slog.Debug("Got HUP, cancelling context.")
+			slog.Debug("Got HUP, canceling context.")
 			cancel()
 		case <-ctx.Done():
 		}
@@ -525,7 +530,7 @@ func forwardVnetEndpointToOsTUN(ctx context.Context, endpoint *channel.Endpoint,
 	for {
 		packet := endpoint.ReadContext(ctx)
 		if packet.IsNil() {
-			// Nil packet is returned when context is cancelled.
+			// Nil packet is returned when context is canceled.
 			return trace.Wrap(ctx.Err())
 		}
 		offset := device.MessageTransportHeaderSize
