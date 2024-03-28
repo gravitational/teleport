@@ -21,6 +21,7 @@ import { format } from 'date-fns';
 import Logger from 'shared/libs/logger';
 import cfg from 'shared/config';
 
+const DEFAULT_LOCALE = 'en-US';
 const isTest = process.env.NODE_ENV === 'test';
 
 const logger = Logger.create('services/loc');
@@ -84,18 +85,14 @@ export function dateToUtc(date: Date) {
   return new Date(date.getTime() + date.getTimezoneOffset() * 60 * 1000);
 }
 
+/**
+ * Accepts a date and returns the formatted time part of the date.
+ * The format depends on the browser and system settings locale,
+ * eg: if locale was `en-US` the returned value will be say `4:00 PM`.
+ *
+ * During tests, the locale will always default to `en-US`.
+ */
 export function dateTimeShortFormat(date: Date) {
-  try {
-    if (isTest) {
-      return new Intl.DateTimeFormat('en-US', { timeStyle: 'short' }).format(
-        date
-      );
-    }
-    return new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(
-      date
-    );
-  } catch (err) {
-    logger.error('dateTimeShortFormat()', err);
-    return 'undefined';
-  }
+  const locale = isTest ? DEFAULT_LOCALE : undefined;
+  return new Intl.DateTimeFormat(locale, { timeStyle: 'short' }).format(date);
 }
