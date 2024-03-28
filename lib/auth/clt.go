@@ -500,6 +500,11 @@ func (c *Client) AccessListClient() services.AccessLists {
 	return c.APIClient.AccessListClient()
 }
 
+// AccessMonitoringRuleClient returns the access monitoring rules client.
+func (c *Client) AccessMonitoringRuleClient() services.AccessMonitoringRules {
+	return c.APIClient.AccessMonitoringRulesClient()
+}
+
 func (c *Client) ExternalAuditStorageClient() *externalauditstorage.Client {
 	return c.APIClient.ExternalAuditStorageClient()
 }
@@ -985,6 +990,12 @@ type ClientI interface {
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	AccessListClient() services.AccessLists
+
+	// AccessMonitoringRuleClient returns an access monitoring rule client.
+	// Clients connecting to older Teleport versions still get an access list client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	AccessMonitoringRuleClient() services.AccessMonitoringRules
 
 	// DatabaseObjectImportRuleClient returns a database import rule client.
 	DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient
