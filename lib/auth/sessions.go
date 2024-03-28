@@ -36,6 +36,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// TODO (Joerger): Replace this alias with the definition of types.NewWebSessionRequest
+// once /e is no longer dependent on types.NewWebSessionRequest.
+type NewWebSessionRequest = types.NewWebSessionRequest
+
 // CreateAppSession creates and inserts a services.WebSession into the
 // backend with the identity of the caller used to generate the certificate.
 // The certificate is used for all access requests, which is where access
@@ -249,7 +253,7 @@ func (a *Server) generateAppToken(ctx context.Context, username string, roles []
 	return token, nil
 }
 
-func (a *Server) CreateWebSessionFromReq(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
+func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
 	session, err := a.NewWebSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
