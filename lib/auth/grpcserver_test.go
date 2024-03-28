@@ -844,7 +844,6 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 		Usage:          proto.UserCertsRequest_App,
 		RouteToApp: proto.RouteToApp{
 			Name:        "hello",
-			SessionID:   "mysessionid",
 			PublicAddr:  "hello.cluster.dev",
 			ClusterName: clusterName,
 		},
