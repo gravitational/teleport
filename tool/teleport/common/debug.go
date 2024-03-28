@@ -217,7 +217,7 @@ func onCollectProfile(configPath string, rawProfiles string, seconds int, out io
 		return trace.Wrap(err)
 	}
 
-	fmt.Fprintln(out, output.String())
+	fmt.Fprint(out, output.String())
 	return nil
 }
 
