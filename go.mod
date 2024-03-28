@@ -94,7 +94,7 @@ require (
 	github.com/google/go-querystring v1.1.0
 	github.com/google/go-tpm-tools v0.4.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
-	github.com/google/uuid v1.4.0
+	github.com/google/uuid v1.6.0
 	github.com/googleapis/gax-go/v2 v2.12.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70

@@ -778,6 +778,10 @@ type Server struct {
 	// in a unified manner in the web UI.
 	UnifiedResourceCache *services.UnifiedResourceCache
 
+	// AccessRequestCache is a cache of access requests that specifically provides
+	// custom sorting options not available via the standard backend.
+	AccessRequestCache *services.AccessRequestCache
+
 	inventory *inventory.Controller
 
 	// githubOrgSSOCache is used to cache whether Github organizations use
@@ -952,6 +956,13 @@ func (a *Server) SetUnifiedResourcesCache(unifiedResourcesCache *services.Unifie
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.UnifiedResourceCache = unifiedResourcesCache
+}
+
+// SetAccessRequestCache sets the access request cache.
+func (a *Server) SetAccessRequestCache(accessRequestCache *services.AccessRequestCache) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.AccessRequestCache = accessRequestCache
 }
 
 func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
@@ -1565,6 +1576,12 @@ func (a *Server) Close() error {
 
 	if a.bk != nil {
 		if err := a.bk.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if a.AccessRequestCache != nil {
+		if err := a.AccessRequestCache.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -4425,6 +4442,25 @@ Outer:
 	}
 
 	return filtered, nextKey, nil
+}
+
+// ListAccessRequests is an access request getter with pagination and sorting options.
+func (a *Server) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+	// most access request methods target the backend directly since access requests are frequently read
+	// immediately after writing, but listing requires support for custom sort orders so we route it to
+	// a special cache. note that the access request cache will still end up forwarding single-request
+	// reads to the real backend due to the read after write issue.
+	return a.AccessRequestCache.ListAccessRequests(ctx, req)
+}
+
+// ListMatchingAccessRequests is equivalent to ListAccessRequests except that it adds the ability to provide an arbitrary matcher function. This method
+// should be preferred when using custom filtering (e.g. access-controls), since the paginations keys used by the access request cache are non-standard.
+func (a *Server) ListMatchingAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest, match func(*types.AccessRequestV3) bool) (*proto.ListAccessRequestsResponse, error) {
+	// most access request methods target the backend directly since access requests are frequently read
+	// immediately after writing, but listing requires support for custom sort orders so we route it to
+	// a special cache. note that the access request cache will still end up forwarding single-request
+	// reads to the real backend due to the read after write issue.
+	return a.AccessRequestCache.ListMatchingAccessRequests(ctx, req, match)
 }
 
 func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (types.AccessRequest, error) {

@@ -1916,6 +1916,16 @@ func (process *TeleportProcess) initAuthService() error {
 
 	authServer.SetUnifiedResourcesCache(unifiedResourcesCache)
 
+	accessRequestCache, err := services.NewAccessRequestCache(services.AccessRequestCacheConfig{
+		Events: authServer.Services,
+		Getter: authServer.Services,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authServer.SetAccessRequestCache(accessRequestCache)
+
 	if embedderClient != nil {
 		log.Debugf("Starting embedding watcher")
 		embeddingProcessor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
