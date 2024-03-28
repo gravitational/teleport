@@ -33,7 +33,7 @@ use ironrdp_pdu::input::{InputEventError, MousePdu};
 use ironrdp_pdu::mcs::DisconnectReason;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
-use ironrdp_pdu::{custom_err, function, PduError, PduParsing};
+use ironrdp_pdu::{custom_err, function, PduError};
 use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
@@ -209,6 +209,7 @@ impl Client {
             connection_result.io_channel_id,
             None,
             None,
+            connection_result.connection_activation,
         );
 
         Ok(Self {
@@ -321,6 +322,13 @@ impl Client {
                                 }
                                 ProcessorOutput::Disconnect(reason) => {
                                     return Ok(Some(reason));
+                                }
+                                ProcessorOutput::DeactivateAll(_) => {
+                                    // DeactivateAll is not implemented yet, but will
+                                    // be in the near future when resize support lands.
+                                    return Err(ClientError::InternalError(
+                                        "DeactivateAll not implemented".to_string(),
+                                    ));
                                 }
                             }
                         }
@@ -540,11 +548,9 @@ impl Client {
         write_stream: &mut RdpWriteStream,
         event: FastPathInputEvent,
     ) -> ClientResult<()> {
-        let mut data: Vec<u8> = Vec::new();
-        let input_pdu = FastPathInput(vec![event]);
-        input_pdu.to_buffer(&mut data)?;
-
-        write_stream.write_all(&data).await?;
+        write_stream
+            .write_all(&ironrdp_pdu::encode_vec(&FastPathInput(vec![event]))?)
+            .await?;
         Ok(())
     }
 

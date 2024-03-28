@@ -13,4 +13,12 @@ jobs:
     with:
       base-ref: ${{ github.event.pull_request.base.sha || 'master' }}
       allow-ghsas: 'GHSA-xwh9-gc39-5298'
-      allow-dependencies-licenses: 'pkg:cargo/curve25519-dalek-derive, pkg:cargo/ring, pkg:cargo/sspi, pkg:cargo/tokio-boring'
+      allow-dependencies-licenses: >-
+        pkg:cargo/curve25519-dalek-derive,
+        pkg:cargo/ring,
+        pkg:cargo/sspi,
+        pkg:cargo/tokio-boring,
+        pkg:cargo/asn1-rs,
+        pkg:cargo/asn1-rs-derive,
+        pkg:cargo/asn1-rs-impl,
+        pkg:cargo/der-parser
