@@ -3093,7 +3093,7 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 			}
 
 			if req.PredicateExpression != "" {
-				expression, err := services.NewResourceParser(req.PredicateExpression)
+				expression, err := services.NewResourceExpression(req.PredicateExpression)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}

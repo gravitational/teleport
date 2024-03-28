@@ -732,7 +732,7 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 	})
 }
 
-// NewResourceParser returns a [typical.Expression] that is to be evaluated against a
+// NewResourceExpression returns a [typical.Expression] that is to be evaluated against a
 // [types.ResourceWithLabels]. It is customized to allow short identifiers common in all
 // resources:
 //   - shorthand `name` refers to `resource.spec.hostname` for node resources, or it refers
@@ -742,8 +742,8 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 //
 // All other fields can be referenced by starting expression with identifier `resource`
 // followed by the names of the json fields ie: `resource.spec.public_addr`.
-func NewResourceParser(expression string) (typical.Expression[types.ResourceWithLabels, bool], error) {
-	parser, err := typical.NewCachedParser[types.ResourceWithLabels, bool](typical.ParserSpec[types.ResourceWithLabels]{
+func NewResourceExpression(expression string) (typical.Expression[types.ResourceWithLabels, bool], error) {
+	parser, err := typical.NewParser[types.ResourceWithLabels, bool](typical.ParserSpec[types.ResourceWithLabels]{
 		Variables: map[string]typical.Variable{
 			"resource.metadata.labels": typical.DynamicVariable(func(r types.ResourceWithLabels) (map[string]string, error) {
 				return r.GetStaticLabels(), nil
@@ -767,16 +767,16 @@ func NewResourceParser(expression string) (typical.Expression[types.ResourceWith
 			}),
 		},
 		Functions: map[string]typical.Function{
-			"hasPrefix": typical.BinaryFunction[types.ResourceWithLabels, string, string, bool](func(s, suffix string) (bool, error) {
+			"hasPrefix": typical.BinaryFunction[types.ResourceWithLabels](func(s, suffix string) (bool, error) {
 				return strings.HasPrefix(s, suffix), nil
 			}),
-			"equals": typical.BinaryFunction[types.ResourceWithLabels, string, string, bool](func(a, b string) (bool, error) {
+			"equals": typical.BinaryFunction[types.ResourceWithLabels](func(a, b string) (bool, error) {
 				return strings.Compare(a, b) == 0, nil
 			}),
 			"search": typical.UnaryVariadicFunctionWithEnv(func(r types.ResourceWithLabels, v ...string) (bool, error) {
 				return r.MatchSearch(v), nil
 			}),
-			"exists": typical.UnaryFunction[types.ResourceWithLabels, string, bool](func(value string) (bool, error) {
+			"exists": typical.UnaryFunction[types.ResourceWithLabels](func(value string) (bool, error) {
 				return value != "", nil
 			}),
 		},

@@ -188,7 +188,7 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 	}
 
 	if req.PredicateExpression != "" {
-		expression, err := services.NewResourceParser(req.PredicateExpression)
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -260,7 +260,7 @@ func (s *WindowsDesktopService) ListWindowsDesktopServices(ctx context.Context, 
 	}
 
 	if req.PredicateExpression != "" {
-		expression, err := services.NewResourceParser(req.PredicateExpression)
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

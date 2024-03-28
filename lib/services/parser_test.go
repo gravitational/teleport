@@ -158,7 +158,7 @@ func TestParserForIdentifierSubcondition(t *testing.T) {
 			}}))
 }
 
-func TestNewResourceParser(t *testing.T) {
+func TestNewResourceExpression(t *testing.T) {
 	t.Parallel()
 	resource, err := types.NewServerWithLabels("test-name", types.KindNode, types.ServerSpecV2{
 		Hostname: "test-hostname",
@@ -217,7 +217,7 @@ func TestNewResourceParser(t *testing.T) {
 		}
 		for _, expr := range exprs {
 			t.Run(expr, func(t *testing.T) {
-				parser, err := NewResourceParser(expr)
+				parser, err := NewResourceExpression(expr)
 				require.NoError(t, err)
 
 				match, err := parser.Evaluate(resource)
@@ -245,7 +245,7 @@ func TestNewResourceParser(t *testing.T) {
 		}
 		for _, expr := range exprs {
 			t.Run(expr, func(t *testing.T) {
-				parser, err := NewResourceParser(expr)
+				parser, err := NewResourceExpression(expr)
 				require.NoError(t, err)
 
 				match, err := parser.Evaluate(resource)
@@ -286,7 +286,7 @@ func TestNewResourceParser(t *testing.T) {
 		}
 		for _, expr := range exprs {
 			t.Run(expr, func(t *testing.T) {
-				expression, err := NewResourceParser(expr)
+				expression, err := NewResourceExpression(expr)
 				require.Error(t, err)
 				require.Nil(t, expression)
 			})
@@ -302,7 +302,7 @@ func TestNewResourceParser(t *testing.T) {
 		}
 		for _, expr := range exprs {
 			t.Run(expr, func(t *testing.T) {
-				parser, err := NewResourceParser(expr)
+				parser, err := NewResourceExpression(expr)
 				require.NoError(t, err)
 
 				match, err := parser.Evaluate(resource)
@@ -313,7 +313,7 @@ func TestNewResourceParser(t *testing.T) {
 	})
 }
 
-func TestResourceParser_NameIdentifier(t *testing.T) {
+func TestResourceExpression_NameIdentifier(t *testing.T) {
 	t.Parallel()
 
 	// Server resource should use hostname when using name identifier.
@@ -322,7 +322,7 @@ func TestResourceParser_NameIdentifier(t *testing.T) {
 	}, nil)
 	require.NoError(t, err)
 
-	parser, err := NewResourceParser(`name == "server-hostname"`)
+	parser, err := NewResourceExpression(`name == "server-hostname"`)
 	require.NoError(t, err)
 
 	match, err := parser.Evaluate(server)
@@ -335,7 +335,7 @@ func TestResourceParser_NameIdentifier(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	parser, err = NewResourceParser(`name == "desktop-name"`)
+	parser, err = NewResourceExpression(`name == "desktop-name"`)
 	require.NoError(t, err)
 
 	match, err = parser.Evaluate(desktop)

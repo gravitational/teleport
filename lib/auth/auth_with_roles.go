@@ -1365,7 +1365,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	}
 
 	if req.PredicateExpression != "" {
-		expression, err := services.NewResourceParser(req.PredicateExpression)
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1734,7 +1734,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	}
 
 	if req.PredicateExpression != "" {
-		expression, err := services.NewResourceParser(req.PredicateExpression)
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2045,7 +2045,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 	}
 
 	if req.PredicateExpression != "" {
-		expression, err := services.NewResourceParser(req.PredicateExpression)
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

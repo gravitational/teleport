@@ -293,7 +293,7 @@ func TestMatchResourceByFilters_Helper(t *testing.T) {
 			t.Parallel()
 
 			if tc.predicateExpression != "" {
-				parser, err := NewResourceParser(tc.predicateExpression)
+				parser, err := NewResourceExpression(tc.predicateExpression)
 				require.NoError(t, err)
 				tc.filters.PredicateExpression = parser
 			}
@@ -387,7 +387,7 @@ func TestMatchAndFilterKubeClusters(t *testing.T) {
 
 			var filters MatchResourceFilter
 			if tc.predicateExpression != "" {
-				expression, err := NewResourceParser(tc.predicateExpression)
+				expression, err := NewResourceExpression(tc.predicateExpression)
 				require.NoError(t, err)
 
 				filters.PredicateExpression = expression
@@ -417,7 +417,7 @@ func TestMatchAndFilterKubeClusters(t *testing.T) {
 func TestMatchResourceByFilters(t *testing.T) {
 	t.Parallel()
 
-	filterExpression, err := NewResourceParser(`resource.metadata.name == "foo"`)
+	filterExpression, err := NewResourceExpression(`resource.metadata.name == "foo"`)
 	require.NoError(t, err)
 
 	testcases := []struct {

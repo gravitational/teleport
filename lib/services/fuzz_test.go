@@ -114,7 +114,7 @@ func FuzzParserEvalBoolPredicate(f *testing.F) {
 		require.NoError(t, err)
 
 		require.NotPanics(t, func() {
-			parser, err := NewResourceParser(expr)
+			parser, err := NewResourceExpression(expr)
 			if err != nil {
 				return
 			}

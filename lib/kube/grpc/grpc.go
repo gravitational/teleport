@@ -227,7 +227,7 @@ func (s *Server) listKubernetesResources(
 	}
 
 	if req.PredicateExpression != "" {
-		expression, err := services.NewResourceParser(req.PredicateExpression)
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -548,7 +548,7 @@ func (s *Server) listResourcesUsingFakePagination(
 	}
 
 	if req.PredicateExpression != "" {
-		expression, err := services.NewResourceParser(req.PredicateExpression)
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
