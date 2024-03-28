@@ -20,11 +20,11 @@ package service
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -44,10 +44,9 @@ func (process *TeleportProcess) initDiscovery() {
 }
 
 func (process *TeleportProcess) initDiscoveryService() error {
-	log := process.log.WithField(trace.Component, teleport.Component(
-		teleport.ComponentDiscovery, process.id))
+	logger := process.logger.With(trace.Component, teleport.Component(teleport.ComponentDiscovery, process.id))
 
-	conn, err := process.WaitForConnector(DiscoveryIdentityEvent, log)
+	conn, err := process.WaitForConnector(DiscoveryIdentityEvent, logger)
 	if conn == nil {
 		return trace.Wrap(err)
 	}
@@ -76,7 +75,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		process.ExitContext(),
 		process.Config,
 		process.getInstanceClient(),
-		log,
+		logger,
 	)
 	if err != nil {
 		return trace.Wrap(err, "failed to build access graph configuration")
@@ -107,15 +106,15 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	}
 
 	process.OnExit("discovery.stop", func(payload interface{}) {
-		log.Info("Shutting down.")
+		logger.InfoContext(process.ExitContext(), "Shutting down.")
 		if discoveryService != nil {
 			discoveryService.Stop()
 		}
 		if asyncEmitter != nil {
-			warnOnErr(asyncEmitter.Close(), process.log)
+			warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
 		}
-		warnOnErr(conn.Close(), log)
-		log.Info("Exited.")
+		warnOnErr(process.ExitContext(), conn.Close(), logger)
+		logger.InfoContext(process.ExitContext(), "Exited.")
 	})
 
 	process.BroadcastEvent(Event{Name: DiscoveryReady, Payload: nil})
@@ -123,7 +122,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	if err := discoveryService.Start(); err != nil {
 		return trace.Wrap(err)
 	}
-	log.Infof("Discovery service has successfully started")
+	logger.InfoContext(process.ExitContext(), "Discovery service has successfully started")
 
 	if err := discoveryService.Wait(); err != nil {
 		return trace.Wrap(err)
@@ -143,7 +142,7 @@ func (process *TeleportProcess) integrationOnlyCredentials() bool {
 
 // buildAccessGraphFromTAGOrFallbackToAuth builds the AccessGraphConfig from the Teleport Agent configuration or falls back to the Auth server's configuration.
 // If the AccessGraph configuration is not enabled locally, it will fall back to the Auth server's configuration.
-func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servicecfg.Config, client auth.ClientI, logger logrus.FieldLogger) (discovery.AccessGraphConfig, error) {
+func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servicecfg.Config, client auth.ClientI, logger *slog.Logger) (discovery.AccessGraphConfig, error) {
 	var (
 		accessGraphCAData []byte
 		err               error
@@ -164,13 +163,13 @@ func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servic
 		CA:       accessGraphCAData,
 	}
 	if !accessGraphCfg.Enabled {
-		logger.Debug("Access graph is disabled or not configured. Falling back to the Auth server's access graph configuration.")
+		logger.DebugContext(ctx, "Access graph is disabled or not configured. Falling back to the Auth server's access graph configuration.")
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		rsp, err := client.GetClusterAccessGraphConfig(ctx)
 		cancel()
 		switch {
 		case trace.IsNotImplemented(err):
-			logger.Debug("Auth server does not support access graph's GetClusterAccessGraphConfig RPC")
+			logger.DebugContext(ctx, "Auth server does not support access graph's GetClusterAccessGraphConfig RPC")
 		case err != nil:
 			return discovery.AccessGraphConfig{}, trace.Wrap(err)
 		default:
