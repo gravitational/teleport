@@ -35,8 +35,30 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+var _ alpnproxy.LocalProxyMiddleware = (*alpnProxyMiddleware)(nil)
+
+type alpnProxyMiddleware struct {
+	onNewConnection func(ctx context.Context, lp *alpnproxy.LocalProxy, conn net.Conn) error
+	onStart         func(ctx context.Context, lp *alpnproxy.LocalProxy) error
+}
+
+func (a alpnProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy, conn net.Conn) error {
+	if a.onNewConnection != nil {
+		return a.onNewConnection(ctx, lp, conn)
+	}
+	return nil
+}
+
+func (a alpnProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
+	if a.onStart != nil {
+		return a.onStart(ctx, lp)
+	}
+	return nil
+}
 
 // DatabaseTunnelService is a service that listens on a local port and forwards
 // connections to a remote database service. It is an authenticating tunnel and
@@ -48,18 +70,7 @@ type DatabaseTunnelService struct {
 	resolver       reversetunnelclient.Resolver
 	botClient      *auth.Client
 	getBotIdentity getBotIdentityFn
-
-	// routeToDatabase is the cached route to database parameters. We determine
-	// this once and then reuse it to reduce latency associated with issuing
-	// the certificates on connection. Set by buildLocalProxyConfig.
-	routeToDatabase proto.RouteToDatabase
-	// roles is the list of roles to request for the impersonated teleport
-	// identity. This is the configured value, or if unconfigured, all the
-	// roles the bot has. Set by buildLocalProxyConfig.
-	roles []string
 }
-
-var _ alpnproxy.LocalProxyMiddleware = (*DatabaseTunnelService)(nil)
 
 // buildLocalProxyConfig initializes the service, fetching any initial information and setting
 // up the localproxy.
@@ -69,9 +80,9 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 
 	// Determine the roles to use for the impersonated db access user. We fall
 	// back to all the roles the bot has if none are configured.
-	s.roles = s.cfg.Roles
-	if len(s.roles) == 0 {
-		s.roles, err = fetchDefaultRoles(ctx, s.botClient, s.getBotIdentity())
+	roles := s.cfg.Roles
+	if len(roles) == 0 {
+		roles, err = fetchDefaultRoles(ctx, s.botClient, s.getBotIdentity())
 		if err != nil {
 			return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "fetching default roles")
 		}
@@ -82,30 +93,47 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 	// We cache the routeToDatabase as these will not change during the lifetime
 	// of the service and this reduces the time needed to issue a new
 	// certificate.
-	// TODO: Use impersonated identity to fetch route to catch permissions
-	// issues sooner.
-	s.routeToDatabase, err = getRouteToDatabase(
-		ctx, s.log, s.botClient, s.cfg.Service, s.cfg.Username, s.cfg.Database,
-	)
+	routeToDatabase, err := s.getRouteToDatabaseWithImpersonation(ctx, roles)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err)
 	}
-	dbCert, err := s.issueCert(ctx)
+	dbCert, err := s.issueCert(ctx, routeToDatabase, roles)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err)
 	}
 
 	proxyAddr := "leaf.tele.ottr.sh:443"
 
-	alpnProtocol, err := common.ToALPNProtocol(s.routeToDatabase.Protocol)
+	middleware := alpnProxyMiddleware{
+		onNewConnection: func(ctx context.Context, lp *alpnproxy.LocalProxy, conn net.Conn) error {
+			ctx, span := tracer.Start(ctx, "DatabaseTunnelService/OnNewConnection")
+			defer span.End()
+
+			// Check if the certificate needs reissuing, if so, reissue.
+			if err := lp.CheckDBCerts(tlsca.RouteToDatabase{
+				ServiceName: routeToDatabase.ServiceName,
+				Protocol:    routeToDatabase.Protocol,
+				Database:    routeToDatabase.Database,
+				Username:    routeToDatabase.Username,
+			}); err != nil {
+				s.log.WithField("reason", err.Error()).Info("Certificate for tunnel needs reissuing.")
+				cert, err := s.issueCert(ctx, routeToDatabase, roles)
+				if err != nil {
+					return trace.Wrap(err, "issuing cert")
+				}
+				lp.SetCerts([]tls.Certificate{*cert})
+			}
+			return nil
+		},
+	}
+
+	alpnProtocol, err := common.ToALPNProtocol(routeToDatabase.Protocol)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err)
 
 	}
 	lpConfig := alpnproxy.LocalProxyConfig{
-		// Pass ourselves in as the middleware which is called on connection to
-		// issue certificates. See OnNewConnection.
-		Middleware: s,
+		Middleware: middleware,
 
 		RemoteProxyAddr: proxyAddr,
 		ParentContext:   ctx,
@@ -163,7 +191,49 @@ func (s *DatabaseTunnelService) Run(ctx context.Context) error {
 	return trace.Wrap(lp.Start(ctx))
 }
 
-func (s *DatabaseTunnelService) issueCert(ctx context.Context) (*tls.Certificate, error) {
+// getRouteToDatabaseWithImpersonation fetches the route to the database with
+// impersonation of roles. This ensures that the user's selected roles actually
+// grant access to the database.
+func (s *DatabaseTunnelService) getRouteToDatabaseWithImpersonation(ctx context.Context, roles []string) (proto.RouteToDatabase, error) {
+	ctx, span := tracer.Start(ctx, "DatabaseTunnelService/getRouteToDatabaseWithImpersonation")
+	defer span.End()
+
+	impersonatedIdentity, err := generateIdentity(
+		ctx,
+		s.botClient,
+		s.getBotIdentity(),
+		roles,
+		s.botCfg.CertificateTTL,
+		nil,
+	)
+	if err != nil {
+		return proto.RouteToDatabase{}, trace.Wrap(err)
+	}
+
+	impersonatedClient, err := clientForFacade(
+		ctx,
+		s.log,
+		s.botCfg,
+		identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, impersonatedIdentity),
+		s.resolver,
+	)
+	if err != nil {
+		return proto.RouteToDatabase{}, trace.Wrap(err)
+	}
+	defer func() {
+		if err := impersonatedClient.Close(); err != nil {
+			s.log.WithError(err).Error("Failed to close impersonated client.")
+		}
+	}()
+
+	return getRouteToDatabase(ctx, s.log, impersonatedClient, s.cfg.Service, s.cfg.Username, s.cfg.Database)
+}
+
+func (s *DatabaseTunnelService) issueCert(
+	ctx context.Context,
+	route proto.RouteToDatabase,
+	roles []string,
+) (*tls.Certificate, error) {
 	ctx, span := tracer.Start(ctx, "DatabaseTunnelService/issueCert")
 	defer span.End()
 
@@ -172,10 +242,10 @@ func (s *DatabaseTunnelService) issueCert(ctx context.Context) (*tls.Certificate
 		ctx,
 		s.botClient,
 		s.getBotIdentity(),
-		s.roles,
+		roles,
 		s.botCfg.CertificateTTL,
 		func(req *proto.UserCertsRequest) {
-			req.RouteToDatabase = s.routeToDatabase
+			req.RouteToDatabase = route
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -183,38 +253,6 @@ func (s *DatabaseTunnelService) issueCert(ctx context.Context) (*tls.Certificate
 	s.log.Info("Certificate issued for database tunnel.")
 
 	return ident.TLSCert, nil
-}
-
-// OnNewConnection is called by the localproxy when a new connection is made.
-// Implements the LocalProxyMiddleware interface.
-func (s *DatabaseTunnelService) OnNewConnection(
-	ctx context.Context, lp *alpnproxy.LocalProxy, _ net.Conn,
-) error {
-	ctx, span := tracer.Start(ctx, "DatabaseTunnelService/OnNewConnection")
-	defer span.End()
-
-	// Check if the certificate needs reissuing, if so, reissue.
-	if err := lp.CheckDBCerts(tlsca.RouteToDatabase{
-		ServiceName: s.routeToDatabase.ServiceName,
-		Protocol:    s.routeToDatabase.Protocol,
-		Database:    s.routeToDatabase.Database,
-		Username:    s.routeToDatabase.Username,
-	}); err != nil {
-		s.log.WithField("reason", err.Error()).Info("Certificate for tunnel needs reissuing.")
-		cert, err := s.issueCert(ctx)
-		if err != nil {
-			return trace.Wrap(err, "issuing cert")
-		}
-		lp.SetCerts([]tls.Certificate{*cert})
-	}
-	return nil
-}
-
-// OnStart is called by the localproxy is started.
-// Required to implement the LocalProxyMiddleware interface.
-func (s *DatabaseTunnelService) OnStart(_ context.Context, _ *alpnproxy.LocalProxy) error {
-	// Nothing to do here. We already inject an initial cert.
-	return nil
 }
 
 // String returns a human-readable string that can uniquely identify the
