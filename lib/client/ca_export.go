@@ -116,6 +116,13 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 			ExportPrivateKeys: exportSecrets,
 		}
 		return exportTLSAuthority(ctx, client, req)
+	case "tls-spiffe":
+		req := exportTLSAuthorityRequest{
+			AuthType:          types.SPIFFECA,
+			UnpackPEM:         false,
+			ExportPrivateKeys: exportSecrets,
+		}
+		return exportTLSAuthority(ctx, client, req)
 	case "db":
 		req := exportTLSAuthorityRequest{
 			AuthType:          types.DatabaseCA,
