@@ -574,6 +574,8 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			cmd:          nil,
 			wantErr:      true,
 		},
+		// If you find yourself changing this test so that generating a command for DynamoDB _doesn't_
+		// fail if WithPrintFormat() is not provided, please remember to update lib/teleterm/cmd/db.go.
 		{
 			name:         "dynamodb for exec is an error",
 			dbProtocol:   defaults.ProtocolDynamoDB,

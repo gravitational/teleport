@@ -26,29 +26,30 @@ import (
 	"github.com/stretchr/testify/require"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/teleterm/cmd"
 )
 
 func Test_makeGatewayCLICommand(t *testing.T) {
 	absPath, err := filepath.Abs("test-binary")
 	require.NoError(t, err)
 
-	// Call exec.Command with a relative path so that cmd.Args[0] is a relative path.
-	// Then replace cmd.Path with an absolute path to simulate binary being resolved to
+	// Call exec.Command with a relative path so that command.Args[0] is a relative path.
+	// Then replace command.Path with an absolute path to simulate binary being resolved to
 	// an absolute path. This way we can later verify that gateway.CLICommand doesn't use the absolute
 	// path.
 	//
 	// This also ensures that exec.Command behaves the same way on different devices, no matter
 	// whether a command like postgres is installed on the system or not.
-	cmd := exec.Command("test-binary", "arg1", "arg2")
-	cmd.Path = absPath
-	cmd.Env = []string{"FOO=bar"}
+	command := exec.Command("test-binary", "arg1", "arg2")
+	command.Path = absPath
+	command.Env = []string{"FOO=bar"}
 
-	command := makeGatewayCLICommand(cmd)
+	gatewayCmd := makeGatewayCLICommand(cmd.Cmds{Exec: command, Preview: command})
 
 	require.Equal(t, &api.GatewayCLICommand{
 		Path:    absPath,
 		Args:    []string{"test-binary", "arg1", "arg2"},
 		Env:     []string{"FOO=bar"},
 		Preview: "FOO=bar test-binary arg1 arg2",
-	}, command)
+	}, gatewayCmd)
 }
