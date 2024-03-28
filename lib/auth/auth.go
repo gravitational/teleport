@@ -2394,6 +2394,7 @@ func (a *Server) AugmentWebSessionCertificates(
 	// Update WebSession.
 	sessionV2.Spec.Pub = newCerts.SSH
 	sessionV2.Spec.TLSCert = newCerts.TLS
+	sessionV2.Spec.HasDeviceExtensions = true
 	return trace.Wrap(sessions.Upsert(ctx, sessionV2))
 }
 

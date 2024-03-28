@@ -1985,6 +1985,7 @@ func TestServer_AugmentWebSessionCertificates(t *testing.T) {
 		require.NoError(t, err, "WebSessions().Get() failed: %v", err)
 		assertSSHCert(t, webSession.GetPub())
 		assertX509Cert(t, webSession.GetTLSCert())
+		assert.True(t, webSession.GetHasDeviceExtensions(), "webSesssion.GetHasDeviceExtensions() mismatch")
 
 		// Scenario requires augmented certs to work.
 		t.Run("cannot re-augment the same session", func(t *testing.T) {
