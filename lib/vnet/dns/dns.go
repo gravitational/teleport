@@ -60,7 +60,8 @@ func NewServer(slog *slog.Logger, resolver Resolver) (*Server, error) {
 		slog:         slog.With(teleport.ComponentKey, "VNet.DNS"),
 		messageBuffers: sync.Pool{
 			New: func() any {
-				return make([]byte, maxMessageSize)
+				buf := make([]byte, maxMessageSize)
+				return &buf
 			},
 		},
 		resolver: resolver,
@@ -69,10 +70,10 @@ func NewServer(slog *slog.Logger, resolver Resolver) (*Server, error) {
 }
 
 func (s *Server) getMessageBuffer() ([]byte, func()) {
-	buf := s.messageBuffers.Get().([]byte)
+	buf := *s.messageBuffers.Get().(*[]byte)
 	buf = buf[:cap(buf)]
 	return buf, func() {
-		s.messageBuffers.Put(buf)
+		s.messageBuffers.Put(&buf)
 	}
 }
 
@@ -113,7 +114,6 @@ func (s *Server) HandleUDPConn(ctx context.Context, conn io.ReadWriteCloser) err
 	if question.Class != dnsmessage.ClassINET {
 		slog.Debug("Query class is not INET, forwarding.", "class", question.Class)
 		return trace.Wrap(s.forward(ctx, slog, conn, buf), "forwarding non-INET DNS query")
-		return nil
 	}
 
 	var result Result
@@ -243,6 +243,7 @@ func (s *Server) forwardingNameservers(ctx context.Context) ([]string, error) {
 
 var writeLock sync.Mutex
 
+//lint:ignore U1000 useful for debugging
 func debugDNS(buf []byte) {
 	cp := make([]byte, len(buf))
 	copy(cp, buf)
@@ -311,7 +312,7 @@ func buildAResponse(buf []byte, requestHeader *dnsmessage.Header, question *dnsm
 		Type:  dnsmessage.TypeA,
 		Class: dnsmessage.ClassINET,
 		TTL:   10,
-	}, dnsmessage.AResource{addr}); err != nil {
+	}, dnsmessage.AResource{A: addr}); err != nil {
 		return buf, trace.Wrap(err, "adding AResource to DNS response")
 	}
 	buf, err = responseBuilder.Finish()
@@ -331,7 +332,7 @@ func buildAAAAResponse(buf []byte, requestHeader *dnsmessage.Header, question *d
 		Type:  dnsmessage.TypeAAAA,
 		Class: dnsmessage.ClassINET,
 		TTL:   10,
-	}, dnsmessage.AAAAResource{addr}); err != nil {
+	}, dnsmessage.AAAAResource{AAAA: addr}); err != nil {
 		return buf, trace.Wrap(err, "adding AAAAResource to DNS response")
 	}
 	buf, err = responseBuilder.Finish()

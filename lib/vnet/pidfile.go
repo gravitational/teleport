@@ -28,11 +28,12 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func withPidfileCancellation(ctx context.Context, pidFilePath string) (context.Context, error) {
+func withPidfileContext(ctx context.Context, pidFilePath string) (context.Context, error) {
 	ctx, cancel := context.WithCancel(ctx)
 
 	pid, running, err := checkProcessRunning(pidFilePath)
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err)
 	}
 	if !running {
@@ -42,9 +43,11 @@ func withPidfileCancellation(ctx context.Context, pidFilePath string) (context.C
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err, "creating PID file watcher")
 	}
 	if err := watcher.Add(pidFilePath); err != nil {
+		cancel()
 		return nil, trace.Wrap(err, "watching PID file")
 	}
 
