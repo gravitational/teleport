@@ -38,10 +38,11 @@ import (
 // Player is used to stream recorded sessions over a channel.
 type Player struct {
 	// read only config fields
-	clock     clockwork.Clock
-	log       logrus.FieldLogger
-	sessionID session.ID
-	streamer  Streamer
+	clock        clockwork.Clock
+	log          logrus.FieldLogger
+	sessionID    session.ID
+	streamer     Streamer
+	skipIdleTime bool
 
 	speed      atomic.Value // playback speed (1.0 for normal speed)
 	lastPlayed atomic.Int64 // timestamp of most recently played event
@@ -87,10 +88,11 @@ type Streamer interface {
 
 // Config configures a session player.
 type Config struct {
-	Clock     clockwork.Clock
-	Log       logrus.FieldLogger
-	SessionID session.ID
-	Streamer  Streamer
+	Clock        clockwork.Clock
+	Log          logrus.FieldLogger
+	SessionID    session.ID
+	Streamer     Streamer
+	SkipIdleTime bool
 }
 
 func New(cfg *Config) (*Player, error) {
@@ -113,13 +115,14 @@ func New(cfg *Config) (*Player, error) {
 	}
 
 	p := &Player{
-		clock:     clk,
-		log:       log,
-		sessionID: cfg.SessionID,
-		streamer:  cfg.Streamer,
-		emit:      make(chan events.AuditEvent, 1024),
-		playPause: make(chan chan struct{}, 1),
-		done:      make(chan struct{}),
+		clock:        clk,
+		log:          log,
+		sessionID:    cfg.SessionID,
+		streamer:     cfg.Streamer,
+		skipIdleTime: cfg.SkipIdleTime,
+		emit:         make(chan events.AuditEvent, 1024),
+		playPause:    make(chan chan struct{}, 1),
+		done:         make(chan struct{}),
 	}
 
 	p.speed.Store(float64(defaultPlaybackSpeed))
@@ -281,6 +284,10 @@ func (p *Player) SetPos(d time.Duration) error {
 // can be canceled
 func (p *Player) applyDelay(d time.Duration) error {
 	scaled := float64(d) / p.speed.Load().(float64)
+	if p.skipIdleTime {
+		scaled = min(scaled, 500.0*float64(time.Millisecond))
+	}
+
 	select {
 	case <-p.done:
 		return errClosed

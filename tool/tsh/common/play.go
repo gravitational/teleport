@@ -78,7 +78,7 @@ func playSession(cf *CLIConf) error {
 	isLocalFile := path.Ext(cf.SessionID) == ".tar"
 	if isLocalFile {
 		sid := sessionIDFromPath(cf.SessionID)
-		if err := client.PlayFile(cf.Context, cf.SessionID, sid, speed); err != nil {
+		if err := client.PlayFile(cf.Context, cf.SessionID, sid, speed, cf.NoWait); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -89,7 +89,7 @@ func playSession(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := tc.Play(cf.Context, cf.SessionID, speed); err != nil {
+	if err := tc.Play(cf.Context, cf.SessionID, speed, cf.NoWait); err != nil {
 		if trace.IsNotFound(err) {
 			log.WithError(err).Debug("error playing session")
 			return trace.NotFound("Recording for session %s not found.", cf.SessionID)
