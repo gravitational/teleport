@@ -182,7 +182,7 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		clusterClient: clusterClient,
 		dir:           s.Dir,
 		clock:         s.Clock,
-		Log:           s.Log.WithField("cluster", clusterURI),
+		Log:           s.Log.With("cluster", clusterURI),
 	}, clusterClient, nil
 }
 
@@ -226,7 +226,7 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 		dir:           s.Dir,
 		clock:         s.Clock,
 		status:        *status,
-		Log:           s.Log.WithField("cluster", clusterURI),
+		Log:           s.Log.With("cluster", clusterURI),
 	}, clusterClient, nil
 }
 
@@ -237,7 +237,7 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 	_, err := clusterClient.LocalAgent().GetKey(clusterNameForKey)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			s.Log.Infof("No keys found for cluster %v.", clusterNameForKey)
+			s.Log.InfoContext(context.Background(), "No keys found for cluster", "cluster", clusterNameForKey)
 		} else {
 			return nil, trace.Wrap(err)
 		}

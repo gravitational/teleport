@@ -19,9 +19,10 @@
 package clusters
 
 import (
+	"log/slog"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
@@ -36,7 +37,7 @@ type Config struct {
 	// InsecureSkipVerify is an option to skip TLS cert check
 	InsecureSkipVerify bool
 	// Log is a component logger
-	Log *logrus.Entry
+	Log *slog.Logger
 	// WebauthnLogin allows tests to override the Webauthn Login func.
 	// Defaults to wancli.Login.
 	WebauthnLogin client.WebauthnLoginFunc
@@ -53,7 +54,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, "conn:storage")
+		c.Log = slog.With(teleport.ComponentKey, "storage")
 	}
 
 	return nil
