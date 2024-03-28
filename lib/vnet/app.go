@@ -17,13 +17,10 @@
 package vnet
 
 import (
-	"bufio"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"io"
 	"log/slog"
-	"net"
 
 	"github.com/gravitational/trace"
 
@@ -57,79 +54,14 @@ func (h *tcpAppHandler) handleTCP(ctx context.Context, connector tcpConnector) e
 	return trace.Wrap(utils.ProxyConn(ctx, conn, appConn))
 }
 
-type httpAppHandler struct {
-	tc  *client.TeleportClient
-	app types.Application
-}
-
-func (h *httpAppHandler) handleTCP(ctx context.Context, connector tcpConnector) error {
-	appName := h.app.GetName()
-	cert, err := appCert(ctx, h.tc, appName, h.app.GetPublicAddr())
-	if err != nil {
-		return trace.Wrap(err, "getting cert for app %s", appName)
+func newAppHandler(tc *client.TeleportClient, app types.Application) (tcpHandler, error) {
+	if !app.IsTCP() {
+		return nil, trace.BadParameter("only TCP apps are supported")
 	}
-
-	downstreamConn, err := connector()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	bufReader := bufio.NewReader(downstreamConn)
-	header, err := bufReader.Peek(6)
-	if err != nil {
-		return trace.Wrap(err, "peeking tcp stream")
-	}
-	downstreamConn = peekedConn{WriteCloser: downstreamConn, Reader: bufReader}
-
-	var upstreamConn io.ReadWriteCloser
-	if isTLSClientHello(header) {
-		var dialer net.Dialer
-		upstreamConn, err = dialer.DialContext(ctx, "tcp", h.tc.WebProxyAddr)
-		if err != nil {
-			return trace.Wrap(err, "dialing proxy")
-		}
-	} else {
-		upstreamConn, err = dialApp(ctx, h.tc, cert)
-		if err != nil {
-			return trace.Wrap(err, "dialing app %s", appName)
-		}
-	}
-
-	return trace.Wrap(utils.ProxyConn(ctx, downstreamConn, upstreamConn))
-}
-
-type peekedConn struct {
-	io.WriteCloser
-	io.Reader
-}
-
-func isTLSClientHello(header []byte) bool {
-	switch {
-	case len(header) < 6:
-		return false
-	case header[0] != 0x16:
-		// not a handshake
-		return false
-	case header[1] != 3:
-		// not TLS 1.x
-		return false
-	case header[5] != 1:
-		// not Client Hello
-		return false
-	}
-	return true
-}
-
-func newAppHandler(tc *client.TeleportClient, app types.Application) tcpHandler {
-	if app.IsTCP() {
-		return &tcpAppHandler{
-			tc:  tc,
-			app: app,
-		}
-	}
-	return &httpAppHandler{
+	return &tcpAppHandler{
 		tc:  tc,
 		app: app,
-	}
+	}, nil
 }
 
 func dialApp(ctx context.Context, tc *client.TeleportClient, cert *tls.Certificate) (*tls.Conn, error) {

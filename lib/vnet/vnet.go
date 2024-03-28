@@ -30,6 +30,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gravitational/trace"
+	"github.com/vulcand/predicate/builder"
 	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
@@ -243,19 +244,15 @@ func (m *Manager) ResolveA(ctx context.Context, fqdn string) (dns.Result, error)
 		return dns.Result{}, trace.Wrap(err)
 	}
 	if !match {
-		if strings.HasSuffix(appPublicAddr, matchingProfile) {
-			// If this is under the proxy address but the app wasn't found,
-			// return a name error.
-			return dns.Result{
-				NXDomain: true,
-			}, nil
-		}
-		// This is a custom DNS zone and the app wasn't found, forward the
-		// request.
+		// The app wasn't found, forward the request to the default nameservers.
 		return dns.Result{}, nil
 	}
 
-	ip := m.assignIPv4ToApp(fqdn, app)
+	ip, err := m.assignIPv4ToApp(fqdn, app)
+	if err != nil {
+		return dns.Result{}, trace.Wrap(err)
+	}
+
 	return dns.Result{
 		A: ip.As4(),
 	}, nil
@@ -279,15 +276,7 @@ func (m *Manager) ResolveAAAA(ctx context.Context, fqdn string) (dns.Result, err
 		return dns.Result{}, trace.Wrap(err)
 	}
 	if !match {
-		if strings.HasSuffix(appPublicAddr, matchingProfile) {
-			// If this is under the proxy address but the app wasn't found,
-			// return a name error.
-			return dns.Result{
-				NXDomain: true,
-			}, nil
-		}
-		// This is a custom DNS zone and the app wasn't found, forward the
-		// request.
+		// The app wasn't found, forward the request to the default nameservers.
 		return dns.Result{}, nil
 	}
 
@@ -330,15 +319,18 @@ func (m *Manager) matchingAppForProfile(ctx context.Context, profileName, appPub
 		return nil, false, trace.Wrap(err)
 	}
 	appServers, err := apiclient.GetAllResources[types.AppServer](ctx, clt, &proto.ListResourcesRequest{
-		ResourceType:        types.KindAppServer,
-		PredicateExpression: fmt.Sprintf(`search(%q)`, appPublicAddr),
+		ResourceType: types.KindAppServer,
+		PredicateExpression: builder.Equals(
+			builder.Identifier("resource.spec.public_addr"),
+			builder.String(appPublicAddr),
+		).String(),
 	})
 	if err != nil {
 		return nil, false, trace.Wrap(err, "listing application servers")
 	}
 	for _, appServer := range appServers {
 		app := appServer.GetApp()
-		if app.GetPublicAddr() == appPublicAddr {
+		if app.GetPublicAddr() == appPublicAddr && app.IsTCP() {
 			return app, true, nil
 		}
 	}
@@ -359,8 +351,11 @@ func (m *Manager) apiClient(ctx context.Context, profileName string) (*apiclient
 	})
 }
 
-func (m *Manager) assignIPv4ToApp(fqdn string, app types.Application) tcpip.Address {
-	appHandler := newAppHandler(m.tc, app)
+func (m *Manager) assignIPv4ToApp(fqdn string, app types.Application) (tcpip.Address, error) {
+	appHandler, err := newAppHandler(m.tc, app)
+	if err != nil {
+		return tcpip.Address{}, trace.Wrap(err)
+	}
 
 	m.state.mu.Lock()
 	defer m.state.mu.Unlock()
@@ -372,7 +367,7 @@ func (m *Manager) assignIPv4ToApp(fqdn string, app types.Application) tcpip.Addr
 	m.state.tcpHandlers[addr] = appHandler
 	m.state.ips[fqdn] = addr
 
-	return addr
+	return addr, nil
 }
 
 func (m *Manager) tcpHandler(addr tcpip.Address, port uint16) (tcpHandler, bool) {
@@ -486,7 +481,6 @@ func (m *Manager) handleUDPConcurrent(req *udp.ForwarderRequest) {
 	conn := gonet.NewUDPConn(m.stack, &wq, ep)
 	go func() {
 		<-ctx.Done()
-		slog.Debug("Context cancelling, closing UDP conn.")
 		conn.Close()
 	}()
 	if err := handler(ctx, conn); err != nil {

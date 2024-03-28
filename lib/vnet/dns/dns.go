@@ -25,6 +25,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -36,23 +37,18 @@ import (
 )
 
 const (
-	maxMessageSize       = 512 // RFC1035
-	maxConcurrentQueries = 4
+	maxMessageSize = 1500 // MTU
 )
 
 type Server struct {
 	hostConfFile   string
 	slog           *slog.Logger
-	messageBuffers chan []byte
+	messageBuffers sync.Pool
 	resolver       Resolver
 	ttlCache       *utils.FnCache
 }
 
 func NewServer(slog *slog.Logger, resolver Resolver) (*Server, error) {
-	messageBuffers := make(chan []byte, maxConcurrentQueries)
-	for i := 0; i < maxConcurrentQueries; i++ {
-		messageBuffers <- []byte{}
-	}
 	ttlCache, err := utils.NewFnCache(utils.FnCacheConfig{
 		TTL: 10 * time.Second,
 	})
@@ -60,33 +56,41 @@ func NewServer(slog *slog.Logger, resolver Resolver) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &Server{
-		hostConfFile:   "/etc/resolv.conf",
-		slog:           slog.With(teleport.ComponentKey, "VNet.DNS"),
-		messageBuffers: messageBuffers,
-		resolver:       resolver,
-		ttlCache:       ttlCache,
+		hostConfFile: "/etc/resolv.conf",
+		slog:         slog.With(teleport.ComponentKey, "VNet.DNS"),
+		messageBuffers: sync.Pool{
+			New: func() any {
+				return make([]byte, maxMessageSize)
+			},
+		},
+		resolver: resolver,
+		ttlCache: ttlCache,
 	}, nil
+}
+
+func (s *Server) getMessageBuffer() ([]byte, func()) {
+	buf := s.messageBuffers.Get().([]byte)
+	buf = buf[:cap(buf)]
+	return buf, func() {
+		s.messageBuffers.Put(buf)
+	}
 }
 
 func (s *Server) HandleUDPConn(ctx context.Context, conn io.ReadWriteCloser) error {
 	s.slog.Debug("Handling DNS.")
 	defer conn.Close()
 
-	buf := <-s.messageBuffers
-	defer func() { s.messageBuffers <- buf }()
-	if cap(buf) < maxMessageSize {
-		buf = make([]byte, maxMessageSize)
-	} else {
-		buf = buf[:cap(buf)]
-	}
+	buf, returnBuf := s.getMessageBuffer()
+	defer returnBuf()
 
 	n, err := conn.Read(buf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if n >= maxMessageSize {
-		return trace.BadParameter("message too large")
+		return trace.BadParameter("DNS message too large")
 	}
+	buf = buf[:n]
 
 	// debugDNS(buf)
 
@@ -96,8 +100,8 @@ func (s *Server) HandleUDPConn(ctx context.Context, conn io.ReadWriteCloser) err
 		return trace.Wrap(err)
 	}
 	if requestHeader.OpCode != 0 {
-		s.slog.Debug("OpCode is not QUERY (0), not responding.", "OpCode", requestHeader.OpCode)
-		return nil
+		s.slog.Debug("OpCode is not QUERY (0), forwarding.", "OpCode", requestHeader.OpCode)
+		return trace.Wrap(s.forward(ctx, s.slog, conn, buf), "forwarding non-QUERY DNS message")
 	}
 	question, err := parser.Question()
 	if err != nil {
@@ -105,9 +109,10 @@ func (s *Server) HandleUDPConn(ctx context.Context, conn io.ReadWriteCloser) err
 	}
 	fqdn := question.Name.String()
 	slog := s.slog.With("fqdn", fqdn, "type", question.Type.String())
-	slog.Debug("Received DNS question.", "question", question)
+	slog.Info("Received DNS question.", "question", question)
 	if question.Class != dnsmessage.ClassINET {
-		slog.Debug("Query class is not INET, not responding.", "class", question.Class)
+		slog.Debug("Query class is not INET, forwarding.", "class", question.Class)
+		return trace.Wrap(s.forward(ctx, slog, conn, buf), "forwarding non-INET DNS query")
 		return nil
 	}
 
@@ -129,21 +134,20 @@ func (s *Server) HandleUDPConn(ctx context.Context, conn io.ReadWriteCloser) err
 	var response []byte
 	switch {
 	case result.NXDomain:
-		slog.Debug("No match for name, responding with authoritative name error.")
+		slog.Info("No match for name, responding with authoritative name error.")
 		response, err = buildNXDomainResponse(buf, &requestHeader, &question)
 	case result.NoRecord:
-		slog.Debug("Name matched but no record, responding with authoritative non-answer.")
+		slog.Info("Name matched but no record, responding with authoritative non-answer.")
 		response, err = buildEmptyResponse(buf, &requestHeader, &question)
 	case result.A != ([4]byte{}):
-		slog.Debug("Matched DNS A.", "A", result.A)
+		slog.Info("Matched DNS A.", "A", result.A)
 		response, err = buildAResponse(buf, &requestHeader, &question, result.A)
 	case result.AAAA != ([16]byte{}):
-		slog.Debug("Matched DNS AAAA.", "AAAA", result.AAAA)
+		slog.Info("Matched DNS AAAA.", "AAAA", result.AAAA)
 		response, err = buildAAAAResponse(buf, &requestHeader, &question, result.AAAA)
 	default:
-		// TODO: forwarding
-		slog.Debug("Recursively resolving query.")
-		response, err = s.recurse(ctx, buf)
+		slog.Info("Forwarding unmatched query.")
+		return trace.Wrap(s.forward(ctx, slog, conn, buf), "forwarding unmatched DNS query")
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -154,7 +158,7 @@ func (s *Server) HandleUDPConn(ctx context.Context, conn io.ReadWriteCloser) err
 	return trace.Wrap(err, "writing DNS response")
 }
 
-func (s *Server) recurse(ctx context.Context, buf []byte) ([]byte, error) {
+func (s *Server) forward(ctx context.Context, logger *slog.Logger, downstreamConn io.ReadWriteCloser, buf []byte) error {
 	deadline := time.Now().Add(5 * time.Second)
 	dialer := net.Dialer{
 		Deadline: deadline,
@@ -162,27 +166,34 @@ func (s *Server) recurse(ctx context.Context, buf []byte) ([]byte, error) {
 
 	forwardingNameservers, err := s.forwardingNameservers(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err, "getting host default nameservers")
+		return trace.Wrap(err, "getting host default nameservers")
 	}
 	responses := make(chan []byte, len(forwardingNameservers))
 	errs := make(chan error, len(forwardingNameservers))
 	for _, addr := range forwardingNameservers {
+		addr := addr
+		responseBuf, returnResponseBuf := s.getMessageBuffer()
+		defer returnResponseBuf()
 		go func() {
-			conn, err := dialer.DialContext(ctx, "udp", addr+":53")
+			logger.With("addr", addr).Debug("Forwarding request to nameserver.")
+			upstreamConn, err := dialer.DialContext(ctx, "udp", addr+":53")
 			if err != nil {
 				errs <- err
 				return
 			}
-			conn.SetWriteDeadline(deadline)
-			conn.SetReadDeadline(deadline)
-			_, err = conn.Write(buf)
+			upstreamConn.SetWriteDeadline(deadline)
+			upstreamConn.SetReadDeadline(deadline)
+			_, err = upstreamConn.Write(buf)
 			if err != nil {
 				errs <- err
 				return
 			}
-			responseBuf := make([]byte, 1500 /*MTU*/)
-			n, err := conn.Read(responseBuf)
-			if n == cap(buf) {
+			n, err := upstreamConn.Read(responseBuf)
+			if err != nil {
+				errs <- trace.Wrap(err, "Reading forwarded DNS response")
+				return
+			}
+			if n == cap(responseBuf) {
 				errs <- fmt.Errorf("DNS response too large")
 				return
 			}
@@ -196,10 +207,12 @@ func (s *Server) recurse(ctx context.Context, buf []byte) ([]byte, error) {
 		case err := <-errs:
 			allErrs = append(allErrs, err)
 		case resp := <-responses:
-			return resp, nil
+			logger.Debug("Writing response from forwarded request back to client.")
+			_, err := downstreamConn.Write(resp)
+			return trace.Wrap(err, "writing forwarded DNS response")
 		}
 	}
-	return nil, trace.NewAggregate(allErrs...)
+	return trace.NewAggregate(allErrs...)
 }
 
 func (s *Server) forwardingNameservers(ctx context.Context) ([]string, error) {
@@ -228,6 +241,8 @@ func (s *Server) forwardingNameservers(ctx context.Context) ([]string, error) {
 	})
 }
 
+var writeLock sync.Mutex
+
 func debugDNS(buf []byte) {
 	cp := make([]byte, len(buf))
 	copy(cp, buf)
@@ -252,6 +267,8 @@ func debugDNS(buf []byte) {
 	if err != nil {
 		slog.Warn("Error parsing message additionals.", "err", err)
 	}
+	writeLock.Lock()
+	defer writeLock.Unlock()
 	spew.Dump(dnsmessage.Message{
 		Header:      header,
 		Questions:   questions,
