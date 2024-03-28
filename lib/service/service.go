@@ -5626,8 +5626,6 @@ func (process *TeleportProcess) Shutdown(ctx context.Context) {
 func (process *TeleportProcess) Close() error {
 	process.BroadcastEvent(Event{Name: TeleportExitEvent})
 
-	process.Config.Keygen.Close()
-
 	var errors []error
 
 	if localAuth := process.getLocalAuth(); localAuth != nil {
