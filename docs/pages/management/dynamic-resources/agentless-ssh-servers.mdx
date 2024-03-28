@@ -200,10 +200,50 @@ $ kubectl get teleportopensshserverv2 -n "$OPERATOR_NAMESPACE"
 </TabItem>
 <TabItem label="Terraform">
 
+Test the Terraform connectivity and review the changes:
+
 ```code
 $ terraform plan
-[...]
-TODO fill
+Terraform will perform the following actions:
+
+  # teleport_server.openssh_agentless will be created
+  + resource "teleport_server" "openssh_agentless" {
+      + id       = (known after apply)
+      + kind     = (known after apply)
+      + metadata = (known after apply)
+      + spec     = {
+          + addr     = "<Var name="198.51.100.1:22" />"
+          + hostname = "<Var name="ssh-server-hostname" />"
+        }
+      + sub_kind = "openssh"
+      + version  = "v2"
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + openssh_node_id = (known after apply)
+```
+
+Apply the plan and recover the node UUID:
+
+```code
+$ terraform apply
+# [...]
+Do you want to perform these actions?
+  Terraform will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value: yes
+
+teleport_server.openssh_agentless: Creating...
+teleport_server.openssh_agentless: Creation complete after 3s [id=a100fdd0-52db-4eca-a7ab-c3afa7a1564a]
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+openssh_node_id = "a100fdd0-52db-4eca-a7ab-c3afa7a1564a"
 ```
 
 </TabItem>
