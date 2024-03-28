@@ -31,8 +31,8 @@ type evaluationEnvVar map[string]typical.Variable
 
 // DefaultParserSpec is the default parser specification.
 // Contains useful functions for manipulating and comparing strings.
-func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec {
-	return typical.ParserSpec{
+func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
+	return typical.ParserSpec[evaluationEnv]{
 		Functions: map[string]typical.Function{
 			"set": typical.UnaryVariadicFunction[evaluationEnv](
 				func(args ...string) (Set, error) {
