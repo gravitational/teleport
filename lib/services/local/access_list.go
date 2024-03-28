@@ -327,6 +327,7 @@ func (a *AccessListService) DeleteAllAccessListMembers(ctx context.Context) erro
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.
 func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
 	// Double the lock TTL to account for the time it takes to upsert the members.
+	var outMembers []*accesslist.AccessListMember
 	upsertWithLockFn := func() error {
 		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 			// Create a map of the members from the request for easier lookup.
@@ -367,6 +368,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 							}
 
 							existingMember.SetRevision(upserted.GetRevision())
+							outMembers = append(outMembers, existingMember)
 						}
 					}
 
@@ -386,6 +388,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 					return trace.Wrap(err)
 				}
 				member.SetRevision(upserted.GetRevision())
+				outMembers = append(outMembers, member)
 			}
 
 			var err error
@@ -410,7 +413,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return accessList, membersIn, nil
+	return accessList, outMembers, nil
 }
 
 func (a *AccessListService) AccessRequestPromote(_ context.Context, _ *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
