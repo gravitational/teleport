@@ -442,7 +442,7 @@ func ExtractResourceAndValidate(yaml string) (*services.UnknownResource, error) 
 func convertListResourcesRequest(r *http.Request, kind string) (*proto.ListResourcesRequest, error) {
 	values := r.URL.Query()
 
-	limit, err := queryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -472,7 +472,7 @@ func listKubeResources(ctx context.Context, kubeClient kubeproto.KubeServiceClie
 
 // newKubeListRequest parses the request parameters into a ListKubernetesResourcesRequest.
 func newKubeListRequest(values url.Values, site, resourceKind string) (*kubeproto.ListKubernetesResourcesRequest, error) {
-	limit, err := queryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
