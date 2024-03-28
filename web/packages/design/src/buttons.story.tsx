@@ -99,6 +99,9 @@ export const Buttons = () => (
       <ButtonSecondary as="a" href="https://example.com" target="_blank">
         Link as button
       </ButtonSecondary>
+      <ButtonIcon size={1} as="a" href="https://example.com" target="_blank">
+        <icons.Link />
+      </ButtonIcon>
     </Flex>
 
     <Flex gap={3}>
@@ -106,41 +109,19 @@ export const Buttons = () => (
       <ButtonText>Button Text</ButtonText>
     </Flex>
 
-    <Flex gap={3}>
-      <ButtonIcon size={2}>
-        <icons.AddUsers />
-      </ButtonIcon>
-      <ButtonIcon size={2}>
-        <icons.Ellipsis />
-      </ButtonIcon>
-      <ButtonIcon size={2}>
-        <icons.Trash />
-      </ButtonIcon>
-    </Flex>
-
-    <Flex gap={3}>
-      <ButtonIcon size={1}>
-        <icons.AddUsers />
-      </ButtonIcon>
-      <ButtonIcon size={1}>
-        <icons.Ellipsis />
-      </ButtonIcon>
-      <ButtonIcon size={1}>
-        <icons.Trash />
-      </ButtonIcon>
-    </Flex>
-
-    <Flex gap={3}>
-      <ButtonIcon size={0}>
-        <icons.AddUsers />
-      </ButtonIcon>
-      <ButtonIcon size={0}>
-        <icons.Ellipsis />
-      </ButtonIcon>
-      <ButtonIcon size={0}>
-        <icons.Trash />
-      </ButtonIcon>
-    </Flex>
+    {[2, 1, 0].map(size => (
+      <Flex gap={3} key={`size-${size}`}>
+        <ButtonIcon size={size}>
+          <icons.AddUsers />
+        </ButtonIcon>
+        <ButtonIcon size={size}>
+          <icons.Ellipsis />
+        </ButtonIcon>
+        <ButtonIcon size={size} disabled>
+          <icons.Trash />
+        </ButtonIcon>
+      </Flex>
+    ))}
   </Flex>
 );
 

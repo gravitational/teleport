@@ -115,19 +115,15 @@ exports[`render DocumentNodes 1`] = `
 
 .c38:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c38:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c38:hover:enabled,
-.c38:focus:enabled {
+.c38:not(:disabled):hover,
+.c38:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c38:active:enabled {
+.c38:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -154,19 +150,15 @@ exports[`render DocumentNodes 1`] = `
 
 .c40:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c40:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c40:hover:enabled,
-.c40:focus:enabled {
+.c40:not(:disabled):hover,
+.c40:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c40:active:enabled {
+.c40:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
