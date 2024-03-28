@@ -8,6 +8,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -136,8 +137,13 @@ func (p *Plugin) upsertAccessList(_ http.ResponseWriter, r *http.Request, params
 
 	accessListClient := clt.AccessListClient()
 
-	// Try to get the old version of this access list if we can.
-	oldAccessList, err := accessListClient.GetAccessList(r.Context(), accessListId)
+	// Remove the MFA resp from the context before getting the access list.
+	// Otherwise, it will be consumed before the Upsert which actually
+	// requires the MFA.
+	// TODO(Joerger): Explicitly provide MFA response only where it is
+	// needed instead of removing it like this.
+	getAccessListCtx := mfa.ContextWithMFAResponse(r.Context(), nil)
+	oldAccessList, err := accessListClient.GetAccessList(getAccessListCtx, accessListId)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
