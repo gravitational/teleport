@@ -19,6 +19,8 @@
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 
 import * as types from '../types';
+import { VnetServiceClient } from '../createClient';
+import { MockedUnaryCall } from '../cloneableClient';
 
 export class MockTshClient implements types.TshdClient {
   listRootClusters: () => Promise<types.Cluster[]>;
@@ -106,4 +108,12 @@ export class MockTshClient implements types.TshdClient {
   promoteAccessRequest = async () => undefined;
 
   updateTshdEventsServerAddress: (address: string) => Promise<void>;
+}
+
+export class MockVnetClient implements VnetServiceClient {
+  typeName: never;
+  methods: never;
+  options: never;
+  start = () => new MockedUnaryCall({});
+  stop = () => new MockedUnaryCall({});
 }

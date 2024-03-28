@@ -40,8 +40,19 @@ lint:
       - teleport/lib/teleterm/v1/service.proto
     # TODO(espadolini): Fix protos and re-enable prehog lint rules below.
     COMMENT_MESSAGE:
-      - teleport/lib/teleterm
       - prehog
+      - teleport/lib/teleterm/v1/access_request.proto
+      - teleport/lib/teleterm/v1/app.proto
+      - teleport/lib/teleterm/v1/auth_settings.proto
+      - teleport/lib/teleterm/v1/cluster.proto
+      - teleport/lib/teleterm/v1/database.proto
+      - teleport/lib/teleterm/v1/gateway.proto
+      - teleport/lib/teleterm/v1/kube.proto
+      - teleport/lib/teleterm/v1/label.proto
+      - teleport/lib/teleterm/v1/server.proto
+      - teleport/lib/teleterm/v1/service.proto
+      - teleport/lib/teleterm/v1/tshd_events_service.proto
+      - teleport/lib/teleterm/v1/usage_events.proto
     COMMENT_RPC:
       - prehog
     COMMENT_SERVICE:

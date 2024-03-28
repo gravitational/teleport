@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { RpcInterceptor } from '@protobuf-ts/runtime-rpc';
+import { MethodInfo, RpcInterceptor } from '@protobuf-ts/runtime-rpc';
 
 import { isObject } from 'shared/utils/highbar';
 
@@ -30,7 +30,7 @@ export function loggingInterceptor(logger: Logger): RpcInterceptor {
       const output = next(method, input, options);
       const { logRequest, logResponse, logError } = makeMethodLogger(
         logger,
-        method.name
+        method
       );
 
       logRequest(input);
@@ -44,7 +44,7 @@ export function loggingInterceptor(logger: Logger): RpcInterceptor {
       const output = next(method, options);
       const { logRequest, logResponse, logError } = makeMethodLogger(
         logger,
-        method.name
+        method
       );
 
       const originalSend = output.requests.send.bind(output.requests);
@@ -62,7 +62,7 @@ export function loggingInterceptor(logger: Logger): RpcInterceptor {
       const output = next(method, input, options);
       const { logRequest, logResponse, logError } = makeMethodLogger(
         logger,
-        method.name
+        method
       );
 
       logRequest(input);
@@ -81,7 +81,7 @@ export function loggingInterceptor(logger: Logger): RpcInterceptor {
       const output = next(method, options);
       const { logRequest, logResponse, logError } = makeMethodLogger(
         logger,
-        method.name
+        method
       );
 
       const originalSend = output.requests.send.bind(output.requests);
@@ -127,17 +127,21 @@ export function filterSensitiveProperties(toFilter: object): object {
   return acc;
 }
 
-function makeMethodLogger(logger: Logger, methodName: string) {
+function makeMethodLogger(logger: Logger, method: MethodInfo<object, object>) {
+  // Service name and method name are separated with a space and not a slash on purpose.
+  // This way the Chromium console can break down the log message more easily on narrower widths.
+  const methodDesc = `${method.service.typeName} ${method.name}`;
+
   return {
     logRequest: (input: object) => {
-      logger.info(`${methodName} request:`, filterSensitiveProperties(input));
+      logger.info(`send ${methodDesc}`, filterSensitiveProperties(input));
     },
     logResponse: (output: object) => {
       const toLog = output ? filterSensitiveProperties(output) : null;
-      logger.info(`${methodName} response:`, toLog);
+      logger.info(`receive ${methodDesc}`, toLog);
     },
     logError: (error: unknown) => {
-      logger.error(`${methodName} response:`, `${error}`);
+      logger.error(`receive ${methodDesc}`, `${error}`);
     },
   };
 }
