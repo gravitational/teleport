@@ -24,6 +24,7 @@ import { height, space, color } from 'design/system';
 export default function InputSearch({
   searchValue,
   setSearchValue,
+  useNewBackground = false,
   children,
 }: Props) {
   return (
@@ -33,6 +34,7 @@ export default function InputSearch({
           placeholder="SEARCH..."
           px={3}
           value={searchValue}
+          useNewBackground={useNewBackground}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             setSearchValue(e.target.value)
           }
@@ -48,6 +50,8 @@ export default function InputSearch({
 type Props = {
   searchValue: string;
   setSearchValue: React.Dispatch<SetStateAction<string>>;
+  // TODO (avatus): remove after new table styles are backported to 15
+  useNewBackground?: boolean;
   children?: JSX.Element;
 };
 
@@ -106,6 +110,11 @@ const StyledInput = styled.input`
   ${height}
   ${fromTheme};
   padding-right: 184px;
+  // TODO (avatus): remove after new table styles are backported to 15
+  ${props =>
+    props.useNewBackground
+      ? `background: ${props.theme.colors.spotBackground[0]};`
+      : null}
 `;
 
 function fromTheme(props) {
