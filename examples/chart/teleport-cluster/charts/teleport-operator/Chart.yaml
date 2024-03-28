@@ -1,4 +1,4 @@
-.version: &version "16.0.0-dev"
+.version: &version "16.0.0-dev.flyinghermit.4"
 
 name: teleport-operator
 apiVersion: v2
