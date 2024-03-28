@@ -60,6 +60,8 @@ const renewalRetryLimit = 5
 type outputsService struct {
 	log               logrus.FieldLogger
 	reloadBroadcaster *channelBroadcaster
+	proxyPingCache    *proxyPingCache
+	authPingCache     *authPingCache
 	botClient         *auth.Client
 	getBotIdentity    getBotIdentityFn
 	cfg               *config.BotConfig
@@ -90,8 +92,10 @@ func (s *outputsService) renewOutputs(
 	// create a cache shared across outputs so they don't hammer the auth
 	// server with similar requests
 	drc := &outputRenewalCache{
-		client: s.botClient,
-		cfg:    s.cfg,
+		proxyPingCache: s.proxyPingCache,
+		authPingCache:  s.authPingCache,
+		client:         s.botClient,
+		cfg:            s.cfg,
 	}
 
 	// Determine the default role list based on the bot role. The role's
@@ -633,14 +637,14 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, iden
 // requests for the same information. This is shared between all of the
 // outputs.
 type outputRenewalCache struct {
-	client *auth.Client
+	client         *auth.Client
+	cfg            *config.BotConfig
+	proxyPingCache *proxyPingCache
+	authPingCache  *authPingCache
 
-	cfg *config.BotConfig
-	mu  sync.Mutex
+	mu sync.Mutex
 	// These are protected by getter/setters with mutex locks
-	_cas       map[types.CertAuthType][]types.CertAuthority
-	_authPong  *proto.PingResponse
-	_proxyPong *webclient.PingResponse
+	_cas map[types.CertAuthType][]types.CertAuthority
 }
 
 func (orc *outputRenewalCache) getCertAuthorities(
@@ -672,71 +676,23 @@ func (orc *outputRenewalCache) GetCertAuthorities(
 	return orc.getCertAuthorities(ctx, caType)
 }
 
-func (orc *outputRenewalCache) authPing(ctx context.Context) (*proto.PingResponse, error) {
-	if orc._authPong != nil {
-		return orc._authPong, nil
-	}
-
-	pong, err := orc.client.Ping(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	orc._authPong = &pong
-
-	return &pong, nil
-}
-
 // AuthPing pings the auth server and returns the (possibly cached) response.
 func (orc *outputRenewalCache) AuthPing(ctx context.Context) (*proto.PingResponse, error) {
-	orc.mu.Lock()
-	defer orc.mu.Unlock()
-	return orc.authPing(ctx)
-}
-
-func (orc *outputRenewalCache) proxyPing(ctx context.Context) (*webclient.PingResponse, error) {
-	if orc._proxyPong != nil {
-		return orc._proxyPong, nil
-	}
-
-	// Determine the Proxy address to use.
-	addr, addrKind := orc.cfg.Address()
-	switch addrKind {
-	case config.AddressKindAuth:
-		// If the address is an auth address, ping auth to determine proxy addr.
-		authPong, err := orc.authPing(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		addr = authPong.ProxyPublicAddr
-	case config.AddressKindProxy:
-		// If the address is a proxy address, use it directly.
-	default:
-		return nil, trace.BadParameter("unsupported address kind: %v", addrKind)
-	}
-
-	// We use find instead of Ping as it's less resource intense and we can
-	// ping the AuthServer directly for its configuration if necessary.
-	proxyPong, err := webclient.Find(&webclient.Config{
-		Context:   ctx,
-		ProxyAddr: addr,
-		Insecure:  orc.cfg.Insecure,
-	})
+	res, err := orc.authPingCache.ping(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+
 	}
-
-	orc._proxyPong = proxyPong
-
-	return proxyPong, nil
+	return &res, nil
 }
 
 // ProxyPing returns a (possibly cached) ping response from the Teleport proxy.
-// Note that it relies on the auth server being configured with a sane proxy
-// public address.
 func (orc *outputRenewalCache) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
-	orc.mu.Lock()
-	defer orc.mu.Unlock()
-	return orc.proxyPing(ctx)
+	res, err := orc.proxyPingCache.ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return res, nil
 }
 
 // Config returns the bots config.

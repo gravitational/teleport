@@ -67,6 +67,7 @@ func (a alpnProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalPro
 type DatabaseTunnelService struct {
 	botCfg         *config.BotConfig
 	cfg            *config.DatabaseTunnelService
+	proxyPingCache *proxyPingCache
 	log            logrus.FieldLogger
 	resolver       reversetunnelclient.Resolver
 	botClient      *auth.Client
@@ -89,6 +90,12 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 		}
 		s.log.WithField("roles", roles).Debug("No roles configured, using all roles available.")
 	}
+
+	proxyPing, err := s.proxyPingCache.ping(ctx)
+	if err != nil {
+		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "pinging proxy")
+	}
+	proxyAddr := proxyPing.Proxy.SSH.PublicAddr
 
 	// Fetch information about the database and then issue the initial
 	// certificate. We issue the initial certificate to allow us to fail faster.
@@ -113,8 +120,6 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err)
 	}
 	s.log.Debug("Issued initial certificate for local proxy.")
-
-	proxyAddr := "leaf.tele.ottr.sh:443"
 
 	middleware := alpnProxyMiddleware{
 		onNewConnection: func(ctx context.Context, lp *alpnproxy.LocalProxy, conn net.Conn) error {
