@@ -104,6 +104,10 @@ type WebSession interface {
 	// GetDeviceWebToken returns the session's DeviceWebToken, if any.
 	// The token is considered a secret.
 	GetDeviceWebToken() *DeviceWebToken
+	// GetHasDeviceExtensions returns the HasDeviceExtensions value.
+	// If true the session's TLS and SSH certificates are augmented with device
+	// extensions.
+	GetHasDeviceExtensions() bool
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
@@ -238,6 +242,13 @@ func (ws *WebSessionV2) SetDeviceWebToken(webToken *DeviceWebToken) {
 // The token is considered a secret.
 func (ws *WebSessionV2) GetDeviceWebToken() *DeviceWebToken {
 	return ws.Spec.DeviceWebToken
+}
+
+// GetHasDeviceExtensions returns the HasDeviceExtensions value.
+// If true the session's TLS and SSH certificates are augmented with device
+// extensions.
+func (ws *WebSessionV2) GetHasDeviceExtensions() bool {
+	return ws.Spec.HasDeviceExtensions
 }
 
 // setStaticFields sets static resource header and metadata fields.
