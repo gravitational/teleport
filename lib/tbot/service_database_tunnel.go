@@ -210,7 +210,7 @@ func (s *DatabaseTunnelService) Run(ctx context.Context) error {
 
 	// lp.Start will block and continues to block until lp.Close() is called.
 	// Despite taking a context, it will not exit until the first connection is
-	// made after the context is cancelled.
+	// made after the context is canceled.
 	var errCh = make(chan error, 1)
 	go func() {
 		errCh <- lp.Start(ctx)
