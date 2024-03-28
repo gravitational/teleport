@@ -194,6 +194,13 @@ func (ws *WebSessionV2) GetIdleTimeout() time.Duration {
 
 // WithoutSecrets returns a copy of the WebSession without secrets.
 func (ws *WebSessionV2) WithoutSecrets() WebSession {
+	// With gogoproto, proto.Clone and proto.Merge panic with
+	// nonnullabe stdtime types unless they are in UTC.
+	// https://github.com/gogo/protobuf/issues/519
+	ws.Spec.Expires = ws.Spec.Expires.UTC()
+	ws.Spec.LoginTime = ws.Spec.LoginTime.UTC()
+	ws.Spec.BearerTokenExpires = ws.Spec.BearerTokenExpires.UTC()
+
 	cp := proto.Clone(ws).(*WebSessionV2)
 	cp.Spec.Priv = nil
 	cp.Spec.SAMLSession = nil

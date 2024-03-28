@@ -427,8 +427,10 @@ func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, erro
 		})
 		return nil, err
 	}
+
 	return ws, nil
 }
+
 
 func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, error) {
 	subjectValue, err := extractCookie(r, SubjectCookieName)
