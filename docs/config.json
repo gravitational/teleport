@@ -659,13 +659,9 @@
               "slug": "/management/dynamic-resources/teleport-operator-standalone/"
             },
             {
-              "title": "Terraform Provider",
+              "title": "Set up the Terraform Provider",
               "slug": "/management/dynamic-resources/terraform-provider/"
-            },
-	    {
-	      "title": "Import Teleport Resources into Terraform",
-	      "slug": "/management/dynamic-resources/import-terraform-resources/"
-	    }
+            }
           ]
         },
         {
