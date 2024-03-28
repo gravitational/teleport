@@ -324,10 +324,7 @@ func parseBearerToken(r *http.Request) (string, error) {
 	}
 
 	bearer, token, found := strings.Cut(bearerToken, " ")
-	if !found {
-		return "", trace.BadParameter("unable to parse auth header")
-	}
-	if bearer != "Bearer" {
+	if !found || bearer != "Bearer" {
 		return "", trace.BadParameter("unable to parse auth header")
 	}
 
