@@ -70,9 +70,6 @@ func New(_ context.Context, opts ...Option) *Keygen {
 	return k
 }
 
-// Close is a no-op in order to satisfy sshca.Authority.
-func (k *Keygen) Close() {}
-
 // GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute.
 func (k *Keygen) GenerateKeyPair() ([]byte, []byte, error) {
 	return native.GenerateKeyPair()
