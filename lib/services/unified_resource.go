@@ -737,12 +737,20 @@ const (
 // MakePaginatedResources converts a list of resources into a list of paginated proto representations.
 func MakePaginatedResources(requestType string, resources []types.ResourceWithLabels) ([]*proto.PaginatedResource, error) {
 	paginatedResources := make([]*proto.PaginatedResource, 0, len(resources))
-	for _, resource := range resources {
+	for _, r := range resources {
 		var protoResource *proto.PaginatedResource
 		resourceKind := requestType
 		if requestType == types.KindUnifiedResource {
-			resourceKind = resource.GetKind()
+			resourceKind = r.GetKind()
 		}
+
+		var logins []string
+		resource := r
+		if enriched, ok := r.(*types.EnrichedResource); ok {
+			resource = enriched.ResourceWithLabels
+			logins = enriched.Logins
+		}
+
 		switch resourceKind {
 		case types.KindDatabaseServer:
 			database, ok := resource.(*types.DatabaseServerV3)
@@ -771,7 +779,7 @@ func MakePaginatedResources(requestType string, resources []types.ResourceWithLa
 				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 			}
 
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: srv}}
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: srv}, Logins: logins}
 		case types.KindKubeServer:
 			srv, ok := resource.(*types.KubernetesServerV3)
 			if !ok {
@@ -785,7 +793,7 @@ func MakePaginatedResources(requestType string, resources []types.ResourceWithLa
 				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 			}
 
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}, Logins: logins}
 		case types.KindWindowsDesktopService:
 			desktopService, ok := resource.(*types.WindowsDesktopServiceV3)
 			if !ok {

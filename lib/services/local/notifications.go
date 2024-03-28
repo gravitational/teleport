@@ -27,6 +27,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -75,10 +76,32 @@ func NewNotificationsService(backend backend.Backend, clock clockwork.Clock) (*N
 	}, nil
 }
 
-// ListNotificationsForUser returns a paginated list of notifications which match a user, including both user-specific and global ones.
-func (s *NotificationsService) ListNotificationsForUser(ctx context.Context) ([]*notificationsv1.Notification, string, error) {
-	// TODO: rudream - implement listing notifications for a user with filtering/matching
-	return []*notificationsv1.Notification{}, "", nil
+// ListUserNotifications returns a paginated list of user-specific notifications for all users.
+func (s *NotificationsService) ListUserNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.Notification, string, error) {
+	if pageSize < 1 {
+		pageSize = apidefaults.DefaultChunkSize
+	}
+
+	if pageSize > apidefaults.DefaultChunkSize {
+		return nil, "", trace.BadParameter("pageSize of %d is too large", pageSize)
+	}
+
+	resp, nextKey, err := s.userNotificationService.ListResources(ctx, pageSize, startKey)
+	return resp, nextKey, trace.Wrap(err)
+}
+
+// ListGlobalNotifications returns a paginated list of global notifications.
+func (s *NotificationsService) ListGlobalNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.GlobalNotification, string, error) {
+	if pageSize < 1 {
+		pageSize = apidefaults.DefaultChunkSize
+	}
+
+	if pageSize > apidefaults.DefaultChunkSize {
+		return nil, "", trace.BadParameter("pageSize of %d is too large", pageSize)
+	}
+
+	resp, nextKey, err := s.globalNotificationService.ListResources(ctx, pageSize, startKey)
+	return resp, nextKey, trace.Wrap(err)
 }
 
 // CreateUserNotification creates a user-specific notification.
@@ -90,6 +113,7 @@ func (s *NotificationsService) CreateUserNotification(ctx context.Context, usern
 	notification.Kind = types.KindNotification
 	notification.Version = types.V1
 
+	notification.Spec.Username = username
 	// Generate uuidv7 ID.
 	uuid, err := uuid.NewV7()
 	if err != nil {
