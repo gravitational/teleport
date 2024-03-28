@@ -652,13 +652,6 @@ func init() {
 		}
 		return types.Resource153ToLegacy(b), nil
 	})
-	RegisterResourceUnmarshaler(types.KindDatabaseObjectImportRule, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
-		out, err := UnmarshalDatabaseObjectImportRule(bytes, opts...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return types.Resource153ToLegacy(out), nil
-	})
 }
 
 // CheckAndSetDefaults calls [r.CheckAndSetDefaults] if r implements the method.
