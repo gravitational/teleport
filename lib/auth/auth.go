@@ -3948,7 +3948,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	}
 
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
-	sess, err := a.NewWebSession(ctx, NewWebSessionRequest{
+	sess, err := a.newWebSession(ctx, NewWebSessionRequest{
 		User:                 req.User,
 		LoginIP:              identity.LoginIP,
 		Roles:                roles,
@@ -4559,8 +4559,8 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 	return tokens, nil
 }
 
-// NewWebSession creates and returns a new web session for the specified request
-func (a *Server) NewWebSession(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
+// newWebSession creates and returns a new web session for the specified request
+func (a *Server) newWebSession(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
 	userState, err := a.GetUserOrLoginState(ctx, req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)

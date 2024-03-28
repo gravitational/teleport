@@ -270,7 +270,7 @@ func (a *Server) generateAppToken(ctx context.Context, username string, roles []
 }
 
 func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
-	session, err := a.NewWebSession(ctx, req)
+	session, err := a.newWebSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
