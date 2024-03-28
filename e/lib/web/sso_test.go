@@ -26,11 +26,14 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 func TestSAML(t *testing.T) {
-	t.Parallel()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{SAML: true},
+	})
 
 	tests := []struct {
 		name                string

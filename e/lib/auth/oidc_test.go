@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -1177,6 +1178,10 @@ func TestValidateACRValues(t *testing.T) {
 }
 
 func TestOIDCAuthRequest(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{OIDC: true},
+	})
+
 	ctx := context.Background()
 	srv := newTestTLSServer(t, ValidLicense{})
 
