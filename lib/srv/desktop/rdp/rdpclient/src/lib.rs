@@ -203,6 +203,7 @@ pub unsafe extern "C" fn connect_rdp(go_ref: usize, params: CGOConnectParams) ->
 }
 
 #[derive(Debug)]
+#[allow(dead_code)] // Tcp and Rdp variants are considered "dead code", but we want them for debug logging.
 enum ConnectError {
     Tcp(IoError),
     Rdp(RdpError),
@@ -613,6 +614,10 @@ fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client, Con
     shared_tcp.tcp.set_read_timeout(None)?;
 
     Ok(Client {
+        // Any `arc_with_non_send_sync` is generally a bad idea, but the system is stable
+        // and will be deprecated over the course of the next few months as we transition
+        // all supported versions to `IronRDP`.
+        #[allow(clippy::arc_with_non_send_sync)]
         rdp_client: Arc::new(Mutex::new(rdp_client)),
         tcp_fd,
         go_ref,
