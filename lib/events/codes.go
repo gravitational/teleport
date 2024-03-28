@@ -530,7 +530,7 @@ const (
 	OktaUserSyncSuccessCode = "TOK007I"
 
 	// OktaUserSyncSuccessCode is the Okta user sync failure code.
-	OktUserSyncFailureCode = "TOK007E"
+	OktaUserSyncFailureCode = "TOK007E"
 
 	// AccessListCreateSuccessCode is the access list create success code.
 	AccessListCreateSuccessCode = "TAL001I"

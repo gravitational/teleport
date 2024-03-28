@@ -69,7 +69,7 @@ user:
 | `desktop_clipboard` | Allow clipboard sharing for desktop sessions | Logical "AND" i.e. evaluates to "yes" if all roles enable clipboard sharing |
 | `pin_source_ip` | Enable source IP pinning for SSH certificates. | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `cert_extensions` | Specifies extensions to be included in SSH certificates | |
-| `create_host_user_mode` | Allow users to be automatically created on a host |  Logical "AND" i.e. if all roles matching a server specify host user creation (`off`, `drop`, `keep`), it will evaluate to the option specified by all of the roles. If some roles specify both `drop` or `keep` it will evaluate to `keep`|
+| `create_host_user_mode` | Allow users to be automatically created on a host |  Logical "AND" i.e. if all roles matching a server specify host user creation (`off`, `keep`, `insecure-drop`), it will evaluate to the option specified by all of the roles. If some roles specify both `insecure-drop` or `keep` it will evaluate to `keep`|
 | `create_db_user_mode` | Allow [database user auto provisioning](../database-access/auto-user-provisioning.mdx). Options: `off` (disable database user auto-provisioning), `keep` (disables the user at session end, removing the roles and locking it), and `best_effort_drop` (try to drop the user at session end, if it doesn't succeed, fallback to disabling it). | Logical "OR" i.e. if any role allows database user auto-provisioning, it's allowed |
 
 ## Preset roles

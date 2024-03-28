@@ -1358,31 +1358,18 @@ func (a *ServerWithRoles) checkUnifiedAccess(resource types.ResourceWithLabels, 
 
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
-	// Fetch full list of resources in the backend.
-	var (
-		unifiedResources types.ResourcesWithLabels
-		nextKey          string
-	)
-
 	filter := services.MatchResourceFilter{
-		Labels:              req.Labels,
-		SearchKeywords:      req.SearchKeywords,
-		PredicateExpression: req.PredicateExpression,
-		Kinds:               req.Kinds,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+		Kinds:          req.Kinds,
 	}
 
-	// If a predicate expression was provided, evaluate it with an empty
-	// server to determine if the expression is valid before attempting
-	// to do any listing.
-	if filter.PredicateExpression != "" {
-		parser, err := services.NewResourceParser(&types.ServerV2{})
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		if _, err := parser.EvalBoolPredicate(filter.PredicateExpression); err != nil {
-			return nil, trace.BadParameter("failed to parse predicate expression: %s", err.Error())
-		}
+		filter.PredicateExpression = expression
 	}
 
 	// Populate resourceAccessMap with any access errors the user has for each possible
@@ -1448,6 +1435,11 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		return nil, trace.Wrap(err)
 	}
 
+	// Fetch full list of resources in the backend.
+	var (
+		unifiedResources types.ResourcesWithLabels
+		nextKey          string
+	)
 	if req.PinnedOnly {
 		prefs, err := a.authServer.GetUserPreferences(ctx, a.context.User.GetName())
 		if err != nil {
@@ -1736,11 +1728,19 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	// `ListResources`) to ensure that it will be applied only to resources
 	// the user has access to.
 	filter := services.MatchResourceFilter{
-		ResourceKind:        req.ResourceType,
-		Labels:              req.Labels,
-		SearchKeywords:      req.SearchKeywords,
-		PredicateExpression: req.PredicateExpression,
+		ResourceKind:   req.ResourceType,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
 	}
+
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		filter.PredicateExpression = expression
+	}
+
 	req.Labels = nil
 	req.SearchKeywords = nil
 	req.PredicateExpression = ""
@@ -2019,14 +2019,12 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		return nil, trace.NotImplemented("resource type %q is not supported for listResourcesWithSort", req.ResourceType)
 	}
 
-	// Apply request filters and get pagination info.
-	resp, err := local.FakePaginate(resources, local.FakePaginateParams{
-		ResourceType:        req.ResourceType,
-		Limit:               req.Limit,
-		Labels:              req.Labels,
-		SearchKeywords:      req.SearchKeywords,
-		PredicateExpression: req.PredicateExpression,
-		StartKey:            req.StartKey,
+	params := local.FakePaginateParams{
+		ResourceType:   req.ResourceType,
+		Limit:          req.Limit,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+		StartKey:       req.StartKey,
 		EnrichResourceFn: func(r types.ResourceWithLabels) (types.ResourceWithLabels, error) {
 			if req.IncludeLogins && (r.GetKind() == types.KindNode || r.GetKind() == types.KindWindowsDesktop) {
 				resourceChecker, err := a.newResourceAccessChecker(req.ResourceType)
@@ -2044,7 +2042,18 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 
 			return r, nil
 		},
-	})
+	}
+
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		params.PredicateExpression = expression
+	}
+
+	// Apply request filters and get pagination info.
+	resp, err := local.FakePaginate(resources, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3506,6 +3515,13 @@ func (a *ServerWithRoles) GetOIDCConnectors(ctx context.Context, withSecrets boo
 }
 
 func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
+	if !modules.GetModules().Features().OIDC {
+		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
+		// we can't currently propagate wrapped errors across the gRPC boundary,
+		// and we want tctl to display a clean user-facing message in this case
+		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
+	}
+
 	if err := a.action(apidefaults.Namespace, types.KindOIDCRequest, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3660,6 +3676,10 @@ func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets boo
 }
 
 func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
+	if !modules.GetModules().Features().SAML {
+		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
+	}
+
 	if err := a.action(apidefaults.Namespace, types.KindSAMLRequest, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}

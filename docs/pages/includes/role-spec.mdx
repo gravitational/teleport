@@ -97,9 +97,9 @@ spec:
        name: login@github.com
        value: "{{ external.github_login }}"
     # Controls whether this role supports auto provisioning of SSH users.
-    # Options: drop (remove user on session end), keep (keep users at session end)
+    # Options: keep (keep users at session end), insecure-drop (remove user on session end),
     #          and off (disable host user creation)
-    create_host_user_mode: drop
+    create_host_user_mode: keep
     # Controls whether this role requires automatic database user provisioning.
     # Options: off (disable database user auto-provisioning), keep (disables the
     # user at session end, removing the roles and locking it), and
