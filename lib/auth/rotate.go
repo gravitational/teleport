@@ -161,7 +161,7 @@ func (a *Server) RotateCertAuthority(ctx context.Context, req types.RotateReques
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.CompareAndSwapCertAuthority(rotated, existing); err != nil {
+	if _, err := a.UpdateCertAuthority(ctx, rotated); err != nil {
 		return trace.Wrap(err)
 	}
 	rotation := rotated.GetRotation()
@@ -213,8 +213,7 @@ func (a *Server) RotateExternalCertAuthority(ctx context.Context, ca types.CertA
 	// a rotation state of "" gets stored as "standby" after
 	// CheckAndSetDefaults, so if `ca` came in with a zeroed rotation we must do
 	// this before checking if `updated` is the same as `existing` or the check
-	// will fail for no reason (CheckAndSetDefaults is idempotent, so it's fine
-	// to call it both here and in CompareAndSwapCertAuthority)
+	// will fail for no reason.
 	updated.SetRotation(ca.GetRotation())
 	if err := services.CheckAndSetDefaults(updated); err != nil {
 		return trace.Wrap(err)
@@ -228,7 +227,7 @@ func (a *Server) RotateExternalCertAuthority(ctx context.Context, ca types.CertA
 
 	// use compare and swap to protect from concurrent updates
 	// by trusted cluster API
-	if err := a.CompareAndSwapCertAuthority(updated, existing); err != nil {
+	if _, err := a.UpdateCertAuthority(ctx, updated); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -329,7 +328,7 @@ func (a *Server) autoRotate(ctx context.Context, ca types.CertAuthority) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.CompareAndSwapCertAuthority(rotated, ca); err != nil {
+	if _, err := a.UpdateCertAuthority(ctx, rotated); err != nil {
 		return trace.Wrap(err)
 	}
 	logger.Infof("Cert authority rotation request is completed")

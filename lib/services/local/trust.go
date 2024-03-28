@@ -20,8 +20,12 @@ package local
 
 import (
 	"context"
+	"errors"
+	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -32,12 +36,14 @@ import (
 // is using local backend
 type CA struct {
 	backend.Backend
+	log *logrus.Entry
 }
 
 // NewCAService returns new instance of CAService
 func NewCAService(b backend.Backend) *CA {
 	return &CA{
 		Backend: b,
+		log:     logrus.WithFields(logrus.Fields{trace.Component: "CA"}),
 	}
 }
 
@@ -54,26 +60,51 @@ func (s *CA) DeleteAllCertAuthorities(caType types.CertAuthType) error {
 
 // CreateCertAuthority updates or inserts a new certificate authority
 func (s *CA) CreateCertAuthority(ctx context.Context, ca types.CertAuthority) error {
-	if err := services.ValidateCertAuthority(ca); err != nil {
-		return trace.Wrap(err)
-	}
-	value, err := services.MarshalCertAuthority(ca)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
-		Value:   value,
-		Expires: ca.Expiry(),
+	return s.CreateCertAuthorities(ctx, ca)
+}
+
+// CreateCertAuthorities creates multiple cert authorities atomically.
+func (s *CA) CreateCertAuthorities(ctx context.Context, cas ...types.CertAuthority) error {
+	var condacts []backend.ConditionalAction
+	var clusterNames []string
+	for _, ca := range cas {
+		if !slices.Contains(clusterNames, ca.GetName()) {
+			clusterNames = append(clusterNames, ca.GetName())
+		}
+		if err := services.ValidateCertAuthority(ca); err != nil {
+			return trace.Wrap(err)
+		}
+
+		value, err := services.MarshalCertAuthority(ca)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		condacts = append(condacts, []backend.ConditionalAction{
+			{
+				Key:       activeKey(ca.GetID()),
+				Condition: backend.NotExists(),
+				Action: backend.Put(backend.Item{
+					Value:   value,
+					Expires: ca.Expiry(),
+				}),
+			},
+			{
+				Key:       inactiveKey(ca.GetID()),
+				Condition: backend.Whatever(),
+				Action:    backend.Delete(),
+			},
+		}...)
 	}
 
-	_, err = s.Create(ctx, item)
+	_, err := s.AtomicWrite(ctx, condacts)
 	if err != nil {
-		if trace.IsAlreadyExists(err) {
-			return trace.AlreadyExists("cluster %q already exists", ca.GetName())
+		if errors.Is(err, backend.ErrConditionFailed) {
+			return trace.AlreadyExists("one or more CAs from cluster(s) %q already exist", strings.Join(clusterNames, ","))
 		}
 		return trace.Wrap(err)
 	}
+
 	return nil
 }
 
@@ -84,10 +115,7 @@ func (s *CA) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) er
 	}
 
 	// try to skip writes that would have no effect
-	if existing, err := s.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       ca.GetType(),
-		DomainName: ca.GetClusterName(),
-	}, true); err == nil {
+	if existing, err := s.GetCertAuthority(ctx, ca.GetID(), true); err == nil {
 		if services.CertAuthoritiesEquivalent(existing, ca) {
 			return nil
 		}
@@ -99,7 +127,7 @@ func (s *CA) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) er
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
+		Key:      activeKey(ca.GetID()),
 		Value:    value,
 		Expires:  ca.Expiry(),
 		ID:       ca.GetResourceID(),
@@ -111,6 +139,36 @@ func (s *CA) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) er
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// UpdateCertAuthority updates an existing cert authority if the revisions match.
+func (s *CA) UpdateCertAuthority(ctx context.Context, ca types.CertAuthority) (types.CertAuthority, error) {
+	if err := services.ValidateCertAuthority(ca); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	value, err := services.MarshalCertAuthority(ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:      activeKey(ca.GetID()),
+		Value:    value,
+		Expires:  ca.Expiry(),
+		ID:       ca.GetResourceID(),
+		Revision: ca.GetRevision(),
+	}
+
+	lease, err := s.ConditionalUpdate(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ca = ca.Clone()
+	ca.SetRevision(lease.Revision)
+	ca.SetResourceID(lease.ID)
+	return ca, nil
 }
 
 // CompareAndSwapCertAuthority updates the cert authority value
@@ -160,48 +218,74 @@ func (s *CA) CompareAndSwapCertAuthority(new, expected types.CertAuthority) erro
 
 // DeleteCertAuthority deletes particular certificate authority
 func (s *CA) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error {
-	if err := id.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	// when removing a types.CertAuthority also remove any deactivated
-	// types.CertAuthority as well if they exist.
-	err := s.Delete(ctx, backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
-	if err != nil {
-		if !trace.IsNotFound(err) {
+	return s.DeleteCertAuthorities(ctx, id)
+}
+
+// DeleteCertAuthorities deletes multiple cert authorities atomically.
+func (s *CA) DeleteCertAuthorities(ctx context.Context, ids ...types.CertAuthID) error {
+	var condacts []backend.ConditionalAction
+	for _, id := range ids {
+		if err := id.Check(); err != nil {
 			return trace.Wrap(err)
 		}
+		for _, key := range [][]byte{activeKey(id), inactiveKey(id)} {
+			condacts = append(condacts, backend.ConditionalAction{
+				Key:       key,
+				Condition: backend.Whatever(),
+				Action:    backend.Delete(),
+			})
+		}
 	}
-	err = s.Delete(ctx, backend.Key(authoritiesPrefix, string(id.Type), id.DomainName))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+
+	_, err := s.AtomicWrite(ctx, condacts)
+	return trace.Wrap(err)
 }
 
 // ActivateCertAuthority moves a CertAuthority from the deactivated list to
 // the normal list.
 func (s *CA) ActivateCertAuthority(id types.CertAuthID) error {
-	item, err := s.Get(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.BadParameter("can not activate cert authority %q which has not been deactivated", id.DomainName)
+	return s.ActivateCertAuthorities(context.TODO(), id)
+}
+
+// ActivateCertAuthorities activates multiple cert authorities atomically.
+func (s *CA) ActivateCertAuthorities(ctx context.Context, ids ...types.CertAuthID) error {
+	var condacts []backend.ConditionalAction
+	var domainNames []string
+	for _, id := range ids {
+		if err := id.Check(); err != nil {
+			return trace.Wrap(err)
 		}
-		return trace.Wrap(err)
+
+		if !slices.Contains(domainNames, id.DomainName) {
+			domainNames = append(domainNames, id.DomainName)
+		}
+
+		item, err := s.Get(ctx, inactiveKey(id))
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return trace.Errorf("can not activate cert authority %q of type %q (not a currently inactive ca)", id.DomainName, id.Type)
+			}
+			return trace.Wrap(err)
+		}
+
+		condacts = append(condacts, []backend.ConditionalAction{
+			{
+				Key:       inactiveKey(id),
+				Condition: backend.Revision(item.Revision),
+				Action:    backend.Delete(),
+			},
+			{
+				Key:       activeKey(id),
+				Condition: backend.Whatever(),
+				Action:    backend.Put(*item),
+			},
+		}...)
 	}
 
-	certAuthority, err := services.UnmarshalCertAuthority(
-		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = s.UpsertCertAuthority(context.TODO(), certAuthority)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = s.Delete(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
-	if err != nil {
+	if _, err := s.AtomicWrite(ctx, condacts); err != nil {
+		if errors.Is(err, backend.ErrConditionFailed) {
+			return trace.Errorf("failed to activate one or more cert authorities for cluster(s) %q due to concurrent modification", strings.Join(domainNames, ","))
+		}
 		return trace.Wrap(err)
 	}
 
@@ -211,34 +295,48 @@ func (s *CA) ActivateCertAuthority(id types.CertAuthID) error {
 // DeactivateCertAuthority moves a CertAuthority from the normal list to
 // the deactivated list.
 func (s *CA) DeactivateCertAuthority(id types.CertAuthID) error {
-	certAuthority, err := s.GetCertAuthority(context.TODO(), id, true)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.NotFound("can not deactivate cert authority %q which does not exist", id.DomainName)
+	return s.DeactivateCertAuthorities(context.TODO(), id)
+}
+
+// DeactivateCertAuthorities deactivates multiple cert authorities atomically.
+func (s *CA) DeactivateCertAuthorities(ctx context.Context, ids ...types.CertAuthID) error {
+	var condacts []backend.ConditionalAction
+	var domainNames []string
+	for _, id := range ids {
+		if err := id.Check(); err != nil {
+			return trace.Wrap(err)
 		}
-		return trace.Wrap(err)
+
+		if !slices.Contains(domainNames, id.DomainName) {
+			domainNames = append(domainNames, id.DomainName)
+		}
+
+		item, err := s.Get(ctx, activeKey(id))
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return trace.Errorf("can not deactivate cert authority %q of type %q (not a currently active ca)", id.DomainName, id.Type)
+			}
+			return trace.Wrap(err)
+		}
+
+		condacts = append(condacts, []backend.ConditionalAction{
+			{
+				Key:       activeKey(id),
+				Condition: backend.Revision(item.Revision),
+				Action:    backend.Delete(),
+			},
+			{
+				Key:       inactiveKey(id),
+				Condition: backend.Whatever(),
+				Action:    backend.Put(*item),
+			},
+		}...)
 	}
 
-	err = s.DeleteCertAuthority(context.TODO(), id)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	rev := certAuthority.GetRevision()
-	value, err := services.MarshalCertAuthority(certAuthority)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:      backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName),
-		Value:    value,
-		Expires:  certAuthority.Expiry(),
-		ID:       certAuthority.GetResourceID(),
-		Revision: rev,
-	}
-
-	_, err = s.Put(context.TODO(), item)
-	if err != nil {
+	if _, err := s.AtomicWrite(ctx, condacts); err != nil {
+		if errors.Is(err, backend.ErrConditionFailed) {
+			return trace.Errorf("failed to deactivate one or more cert authorities for cluster(s) %q due to concurrent modification", strings.Join(domainNames, ","))
+		}
 		return trace.Wrap(err)
 	}
 
@@ -251,7 +349,7 @@ func (s *CA) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSign
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	item, err := s.Get(ctx, backend.Key(authoritiesPrefix, string(id.Type), id.DomainName))
+	item, err := s.Get(ctx, activeKey(id))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -297,10 +395,12 @@ func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, 
 	for i, item := range result.Items {
 		ca, err := services.UnmarshalCertAuthority(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			s.log.Warnf("Failed to unmarshal cert authority at %q: %v", item.Key, err)
+			continue
 		}
 		if err := services.ValidateCertAuthority(ca); err != nil {
-			return nil, trace.Wrap(err)
+			s.log.Warnf("Failed to validate cert authority at %q: %v", item.Key, err)
+			continue
 		}
 		setSigningKeys(ca, loadSigningKeys)
 		cas[i] = ca
@@ -311,9 +411,13 @@ func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, 
 
 // UpdateUserCARoleMap updates the role map of the userCA of the specified existing cluster.
 func (s *CA) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error {
-	key := backend.Key(authoritiesPrefix, string(types.UserCA), name)
+	id := types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: name,
+	}
+	key := activeKey(id)
 	if !activated {
-		key = backend.Key(authoritiesPrefix, deactivatedPrefix, string(types.UserCA), name)
+		key = inactiveKey(id)
 	}
 
 	actualItem, err := s.Get(ctx, key)
@@ -346,6 +450,16 @@ func (s *CA) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// activeKey builds the active key variant for the supplied ca id.
+func activeKey(id types.CertAuthID) []byte {
+	return backend.Key(authoritiesPrefix, string(id.Type), id.DomainName)
+}
+
+// inactiveKey builds the inactive key variant for the supplied ca id.
+func inactiveKey(id types.CertAuthID) []byte {
+	return backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName)
 }
 
 const (
