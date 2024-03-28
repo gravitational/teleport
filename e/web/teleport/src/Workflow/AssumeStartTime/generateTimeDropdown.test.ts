@@ -1,4 +1,4 @@
-import { generateTimeDropdown } from './utils';
+import { generateTimeDropdown } from './timeOptions';
 
 test('no limit, 60 min increment, generates every options', () => {
   const startDate = new Date('2024-02-16T03:00:08.156944Z');
@@ -11,21 +11,19 @@ test('no limit, 60 min increment, generates every options', () => {
 
   // Earliest time
   expect(times[0].label).toBe('12:00 AM');
-  expect(times[0].value).toStrictEqual({ minutes: 0, militaryHrs: 0 });
+  expect(times[0].value).toStrictEqual(new Date('2024-02-16T00:00:00.000Z'));
 
   // Middle
   expect(times[times.length / 2].label).toBe('12:00 PM');
-  expect(times[times.length / 2].value).toStrictEqual({
-    minutes: 0,
-    militaryHrs: 12,
-  });
+  expect(times[times.length / 2].value).toStrictEqual(
+    new Date('2024-02-16T12:00:00.000Z')
+  );
 
   // Last
   expect(times[times.length - 1].label).toBe('11:00 PM');
-  expect(times[times.length - 1].value).toStrictEqual({
-    minutes: 0,
-    militaryHrs: 23,
-  });
+  expect(times[times.length - 1].value).toStrictEqual(
+    new Date('2024-02-16T23:00:00.000Z')
+  );
 });
 
 test('with min limit, 60 min increment, generates options beginnigng from min', () => {
@@ -41,16 +39,12 @@ test('with min limit, 60 min increment, generates options beginnigng from min', 
 
   // Earliest time available is the same time as the start date.
   expect(times[0].label).toBe('8:00 PM');
-  expect(times[0].value).toStrictEqual({
-    minutes: 0,
-    militaryHrs: 20,
-  });
+  expect(times[0].value).toStrictEqual(new Date('2024-02-16T20:00:00.000Z'));
 
   // Last time of day.
-  expect(times[times.length - 1].value).toStrictEqual({
-    minutes: 0,
-    militaryHrs: 23,
-  });
+  expect(times[times.length - 1].value).toStrictEqual(
+    new Date('2024-02-16T23:00:00.000Z')
+  );
 });
 
 test('with both a min and a max limit, 60 min increment, generates options within the min/max range', () => {
@@ -69,15 +63,11 @@ test('with both a min and a max limit, 60 min increment, generates options withi
 
   expect(times).toHaveLength(3); // 8AM - 10AM
 
-  expect(times[0].value).toStrictEqual({
-    minutes: 0,
-    militaryHrs: 8,
-  });
+  expect(times[0].value).toStrictEqual(new Date('2024-02-16T08:00:00.000Z'));
 
-  expect(times[times.length - 1].value).toStrictEqual({
-    minutes: 0,
-    militaryHrs: 10,
-  });
+  expect(times[times.length - 1].value).toStrictEqual(
+    new Date('2024-02-16T10:00:00.000Z')
+  );
 });
 
 test('with max limit, 60 min increment, generates options ending with max limit', () => {
@@ -93,16 +83,12 @@ test('with max limit, 60 min increment, generates options ending with max limit'
 
   // Earliest time available is the same time as the start date.
   expect(times[0].label).toBe('12:00 AM');
-  expect(times[0].value).toStrictEqual({
-    minutes: 0,
-    militaryHrs: 0,
-  });
+  expect(times[0].value).toStrictEqual(new Date('2024-02-16T00:00:00.000Z'));
 
   // Last time of day.
-  expect(times[times.length - 1].value).toStrictEqual({
-    minutes: 0,
-    militaryHrs: 8,
-  });
+  expect(times[times.length - 1].value).toStrictEqual(
+    new Date('2024-02-16T08:00:00.000Z')
+  );
 });
 
 test('no limit, 15 min increment', () => {
@@ -116,25 +102,23 @@ test('no limit, 15 min increment', () => {
 
   // Test first quarters
   expect(times[0].label).toBe('12:00 AM');
-  expect(times[0].value).toStrictEqual({ minutes: 0, militaryHrs: 0 });
+  expect(times[0].value).toStrictEqual(new Date('2024-02-16T00:00:00.000Z'));
   expect(times[1].label).toBe('12:15 AM');
-  expect(times[1].value).toStrictEqual({ minutes: 15, militaryHrs: 0 });
+  expect(times[1].value).toStrictEqual(new Date('2024-02-16T00:15:00.000Z'));
   expect(times[2].label).toBe('12:30 AM');
-  expect(times[2].value).toStrictEqual({ minutes: 30, militaryHrs: 0 });
+  expect(times[2].value).toStrictEqual(new Date('2024-02-16T00:30:00.000Z'));
   expect(times[3].label).toBe('12:45 AM');
-  expect(times[3].value).toStrictEqual({ minutes: 45, militaryHrs: 0 });
+  expect(times[3].value).toStrictEqual(new Date('2024-02-16T00:45:00.000Z'));
 
   // Middle
   expect(times[times.length / 2].label).toBe('12:00 PM');
-  expect(times[times.length / 2].value).toStrictEqual({
-    minutes: 0,
-    militaryHrs: 12,
-  });
+  expect(times[times.length / 2].value).toStrictEqual(
+    new Date('2024-02-16T12:00:00.000Z')
+  );
 
   // Last
   expect(times[times.length - 1].label).toBe('11:45 PM');
-  expect(times[times.length - 1].value).toStrictEqual({
-    minutes: 45,
-    militaryHrs: 23,
-  });
+  expect(times[times.length - 1].value).toStrictEqual(
+    new Date('2024-02-16T23:45:00.000Z')
+  );
 });

@@ -126,6 +126,7 @@ test('makeUiAccessRequest', async () => {
         reason: 'not today',
         roles: ['admin'],
         state: 'DENIED',
+        assumeStartTime: null,
       },
     ],
     roles: ['access'],

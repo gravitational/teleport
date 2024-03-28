@@ -30,8 +30,7 @@ import { Danger } from 'design/Alert';
 import cfg from 'e-teleport/config';
 import useTeleportE from 'e-teleport/useTeleportE';
 import { AssumeStartTime } from 'e-teleport/Workflow/AssumeStartTime/AssumeStartTime';
-import { Start } from 'e-teleport/Workflow/Shared/types';
-import { getStartDateTime } from 'e-teleport/Workflow/Shared/utils';
+import { AccessDurationRequest } from 'e-teleport/Workflow/AccessDuration';
 
 import { State as NewRequestState } from '../useNewRequest';
 
@@ -116,7 +115,7 @@ export function RequestCheckout({
   dryRunResponse,
 }: RequestCheckoutProps) {
   // Specifies the start date/time a requestor requested for.
-  const [start, setStart] = useState<Start>();
+  const [start, setStart] = useState<Date>();
   const [reason, setReason] = useState('');
   const ref = useRef<HTMLDivElement>();
 
@@ -145,7 +144,7 @@ export function RequestCheckout({
       suggestedReviewers: selectedReviewers.map(r => r.value),
       maxDuration: maxDuration ? new Date(maxDuration.value) : null,
       requestTTL: requestTTL ? new Date(requestTTL.value) : null,
-      start: getStartDateTime(start),
+      start: start,
     });
   }
 
@@ -328,10 +327,14 @@ export function RequestCheckout({
                         <Box mb={1}>
                           <AssumeStartTime
                             start={start}
-                            setStart={setStart}
+                            onStartChange={setStart}
                             accessRequest={dryRunResponse}
+                          />
+                          <AccessDurationRequest
+                            assumeStartTime={start}
                             maxDuration={maxDuration}
                             setMaxDuration={setMaxDuration}
+                            accessRequest={dryRunResponse}
                           />
                         </Box>
                       )}

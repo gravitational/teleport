@@ -49,7 +49,7 @@ exports[`failed state 1`] = `
   margin-bottom: 16px;
 }
 
-.c6 {
+.c12 {
   box-sizing: border-box;
 }
 
@@ -124,7 +124,7 @@ exports[`failed state 1`] = `
   margin-bottom: 0px;
 }
 
-.c7 {
+.c6 {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -176,29 +176,29 @@ exports[`failed state 1`] = `
   border-color: rgba(255,255,255,0.36);
 }
 
-.c8 {
+.c7 {
   display: flex;
   align-items: center;
   cursor: pointer;
 }
 
-.c11 {
+.c10 {
   display: flex;
   align-items: center;
   cursor: not-allowed;
 }
 
-.c9 {
+.c8 {
   margin: 0 8px 0 0;
   accent-color: #9F85FF;
   cursor: inherit;
 }
 
-.c10 {
+.c9 {
   opacity: 1;
 }
 
-.c12 {
+.c11 {
   opacity: 0.5;
 }
 
@@ -232,72 +232,68 @@ exports[`failed state 1`] = `
         server error
       </div>
       <div
-        class="c5"
+        class="c5 c6"
       >
-        <div
-          class="c6 c7"
+        <label
+          class="c7"
         >
-          <label
+          <input
+            checked=""
             class="c8"
+            name="DENIED"
+            type="radio"
+            value="DENIED"
+          />
+          <span
+            class="c9"
           >
-            <input
-              checked=""
-              class="c9"
-              name="requestState"
-              type="radio"
-              value="DENIED"
-            />
-            <span
-              class="c10"
-            >
-              Reject request
-            </span>
-          </label>
-          <label
+            Reject request
+          </span>
+        </label>
+        <label
+          class="c7"
+        >
+          <input
             class="c8"
+            name="APPROVED"
+            type="radio"
+            value="APPROVED"
+          />
+          <span
+            class="c9"
           >
-            <input
-              class="c9"
-              name="requestState"
-              type="radio"
-              value="APPROVED"
-            />
-            <span
-              class="c10"
-            >
-              Approve short-term access
-               (12 hours)
-            </span>
-          </label>
-          <label
+            Approve short-term access
+             (12 hours)
+          </span>
+        </label>
+        <label
+          class="c10"
+        >
+          <input
+            class="c8"
+            disabled=""
+            name="PROMOTED"
+            type="radio"
+            value="PROMOTED"
+          />
+          <span
             class="c11"
           >
-            <input
-              class="c9"
-              disabled=""
-              name="requestState"
-              type="radio"
-              value="PROMOTED"
-            />
-            <span
-              class="c12"
+            <div
+              class="c12 c13"
             >
               <div
-                class="c6 c13"
+                class="c12 c14"
               >
                 <div
-                  class="c6 c14"
+                  class="c15"
                 >
-                  <div
-                    class="c15"
-                  >
-                    Approve long-term access via Access List with the requested resources
-                  </div>
+                  Approve long-term access via Access List with the requested resources
                 </div>
               </div>
-            </span>
-          </label>
-        </div>
+            </div>
+          </span>
+        </label>
       </div>
       <div
         class="c16"
@@ -353,7 +349,7 @@ exports[`loaded state 1`] = `
   margin-bottom: 16px;
 }
 
-.c5 {
+.c11 {
   box-sizing: border-box;
 }
 
@@ -428,7 +424,7 @@ exports[`loaded state 1`] = `
   margin-bottom: 0px;
 }
 
-.c6 {
+.c5 {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -480,29 +476,29 @@ exports[`loaded state 1`] = `
   border-color: rgba(255,255,255,0.36);
 }
 
-.c7 {
+.c6 {
   display: flex;
   align-items: center;
   cursor: pointer;
 }
 
-.c10 {
+.c9 {
   display: flex;
   align-items: center;
   cursor: not-allowed;
 }
 
-.c8 {
+.c7 {
   margin: 0 8px 0 0;
   accent-color: #9F85FF;
   cursor: inherit;
 }
 
-.c9 {
+.c8 {
   opacity: 1;
 }
 
-.c11 {
+.c10 {
   opacity: 0.5;
 }
 
@@ -530,72 +526,68 @@ exports[`loaded state 1`] = `
       class="c3"
     >
       <div
-        class="c4"
+        class="c4 c5"
       >
-        <div
-          class="c5 c6"
+        <label
+          class="c6"
         >
-          <label
+          <input
+            checked=""
             class="c7"
+            name="DENIED"
+            type="radio"
+            value="DENIED"
+          />
+          <span
+            class="c8"
           >
-            <input
-              checked=""
-              class="c8"
-              name="requestState"
-              type="radio"
-              value="DENIED"
-            />
-            <span
-              class="c9"
-            >
-              Reject request
-            </span>
-          </label>
-          <label
+            Reject request
+          </span>
+        </label>
+        <label
+          class="c6"
+        >
+          <input
             class="c7"
+            name="APPROVED"
+            type="radio"
+            value="APPROVED"
+          />
+          <span
+            class="c8"
           >
-            <input
-              class="c8"
-              name="requestState"
-              type="radio"
-              value="APPROVED"
-            />
-            <span
-              class="c9"
-            >
-              Approve short-term access
-               (12 hours)
-            </span>
-          </label>
-          <label
+            Approve short-term access
+             (12 hours)
+          </span>
+        </label>
+        <label
+          class="c9"
+        >
+          <input
+            class="c7"
+            disabled=""
+            name="PROMOTED"
+            type="radio"
+            value="PROMOTED"
+          />
+          <span
             class="c10"
           >
-            <input
-              class="c8"
-              disabled=""
-              name="requestState"
-              type="radio"
-              value="PROMOTED"
-            />
-            <span
-              class="c11"
+            <div
+              class="c11 c12"
             >
               <div
-                class="c5 c12"
+                class="c11 c13"
               >
                 <div
-                  class="c5 c13"
+                  class="c14"
                 >
-                  <div
-                    class="c14"
-                  >
-                    Approve long-term access via Access List with the requested resources
-                  </div>
+                  Approve long-term access via Access List with the requested resources
                 </div>
               </div>
-            </span>
-          </label>
-        </div>
+            </div>
+          </span>
+        </label>
       </div>
       <div
         class="c15"

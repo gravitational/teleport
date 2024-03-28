@@ -66,6 +66,8 @@ type AccessRequestReview struct {
 	// PromotedAccessListTitle is the title of the access list that the access request
 	// was promoted to.
 	PromotedAccessListTitle string `json:"promotedAccessListTitle"`
+	// AssumeStartTime is the time the requested roles can be assumed.
+	AssumeStartTime *time.Time `json:"assumeStartTime"`
 }
 
 type Resource struct {
@@ -183,6 +185,7 @@ func newAccessReview(review types.AccessReview) AccessRequestReview {
 		Reason:                  review.Reason,
 		Created:                 review.Created,
 		PromotedAccessListTitle: review.GetAccessListTitle(),
+		AssumeStartTime:         review.AssumeStartTime,
 	}
 }
 

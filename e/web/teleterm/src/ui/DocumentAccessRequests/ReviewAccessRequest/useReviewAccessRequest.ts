@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 
 import { AccessRequest } from 'e-teleport/services/workflow';
 import {
@@ -76,6 +77,9 @@ export function useReviewAccessRequest({
                 reason: review.reason,
                 roles: fetchRequestAttempt.data.roles,
                 id: requestId,
+                assumeStartTime:
+                  review.assumeStartTime &&
+                  Timestamp.fromDate(review.assumeStartTime),
               });
 
         return makeUiAccessRequest(updatedAccessRequest);

@@ -45,6 +45,7 @@ export interface AccessRequestReview {
   reason: string;
   createdDuration: string;
   promotedAccessListTitle?: string;
+  assumeStartTime?: Date;
 }
 
 export interface AccessRequestReviewer {

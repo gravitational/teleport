@@ -1,29 +1,9 @@
 import { addHours, addWeeks, addDays } from 'date-fns';
 
 import {
-  getStandardHoursAndPostfix,
   getDurationOptionIndexClosestToOneWeek,
   DurationOption,
-  getMaxAssumableDate,
-  OneWeek,
-} from './utils';
-
-describe('getStandardHoursAndPostfix', () => {
-  test.each`
-    militaryHrs | expectedStandardHrs | expectedPostfix
-    ${0}        | ${12}               | ${'AM'}
-    ${1}        | ${1}                | ${'AM'}
-    ${12}       | ${12}               | ${'PM'}
-    ${13}       | ${1}                | ${'PM'}
-    ${23}       | ${11}               | ${'PM'}
-  `(
-    'militaryHrs "$militaryHrs" should "$expectedStandardHrs $expectedPostfix"',
-    ({ militaryHrs, expectedStandardHrs, expectedPostfix }) => {
-      const h = getStandardHoursAndPostfix(militaryHrs);
-      expect(h).toEqual({ ampm: expectedPostfix, hours: expectedStandardHrs });
-    }
-  );
-});
+} from './durationOptions';
 
 describe('getDurationOptionIndexClosestToOneWeek', () => {
   const beginDate = new Date('2024-02-10T03:00:00.000000Z');
@@ -99,19 +79,4 @@ describe('getDurationOptionIndexClosestToOneWeek', () => {
     );
     expect(index).toBe(expectedIndex);
   });
-});
-
-test('getMaxAssumableDate', () => {
-  const created = new Date('2024-02-01T03:00:00.000000Z');
-  jest.useFakeTimers().setSystemTime(created);
-
-  // max date is greater than 1 week added to begin date.
-  let maxDuration = new Date('2024-02-20T03:00:00.000000Z');
-  expect(getMaxAssumableDate({ created, maxDuration })).toEqual(
-    addDays(created, OneWeek)
-  );
-
-  // max date is lesser than 1 week added to begin date.
-  maxDuration = new Date('2024-02-03T03:00:00.000000Z');
-  expect(getMaxAssumableDate({ created, maxDuration })).toEqual(maxDuration);
 });

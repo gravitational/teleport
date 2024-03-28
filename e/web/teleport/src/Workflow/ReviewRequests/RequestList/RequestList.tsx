@@ -137,16 +137,19 @@ export function RequestList({
             isNonRender: true,
           },
           {
-            key: 'requestReason',
-            headerText: 'Request Reason',
-            render: renderReasonCell,
-          },
-          {
             key: 'created',
             headerText: 'Created',
             isSortable: true,
             render: ({ createdDuration }) => (
               <Cell width="120px">{createdDuration}</Cell>
+            ),
+          },
+          {
+            key: 'assumeStartTime',
+            headerText: 'Available',
+            isSortable: true,
+            render: ({ assumeStartTimeDuration }) => (
+              <Cell>{assumeStartTimeDuration}</Cell>
             ),
           },
           {

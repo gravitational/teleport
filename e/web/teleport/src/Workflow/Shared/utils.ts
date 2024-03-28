@@ -17,8 +17,6 @@
 import { formatDuration, intervalToDuration } from 'date-fns';
 import session from 'teleport/services/websession/websession';
 
-import { Start } from './types';
-
 export function getFormattedDurationTxt({
   start,
   end,
@@ -29,24 +27,6 @@ export function getFormattedDurationTxt({
   return formatDuration(intervalToDuration({ start, end }), {
     format: ['weeks', 'days', 'hours', 'minutes'],
   });
-}
-
-/**
- * getStartDateTime returns a Date set to the requested
- * date with the requested time added to the date.
- */
-export function getStartDateTime(start: Start) {
-  if (!start) {
-    return;
-  }
-  const date = new Date(start.date);
-  date.setHours(
-    start.time.value.militaryHrs,
-    start.time.value.minutes,
-    0 /* sec */,
-    0 /* ms */
-  );
-  return date;
 }
 
 export function reloginWebUi(): void {

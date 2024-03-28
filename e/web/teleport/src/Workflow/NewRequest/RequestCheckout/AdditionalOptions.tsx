@@ -22,7 +22,7 @@ import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import { AccessRequest } from 'e-teleport/services/workflow';
 import { getFormattedDurationTxt } from 'e-teleport/Workflow/Shared/utils';
-import { getDurationOptionIndexClosestToOneWeek } from 'e-teleport/Workflow/AssumeStartTime/utils';
+import { getDurationOptionIndexClosestToOneWeek } from 'e-teleport/Workflow/AccessDuration/durationOptions';
 
 import { getPendingRequestDurationOptions } from './utils';
 
@@ -111,9 +111,8 @@ export function AdditionalOptions({
             <Flex alignItems="center">
               <Text mr={1}>Access Request Lifetime</Text>
               <ToolTipInfo>
-                The total length of time the access request will exist for.
-                Countdown starts from when an access request gets created to
-                when the access request expires.
+                The max duration of an access request, starting from its
+                creation, until it expires.
               </ToolTipInfo>
             </Flex>
             <Text>

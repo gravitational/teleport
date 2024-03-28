@@ -108,6 +108,8 @@ export function makeUiAccessRequest(request: TshdAccessRequest) {
     reviews: request.reviews.map(review => ({
       ...review,
       created: Timestamp.toDate(review.created),
+      assumeStartTime:
+        review.assumeStartTime && Timestamp.toDate(review.assumeStartTime),
     })),
     suggestedReviewers: request.suggestedReviewers,
     thresholdNames: request.thresholdNames,

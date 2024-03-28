@@ -139,8 +139,11 @@ export function RequestView({
     }
   }
 
-  let requestedAccessTime = request.expiresDuration;
-  let startingTime = 'now';
+  let requestedAccessTime = getFormattedDurationTxt({
+    start: request.created,
+    end: request.expires,
+  });
+  let startingTime = format(request.created, cfg.dateWithPrefixedTime);
   if (request.assumeStartTime) {
     startingTime = format(request.assumeStartTime, cfg.dateWithPrefixedTime);
     requestedAccessTime = getFormattedDurationTxt({
@@ -283,7 +286,7 @@ export function RequestView({
                   fetchSuggestedAccessListsAttempt={
                     fetchSuggestedAccessListsAttempt
                   }
-                  shortTermDuration={request.maxDurationText}
+                  shortTermDuration={requestedAccessTime}
                   request={request}
                 />
               )}
@@ -353,11 +356,13 @@ export function Timestamp({
   state,
   createdDuration,
   promotedAccessListTitle,
+  assumeStartTime,
 }: {
   author: string;
   state?: RequestState;
   createdDuration: string;
   promotedAccessListTitle?: string;
+  assumeStartTime?: Date;
 }) {
   const isPromoted = state === 'PROMOTED' && promotedAccessListTitle;
 
@@ -398,9 +403,15 @@ export function Timestamp({
       <Box alignItems="baseline">
         <b>{author}</b>{' '}
         {!isPromoted ? (
-          <span>
-            {verb} this request {createdDuration}
-          </span>
+          assumeStartTime ? (
+            <span>
+              modified the start time and {verb} this request {createdDuration}
+            </span>
+          ) : (
+            <span>
+              {verb} this request {createdDuration}
+            </span>
+          )
         ) : (
           <span>
             {verb} this request to long-term access with access list{' '}
@@ -605,6 +616,7 @@ function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {
           state={state}
           createdDuration={createdDuration}
           promotedAccessListTitle={promotedAccessListTitle}
+          assumeStartTime={review.assumeStartTime}
         />
         {reason && (
           <Comment

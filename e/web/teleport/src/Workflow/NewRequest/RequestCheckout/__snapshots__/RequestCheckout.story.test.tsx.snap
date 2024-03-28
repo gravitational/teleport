@@ -63,7 +63,7 @@ exports[`failed state 1`] = `
 .c29 {
   box-sizing: border-box;
   max-width: 270px;
-  min-width: 180px;
+  min-width: 200px;
 }
 
 .c37 {
@@ -549,22 +549,6 @@ exports[`failed state 1`] = `
   color: #FFFFFF;
 }
 
-.c35 {
-  height: 18px;
-  width: 18px;
-  color: inherit;
-}
-
-.c33 {
-  vertical-align: middle;
-  display: inline-block;
-  height: 18px;
-}
-
-.c33:hover {
-  cursor: pointer;
-}
-
 .c30 {
   height: 40px;
   border: 1px solid rgba(255,255,255,0.54);
@@ -582,6 +566,22 @@ exports[`failed state 1`] = `
 
 .c27 {
   position: relative;
+}
+
+.c35 {
+  height: 18px;
+  width: 18px;
+  color: inherit;
+}
+
+.c33 {
+  vertical-align: middle;
+  display: inline-block;
+  height: 18px;
+}
+
+.c33:hover {
+  cursor: pointer;
 }
 
 .c14 {
@@ -1458,7 +1458,7 @@ exports[`loaded state 1`] = `
 .c37 {
   box-sizing: border-box;
   max-width: 270px;
-  min-width: 180px;
+  min-width: 200px;
 }
 
 .c44 {
@@ -2001,22 +2001,6 @@ exports[`loaded state 1`] = `
   color: #FFFFFF;
 }
 
-.c42 {
-  height: 18px;
-  width: 18px;
-  color: inherit;
-}
-
-.c41 {
-  vertical-align: middle;
-  display: inline-block;
-  height: 18px;
-}
-
-.c41:hover {
-  cursor: pointer;
-}
-
 .c38 {
   height: 40px;
   border: 1px solid rgba(255,255,255,0.54);
@@ -2034,6 +2018,22 @@ exports[`loaded state 1`] = `
 
 .c35 {
   position: relative;
+}
+
+.c42 {
+  height: 18px;
+  width: 18px;
+  color: inherit;
+}
+
+.c41 {
+  vertical-align: middle;
+  display: inline-block;
+  height: 18px;
+}
+
+.c41:hover {
+  cursor: pointer;
 }
 
 .c13 {
@@ -3018,7 +3018,7 @@ exports[`loaded state 1`] = `
                       <div
                         class="react-select__single-value css-1uccc91-singleValue"
                       >
-                        2 days (Max Duration)
+                        2 days
                       </div>
                       <div
                         class="css-b8ldur-Input"

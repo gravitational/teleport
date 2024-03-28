@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { ButtonPrimary, Text, Box, Alert, Flex, Label } from 'design';
 import { Warning } from 'design/Icon';
-import { RadioGroup } from 'design/RadioGroup';
+import { Radio } from 'design/RadioGroup';
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldSelect from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
@@ -13,6 +13,8 @@ import { FieldTextArea } from 'shared/components/FieldTextArea';
 
 import { AccessRequest, RequestState } from 'e-teleport/services/workflow';
 import { makeTraitLabel } from 'e-teleport/AccessListManagement/Traits';
+import { AssumeStartTime } from 'e-teleport/Workflow/AssumeStartTime/AssumeStartTime';
+import { AccessDurationReview } from 'e-teleport/Workflow/AccessDuration';
 
 import { SuggestedAccessList, SubmitReview } from '../types';
 
@@ -53,6 +55,7 @@ export default function RequestReview({
 
   const [state, setState] = useState<RequestState>(reviewStateOptions[0].value);
   const [reason, setReason] = useState('');
+  const [assumeStartTime, setStart] = useState<Date>();
 
   const [selectedAccessList, setSelectedAccessList] =
     useState<SuggestedAcessListOption>();
@@ -66,6 +69,7 @@ export default function RequestReview({
       state,
       reason,
       promotedToAccessList: selectedAccessList?.value,
+      assumeStartTime,
     });
   }
 
@@ -80,6 +84,10 @@ export default function RequestReview({
   // After successful submit, don't render.
   if (submitReviewAttempt.status === 'success') {
     return null;
+  }
+
+  function isChecked(currentOptionState: RequestState) {
+    return state !== undefined ? state === currentOptionState : undefined;
   }
 
   return (
@@ -100,40 +108,74 @@ export default function RequestReview({
             {submitReviewAttempt.status === 'error' && (
               <Alert kind="danger" children={submitReviewAttempt.statusText} />
             )}
-            <Box mb={3}>
-              <RadioGroup
-                name="requestState"
-                options={reviewStateOptions}
-                value={state}
-                gap="8px"
-                onChange={o =>
-                  onRequestStateChange(o as RequestState, validator)
-                }
-              />
-              {state === 'PROMOTED' && (
-                <Box ml={4} mt={3} css={{ position: 'relative' }}>
-                  <HorizontalLine />
-                  <FieldSelect
-                    ml={1}
-                    maxWidth="600px"
-                    label={`Select a suggested Access List to add ${request.user} as a member to:`}
-                    rule={requiredField('Required')}
-                    value={
-                      selectedAccessList
-                        ? {
-                            value: selectedAccessList,
-                            label: selectedAccessList.value.title,
-                          }
-                        : undefined
+            <Flex mb={3} gap="8px" flexDirection="column">
+              {reviewStateOptions.map((option, index) => {
+                const radio = (
+                  <Radio
+                    name={option.value}
+                    option={option}
+                    checked={isChecked(option.value)}
+                    onChange={o =>
+                      onRequestStateChange(o as RequestState, validator)
                     }
-                    onChange={(o: SuggestedAcessListOption) =>
-                      setSelectedAccessList(o)
-                    }
-                    options={suggestedAccessListOptions}
                   />
-                </Box>
-              )}
-            </Box>
+                );
+
+                if (option.value === 'APPROVED' && state === 'APPROVED') {
+                  return (
+                    <React.Fragment key={index}>
+                      {radio}
+                      <Box ml={4} mt={2} css={{ position: 'relative' }} mb={3}>
+                        <HorizontalLine height={120} />
+                        <Box ml={1}>
+                          <AssumeStartTime
+                            start={assumeStartTime}
+                            onStartChange={setStart}
+                            accessRequest={request}
+                            reviewing={true}
+                          />
+                          <AccessDurationReview
+                            assumeStartTime={assumeStartTime}
+                            accessRequest={request}
+                          />
+                        </Box>
+                      </Box>
+                    </React.Fragment>
+                  );
+                }
+
+                if (option.value === 'PROMOTED' && state === 'PROMOTED') {
+                  return (
+                    <React.Fragment key={index}>
+                      {radio}
+                      <Box ml={4} mt={2} css={{ position: 'relative' }}>
+                        <HorizontalLine />
+                        <FieldSelect
+                          ml={1}
+                          maxWidth="600px"
+                          label={`Select a suggested Access List to add ${request.user} as a member to:`}
+                          rule={requiredField('Required')}
+                          value={
+                            selectedAccessList
+                              ? {
+                                  value: selectedAccessList,
+                                  label: selectedAccessList.value.title,
+                                }
+                              : undefined
+                          }
+                          onChange={(o: SuggestedAcessListOption) =>
+                            setSelectedAccessList(o)
+                          }
+                          options={suggestedAccessListOptions}
+                        />
+                      </Box>
+                    </React.Fragment>
+                  );
+                }
+
+                return <React.Fragment key={index}>{radio}</React.Fragment>;
+              })}
+            </Flex>
             <FieldTextArea
               label="Message"
               placeholder="Optional message..."
@@ -278,7 +320,7 @@ const TextWithSmallerLineHeight = styled(Text)`
 
 const HorizontalLine = styled.div`
   width: 2px;
-  height: 92px;
+  height: ${p => p.height || 92}px;
   background-color: ${props => props.theme.colors.spotBackground[0]};
   position: absolute;
   top: -10px;

@@ -490,9 +490,9 @@ exports[`loaded approved role based request state 1`] = `
                 class="c12"
               >
                 for 
-                24 hours
+                5 days
                 , starting 
-                now
+                12/01/2020 at 12:00AM
               </div>
             </div>
           </div>
@@ -1208,9 +1208,9 @@ exports[`loaded denied role based request state 1`] = `
                 class="c12"
               >
                 for 
-                20 hours
+                4 days
                 , starting 
-                now
+                12/02/2020 at 12:00AM
               </div>
             </div>
           </div>
@@ -2014,9 +2014,9 @@ exports[`loaded pending role based request state 1`] = `
                 class="c12"
               >
                 for 
-                5 days
+                1 day
                 , starting 
-                12/06/2020 at 12:00AM
+                12/05/2020 at 12:00AM
               </div>
             </div>
           </div>
@@ -2131,71 +2131,68 @@ exports[`loaded pending role based request state 1`] = `
               class="c29"
             >
               <div
-                class="c32"
+                class="c32 c33"
               >
-                <div
-                  class="c0 c33"
+                <label
+                  class="c34"
                 >
-                  <label
-                    class="c34"
+                  <input
+                    checked=""
+                    class="c35"
+                    name="DENIED"
+                    type="radio"
+                    value="DENIED"
+                  />
+                  <span
+                    class="c36"
                   >
-                    <input
-                      checked=""
-                      class="c35"
-                      name="requestState"
-                      type="radio"
-                      value="DENIED"
-                    />
-                    <span
-                      class="c36"
-                    >
-                      Reject request
-                    </span>
-                  </label>
-                  <label
-                    class="c34"
+                    Reject request
+                  </span>
+                </label>
+                <label
+                  class="c34"
+                >
+                  <input
+                    class="c35"
+                    name="APPROVED"
+                    type="radio"
+                    value="APPROVED"
+                  />
+                  <span
+                    class="c36"
                   >
-                    <input
-                      class="c35"
-                      name="requestState"
-                      type="radio"
-                      value="APPROVED"
-                    />
-                    <span
-                      class="c36"
-                    >
-                      Approve short-term access
-                    </span>
-                  </label>
-                  <label
-                    class="c37"
+                    Approve short-term access
+                     (1 day)
+                  </span>
+                </label>
+                <label
+                  class="c37"
+                >
+                  <input
+                    class="c35"
+                    disabled=""
+                    name="PROMOTED"
+                    type="radio"
+                    value="PROMOTED"
+                  />
+                  <span
+                    class="c38"
                   >
-                    <input
-                      class="c35"
-                      disabled=""
-                      name="requestState"
-                      type="radio"
-                      value="PROMOTED"
-                    />
-                    <span
-                      class="c38"
+                    <div
+                      class="c0 c1"
                     >
                       <div
-                        class="c0 c1"
+                        class="c0 c6"
                       >
                         <div
-                          class="c0 c6"
+                          class="c39"
                         >
-                          <div
-                            class="c39"
-                          >
-                            Approve long-term access via Access List with the requested resources
-                          </div>
+                          Approve long-term access via Access List with the requested resources
                         </div>
                       </div>
-                    </span>
-                  </label>
-                </div>
+                    </div>
+                  </span>
+                </label>
               </div>
               <div
                 class="c40"
@@ -2974,9 +2971,9 @@ exports[`loaded pending search based request state 1`] = `
                 class="c12"
               >
                 for 
-                35 minutes
+                2 days
                 , starting 
-                now
+                12/04/2020 at 12:00AM
               </div>
             </div>
           </div>
@@ -3197,71 +3194,68 @@ exports[`loaded pending search based request state 1`] = `
               class="c29"
             >
               <div
-                class="c36"
+                class="c36 c37"
               >
-                <div
-                  class="c0 c37"
+                <label
+                  class="c38"
                 >
-                  <label
-                    class="c38"
+                  <input
+                    checked=""
+                    class="c39"
+                    name="DENIED"
+                    type="radio"
+                    value="DENIED"
+                  />
+                  <span
+                    class="c40"
                   >
-                    <input
-                      checked=""
-                      class="c39"
-                      name="requestState"
-                      type="radio"
-                      value="DENIED"
-                    />
-                    <span
-                      class="c40"
-                    >
-                      Reject request
-                    </span>
-                  </label>
-                  <label
-                    class="c38"
+                    Reject request
+                  </span>
+                </label>
+                <label
+                  class="c38"
+                >
+                  <input
+                    class="c39"
+                    name="APPROVED"
+                    type="radio"
+                    value="APPROVED"
+                  />
+                  <span
+                    class="c40"
                   >
-                    <input
-                      class="c39"
-                      name="requestState"
-                      type="radio"
-                      value="APPROVED"
-                    />
-                    <span
-                      class="c40"
-                    >
-                      Approve short-term access
-                    </span>
-                  </label>
-                  <label
-                    class="c41"
+                    Approve short-term access
+                     (2 days)
+                  </span>
+                </label>
+                <label
+                  class="c41"
+                >
+                  <input
+                    class="c39"
+                    disabled=""
+                    name="PROMOTED"
+                    type="radio"
+                    value="PROMOTED"
+                  />
+                  <span
+                    class="c42"
                   >
-                    <input
-                      class="c39"
-                      disabled=""
-                      name="requestState"
-                      type="radio"
-                      value="PROMOTED"
-                    />
-                    <span
-                      class="c42"
+                    <div
+                      class="c0 c1"
                     >
                       <div
-                        class="c0 c1"
+                        class="c0 c6"
                       >
                         <div
-                          class="c0 c6"
+                          class="c43"
                         >
-                          <div
-                            class="c43"
-                          >
-                            Approve long-term access via Access List with the requested resources
-                          </div>
+                          Approve long-term access via Access List with the requested resources
                         </div>
                       </div>
-                    </span>
-                  </label>
-                </div>
+                    </div>
+                  </span>
+                </label>
               </div>
               <div
                 class="c44"

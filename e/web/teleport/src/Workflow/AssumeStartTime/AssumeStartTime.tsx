@@ -1,47 +1,41 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import styled from 'styled-components';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { addMonths, format } from 'date-fns';
 import FieldSelect from 'shared/components/FieldSelect';
 import Validation from 'shared/components/Validation';
-import { Flex, Box, LabelInput, Text } from 'design';
-import { Calendar as CalendarIcon } from 'design/Icon';
-import Select, { Option } from 'shared/components/Select';
+import { Flex, Box, LabelInput, ButtonIcon } from 'design';
+import { Calendar as CalendarIcon, Refresh as RefreshIcon } from 'design/Icon';
 import { StyledDateRange } from 'teleport/components/DayPicker/Shared';
 import { ButtonSecondary } from 'design/Button';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import cfg from 'shared/config';
 
 import { AccessRequest } from 'e-teleport/services/workflow';
 
-import { Start, TimeOption } from '../Shared/types';
-import { getStartDateTime } from '../Shared/utils';
+import { TimeOption } from '../Shared/types';
 
 import {
-  getDurationOptionIndexClosestToOneWeek,
-  getDurationOptionsFromStartTime,
+  convertStartToTimeOption,
   getMaxAssumableDate,
   getTimeOptions,
-} from './utils';
+} from './timeOptions';
 
 export function AssumeStartTime({
   start,
-  setStart,
+  onStartChange,
   accessRequest,
-  maxDuration,
-  setMaxDuration,
+  reviewing = false,
 }: {
-  start: Start;
-  setStart(s?: Start): void;
+  start: Date;
+  onStartChange(s?: Date): void;
   accessRequest: AccessRequest;
-  maxDuration: Option<number>;
-  setMaxDuration(s: Option<number>): void;
+  reviewing?: boolean;
 }) {
-  // Options for extending or shortening the access request duration.
-  const [durationOptions, setDurationOptions] = useState<Option<number>[]>([]);
-  // Options for selecting a custom start time.
-  const [startTimeOptions, setStartTimeOptions] = useState<TimeOption[]>([]);
+  const [wantImmediate, setWantImmediate] = useState(
+    () => !accessRequest.assumeStartTime
+  );
 
   const [showDayPicker, setShowDayPicker] = useState(false);
   const dayPickerRef = useRefClickOutside<HTMLDivElement>({
@@ -49,59 +43,32 @@ export function AssumeStartTime({
     setOpen: setShowDayPicker,
   });
 
-  useEffect(() => {
-    defaultStartAndDuration();
-  }, []);
-
-  function defaultStartAndDuration() {
-    setStart(undefined);
-    setShowDayPicker(false);
-
-    const created = accessRequest.created;
-    const options = getDurationOptionsFromStartTime(
-      created,
-      {
-        value: {
-          minutes: created.getMinutes(),
-          militaryHrs: created.getHours(),
-        },
-        label: '', // unused
-      },
-      accessRequest
-    );
-
-    setDurationOptions(options);
-    if (options.length > 0) {
-      const durationIndex = getDurationOptionIndexClosestToOneWeek(
-        options,
-        accessRequest.created
-      );
-      setMaxDuration(options[durationIndex]);
+  function startImmediately() {
+    setWantImmediate(true);
+    // Overwrite the requested start time
+    // with now time.
+    if (accessRequest.assumeStartTime) {
+      onStartChange(new Date());
+    } else {
+      // This case means the request was already
+      // requesting to gain access immediately so
+      // nothing to overwrite here.
+      onStartChange(null);
     }
-  }
 
-  function updateAccessDuration(selectedDate: Date, selectedTime: TimeOption) {
-    const updatedDurationOpts = getDurationOptionsFromStartTime(
-      selectedDate,
-      selectedTime,
-      accessRequest
-    );
-
-    const durationIndex = getDurationOptionIndexClosestToOneWeek(
-      updatedDurationOpts,
-      selectedDate
-    );
-
-    setMaxDuration(updatedDurationOpts[durationIndex]);
-    setDurationOptions(updatedDurationOpts);
+    setShowDayPicker(false);
   }
 
   // Updates the start "date" part of a Date, and we pre-select option that is
   // closest to one week for the selected date. On every update, it re-calculates
   // the time options and duration options available for the selected date.
   function updateStartDate(selectedDate: Date) {
-    const updatedTimesOptions = getTimeOptions(selectedDate, accessRequest);
-    setStartTimeOptions(updatedTimesOptions);
+    setWantImmediate(false);
+    const updatedTimesOptions = getTimeOptions(
+      selectedDate,
+      accessRequest,
+      reviewing
+    );
 
     if (!updatedTimesOptions.length) {
       // There is no other time options for the current duration.
@@ -109,31 +76,43 @@ export function AssumeStartTime({
       return;
     }
 
-    const startDate = getStartDateTime({
-      date: selectedDate,
-      time: updatedTimesOptions[0],
-    });
-
-    updateAccessDuration(startDate, updatedTimesOptions[0]);
-    setStart({ date: startDate, time: updatedTimesOptions[0] });
+    onStartChange(updatedTimesOptions[0].value);
     setShowDayPicker(false);
   }
 
   // Updates the start "time" part of a Date. On every update, it re-calculates
   // the duration options available for the selected time.
   function updateStartTime(time: TimeOption) {
-    const startDate = getStartDateTime({ ...start, time });
-
-    updateAccessDuration(startDate, time);
-    setStart({ ...start, time });
+    setWantImmediate(false);
+    onStartChange(time?.value);
   }
 
-  const startDate = accessRequest.created;
+  let startDate = accessRequest.created;
+  if (reviewing) {
+    startDate = new Date();
+  }
 
   let startDateText = 'Immediately';
-  if (start?.date) {
-    startDateText = format(start.date, 'LLLL dd, yyyy');
+  let startTime: TimeOption;
+  let startTimeOptions: TimeOption[] = [];
+
+  const startOrRequestedDate = start || accessRequest.assumeStartTime;
+  if (!wantImmediate && startOrRequestedDate) {
+    startDateText = format(startOrRequestedDate, cfg.dateWithFullMonth);
+    startTime = convertStartToTimeOption(
+      startOrRequestedDate,
+      !start && !!accessRequest.assumeStartTime
+    );
+    startTimeOptions = getTimeOptions(
+      startOrRequestedDate,
+      accessRequest,
+      reviewing
+    );
   }
+
+  // This flag is used to give reviewer the ability to reset start date/time
+  // to the originally requested date/time.
+  const showResetDateTime = reviewing && start;
 
   return (
     <Validation>
@@ -145,7 +124,7 @@ export function AssumeStartTime({
               setShowDayPicker(s => !s);
             }}
             maxWidth="270px"
-            minWidth="180px"
+            minWidth="200px"
           >
             {startDateText}
             <CalendarIcon ml={3} />
@@ -167,7 +146,7 @@ export function AssumeStartTime({
                 data-testid="day-picker"
                 onDayClick={updateStartDate}
                 defaultMonth={startDate}
-                selected={start?.date}
+                selected={startOrRequestedDate}
                 fromMonth={startDate}
                 // Incase part of 7 days falls to the next month.
                 // Allows user to select day from next month
@@ -176,15 +155,15 @@ export function AssumeStartTime({
                 // Disables before today, and after 7th day.
                 disabled={[
                   {
-                    after: getMaxAssumableDate(accessRequest),
                     before: startDate,
+                    after: getMaxAssumableDate(accessRequest),
                   },
                 ]}
                 footer={
                   <Flex css={{ justifyContent: 'center' }}>
                     <ButtonSecondary
                       mt={2}
-                      onClick={defaultStartAndDuration}
+                      onClick={startImmediately}
                       textTransform="none"
                     >
                       Immediately
@@ -195,7 +174,7 @@ export function AssumeStartTime({
             </StyledDateRange>
           )}
         </Box>
-        {start?.time && (
+        {startTime && (
           <Box>
             <LabelInput>Start Time</LabelInput>
             <FieldSelect
@@ -203,30 +182,22 @@ export function AssumeStartTime({
               width="190px"
               isSearchable={true}
               options={startTimeOptions}
-              value={start?.time}
+              value={startTime}
               onChange={updateStartTime}
             />
           </Box>
         )}
+        {showResetDateTime && (
+          <ButtonIcon
+            data-testid="reset-btn"
+            onClick={() => updateStartTime(null)}
+            title="Reset to requested time"
+            mb={1}
+          >
+            <RefreshIcon size="medium" />
+          </ButtonIcon>
+        )}
       </Flex>
-      <LabelInput typography="body2" color="text.slightlyMuted">
-        <Flex alignItems="center">
-          <Text mr={1}>Access Duration</Text>
-          <ToolTipInfo>
-            How long the access should be granted for. Note that the time it
-            takes to approve this request is subtracted from the duration you
-            select.
-          </ToolTipInfo>
-        </Flex>
-
-        <Select
-          options={durationOptions}
-          onChange={(option: Option<number>) => {
-            setMaxDuration(option);
-          }}
-          value={maxDuration}
-        />
-      </LabelInput>
     </Validation>
   );
 }

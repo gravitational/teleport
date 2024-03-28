@@ -604,11 +604,6 @@ exports[`loaded state 1`] = `
         >
           Requested
         </th>
-        <th
-          style="cursor: default;"
-        >
-          Request Reason
-        </th>
         <th>
           <a
             style="display: flex; align-items: center;"
@@ -628,6 +623,31 @@ exports[`loaded state 1`] = `
                   clip-rule="evenodd"
                   d="M11.4697 6.96967C11.7626 6.67678 12.2374 6.67678 12.5303 6.96967L20.0303 14.4697C20.3232 14.7626 20.3232 15.2374 20.0303 15.5303C19.7374 15.8232 19.2626 15.8232 18.9697 15.5303L12 8.56066L5.03033 15.5303C4.73744 15.8232 4.26256 15.8232 3.96967 15.5303C3.67678 15.2374 3.67678 14.7626 3.96967 14.4697L11.4697 6.96967Z"
                   fill-rule="evenodd"
+                />
+              </svg>
+            </span>
+          </a>
+        </th>
+        <th>
+          <a
+            style="display: flex; align-items: center;"
+          >
+            Available
+            <span
+              class="c15 icon icon-chevronsvertical"
+              title="sort items"
+            >
+              <svg
+                fill="currentColor"
+                height="24"
+                viewBox="0 0 24 24"
+                width="24"
+              >
+                <path
+                  d="M12.5303 2.46967C12.2374 2.17678 11.7626 2.17678 11.4697 2.46967L6.96967 6.96967C6.67678 7.26256 6.67678 7.73744 6.96967 8.03033C7.26256 8.32322 7.73744 8.32322 8.03033 8.03033L12 4.06066L15.9697 8.03033C16.2626 8.32322 16.7374 8.32322 17.0303 8.03033C17.3232 7.73744 17.3232 7.26256 17.0303 6.96967L12.5303 2.46967Z"
+                />
+                <path
+                  d="M8.03033 15.9697C7.73744 15.6768 7.26256 15.6768 6.96967 15.9697C6.67678 16.2626 6.67678 16.7374 6.96967 17.0303L11.4697 21.5303C11.7626 21.8232 12.2374 21.8232 12.5303 21.5303L17.0303 17.0303C17.3232 16.7374 17.3232 16.2626 17.0303 15.9697C16.7374 15.6768 16.2626 15.6768 15.9697 15.9697L12 19.9393L8.03033 15.9697Z"
                 />
               </svg>
             </span>
@@ -742,16 +762,11 @@ exports[`loaded state 1`] = `
           </div>
         </td>
         <td
-          style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          title="Testing long message format. I am requesting access for the developer role that i will be using to         commit fixes for our production application. I will need access for the         rest of the day to complete my changes."
-        >
-          Testing long message format. I am requesting access for the developer role that i will be using to         commit fixes for our production application. I will need access for the         rest of the day to complete my changes.
-        </td>
-        <td
           width="120px"
         >
           1 minute ago
         </td>
+        <td />
         <td
           width="120px"
         >
@@ -818,15 +833,12 @@ exports[`loaded state 1`] = `
           </div>
         </td>
         <td
-          style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          title="Testing long message format. I am requesting access for the developer role that i will be using to         commit fixes for our production application. I will need access for the         rest of the day to complete my changes."
-        >
-          Testing long message format. I am requesting access for the developer role that i will be using to         commit fixes for our production application. I will need access for the         rest of the day to complete my changes.
-        </td>
-        <td
           width="120px"
         >
           1 minute ago
+        </td>
+        <td>
+          24 hours from now
         </td>
         <td
           width="120px"
@@ -901,16 +913,11 @@ exports[`loaded state 1`] = `
           </div>
         </td>
         <td
-          style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          title="Some short request reason"
-        >
-          Some short request reason
-        </td>
-        <td
           width="120px"
         >
           35 minutes ago
         </td>
+        <td />
         <td
           width="120px"
         >
@@ -991,14 +998,11 @@ exports[`loaded state 1`] = `
           </div>
         </td>
         <td
-          style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          title=""
-        />
-        <td
           width="120px"
         >
           2 hours ago
         </td>
+        <td />
         <td
           width="120px"
         >
@@ -1086,14 +1090,11 @@ exports[`loaded state 1`] = `
           </div>
         </td>
         <td
-          style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          title=""
-        />
-        <td
           width="120px"
         >
           2 hours ago
         </td>
+        <td />
         <td
           width="120px"
         >
@@ -1197,14 +1198,11 @@ exports[`loaded state 1`] = `
           </div>
         </td>
         <td
-          style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          title=""
-        />
-        <td
           width="120px"
         >
           2 hours ago
         </td>
+        <td />
         <td
           width="120px"
         />
@@ -1328,16 +1326,11 @@ exports[`loaded state 1`] = `
           </div>
         </td>
         <td
-          style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          title="own promoted request"
-        >
-          own promoted request
-        </td>
-        <td
           width="120px"
         >
           2 hours ago
         </td>
+        <td />
         <td
           width="120px"
         />
@@ -1446,13 +1439,12 @@ exports[`loaded state 1`] = `
           </div>
         </td>
         <td
-          style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          title=""
-        />
-        <td
           width="120px"
         >
           2 hours ago
+        </td>
+        <td>
+          24 hours from now
         </td>
         <td
           width="120px"

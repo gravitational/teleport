@@ -1,6 +1,6 @@
 import { AccessRequest } from 'e-teleport/services/workflow';
 
-import { getTimeOptions } from './utils';
+import { getTimeOptions } from './timeOptions';
 
 test('same day limit produces options with a min and a max', () => {
   // Same days but with different time.
@@ -15,14 +15,13 @@ test('same day limit produces options with a min and a max', () => {
 
   const times = getTimeOptions(selectedDate, mockAccessRequest);
 
-  // min option should be the same as created date time
-  expect(times[0].value).toStrictEqual({ minutes: 0, militaryHrs: 3 });
+  // min option should be the same as created hours
+  expect(times[0].value).toStrictEqual(new Date('2024-02-16T03:00:00.000Z'));
 
-  // max option should be the same as max duration date time - 1
-  expect(times[times.length - 1].value).toStrictEqual({
-    minutes: 0,
-    militaryHrs: 5,
-  });
+  // max option should be the same as max duration date time - 1 hr
+  expect(times[times.length - 1].value).toStrictEqual(
+    new Date('2024-02-16T05:00:00.000Z')
+  );
 });
 
 test('in between day selection produces every options (no limit)', () => {
@@ -39,13 +38,12 @@ test('in between day selection produces every options (no limit)', () => {
   const times = getTimeOptions(selectedDate, mockAccessRequest);
 
   // min option defaults to the earliest time available for the day
-  expect(times[0].value).toStrictEqual({ minutes: 0, militaryHrs: 0 });
+  expect(times[0].value).toStrictEqual(new Date('2024-02-17T00:00:00.000Z'));
 
   // max option defaults to the latest time available for the day
-  expect(times[times.length - 1].value).toStrictEqual({
-    minutes: 0,
-    militaryHrs: 23,
-  });
+  expect(times[times.length - 1].value).toStrictEqual(
+    new Date('2024-02-17T23:00:00.000Z')
+  );
 });
 
 test('first day selection produces options with only a min limit', () => {
@@ -62,13 +60,12 @@ test('first day selection produces options with only a min limit', () => {
   const times = getTimeOptions(selectedDate, mockAccessRequest);
 
   // min option is limited to the created date time
-  expect(times[0].value).toStrictEqual({ minutes: 0, militaryHrs: 3 });
+  expect(times[0].value).toStrictEqual(new Date('2024-02-16T03:00:00.000Z'));
 
   // max option defaults to the latest time available for the day
-  expect(times[times.length - 1].value).toStrictEqual({
-    minutes: 0,
-    militaryHrs: 23,
-  });
+  expect(times[times.length - 1].value).toStrictEqual(
+    new Date('2024-02-16T23:00:00.000Z')
+  );
 });
 
 test('last day selection produces option with only a max limit', () => {
@@ -85,13 +82,33 @@ test('last day selection produces option with only a max limit', () => {
   const times = getTimeOptions(selectedDate, mockAccessRequest);
 
   // min option defaults to the earliest time available for the day
-  expect(times[0].value).toStrictEqual({ minutes: 0, militaryHrs: 0 });
+  expect(times[0].value).toStrictEqual(new Date('2024-02-18T00:00:00.000Z'));
 
   // max option is limited to the max duration time - 1.
-  expect(times[times.length - 1].value).toStrictEqual({
-    minutes: 0,
-    militaryHrs: 5,
-  });
+  expect(times[times.length - 1].value).toStrictEqual(
+    new Date('2024-02-18T05:00:00.000Z')
+  );
+});
+
+test('on reviewing mode, start time options should start from current date time', () => {
+  const current = new Date('2024-02-16T11:00:08.156944Z'); // 11 pm
+  jest.useFakeTimers().setSystemTime(current);
+
+  const created = new Date('2024-02-16T03:00:08.156944Z'); // 3pm
+  const maxDuration = new Date('2024-02-18T06:45:08.156944Z');
+  mockAccessRequest.created = created;
+  mockAccessRequest.maxDuration = maxDuration;
+
+  const selectedDate = new Date(created);
+
+  const times = getTimeOptions(
+    selectedDate,
+    mockAccessRequest,
+    true /* reviewing */
+  );
+
+  // min option defaults to "current" date & hour.
+  expect(times[0].value).toStrictEqual(new Date('2024-02-16T11:00:00.000Z'));
 });
 
 const mockAccessRequest: AccessRequest = {

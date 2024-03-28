@@ -55,6 +55,9 @@ function makeReviews(jsonReviews): AccessRequestReview[] {
     roles: review.roles || [],
     createdDuration: getDurationAgoText(review.created),
     promotedAccessListTitle: review.promotedAccessListTitle,
+    assumeStartTime: review.assumeStartTime
+      ? new Date(review.assumeStartTime)
+      : null,
   }));
 }
 

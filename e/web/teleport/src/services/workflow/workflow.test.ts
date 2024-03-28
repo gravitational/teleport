@@ -60,6 +60,7 @@ test('correct formatting of access request json response', async () => {
         reason: 'some reason',
         roles: ['admin'],
         createdDuration: '',
+        assumeStartTime: null,
       },
       {
         author: 'alice',
@@ -67,6 +68,7 @@ test('correct formatting of access request json response', async () => {
         reason: '',
         roles: ['admin'],
         createdDuration: '',
+        assumeStartTime: null,
       },
     ],
     // Reviewers should contain both review authors and suggested reviewers.
