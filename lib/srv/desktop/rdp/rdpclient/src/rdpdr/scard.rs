@@ -694,6 +694,7 @@ const TIMEOUT_IMMEDIATE: u32 = 0;
 
 /// A generic error type for the SmartcardBackend that can contain any arbitrary error message.
 #[derive(Debug)]
+#[allow(dead_code)] // The internal `String` is "dead code" according to the compiler, but we want it for debugging purposes.
 struct SmartcardBackendError(pub String);
 
 impl std::fmt::Display for SmartcardBackendError {
