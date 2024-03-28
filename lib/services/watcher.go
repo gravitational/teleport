@@ -124,6 +124,9 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 // It is the caller's responsibility to verify the inputs' validity
 // incl. cfg.CheckAndSetDefaults.
 func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg ResourceWatcherConfig) (*resourceWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:  utils.FullJitter(cfg.MaxRetryPeriod / 10),
 		Step:   cfg.MaxRetryPeriod / 5,
@@ -1746,6 +1749,9 @@ type Node interface {
 	GetUseTunnel() bool
 	// GetProxyIDs returns a list of proxy ids this server is connected to.
 	GetProxyIDs() []string
+	// IsEICE returns whether the Node is an EICE instance.
+	// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
+	IsEICE() bool
 }
 
 // GetNodes allows callers to retrieve a subset of nodes that match the filter provided. The

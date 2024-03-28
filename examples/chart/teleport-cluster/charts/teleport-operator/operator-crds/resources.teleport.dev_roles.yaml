@@ -303,7 +303,7 @@ spec:
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
                           they also offer a mechanism for forwarding claims from an
-                          external identity provider, to a plugin via {{ `{{external.trait_name}}` }}
+                          external identity provider, to a plugin via `{{external.trait_name}}`
                           style substitutions.
                         type: object
                       claims_to_roles:
@@ -829,7 +829,7 @@ spec:
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
                           they also offer a mechanism for forwarding claims from an
-                          external identity provider, to a plugin via {{ `{{external.trait_name}}` }}
+                          external identity provider, to a plugin via `{{external.trait_name}}`
                           style substitutions.
                         type: object
                       claims_to_roles:
@@ -1635,7 +1635,7 @@ spec:
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
                           they also offer a mechanism for forwarding claims from an
-                          external identity provider, to a plugin via {{ `{{external.trait_name}}` }}
+                          external identity provider, to a plugin via `{{external.trait_name}}`
                           style substitutions.
                         type: object
                       claims_to_roles:
@@ -2161,7 +2161,7 @@ spec:
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
                           they also offer a mechanism for forwarding claims from an
-                          external identity provider, to a plugin via {{ `{{external.trait_name}}` }}
+                          external identity provider, to a plugin via `{{external.trait_name}}`
                           style substitutions.
                         type: object
                       claims_to_roles:

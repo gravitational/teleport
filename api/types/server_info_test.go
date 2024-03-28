@@ -72,3 +72,58 @@ func TestServerInfoSetLabels(t *testing.T) {
 		})
 	}
 }
+
+func TesServerInfoForServer(t *testing.T) {
+	tests := []struct {
+		name   string
+		server Server
+		want   string
+	}{
+		{
+			name: "node with account and instance id labels uses the aws-<account-id>-<instance-id> format",
+			server: &ServerV2{
+				Metadata: Metadata{
+					Labels: map[string]string{
+						AWSAccountIDLabel:  "123456789012",
+						AWSInstanceIDLabel: "i-123",
+					},
+				},
+			},
+			want: "aws-123456789012-i-123",
+		},
+		{
+			name: "node with aws metadata uses the aws-<account-id>-<instance-id> format",
+			server: &ServerV2{
+				Metadata: Metadata{Labels: map[string]string{}},
+				Spec: ServerSpecV2{
+					CloudMetadata: &CloudMetadata{
+						AWS: &AWSInfo{
+							AccountID:  "123456789012",
+							InstanceID: "i-123",
+						},
+					},
+				},
+			},
+			want: "aws-123456789012-i-123",
+		},
+		{
+			name: "other nodes have their server info name following the si-<namen> format",
+			server: &ServerV2{
+				Metadata: Metadata{
+					Name:   "abcd",
+					Labels: map[string]string{},
+				},
+			},
+			want: "si-abcd",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ServerInfoForServer(tt.server)
+			require.NoError(t, err)
+			if got.GetName() != tt.want {
+				t.Errorf("ServerInfoForServer() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

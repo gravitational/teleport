@@ -1262,7 +1262,7 @@ func TestAuthPreference(t *testing.T) {
 		MessageOfTheDay: "test MOTD",
 	})
 	require.NoError(t, err)
-	err = p.clusterConfigS.SetAuthPreference(ctx, authPref)
+	authPref, err = p.clusterConfigS.UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	select {
@@ -1291,7 +1291,7 @@ func TestClusterNetworkingConfig(t *testing.T) {
 		ClientIdleTimeoutMessage: "test idle timeout message",
 	})
 	require.NoError(t, err)
-	err = p.clusterConfigS.SetClusterNetworkingConfig(ctx, netConfig)
+	_, err = p.clusterConfigS.UpsertClusterNetworkingConfig(ctx, netConfig)
 	require.NoError(t, err)
 
 	select {
@@ -1320,7 +1320,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 		ProxyChecksHostKeys: types.NewBoolOption(true),
 	})
 	require.NoError(t, err)
-	err = p.clusterConfigS.SetSessionRecordingConfig(ctx, recConfig)
+	_, err = p.clusterConfigS.UpsertSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	select {

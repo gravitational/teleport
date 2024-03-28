@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
+	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/pam"
@@ -232,6 +233,10 @@ type CommandLineFlags struct {
 	// IntegrationConfAccessGraphAWSSyncArguments contains the arguments of
 	// `teleport integration configure access-graph aws-iam` command
 	IntegrationConfAccessGraphAWSSyncArguments IntegrationConfAccessGraphAWSSync
+
+	// IntegrationConfSAMLIdPGCPWorkforceArguments contains the arguments of
+	// `teleport integration configure samlidp gcp-workforce` command
+	IntegrationConfSAMLIdPGCPWorkforceArguments samlidpconfig.GCPWorkforceAPIParams
 }
 
 // IntegrationConfAccessGraphAWSSync contains the arguments of

@@ -1375,6 +1375,18 @@ func TestCreateResources(t *testing.T) {
 			kind:   types.KindDatabaseObjectImportRule,
 			create: testCreateDatabaseObjectImportRule,
 		},
+		{
+			kind:   types.KindClusterNetworkingConfig,
+			create: testCreateClusterNetworkingConfig,
+		},
+		{
+			kind:   types.KindClusterAuthPreference,
+			create: testCreateAuthPreference,
+		},
+		{
+			kind:   types.KindSessionRecordingConfig,
+			create: testCreateSessionRecordingConfig,
+		},
 	}
 
 	for _, test := range tests {
@@ -1711,6 +1723,168 @@ version: v1
 	require.True(t, trace.IsAlreadyExists(err))
 
 	_, err = runResourceCommand(t, fc, []string{"create", "-f", resourceYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateClusterNetworkingConfig(t *testing.T, fc *config.FileConfig) {
+	// Get the initial cnc.
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindClusterNetworkingConfig, "--format=json"})
+	require.NoError(t, err)
+
+	cnc := mustDecodeJSON[[]*types.ClusterNetworkingConfigV2](t, buf)
+	require.Len(t, cnc, 1)
+	initial := cnc[0]
+
+	const cncYAML = `kind: cluster_networking_config
+metadata:
+  name: cluster-networking-config
+spec:
+  assist_command_execution_workers: 30
+  client_idle_timeout: 0s
+  idle_timeout_message: ""
+  keep_alive_count_max: 300
+  case_insensitive_routing: true
+  keep_alive_interval: 5m0s
+  proxy_listener_mode: 1
+  session_control_timeout: 0s
+  tunnel_strategy:
+    type: agent_mesh
+  web_idle_timeout: 0s
+version: v2
+`
+
+	// Create the cnc
+	cncYAMLPath := filepath.Join(t.TempDir(), "cnc.yaml")
+	require.NoError(t, os.WriteFile(cncYAMLPath, []byte(cncYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", cncYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the cnc
+	buf, err = runResourceCommand(t, fc, []string{"get", types.KindClusterNetworkingConfig, "--format=json"})
+	require.NoError(t, err)
+	cnc = mustDecodeJSON[[]*types.ClusterNetworkingConfigV2](t, buf)
+	require.Len(t, cnc, 1)
+
+	var expected types.ClusterNetworkingConfigV2
+	require.NoError(t, yaml.Unmarshal([]byte(cncYAML), &expected))
+
+	require.NotEqual(t, int64(300), initial.GetKeepAliveCountMax())
+	require.False(t, initial.GetCaseInsensitiveRouting())
+	require.True(t, expected.GetCaseInsensitiveRouting())
+	require.Equal(t, int64(300), expected.GetKeepAliveCountMax())
+
+	// Explicitly change the revision and try creating the cnc with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	raw, err := services.MarshalClusterNetworkingConfig(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(cncYAMLPath, raw, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", cncYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", cncYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateAuthPreference(t *testing.T, fc *config.FileConfig) {
+	// Get the initial CAP.
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindClusterAuthPreference, "--format=json"})
+	require.NoError(t, err)
+
+	cap := mustDecodeJSON[[]*types.AuthPreferenceV2](t, buf)
+	require.Len(t, cap, 1)
+	initial := cap[0]
+
+	const capYAML = `kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  second_factor: off
+  type: local
+version: v2
+`
+
+	// Create the cap
+	capYAMLPath := filepath.Join(t.TempDir(), "cap.yaml")
+	require.NoError(t, os.WriteFile(capYAMLPath, []byte(capYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", capYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the cap
+	buf, err = runResourceCommand(t, fc, []string{"get", types.KindClusterAuthPreference, "--format=json"})
+	require.NoError(t, err)
+	cap = mustDecodeJSON[[]*types.AuthPreferenceV2](t, buf)
+	require.Len(t, cap, 1)
+
+	var expected types.AuthPreferenceV2
+	require.NoError(t, yaml.Unmarshal([]byte(capYAML), &expected))
+
+	require.NotEqual(t, constants.SecondFactorOff, initial.GetSecondFactor())
+	require.Equal(t, constants.SecondFactorOff, expected.GetSecondFactor())
+
+	// Explicitly change the revision and try creating the cap with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	raw, err := services.MarshalAuthPreference(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(capYAMLPath, raw, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", capYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", capYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateSessionRecordingConfig(t *testing.T, fc *config.FileConfig) {
+	// Get the initial recording config.
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindSessionRecordingConfig, "--format=json"})
+	require.NoError(t, err)
+
+	src := mustDecodeJSON[[]*types.SessionRecordingConfigV2](t, buf)
+	require.Len(t, src, 1)
+	initial := src[0]
+
+	const srcYAML = `kind: session_recording_config
+metadata:
+  labels:
+    teleport.dev/origin: defaults
+  name: session-recording-config
+spec:
+  mode: proxy
+version: v2
+`
+
+	// Create the src
+	srcYAMLPath := filepath.Join(t.TempDir(), "src.yaml")
+	require.NoError(t, os.WriteFile(srcYAMLPath, []byte(srcYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", srcYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the cap
+	buf, err = runResourceCommand(t, fc, []string{"get", types.KindSessionRecordingConfig, "--format=json"})
+	require.NoError(t, err)
+	src = mustDecodeJSON[[]*types.SessionRecordingConfigV2](t, buf)
+	require.Len(t, src, 1)
+
+	var expected types.SessionRecordingConfigV2
+	require.NoError(t, yaml.Unmarshal([]byte(srcYAML), &expected))
+
+	require.Equal(t, types.RecordAtNode, initial.GetMode())
+	require.Equal(t, types.RecordAtProxy, expected.GetMode())
+
+	// Explicitly change the revision and try creating the src with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	raw, err := services.MarshalSessionRecordingConfig(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(srcYAMLPath, raw, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", srcYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", srcYAMLPath})
 	require.NoError(t, err)
 }
 
