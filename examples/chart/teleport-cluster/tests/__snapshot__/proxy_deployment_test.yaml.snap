@@ -4,8 +4,8 @@ should provision initContainer correctly when set in values:
       - teleport
       - wait
       - no-resolve
-      - RELEASE-NAME-auth-v14.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:15.1.10
+      - RELEASE-NAME-auth-v15.NAMESPACE.svc.cluster.local
+      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev.isaiah.24
       name: wait-auth-update
       resources:
         limits:
@@ -69,7 +69,7 @@ should set nodeSelector when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport-distroless:15.1.10
+      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev.isaiah.24
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -129,8 +129,8 @@ should set nodeSelector when set in values:
       - teleport
       - wait
       - no-resolve
-      - RELEASE-NAME-auth-v14.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:15.1.10
+      - RELEASE-NAME-auth-v15.NAMESPACE.svc.cluster.local
+      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev.isaiah.24
       name: wait-auth-update
     nodeSelector:
       environment: security
@@ -181,7 +181,7 @@ should set resources for wait-auth-update initContainer when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport-distroless:15.1.10
+      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev.isaiah.24
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -248,8 +248,8 @@ should set resources for wait-auth-update initContainer when set in values:
       - teleport
       - wait
       - no-resolve
-      - RELEASE-NAME-auth-v14.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:15.1.10
+      - RELEASE-NAME-auth-v15.NAMESPACE.svc.cluster.local
+      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev.isaiah.24
       name: wait-auth-update
       resources:
         limits:
@@ -289,7 +289,7 @@ should set resources when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport-distroless:15.1.10
+      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev.isaiah.24
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -356,8 +356,8 @@ should set resources when set in values:
       - teleport
       - wait
       - no-resolve
-      - RELEASE-NAME-auth-v14.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:15.1.10
+      - RELEASE-NAME-auth-v15.NAMESPACE.svc.cluster.local
+      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev.isaiah.24
       name: wait-auth-update
       resources:
         limits:
@@ -397,7 +397,7 @@ should set securityContext for initContainers when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport-distroless:15.1.10
+      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev.isaiah.24
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -464,8 +464,8 @@ should set securityContext for initContainers when set in values:
       - teleport
       - wait
       - no-resolve
-      - RELEASE-NAME-auth-v14.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:15.1.10
+      - RELEASE-NAME-auth-v15.NAMESPACE.svc.cluster.local
+      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev.isaiah.24
       name: wait-auth-update
       securityContext:
         allowPrivilegeEscalation: false
@@ -505,7 +505,7 @@ should set securityContext when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport-distroless:15.1.10
+      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev.isaiah.24
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -572,8 +572,8 @@ should set securityContext when set in values:
       - teleport
       - wait
       - no-resolve
-      - RELEASE-NAME-auth-v14.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:15.1.10
+      - RELEASE-NAME-auth-v15.NAMESPACE.svc.cluster.local
+      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev.isaiah.24
       name: wait-auth-update
       securityContext:
         allowPrivilegeEscalation: false
