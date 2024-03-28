@@ -358,7 +358,11 @@ func (s *ServerV2) GetAllLabels() map[string]string {
 
 // CombineLabels combines the passed in static and dynamic labels.
 func CombineLabels(static map[string]string, dynamic map[string]CommandLabelV2) map[string]string {
-	lmap := make(map[string]string)
+	if len(dynamic) == 0 {
+		return static
+	}
+
+	lmap := make(map[string]string, len(static)+len(dynamic))
 	for key, value := range static {
 		lmap[key] = value
 	}
@@ -500,19 +504,26 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (s *ServerV2) MatchSearch(values []string) bool {
-	var fieldVals []string
+	if s.GetKind() != KindNode {
+		return false
+	}
+
 	var custom func(val string) bool
-
-	if s.GetKind() == KindNode {
-		fieldVals = append(utils.MapToStrings(s.GetAllLabels()), s.GetName(), s.GetHostname(), s.GetAddr())
-		fieldVals = append(fieldVals, s.GetPublicAddrs()...)
-
-		if s.GetUseTunnel() {
-			custom = func(val string) bool {
-				return strings.EqualFold(val, "tunnel")
-			}
+	if s.GetUseTunnel() {
+		custom = func(val string) bool {
+			return strings.EqualFold(val, "tunnel")
 		}
 	}
+
+	fieldVals := make([]string, 0, (len(s.Metadata.Labels)*2)+(len(s.Spec.CmdLabels)*2)+len(s.Spec.PublicAddrs)+3)
+
+	labels := CombineLabels(s.Metadata.Labels, s.Spec.CmdLabels)
+	for key, value := range labels {
+		fieldVals = append(fieldVals, key, value)
+	}
+
+	fieldVals = append(fieldVals, s.Metadata.Name, s.Spec.Hostname, s.Spec.Addr)
+	fieldVals = append(fieldVals, s.Spec.PublicAddrs...)
 
 	return MatchSearch(fieldVals, values, custom)
 }
