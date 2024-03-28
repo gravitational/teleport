@@ -659,6 +659,57 @@ func (e unaryVariadicFuncExpr[TEnv, TVarArgs, TResult]) Evaluate(env TEnv) (TRes
 	return res, nil
 }
 
+type unaryVariadicFunctionWithEnv[TEnv, TVarArgs, TResult any] struct {
+	impl func(TEnv, ...TVarArgs) (TResult, error)
+}
+
+// UnaryVariadicFunctionWithEnv returns a definition for a function that can be called
+// with any number of arguments with a single type. The [impl] will
+// be called with the evaluation env as the first argument, followed by the
+// actual arguments passed in the expression.
+func UnaryVariadicFunctionWithEnv[TEnv, TVarArgs, TResult any](impl func(TEnv, ...TVarArgs) (TResult, error)) Function {
+	return unaryVariadicFunctionWithEnv[TEnv, TVarArgs, TResult]{impl}
+}
+
+func (f unaryVariadicFunctionWithEnv[TEnv, TVarArgs, TResult]) buildExpression(name string, args ...any) (any, error) {
+	varArgExprs := make([]Expression[TEnv, TVarArgs], len(args))
+	for i, arg := range args {
+		argExpr, err := coerce[TEnv, TVarArgs](arg)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing argument %d to function (%s)", i+1, name)
+		}
+		varArgExprs[i] = argExpr
+	}
+	return unaryVariadicFuncWithEnvExpr[TEnv, TVarArgs, TResult]{
+		name:        name,
+		impl:        f.impl,
+		varArgExprs: varArgExprs,
+	}, nil
+}
+
+type unaryVariadicFuncWithEnvExpr[TEnv, TVarArgs, TResult any] struct {
+	name        string
+	impl        func(TEnv, ...TVarArgs) (TResult, error)
+	varArgExprs []Expression[TEnv, TVarArgs]
+}
+
+func (e unaryVariadicFuncWithEnvExpr[TEnv, TVarArgs, TResult]) Evaluate(env TEnv) (TResult, error) {
+	var nul TResult
+	varArgs := make([]TVarArgs, len(e.varArgExprs))
+	for i, argExpr := range e.varArgExprs {
+		arg, err := argExpr.Evaluate(env)
+		if err != nil {
+			return nul, trace.Wrap(err, "evaluating argument %d to function (%s)", i+1, e.name)
+		}
+		varArgs[i] = arg
+	}
+	res, err := e.impl(env, varArgs...)
+	if err != nil {
+		return nul, trace.Wrap(err, "evaluating function (%s)", e.name)
+	}
+	return res, nil
+}
+
 type binaryVariadicFunction[TEnv, TArg1, TVarArgs, TResult any] struct {
 	impl func(TArg1, ...TVarArgs) (TResult, error)
 }

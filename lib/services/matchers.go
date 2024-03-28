@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 // ResourceMatcher matches cluster resources.
@@ -220,20 +221,6 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 }
 
 func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter) (bool, error) {
-	if filter.PredicateExpression != "" {
-		parser, err := NewResourceParser(resource)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-
-		switch match, err := parser.EvalBoolPredicate(filter.PredicateExpression); {
-		case err != nil:
-			return false, trace.BadParameter("failed to parse predicate expression: %s", err.Error())
-		case !match:
-			return false, nil
-		}
-	}
-
 	if !types.MatchKinds(resource, filter.Kinds) {
 		return false, nil
 	}
@@ -242,8 +229,19 @@ func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		return false, nil
 	}
 
-	if !resource.MatchSearch(filter.SearchKeywords) {
+	if len(filter.SearchKeywords) > 0 && !resource.MatchSearch(filter.SearchKeywords) {
 		return false, nil
+	}
+
+	if filter.PredicateExpression != nil {
+		match, err := filter.PredicateExpression.Evaluate(resource)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		if !match {
+			return false, nil
+		}
 	}
 
 	return true, nil
@@ -282,7 +280,7 @@ type MatchResourceFilter struct {
 	// SearchKeywords is a list of search keywords to match.
 	SearchKeywords []string
 	// PredicateExpression holds boolean conditions that must be matched.
-	PredicateExpression string
+	PredicateExpression typical.Expression[types.ResourceWithLabels, bool]
 	// Kinds is a list of resourceKinds to be used when doing a unified resource query.
 	// It will filter out any kind not present in the list. If the list is not present or empty
 	// then all kinds are valid and will be returned (still subject to other included filters)
@@ -294,6 +292,6 @@ type MatchResourceFilter struct {
 func (m *MatchResourceFilter) IsSimple() bool {
 	return len(m.Labels) == 0 &&
 		len(m.SearchKeywords) == 0 &&
-		m.PredicateExpression == "" &&
+		m.PredicateExpression == nil &&
 		len(m.Kinds) == 0
 }
