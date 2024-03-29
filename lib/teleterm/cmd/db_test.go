@@ -115,10 +115,13 @@ func TestNewDBCLICommand(t *testing.T) {
 }
 
 func checkMongoCmds(t *testing.T, gw fakeDatabaseGateway, cmds Cmds) {
-	execConnString := cmds.Exec.Args[1]
-	previewConnString := cmds.Preview.Args[1]
+	t.Helper()
 	require.Len(t, cmds.Exec.Args, 2)
 	require.Len(t, cmds.Preview.Args, 2)
+
+	execConnString := cmds.Exec.Args[1]
+	previewConnString := cmds.Preview.Args[1]
+
 	require.Contains(t, execConnString, gw.TargetSubresourceName())
 	require.Contains(t, previewConnString, gw.TargetSubresourceName())
 	require.Contains(t, execConnString, gw.LocalPort())
@@ -131,6 +134,7 @@ func checkMongoCmds(t *testing.T, gw fakeDatabaseGateway, cmds Cmds) {
 }
 
 func checkArgsNotEmpty(t *testing.T, gw fakeDatabaseGateway, cmds Cmds) {
+	t.Helper()
 	require.NotEmpty(t, cmds.Exec.Args)
 	require.NotEmpty(t, cmds.Preview.Args)
 }
