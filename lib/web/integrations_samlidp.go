@@ -23,12 +23,12 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
-	libutils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 )
 
@@ -50,10 +50,10 @@ func (h *Handler) gcpWorkforceConfigScript(w http.ResponseWriter, r *http.Reques
 	// teleport integration configure samlidp gcp-workforce
 	argsList := []string{
 		"integration", "configure", "samlidp", "gcp-workforce",
-		fmt.Sprintf("--org-id=%s", libutils.UnixShellQuote(queryParams.Get("orgId"))),
-		fmt.Sprintf("--pool-name=%s", libutils.UnixShellQuote(queryParams.Get("poolName"))),
-		fmt.Sprintf("--pool-provider-name=%s", libutils.UnixShellQuote(queryParams.Get("poolProviderName"))),
-		fmt.Sprintf("--idp-metadata-url=%s", libutils.UnixShellQuote(samlIdPMetadataURL)),
+		fmt.Sprintf("--org-id=%s", shsprintf.EscapeDefaultContext(queryParams.Get("orgId"))),
+		fmt.Sprintf("--pool-name=%s", shsprintf.EscapeDefaultContext(queryParams.Get("poolName"))),
+		fmt.Sprintf("--pool-provider-name=%s", shsprintf.EscapeDefaultContext(queryParams.Get("poolProviderName"))),
+		fmt.Sprintf("--idp-metadata-url=%s", shsprintf.EscapeDefaultContext(samlIdPMetadataURL)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
