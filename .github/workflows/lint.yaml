@@ -1,19 +1,19 @@
-name: Lint (Go)
-run-name: make lint
+name: Lint (Go and Rust)
+run-name: Lint (Go and Rust)
 on:
   pull_request:
     paths-ignore:
-      - "docs/**"
-      - "rfd/**"
-      - "**/*.md*"
+      - 'docs/**'
+      - 'rfd/**'
+      - '**/*.md*'
   merge_group:
     paths-ignore:
-      - "docs/**"
-      - "rfd/**"
-      - "**/*.md*"
+      - 'docs/**'
+      - 'rfd/**'
+      - '**/*.md*'
 
 jobs:
-  lint:
+  lint-go:
     name: Lint (Go)
     runs-on: ubuntu-22.04-16core
 
@@ -82,13 +82,13 @@ jobs:
       - name: buf breaking from parent to self
         uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
         with:
-          against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
+          against: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}'
       - name: buf breaking from self to master
         uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
         if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
         with:
-          input: "https://github.com/${GITHUB_REPOSITORY}.git#branch=master"
-          against: "."
+          input: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=master'
+          against: '.'
 
       # TODO(codingllama): Consider https://github.com/actions-rs/clippy-check
       #  for Rust.
@@ -106,3 +106,35 @@ jobs:
       - name: Check if derived functions are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make derive-up-to-date
+  lint-rust:
+    name: Lint (Rust)
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine Toolchain Version
+        run: echo RUST_VERSION=$(make -C build.assets print-rust-version) >> $GITHUB_ENV
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          override: true
+          profile: minimal
+          components: rustfmt, clippy
+
+      - name: Print versions
+        run: |
+          echo "rust: ${RUST_VERSION}"
+          rustc --version
+          cargo --version
+          clippy --version
+          rustfmt --version
+
+      - name: Run Rust linters
+        run: make lint-rust

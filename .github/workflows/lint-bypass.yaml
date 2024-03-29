@@ -7,8 +7,8 @@
 # https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/defining-the-mergeability-of-pull-requests/troubleshooting-required-status-checks#handling-skipped-but-required-checks
 #
 # Note both workflows must have the same name.
-name: Lint (Go)
-run-name: make lint
+name: Lint (Go and Rust)
+run-name: Lint (Go and Rust)
 on:
   pull_request:
     paths:
@@ -22,7 +22,7 @@ on:
       - '**/*.md*'
 
 jobs:
-  lint:
+  lint-go:
     name: Lint (Go)
     runs-on: ubuntu-latest
 
@@ -30,4 +30,13 @@ jobs:
       contents: none
 
     steps:
-    - run: 'echo "No changes to verify"'
+      - run: 'echo "No changes to verify"'
+  lint-rust:
+    name: Lint (Rust)
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: none
+
+    steps:
+      - run: 'echo "No changes to verify"'
