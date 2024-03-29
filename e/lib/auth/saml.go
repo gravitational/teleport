@@ -652,7 +652,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 
 	// If the request is coming from a browser, create a web session.
 	if request == nil || request.CreateWebSession {
-		session, err := sas.auth.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
+		session, err := sas.auth.CreateWebSessionFromReq(ctx, auth.NewWebSessionRequest{
 			User:             userState.GetName(),
 			Roles:            userState.GetRoles(),
 			Traits:           userState.GetTraits(),
