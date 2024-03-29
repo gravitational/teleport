@@ -105,8 +105,9 @@ export interface Gateway {
     gatewayCliCommand?: GatewayCLICommand;
 }
 /**
- * GatewayCLICommand represents a command that the user can execute to connect to the gateway
- * resource. It is a direct translation of os.exec.Cmd.
+ * GatewayCLICommand represents a command that the user can execute to connect to a gateway
+ * resource. It is a combination of two different os/exec.Cmd structs, where path, args and env are
+ * directly taken from one Cmd and the preview field is constructed from another Cmd.
  *
  * @generated from protobuf message teleport.lib.teleterm.v1.GatewayCLICommand
  */
@@ -134,12 +135,16 @@ export interface GatewayCLICommand {
     env: string[];
     /**
      * preview is used to show the user what command will be executed before they decide to run it.
-     * It's like os.exec.Cmd.String with two exceptions:
+     * It can also be copied and then pasted into a terminal.
+     * It's like os/exec.Cmd.String with two exceptions:
      *
      * 1) It is prepended with Cmd.Env.
      * 2) The command name is relative and not absolute.
+     * 3) It is taken from a different Cmd than the other fields in this message. This Cmd uses a
+     * special print format which makes the args suitable to be entered into a terminal, but not to
+     * directly spawn a process.
      *
-     * Should not be used to execute anything in the shell.
+     * Should not be used to execute the command in the shell. Instead, use path, args, and env.
      *
      * @generated from protobuf field: string preview = 4;
      */
