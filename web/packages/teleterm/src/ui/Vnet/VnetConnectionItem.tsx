@@ -47,14 +47,13 @@ export const VnetConnectionItem = (props: {
     <ListItem
       css={`
         padding: 6px 8px;
-        ${props.showBackButton ? 'padding-left: 0;' : ''}
         height: unset;
       `}
       onClick={props.onClick}
       title={props.title}
     >
       {props.showBackButton ? (
-        <icons.ArrowBack size="small" mr={3} />
+        <icons.ArrowBack size="small" mr={2} />
       ) : (
         <ConnectionStatusIndicator
           mr={3}
