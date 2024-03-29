@@ -87,6 +87,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -4359,9 +4360,11 @@ func TestApplicationAccessDisabled(t *testing.T) {
 
 	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
 	_, err = pack.clt.PostJSON(context.Background(), endpoint, &CreateAppSessionRequest{
-		FQDNHint:    "panel.example.com",
-		PublicAddr:  "panel.example.com",
-		ClusterName: "localhost",
+		ResolveAppParams: ResolveAppParams{
+			FQDNHint:    "panel.example.com",
+			PublicAddr:  "panel.example.com",
+			ClusterName: "localhost",
+		},
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for application access")
@@ -4403,9 +4406,11 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 		// Create application session
 		endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
 		_, err = pack.clt.PostJSON(context.Background(), endpoint, &CreateAppSessionRequest{
-			FQDNHint:    application.publicAddr,
-			PublicAddr:  application.publicAddr,
-			ClusterName: "localhost",
+			ResolveAppParams: ResolveAppParams{
+				FQDNHint:    application.publicAddr,
+				PublicAddr:  application.publicAddr,
+				ClusterName: "localhost",
+			},
 		})
 		require.NoError(t, err)
 	}
@@ -5070,9 +5075,11 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Valid request: all fields",
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDNHint:    "panel.example.com",
-				PublicAddr:  "panel.example.com",
-				ClusterName: "localhost",
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint:    "panel.example.com",
+					PublicAddr:  "panel.example.com",
+					ClusterName: "localhost",
+				},
 			},
 			outError:    require.NoError,
 			outFQDN:     "panel.example.com",
@@ -5081,8 +5088,10 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Valid request: without FQDN",
 			inCreateRequest: &CreateAppSessionRequest{
-				PublicAddr:  "panel.example.com",
-				ClusterName: "localhost",
+				ResolveAppParams: ResolveAppParams{
+					PublicAddr:  "panel.example.com",
+					ClusterName: "localhost",
+				},
 			},
 			outError:    require.NoError,
 			outFQDN:     "panel.example.com",
@@ -5091,7 +5100,9 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Valid request: only FQDN",
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDNHint: "panel.example.com",
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint: "panel.example.com",
+				},
 			},
 			outError:    require.NoError,
 			outFQDN:     "panel.example.com",
@@ -5100,41 +5111,51 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Invalid request: only public address",
 			inCreateRequest: &CreateAppSessionRequest{
-				PublicAddr: "panel.example.com",
+				ResolveAppParams: ResolveAppParams{
+					PublicAddr: "panel.example.com",
+				},
 			},
 			outError: require.Error,
 		},
 		{
 			name: "Invalid request: only cluster name",
 			inCreateRequest: &CreateAppSessionRequest{
-				ClusterName: "localhost",
+				ResolveAppParams: ResolveAppParams{
+					ClusterName: "localhost",
+				},
 			},
 			outError: require.Error,
 		},
 		{
 			name: "Invalid application",
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDNHint:    "panel.example.com",
-				PublicAddr:  "invalid.example.com",
-				ClusterName: "localhost",
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint:    "panel.example.com",
+					PublicAddr:  "invalid.example.com",
+					ClusterName: "localhost",
+				},
 			},
 			outError: require.Error,
 		},
 		{
 			name: "Invalid cluster name",
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDNHint:    "panel.example.com",
-				PublicAddr:  "panel.example.com",
-				ClusterName: "example.com",
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint:    "panel.example.com",
+					PublicAddr:  "panel.example.com",
+					ClusterName: "example.com",
+				},
 			},
 			outError: require.Error,
 		},
 		{
 			name: "Malicious request: all fields",
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDNHint:    "panel.example.com@malicious.com",
-				PublicAddr:  "panel.example.com",
-				ClusterName: "localhost",
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint:    "panel.example.com@malicious.com",
+					PublicAddr:  "panel.example.com",
+					ClusterName: "localhost",
+				},
 			},
 			outError:    require.NoError,
 			outFQDN:     "panel.example.com",
@@ -5143,7 +5164,9 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Malicious request: only FQDN",
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDNHint: "panel.example.com@malicious.com",
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint: "panel.example.com@malicious.com",
+				},
 			},
 			outError: require.Error,
 		},
@@ -5244,9 +5267,139 @@ func TestCreateAppSessionHealthCheckAppServer(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
 			_, err := pack.clt.PostJSON(s.ctx, endpoint, &CreateAppSessionRequest{
-				FQDNHint: tc.publicAddr,
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint: tc.publicAddr,
+				},
 			})
 			tc.expectErr(t, err)
+		})
+	}
+}
+
+func TestCreateAppSession_RequireSessionMFA(t *testing.T) {
+	ctx := context.Background()
+	t.Parallel()
+	s := newWebSuite(t)
+	pack := s.authPack(t, "foo@example.com")
+
+	// Register an application called "panel".
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "panel",
+	}, types.AppSpecV3{
+		URI:        "http://127.0.0.1:8080",
+		PublicAddr: "panel.example.com",
+	})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = s.server.Auth().UpsertApplicationServer(s.ctx, server)
+	require.NoError(t, err)
+
+	// Enable per session MFA.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorWebauthn,
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
+		RequireMFAType: types.RequireMFAType_SESSION,
+	})
+	require.NoError(t, err)
+	_, err = s.server.Auth().UpsertAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// register an mfa device for the user.
+	userClient, err := s.server.NewClient(auth.TestUser(pack.user))
+	require.NoError(t, err)
+	webauthnDev, err := auth.RegisterTestDevice(
+		ctx,
+		userClient,
+		"webauthn", authproto.DeviceType_DEVICE_TYPE_WEBAUTHN, pack.device /* authenticator */)
+	require.NoError(t, err)
+
+	// Prepare a valid mfa response for the user.
+	chal, err := userClient.CreateAuthenticateChallenge(ctx, &authproto.CreateAuthenticateChallengeRequest{
+		Request: &authproto.CreateAuthenticateChallengeRequest_ContextUser{},
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+		},
+	})
+	require.NoError(t, err)
+	mfaResp, err := webauthnDev.SolveAuthn(chal)
+	require.NoError(t, err)
+	mfaRespJSON, err := json.Marshal(mfaResponse{
+		WebauthnAssertionResponse: wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
+	})
+	require.NoError(t, err)
+
+	// Extract the session ID and bearer token for the current session.
+	rawCookie := *pack.cookies[0]
+	cookieBytes, err := hex.DecodeString(rawCookie.Value)
+	require.NoError(t, err)
+	var sessionCookie websession.Cookie
+	err = json.Unmarshal(cookieBytes, &sessionCookie)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name              string
+		inCreateRequest   *CreateAppSessionRequest
+		expectMFAVerified bool
+	}{
+		{
+			name: "NOK MFA not provided",
+			inCreateRequest: &CreateAppSessionRequest{
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint:    "panel.example.com",
+					PublicAddr:  "panel.example.com",
+					ClusterName: "localhost",
+				},
+			},
+			expectMFAVerified: false,
+		},
+		{
+			name: "OK MFA provided",
+			inCreateRequest: &CreateAppSessionRequest{
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint:    "panel.example.com",
+					PublicAddr:  "panel.example.com",
+					ClusterName: "localhost",
+				},
+				MFAResponse: string(mfaRespJSON),
+			},
+			expectMFAVerified: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// Make a request to create an application session for "panel".
+			endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
+			resp, err := pack.clt.PostJSON(s.ctx, endpoint, tt.inCreateRequest)
+			require.NoError(t, err)
+
+			// Unmarshal the response.
+			var response *CreateAppSessionResponse
+			require.NoError(t, json.Unmarshal(resp.Bytes(), &response))
+
+			// Verify that the application session was created.
+			sess, err := s.server.Auth().GetAppSession(s.ctx, types.GetAppSessionRequest{
+				SessionID: response.CookieValue,
+			})
+			require.NoError(t, err)
+
+			// Verify that the session is MFA verified
+			certificate, err := tlsca.ParseCertificatePEM(sess.GetTLSCert())
+			require.NoError(t, err)
+			identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+			require.NoError(t, err)
+
+			if tt.expectMFAVerified {
+				require.NotEmpty(t, identity.MFAVerified, "expected app session to be MFA verified")
+			} else {
+				require.Empty(t, identity.MFAVerified, "expected app session to not be MFA verified")
+			}
 		})
 	}
 }
@@ -8209,11 +8362,27 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 
 	cfg, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:           constants.Local,
-		SecondFactor:   constants.SecondFactorOTP,
+		SecondFactor:   constants.SecondFactorWebauthn,
 		RequireMFAType: types.RequireMFAType_SESSION,
+		Webauthn: &types.Webauthn{
+			RPID: env.server.ClusterName(),
+		},
 	})
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertAuthPreference(ctx, cfg)
+	require.NoError(t, err)
+
+	// Register an application called "panel".
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "panel",
+	}, types.AppSpecV3{
+		URI:        "http://127.0.0.1:8080",
+		PublicAddr: "panel.example.com",
+	})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(ctx, server)
 	require.NoError(t, err)
 
 	for _, test := range []struct {
@@ -8290,6 +8459,46 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 			errMsg: "missing desktop_name",
 			getRequest: func() isMFARequiredRequest {
 				return isMFARequiredRequest{WindowsDesktop: &isMFARequiredWindowsDesktop{}}
+			},
+		},
+		{
+			name: "valid app req - resolve addr",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{
+					App: &isMFARequiredApp{
+						ResolveAppParams: ResolveAppParams{
+							PublicAddr:  app.GetPublicAddr(),
+							ClusterName: env.server.ClusterName(),
+						},
+					},
+				}
+			},
+		},
+		{
+			name: "valid app req - resolve fqdn",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{
+					App: &isMFARequiredApp{
+						ResolveAppParams: ResolveAppParams{
+							FQDNHint: fmt.Sprintf("%v.%v", app.GetName(), "proxy-1.example.com"),
+						},
+					},
+				}
+			},
+		},
+		{
+			name:   "invalid app req",
+			errMsg: "no inputs to resolve application",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{App: &isMFARequiredApp{}}
+			},
+		},
+		{
+			name: "valid admin action req",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{
+					AdminAction: &isMFARequiredAdminAction{},
+				}
 			},
 		},
 		{
