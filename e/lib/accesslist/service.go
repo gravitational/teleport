@@ -390,20 +390,7 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 	}
 	userLookup := makeUserLookup(users)
 
-	// Go through owners and determine eligibility.
-	updatedOwners := make([]accesslist.Owner, len(result.GetOwners()))
-	for i, owner := range result.GetOwners() {
-		ineligibleStatus := checkUserIsStillEligible(StillEligibleFields{
-			userLookup: userLookup,
-			username:   owner.Name,
-			expires:    time.Time{}, // owners don't have expiry's
-			clock:      s.clock,
-			requires:   result.GetOwnershipRequires(),
-		})
-
-		owner.IneligibleStatus = accesslistv1.IneligibleStatus_name[int32(ineligibleStatus)]
-		updatedOwners[i] = owner
-	}
+	updatedOwners := applyOwnersIneligibleStatus(result, s.clock, userLookup)
 	result.SetOwners(updatedOwners)
 
 	return conv.ToProto(result), nil
@@ -753,18 +740,7 @@ func (s *Service) ListAccessListMembers(ctx context.Context, req *accesslistv1.L
 	}
 	userLookup := makeUserLookup(users)
 
-	members := make([]*accesslistv1.Member, len(results))
-	for i, r := range results {
-		ineligibleStatus := checkUserIsStillEligible(StillEligibleFields{
-			userLookup: userLookup,
-			username:   r.GetName(),
-			expires:    r.Spec.Expires,
-			clock:      s.clock,
-			requires:   retrievedAccessList.GetMembershipRequires(),
-		})
-		r.Spec.IneligibleStatus = accesslistv1.IneligibleStatus_name[int32(ineligibleStatus)]
-		members[i] = conv.ToMemberProto(r)
-	}
+	members := applyMembersIneligibleStatus(results, retrievedAccessList.GetMembershipRequires(), s.clock, userLookup)
 
 	return &accesslistv1.ListAccessListMembersResponse{
 		Members:       members,
@@ -1307,11 +1283,16 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 	// Figure out the member modifications for event emitting.
 	modified = getModifiedMembers(oldMembers, updatedMembers)
 
-	// Convert members back to proto.
-	updatedProtoMembers := make([]*accesslistv1.Member, 0, len(req.Members))
-	for _, member := range updatedMembers {
-		updatedProtoMembers = append(updatedProtoMembers, conv.ToMemberProto(member))
+	// Get a list of all users, to compute eligibility's.
+	users, err := s.getAllUsers(ctx)
+	if err != nil {
+		return nil, updated, accessListModified, nil, trace.Wrap(err)
 	}
+	userLookup := makeUserLookup(users)
+
+	updatedProtoMembers := applyMembersIneligibleStatus(updatedMembers, updatedAccessList.GetMembershipRequires(), s.clock, userLookup)
+	updatedOwners := applyOwnersIneligibleStatus(updatedAccessList, s.clock, userLookup)
+	updatedAccessList.SetOwners(updatedOwners)
 
 	// Return the updated access list and members.
 	return &accesslistv1.UpsertAccessListWithMembersResponse{
@@ -2025,4 +2006,42 @@ func getUsername(authCtx *authz.Context) (string, error) {
 	identity := authCtx.Identity.GetIdentity()
 
 	return identity.Username, nil
+}
+
+// applyMembersIneligibleStatus goes through each member and determines eligibility.
+// Returns a new list of proto converted members with applied status.
+func applyMembersIneligibleStatus(members []*accesslist.AccessListMember, memberRequires accesslist.Requires, clock clockwork.Clock, userLookup map[string]types.User) []*accesslistv1.Member {
+	updatedProtoMembers := make([]*accesslistv1.Member, len(members))
+	for i, r := range members {
+		ineligibleStatus := checkUserIsStillEligible(StillEligibleFields{
+			userLookup: userLookup,
+			username:   r.GetName(),
+			expires:    r.Spec.Expires,
+			clock:      clock,
+			requires:   memberRequires,
+		})
+		r.Spec.IneligibleStatus = accesslistv1.IneligibleStatus_name[int32(ineligibleStatus)]
+		updatedProtoMembers[i] = conv.ToMemberProto(r)
+	}
+	return updatedProtoMembers
+}
+
+// applyOwnersIneligibleStatus goes through each owner and determines eligibility.
+// Returns a new list of owners with applied status.
+func applyOwnersIneligibleStatus(accessList *accesslist.AccessList, clock clockwork.Clock, userLookup map[string]types.User) []accesslist.Owner {
+	updatedOwners := make([]accesslist.Owner, len(accessList.GetOwners()))
+	for i, owner := range accessList.GetOwners() {
+		ineligibleStatus := checkUserIsStillEligible(StillEligibleFields{
+			userLookup: userLookup,
+			username:   owner.Name,
+			expires:    time.Time{}, // owners don't have expiry's
+			clock:      clock,
+			requires:   accessList.GetOwnershipRequires(),
+		})
+
+		owner.IneligibleStatus = accesslistv1.IneligibleStatus_name[int32(ineligibleStatus)]
+		updatedOwners[i] = owner
+	}
+
+	return updatedOwners
 }

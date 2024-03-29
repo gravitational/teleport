@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -26,6 +27,7 @@ var (
 	accessListCmpOpts = cmp.Options{
 		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 	}
+	mainOwner = "llama"
 )
 
 func TestGetAccessLists(t *testing.T) {
@@ -103,17 +105,6 @@ func TestCreateAccessList(t *testing.T) {
 
 func TestUpdateAccessList(t *testing.T) {
 	s := newWebSuite(t)
-
-	role, err := auth.CreateRole(s.ctx, s.testAuthServer.Auth(), "llama-role", types.RoleSpecV6{})
-	require.NoError(t, err)
-	user, err := types.NewUser("llama")
-	require.NoError(t, err)
-	user.AddRole(role.GetName())
-	_, err = s.testAuthServer.AuthServer.AuthServer.CreateUser(s.ctx, user)
-	require.NoError(t, err)
-	err = s.testAuthServer.Auth().UpsertPassword(user.GetName(), []byte(s.testPassword()))
-	require.NoError(t, err)
-
 	webPack := s.newAuthWebPack(t, "foo")
 
 	accessListId := createTestAccessList(t, webPack, s)
@@ -128,7 +119,7 @@ func TestUpdateAccessList(t *testing.T) {
 		"label": "value",
 	})
 
-	accessList, err = adminClient.AccessListClient().UpsertAccessList(s.ctx, accessList)
+	accessList, _, err = adminClient.AccessListClient().UpsertAccessListWithMembers(s.ctx, accessList, nil)
 	require.NoError(t, err)
 
 	accessListMember := accesslist.AccessListMemberSpec{
@@ -155,8 +146,7 @@ func TestUpdateAccessList(t *testing.T) {
 		AddedBy: "admin",
 	}
 
-	webPack = s.newAuthWebPack(t, user.GetName(), skipUserCreation())
-
+	webPack = s.newAuthWebPack(t, mainOwner, skipUserCreation())
 	// Add one member. The list should have one member.
 	updateAccessList(t, webPack, s, accessListId, accessList.Spec, accessListMember)
 	// Add another member. The list should have two members.
@@ -334,11 +324,22 @@ func TestReviewAccessList(t *testing.T) {
 func createTestAccessList(t *testing.T, webPack *authWebPack, s *webSuite) string {
 	t.Helper()
 
+	// Create a valid user and role.
+	role, err := auth.CreateRole(s.ctx, s.testAuthServer.Auth(), "llama-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+	user, err := types.NewUser(mainOwner)
+	require.NoError(t, err)
+	user.AddRole(role.GetName())
+	_, err = s.testAuthServer.AuthServer.AuthServer.CreateUser(s.ctx, user)
+	require.NoError(t, err)
+	err = s.testAuthServer.Auth().UpsertPassword(user.GetName(), []byte(s.testPassword()))
+	require.NoError(t, err)
+
 	accessList, err := accesslist.NewAccessList(header.Metadata{
 		Name: "name",
 	}, accesslist.Spec{
 		Title:              "access list 1",
-		Owners:             []accesslist.Owner{{Name: "llama", Description: "llama desc"}},
+		Owners:             []accesslist.Owner{{Name: "llama", Description: "llama desc", IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String()}},
 		OwnershipRequires:  accesslist.Requires{Roles: []string{"llama-role"}, Traits: trait.Traits{}},
 		Grants:             accesslist.Grants{Roles: []string{"access"}, Traits: trait.Traits{}},
 		MembershipRequires: accesslist.Requires{Traits: trait.Traits{}},

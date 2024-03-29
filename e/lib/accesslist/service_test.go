@@ -1389,6 +1389,33 @@ func TestService_DeleteAllAccessListMembersForAccessList(t *testing.T) {
 	})
 }
 
+func TestService_UpsertAccessListWithMembers_IneligibleStatus(t *testing.T) {
+	c := initSvc(t)
+
+	// Create a list.
+	testlist := newAccessList(t, "testlist", c.clock)
+
+	// Replace owners with a ineligible new owner.
+	testlist.SetOwners([]accesslist.Owner{{Name: testUser}})
+
+	// Replace members with a ineligible new member.
+	member := newAccessListMember(t, testlist.GetName(), ownerUser, c.clock)
+
+	resp, err := c.svc.UpsertAccessListWithMembers(c.userCtx, &accesslistv1.UpsertAccessListWithMembersRequest{
+		AccessList: conv.ToProto(testlist),
+		Members: conv.ToMembersProto([]*accesslist.AccessListMember{
+			member,
+		}),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, resp.AccessList.Spec.GetOwners(), 1)
+	require.Equal(t, accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_MISSING_REQUIREMENTS, resp.AccessList.Spec.GetOwners()[0].IneligibleStatus)
+
+	require.Len(t, resp.Members, 1)
+	require.Equal(t, accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_MISSING_REQUIREMENTS, resp.Members[0].GetSpec().IneligibleStatus)
+}
+
 func TestService_UpsertAccessListWithMembers(t *testing.T) {
 	c := initSvc(t)
 
