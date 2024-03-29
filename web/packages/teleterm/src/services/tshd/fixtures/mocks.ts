@@ -116,9 +116,6 @@ export class MockTshClient implements TshdClient {
 }
 
 export class MockVnetClient implements VnetClient {
-  typeName: never;
-  methods: never;
-  options: never;
   start = () => new MockedUnaryCall({});
   stop = () => new MockedUnaryCall({});
 }
