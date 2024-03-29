@@ -3,13 +3,18 @@ package web
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base32"
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"os/user"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -19,6 +24,8 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -28,10 +35,12 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
+	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -46,16 +55,20 @@ import (
 // copied from teleport/lib/web/apiserver_test.go and stripped down to just what
 // is needed for the test cases in this package.
 type webSuite struct {
-	ctx            context.Context
-	cancel         context.CancelFunc
-	user           string
-	webServer      *httptest.Server
-	webServerURL   *url.URL
-	testAuthServer *auth.TestServer
-	webPlugin      *Plugin
-	authPlugin     *eauth.Plugin
-	proxyClient    *auth.Client
-	clock          clockwork.FakeClock
+	ctx                  context.Context
+	cancel               context.CancelFunc
+	user                 string
+	webServer            *httptest.Server
+	webServerURL         *url.URL
+	testAuthServer       *auth.TestServer
+	webPlugin            *Plugin
+	authPlugin           *eauth.Plugin
+	proxyClient          *auth.Client
+	clock                clockwork.FakeClock
+	accessGraphGrpcFile  *atomic.Int32
+	accessGraphGrpcQuery *atomic.Int32
+	accessGraphHTTPFile  *atomic.Int32
+	accessGraphHTTPQuery *atomic.Int32
 }
 
 type stubProxySettings struct{}
@@ -93,7 +106,14 @@ func withPlugin(p plugin.Plugin) webSuiteOption {
 }
 
 type webSuiteOptions struct {
-	customPlugin plugin.Plugin
+	customPlugin        plugin.Plugin
+	accessGraphFeatures string
+}
+
+func withAccessGraphFeatures(features string) webSuiteOption {
+	return func(o *webSuiteOptions) {
+		o.accessGraphFeatures = features
+	}
 }
 
 func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
@@ -115,13 +135,25 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 	}
 
 	pluginRegistry := plugin.NewRegistry()
-	webPlugin, err := NewPlugin(Config{})
+	accessGraphServer := accessGraphFakeHTTPServer(t, s)
+	accessGraphGRPCServerAddr := accessGraphGRPCServer(t, s, options)
+	webPlugin, err := NewPlugin(Config{
+		AccessGraph: &AccessGraphConfig{
+			Addr:     accessGraphServer.Listener.Addr().String(),
+			Insecure: true,
+		},
+	})
 	s.webPlugin = webPlugin
 	require.NoError(t, err)
 	err = pluginRegistry.Add(webPlugin)
 	require.NoError(t, err)
 	authPlugin, err := eauth.NewPlugin(eauth.Config{
 		License: eauth.ValidLicense{},
+		AccessGraph: servicecfg.AccessGraphConfig{
+			Enabled:  true,
+			Addr:     accessGraphGRPCServerAddr.String(),
+			Insecure: true,
+		},
 		HostedPlugins: servicecfg.HostedPluginsConfig{
 			Enabled: true,
 			OAuthProviders: servicecfg.PluginOAuthProviders{
@@ -201,6 +233,9 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 		CachedSessionLingeringThreshold: &sessionLingeringThreshold,
 		ProxySettings:                   &stubProxySettings{},
 		PluginRegistry:                  pluginRegistry,
+		GetProxyIdentity: func() (*auth.Identity, error) {
+			return nil, nil
+		},
 		ClusterFeatures: proto.Features{
 			// Turn on the enterprise features which impact the endpoint registration.
 			Cloud:         true,
@@ -284,11 +319,18 @@ type webSuiteOpts func(*webSuiteOpt)
 
 type webSuiteOpt struct {
 	skipUserCreation bool
+	extraRules       []types.Rule
 }
 
 func skipUserCreation() webSuiteOpts {
 	return func(opts *webSuiteOpt) {
 		opts.skipUserCreation = true
+	}
+}
+
+func withExtraRules(rules ...types.Rule) webSuiteOpts {
+	return func(opts *webSuiteOpt) {
+		opts.extraRules = rules
 	}
 }
 
@@ -306,7 +348,7 @@ func (s *webSuite) newAuthWebPack(t *testing.T, user string, options ...webSuite
 	}
 
 	if !opts.skipUserCreation {
-		s.createUser(t, user, login, pass, otpSecret)
+		s.createUser(t, user, login, pass, otpSecret, opts.extraRules...)
 	}
 	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
 	require.NoError(t, err)
@@ -350,10 +392,53 @@ type TestWebClient struct {
 	*client.WebClient
 }
 
-func (s *webSuite) createUser(t *testing.T, user string, login string, pass string, otpSecret string) {
+func (s *webSuite) createUser(t *testing.T, user string, login string, pass string, otpSecret string, extraRules ...types.Rule) {
 	teleUser, err := types.NewUser(user)
 	require.NoError(t, err)
-
+	rules := []types.Rule{
+		types.NewRule(types.KindUser, services.RW()),
+		types.NewRule(types.KindRole, services.RW()),
+		types.NewRule(types.KindOIDC, services.RW()),
+		types.NewRule(types.KindSAML, services.RW()),
+		types.NewRule(types.KindGithub, services.RW()),
+		types.NewRule(types.KindOIDCRequest, services.RW()),
+		types.NewRule(types.KindSAMLRequest, services.RW()),
+		types.NewRule(types.KindGithubRequest, services.RW()),
+		types.NewRule(types.KindClusterAuditConfig, services.RW()),
+		types.NewRule(types.KindClusterAuthPreference, services.RW()),
+		types.NewRule(types.KindAuthConnector, services.RW()),
+		types.NewRule(types.KindClusterName, services.RW()),
+		types.NewRule(types.KindClusterNetworkingConfig, services.RW()),
+		types.NewRule(types.KindSessionRecordingConfig, services.RW()),
+		types.NewRule(types.KindExternalAuditStorage, services.RW()),
+		types.NewRule(types.KindUIConfig, services.RW()),
+		types.NewRule(types.KindTrustedCluster, services.RW()),
+		types.NewRule(types.KindRemoteCluster, services.RW()),
+		types.NewRule(types.KindToken, services.RW()),
+		types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+		types.NewRule(types.KindDatabase, services.RW()),
+		types.NewRule(types.KindDatabaseCertificate, services.RW()),
+		types.NewRule(types.KindInstaller, services.RW()),
+		types.NewRule(types.KindDevice, append(services.RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+		types.NewRule(types.KindDatabaseService, services.RO()),
+		types.NewRule(types.KindInstance, services.RO()),
+		types.NewRule(types.KindLoginRule, services.RW()),
+		types.NewRule(types.KindSAMLIdPServiceProvider, services.RW()),
+		types.NewRule(types.KindUserGroup, services.RW()),
+		types.NewRule(types.KindPlugin, services.RW()),
+		types.NewRule(types.KindOktaImportRule, services.RW()),
+		types.NewRule(types.KindOktaAssignment, services.RW()),
+		types.NewRule(types.KindAssistant, append(services.RW(), types.VerbUse)),
+		types.NewRule(types.KindLock, services.RW()),
+		types.NewRule(types.KindIntegration, append(services.RW(), types.VerbUse)),
+		types.NewRule(types.KindBilling, services.RW()),
+		types.NewRule(types.KindLicense, services.RO()),
+		types.NewRule(types.KindClusterAlert, services.RW()),
+		types.NewRule(types.KindAccessList, services.RW()),
+		types.NewRule(types.KindNode, services.RW()),
+		types.NewRule(types.KindDiscoveryConfig, services.RW()),
+	}
+	rules = append(rules, extraRules...)
 	role, err := auth.CreateRole(s.ctx, s.testAuthServer.Auth(), "editor", types.RoleSpecV6{
 		Options: types.RoleOptions{
 			CertificateFormat: constants.CertificateFormatStandard,
@@ -368,49 +453,7 @@ func (s *webSuite) createUser(t *testing.T, user string, login string, pass stri
 		Allow: types.RoleConditions{
 			Logins:     []string{login},
 			Namespaces: []string{apidefaults.Namespace},
-			Rules: []types.Rule{
-				types.NewRule(types.KindUser, services.RW()),
-				types.NewRule(types.KindRole, services.RW()),
-				types.NewRule(types.KindOIDC, services.RW()),
-				types.NewRule(types.KindSAML, services.RW()),
-				types.NewRule(types.KindGithub, services.RW()),
-				types.NewRule(types.KindOIDCRequest, services.RW()),
-				types.NewRule(types.KindSAMLRequest, services.RW()),
-				types.NewRule(types.KindGithubRequest, services.RW()),
-				types.NewRule(types.KindClusterAuditConfig, services.RW()),
-				types.NewRule(types.KindClusterAuthPreference, services.RW()),
-				types.NewRule(types.KindAuthConnector, services.RW()),
-				types.NewRule(types.KindClusterName, services.RW()),
-				types.NewRule(types.KindClusterNetworkingConfig, services.RW()),
-				types.NewRule(types.KindSessionRecordingConfig, services.RW()),
-				types.NewRule(types.KindExternalAuditStorage, services.RW()),
-				types.NewRule(types.KindUIConfig, services.RW()),
-				types.NewRule(types.KindTrustedCluster, services.RW()),
-				types.NewRule(types.KindRemoteCluster, services.RW()),
-				types.NewRule(types.KindToken, services.RW()),
-				types.NewRule(types.KindConnectionDiagnostic, services.RW()),
-				types.NewRule(types.KindDatabase, services.RW()),
-				types.NewRule(types.KindDatabaseCertificate, services.RW()),
-				types.NewRule(types.KindInstaller, services.RW()),
-				types.NewRule(types.KindDevice, append(services.RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
-				types.NewRule(types.KindDatabaseService, services.RO()),
-				types.NewRule(types.KindInstance, services.RO()),
-				types.NewRule(types.KindLoginRule, services.RW()),
-				types.NewRule(types.KindSAMLIdPServiceProvider, services.RW()),
-				types.NewRule(types.KindUserGroup, services.RW()),
-				types.NewRule(types.KindPlugin, services.RW()),
-				types.NewRule(types.KindOktaImportRule, services.RW()),
-				types.NewRule(types.KindOktaAssignment, services.RW()),
-				types.NewRule(types.KindAssistant, append(services.RW(), types.VerbUse)),
-				types.NewRule(types.KindLock, services.RW()),
-				types.NewRule(types.KindIntegration, append(services.RW(), types.VerbUse)),
-				types.NewRule(types.KindBilling, services.RW()),
-				types.NewRule(types.KindLicense, services.RO()),
-				types.NewRule(types.KindClusterAlert, services.RW()),
-				types.NewRule(types.KindAccessList, services.RW()),
-				types.NewRule(types.KindNode, services.RW()),
-				types.NewRule(types.KindDiscoveryConfig, services.RW()),
-			},
+			Rules:      rules,
 		},
 	})
 	require.NoError(t, err)
@@ -455,4 +498,72 @@ func (s *webSuite) login(clt *TestWebClient, csrfToken string, reqData web.Creat
 		req.Header.Set(csrf.HeaderName, csrfToken)
 		return clt.HTTPClient().Do(req)
 	}))
+}
+
+const features = `{"grv_teleport_access_graph_http_enabled": true}`
+
+func accessGraphFakeHTTPServer(t *testing.T, suite *webSuite) *httptest.Server {
+	suite.accessGraphHTTPFile = new(atomic.Int32)
+	suite.accessGraphHTTPQuery = new(atomic.Int32)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/static/features.json", func(w http.ResponseWriter, r *http.Request) {
+		suite.accessGraphHTTPFile.Add(1)
+		fmt.Fprint(w, features)
+	})
+	mux.HandleFunc("/query", func(w http.ResponseWriter, r *http.Request) {
+		suite.accessGraphHTTPQuery.Add(1)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("fake access graph response"))
+	})
+
+	srv := httptest.NewUnstartedServer(mux)
+	srv.EnableHTTP2 = true
+	srv.StartTLS()
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func accessGraphGRPCServer(t *testing.T, suite *webSuite, opts webSuiteOptions) net.Addr {
+	cert, err := tls.X509KeyPair([]byte(fixtures.EncryptionCertPEM), []byte(fixtures.EncryptionKeyPEM))
+	require.NoError(t, err)
+	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(
+		&tls.Config{
+			Certificates:       []tls.Certificate{cert},
+			InsecureSkipVerify: true,
+		},
+	)))
+	suite.accessGraphGrpcFile = new(atomic.Int32)
+	suite.accessGraphGrpcQuery = new(atomic.Int32)
+	accessgraphv1alpha.RegisterAccessGraphServiceServer(grpcServer, &fakeAccessGraphServer{
+		queryCounter: suite.accessGraphGrpcQuery,
+		fileCounter:  suite.accessGraphGrpcFile,
+		features:     opts.accessGraphFeatures,
+	})
+	t.Cleanup(grpcServer.Stop)
+	lis, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	go grpcServer.Serve(lis)
+	return lis.Addr()
+}
+
+type fakeAccessGraphServer struct {
+	accessgraphv1alpha.UnimplementedAccessGraphServiceServer
+	queryCounter *atomic.Int32
+	fileCounter  *atomic.Int32
+	features     string
+}
+
+func (f *fakeAccessGraphServer) Query(_ context.Context, req *accessgraphv1alpha.QueryRequest) (*accessgraphv1alpha.QueryResponse, error) {
+	f.queryCounter.Add(1)
+	return &accessgraphv1alpha.QueryResponse{}, nil
+}
+
+func (f *fakeAccessGraphServer) GetFile(_ context.Context, req *accessgraphv1alpha.GetFileRequest) (*accessgraphv1alpha.GetFileResponse, error) {
+	f.fileCounter.Add(1)
+	if strings.TrimLeft(req.Filepath, "/") != "features.json" {
+		return nil, fmt.Errorf("file not found")
+	}
+	return &accessgraphv1alpha.GetFileResponse{
+		Data: []byte(f.features),
+	}, nil
 }

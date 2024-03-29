@@ -131,8 +131,26 @@ func addPlugins(cfg *servicecfg.Config, license *licensefile.LicenseFile) (webPl
 			}
 		}
 
+		var accessGraphCfg *web.AccessGraphConfig
+		if cfg.AccessGraph.Enabled {
+			var caPem []byte
+			if cfg.AccessGraph.CA != "" {
+				caPem, err = os.ReadFile(cfg.AccessGraph.CA)
+				if err != nil {
+					return nil, nil, trace.Wrap(err)
+				}
+			}
+			accessGraphCfg = &web.AccessGraphConfig{
+				Addr:         cfg.AccessGraph.Addr,
+				CA:           caPem,
+				Insecure:     cfg.AccessGraph.Insecure,
+				CipherSuites: cfg.CipherSuites,
+			}
+		}
+
 		webPlugin, err = web.NewPlugin(web.Config{
 			PluginShimURL: pluginShimURL,
+			AccessGraph:   accessGraphCfg,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
