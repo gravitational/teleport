@@ -53,7 +53,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
-	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/mailgun/timetools"
 	"github.com/pquerna/otp/totp"
 	"github.com/sashabaranov/go-openai"
@@ -2891,47 +2890,27 @@ func TestConstructSSHResponse(t *testing.T) {
 	require.EqualValues(t, []byte{0x01}, resp.TLSCert)
 }
 
-// TestConstructSSHResponseLegacy checks if the secret package uses NaCl to
-// encrypt and decrypt data that passes through the ConstructSSHResponse
-// function.
+// TestConstructSSHResponseLegacy checks that the old-style NaCl encryption with
+// a secret query parameter (rather than secret_key, using AES-GCM) is not
+// supported.
 func TestConstructSSHResponseLegacy(t *testing.T) {
-	key, err := lemma_secret.NewKey()
-	require.NoError(t, err)
+	u := &url.URL{
+		Scheme: "http",
+		Host:   "www.example.com",
+		Path:   "/callback",
+		RawQuery: url.Values{
+			// the old-style NaCl key is 32 bytes in base 32
+			"secret": {base64.StdEncoding.EncodeToString(make([]byte, 32))},
+		}.Encode(),
+	}
 
-	lemma, err := lemma_secret.New(&lemma_secret.Config{KeyBytes: key})
-	require.NoError(t, err)
-
-	u, err := url.Parse("http://www.example.com/callback")
-	require.NoError(t, err)
-	query := u.Query()
-	query.Set("secret", lemma_secret.KeyToEncodedString(key))
-	u.RawQuery = query.Encode()
-
-	rawresp, err := ConstructSSHResponse(AuthParams{
+	_, err := ConstructSSHResponse(AuthParams{
 		Username:          "foo",
 		Cert:              []byte{0x00},
 		TLSCert:           []byte{0x01},
 		ClientRedirectURL: u.String(),
 	})
-	require.NoError(t, err)
-
-	require.Empty(t, rawresp.Query().Get("secret"))
-	require.Empty(t, rawresp.Query().Get("secret_key"))
-	require.NotEmpty(t, rawresp.Query().Get("response"))
-
-	var sealedData *lemma_secret.SealedBytes
-	err = json.Unmarshal([]byte(rawresp.Query().Get("response")), &sealedData)
-	require.NoError(t, err)
-
-	plaintext, err := lemma.Open(sealedData)
-	require.NoError(t, err)
-
-	var resp *auth.SSHLoginResponse
-	err = json.Unmarshal(plaintext, &resp)
-	require.NoError(t, err)
-	require.Equal(t, "foo", resp.Username)
-	require.EqualValues(t, []byte{0x00}, resp.Cert)
-	require.EqualValues(t, []byte{0x01}, resp.TLSCert)
+	require.ErrorIs(t, err, &trace.BadParameterError{Message: "missing secret_key"})
 }
 
 type byTimeAndIndex []apievents.AuditEvent
