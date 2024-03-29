@@ -78,7 +78,7 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 				`--cluster=localhost ` +
 				`--name=myintegration ` +
 				`--aws-region=us-east-1 ` +
-				`--role=Test+1=2,3.4@5-6_7 ` +
+				`--role=Test\+1=2,3.4\@5-6_7 ` +
 				`--task-role=taskRole`,
 		},
 		{
@@ -191,7 +191,7 @@ func TestBuildEICEConfigureIAMScript(t *testing.T) {
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure eice-iam " +
 				"--aws-region=us-east-1 " +
-				"--role=Test+1=2,3.4@5-6_7",
+				"--role=Test\\+1=2,3.4\\@5-6_7",
 		},
 		{
 			name: "missing aws-region",
@@ -288,7 +288,7 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 				"--cluster=localhost " +
 				"--name=myintegration " +
 				"--aws-region=us-east-1 " +
-				"--role=Test+1=2,3.4@5-6_7 " +
+				"--role=Test\\+1=2,3.4\\@5-6_7 " +
 				"--proxy-public-url=" + proxyPublicURL.String(),
 		},
 		{
@@ -388,7 +388,7 @@ func TestBuildListDatabasesConfigureIAMScript(t *testing.T) {
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure listdatabases-iam " +
 				"--aws-region=us-east-1 " +
-				"--role=Test+1=2,3.4@5-6_7",
+				"--role=Test\\+1=2,3.4\\@5-6_7",
 		},
 		{
 			name: "missing aws-region",
