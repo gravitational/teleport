@@ -266,13 +266,6 @@ type Role interface {
 	GetSPIFFEConditions(rct RoleConditionType) []*SPIFFERoleCondition
 	// SetSPIFFEConditions sets the allow or deny SPIFFERoleCondition.
 	SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCondition)
-
-	// GetSAMLIdPServiceProviderLabels gets the map of saml_idp_service_provider resource
-	// labels this role is allowed or denied access to.
-	GetSAMLIdPServiceProviderLabels(RoleConditionType) Labels
-	// SetSAMLIdPServiceProviderLabels sets the map of saml_idp_service_provider resource
-	// labels this role is allowed or denied access to.
-	SetSAMLIdPServiceProviderLabels(RoleConditionType, Labels)
 }
 
 // NewRole constructs new standard V7 role.
@@ -947,25 +940,6 @@ func (r *RoleV6) SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCo
 		r.Spec.Allow.SPIFFE = cond
 	} else {
 		r.Spec.Deny.SPIFFE = cond
-	}
-}
-
-// GetSAMLIdPServiceProviderLabels gets the map of saml_idp_service_provider resource
-// labels this role is allowed or denied access to.
-func (r *RoleV6) GetSAMLIdPServiceProviderLabels(rct RoleConditionType) Labels {
-	if rct == Allow {
-		return r.Spec.Allow.SAMLIdPServiceProviderLabels
-	}
-	return r.Spec.Deny.SAMLIdPServiceProviderLabels
-}
-
-// SetSAMLIdPServiceProviderLabels sets the map of saml_idp_service_provider resource
-// labels this role is allowed or denied access to.
-func (r *RoleV6) SetSAMLIdPServiceProviderLabels(rct RoleConditionType, labels Labels) {
-	if rct == Allow {
-		r.Spec.Allow.SAMLIdPServiceProviderLabels = labels.Clone()
-	} else {
-		r.Spec.Deny.SAMLIdPServiceProviderLabels = labels.Clone()
 	}
 }
 
