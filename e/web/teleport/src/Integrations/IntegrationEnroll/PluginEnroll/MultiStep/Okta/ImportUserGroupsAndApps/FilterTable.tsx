@@ -105,6 +105,7 @@ const TableWrapper = styled.div`
   height: 330px;
 `;
 
+// We apply a z-index to the thead > tr > th to avoid the table content from being visible in the header space
 const StyledTable = styled(StyledTableBase)(
   props => `
 
@@ -123,6 +124,7 @@ const StyledTable = styled(StyledTableBase)(
     padding: ${props.theme.space[2]}px 0;
     top: 0;
     position: sticky;
+    z-index: 1;
     background-color: ${props.theme.colors.levels.elevated};
     opacity: 1;
     padding-top: 0px;

@@ -552,7 +552,6 @@ export function NewRequest(props: State) {
 
 const StyledWrapper = styled.div`
   border-radius: 8px;
-  box-shadow: ${props => props.theme.boxShadow[0]};
 `;
 
 function AddPageButton({
