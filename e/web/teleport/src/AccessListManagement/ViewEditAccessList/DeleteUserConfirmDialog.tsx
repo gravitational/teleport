@@ -19,7 +19,7 @@ type Base = {
   username: string;
   onClose(): void;
   accessList: AccessListModified;
-  fetchAccessList(): Promise<void | boolean>;
+  updateAccessList(accessList: AccessList): void;
 };
 
 type PropForMember = Base & {
@@ -34,7 +34,7 @@ export function DeleteUserConfirmDialog({
   username,
   onClose,
   accessList,
-  fetchAccessList,
+  updateAccessList,
 }: PropForMember | PropForOwner) {
   const { members: existingMembers, owners: existingOwners } = accessList;
   const { attempt, setAttempt } = useAttempt();
@@ -57,9 +57,9 @@ export function DeleteUserConfirmDialog({
 
     accessManagementService
       .updateAccessList({ req, original: accessList })
-      .then(() => {
+      .then(resp => {
         onClose();
-        fetchAccessList();
+        updateAccessList(resp);
       })
       .catch((e: Error) =>
         setAttempt({ status: 'failed', statusText: e.message })

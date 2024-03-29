@@ -11,7 +11,10 @@ import Validation, { Validator } from 'shared/components/Validation';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
 import { Option } from 'shared/components/Select';
 
-import { accessManagementService } from 'e-teleport/services/accessmanagement';
+import {
+  AccessList,
+  accessManagementService,
+} from 'e-teleport/services/accessmanagement';
 import { EligibleUsersFieldSelectAndCreate } from 'e-teleport/AccessListManagement/CreateAccessList/Shared';
 import { UserOption } from 'e-teleport/AccessListManagement/Shared/Shared';
 
@@ -25,14 +28,14 @@ import { AccessListModified } from '../ViewEditAccessList';
 type Props = {
   onClose(): void;
   userOptions: UserOption[];
-  fetchAccessList(): Promise<void | boolean>;
+  updateAccessList(accessList: AccessList): void;
   accessList: AccessListModified;
 };
 
 export function EnrollNewOwners({
   onClose,
   userOptions,
-  fetchAccessList,
+  updateAccessList,
   accessList,
 }: Props) {
   const { owners: existingOwners, ownershipRequires } = accessList;
@@ -103,9 +106,9 @@ export function EnrollNewOwners({
         },
         original: accessList,
       })
-      .then(() => {
+      .then(resp => {
         onClose();
-        fetchAccessList();
+        updateAccessList(resp);
       })
       .catch((e: Error) => {
         setAttempt({ status: 'failed', statusText: e.message });

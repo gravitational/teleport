@@ -476,7 +476,7 @@ describe('update an access list', () => {
       },
     },
   ].forEach(tc => {
-    jest.spyOn(api, 'put').mockResolvedValue(null); // response doesn't matter
+    jest.spyOn(api, 'put').mockResolvedValue({}); // response doesn't matter
     test(`case: ${tc.case}`, async () => {
       await accessManagementService.updateAccessList({
         req: tc.reqToUpdate,

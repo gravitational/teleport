@@ -9,6 +9,7 @@ import {
   getReviewDayOfMonthOption,
   getReviewFrequencyOption,
 } from 'e-teleport/AccessListManagement/Shared/Audit';
+import { AccessList } from 'e-teleport/services/accessmanagement';
 
 import { AccessListModified } from '../ViewEditAccessList';
 import { ButtonPencil, RoleAndTraitLabels } from '../Shared';
@@ -19,7 +20,7 @@ import { EditAudit } from './EditAudit';
 type Props = {
   roleOptions: Option[];
   canEditSpecs: boolean;
-  fetchAccessList(): Promise<void | boolean>;
+  updateAccessList(accessList: AccessList): void;
   accessList: AccessListModified;
 };
 
@@ -29,7 +30,7 @@ export function Specs({
   accessList,
   roleOptions,
   canEditSpecs,
-  fetchAccessList,
+  updateAccessList,
 }: Props) {
   const { membershipRequires, ownershipRequires, grants, audit, ownerGrants } =
     accessList;
@@ -167,14 +168,14 @@ export function Specs({
           onClose={() => setEditPermKind(null)}
           editKind={editPermKind}
           roleOptions={roleOptions}
-          fetchAccessList={fetchAccessList}
+          updateAccessList={updateAccessList}
           accessList={accessList}
         />
       )}
       {showEditAudit && (
         <EditAudit
           onClose={() => setShowEditAudit(false)}
-          fetchAccessList={fetchAccessList}
+          updateAccessList={updateAccessList}
           accessList={accessList}
         />
       )}

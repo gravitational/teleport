@@ -12,7 +12,10 @@ import { Option } from 'shared/components/Select';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
 import useTeleport from 'teleport/useTeleport';
 
-import { accessManagementService } from 'e-teleport/services/accessmanagement';
+import {
+  AccessList,
+  accessManagementService,
+} from 'e-teleport/services/accessmanagement';
 import { EligibleUsersFieldSelectAndCreate } from 'e-teleport/AccessListManagement/CreateAccessList/Shared';
 import { CalendarDateSelect } from 'e-teleport/AccessListManagement/Shared/Audit';
 
@@ -27,7 +30,7 @@ import { AccessListModified } from '../ViewEditAccessList';
 type Props = {
   onClose(): void;
   userOptions: UserOption[];
-  fetchAccessList(): Promise<void | boolean>;
+  updateAccessList(accessList: AccessList): void;
   accessList: AccessListModified;
 };
 
@@ -35,7 +38,7 @@ export function EnrollNewMembers({
   onClose,
   accessList,
   userOptions,
-  fetchAccessList,
+  updateAccessList,
 }: Props) {
   const { membershipRequires, members: existingMembers } = accessList;
   const ctx = useTeleport();
@@ -111,9 +114,9 @@ export function EnrollNewMembers({
           ],
         },
       })
-      .then(() => {
+      .then(resp => {
         onClose();
-        fetchAccessList();
+        updateAccessList(resp);
       })
       .catch((e: Error) => {
         setAttempt({ status: 'failed', statusText: e.message });

@@ -6,6 +6,6 @@ test('getFormattedDate', async () => {
   expect(getFormattedDate(undefined)).toBe('');
   expect(getFormattedDate(new Date(null))).toBe('');
   expect(getFormattedDate(new Date('2023-08-24T17:48:15.78579Z'))).toBe(
-    '08/24/2023'
+    '2023-08-24'
   );
 });

@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 
-export const dateFormat = 'MM/dd/yyyy';
+import cfg from 'shared/config';
 
 export function getFormattedDate(d: Date) {
   if (!d || isNaN(d.getTime())) {
@@ -18,5 +18,5 @@ export function getFormattedDate(d: Date) {
     return '';
   }
 
-  return format(thisDate, dateFormat);
+  return format(thisDate, cfg.dateFormat);
 }

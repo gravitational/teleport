@@ -3,7 +3,10 @@ import { Flex, Text, ButtonText } from 'design';
 import Table from 'design/DataTable';
 import { Wrench, Add } from 'design/Icon';
 
-import { AccessListOwner } from 'e-teleport/services/accessmanagement';
+import {
+  AccessList,
+  AccessListOwner,
+} from 'e-teleport/services/accessmanagement';
 
 import { UserOption } from '../../Shared/Shared';
 
@@ -19,11 +22,11 @@ export function OwnersList({
   accessList,
   canEditOwners,
   userOptions,
-  fetchAccessList,
+  updateAccessList,
 }: {
   userOptions: UserOption[];
   canEditOwners: boolean;
-  fetchAccessList(): Promise<void | boolean>;
+  updateAccessList(accessList: AccessList): void;
   accessList: AccessListModified;
 }) {
   const { owners } = accessList;
@@ -89,7 +92,7 @@ export function OwnersList({
         <EnrollNewOwners
           onClose={() => setShowEnrollNewMembers(false)}
           userOptions={userOptions}
-          fetchAccessList={fetchAccessList}
+          updateAccessList={updateAccessList}
           accessList={accessList}
         />
       )}
@@ -99,7 +102,7 @@ export function OwnersList({
           kind="Owner"
           accessList={accessList}
           username={deleteOwner.name}
-          fetchAccessList={fetchAccessList}
+          updateAccessList={updateAccessList}
         />
       )}
     </>

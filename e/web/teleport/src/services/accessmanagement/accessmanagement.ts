@@ -73,7 +73,7 @@ export const accessManagementService = {
   }: {
     req: Partial<AccessList>;
     original: AccessList;
-  }): Promise<void> {
+  }): Promise<AccessList> {
     const madeReq: UpsertAccessListRequest = {
       title: original.title, // cannot be edited.
       description: original.description, // cannot be edited.
@@ -146,7 +146,9 @@ export const accessManagementService = {
         : original.ownershipRequires,
     };
 
-    return api.put(cfg.getAccessManagementListUrl(original.id), madeReq);
+    return api
+      .put(cfg.getAccessManagementListUrl(original.id), madeReq)
+      .then(resp => makeAccessList(resp.accessList));
   },
   async deleteAccessList(accessListId: string): Promise<void> {
     const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);

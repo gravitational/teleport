@@ -11,7 +11,10 @@ import Dialog, {
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import { accessManagementService } from 'e-teleport/services/accessmanagement';
+import {
+  AccessList,
+  accessManagementService,
+} from 'e-teleport/services/accessmanagement';
 import {
   CalendarDateSelect,
   ReviewDayOfMonthOption,
@@ -26,10 +29,10 @@ import { AccessListModified } from '../ViewEditAccessList';
 type Props = {
   onClose(): void;
   accessList: AccessListModified;
-  fetchAccessList(): Promise<void | boolean>;
+  updateAccessList(accessList: AccessList): void;
 };
 
-export function EditAudit({ onClose, accessList, fetchAccessList }: Props) {
+export function EditAudit({ onClose, accessList, updateAccessList }: Props) {
   const { audit } = accessList;
   const { attempt, setAttempt } = useAttempt('');
   const [auditStartDate, setAuditStartDate] = useState<Date>(audit.nextDate);
@@ -61,9 +64,9 @@ export function EditAudit({ onClose, accessList, fetchAccessList }: Props) {
         },
         original: accessList,
       })
-      .then(() => {
+      .then(resp => {
         onClose();
-        fetchAccessList();
+        updateAccessList(resp);
       })
       .catch((e: Error) =>
         setAttempt({ status: 'failed', statusText: e.message })

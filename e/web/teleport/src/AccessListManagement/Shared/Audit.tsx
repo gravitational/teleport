@@ -7,6 +7,7 @@ import FieldSelect from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { useRule } from 'shared/components/Validation';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
+import cfg from 'shared/config';
 
 import {
   ReviewDayOfMonth,
@@ -16,7 +17,6 @@ import {
 import { DatePicker } from '../DatePicker';
 
 import { RuleFunc, noopRule } from './rules';
-import { dateFormat } from './date';
 
 export type ReviewFrequencyOption = Option<ReviewFrequency>;
 
@@ -140,7 +140,7 @@ export const CalendarDateSelect = ({
         borderRadius={2}
         dateSelected={Boolean(date)}
       >
-        <Box>{validDate ? format(date, dateFormat) : 'Select a Date'}</Box>
+        <Box>{validDate ? format(date, cfg.dateFormat) : 'Select a Date'}</Box>
         <CalendarIcon />
       </CalendarInput>
       {showDatePicker && (

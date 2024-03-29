@@ -3,7 +3,10 @@ import { Flex, Text, Box, ButtonText } from 'design';
 import Table from 'design/DataTable';
 import { UsersTriple, Add } from 'design/Icon';
 
-import { AccessListMember } from 'e-teleport/services/accessmanagement';
+import {
+  AccessList,
+  AccessListMember,
+} from 'e-teleport/services/accessmanagement';
 import { getFormattedDate } from 'e-teleport/AccessListManagement/Shared/date';
 
 import { UserOption } from '../../Shared/Shared';
@@ -20,11 +23,11 @@ export function MembersList({
   accessList,
   userOptions,
   canEditMembers,
-  fetchAccessList,
+  updateAccessList,
 }: {
   userOptions: UserOption[];
   canEditMembers: boolean;
-  fetchAccessList(): Promise<void | boolean>;
+  updateAccessList(accessList: AccessList): void;
   accessList: AccessListModified;
 }) {
   const { members } = accessList;
@@ -61,7 +64,7 @@ export function MembersList({
           onClose={() => setShowEnrollNewMembers(false)}
           accessList={accessList}
           userOptions={userOptions}
-          fetchAccessList={fetchAccessList}
+          updateAccessList={updateAccessList}
         />
       )}
       {deleteMember && (
@@ -70,7 +73,7 @@ export function MembersList({
           kind="Member"
           username={deleteMember.name}
           accessList={accessList}
-          fetchAccessList={fetchAccessList}
+          updateAccessList={updateAccessList}
         />
       )}
     </>

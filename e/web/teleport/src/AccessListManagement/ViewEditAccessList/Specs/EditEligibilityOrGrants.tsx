@@ -29,7 +29,7 @@ type Props = {
   onClose(): void;
   editKind: EditKind;
   roleOptions: Option[];
-  fetchAccessList(): Promise<void | boolean>;
+  updateAccessList(accessList: AccessList): void;
   accessList: AccessListModified;
 };
 
@@ -38,7 +38,7 @@ export function EditEligibilityOrGrantRoles({
   onClose,
   editKind,
   roleOptions,
-  fetchAccessList,
+  updateAccessList,
 }: Props) {
   let existingRoles: string[] = accessList.grants.roles;
   let trait: TraitConvenience = accessList.grants;
@@ -97,9 +97,9 @@ export function EditEligibilityOrGrantRoles({
     setAttempt({ status: 'processing' });
     accessManagementService
       .updateAccessList({ req, original: accessList })
-      .then(() => {
+      .then(resp => {
         onClose();
-        fetchAccessList();
+        updateAccessList(resp);
       })
       .catch((e: Error) =>
         setAttempt({ status: 'failed', statusText: e.message })

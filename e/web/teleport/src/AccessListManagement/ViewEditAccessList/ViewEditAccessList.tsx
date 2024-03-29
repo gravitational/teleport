@@ -75,6 +75,44 @@ export function ViewEditAccessList() {
   const [perms, setPerms] = useState<Perms>(getPerms({}));
   const [reviewing, setReviewing] = useState(false);
 
+  function updateAccessList(newAccessList: AccessList) {
+    modifyAccessList(newAccessList);
+  }
+
+  function modifyAccessList(newAccessList: AccessList) {
+    const modifiedAccessList: AccessListModified = {
+      ...newAccessList,
+      grants: {
+        ...newAccessList.grants,
+        ...convertToTraitConvenience(newAccessList.grants.traits),
+      },
+      ownerGrants: {
+        ...newAccessList.ownerGrants,
+        ...convertToTraitConvenience(newAccessList.ownerGrants.traits),
+      },
+      ownershipRequires: {
+        ...newAccessList.ownershipRequires,
+        ...convertToTraitConvenience(newAccessList.ownershipRequires.traits),
+      },
+      membershipRequires: {
+        ...newAccessList.membershipRequires,
+        ...convertToTraitConvenience(newAccessList.membershipRequires.traits),
+      },
+      requiresReview: accessListRequiresReview({
+        todayDate: new Date(),
+        reviewDate: newAccessList.audit.nextDate,
+      }),
+    };
+    setAccessList(modifiedAccessList);
+    ctx.storeNotifications.updateOrRemoveAccessListNotification(newAccessList);
+
+    const accessListAccess = ctx.storeUser.getAccessListAccess();
+    const isOwner = newAccessList.owners.some(
+      owner => owner.name === ctx.storeUser.getUsername()
+    );
+    setPerms(getPerms({ accessListAccess, isOwner }));
+  }
+
   // If this api call succeeded, user is either an owner or
   // has `access_list` list/read rules defined.
   function fetchAccessList(initialFetch = false) {
@@ -83,43 +121,7 @@ export function ViewEditAccessList() {
     return accessManagementService
       .fetchAccessList(accessListId)
       .then(fetchedAccessList => {
-        const modifiedAccessList: AccessListModified = {
-          ...fetchedAccessList,
-          grants: {
-            ...fetchedAccessList.grants,
-            ...convertToTraitConvenience(fetchedAccessList.grants.traits),
-          },
-          ownerGrants: {
-            ...fetchedAccessList.ownerGrants,
-            ...convertToTraitConvenience(fetchedAccessList.ownerGrants.traits),
-          },
-          ownershipRequires: {
-            ...fetchedAccessList.ownershipRequires,
-            ...convertToTraitConvenience(
-              fetchedAccessList.ownershipRequires.traits
-            ),
-          },
-          membershipRequires: {
-            ...fetchedAccessList.membershipRequires,
-            ...convertToTraitConvenience(
-              fetchedAccessList.membershipRequires.traits
-            ),
-          },
-          requiresReview: accessListRequiresReview({
-            todayDate: new Date(),
-            reviewDate: fetchedAccessList.audit.nextDate,
-          }),
-        };
-        setAccessList(modifiedAccessList);
-        ctx.storeNotifications.updateOrRemoveAccessListNotification(
-          fetchedAccessList
-        );
-
-        const accessListAccess = ctx.storeUser.getAccessListAccess();
-        const isOwner = fetchedAccessList.owners.some(
-          owner => owner.name === ctx.storeUser.getUsername()
-        );
-        setPerms(getPerms({ accessListAccess, isOwner }));
+        modifyAccessList(fetchedAccessList);
 
         // If it was an intial fetch, there are other fetching
         // that needs to be done so we can't set attempt
@@ -242,7 +244,7 @@ export function ViewEditAccessList() {
           <Specs
             roleOptions={roleOptions}
             accessList={accessList}
-            fetchAccessList={fetchAccessList}
+            updateAccessList={updateAccessList}
             canEditSpecs={perms.adminWhoCanEdit}
           />
         </Box>
@@ -251,7 +253,7 @@ export function ViewEditAccessList() {
             canEditOwners={perms.adminWhoCanEdit}
             userOptions={userOptions}
             accessList={accessList}
-            fetchAccessList={fetchAccessList}
+            updateAccessList={updateAccessList}
           />
         </Box>
         {(perms.isOwner || perms.adminWhoCanRead) && (
@@ -259,7 +261,7 @@ export function ViewEditAccessList() {
             canEditMembers={perms.isOwner || perms.adminWhoCanEdit}
             userOptions={userOptions}
             accessList={accessList}
-            fetchAccessList={fetchAccessList}
+            updateAccessList={updateAccessList}
           />
         )}
       </>
