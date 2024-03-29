@@ -83,13 +83,7 @@ export const VnetConnectionItem = (props: {
               line-height: 16px;
             `}
           >
-            <span
-              css={`
-                vertical-align: middle;
-              `}
-            >
-              VNet
-            </span>
+            VNet
           </Text>
           <Text color="text.slightlyMuted" typography="body2">
             Virtual Network Emulation
@@ -211,13 +205,7 @@ export const AppConnectionItem = (props: {
               line-height: 16px;
             `}
           >
-            <span
-              css={`
-                vertical-align: middle;
-              `}
-            >
-              {props.app}
-            </span>
+            {props.app}
           </Text>
           {props.error && (
             <Text
