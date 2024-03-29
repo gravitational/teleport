@@ -34,6 +34,7 @@ type PluginsCommand struct {
 	config     *servicecfg.Config
 	cleanupCmd *kingpin.CmdClause
 	pluginType string
+	dryRun     bool
 }
 
 // Initialize creates the plugins command and subcommands
@@ -43,11 +44,44 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, config *servicecfg
 	pluginsCommand := app.Command("plugins", "Manage Teleport plugins.").Hidden()
 	p.cleanupCmd = pluginsCommand.Command("cleanup", "Cleans up the given plugin type.")
 	p.cleanupCmd.Arg("type", "The type of plugin to cleanup.").StringVar(&p.pluginType)
+	p.cleanupCmd.Flag("dry-run", "Dry run the cleanup command.").BoolVar(&p.dryRun)
 
 }
 
 // Cleanup cleans up the given plugin.
 func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *auth.Client) error {
+	needsCleanup, err := clusterAPI.PluginsClient().NeedsCleanup(ctx, &pluginsv1.NeedsCleanupRequest{
+		Type: p.pluginType,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if needsCleanup.PluginActive {
+		fmt.Printf("Plugin of type %q is currently active, can't cleanup!\n", p.pluginType)
+		return nil
+	}
+
+	if !needsCleanup.NeedsCleanup {
+		fmt.Printf("Plugin of type %q doesn't need a cleanup!\n", p.pluginType)
+		return nil
+	}
+
+	if p.dryRun {
+		fmt.Println("Would be deleting the following resources:")
+	} else {
+		fmt.Println("Deleting the following resources:")
+	}
+
+	for _, resource := range needsCleanup.ResourcesToCleanup {
+		fmt.Printf("- %s\n", resource)
+	}
+
+	if p.dryRun {
+		fmt.Println("Since dry run is indicated, I won't delete anything.")
+		return nil
+	}
+
 	if _, err := clusterAPI.PluginsClient().Cleanup(ctx, &pluginsv1.CleanupRequest{
 		Type: p.pluginType,
 	}); err != nil {
