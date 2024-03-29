@@ -155,6 +155,8 @@ export const VnetConnectionItem = (props: {
 export const AppConnectionItem = (props: {
   app: string;
   status: 'on' | 'error' | 'off';
+  // TODO(ravicious): Refactor the status type so that the error prop is available only if status is
+  // set to 'error'.
   error?: string;
 }) => {
   const { notificationsService } = useAppContext();
