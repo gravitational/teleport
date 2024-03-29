@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,15 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Table from './Table';
-import {
-  Cell,
-  TextCell,
-  DateCell,
-  LabelCell,
-  ClickableLabelCell,
-} from './Cells';
-import { StyledPanel } from './StyledTable';
+import React from 'react';
 
-export { Cell, TextCell, DateCell, LabelCell, ClickableLabelCell, StyledPanel };
-export default Table;
+import { Text } from 'design';
+
+export function PageIndicatorText({
+  from,
+  to,
+  count,
+}: {
+  from: number;
+  to: number;
+  count: number;
+}) {
+  if (count == 0) {
+    return;
+  }
+
+  return (
+    <Text
+      typography="body2"
+      mr={1}
+      fontWeight="500"
+      style={{
+        whiteSpace: 'nowrap',
+        letterSpacing: '0.15px',
+      }}
+    >
+      Showing <strong>{from}</strong> - <strong>{to}</strong> of{' '}
+      <strong>{count}</strong>
+    </Text>
+  );
+}
