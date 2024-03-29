@@ -275,6 +275,15 @@ func (oas *OIDCAuthService) CreateOIDCAuthRequest(ctx context.Context, req types
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// TODO(espadolini): inline the real function call once the security fix is
+	// out of embargo ( https://github.com/gravitational/teleport-private/pull/1433 )
+	if hook := auth.OIDCAuthRequestHook; hook != nil {
+		if err := hook(ctx, &req, connector); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	oauthClient, err := client.OAuthClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
