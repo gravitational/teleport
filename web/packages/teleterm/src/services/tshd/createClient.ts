@@ -27,13 +27,12 @@ import { CloneableClient, cloneClient } from './cloneableClient';
 
 export type TshdClient = CloneableClient<ITerminalServiceClient>;
 
-export type VnetServiceClient =
-  CloneableClient<vnetServiceProtobuf.VnetServiceClient>;
+export type VnetClient = CloneableClient<vnetServiceProtobuf.VnetServiceClient>;
 
 export function createTshdClient(transport: GrpcTransport): TshdClient {
   return cloneClient(new TerminalServiceClient(transport));
 }
 
-export function createVnetClient(transport: GrpcTransport): VnetServiceClient {
+export function createVnetClient(transport: GrpcTransport): VnetClient {
   return cloneClient(new vnetServiceProtobuf.VnetServiceClient(transport));
 }

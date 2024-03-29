@@ -21,7 +21,7 @@ import {
   makeAppGateway,
 } from 'teleterm/services/tshd/testHelpers';
 
-import { VnetServiceClient, TshdClient } from '../createClient';
+import { VnetClient, TshdClient } from '../createClient';
 import { MockedUnaryCall } from '../cloneableClient';
 
 export class MockTshClient implements TshdClient {
@@ -115,7 +115,7 @@ export class MockTshClient implements TshdClient {
   authenticateWebDevice = () => new MockedUnaryCall({});
 }
 
-export class MockVnetClient implements VnetServiceClient {
+export class MockVnetClient implements VnetClient {
   typeName: never;
   methods: never;
   options: never;
