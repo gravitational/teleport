@@ -72,11 +72,12 @@ export function useReviewAccessRequest({
                 reason: review.reason,
                 accessListId: review.promotedToAccessList.id,
               })
-            : await ctx.clustersService.reviewAccessRequest(rootClusterUri, {
+            : await ctx.clustersService.reviewAccessRequest({
+                rootClusterUri,
                 state: review.state,
                 reason: review.reason,
                 roles: fetchRequestAttempt.data.roles,
-                id: requestId,
+                accessRequestId: requestId,
                 assumeStartTime:
                   review.assumeStartTime &&
                   Timestamp.fromDate(review.assumeStartTime),
@@ -89,12 +90,12 @@ export function useReviewAccessRequest({
     useAsync(
       useCallback(async () => {
         try {
-          const suggestions = await ctx.tshd.getSuggestedAccessLists({
+          const { response } = await ctx.tshd.getSuggestedAccessLists({
             rootClusterUri,
             accessRequestId: requestId,
           });
 
-          return suggestions.map(makeUiAccessList);
+          return response.accessLists.map(makeUiAccessList);
         } catch (e) {
           if (isUnimplementedError(e)) {
             // TODO(gzdunek): DELETE IN 16.0.0

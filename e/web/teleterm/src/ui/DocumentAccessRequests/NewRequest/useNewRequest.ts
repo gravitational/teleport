@@ -14,7 +14,10 @@ import {
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { ServerSideParams, App as tshdApp } from 'teleterm/services/tshd/types';
+import {
+  GetResourcesParams,
+  App as tshdApp,
+} from 'teleterm/services/tshd/types';
 import { routing } from 'teleterm/ui/uri';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 
@@ -108,7 +111,7 @@ export default function useNewRequest() {
     setAgentFilter({ ...agentFilter, search: '', query });
   }
 
-  function getFetchCallback(params: ServerSideParams) {
+  function getFetchCallback(params: GetResourcesParams) {
     switch (selectedResource) {
       case 'node':
         return retry(() => ctx.resourcesService.fetchServers(params));

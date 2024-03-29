@@ -7,7 +7,7 @@ import { PendingAccessRequest } from 'teleterm/ui/services/workspacesService';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { ReviewerOption } from 'e-teleport/Workflow/NewRequest/RequestCheckout/types';
 import {
-  CreateAccessRequestParams,
+  CreateAccessRequestRequest,
   AccessRequest as TeletermAccessRequest,
 } from 'teleterm/services/tshd/types';
 import { CreateRequest } from 'e-teleport/Workflow/Shared/types';
@@ -82,13 +82,19 @@ export default function useAccessRequestCheckout() {
     }
 
     const data = getPendingAccessRequestsPerResource(pendingAccessRequest);
-    const req = {
-      rootClusterUri,
-      resourceIds: data.filter(d => d.kind !== 'role'),
-    };
     runFetchResourceRoles(() =>
       retryWithRelogin(ctx, clusterUri, () =>
-        ctx.clustersService.getRequestableRoles(req)
+        ctx.clustersService.getRequestableRoles({
+          clusterUri: rootClusterUri,
+          resourceIds: data
+            .filter(d => d.kind !== 'role')
+            .map(d => ({
+              name: d.name,
+              kind: d.kind,
+              clusterName: d.clusterName,
+              subResourceName: '',
+            })),
+        })
       ).then(response => {
         setResourceRequestRoles(response.applicableRoles);
         setSelectedResourceRequestRoles(response.applicableRoles);
@@ -165,7 +171,7 @@ export default function useAccessRequestCheckout() {
    */
   function prepareAndCreateRequest(req: CreateRequest) {
     const data = getPendingAccessRequestsPerResource(pendingAccessRequest);
-    const params: CreateAccessRequestParams = {
+    const params: CreateAccessRequestRequest = {
       rootClusterUri,
       reason: req.reason,
       suggestedReviewers: req.suggestedReviewers || [],
@@ -192,8 +198,8 @@ export default function useAccessRequestCheckout() {
     setCreateRequestAttempt({ status: 'processing' });
 
     return retryWithRelogin(ctx, clusterUri, () =>
-      ctx.clustersService.createAccessRequest(params).then(accessRequest => {
-        return { accessRequest, requestedCount: data.length };
+      ctx.clustersService.createAccessRequest(params).then(({ response }) => {
+        return { accessRequest: response.request, requestedCount: data.length };
       })
     ).catch(e => {
       setCreateRequestAttempt({ status: 'failed', statusText: e.message });
