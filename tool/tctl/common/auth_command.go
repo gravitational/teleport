@@ -876,7 +876,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 			return trace.Wrap(err)
 		}
 
-		routeToApp := proto.RouteToApp{
+		routeToApp = proto.RouteToApp{
 			Name:        a.appName,
 			PublicAddr:  server.GetApp().GetPublicAddr(),
 			ClusterName: a.leafCluster,
