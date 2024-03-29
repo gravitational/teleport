@@ -720,8 +720,13 @@ func (a *accessListSync) appToImportResources(ctx context.Context, appID string,
 
 	members := make([]string, 0, numAssignments)
 	for _, assignment := range assignments {
-		if user, ok := userMapping[assignment]; ok {
-			members = append(members, user)
+		// Add a member to the Okta App synced access list only if an Okta user has UserScope (the user has an individual Okta App assessment type).
+		// We do not want to add users with GroupScope to App synced access list because this will cause redundancy were the user will be assigned as
+		// member to both App and Group synced access list and will introduce duplicate access paths.
+		if assignment.scope == userScope {
+			if user, ok := userMapping[assignment.userID]; ok {
+				members = append(members, user)
+			}
 		}
 	}
 

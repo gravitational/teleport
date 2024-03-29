@@ -43,8 +43,8 @@ func TestAssignmentClient(t *testing.T) {
 		oktaClient.usernamesToUserIDs = map[string]string{
 			testUser: testOktaUserID,
 		}
-		oktaClient.appsToUsers = map[string]map[string]bool{
-			testApp: {testOktaUserID: true},
+		oktaClient.appsToUsers = map[string]map[appAssignment]bool{
+			testApp: {appAssignment{userID: testOktaUserID, scope: userScope}: true},
 		}
 		oktaClient.groupsToUsers = map[string]map[string]bool{
 			testGroup: {testOktaUserID: true},
@@ -97,7 +97,7 @@ func TestAssignmentClient(t *testing.T) {
 		oktaClient.usernamesToUserIDs = map[string]string{
 			testUser: testOktaUserID,
 		}
-		oktaClient.appsToUsers = map[string]map[string]bool{
+		oktaClient.appsToUsers = map[string]map[appAssignment]bool{
 			testApp: {},
 		}
 		oktaClient.groupsToUsers = map[string]map[string]bool{
@@ -118,7 +118,7 @@ func TestAssignmentClient(t *testing.T) {
 		// test client and re-test the membership, expect that the
 		// assignmentClient uses cached data rather than re-querying the back
 		// end, and so still reports `false`.
-		oktaClient.appsToUsers[testApp][testOktaUserID] = true
+		oktaClient.appsToUsers[testApp][appAssignment{userID: testOktaUserID, scope: userScope}] = true
 		oktaClient.groupsToUsers[testGroup][testOktaUserID] = true
 
 		isAssigned, err = assignmentClient.userAssignedToApp(ctx, testUser, testApp)

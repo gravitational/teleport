@@ -20,7 +20,6 @@ import (
 const (
 	oktaErrorID          = "errorId"
 	oktaUserProfileLogin = "login"
-	oktaUserScope        = "USER"
 )
 
 // Static assertion that the wrappedClient type implements OktaClient
@@ -214,22 +213,20 @@ func (w *wrappedClient) getGroupAssignments(ctx context.Context, groupID string)
 }
 
 // getAppAssignments will return the list of users assigned to an app.
-func (w *wrappedClient) getAppAssignments(ctx context.Context, appID string) ([]string, error) {
-	var userIDs []string
+func (w *wrappedClient) getAppAssignments(ctx context.Context, appID string) ([]appAssignment, error) {
+	var assignments []appAssignment
 	err := w.iterateAppUsers(ctx, appID, func(appUser *okta.AppUser) error {
-		// We only want direct assignments to applications here. iterateAppUsers will return users who are
-		// assigned to an application through group membership or direct assignment. By filtering on the
-		// USER scope, we'll only get direct assignments.
-		if appUser.Scope == oktaUserScope {
-			userIDs = append(userIDs, appUser.Id)
-		}
+		assignments = append(assignments, appAssignment{
+			userID: appUser.Id,
+			scope:  appAssignmentScope(appUser.Scope),
+		})
 		return nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return userIDs, nil
+	return assignments, nil
 }
 
 // getAppGroups will return the list of groups an application belongs to.

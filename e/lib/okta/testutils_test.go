@@ -235,7 +235,7 @@ type testOktaClient struct {
 
 	appsToUsersMu sync.Mutex
 	// appsToUsers is a mapping of application IDs to users that have been assigned to them.
-	appsToUsers map[string]map[string]bool
+	appsToUsers map[string]map[appAssignment]bool
 
 	appsToGroups map[string][]string
 
@@ -260,7 +260,7 @@ func newTestClient() *testOktaClient {
 	return &testOktaClient{
 		usernamesToUserIDs: map[string]string{},
 		groupsToUsers:      map[string]map[string]bool{},
-		appsToUsers:        map[string]map[string]bool{},
+		appsToUsers:        map[string]map[appAssignment]bool{},
 		appsToGroups:       map[string][]string{},
 		unassignGroupErr:   map[string]error{},
 		unassignAppErr:     map[string]error{},
@@ -355,7 +355,7 @@ func (t *testOktaClient) getGroupAssignments(_ context.Context, groupID string) 
 }
 
 // getAppAssignments will return the list of users assigned to an app.
-func (t *testOktaClient) getAppAssignments(_ context.Context, appID string) ([]string, error) {
+func (t *testOktaClient) getAppAssignments(_ context.Context, appID string) ([]appAssignment, error) {
 	t.appsToUsersMu.Lock()
 	defer t.appsToUsersMu.Unlock()
 
@@ -364,12 +364,12 @@ func (t *testOktaClient) getAppAssignments(_ context.Context, appID string) ([]s
 		return nil, trace.NotFound("assignments for app %s not found", appID)
 	}
 
-	var users []string
+	var assignments []appAssignment
 	for user := range userMap {
-		users = append(users, user)
+		assignments = append(assignments, user)
 	}
 
-	return users, nil
+	return assignments, nil
 }
 
 // getAppGroups will return the list of groups an application belongs to.
@@ -461,7 +461,7 @@ func (t *testOktaClient) addApplicationToMapping(applicationId string) {
 	t.oktaApps = append(t.oktaApps, &okta.Application{
 		Id: applicationId,
 	})
-	t.appsToUsers[applicationId] = map[string]bool{}
+	t.appsToUsers[applicationId] = map[appAssignment]bool{}
 }
 
 // addOktaApplicationToMapping will add the given Okta application to the application to user mapping in the test client.
@@ -473,7 +473,7 @@ func (t *testOktaClient) addOktaApplicationToMapping(application okta.App) {
 
 	// Only add in the mapping if this is an actual *okta.Application object, otherwise skip.
 	if oktaApp, ok := application.(*okta.Application); ok {
-		t.appsToUsers[oktaApp.Id] = map[string]bool{}
+		t.appsToUsers[oktaApp.Id] = map[appAssignment]bool{}
 	}
 }
 
@@ -485,7 +485,7 @@ func (t *testOktaClient) assignUserToApplication(_ context.Context, username, ap
 	if _, ok := t.appsToUsers[applicationId]; !ok {
 		return trace.NotFound("provision: unable to find application %s", applicationId)
 	}
-	t.appsToUsers[applicationId][username] = true
+	t.appsToUsers[applicationId][appAssignment{userID: username, scope: userScope}] = true
 
 	return nil
 }
@@ -502,7 +502,7 @@ func (t *testOktaClient) unassignUserFromApplication(_ context.Context, username
 	if _, ok := t.appsToUsers[applicationId]; !ok {
 		return trace.NotFound("cleanup: unable to find application %s", applicationId)
 	}
-	delete(t.appsToUsers[applicationId], username)
+	delete(t.appsToUsers[applicationId], appAssignment{userID: username, scope: userScope})
 
 	return nil
 }
@@ -558,11 +558,11 @@ func (t *testOktaClient) addAppAssignments(appID string, users ...string) {
 	defer t.appsToUsersMu.Unlock()
 
 	if _, ok := t.appsToUsers[appID]; !ok {
-		t.appsToUsers[appID] = map[string]bool{}
+		t.appsToUsers[appID] = map[appAssignment]bool{}
 	}
 
 	for _, user := range users {
-		t.appsToUsers[appID][user] = true
+		t.appsToUsers[appID][appAssignment{userID: user, scope: userScope}] = true
 	}
 }
 

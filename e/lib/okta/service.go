@@ -237,6 +237,23 @@ func (c *Config) CheckAndSetDefaults() error {
 // being passed up the call stack.
 var errStopIteration = errors.New("stop iterating")
 
+// appAssignmentrepresents an individual assignmenet to an application.
+type appAssignment struct {
+	userID string
+	scope  appAssignmentScope
+}
+
+// appAssignmentScope is the assignment scope of the application.
+// components/schemas/AppUserProfile Okta API users assigment scope
+// A description of this field can be found in the Okta API docs:
+// https://developer.okta.com/docs/reference/api/apps/#application-user-object
+type appAssignmentScope string
+
+const (
+	userScope  appAssignmentScope = "USER"
+	groupScope appAssignmentScope = "GROUP"
+)
+
 // OktaClient is an Okta client interface that can be mocked for testing.
 type OktaClient interface {
 	// getCurrentUser will fetch the profile of the user currently logged into
@@ -272,7 +289,7 @@ type OktaClient interface {
 	getGroupAssignments(ctx context.Context, groupID string) ([]string, error)
 
 	// getAppAssignments will return the list of users assigned to an app.
-	getAppAssignments(ctx context.Context, appID string) ([]string, error)
+	getAppAssignments(ctx context.Context, appID string) ([]appAssignment, error)
 
 	// getAppGroups will return the list of groups an application belongs to.
 	getAppGroups(ctx context.Context, appID string) ([]string, error)

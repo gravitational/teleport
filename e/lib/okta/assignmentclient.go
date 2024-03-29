@@ -28,7 +28,7 @@ type assignmentClient struct {
 
 	// Apps membership.
 	appsMu sync.RWMutex
-	apps   map[string]map[string]bool
+	apps   map[string]map[appAssignment]bool
 }
 
 // newAssignmentClient will return a new assignment client.
@@ -37,7 +37,7 @@ func newAssignmentClient(log *logrus.Entry, oktaClient OktaClient) *assignmentCl
 		log:        log,
 		oktaClient: oktaClient,
 		groups:     map[string]map[string]bool{},
-		apps:       map[string]map[string]bool{},
+		apps:       map[string]map[appAssignment]bool{},
 	}
 }
 
@@ -168,7 +168,7 @@ func (a *assignmentClient) userAssignedToApp(ctx context.Context, username, appI
 		}
 
 		a.appsMu.Lock()
-		a.apps[appID] = map[string]bool{}
+		a.apps[appID] = map[appAssignment]bool{}
 		for _, member := range members {
 			a.log.Debugf("Found user %s assigned to app %s", member, appID)
 			a.apps[appID][member] = true
@@ -177,10 +177,11 @@ func (a *assignmentClient) userAssignedToApp(ctx context.Context, username, appI
 	}
 
 	a.appsMu.RLock()
-	_, ok := a.apps[appID][userID]
+	_, assignedToGroup := a.apps[appID][appAssignment{userID: userID, scope: groupScope}]
+	_, assignedToApp := a.apps[appID][appAssignment{userID: userID, scope: userScope}]
 	a.appsMu.RUnlock()
 
-	return ok, nil
+	return assignedToGroup || assignedToApp, nil
 }
 
 // registerUserToApp will register the user to the app.
@@ -208,7 +209,7 @@ func (a *assignmentClient) registerUserToApp(ctx context.Context, username, appI
 	a.log.Debugf("User %s has been assigned to app %s", userID, appID)
 
 	a.appsMu.Lock()
-	a.apps[appID][userID] = true
+	a.apps[appID][appAssignment{userID: userID, scope: userScope}] = true
 	a.appsMu.Unlock()
 
 	return nil
@@ -249,7 +250,7 @@ func (a *assignmentClient) unregisterUserFromApp(ctx context.Context, username, 
 	}
 
 	a.appsMu.Lock()
-	delete(a.apps[appID], userID)
+	delete(a.apps[appID], appAssignment{userID: userID, scope: userScope})
 	a.appsMu.Unlock()
 
 	return nil
