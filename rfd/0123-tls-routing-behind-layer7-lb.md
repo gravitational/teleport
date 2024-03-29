@@ -91,12 +91,12 @@ In addition to the `Upgrade` header, the following headers are also set from the
 - `Sec-WebSocket-Key` is required by WebSocket standard. More details in security section.
 
 A WebSocket frame can be one of 6 types: `text`, `binary`, `ping`, `pong`, `close` and `continuation`. The "original TLS
-Routing" layer will be embeded as `binary` frames. When the sub-protocol is `alpn-ping`, Proxy Server will send native
+Routing" layer will be embedded as `binary` frames. When the sub-protocol is `alpn-ping`, Proxy Server will send native
 WebSocket `ping` frames periodically and the client will respond with `pong`.
 
 ### The legacy "connection upgrade"
 
-This section decribes the legacy Teleport-custom connection upgrade used before v15.1.
+This section describes the legacy Teleport-custom connection upgrade used before v15.1.
 
 Borrowed from the "WebSocket" design, the Teleport client can make a connection upgrade through a web API on the
 Teleport Proxy:

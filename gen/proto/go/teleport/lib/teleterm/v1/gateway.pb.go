@@ -179,9 +179,15 @@ type GatewayCLICommand struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Path string   `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// path is the absolute path to the CLI client of a gateway if the client is
+	// in PATH. Otherwise, the name of the program we were trying to find.
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// args is a list containing the name of the program as the first element
+	// and the actual args as the other elements
 	Args []string `protobuf:"bytes,2,rep,name=args,proto3" json:"args,omitempty"`
-	Env  []string `protobuf:"bytes,3,rep,name=env,proto3" json:"env,omitempty"`
+	// env is a list of env vars that need to be set for the command
+	// invocation. The elements of the list are in the format of NAME=value.
+	Env []string `protobuf:"bytes,3,rep,name=env,proto3" json:"env,omitempty"`
 	// preview is used to show the user what command will be executed before they decide to run it.
 	// It can also be copied and then pasted into a terminal.
 	// It's like os/exec.Cmd.String with two exceptions:
@@ -191,6 +197,8 @@ type GatewayCLICommand struct {
 	// 3) It is taken from a different Cmd than the other fields in this message. This Cmd uses a
 	// special print format which makes the args suitable to be entered into a terminal, but not to
 	// directly spawn a process.
+	//
+	// Should not be used to execute the command in the shell. Instead, use path, args, and env.
 	Preview string `protobuf:"bytes,4,opt,name=preview,proto3" json:"preview,omitempty"`
 }
 

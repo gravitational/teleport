@@ -106,7 +106,7 @@ test('response error is cloned as an object for a unary call', async () => {
   try {
     // Normally we would simply await `client.fakeMethod()`, but jest doesn't support
     // thenables https://github.com/jestjs/jest/issues/10501.
-    await client.fakeMethod().then();
+    await client.fakeMethod({}).then();
   } catch (e) {
     error = e;
   }
@@ -180,7 +180,7 @@ test('response error is cloned as an object in a server streaming call', async (
       fakeCall
     )
   );
-  const res = client.fakeMethod();
+  const res = client.fakeMethod({});
   const onNext = jest.fn();
   const onError = jest.fn();
   res.responses.onNext(onNext);
@@ -232,7 +232,7 @@ test('response error is cloned as an object in a duplex call', async () => {
       fakeCall
     )
   );
-  const res = client.fakeMethod();
+  const res = client.fakeMethod({});
   const onNext = jest.fn();
   const onError = jest.fn();
   res.responses.onNext(onNext);

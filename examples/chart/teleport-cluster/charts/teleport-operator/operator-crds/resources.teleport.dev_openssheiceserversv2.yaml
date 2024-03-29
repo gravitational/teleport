@@ -2,23 +2,37 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
-  name: teleportopensshserversv2.resources.teleport.dev
+  name: teleportopenssheiceserversv2.resources.teleport.dev
 spec:
   group: resources.teleport.dev
   names:
-    kind: TeleportOpenSSHServerV2
-    listKind: TeleportOpenSSHServerV2List
-    plural: teleportopensshserversv2
+    kind: TeleportOpenSSHEICEServerV2
+    listKind: TeleportOpenSSHEICEServerV2List
+    plural: teleportopenssheiceserversv2
     shortNames:
-    - opensshserverv2
-    - opensshserversv2
-    singular: teleportopensshserverv2
+    - openssheiceserverv2
+    - openssheiceserversv2
+    singular: teleportopenssheiceserverv2
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: Server hostname
+      jsonPath: .spec.hostname
+      name: Hostname
+      type: string
+    - description: Server address, with SSH port.
+      jsonPath: .spec.addr
+      name: Address
+      type: string
+    - description: The age of this resource
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
     schema:
       openAPIV3Schema:
-        description: OpenSSHServerV2 is the Schema for the opensshserversv2 API
+        description: OpenSSHEICEServerV2 is the Schema for the openssheiceserversv2
+          API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,7 +47,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: OpenSSHServer resource definition v2 from Teleport
+            description: OpenSSHEICEServer resource definition v2 from Teleport
             properties:
               addr:
                 description: Addr is a host:port address where this server can be
