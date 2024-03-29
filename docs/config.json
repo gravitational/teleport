@@ -974,6 +974,10 @@
           "slug": "/application-access/cloud-apis/",
           "entries": [
             {
+              "title": "Google Cloud Web Console Access",
+              "slug": "/application-access/cloud-apis/google-cloud-web-console/"
+            },
+            {
               "title": "Google Cloud CLI Access",
               "slug": "/application-access/cloud-apis/google-cloud/"
             },
