@@ -66,13 +66,13 @@ the bash script executes the `teleport integration configure samlidp gcp-workfor
 creates a workforce pool and a workforce pool identity provider with resource names you provided above.
 
 For the workforce pool provider, Teleport also creates two attribute mapping fields in GCP:
-1. `google.subject=assertion.subject`: Maps Teleport user name to GCP user name.
-2. `google.groups=assertion.attributes.roles`: Maps Teleport user roles to GCP groups.
+- `google.subject=assertion.subject`: Maps Teleport user name to GCP user name.
+- `google.groups=assertion.attributes.roles`: Maps Teleport user roles to GCP groups.
 
 Once the workforce pool and pool provider is created, head back to Teleport Web UI and follow the steps below.
 
 <Admonition type="note" title="resource name and ID">
-Teleport uses _Pool Name_ and _Pool Provider Name_ values to configure both the resource name and
+Teleport uses *Pool Name* and *Pool Provider Name* values to configure both the resource name and
 resource ID for workforce pool and workforce pool provider, respectively.
 </Admonition>
 
@@ -88,7 +88,7 @@ Teleport based on GCP configuration values provided in the previous step.
 Click **Finish** button. The workforce pool will be now added to Teleport as a SAML IdP service provider resource.
 
 <Admonition type="note" title="Entity ID and ACS URL">
-Entity ID and ACS URL values are generated based on _Pool Name_ and _Pool Provider Name_. If you update these
+Entity ID and ACS URL values are generated based on *Pool Name* and *Pool Provider Name*. If you update these
 values or attribute mapping in GCP, you must also updated the respective SAML service provider spec in Teleport.
 </Admonition>
 
@@ -134,7 +134,7 @@ Creating multiple workforce pools and configuring them with multiple workforce i
 (added as an individual SAML IdP service provider in Teleport) is a recommended way to configure
 granular access control to GCP resources.
 
-#### Attribute mapping
+### Attribute mapping
 
 Attribute mapping allows to map user identity and traits available in the SAML assertion data
 created by Teleport to GCP identity.
@@ -150,7 +150,7 @@ In a guided flow, Teleport creates two attributes mapping:
 Please refer to workforce identity federation [attribute mapping](https://cloud.google.com/iam/docs/workforce-identity-federation#attribute-mappings
 ) docs for more information.
 
-#### Access condition
+### Access condition
 
 Access conditions can be used to control which users can be admitted to the GCP workforce pool.
 For example, if you only want to ensure that a Teleport user with a role name `gcp-prod` should
@@ -163,7 +163,7 @@ be admitted to GCP pool, you can create the following access condition in the wo
 
 Please refer to workforce identity federation [access condition](https://cloud.google.com/iam/docs/workforce-identity-federation#attribute-conditions) docs for more information.
 
-#### Mapping access to GCP resources based on Teleport roles
+### Mapping access to GCP resources based on Teleport roles
 
 To map access to GCP resources based on Teleport roles, you will need to create an IAM policy
 that binds to `principalSet` referencing the Teleport role name.
