@@ -1968,9 +1968,7 @@ func (p *userNotificationParser) parse(event backend.Event) (types.Resource, err
 		// Remove the first separator so none of the separated parts will be
 		// empty strings
 		key := string(event.Item.Key)
-		if len(key) > 0 && key[0] == backend.Separator {
-			key = key[1:]
-		}
+		key = strings.TrimPrefix(key, string(backend.Separator))
 		parts := strings.Split(key, string(backend.Separator))
 		if len(parts) != 4 {
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindNotification, event.Item.Key)
@@ -2020,9 +2018,7 @@ func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, e
 		// Remove the first separator so none of the separated parts will be
 		// empty strings
 		key := string(event.Item.Key)
-		if len(key) > 0 && key[0] == backend.Separator {
-			key = key[1:]
-		}
+		key = strings.TrimPrefix(key, string(backend.Separator))
 		// notifications/global/<uuid>
 		parts := strings.Split(key, string(backend.Separator))
 		if len(parts) != 3 {
