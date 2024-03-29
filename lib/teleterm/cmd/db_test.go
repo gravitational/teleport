@@ -19,6 +19,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -52,13 +53,14 @@ type fakeDatabaseGateway struct {
 	gateway.Database
 	targetURI       uri.ResourceURI
 	subresourceName string
+	protocol        string
 }
 
 func (m fakeDatabaseGateway) TargetURI() uri.ResourceURI    { return m.targetURI }
 func (m fakeDatabaseGateway) TargetName() string            { return m.targetURI.GetDbName() }
 func (m fakeDatabaseGateway) TargetUser() string            { return "alice" }
 func (m fakeDatabaseGateway) TargetSubresourceName() string { return m.subresourceName }
-func (m fakeDatabaseGateway) Protocol() string              { return defaults.ProtocolMongoDB }
+func (m fakeDatabaseGateway) Protocol() string              { return m.protocol }
 func (m fakeDatabaseGateway) Log() *logrus.Entry            { return nil }
 func (m fakeDatabaseGateway) LocalAddress() string          { return "localhost" }
 func (m fakeDatabaseGateway) LocalPortInt() int             { return 8888 }
@@ -68,14 +70,27 @@ func TestNewDBCLICommand(t *testing.T) {
 	testCases := []struct {
 		name                  string
 		targetSubresourceName string
+		argsCount             int
+		protocol              string
+		checkCmds             func(*testing.T, fakeDatabaseGateway, Cmds)
 	}{
 		{
 			name:                  "empty name",
+			protocol:              defaults.ProtocolMongoDB,
 			targetSubresourceName: "",
+			checkCmds:             checkMongoCmds,
 		},
 		{
 			name:                  "with name",
+			protocol:              defaults.ProtocolMongoDB,
 			targetSubresourceName: "bar",
+			checkCmds:             checkMongoCmds,
+		},
+		{
+			name:                  "custom handling of DynamoDB does not blow up",
+			targetSubresourceName: "bar",
+			protocol:              defaults.ProtocolDynamoDB,
+			checkCmds:             checkArgsNotEmpty,
 		},
 	}
 
@@ -88,14 +103,38 @@ func TestNewDBCLICommand(t *testing.T) {
 			mockGateway := fakeDatabaseGateway{
 				targetURI:       cluster.URI.AppendDB("foo"),
 				subresourceName: tc.targetSubresourceName,
+				protocol:        tc.protocol,
 			}
 
-			command, err := newDBCLICommandWithExecer(&cluster, mockGateway, fakeExec{})
-
+			cmds, err := newDBCLICommandWithExecer(&cluster, mockGateway, fakeExec{})
 			require.NoError(t, err)
-			require.Len(t, command.Args, 2)
-			require.Contains(t, command.Args[1], tc.targetSubresourceName)
-			require.Contains(t, command.Args[1], mockGateway.LocalPort())
+
+			tc.checkCmds(t, mockGateway, cmds)
 		})
 	}
+}
+
+func checkMongoCmds(t *testing.T, gw fakeDatabaseGateway, cmds Cmds) {
+	t.Helper()
+	require.Len(t, cmds.Exec.Args, 2)
+	require.Len(t, cmds.Preview.Args, 2)
+
+	execConnString := cmds.Exec.Args[1]
+	previewConnString := cmds.Preview.Args[1]
+
+	require.Contains(t, execConnString, gw.TargetSubresourceName())
+	require.Contains(t, previewConnString, gw.TargetSubresourceName())
+	require.Contains(t, execConnString, gw.LocalPort())
+	require.Contains(t, previewConnString, gw.LocalPort())
+
+	// Verify that the preview cmd has exec cmd conn string wrapped in quotes.
+	require.NotContains(t, execConnString, "\"")
+	expectedPreviewConnString := fmt.Sprintf("%q", execConnString)
+	require.Equal(t, expectedPreviewConnString, previewConnString)
+}
+
+func checkArgsNotEmpty(t *testing.T, gw fakeDatabaseGateway, cmds Cmds) {
+	t.Helper()
+	require.NotEmpty(t, cmds.Exec.Args)
+	require.NotEmpty(t, cmds.Preview.Args)
 }

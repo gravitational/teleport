@@ -26,6 +26,7 @@ import {
   RpcError,
   RpcOptions,
   ServiceInfo,
+  FinishedUnaryCall,
 } from '@protobuf-ts/runtime-rpc';
 
 /**
@@ -149,24 +150,30 @@ export type CloneableClient<Client> = {
   [Method in keyof Client]: Client[Method] extends (
     ...args: infer Args
   ) => infer ReturnType
-    ? (
-        ...args: { [K in keyof Args]: ReplaceRpcOptions<Args[K]> }
-      ) => CloneableCallTypes<ReturnType>
+    ? CloneableCallTypes<ReturnType>
     : never;
 };
 
 type CloneableCallTypes<T> =
   T extends UnaryCall<infer Req, infer Res>
-    ? CloneableUnaryCall<Req, Res>
+    ? (
+        input: Req,
+        options?: CloneableRpcOptions
+      ) => CloneableUnaryCall<Req, Res>
     : T extends ClientStreamingCall<infer Req, infer Res>
-      ? CloneableClientStreamingCall<Req, Res>
+      ? (
+          options?: CloneableRpcOptions
+        ) => CloneableClientStreamingCall<Req, Res>
       : T extends ServerStreamingCall<infer Req, infer Res>
-        ? CloneableServerStreamingCall<Req, Res>
+        ? (
+            input: Req,
+            options?: CloneableRpcOptions
+          ) => CloneableServerStreamingCall<Req, Res>
         : T extends DuplexStreamingCall<infer Req, infer Res>
-          ? CloneableDuplexStreamingCall<Req, Res>
+          ? (
+              options?: CloneableRpcOptions
+            ) => CloneableDuplexStreamingCall<Req, Res>
           : never;
-
-type ReplaceRpcOptions<T> = T extends RpcOptions ? CloneableRpcOptions : T;
 
 type CloneableUnaryCall<I extends object, O extends object> = Pick<
   UnaryCall<I, O>,
@@ -366,4 +373,52 @@ function cloneThenRejection<TResult>(
     }
     return clonePromiseRejection(then(onFulfilled));
   };
+}
+
+/*
+ * Mocks for tests.
+ */
+
+/**
+ * A helper for mocking unary calls. Creates a promise-like instance of a class which resolves to
+ * an object where only the response field contains something. If error is passed, the instance
+ * rejects with that error.
+ *
+ * The need for this helper stems from the fact that cloneableClient returns the whole then property
+ * of a unary call, so TypeScript expects the types to match.
+ *
+ * Alternatively, we could change cloneableClient to merely return the response property, plus maybe
+ * some other fields that we need.
+ */
+export class MockedUnaryCall<Response extends object>
+  implements CloneableUnaryCall<any, Response>
+{
+  constructor(
+    public response: Response,
+    private error?: any
+  ) {}
+
+  // The signature of then was autocompleted by TypeScript language server.
+  then<TResult1 = FinishedUnaryCall<any, Response>, TResult2 = never>(
+    onfulfilled?: (
+      value: FinishedUnaryCall<any, Response>
+    ) => TResult1 | PromiseLike<TResult1>,
+    onrejected?: (reason: any) => TResult2 | PromiseLike<TResult2>
+  ): Promise<TResult1 | TResult2> {
+    if (this.error) {
+      return Promise.reject(onrejected(this.error));
+    }
+
+    return Promise.resolve(
+      onfulfilled({
+        response: this.response,
+        method: undefined,
+        requestHeaders: undefined,
+        request: undefined,
+        headers: undefined,
+        status: undefined,
+        trailers: undefined,
+      })
+    );
+  }
 }

@@ -99,7 +99,7 @@ activate P
 P ->> C: Challenge
 deactivate P
 activate C
-C ->> P: PUT users/password<br>Send new pasword, assertion response<br>Send old password only if no UV requested
+C ->> P: PUT users/password<br>Send new password, assertion response<br>Send old password only if no UV requested
 deactivate C
 activate P
 P ->> A: ChangePassword
