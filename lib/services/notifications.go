@@ -27,6 +27,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -66,8 +67,12 @@ func ValidateNotification(notification *notificationsv1.Notification) error {
 		return trace.BadParameter("notification metadata is missing")
 	}
 
-	if notification.Metadata.Labels == nil {
-		return trace.BadParameter("notification metadata labels are missing")
+	if _, exists := notification.Metadata.GetLabels()[types.NotificationTitleLabel]; !exists {
+		return trace.BadParameter("notification title label is missing")
+	}
+
+	if _, exists := notification.Metadata.GetLabels()[types.NotificationDescriptionLabel]; !exists {
+		return trace.BadParameter("notification description label is missing")
 	}
 
 	return nil

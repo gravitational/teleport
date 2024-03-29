@@ -21,6 +21,7 @@ syntax = "proto3";
 package teleport.notifications.v1;
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 import "teleport/notifications/v1/notifications.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1;notificationsv1";
@@ -37,22 +38,14 @@ service NotificationService {
   // DeleteGlobalNotification deletes a global notification.
   rpc DeleteGlobalNotification(DeleteGlobalNotificationRequest) returns (google.protobuf.Empty);
 
-  // ListUserNotificationsRequest is the request for listing a user's notifications, which include user-specific ones as well as global notifications that match them.
-  rpc ListUserNotifications(ListUserNotificationsRequest) returns (ListUserNotificationsResponse);
+  // ListNotifications is the request for listing a user's notifications, which include user-specific ones as well as global notifications that match them.
+  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
 
   // UpsertUserNotificationState creates or updates a user notification state which records whether the user has clicked on or dismissed a notification.
   rpc UpsertUserNotificationState(UpsertUserNotificationStateRequest) returns (UserNotificationState);
-  // DeleteUserNotificationState deletes a user notification state object.
-  rpc DeleteUserNotificationState(DeleteUserNotificationStateRequest) returns (google.protobuf.Empty);
-  // ListUserNotificationStates returns a page of a user's notification states.
-  rpc ListUserNotificationStates(ListUserNotificationStatesRequest) returns (ListUserNotificationStatesResponse);
 
-  // GetUserLastSeenNotification returns a user's last seen notification item.
-  rpc GetUserLastSeenNotification(GetUserLastSeenNotificationRequest) returns (UserLastSeenNotification);
   // UpsertUserLastSeenNotification creates or updates a user's last seen notification item.
   rpc UpsertUserLastSeenNotification(UpsertUserLastSeenNotificationRequest) returns (UserLastSeenNotification);
-  // DeleteUserLastSeenNotification deletes a user's last seen notification item.
-  rpc DeleteUserLastSeenNotification(DeleteUserLastSeenNotificationRequest) returns (google.protobuf.Empty);
 }
 
 // CreateUserNotificationRequest is the request for creating a user-specific notification.
@@ -71,22 +64,27 @@ message DeleteUserNotificationRequest {
   string notification_id = 2;
 }
 
-// ListUserNotificationsRequest is the request for listing a user's notifications, which include user-specific ones as well as global notifications that match them.
-message ListUserNotificationsRequest {
-  // username is the username of the user the notifications to list are for.
-  string username = 1;
-  // page_size is the size of the page to return.
-  int32 page_size = 2;
-  // page_token is the next_page_token value returned from a previous ListUserNotifications request, if any.
-  string page_token = 3;
+// ListNotificationsRequest is the request for listing a user's notifications, which include user-specific ones as well as global notifications that match them.
+message ListNotificationsRequest {
+  int32 page_size = 1;
+  // user_notifications_page_token is the next_page_token value for user notifications returned from a previous ListUserNotifications request, if any.
+  // Since we fetch notifications from two different lists simultaneously (user-specific notifications and global notifications), we keep track of the page_token for each.
+  string user_notifications_page_token = 2;
+  // global_notifications_page_token is the next_page_token value for global notifications returned from a previous ListUserNotifications request, if any.
+  string global_notifications_page_token = 3;
 }
 
-// ListUserNotificationsResponse is the response from listing a user's user-specific notifications.
-message ListUserNotificationsResponse {
+// ListNotificationsResponse is the response from listing a user's notifications, which include user-specific ones as well as global notifications that match them.
+message ListNotificationsResponse {
   // notifications is the notifications returned.
   repeated Notification notifications = 1;
-  // next_page_token is the token to retrieve the next page of results, this will be empty if there are no more results.
-  string next_page_token = 2;
+  // user_notifications_next_page_token is the next_page_token value containing the key of the first user notification item on the next page, if any.
+  // Since we fetch notifications from two different lists simultaneously (user-specific notifications and global notifications), we keep track of the page_token for each.
+  string user_notifications_next_page_token = 3;
+  // global_notifications_next_page_token is the next_page_token value containing the key of the first global notification item on the next page, if any.
+  string global_notifications_next_page_token = 4;
+  // user_last_seen_notification_timestamp is the timestamp of the last notification the user has seen.
+  google.protobuf.Timestamp user_last_seen_notification_timestamp = 5;
 }
 
 // CreateGlobalNotificationRequest is the request for creating a global notification.
@@ -109,52 +107,10 @@ message UpsertUserNotificationStateRequest {
   UserNotificationState user_notification_state = 2;
 }
 
-// UpdateUserNotificationStateRequest is the request for updating a user notification state.
-message UpdateUserNotificationStateRequest {
-  // username is the username of the user.
-  string username = 1;
-  // user_notification_state is the updated user notification state.
-  UserNotificationState user_notification_state = 2;
-}
-
-// DeleteUserNotificationState is the request for deleting a user notification state.
-message DeleteUserNotificationStateRequest {
-  // username is the username of the user.
-  string username = 1;
-  // notification_id is the ID of the notification the notifiation state to delete is for.
-  string notification_id = 2;
-}
-
-// ListUserNotificationStatesRequest is the request for listing a user's notification states.
-message ListUserNotificationStatesRequest {
-  // username is the username of the user.
-  string username = 1;
-}
-
-// ListUserNotificationStatesResponse is the response from listing a user's notification states.
-message ListUserNotificationStatesResponse {
-  // notification_states is the user notification state items returned.
-  repeated UserNotificationState notification_states = 1;
-  // next_page_token is the token to retrieve the next page of results, this will be empty if there are no more results.
-  string next_page_token = 2;
-}
-
-// GetUserLastSeenNotificationRequest is the request for getting a user's last seen notification.
-message GetUserLastSeenNotificationRequest {
-  // username is the username of the user.
-  string username = 1;
-}
-
 // UpsertUserLastSeenNotificationRequest is the request for creating or updating a user's last seen notification.
 message UpsertUserLastSeenNotificationRequest {
   // username is the username of the user.
   string username = 1;
-  // user_notification_state is the udpated user last seen notification item.
+  // user_notification_state is the updated user last seen notification item.
   UserLastSeenNotification user_last_seen_notification = 2;
-}
-
-// DeleteUserLastSeenNotificationRequest is the request for deleting a user's last seen notification.
-message DeleteUserLastSeenNotificationRequest {
-  // username is the username of the user.
-  string username = 1;
 }

@@ -288,6 +288,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		SkipPeriodicOperations: true,
 		Emitter:                emitter,
 		TraceClient:            cfg.TraceClient,
+		Clock:                  cfg.Clock,
 		KeyStoreConfig: keystore.Config{
 			Software: keystore.SoftwareConfig{
 				RSAKeyPairSource: authority.New().GenerateKeyPair,
@@ -448,6 +449,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	userNotificationCache, err := services.NewUserNotificationCache(services.NotificationCacheConfig{
+		Clock:  cfg.Clock,
 		Events: srv.AuthServer.Services,
 		Getter: srv.AuthServer.Cache,
 	})
@@ -458,6 +460,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	srv.AuthServer.SetUserNotificationCache(userNotificationCache)
 
 	globalNotificationCache, err := services.NewGlobalNotificationCache(services.NotificationCacheConfig{
+		Clock:  cfg.Clock,
 		Events: srv.AuthServer.Services,
 		Getter: srv.AuthServer.Cache,
 	})

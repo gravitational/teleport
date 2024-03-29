@@ -1948,6 +1948,7 @@ func (process *TeleportProcess) initAuthService() error {
 	authServer.SetAccessRequestCache(accessRequestCache)
 
 	userNotificationCache, err := services.NewUserNotificationCache(services.NotificationCacheConfig{
+		Clock:  cfg.Clock,
 		Events: authServer.Services,
 		Getter: authServer.Cache,
 	})
@@ -1958,6 +1959,7 @@ func (process *TeleportProcess) initAuthService() error {
 	authServer.SetUserNotificationCache(userNotificationCache)
 
 	globalNotificationCache, err := services.NewGlobalNotificationCache(services.NotificationCacheConfig{
+		Clock:  cfg.Clock,
 		Events: authServer.Services,
 		Getter: authServer.Cache,
 	})

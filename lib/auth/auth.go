@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -6765,6 +6766,108 @@ func (a *Server) GetNodeStream(ctx context.Context, namespace string) stream.Str
 		servers, err := resources.AsServers()
 		return servers, trace.Wrap(err)
 	})
+}
+
+// ListNotificationsForUser returns a paginated list of notifications that match a user.
+func (a *Server) ListNotificationsForUser(ctx context.Context,
+	username string,
+	pageSize int,
+	userNotificationsStartKey string,
+	globalNotificationsStartKey string,
+	userNotificationMatchFn func(*notificationsv1.Notification) bool,
+	globalNotificationMatchFn func(*notificationsv1.GlobalNotification) bool) ([]*notificationsv1.Notification, string, string, error) {
+
+	userNotifsStream := stream.FilterMap(
+		a.UserNotificationCache.StreamUserNotifications(ctx, username, userNotificationsStartKey),
+		func(n *notificationsv1.Notification) (*notificationsv1.Notification, bool) {
+			if !userNotificationMatchFn(n) {
+				return nil, false
+			}
+			return n, true
+		})
+
+	globalNotifsStream := stream.FilterMap(
+		a.GlobalNotificationCache.StreamGlobalNotifications(ctx, globalNotificationsStartKey),
+		func(gn *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, bool) {
+			if !globalNotificationMatchFn(gn) {
+				return nil, false
+			}
+			return gn, true
+		})
+
+	stream := stream.MergeStreams(
+		userNotifsStream,
+		globalNotifsStream,
+		isMoreRecent,
+		func(notification *notificationsv1.Notification) *notificationsv1.Notification {
+			return notification
+		},
+		func(globalNotification *notificationsv1.GlobalNotification) *notificationsv1.Notification {
+			return globalNotification.GetSpec().GetNotification()
+		},
+	)
+
+	out := make([]*notificationsv1.Notification, pageSize)
+	userNotificationsNextKey := ""
+	globalNotificationsNextKey := ""
+
+	for stream.Next() {
+		item := stream.Item()
+		out = append(out, item)
+
+		if len(out) == pageSize {
+			// If the last item in this page was a user-specific notification, then the userNotificationsNextKey will be the next item in the userNotifsStream stream, and the globalNotificationsNextKey will be
+			// the current (unconsumed) item in the globalNotifsStream stream, and vice-versa.
+			// We check if the notification was a user-specific one by checking if the username field is set.
+			if item.GetSpec().GetUsername() != "" {
+				globalNotificationsNextKey = item.GetMetadata().GetName()
+				// Advance to the next user-specific notification.
+				ok := userNotifsStream.Next()
+				if ok {
+					// If it exists, set it as the userNotificationsNextKey, otherwise set it to ""
+					userNotificationsNextKey = fmt.Sprintf("%s/%s", username, item.GetMetadata().GetName())
+				} else {
+					userNotificationsNextKey = ""
+				}
+			} else {
+				userNotificationsNextKey = fmt.Sprintf("%s/%s", username, item.GetMetadata().GetName())
+				// Advance to the next global notification.
+				ok := globalNotifsStream.Next()
+				if ok {
+					// If it exists, set it as the globalNotificationsNextKey.
+					globalNotificationsNextKey = item.GetMetadata().GetName()
+				} else {
+					globalNotificationsNextKey = ""
+				}
+			}
+			break
+		}
+	}
+
+	return out, userNotificationsNextKey, globalNotificationsNextKey, trace.Wrap(stream.Done())
+}
+
+// isMoreRecent returns true if the userNotification is more recent than the globalNotification.
+func isMoreRecent(userNotification *notificationsv1.Notification, globalNotification *notificationsv1.GlobalNotification) bool {
+	userNotificationTime := userNotification.GetSpec().GetCreated().AsTime()
+	globalNotificationTime := globalNotification.GetSpec().GetNotification().GetSpec().GetCreated().AsTime()
+
+	return userNotificationTime.After(globalNotificationTime)
+}
+
+// ListUserNotificationStates returns a page of a user's notification states.
+func (a *Server) ListUserNotificationStates(ctx context.Context, username string, pageSize int, startKey string) ([]*notificationsv1.UserNotificationState, string, error) {
+	usn, nextKey, err := a.Notifications.ListUserNotificationStates(ctx, username, pageSize, startKey)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return usn, nextKey, nil
+}
+
+// GetUserLastSeenNotification returns a user's last seen notification item, containing the timestamp of the last notification that the user has seen.
+func (a *Server) GetUserLastSeenNotification(ctx context.Context, username string) (*notificationsv1.UserLastSeenNotification, error) {
+	return a.Notifications.GetUserLastSeenNotification(ctx, username)
 }
 
 // authKeepAliver is a keep aliver using auth server directly

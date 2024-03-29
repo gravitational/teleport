@@ -248,7 +248,7 @@ func TestUserNotificationsCache(t *testing.T) {
 			var out []string
 			notifsStream := cache.StreamUserNotifications(ctx, tc.username, tc.startKey)
 			for notifsStream.Next() {
-				desc := notifsStream.Item().GetMetadata().GetLabels()["description"]
+				desc := notifsStream.Item().GetMetadata().GetLabels()[types.NotificationDescriptionLabel]
 				out = append(out, desc)
 			}
 			notifsStream.Done()
@@ -303,7 +303,7 @@ func TestUserNotificationsCache(t *testing.T) {
 	expected := []string{"alice-3", "alice-2", "alice-1"}
 	notifsStream := cache.StreamUserNotifications(ctx, usernameA, "")
 	for notifsStream.Next() {
-		desc := notifsStream.Item().GetMetadata().GetLabels()["description"]
+		desc := notifsStream.Item().GetMetadata().GetLabels()[types.NotificationDescriptionLabel]
 		out = append(out, desc)
 	}
 	notifsStream.Done()
@@ -375,7 +375,7 @@ func TestGlobalNotificationsCache(t *testing.T) {
 	expected := []string{"gn-5", "gn-4", "gn-3", "gn-2", "gn-1"}
 	gnStream = cache.StreamGlobalNotifications(ctx, "")
 	for gnStream.Next() {
-		desc := gnStream.Item().GetSpec().GetNotification().GetMetadata().GetLabels()["description"]
+		desc := gnStream.Item().GetSpec().GetNotification().GetMetadata().GetLabels()[types.NotificationDescriptionLabel]
 		out = append(out, desc)
 	}
 	require.Equal(t, expected, out)
@@ -386,7 +386,7 @@ func TestGlobalNotificationsCache(t *testing.T) {
 	expected = []string{"gn-3", "gn-2", "gn-1"}
 	gnStream = cache.StreamGlobalNotifications(ctx, thirdItemStartKey)
 	for gnStream.Next() {
-		desc := gnStream.Item().GetSpec().GetNotification().GetMetadata().GetLabels()["description"]
+		desc := gnStream.Item().GetSpec().GetNotification().GetMetadata().GetLabels()[types.NotificationDescriptionLabel]
 		out = append(out, desc)
 	}
 	require.Equal(t, expected, out)
@@ -429,7 +429,9 @@ func newUserNotification(t *testing.T, username string, description string) *not
 			Username: username,
 		},
 		Metadata: &headerv1.Metadata{
-			Labels: map[string]string{"description": description},
+			Labels: map[string]string{
+				types.NotificationTitleLabel:       "test-title",
+				types.NotificationDescriptionLabel: description},
 		},
 	}
 
@@ -448,7 +450,9 @@ func newGlobalNotification(t *testing.T, description string) *notificationsv1.Gl
 				SubKind: "test-subkind",
 				Spec:    &notificationsv1.NotificationSpec{},
 				Metadata: &headerv1.Metadata{
-					Labels: map[string]string{"description": description},
+					Labels: map[string]string{
+						types.NotificationTitleLabel:       "test-title",
+						types.NotificationDescriptionLabel: description},
 				},
 			},
 		},

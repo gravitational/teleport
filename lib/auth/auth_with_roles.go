@@ -21,7 +21,9 @@ package auth
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -39,6 +41,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -7295,6 +7298,262 @@ func (a *ServerWithRoles) DeleteClusterMaintenanceConfig(ctx context.Context) er
 	}
 
 	return a.authServer.DeleteClusterMaintenanceConfig(ctx)
+}
+
+// ListNotifications returns a paginated list of notifications which match the user.
+func (a *ServerWithRoles) ListNotifications(ctx context.Context, req *notificationsv1.ListNotificationsRequest) (*notificationsv1.ListNotificationsResponse, error) {
+	username := a.context.User.GetName()
+
+	// Fetch all of the user's notification states. We do this upfront to filter out dismissed notifications.
+	var notificationStates []*notificationsv1.UserNotificationState
+	var startKey string
+	for {
+		usn, nextKey, err := a.authServer.ListUserNotificationStates(ctx, username, apidefaults.DefaultChunkSize, startKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		notificationStates = append(notificationStates, usn...)
+
+		if nextKey == "" {
+			break
+		}
+		startKey = nextKey
+	}
+
+	notificationStatesMap := make(map[string]notificationsv1.NotificationState, len(notificationStates))
+	for _, notificationState := range notificationStates {
+		if notificationState.Spec != nil && notificationState.Status != nil {
+			notificationStatesMap[notificationState.Spec.NotificationId] = notificationState.Status.GetNotificationState()
+		}
+	}
+
+	var userNotifMatchFn = func(n *notificationsv1.Notification) bool {
+		// Return true if the user hasn't dismissed this notification
+		return notificationStatesMap[n.GetMetadata().GetName()] != notificationsv1.NotificationState_NOTIFICATION_STATE_DISMISSED
+	}
+
+	var globalNotifMatchFn = func(gn *notificationsv1.GlobalNotification) bool {
+		// If the user has dismissed this notification, return false.
+		if notificationStatesMap[gn.GetMetadata().GetName()] == notificationsv1.NotificationState_NOTIFICATION_STATE_DISMISSED {
+			return false
+		}
+
+		switch matcher := gn.Spec.GetMatcher().(type) {
+		case *notificationsv1.GlobalNotificationSpec_All:
+			// Always return true if the matcher is "all."
+			return true
+
+		case *notificationsv1.GlobalNotificationSpec_ByRoles:
+			matcherRoles := matcher.ByRoles.GetRoles()
+			userRoles := a.context.User.GetRoles()
+
+			// If MatchAllConditions is true, then userRoles must contain every role in matcherRoles.
+			if gn.Spec.MatchAllConditions {
+				for _, matcherRole := range matcherRoles {
+					// Return false if there is any role missing.
+					if !slices.Contains(userRoles, matcherRole) {
+						return false
+					}
+				}
+				return true
+			}
+
+			// Return true if it matches at least one matcherRole.
+			for _, matcherRole := range matcherRoles {
+				if slices.Contains(userRoles, matcherRole) {
+					return true
+				}
+			}
+
+			return false
+
+		case *notificationsv1.GlobalNotificationSpec_ByPermissions:
+			roleConditionsList := matcher.ByPermissions.GetRoleConditions()
+
+			var results []bool
+			for _, roleConditions := range roleConditionsList {
+				match, err := a.matchRoleConditions(ctx, roleConditions)
+				if err != nil {
+					slog.WarnContext(ctx, "Encountered error while matching RoleConditions", "role_conditions", roleConditions, "error", err)
+					return false
+				}
+
+				// If MatchAllConditions is false, we can exit at the first match.
+				if !gn.Spec.MatchAllConditions && match {
+					return true
+				}
+
+				// If MatchAllConditions is true, we exit at the first non-match.
+				if gn.Spec.MatchAllConditions && !match {
+					return false
+				}
+
+				results = append(results, match)
+			}
+
+			// Return false if any of the roleConditions didn't match.
+			if gn.Spec.MatchAllConditions {
+				return !slices.Contains(results, false)
+			}
+
+			return false
+		}
+
+		return false
+	}
+
+	pageSize := int(req.PageSize)
+	userNotificationsStartKey := req.UserNotificationsPageToken
+	globalNotificationsStartKey := req.GlobalNotificationsPageToken
+
+	notifications, userNotificationsNextKey, globalNotificationsNextKey, err := a.authServer.ListNotificationsForUser(ctx,
+		username,
+		pageSize,
+		userNotificationsStartKey,
+		globalNotificationsStartKey,
+		userNotifMatchFn,
+		globalNotifMatchFn)
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userLastSeenNotification, err := a.authServer.GetUserLastSeenNotification(ctx, username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Add label to indicate notifications that the user has clicked.
+	for _, notification := range notifications {
+		if (notificationStatesMap[notification.GetMetadata().GetName()]) == notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED {
+			notification.GetMetadata().Labels[types.NotificationClickedLabel] = "true"
+		}
+	}
+
+	response := &notificationsv1.ListNotificationsResponse{
+		Notifications:                     notifications,
+		UserNotificationsNextPageToken:    userNotificationsNextKey,
+		GlobalNotificationsNextPageToken:  globalNotificationsNextKey,
+		UserLastSeenNotificationTimestamp: userLastSeenNotification.Status.GetLastSeenTime(),
+	}
+
+	return response, nil
+}
+
+func (a *ServerWithRoles) matchRoleConditions(ctx context.Context, rc *types.RoleConditions) (bool, error) {
+	// We currently only support matching by certain fields in types.RoleConditions, so we first check
+	// to make sure that no unsupported fields are defined here.
+	// Use reflection to iterate through the fields in the RoleCondition
+	val := reflect.ValueOf(rc)
+
+	for i := 0; i < val.Type().NumField(); i++ {
+		field := val.Field(i)
+		fieldType := val.Type().Field(i)
+
+		// Continue if it's one of the supported fields.
+		switch fieldType.Name {
+		case "Logins":
+		case "Rules":
+		case "ReviewRequests":
+			continue
+		}
+
+		// Check if the field is non-zero, and if so, return a NotImplemented error.
+		zeroValue := reflect.Zero(reflect.TypeOf(field.Interface())).Interface()
+		if !reflect.DeepEqual(field.Interface(), zeroValue) {
+			return false, trace.NotImplemented("matching by RoleConditions field %s is not supported", fieldType.Name)
+		}
+	}
+
+	if len(rc.Logins) > 0 {
+		userLogins := a.context.User.GetLogins()
+		var matchedLogin bool
+		for _, login := range rc.Logins {
+			// If at least one  of the logins match, this is a match.
+			if slices.Contains(userLogins, login) {
+				matchedLogin = true
+				break
+			}
+		}
+		if !matchedLogin {
+			return false, nil
+		}
+	}
+
+	if len(rc.Rules) > 0 {
+		var matchedRule bool
+		for _, rule := range rc.Rules {
+			hasAccess, err := a.checkAccessToRule(rule)
+			if err != nil {
+				return false, trace.WrapWithMessage(err, "encountered unexpected error when checking access to rule")
+			}
+
+			// If the user has permissions for at least one of the rules, this is a match.
+			if hasAccess {
+				matchedRule = true
+				break
+			}
+		}
+		if !matchedRule {
+			return false, nil
+		}
+	}
+
+	if rc.ReviewRequests != nil {
+		identity := a.context.Identity.GetIdentity()
+		checker, err := services.NewReviewPermissionChecker(
+			ctx,
+			a.authServer,
+			a.context.User.GetName(),
+			&identity,
+		)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		// unless the user has allow directives for reviewing, they will never be able to
+		// see any requests other than their own.
+		if !checker.HasAllowDirectives() {
+			return false, nil
+		}
+
+		// We instantiate a fake access request with the roles, this allows us to use our existing AccessReviewChecker to check if the
+		// user is allowed to review requests for them.
+		tempRequest, err := types.NewAccessRequest("temp", a.context.User.GetName(), rc.ReviewRequests.Roles...)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		canReview, err := checker.CanReviewRequest(tempRequest)
+		if err != nil {
+			return false, trace.WrapWithMessage(err, "failed to evaluate request review permissions")
+		}
+
+		if !canReview {
+			return false, nil
+		}
+	}
+
+	// This RoleConditions object matches if there were no failed matches that returned prior to this.
+	return true, nil
+}
+
+// checkAccessToRule returns true if the user has the permissions defined in a rule.
+func (a *ServerWithRoles) checkAccessToRule(rule types.Rule) (bool, error) {
+	for _, resourceKind := range rule.Resources {
+		if err := a.action(apidefaults.Namespace, resourceKind, rule.Verbs...); err != nil {
+			// If the user doesn't have access for the verbs for any one of the resources in the rule, then return false.
+			if trace.IsAccessDenied(err) {
+				return false, nil
+				// If the error is due to something else, then return it.
+			} else {
+				return false, trace.Wrap(err)
+			}
+		}
+	}
+
+	return true, nil
 }
 
 func emitHeadlessLoginEvent(ctx context.Context, code string, emitter apievents.Emitter, headlessAuthn *types.HeadlessAuthentication, err error) {
