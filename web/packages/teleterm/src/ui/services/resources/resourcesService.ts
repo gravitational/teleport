@@ -174,7 +174,7 @@ export class ResourcesService {
   async listUnifiedResources(
     params: types.ListUnifiedResourcesRequest,
     abortSignal: AbortSignal
-  ) {
+  ): Promise<{ nextKey: string; resources: UnifiedResourceResponse[] }> {
     const { response } = await this.tshClient.listUnifiedResources(params, {
       abort: cloneAbortSignal(abortSignal),
     });
@@ -184,28 +184,28 @@ export class ResourcesService {
         .map(p => {
           if (resourceOneOfIsServer(p.resource)) {
             return {
-              kind: 'server',
+              kind: 'server' as const,
               resource: p.resource.server,
             };
           }
 
           if (resourceOneOfIsDatabase(p.resource)) {
             return {
-              kind: 'database',
+              kind: 'database' as const,
               resource: p.resource.database,
             };
           }
 
           if (resourceOneOfIsApp(p.resource)) {
             return {
-              kind: 'app',
+              kind: 'app' as const,
               resource: p.resource.app,
             };
           }
 
           if (resourceOneOfIsKube(p.resource)) {
             return {
-              kind: 'kube',
+              kind: 'kube' as const,
               resource: p.resource.kube,
             };
           }
@@ -214,7 +214,7 @@ export class ResourcesService {
             `Ignoring unsupported resource ${JSON.stringify(p)}.`
           );
         })
-        .filter(Boolean) as UnifiedResourceResponse[],
+        .filter(Boolean),
     };
   }
 }
