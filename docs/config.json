@@ -1230,7 +1230,8 @@
           "entries": [
             {
               "title": "Google Cloud Web Console Access",
-              "slug": "/application-access/cloud-apis/google-cloud-web-console/"
+              "slug": "/access-controls/idps/saml-gcp-workforce-identity-federation/",
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Google Cloud CLI Access",
