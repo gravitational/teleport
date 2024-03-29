@@ -272,6 +272,12 @@ func (b Bot) slackAccessRequestMsgSections(reqID string, reqData pd.AccessReques
 	fields := accessrequest.MsgFields(reqID, reqData, b.clusterName, b.webProxyURL)
 	statusText := accessrequest.MsgStatusText(reqData.ResolutionTag, reqData.ResolutionReason)
 
+	if !lib.IsEmail(reqData.User) {
+		log.Warningf("Failed to notify the requester: %q does not look like a valid email", reqData.User)
+	} else {
+		statusText += " @ " + reqData.User
+	}
+
 	sections := []BlockItem{
 		NewBlockItem(SectionBlock{
 			Text: NewTextObjectItem(MarkdownObject{Text: "You have a new Role Request:"}),
