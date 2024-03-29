@@ -294,6 +294,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			},
 		},
 		EmbeddingRetriever: ai.NewSimpleRetriever(),
+		HostUUID:           uuid.New().String(),
 	},
 		WithClock(cfg.Clock),
 		WithEmbedder(cfg.Embedder),
