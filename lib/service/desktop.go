@@ -44,7 +44,7 @@ import (
 )
 
 func (process *TeleportProcess) initWindowsDesktopService() {
-	logger := process.logger.With(trace.Component, teleport.Component(teleport.ComponentWindowsDesktop, process.id))
+	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id))
 	process.RegisterWithAuthServer(types.RoleWindowsDesktop, WindowsDesktopIdentityEvent)
 	process.RegisterCriticalFunc("windows_desktop.init", func() error {
 		conn, err := process.WaitForConnector(WindowsDesktopIdentityEvent, logger)
@@ -143,7 +143,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentWindowsDesktop,
-			Log:       process.log.WithField(trace.Component, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
+			Log:       process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
 			Clock:     cfg.Clock,
 			Client:    conn.Client,
 		},
@@ -158,7 +158,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
-		Logger:      process.log.WithField(trace.Component, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
+		Logger:      process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
 		// Device authorization breaks browser-based access.
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
 			DisableGlobalMode: true,
@@ -211,7 +211,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 
 	srv, err := desktop.NewWindowsService(desktop.WindowsServiceConfig{
 		DataDir:      process.Config.DataDir,
-		Log:          process.log.WithField(trace.Component, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
+		Log:          process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
 		Clock:        process.Clock,
 		Authorizer:   authorizer,
 		Emitter:      conn.Client,

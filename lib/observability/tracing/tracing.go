@@ -100,7 +100,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = logrus.WithField(trace.Component, teleport.ComponentTracing)
+		c.Logger = logrus.WithField(teleport.ComponentKey, teleport.ComponentTracing)
 	}
 
 	if c.Client != nil {

@@ -173,7 +173,7 @@ func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
 	return &SessionRegistry{
 		SessionRegistryConfig: cfg,
 		log: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(teleport.ComponentSession, cfg.Srv.Component()),
+			teleport.ComponentKey: teleport.Component(teleport.ComponentSession, cfg.Srv.Component()),
 		}),
 		sessions: make(map[rsession.ID]*session),
 		users:    cfg.Srv.GetHostUsers(),
@@ -764,8 +764,8 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 	access := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, scx.Identity.TeleportUser)
 	sess := &session{
 		log: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(teleport.ComponentSession, r.Srv.Component()),
-			"session_id":    id,
+			teleport.ComponentKey: teleport.Component(teleport.ComponentSession, r.Srv.Component()),
+			"session_id":          id,
 		}),
 		id:                             id,
 		registry:                       r,
@@ -2044,7 +2044,7 @@ type party struct {
 func newParty(s *session, mode types.SessionParticipantMode, ch ssh.Channel, ctx *ServerContext) *party {
 	return &party{
 		log: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
+			teleport.ComponentKey: teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 		}),
 		user:     ctx.Identity.TeleportUser,
 		login:    ctx.Identity.Login,

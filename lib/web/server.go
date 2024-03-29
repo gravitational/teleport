@@ -60,7 +60,7 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = utils.NewLogger().WithField(trace.Component, teleport.ComponentProxy)
+		c.Log = utils.NewLogger().WithField(teleport.ComponentKey, teleport.ComponentProxy)
 	}
 
 	return nil

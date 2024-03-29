@@ -28,6 +28,8 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
 )
 
 // NewLoadBalancer returns new load balancer listening on frontend
@@ -56,8 +58,8 @@ func newLoadBalancer(ctx context.Context, frontend NetAddr, policy loadBalancerP
 		waitCtx:    waitCtx,
 		waitCancel: waitCancel,
 		Entry: log.WithFields(log.Fields{
-			trace.Component: "loadbalancer",
-			trace.ComponentFields: log.Fields{
+			teleport.ComponentKey: "loadbalancer",
+			teleport.ComponentFields: log.Fields{
 				"listen": frontend.String(),
 			},
 		}),

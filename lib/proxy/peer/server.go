@@ -68,7 +68,7 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 		c.Log = logrus.New()
 	}
 	c.Log = c.Log.WithField(
-		trace.Component,
+		teleport.ComponentKey,
 		teleport.Component(teleport.ComponentProxy, "peer"),
 	)
 

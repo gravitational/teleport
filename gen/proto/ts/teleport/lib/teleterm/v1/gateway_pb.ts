@@ -113,14 +113,23 @@ export interface Gateway {
  */
 export interface GatewayCLICommand {
     /**
+     * path is the absolute path to the CLI client of a gateway if the client is
+     * in PATH. Otherwise, the name of the program we were trying to find.
+     *
      * @generated from protobuf field: string path = 1;
      */
     path: string;
     /**
+     * args is a list containing the name of the program as the first element
+     * and the actual args as the other elements
+     *
      * @generated from protobuf field: repeated string args = 2;
      */
     args: string[];
     /**
+     * env is a list of env vars that need to be set for the command
+     * invocation. The elements of the list are in the format of NAME=value.
+     *
      * @generated from protobuf field: repeated string env = 3;
      */
     env: string[];
@@ -134,6 +143,8 @@ export interface GatewayCLICommand {
      * 3) It is taken from a different Cmd than the other fields in this message. This Cmd uses a
      * special print format which makes the args suitable to be entered into a terminal, but not to
      * directly spawn a process.
+     *
+     * Should not be used to execute the command in the shell. Instead, use path, args, and env.
      *
      * @generated from protobuf field: string preview = 4;
      */

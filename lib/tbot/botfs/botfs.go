@@ -34,7 +34,7 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentTBot,
+	teleport.ComponentKey: teleport.ComponentTBot,
 })
 
 // SymlinksMode is an enum type listing various symlink behavior modes.

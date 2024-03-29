@@ -34,6 +34,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -70,7 +71,7 @@ func (s *HandlerConfig) CheckAndSetDefaults() error {
 		s.Clock = clockwork.NewRealClock()
 	}
 	if s.Log == nil {
-		s.Log = logrus.WithField(trace.Component, "azure:fwd")
+		s.Log = logrus.WithField(teleport.ComponentKey, "azure:fwd")
 	}
 	if s.getAccessToken == nil {
 		s.getAccessToken = getAccessTokenManagedIdentity

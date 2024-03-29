@@ -26,6 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -77,7 +78,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	case cfg.AuthServer == nil:
 		return nil, trace.BadParameter("authServer is required")
 	case cfg.Logger == nil:
-		cfg.Logger = logrus.WithField(trace.Component, "trust.service")
+		cfg.Logger = logrus.WithField(teleport.ComponentKey, "trust.service")
 	}
 
 	return &Service{

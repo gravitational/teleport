@@ -33,6 +33,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -548,6 +549,6 @@ func (l *driverLogger) Printf(_ context.Context, format string, v ...any) {
 
 func init() {
 	redis.SetLogger(&driverLogger{
-		Entry: logrus.WithField(trace.Component, "go-redis"),
+		Entry: logrus.WithField(teleport.ComponentKey, "go-redis"),
 	})
 }
