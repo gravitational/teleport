@@ -17,19 +17,23 @@
  */
 
 import { GrpcTransport } from '@protobuf-ts/grpc-transport';
-import { TerminalServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
+import {
+  ITerminalServiceClient,
+  TerminalServiceClient,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
 import * as vnetServiceProtobuf from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb.client';
 
 import { CloneableClient, cloneClient } from './cloneableClient';
-import * as types from './types';
 
-export function createTshdClient(transport: GrpcTransport): types.TshdClient {
+export type TshdClient = CloneableClient<ITerminalServiceClient>;
+
+export type VnetServiceClient =
+  CloneableClient<vnetServiceProtobuf.VnetServiceClient>;
+
+export function createTshdClient(transport: GrpcTransport): TshdClient {
   return cloneClient(new TerminalServiceClient(transport));
 }
 
 export function createVnetClient(transport: GrpcTransport): VnetServiceClient {
   return cloneClient(new vnetServiceProtobuf.VnetServiceClient(transport));
 }
-
-export type VnetServiceClient =
-  CloneableClient<vnetServiceProtobuf.VnetServiceClient>;

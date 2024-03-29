@@ -16,11 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ITerminalServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
-
 import { SortType } from 'design/DataTable/types';
-
-import { CloneableClient } from './cloneableClient';
 
 import type * as uri from 'teleterm/ui/uri';
 
@@ -42,8 +38,6 @@ export type {
   CloneableRpcOptions,
   CloneableClient,
 } from './cloneableClient';
-
-export type TshdClient = CloneableClient<ITerminalServiceClient>;
 
 /**
  * Available types are listed here:

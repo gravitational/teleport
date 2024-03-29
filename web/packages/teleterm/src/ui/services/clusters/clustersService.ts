@@ -41,6 +41,7 @@ import { UsageService } from 'teleterm/ui/services/usage';
 import { ImmutableStore } from '../immutableStore';
 
 import type * as types from './types';
+import type { TshdClient, CloneableAbortSignal } from 'teleterm/services/tshd';
 import type * as tsh from 'teleterm/services/tshd/types';
 
 const { routing } = uri;
@@ -56,7 +57,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   state: types.ClustersServiceState = createClusterServiceState();
 
   constructor(
-    public client: tsh.TshdClient,
+    public client: TshdClient,
     private mainProcessClient: MainProcessClient,
     private notificationsService: NotificationsService,
     private usageService: UsageService
@@ -101,7 +102,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async loginLocal(
     params: types.LoginLocalParams,
-    abortSignal: tsh.CloneableAbortSignal
+    abortSignal: CloneableAbortSignal
   ) {
     await this.client.login(
       {
@@ -126,7 +127,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async loginSso(
     params: types.LoginSsoParams,
-    abortSignal: tsh.CloneableAbortSignal
+    abortSignal: CloneableAbortSignal
   ) {
     await this.client.login(
       {
@@ -147,7 +148,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async loginPasswordless(
     params: types.LoginPasswordlessParams,
-    abortSignal: tsh.CloneableAbortSignal
+    abortSignal: CloneableAbortSignal
   ) {
     await new Promise<void>((resolve, reject) => {
       const stream = this.client.loginPasswordless({

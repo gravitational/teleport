@@ -20,10 +20,7 @@ import { contextBridge } from 'electron';
 import { ChannelCredentials, ServerCredentials } from '@grpc/grpc-js';
 import { GrpcTransport } from '@protobuf-ts/grpc-transport';
 
-import {
-  createTshdClient,
-  createVnetClient,
-} from 'teleterm/services/tshd/createClient';
+import { createTshdClient, createVnetClient } from 'teleterm/services/tshd';
 import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import createMainProcessClient from 'teleterm/mainProcess/mainProcessClient';
 import { createFileLoggerService } from 'teleterm/services/logger';

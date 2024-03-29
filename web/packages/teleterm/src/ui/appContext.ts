@@ -40,11 +40,13 @@ import { UsageService } from 'teleterm/ui/services/usage';
 import { ResourcesService } from 'teleterm/ui/services/resources';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
 import { ConfigService } from 'teleterm/services/config';
-import { TshdClient } from 'teleterm/services/tshd/types';
+import {
+  TshdClient,
+  VnetServiceClient,
+} from 'teleterm/services/tshd';
 import { IAppContext } from 'teleterm/ui/types';
 import { DeepLinksService } from 'teleterm/ui/services/deepLinks';
 import { parseDeepLink } from 'teleterm/deepLinks';
-import { VnetServiceClient } from 'teleterm/services/tshd/createClient';
 
 import { CommandLauncher } from './commandLauncher';
 import { createTshdEventsContextBridgeService } from './tshdEvents';
