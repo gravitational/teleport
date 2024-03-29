@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	fuzz "github.com/AdaLogics/go-fuzz-headers"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -65,17 +64,5 @@ func TestAccessListMemberDefaults(t *testing.T) {
 
 		err := uut.CheckAndSetDefaults()
 		require.Error(t, err)
-	})
-}
-
-func FuzzAccessListMemberCopy(f *testing.F) {
-	f.Fuzz(func(t *testing.T, data []byte) {
-		fuzzConsumer := fuzz.NewConsumer(data)
-		d := AccessListMember{}
-		if err := fuzzConsumer.GenerateStruct(&d); err != nil {
-			return /* skip cases where data is shorter than expected */
-		}
-		dCopy := d.Copy()
-		require.Equal(t, d, dCopy)
 	})
 }

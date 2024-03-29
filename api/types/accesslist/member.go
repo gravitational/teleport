@@ -124,20 +124,3 @@ func (a *AccessListMember) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(a.GetAllLabels()), a.GetName())
 	return types.MatchSearch(fieldVals, values, nil)
 }
-
-// Copy returns a copy of this resource.
-// Copy is tested with FuzzAccessListMemberCopy.
-func (a AccessListMember) Copy() AccessListMember {
-	return AccessListMember{
-		ResourceHeader: a.ResourceHeader.Copy(),
-		Spec: AccessListMemberSpec{
-			AccessList:       a.Spec.AccessList,
-			Name:             a.Spec.Name,
-			Joined:           a.Spec.Joined,
-			Expires:          a.Spec.Expires,
-			Reason:           a.Spec.Reason,
-			AddedBy:          a.Spec.AddedBy,
-			IneligibleStatus: a.Spec.IneligibleStatus,
-		},
-	}
-}

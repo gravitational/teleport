@@ -3,7 +3,6 @@ module github.com/gravitational/teleport/api
 go 1.21
 
 require (
-	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24
 	github.com/coreos/go-semver v0.3.1
 	github.com/go-piv/piv-go v1.11.0
 	github.com/gobwas/ws v1.3.2
