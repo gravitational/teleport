@@ -274,7 +274,7 @@ type TestServerOptFunc func(o *TestServersOpts)
 
 func WithBootstrap(bootstrap ...types.Resource) TestServerOptFunc {
 	return func(o *TestServersOpts) {
-		o.Bootstrap = bootstrap
+		o.Bootstrap = append(o.Bootstrap, bootstrap...)
 	}
 }
 
@@ -320,6 +320,42 @@ func WithSSHLabel(key, value string) TestServerOptFunc {
 		}
 		cfg.SSH.Labels[key] = value
 	})
+}
+
+func WithAuthPreference(authPref types.AuthPreference) TestServerOptFunc {
+	return WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Auth.Preference = authPref
+	})
+}
+
+func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServer *service.TeleportProcess, additionalRoleMappings ...types.RoleMapping) {
+	rootProxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+	rootProxyTunnelAddr, err := rootServer.ProxyTunnelAddr()
+	require.NoError(t, err)
+
+	tc, err := types.NewTrustedCluster("root-cluster", types.TrustedClusterSpecV2{
+		Enabled:              true,
+		Token:                staticToken,
+		ProxyAddress:         rootProxyAddr.String(),
+		ReverseTunnelAddress: rootProxyTunnelAddr.String(),
+		RoleMap: append(additionalRoleMappings,
+			types.RoleMapping{
+				Remote: "access",
+				Local:  []string{"access"},
+			},
+		),
+	})
+	require.NoError(t, err)
+
+	_, err = leafServer.GetAuthServer().UpsertTrustedCluster(ctx, tc)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		rt, err := rootServer.GetAuthServer().GetTunnelConnections("leaf")
+		require.NoError(t, err)
+		return len(rt) == 1
+	}, time.Second*10, time.Second)
 }
 
 type cliModules struct{}
