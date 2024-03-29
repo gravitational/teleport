@@ -1201,7 +1201,6 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		r.Spec.Allow.DatabaseLabels,
 		r.Spec.Allow.WindowsDesktopLabels,
 		r.Spec.Allow.GroupLabels,
-		r.Spec.Allow.SAMLIdPServiceProviderLabels,
 	} {
 		if err := checkWildcardSelector(labels); err != nil {
 			return trace.Wrap(err)
@@ -1848,8 +1847,6 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
 	case KindUserGroup:
 		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
-	case KindSAMLIdPServiceProvider:
-		return LabelMatchers{cond.SAMLIdPServiceProviderLabels, cond.SAMLIdPServiceProviderLabelsExpression}, nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
 }
@@ -1899,10 +1896,6 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 	case KindUserGroup:
 		cond.GroupLabels = labelMatchers.Labels
 		cond.GroupLabelsExpression = labelMatchers.Expression
-		return nil
-	case KindSAMLIdPServiceProvider:
-		cond.SAMLIdPServiceProviderLabels = labelMatchers.Labels
-		cond.SAMLIdPServiceProviderLabelsExpression = labelMatchers.Expression
 		return nil
 	}
 	return trace.BadParameter("can't set label matchers for resource kind %q", kind)
@@ -1966,7 +1959,6 @@ var LabelMatcherKinds = []string{
 	KindWindowsDesktop,
 	KindWindowsDesktopService,
 	KindUserGroup,
-	KindSAMLIdPServiceProvider,
 }
 
 const (
