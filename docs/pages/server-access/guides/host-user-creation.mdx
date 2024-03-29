@@ -254,8 +254,9 @@ prefixed with the username of the user that has logged in.
 The session can then proceed as usual. When the SSH session ends, the user
 and their home directory will be kept on the machine. It is possible to remove the user
 by setting `create_host_user_mode` to `insecure-drop` in the role definition. However,
-the potential for a user id to be reused on the system opens up a number of potential security
-and privilege escalation cases, so we recommend using `keep` mode unless you have a specific need.
+the potential for a user id to be reused on the system opens up a number of potential security risks,
+so we recommend using `keep` mode unless you have a specific need and understand
+the potential impacts.
 
 Should a Teleport SSH instance be restarted while a session is in progress, the user
 will be cleaned up at the next Teleport restart.
