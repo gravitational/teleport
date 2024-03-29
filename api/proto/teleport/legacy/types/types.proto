@@ -3053,16 +3053,10 @@ message RoleConditions {
   // SPIFFE is used to allow or deny access to a role holder to generating a
   // SPIFFE SVID.
   repeated SPIFFERoleCondition SPIFFE = 39 [(gogoproto.jsontag) = "spiffe,omitempty"];
-  // SAMLIdPServiceProviderLabels is a labels map used in RBAC system to allow/deny access
-  // to saml_idp_service_provider resource.
-  wrappers.LabelValues SAMLIdPServiceProviderLabels = 40 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "saml_idp_service_provider_labels,omitempty",
-    (gogoproto.customtype) = "Labels"
-  ];
-  // SAMLIdPServiceProviderLabelsExpression is a predicate expression used to allow/deny
-  // access to saml_idp_service_provider resource.
-  string SAMLIdPServiceProviderLabelsExpression = 41 [(gogoproto.jsontag) = "saml_idp_service_provider_labels_expression,omitempty"];
+  reserved 40; // removed saml_idp_service_provider_labels in favor of using app_labels.
+  reserved "SAMLIdPServiceProviderLabels";
+  reserved 41; // removed saml_idp_service_provider_labels_expression in favor of using app_labels_expression.
+  reserved "SAMLIdPServiceProviderLabelsExpression";
 }
 
 // SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or
