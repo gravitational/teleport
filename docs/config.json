@@ -495,7 +495,7 @@
               ]
             },
             {
-              "title": "Setup AWS sync with Access Graph",
+              "title": "Analyze AWS IAM policies",
               "slug": "/access-controls/access-graph/aws-sync/",
               "forScopes": [
                 "cloud",
