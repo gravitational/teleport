@@ -27,6 +27,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -45,7 +46,7 @@ type EventsService struct {
 // NewEventsService returns new events service instance
 func NewEventsService(b backend.Backend) *EventsService {
 	return &EventsService{
-		Entry:   logrus.WithFields(logrus.Fields{trace.Component: "Events"}),
+		Entry:   logrus.WithFields(logrus.Fields{teleport.ComponentKey: "Events"}),
 		backend: b,
 	}
 }

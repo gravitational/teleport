@@ -70,7 +70,7 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentAuth,
+	teleport.ComponentKey: teleport.ComponentAuth,
 })
 
 // InitConfig is auth server init config

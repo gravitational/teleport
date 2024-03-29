@@ -155,7 +155,7 @@ func New(cfg Config) (*Mux, error) {
 	waitContext, waitCancel := context.WithCancel(context.TODO())
 	return &Mux{
 		Entry: log.WithFields(log.Fields{
-			trace.Component: teleport.Component("mx", cfg.ID),
+			teleport.ComponentKey: teleport.Component("mx", cfg.ID),
 		}),
 		Config:      cfg,
 		context:     ctx,

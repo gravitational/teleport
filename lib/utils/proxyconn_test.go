@@ -31,6 +31,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport"
 )
 
 // TestProxyConn tests proxying the connection between client and server.
@@ -123,7 +125,7 @@ func newEchoServer() (*echoServer, error) {
 	}
 	return &echoServer{
 		listener: listener,
-		log:      logrus.WithField(trace.Component, "echo"),
+		log:      logrus.WithField(teleport.ComponentKey, "echo"),
 	}, nil
 }
 

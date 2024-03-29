@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/backend"
@@ -92,7 +93,7 @@ func NewAccessListService(backend backend.Backend) (*AccessListService, error) {
 	}
 
 	return &AccessListService{
-		log:           logrus.WithFields(logrus.Fields{trace.Component: "access-list:simple-service"}),
+		log:           logrus.WithFields(logrus.Fields{teleport.ComponentKey: "access-list:simple-service"}),
 		service:       service,
 		memberService: memberService,
 		reviewService: reviewService,

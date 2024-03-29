@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend"
@@ -53,7 +54,7 @@ type ExternalAuditStorageService struct {
 func NewExternalAuditStorageService(backend backend.Backend) *ExternalAuditStorageService {
 	return &ExternalAuditStorageService{
 		backend: backend,
-		logger:  logrus.WithField(trace.Component, "ExternalAuditStorage.backend"),
+		logger:  logrus.WithField(teleport.ComponentKey, "ExternalAuditStorage.backend"),
 	}
 }
 
