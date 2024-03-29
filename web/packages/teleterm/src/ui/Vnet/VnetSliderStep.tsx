@@ -65,14 +65,19 @@ export const VnetSliderStep = (props: StepComponentProps) => {
           <Text p={textSpacing}>
             Proxying connections to .teleport-local.dev, .company.private
           </Text>
-          <AppConnectionItem app="api.company.private" status="on" />
-          <AppConnectionItem app="kafka.teleport-local.dev" status="on" />
-          <AppConnectionItem
-            app="redis.teleport-local.dev"
-            status="error"
-            error={dnsError}
-          />
-          <AppConnectionItem app="aerospike.teleport-local.dev" status="off" />
+          <Flex flexDirection="column" gap={1}>
+            <AppConnectionItem app="api.company.private" status="on" />
+            <AppConnectionItem app="kafka.teleport-local.dev" status="on" />
+            <AppConnectionItem
+              app="redis.teleport-local.dev"
+              status="error"
+              error={dnsError}
+            />
+            <AppConnectionItem
+              app="aerospike.teleport-local.dev"
+              status="off"
+            />
+          </Flex>
         </>
       )}
     </Box>

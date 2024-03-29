@@ -16,12 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import styled from 'styled-components';
 import { Text, ButtonIcon, Flex, rotate360 } from 'design';
 import * as icons from 'design/Icon';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
-import { ListItem } from 'teleterm/ui/components/ListItem';
+import { ListItem, StaticListItem } from 'teleterm/ui/components/ListItem';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import { useVnetContext } from './vnetContext';
@@ -173,13 +174,13 @@ export const AppConnectionItem = (props: {
   };
 
   return (
-    <ListItem
+    <StaticListItem
+      title={props.app}
+      as="div"
       css={`
-        padding: 6px 8px;
+        padding: 0 ${props => props.theme.space[2]}px;
         height: unset;
       `}
-      onClick={copy}
-      title="Copy to clipboard"
     >
       <ConnectionStatusIndicator
         mr={3}
@@ -218,7 +219,21 @@ export const AppConnectionItem = (props: {
             </Text>
           )}
         </div>
+
+        {/* Button to the right. */}
+        <ButtonIconOnHover onClick={copy} title="Copy to clipboard">
+          <icons.Clipboard size={18} />
+        </ButtonIconOnHover>
       </Flex>
-    </ListItem>
+    </StaticListItem>
   );
 };
+
+const ButtonIconOnHover = styled(ButtonIcon)`
+  ${StaticListItem}:not(:hover) & {
+    visibility: hidden;
+    // Disable transition so that the button shows up immediately on hover, but still retains the
+    // original transition value once visible.
+    transition: none;
+  }
+`;
