@@ -640,12 +640,13 @@ func OnStart(clf config.CommandLineFlags, config *servicecfg.Config) error {
 		configFileUsed = defaults.ConfigFilePath
 	}
 
+	ctx := context.Background()
 	if configFileUsed == "" {
-		config.Log.Infof("Starting Teleport v%s", teleport.Version)
+		config.Logger.InfoContext(ctx, "Starting Teleport", "version", teleport.Version)
 	} else {
-		config.Log.Infof("Starting Teleport v%s with a config file located at %q", teleport.Version, configFileUsed)
+		config.Logger.InfoContext(ctx, "Starting Teleport with a config file", "version", teleport.Version, "config_file", configFileUsed)
 	}
-	return service.Run(context.TODO(), *config, nil)
+	return service.Run(ctx, *config, nil)
 }
 
 // onStatus is the handler for "status" CLI command
