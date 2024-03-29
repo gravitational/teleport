@@ -267,6 +267,7 @@ func withValidationFunc(f func(*suite) bool) testSuiteOptionFunc {
 	}
 }
 
+// deprecated: Use `tools/teleport/testenv.MakeTestServer` instead.
 func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 	var options testSuiteOptions
 	for _, opt := range opts {
