@@ -15,6 +15,7 @@
 package clusters
 
 import (
+	"fmt"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/teleterm/cmd/cmds"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -65,14 +67,27 @@ func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 	testCases := []struct {
 		name                  string
 		targetSubresourceName string
+		argsCount             int
+		protocol              string
+		checkCmds             func(*testing.T, *gateway.Gateway, cmds.Cmds)
 	}{
 		{
 			name:                  "empty name",
+			protocol:              defaults.ProtocolMongoDB,
 			targetSubresourceName: "",
+			checkCmds:             checkMongoCmds,
 		},
 		{
 			name:                  "with name",
+			protocol:              defaults.ProtocolMongoDB,
 			targetSubresourceName: "bar",
+			checkCmds:             checkMongoCmds,
+		},
+		{
+			name:                  "custom handling of DynamoDB does not blow up",
+			targetSubresourceName: "bar",
+			protocol:              defaults.ProtocolDynamoDB,
+			checkCmds:             checkArgsNotEmpty,
 		},
 	}
 
@@ -97,7 +112,7 @@ func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 				Groups:   []string{"test-group"},
 				RouteToDatabase: tlsca.RouteToDatabase{
 					ServiceName: "foo",
-					Protocol:    defaults.ProtocolPostgres,
+					Protocol:    tc.protocol,
 					Username:    "alice",
 				},
 			})
@@ -108,7 +123,7 @@ func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 					TargetName:            "foo",
 					TargetUser:            "alice",
 					TargetSubresourceName: tc.targetSubresourceName,
-					Protocol:              defaults.ProtocolPostgres,
+					Protocol:              tc.protocol,
 					LocalAddress:          "localhost",
 					WebProxyAddr:          "localhost:1337",
 					Insecure:              true,
@@ -121,12 +136,11 @@ func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { gateway.Close() })
 
-			command, err := dbcmdCLICommandProvider.GetCommand(gateway)
+			cmds, err := dbcmdCLICommandProvider.GetCommand(gateway)
 
 			require.NoError(t, err)
-			require.NotEmpty(t, command.Args)
-			require.Contains(t, command.Args[1], tc.targetSubresourceName)
-			require.Contains(t, command.Args[1], gateway.LocalPort())
+
+			tc.checkCmds(t, gateway, cmds)
 		})
 	}
 }
@@ -169,4 +183,29 @@ func TestDbcmdCLICommandProviderGetCommand_ReturnsErrorIfClusterIsNotFound(t *te
 	_, err = dbcmdCLICommandProvider.GetCommand(gateway)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err), "err is not trace.NotFound")
+}
+
+func checkMongoCmds(t *testing.T, gw *gateway.Gateway, cmds cmds.Cmds) {
+	t.Helper()
+	require.Len(t, cmds.Exec.Args, 2)
+	require.Len(t, cmds.Preview.Args, 2)
+
+	execConnString := cmds.Exec.Args[1]
+	previewConnString := cmds.Preview.Args[1]
+
+	require.Contains(t, execConnString, gw.TargetSubresourceName())
+	require.Contains(t, previewConnString, gw.TargetSubresourceName())
+	require.Contains(t, execConnString, gw.LocalPort())
+	require.Contains(t, previewConnString, gw.LocalPort())
+
+	// Verify that the preview cmd has exec cmd conn string wrapped in quotes.
+	require.NotContains(t, execConnString, "\"")
+	expectedPreviewConnString := fmt.Sprintf("%q", execConnString)
+	require.Equal(t, expectedPreviewConnString, previewConnString)
+}
+
+func checkArgsNotEmpty(t *testing.T, gw *gateway.Gateway, cmds cmds.Cmds) {
+	t.Helper()
+	require.NotEmpty(t, cmds.Exec.Args)
+	require.NotEmpty(t, cmds.Preview.Args)
 }

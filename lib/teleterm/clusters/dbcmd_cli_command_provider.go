@@ -15,11 +15,11 @@
 package clusters
 
 import (
-	"os/exec"
-
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/teleterm/cmd/cmds"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -42,10 +42,10 @@ func NewDbcmdCLICommandProvider(storage StorageByResourceURI, execer dbcmd.Exece
 	}
 }
 
-func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (*exec.Cmd, error) {
+func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (cmds.Cmds, error) {
 	cluster, err := d.storage.GetByResourceURI(gateway.TargetURI())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return cmds.Cmds{}, trace.Wrap(err)
 	}
 
 	routeToDb := tlsca.RouteToDatabase{
@@ -55,24 +55,35 @@ func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (*exec.Cmd
 		Database:    gateway.TargetSubresourceName(),
 	}
 
-	cmd, err := dbcmd.NewCmdBuilder(cluster.clusterClient, &cluster.status, routeToDb,
-		// TODO(ravicious): Pass the root cluster name here. cluster.Name returns leaf name for leaf
-		// clusters.
-		//
-		// At this point it doesn't matter though because this argument is used only for
-		// generating correct CA paths. We use dbcmd.WithNoTLS here which means that the CA paths aren't
-		// included in the returned CLI command.
-		cluster.Name,
+	opts := []dbcmd.ConnectCommandFunc{
 		dbcmd.WithLogger(gateway.Log()),
 		dbcmd.WithLocalProxy(gateway.LocalAddress(), gateway.LocalPortInt(), ""),
 		dbcmd.WithNoTLS(),
-		dbcmd.WithPrintFormat(),
 		dbcmd.WithTolerateMissingCLIClient(),
 		dbcmd.WithExecer(d.execer),
-	).GetConnectCommand()
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
-	return cmd, nil
+	// DynamoDB doesn't support non-print-format use.
+	if gateway.Protocol() == defaults.ProtocolDynamoDB {
+		opts = append(opts, dbcmd.WithPrintFormat())
+	}
+
+	previewOpts := append(opts, dbcmd.WithPrintFormat())
+
+	execCmd, err := dbcmd.NewCmdBuilder(cluster.clusterClient, &cluster.status, routeToDb, cluster.Name, opts...).GetConnectCommand()
+	if err != nil {
+		return cmds.Cmds{}, trace.Wrap(err)
+	}
+
+	previewCmd, err := dbcmd.NewCmdBuilder(cluster.clusterClient, &cluster.status, routeToDb, cluster.Name, previewOpts...).GetConnectCommand()
+	if err != nil {
+		return cmds.Cmds{}, trace.Wrap(err)
+	}
+
+	cmds := cmds.Cmds{
+		Exec:    execCmd,
+		Preview: previewCmd,
+	}
+
+	return cmds, nil
 }
