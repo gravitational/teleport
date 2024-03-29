@@ -100,6 +100,8 @@ type OIDCConnector interface {
 	// does not login again within this time period, they will be forced
 	// to re-authenticate.
 	GetMaxAge() (time.Duration, bool)
+	// GetClientRedirectSettings returns the client redirect settings.
+	GetClientRedirectSettings() *SSOClientRedirectSettings
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -471,6 +473,14 @@ func (o *OIDCConnectorV3) GetMaxAge() (time.Duration, bool) {
 		return 0, false
 	}
 	return o.Spec.MaxAge.Value.Duration(), true
+}
+
+// GetClientRedirectSettings returns the client redirect settings.
+func (o *OIDCConnectorV3) GetClientRedirectSettings() *SSOClientRedirectSettings {
+	if o == nil {
+		return nil
+	}
+	return o.Spec.ClientRedirectSettings
 }
 
 // Check returns nil if all parameters are great, err otherwise
