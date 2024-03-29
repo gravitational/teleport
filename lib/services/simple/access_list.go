@@ -186,5 +186,6 @@ func (a *AccessListService) DeleteAllAccessListReviews(ctx context.Context) erro
 
 // ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
 func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
-	return a.memberService.ListResources(ctx, pageSize, nextToken)
+	members, nextToken, err =  a.memberService.ListResources(ctx, pageSize, nextToken)
+	return members, nextToken, trace.Wrap(err)
 }
