@@ -54,7 +54,7 @@ be downloaded and used.
 
 The original binaries will not be overwritten by automatic updates, instead
 additional binaries will be downloaded and stored in `~/.tsh/bin` with
-permissions `0555`. A `~/.tsh/version.yaml` file will be used to maintain a
+permissions `0555`. A `~/.tsh/bin/version.yaml` file will be used to maintain a
 mapping of logged in proxy to tools version. This file will be used to
 auto-purge unused binaries.
 
@@ -75,23 +75,23 @@ $ tree ~/.tsh
 │  ├── 15.0.0
 │  │  ├── tctl
 │  │  └── tsh
-│  └── 15.1.1
-│     ├── tctl
-│     └── tsh
+│  ├── 15.1.1
+│  │  ├── tctl
+│  │  └── tsh
+│  └── version.yaml
 ├── current-profile
 ├── keys
 │  └── proxy.example.com
 │     ├── cas
 │     │  └── example.com.pem
 │     ├── certs.pem
-│     ├── foo
-│     ├── foo-ssh
+│     ├── rjones
+│     ├── rjones-ssh
 │     │  └── example.com-cert.pub
-│     ├── foo-x509.pem
-│     └── foo.pub
+│     ├── rjones-x509.pem
+│     └── rjones.pub
 ├── known_hosts
-├── proxy.example.com.yaml
-└── version.yaml
+└── proxy.example.com.yaml
 ```
 
 Users can cancel client tools updates using `Ctrl-C`. This may be needed if the
