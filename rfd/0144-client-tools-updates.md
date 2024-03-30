@@ -28,16 +28,16 @@ rules).
 ### Summary
 
 Client tools (like `tsh` and `tctl`) will automatically download and install
-the version of client tools recommended by the Teleport cluster.
+the version of client tools required by the Teleport cluster.
 
-The `cluster_maintenance_config` resource will be updated to include a
-`tools_version` field to control the version of client tools advertised by the
-cluster. This resource will not be configurable on Teleport Cloud. It will be
-managed by the Teleport Cloud team.
+The `cluster_maintenance_config` resource will be updated to allow cluster
+administrators to turn client tools automatic updates `on` (default) or `off`.
+A `autoupdate_version` resource will be added to allow cluster administrators
+to control the version of tools pushed to clients.
 
-If cluster administrators want to opt-out of automatic updates and manage
-updates themselves, they will be able to watch the `cluster_maintenance_config`
-resource for changes and push out updates to endpoints manually.
+Cloud customers will be able turn client tools automatic updates `off` and
+self-manage updates. However, the version required by the cluster will continue
+to be controlled by the Teleport Cloud team.
 
 Inspiration drawn from https://go.dev/doc/toolchain.
 
@@ -47,42 +47,35 @@ Inspiration drawn from https://go.dev/doc/toolchain.
 
 ##### Automatic updates
 
-The first time a user executes `tsh login` with a version of `tsh` that
-supports automatic updates, the user will be prompted to enroll in automatic
-updates. This choice will be saved in client tools configuration.
-
-```
-$ tsh --proxy=proxy.example.com login
-Keep client tools like tsh and tctl automatically updated? [YES/no]
-
-[...]
-```
-
-```
-$ cat ~/.tsh/config/config.yaml
-enable_autoupdate: true | false
-```
-
-Once enrolled, upon login client tools will check the `tools_version`
-advertised by the cluster at `/v1/webapi/ping`. If this version differs from
-that of the running binary, the recommended version will be downloaded and
-installed.
+Upon `tsh login`, client tools will check `/v1/webapi/ping` if automatic
+updates are enabled and if the version required by the cluster differs from
+that of the running binary. If the version differs, the required version will
+be downloaded and used.
 
 The original binaries will not be overwritten by automatic updates, instead
-per-cluster binaries with permissions `0555` will be stored at
-`~/.tsh/bin/proxyName/{tctl,tsh}`. A locking mechanism built around
-[syscall.Flock](https://pkg.go.dev/syscall#Flock) on Linux and macOS and
+additional binaries will be downloaded and stored in `~/.tsh/bin` with
+permissions `0555`. A `~/.tsh/version.yaml` file will be used to maintain a
+mapping of logged in proxy to tools version. This file will be used to
+auto-purge unused binaries.
+
+Locking mechanisms built around
+[syscall.Flock](https://pkg.go.dev/syscall#Flock) (Linux and macOS) and
 [LockFileEx](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-lockfileex)
-on Windows to only allow a single writer to update the version of client tools
-at a time. This will act as both a cache and allow users to connect to
-different Teleport clusters (running different versions of Teleport) without
-juggling multiple versions of client tools.
+(Windows) will be used to allow multiple client tools to run/update at the same
+time.
+
+A side effect of automatic updates will be users will be able to connect to
+different Teleport clusters (running different versions of Teleport, including
+pre-releases) without juggling multiple versions of client tools.
 
 ```
 $ tree ~/.tsh
 ~/.tsh
 ├── bin
-│  └── proxy.example.com
+│  ├── 15.0.0
+│  │  ├── tctl
+│  │  └── tsh
+│  └── 15.1.1
 │     ├── tctl
 │     └── tsh
 ├── current-profile
@@ -97,7 +90,8 @@ $ tree ~/.tsh
 │     ├── foo-x509.pem
 │     └── foo.pub
 ├── known_hosts
-└── proxy.example.com.yaml
+├── proxy.example.com.yaml
+└── version.yaml
 ```
 
 Users can cancel client tools updates using `Ctrl-C`. This may be needed if the
@@ -113,7 +107,7 @@ Update progress: [▒▒▒▒▒▒     ] (Ctrl-C to cancel update)
 [...]
 ```
 
-After downloading, client tools will re-execute the downloaded version.  The
+After downloading, client tools will re-execute the downloaded version. The
 child process will inherit all environment variables and flags.
 `TELEPORT_TOOLS_VERSION=off` will be added during re-execution to prevent
 infinite loops.
@@ -128,10 +122,11 @@ over localhost.
 
 ##### Errors and warnings
 
-If the user does not enroll in automatic updates and the cluster administrator
-does not self-manage client tools updates as outlined in [Self-managed client
-tools updates](#self-managed-client-tools-updates), a series of warnings and
-errors with increasing urgency will be shown to the user.
+If cluster administrator has chosen not to enroll client tools in automatic
+updates and does not self-manage client tools updates as outlined in
+[Self-managed client tools updates](#self-managed-client-tools-updates), a
+series of warnings and errors with increasing urgency will be shown to the
+user.
 
 If the version of client tools is within the same major version as advertised
 by the cluster, a warning will be shown to urge the user to enroll in automatic
@@ -175,7 +170,7 @@ use the `--skip-version-check` flag.
 $ tsh login --proxy=proxy.example.com
 ERROR: Client tools are N major versions out of date, update to vX.Y.Z.
 
-Some functionality will not work. Update Teleport to vX.Y.Z from
+Your cluster requires {tsh,tctl} vX.Y.Z. Update Teleport from
 https://goteleport.com/download or your system package manager.
 
 Run "tsh autoupdate enroll" to enroll in automatic updates and keep client
@@ -201,92 +196,70 @@ $ tctl autoupdate watch
 [...]
 ```
 
-Cluster administrators who prefer to use the Teleport API can create a watcher
-on the `types.ClusterMaintenanceConfig` resource and trigger other integrations
-on changes to the `tools_version` field.
-
-```
-// Create a watcher to monitor for changes to client tools version.
-watch, err := p.TeleportClient.NewWatcher(ctx, types.Watch{
-    Kinds: []types.WatchKind{
-        types.WatchKind{Kind: types.ClusterMaintenanceConfig},
-    },
-})
-if err != nil {
-    return trace.Wrap(err)
-}
-defer watch.Close()
-
-// Loop forever watching for client tools version changes.
-for {
-    select {
-    case e := <-watch.Events():
-        if e.Resource == nil {
-            continue
-        }
-        resource, ok := e.Resource.(types.ClusterMaintenanceConfig)
-        if !ok {
-            continue
-        }
-
-        // Process the version change by notifying downstream tooling (like
-        // Jamf).
-        if err := handle(resource); err != nil {
-            log.Printf("Failed to handle version change: %v", err)
-        }
-    case <-watch.Done():
-        fmt.Println("The watcher job is finished.")
-        return nil
-    }
-}
-```
-
 ##### Cluster configuration
 
-> [!NOTE]
-> This resource will not be configurable on Teleport Cloud. It will be managed
-> by the Teleport Cloud team.
+The `cluster_maintenance_config` resource will be updated to allow cluster
+administrators to turn client tools automatic updates `on` (default) or `off`.
+A `autoupdate_version` resource will be added to allow cluster administrators
+to control the version of tools pushed to clients.
 
-The `types.ClusterMaintenanceConfig` resource will be updated to include a
-`tools_version` field. This field can be updated directly from the resource or
-using `tctl`.
+> [!NOTE]
+> While Cloud customers will be able to use `cluster_maintenance_config` to
+> turn client tools automatic updates `off` to self-manage updates, they will
+> not be able to control the version of client tools in `autoupdate_verson`.
+> That will continue to be managed by the Teleport Cloud team.
+
+Both resources can either be updated directly or by using `tctl` helper
+functions.
 
 ```
 kind: cluster_maintenance_config
 spec:
-  # tools_version is the version of client tools the proxy will advertise. Can
-  # be auto (match the version of the proxy), off (don't advertise any version),
-  # or an exact semver formatted version.
-  tools_version: auto | off | X.Y.Z
+  # tools_auto_update allows turning client tools updates on or off at the
+  # cluster level. Only turn client tools automatic updates off if self-managed
+  # updates are in place.
+  tools_auto_update: on|off
 
   [...]
 ```
+```
+$ tctl autoupdate update --set-tools-auto-update=off
+Automatic updates configuration has been updated.
+```
 
+All Cloud clusters will be opted into `tools_auto_update: on`.
+
+All new self-hosted clusters will be opted into `tools_auto_update: on`.
+Existing self-hosted clusters will be opted into `off` to not introduce
+unexpected behavior.
+
+```
+kind: autoupdate_version
+spec:
+  # tools_version is the version of client tools the cluster will advertise.
+  # Can be auto (match the version of the proxy) or an exact semver formatted
+  # version.
+  tools_version: auto|X.Y.Z
+```
 ```
 $ tctl autoupdate update --set-tools-version=1.0.1
 Automatic updates configuration has been updated.
 ```
 
-Three modes will be supported: `auto`, `X.Y.Z` (exact version), and `off`.
+For Cloud clusters, `tools_version` will always be `X.Y.Z`, with the version
+being controlled by the Cloud team.
 
-* `auto`: Cluster will advertise the version of the proxy as the version of
-  client tools.
-* `X.Y.Z`: Cluster will advertise a specific version of client tools.
-* `off`: Cluster will not advertise any version, clients will not try to
-  update.
+For self-hosted clusters, the default will be `tools_version: auto` which will
+match the tools version to the version of the proxy. This way, by default even
+self-hosted customers will have automatic updates available.
 
-All new self-hosted clusters will be opted into `auto`. This way, by default
-even self-hosted customers will have automatic updates available.
-
-Existing clusters will be opted into `off` to not introduce unexpected
-behavior.
-
-The `tools_version` field will then be available from the unauthenticated
-endpoint `/v1/webapi/ping`.
+The above configuration will then be available from the unauthenticated
+endpoint `/v1/webapi/ping` which clients will consult.
 
 ```
 curl https://proxy.example.com/v1/webapi/ping | jq .
 {
+    "tools_auto_update": true,
     "tools_version": "X.Y.Z",
 
     [...]
@@ -300,8 +273,8 @@ frequency.
 
 ### Out of scope
 
-How Cloud will push changes to `cluster_maintenance_config` is out of scope
-for this RFD and will be handled by a separate Cloud specific RFD.
+How Cloud will push changes to `autoupdate_version` is out of scope for this
+RFD and will be handled by a separate Cloud specific RFD.
 
 Automatic updates for Teleport Connect are out of scope for this RFD as it uses
 a different install/update mechanism. For now it will call `tsh` with
