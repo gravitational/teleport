@@ -209,11 +209,9 @@ func testRDS(t *testing.T) {
 		})
 
 		t.Run("connect/auto user keep", func(t *testing.T) {
-			t.Parallel()
 			waitForPostgresAutoUserDeactivate(t, ctx, conn, autoUserKeep)
 		})
 		t.Run("connect/auto user drop", func(t *testing.T) {
-			t.Parallel()
 			waitForPostgresAutoUserDrop(t, ctx, conn, autoUserDrop)
 		})
 	})
@@ -261,11 +259,9 @@ func testRDS(t *testing.T) {
 		})
 
 		t.Run("connect/auto user keep", func(t *testing.T) {
-			t.Parallel()
 			waitForMySQLAutoUserDeactivate(t, conn, autoUserKeep)
 		})
 		t.Run("connect/auto user drop", func(t *testing.T) {
-			t.Parallel()
 			waitForMySQLAutoUserDrop(t, conn, autoUserDrop)
 		})
 	})
