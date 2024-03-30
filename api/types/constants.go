@@ -987,6 +987,15 @@ const (
 )
 
 const (
+	// NotificationTitleLabel is the label which contains the title of the notification.
+	NotificationTitleLabel = TeleportInternalLabelPrefix + "title"
+	// NotificationClickedLabel is the label which contains whether the notification has been clicked on by the user.
+	NotificationClickedLabel = TeleportInternalLabelPrefix + "clicked"
+	// NotificationScope is the label which contains the scope of the notification, either "user" or "global"
+	NotificationScope = TeleportInternalLabelPrefix + "scope"
+)
+
+const (
 	// InstallMethodAWSOIDCDeployServiceEnvVar is the env var used to detect if the agent was installed
 	// using the DeployService action of the AWS OIDC integration.
 	InstallMethodAWSOIDCDeployServiceEnvVar = "TELEPORT_INSTALL_METHOD_AWSOIDC_DEPLOYSERVICE"

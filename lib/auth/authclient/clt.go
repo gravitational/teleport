@@ -629,6 +629,10 @@ func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
 }
 
+func (c *Client) NotificationServiceClient() notificationsv1.NotificationServiceClient {
+	return notificationsv1.NewNotificationServiceClient(c.APIClient.GetConnection())
+}
+
 // DiscoveryConfigClient returns a client for managing the DiscoveryConfig resource.
 func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdater {
 	return c.APIClient.DiscoveryConfigClient()
@@ -654,6 +658,22 @@ func (c *Client) SetStaticTokens(st types.StaticTokens) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// UpsertUserNotificationState creates or updates a user notification state which records whether the user has clicked on or dismissed a notification.
+func (c *Client) UpsertUserNotificationState(ctx context.Context, username string, uns *notificationsv1.UserNotificationState) (*notificationsv1.UserNotificationState, error) {
+	return c.APIClient.UpsertUserNotificationState(ctx, &notificationsv1.UpsertUserNotificationStateRequest{
+		Username:              username,
+		UserNotificationState: uns,
+	})
+}
+
+// UpsertUserLastSeenNotification creates or updates a user's last seen notification item.
+func (c *Client) UpsertUserLastSeenNotification(ctx context.Context, username string, ulsn *notificationsv1.UserLastSeenNotification) (*notificationsv1.UserLastSeenNotification, error) {
+	return c.APIClient.UpsertUserLastSeenNotification(ctx, &notificationsv1.UpsertUserLastSeenNotificationRequest{
+		Username:                 username,
+		UserLastSeenNotification: ulsn,
+	})
+}
+
 // CreateGlobalNotification creates a global notification.
 func (c *Client) CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
 	// TODO(rudream): implement client methods for notifications
@@ -670,18 +690,6 @@ func (c *Client) CreateUserNotification(ctx context.Context, notification *notif
 func (c *Client) DeleteGlobalNotification(ctx context.Context, notificationId string) error {
 	// TODO(rudream): implement client methods for notifications
 	return trace.NotImplemented(notImplementedMessage)
-}
-
-// UpsertUserNotificationState creates or updates a user notification state which records whether the user has clicked on or dismissed a notification.
-func (c *Client) UpsertUserNotificationState(ctx context.Context, username string, state *notificationsv1.UserNotificationState) (*notificationsv1.UserNotificationState, error) {
-	// TODO(rudream): implement client methods for notifications
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// UpsertUserLastSeenNotification creates or updates a user's last seen notification item.
-func (c *Client) UpsertUserLastSeenNotification(ctx context.Context, username string, ulsn *notificationsv1.UserLastSeenNotification) (*notificationsv1.UserLastSeenNotification, error) {
-	// TODO(rudream): implement client methods for notifications
-	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteAllGlobalNotifications not implemented: can only be called locally.
@@ -1607,6 +1615,12 @@ type ClientI interface {
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient
+
+	// NotificationServiceClient returns a notification service client.
+	// Clients connecting to  older Teleport versions, still get a client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	NotificationServiceClient() notificationsv1.NotificationServiceClient
 
 	// ClusterConfigClient returns a Cluster Configuration client.
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,

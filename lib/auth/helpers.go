@@ -298,6 +298,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		SkipPeriodicOperations: true,
 		Emitter:                emitter,
 		TraceClient:            cfg.TraceClient,
+		Clock:                  cfg.Clock,
 		KeyStoreConfig: keystore.Config{
 			Software: keystore.SoftwareConfig{
 				RSAKeyPairSource: authority.New().GenerateKeyPair,

@@ -109,50 +109,50 @@ func TestUserNotificationsCache(t *testing.T) {
 	usernameB := "bob"
 
 	// Describe a set of mock user notifications to be created.
-	// The number in the description represents the order in which they are created, eg. alice-1 is the first (and thus oldest) notification to be created for alice.
+	// The number in the title represents the order in which they are created, eg. alice-1 is the first (and thus oldest) notification to be created for alice.
 	testNotifications := []struct {
-		username    string
-		description string
+		username string
+		title    string
 	}{
 		{
-			username:    usernameB,
-			description: "bob-1",
+			username: usernameB,
+			title:    "bob-1",
 		},
 		{
-			username:    usernameB,
-			description: "bob-2",
+			username: usernameB,
+			title:    "bob-2",
 		},
 		{
-			username:    usernameA,
-			description: "alice-1",
+			username: usernameA,
+			title:    "alice-1",
 		},
 		{
-			username:    usernameB,
-			description: "bob-3",
+			username: usernameB,
+			title:    "bob-3",
 		},
 		{
-			username:    usernameB,
-			description: "bob-4",
+			username: usernameB,
+			title:    "bob-4",
 		},
 		{
-			username:    usernameA,
-			description: "alice-2",
+			username: usernameA,
+			title:    "alice-2",
 		},
 		{
-			username:    usernameA,
-			description: "alice-3",
+			username: usernameA,
+			title:    "alice-3",
 		},
 		{
-			username:    usernameA,
-			description: "alice-4",
+			username: usernameA,
+			title:    "alice-4",
 		},
 		{
-			username:    usernameB,
-			description: "bob-5",
+			username: usernameB,
+			title:    "bob-5",
 		},
 		{
-			username:    usernameA,
-			description: "alice-5",
+			username: usernameA,
+			title:    "alice-5",
 		},
 	}
 
@@ -164,7 +164,7 @@ func TestUserNotificationsCache(t *testing.T) {
 	for _, n := range testNotifications {
 		// We add a delay to ensure that the timestamps in the generated UUID's are all different and in the correct order.
 		time.Sleep(50 * time.Millisecond)
-		notification := newUserNotification(t, n.username, n.description)
+		notification := newUserNotification(t, n.username, n.title)
 		// Create the notification in the backend.
 		created, err := svcs.CreateUserNotification(ctx, notification)
 		require.NoError(t, err)
@@ -205,41 +205,41 @@ func TestUserNotificationsCache(t *testing.T) {
 	streamA.Next()
 	streamA.Next()
 	streamA.Next()
-	usernameAThirdItemStartKey = services.GetUserSpecificKey(streamA.Item())
+	usernameAThirdItemStartKey = streamA.Item().GetMetadata().GetName()
 
 	var usernameBThirdItemStartKey string
 	streamB := cache.StreamUserNotifications(ctx, usernameB, "")
 	streamB.Next()
 	streamB.Next()
 	streamB.Next()
-	usernameBThirdItemStartKey = services.GetUserSpecificKey(streamB.Item())
+	usernameBThirdItemStartKey = streamB.Item().GetMetadata().GetName()
 
 	testCases := []struct {
-		testName                         string
-		username                         string
-		startKey                         string
-		expectedNotificationDescriptions []string
+		testName                   string
+		username                   string
+		startKey                   string
+		expectedNotificationTitles []string
 	}{
 		{
 			testName: "correctly fetches sorted notifications for usernameA with no startKey",
 			username: usernameA,
 			// Since alice-1 is the oldest, it should be at the end of the list.
-			expectedNotificationDescriptions: []string{"alice-5", "alice-4", "alice-3", "alice-2", "alice-1"},
+			expectedNotificationTitles: []string{"alice-5", "alice-4", "alice-3", "alice-2", "alice-1"},
 		},
 		{
-			testName:                         "correctly fetches sorted notifications for usernameB with no startKey",
-			username:                         usernameB,
-			expectedNotificationDescriptions: []string{"bob-5", "bob-4", "bob-3", "bob-2", "bob-1"},
+			testName:                   "correctly fetches sorted notifications for usernameB with no startKey",
+			username:                   usernameB,
+			expectedNotificationTitles: []string{"bob-5", "bob-4", "bob-3", "bob-2", "bob-1"},
 		}, {
-			testName:                         "correctly fetches sorted notifications for usernameA with a startKey",
-			username:                         usernameA,
-			startKey:                         usernameAThirdItemStartKey,
-			expectedNotificationDescriptions: []string{"alice-3", "alice-2", "alice-1"},
+			testName:                   "correctly fetches sorted notifications for usernameA with a startKey",
+			username:                   usernameA,
+			startKey:                   usernameAThirdItemStartKey,
+			expectedNotificationTitles: []string{"alice-3", "alice-2", "alice-1"},
 		}, {
-			testName:                         "correctly fetches sorted notifications for usernameB with a startKey",
-			username:                         usernameB,
-			startKey:                         usernameBThirdItemStartKey,
-			expectedNotificationDescriptions: []string{"bob-3", "bob-2", "bob-1"},
+			testName:                   "correctly fetches sorted notifications for usernameB with a startKey",
+			username:                   usernameB,
+			startKey:                   usernameBThirdItemStartKey,
+			expectedNotificationTitles: []string{"bob-3", "bob-2", "bob-1"},
 		},
 	}
 
@@ -248,11 +248,11 @@ func TestUserNotificationsCache(t *testing.T) {
 			var out []string
 			notifsStream := cache.StreamUserNotifications(ctx, tc.username, tc.startKey)
 			for notifsStream.Next() {
-				desc := notifsStream.Item().GetMetadata().GetLabels()["description"]
-				out = append(out, desc)
+				title := notifsStream.Item().GetMetadata().GetLabels()[types.NotificationTitleLabel]
+				out = append(out, title)
 			}
 			notifsStream.Done()
-			require.Equal(t, tc.expectedNotificationDescriptions, out)
+			require.Equal(t, tc.expectedNotificationTitles, out)
 		})
 	}
 
@@ -303,8 +303,8 @@ func TestUserNotificationsCache(t *testing.T) {
 	expected := []string{"alice-3", "alice-2", "alice-1"}
 	notifsStream := cache.StreamUserNotifications(ctx, usernameA, "")
 	for notifsStream.Next() {
-		desc := notifsStream.Item().GetMetadata().GetLabels()["description"]
-		out = append(out, desc)
+		title := notifsStream.Item().GetMetadata().GetLabels()[types.NotificationTitleLabel]
+		out = append(out, title)
 	}
 	notifsStream.Done()
 	require.Equal(t, expected, out)
@@ -320,7 +320,7 @@ func TestGlobalNotificationsCache(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	testNotificationDescriptions := []string{
+	testNotificationTitles := []string{
 		"gn-1",
 		"gn-2",
 		"gn-3",
@@ -332,7 +332,7 @@ func TestGlobalNotificationsCache(t *testing.T) {
 	var notificationIds []string
 
 	// Create the notifications, with a 50ms delay between each one.
-	for _, gn := range testNotificationDescriptions {
+	for _, gn := range testNotificationTitles {
 		time.Sleep(50 * time.Millisecond)
 		notification := newGlobalNotification(t, gn)
 		// Create the notification in the backend.
@@ -350,7 +350,7 @@ func TestGlobalNotificationsCache(t *testing.T) {
 		require.NoError(t, err)
 		gnStream.Done()
 
-		if len(collectedStream) == len(testNotificationDescriptions) {
+		if len(collectedStream) == len(testNotificationTitles) {
 			break
 		}
 
@@ -375,8 +375,8 @@ func TestGlobalNotificationsCache(t *testing.T) {
 	expected := []string{"gn-5", "gn-4", "gn-3", "gn-2", "gn-1"}
 	gnStream = cache.StreamGlobalNotifications(ctx, "")
 	for gnStream.Next() {
-		desc := gnStream.Item().GetSpec().GetNotification().GetMetadata().GetLabels()["description"]
-		out = append(out, desc)
+		title := gnStream.Item().GetSpec().GetNotification().GetMetadata().GetLabels()[types.NotificationTitleLabel]
+		out = append(out, title)
 	}
 	require.Equal(t, expected, out)
 	gnStream.Done()
@@ -386,8 +386,8 @@ func TestGlobalNotificationsCache(t *testing.T) {
 	expected = []string{"gn-3", "gn-2", "gn-1"}
 	gnStream = cache.StreamGlobalNotifications(ctx, thirdItemStartKey)
 	for gnStream.Next() {
-		desc := gnStream.Item().GetSpec().GetNotification().GetMetadata().GetLabels()["description"]
-		out = append(out, desc)
+		title := gnStream.Item().GetSpec().GetNotification().GetMetadata().GetLabels()[types.NotificationTitleLabel]
+		out = append(out, title)
 	}
 	require.Equal(t, expected, out)
 	gnStream.Done()
@@ -420,7 +420,7 @@ func TestGlobalNotificationsCache(t *testing.T) {
 	}
 }
 
-func newUserNotification(t *testing.T, username string, description string) *notificationsv1.Notification {
+func newUserNotification(t *testing.T, username string, title string) *notificationsv1.Notification {
 	t.Helper()
 
 	notification := notificationsv1.Notification{
@@ -429,14 +429,16 @@ func newUserNotification(t *testing.T, username string, description string) *not
 			Username: username,
 		},
 		Metadata: &headerv1.Metadata{
-			Labels: map[string]string{"description": description},
+			Labels: map[string]string{
+				types.NotificationTitleLabel: title,
+			},
 		},
 	}
 
 	return &notification
 }
 
-func newGlobalNotification(t *testing.T, description string) *notificationsv1.GlobalNotification {
+func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNotification {
 	t.Helper()
 
 	notification := notificationsv1.GlobalNotification{
@@ -448,7 +450,9 @@ func newGlobalNotification(t *testing.T, description string) *notificationsv1.Gl
 				SubKind: "test-subkind",
 				Spec:    &notificationsv1.NotificationSpec{},
 				Metadata: &headerv1.Metadata{
-					Labels: map[string]string{"description": description},
+					Labels: map[string]string{
+						types.NotificationTitleLabel: title,
+					},
 				},
 			},
 		},
