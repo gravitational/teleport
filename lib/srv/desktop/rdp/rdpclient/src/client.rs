@@ -32,6 +32,7 @@ use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
 use ironrdp_pdu::mcs::DisconnectReason;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
+use ironrdp_pdu::rdp::client_info::PerformanceFlags;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::{custom_err, function, PduError};
 use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
@@ -123,8 +124,7 @@ impl Client {
         let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
         let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
 
-        let connector_config =
-            create_config(params.screen_width, params.screen_height, pin.clone());
+        let connector_config = create_config(&params, pin.clone());
 
         // Create a channel for sending/receiving function calls to/from the Client.
         let (client_handle, function_receiver) = ClientHandle::new(100);
@@ -207,8 +207,6 @@ impl Client {
             connection_result.static_channels,
             connection_result.user_channel_id,
             connection_result.io_channel_id,
-            None,
-            None,
             connection_result.connection_activation,
         );
 
@@ -1103,9 +1101,12 @@ impl FunctionReceiver {
 type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
 type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 
-fn create_config(width: u16, height: u16, pin: String) -> Config {
+fn create_config(params: &ConnectParams, pin: String) -> Config {
     Config {
-        desktop_size: ironrdp_connector::DesktopSize { width, height },
+        desktop_size: ironrdp_connector::DesktopSize {
+            width: params.screen_width,
+            height: params.screen_height,
+        },
         enable_tls: true,
         enable_credssp: false,
         credentials: Credentials::SmartCard { pin },
@@ -1132,6 +1133,12 @@ fn create_config(width: u16, height: u16, pin: String) -> Config {
         no_server_pointer: false,
         autologon: true,
         pointer_software_rendering: false,
+        performance_flags: PerformanceFlags::default()
+            | if !params.show_desktop_wallpaper {
+                PerformanceFlags::DISABLE_WALLPAPER
+            } else {
+                PerformanceFlags::empty()
+            },
     }
 }
 
