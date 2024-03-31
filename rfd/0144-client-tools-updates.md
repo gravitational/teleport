@@ -228,8 +228,8 @@ Automatic updates configuration has been updated.
 All Cloud clusters will be opted into `tools_auto_update: on`.
 
 All new self-hosted clusters will be opted into `tools_auto_update: on`.
-Existing self-hosted clusters will be opted into `off` to not introduce
-unexpected behavior.
+Existing self-hosted clusters will be opted into `tools_auto_update: off` to
+not introduce unexpected behavior.
 
 ```yaml
 kind: autoupdate_version
@@ -245,7 +245,7 @@ Automatic updates configuration has been updated.
 ```
 
 For Cloud clusters, `tools_version` will always be `X.Y.Z`, with the version
-being controlled by the Cloud team.
+controlled by the Cloud team.
 
 For self-hosted clusters, the default will be `tools_version: auto` matching
 the tools version with the proxy version. This way, automatic updates will be
