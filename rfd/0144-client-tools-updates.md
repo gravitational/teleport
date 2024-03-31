@@ -50,7 +50,8 @@ using the version required by the cluster.
 The original client tools binaries won't be overwritten. Instead, additional
 binaries will be downloaded and stored in `~/.tsh/bin` with `0555` permissions.
 A file named `version.yaml` in the same directory will maintain the mapping
-between proxies and tools versions, to support auto-purge of unused binaries.
+between proxies and tools versions, to support auto-purge (and free up disk
+space) of unused binaries.
 
 To enable concurrent operation and updates of multiple client tools, locking
 mechanisms utilizing [syscall.Flock](https://pkg.go.dev/syscall#Flock) (for
@@ -209,7 +210,7 @@ to manage the version of tools pushed to clients.
 Both resources can either be updated directly or by using `tctl` helper
 functions.
 
-```
+```yaml
 kind: cluster_maintenance_config
 spec:
   # tools_auto_update allows turning client tools updates on or off at the
@@ -230,7 +231,7 @@ All new self-hosted clusters will be opted into `tools_auto_update: on`.
 Existing self-hosted clusters will be opted into `off` to not introduce
 unexpected behavior.
 
-```
+```yaml
 kind: autoupdate_version
 spec:
   # tools_version is the version of client tools the cluster will advertise.
