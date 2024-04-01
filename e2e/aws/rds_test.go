@@ -148,17 +148,19 @@ func testRDS(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	t.Cleanup(cancel)
 
-	// use random names so we can test auto provisioning these users via
-	// Teleport, without tests colliding with eachother across parallel test
-	// runs.
+	// use random names so we can test auto provisioning these users with these
+	// roles via Teleport, without tests colliding with eachother across
+	// parallel test runs.
 	autoUserKeep := "auto_keep_" + randASCII(t, 6)
 	autoUserDrop := "auto_drop_" + randASCII(t, 6)
+	autoRole1 := "auto_role1_" + randASCII(t, 6)
+	autoRole2 := "auto_role2_" + randASCII(t, 6)
 
 	accessRole := mustGetEnv(t, rdsAccessRoleEnv)
 	discoveryRole := mustGetEnv(t, rdsDiscoveryRoleEnv)
 	opts := []testOptionsFunc{
-		withUserRole(t, autoUserKeep, "db-auto-user-keeper", autoDBUserKeepSpec),
-		withUserRole(t, autoUserDrop, "db-auto-user-dropper", autoDBUserDropSpec),
+		withUserRole(t, autoUserKeep, "db-auto-user-keeper", makeAutoUserKeepRoleSpec(autoRole1, autoRole2)),
+		withUserRole(t, autoUserDrop, "db-auto-user-dropper", makeAutoUserDropRoleSpec(autoRole1, autoRole2)),
 	}
 	cluster := makeDBTestCluster(t, accessRole, discoveryRole, types.AWSMatcherRDS, opts...)
 
@@ -174,9 +176,36 @@ func testRDS(t *testing.T) {
 
 		conn := connectAsRDSPostgresAdmin(t, ctx, db.GetAWS().RDS.InstanceID)
 		provisionRDSPostgresAutoUsersAdmin(t, ctx, conn, adminUser.Name)
+
+		// create a new schema with tables that can only be accessed if the
+		// auto roles are granted by Teleport automatically.
+		testSchema := "test_" + randASCII(t, 4)
+		_, err = conn.Exec(ctx, fmt.Sprintf("CREATE SCHEMA %q", testSchema))
+		require.NoError(t, err)
+		testTable := "ctf" // capture the flag :)
+		_, err = conn.Exec(ctx, fmt.Sprintf("CREATE TABLE %q.%q ()", testSchema, testTable))
+		require.NoError(t, err)
+
+		// create the roles that Teleport will auto assign.
+		// role 1 only allows usage of the test schema.
+		// role 2 only allows select of the test table in the test schema.
+		// a user needs to have both roles to select from the test table.
+		_, err = conn.Exec(ctx, fmt.Sprintf("CREATE ROLE %q", autoRole1))
+		require.NoError(t, err)
+		_, err = conn.Exec(ctx, fmt.Sprintf("CREATE ROLE %q", autoRole2))
+		require.NoError(t, err)
+		_, err = conn.Exec(ctx, fmt.Sprintf("GRANT USAGE ON SCHEMA %q TO %q", testSchema, autoRole1))
+		require.NoError(t, err)
+		_, err = conn.Exec(ctx, fmt.Sprintf("GRANT SELECT ON %q.%q TO %q", testSchema, testTable, autoRole2))
+		require.NoError(t, err)
+		autoRolesQuery := fmt.Sprintf("select 1 from %q.%q", testSchema, testTable)
+
 		t.Cleanup(func() {
-			// best effort cleanup all the users created for the tests,
+			// best effort cleanup everything created for the tests,
 			// including the auto drop user in case Teleport fails to do so.
+			_, _ = conn.Exec(ctx, fmt.Sprintf("DROP SCHEMA %q CASCADE", testSchema))
+			_, _ = conn.Exec(ctx, fmt.Sprintf("DROP ROLE %q", autoRole1))
+			_, _ = conn.Exec(ctx, fmt.Sprintf("DROP ROLE %q", autoRole2))
 			_, _ = conn.Exec(ctx, fmt.Sprintf("DROP USER %q", autoUserKeep))
 			_, _ = conn.Exec(ctx, fmt.Sprintf("DROP USER %q", autoUserDrop))
 		})
@@ -185,10 +214,11 @@ func testRDS(t *testing.T) {
 			for name, test := range map[string]struct {
 				user   string
 				dbUser string
+				query  string
 			}{
-				"existing user":  {user: hostUser, dbUser: adminUser.Name},
-				"auto user keep": {user: autoUserKeep, dbUser: autoUserKeep},
-				"auto user drop": {user: autoUserDrop, dbUser: autoUserDrop},
+				"existing user":  {user: hostUser, dbUser: adminUser.Name, query: "select 1"},
+				"auto user keep": {user: autoUserKeep, dbUser: autoUserKeep, query: autoRolesQuery},
+				"auto user drop": {user: autoUserDrop, dbUser: autoUserDrop, query: autoRolesQuery},
 			} {
 				test := test
 				route := tlsca.RouteToDatabase{
@@ -199,11 +229,11 @@ func testRDS(t *testing.T) {
 				}
 				t.Run(name+"/via proxy", func(t *testing.T) {
 					t.Parallel()
-					postgresConnTest(t, cluster, test.user, route)
+					postgresConnTest(t, cluster, test.user, route, test.query)
 				})
 				t.Run(name+"/via local proxy", func(t *testing.T) {
 					t.Parallel()
-					postgresLocalProxyConnTest(t, cluster, test.user, route)
+					postgresLocalProxyConnTest(t, cluster, test.user, route, test.query)
 				})
 			}
 		})
@@ -274,7 +304,7 @@ const (
 
 // postgresConnTestFn tests connection to a postgres database via proxy web
 // multiplexer.
-func postgresConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase) {
+func postgresConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase, query string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	t.Cleanup(cancel)
@@ -296,7 +326,7 @@ func postgresConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, 
 	}, connTestTimeout, connTestRetryInterval, "connecting to postgres")
 
 	// Execute a query.
-	results, err := pgConn.Exec(ctx, "select 1").ReadAll()
+	results, err := pgConn.Exec(ctx, query).ReadAll()
 	require.NoError(t, err)
 	for i, r := range results {
 		require.NoError(t, r.Err, "error in result %v", i)
@@ -309,7 +339,7 @@ func postgresConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, 
 
 // postgresLocalProxyConnTest tests connection to a postgres database via
 // local proxy tunnel.
-func postgresLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase) {
+func postgresLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase, query string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	t.Cleanup(cancel)
@@ -329,7 +359,7 @@ func postgresLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, use
 	}, connTestTimeout, connTestRetryInterval, "connecting to postgres")
 
 	// Execute a query.
-	results, err := pgConn.Exec(ctx, "select 1").ReadAll()
+	results, err := pgConn.Exec(ctx, query).ReadAll()
 	require.NoError(t, err)
 	for i, r := range results {
 		require.NoError(t, r.Err, "error in result %v", i)

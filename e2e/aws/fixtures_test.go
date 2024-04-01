@@ -229,22 +229,21 @@ var allowDatabaseAccessRoleSpec = types.RoleSpecV6{
 	},
 }
 
-var autoDBUserKeepSpec = types.RoleSpecV6{
-	Allow: types.RoleConditions{
-		DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-		DatabaseNames:  []string{types.Wildcard},
-	},
-	Options: types.RoleOptions{
-		CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
-	},
+func makeAutoUserKeepRoleSpec(roles ...string) types.RoleSpecV6 {
+	return types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseNames:  []string{types.Wildcard},
+			DatabaseRoles:  roles,
+		},
+		Options: types.RoleOptions{
+			CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+		},
+	}
 }
 
-var autoDBUserDropSpec = types.RoleSpecV6{
-	Allow: types.RoleConditions{
-		DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-		DatabaseNames:  []string{types.Wildcard},
-	},
-	Options: types.RoleOptions{
-		CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
-	},
+func makeAutoUserDropRoleSpec(roles ...string) types.RoleSpecV6 {
+	spec := makeAutoUserKeepRoleSpec(roles...)
+	spec.Options.CreateDatabaseUserMode = types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP
+	return spec
 }
