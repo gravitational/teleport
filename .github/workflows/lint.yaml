@@ -1,4 +1,4 @@
-name: Lint (Go and Rust)
+name: Lint (Go)
 run-name: Lint (Go and Rust)
 on:
   pull_request:

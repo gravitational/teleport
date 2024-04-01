@@ -7,7 +7,7 @@
 # https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/defining-the-mergeability-of-pull-requests/troubleshooting-required-status-checks#handling-skipped-but-required-checks
 #
 # Note both workflows must have the same name.
-name: Lint (Go and Rust)
+name: Lint (Go)
 run-name: Lint (Go and Rust)
 on:
   pull_request:
