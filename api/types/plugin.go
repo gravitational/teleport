@@ -27,6 +27,20 @@ import (
 // PluginType represents the type of the plugin
 type PluginType string
 
+// AllPluginTypes is a list of all plugins known to Teleport.
+var AllPluginTypes = []PluginType{
+	PluginTypeServiceNow,
+	PluginTypeSlack,
+	PluginTypeOpenAI,
+	PluginTypeOkta,
+	PluginTypeJamf,
+	PluginTypeJira,
+	PluginTypeOpsgenie,
+	PluginTypePagerDuty,
+	PluginTypeMattermost,
+	PluginTypeDiscord,
+}
+
 const (
 	// PluginTypeUnknown is returned when no plugin type matches.
 	PluginTypeUnknown PluginType = ""
