@@ -148,6 +148,19 @@ func (a *AccessListService) GetAccessListsToReview(ctx context.Context) ([]*acce
 
 // UpsertAccessList creates or updates an access list resource.
 func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
+	op := a.service.UpsertResource
+	return a.runOpWithLock(ctx, accessList, op)
+}
+
+// UpdateAccessList updates an access list resource.
+func (a *AccessListService) UpdateAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
+	op := a.service.ConditionalUpdateResource
+	return a.runOpWithLock(ctx, accessList, op)
+}
+
+type opFunc func(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
+
+func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *accesslist.AccessList, op opFunc) (*accesslist.AccessList, error) {
 	var upserted *accesslist.AccessList
 	upsertWithLockFn := func() error {
 		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
@@ -160,7 +173,7 @@ func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *ac
 			}
 
 			var err error
-			upserted, err = a.service.UpsertResource(ctx, accessList)
+			upserted, err = op(ctx, accessList)
 			return trace.Wrap(err)
 		})
 	}
@@ -175,44 +188,6 @@ func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *ac
 		})
 	} else {
 		err = upsertWithLockFn()
-	}
-
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return upserted, nil
-}
-
-// UpdateAccessList updates an access list resource.
-func (a *AccessListService) UpdateAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
-	var upserted *accesslist.AccessList
-	updateWithLockFn := func() error {
-		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-			ownerMap := make(map[string]struct{}, len(accessList.Spec.Owners))
-			for _, owner := range accessList.Spec.Owners {
-				if _, ok := ownerMap[owner.Name]; ok {
-					return trace.AlreadyExists("owner %s already exists in the owner list", owner.Name)
-				}
-				ownerMap[owner.Name] = struct{}{}
-			}
-
-			var err error
-			upserted, err = a.service.ConditionalUpdateResource(ctx, accessList)
-			return trace.Wrap(err)
-		})
-	}
-
-	var err error
-	if feature := modules.GetModules().Features(); !feature.IGSEnabled() {
-		err = a.service.RunWhileLocked(ctx, "createAccessListLimitLock", accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-			if err := a.VerifyAccessListCreateLimit(ctx, accessList.GetName()); err != nil {
-				return trace.Wrap(err)
-			}
-			return trace.Wrap(updateWithLockFn())
-		})
-	} else {
-		err = updateWithLockFn()
 	}
 
 	if err != nil {
