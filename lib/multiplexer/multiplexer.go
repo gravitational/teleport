@@ -97,7 +97,7 @@ type Config struct {
 	Clock clockwork.Clock
 	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 	PROXYProtocolMode PROXYProtocolMode
-	// SuppressUnexpectedPROXYWarning makes multiplexer to not issue warnings if it receives PROXY
+	// SuppressUnexpectedPROXYWarning makes multiplexer not issue warnings if it receives PROXY
 	// line when running in PROXYProtocolMode=PROXYProtocolUnspecified
 	SuppressUnexpectedPROXYWarning bool
 	// ID is an identifier used for debugging purposes
