@@ -220,9 +220,9 @@ func testRDS(t *testing.T) {
 		t.Parallel()
 
 		// wait for the database to be discovered
-		myDBName := mustGetEnv(t, rdsMySQLInstanceNameEnv)
-		waitForDatabases(t, cluster.Process, myDBName)
-		db, err := cluster.Process.GetAuthServer().GetDatabase(ctx, myDBName)
+		mysqlDBName := mustGetEnv(t, rdsMySQLInstanceNameEnv)
+		waitForDatabases(t, cluster.Process, mysqlDBName)
+		db, err := cluster.Process.GetAuthServer().GetDatabase(ctx, mysqlDBName)
 		require.NoError(t, err)
 		adminUser := mustGetDBAdmin(t, db)
 
@@ -246,7 +246,7 @@ func testRDS(t *testing.T) {
 			} {
 				test := test
 				route := tlsca.RouteToDatabase{
-					ServiceName: myDBName,
+					ServiceName: mysqlDBName,
 					Protocol:    defaults.ProtocolMySQL,
 					Username:    test.dbUser,
 					Database:    "", // not needed
