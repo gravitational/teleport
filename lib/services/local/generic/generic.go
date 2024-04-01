@@ -21,7 +21,6 @@ package generic
 import (
 	"context"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -54,6 +53,7 @@ type ServiceConfig[T Resource] struct {
 	UnmarshalFunc UnmarshalFunc[T]
 	// RunWhileLockedRetryInterval is the interval to retry the RunWhileLocked function.
 	// If set to 0, the default interval of 250ms will be used.
+	// WARNING: If set to a negative value, the RunWhileLocked function will retry immediately.
 	RunWhileLockedRetryInterval time.Duration
 }
 
@@ -77,10 +77,6 @@ func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
 	}
 	if c.UnmarshalFunc == nil {
 		return trace.BadParameter("unmarshal func is missing")
-	}
-
-	if c.RunWhileLockedRetryInterval < 0 && !testing.Testing() {
-		return trace.BadParameter("run while locked retry interval must be greater than or equal to 0")
 	}
 
 	return nil
