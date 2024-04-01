@@ -314,6 +314,7 @@
     "certutil",
     "cfhunter",
     "cfsdf",
+    "cgroups",
     "cgroupv",
     "cgroupv2",
     "chacha",
