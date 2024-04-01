@@ -173,6 +173,11 @@ we must extend the [TDP protocol](https://github.com/gravitational/teleport/blob
 Each `* Request` (such as `Shared Directory Info Request`, `Shared Directory Create Request`, etc.) and `* Response` (`Shared Directory Info Response`, `Shared Directory Create Response`, etc.) TDP message contains a `completion_id` field, with `* Request`s being responsible for generating the `completion_id`s, and `* Response`s being responsible for
 including the correct `completion_id` to signify which `* Request` the response is intended for.
 
+##### Note on terminology
+
+From here on out, the term "client" will refer to the browser-based TDP client, and the term "server" will refer to the Windows Desktop Service based TDP server, unless otherwise
+specified.
+
 #### 11 - Shared Directory Announce
 
 ```
