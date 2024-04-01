@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
@@ -353,10 +354,10 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 	_, err = leafServer.GetAuthServer().UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		rt, err := rootServer.GetAuthServer().GetTunnelConnections("leaf")
-		require.NoError(t, err)
-		return len(rt) == 1
+		assert.NoError(t, err)
+		assert.Len(t, rt, 1)
 	}, time.Second*10, time.Second)
 }
 
