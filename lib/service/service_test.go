@@ -1614,7 +1614,7 @@ func TestDebugService(t *testing.T) {
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
 
-		for _, logLevel := range logutils.SupportedLevelsString {
+		for _, logLevel := range logutils.SupportedLevelsText {
 			t.Run("Set"+logLevel, func(t *testing.T) {
 				resp, err = httpClient.Do(makeDebugSocketRequest(t, http.MethodPut, constants.DebugServiceLogLevelEndpoint, logLevel))
 				require.NoError(t, err)

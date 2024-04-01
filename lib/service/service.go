@@ -3280,13 +3280,7 @@ func (process *TeleportProcess) initDebugService() error {
 
 	mux.HandleFunc(constants.DebugServiceLogLevelEndpoint, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == constants.DebugServiceGetLogLevelMethod {
-			switch process.Config.LoggerLevel.Level() {
-			case logutils.TraceLevel:
-				w.Write([]byte(logutils.TraceLevelString))
-			default:
-				w.Write([]byte(process.Config.LoggerLevel.Level().String()))
-			}
-
+			w.Write([]byte(logutils.MarshalText(process.Config.LoggerLevel.Level())))
 			return
 		}
 
@@ -3303,18 +3297,12 @@ func (process *TeleportProcess) initDebugService() error {
 			return
 		}
 
-		var level slog.Level
-
-		// TRACE string representaiton is not handled by slog. We need to
-		// convert it. Otherwise, parse the provided level.
-		if strings.EqualFold(string(rawLevel), logutils.TraceLevelString) {
-			level = logutils.TraceLevel
-		} else {
-			if err := level.UnmarshalText(rawLevel); err != nil {
-				w.WriteHeader(http.StatusUnprocessableEntity)
-				w.Write([]byte("Invalid log level."))
-				return
-			}
+		level, err := logutils.UnmarshalText(rawLevel)
+		if err != nil {
+			logger.WarnContext(process.ExitContext(), "Failed to parse log level", "error", err)
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			w.Write([]byte("Invalid log level."))
+			return
 		}
 
 		currLevel := process.Config.LoggerLevel.Level()
@@ -3322,7 +3310,7 @@ func (process *TeleportProcess) initDebugService() error {
 		if level != currLevel {
 			message = fmt.Sprintf("Changed log level from %q to %q.", currLevel, level)
 			process.Config.SetLogLevel(level)
-			logger.InfoContext(process.ExitContext(), "Changed log level.", "old", currLevel, "new", level)
+			logger.InfoContext(process.ExitContext(), "Changed log level.", "old", currLevel, "new", string(rawLevel))
 		}
 
 		w.Write([]byte(message))

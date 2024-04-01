@@ -21,13 +21,14 @@ package log
 import (
 	"log/slog"
 
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
 
-// SupportedLevelsString list of the supported log levels in their string
+// SupportedLevelsText list of the supported log levels in their text
 // representation. All strings are in uppercase.
-var SupportedLevelsString = []string{
-	TraceLevelString,
+var SupportedLevelsText = []string{
+	TraceLevelText,
 	slog.LevelDebug.String(),
 	slog.LevelInfo.String(),
 	slog.LevelWarn.String(),
@@ -51,4 +52,27 @@ func SlogLevelToLogrusLevel(level slog.Level) logrus.Level {
 	default:
 		return logrus.FatalLevel
 	}
+}
+
+// UnmarshalText unmarshals log level text representation to slog.Level.
+func UnmarshalText(data []byte) (slog.Level, error) {
+	if string(data) == TraceLevelText {
+		return TraceLevel, nil
+	}
+
+	var level slog.Level
+	if err := level.UnmarshalText(data); err != nil {
+		return level, trace.Wrap(err)
+	}
+
+	return level, nil
+}
+
+// MarshalText marshals log level to its text representation.
+func MarshalText(level slog.Level) string {
+	if level == TraceLevel {
+		return TraceLevelText
+	}
+
+	return level.String()
 }

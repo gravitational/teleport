@@ -515,7 +515,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	debugCmd := app.Command("debug", "Debug commands")
 	debugCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
 	setLogLevelCmd := debugCmd.Command("set-log-level", "Changes the log level.")
-	setLogLevelCmd.Arg("LEVEL", fmt.Sprintf("Log level (case-insensitive). Any of: %s", strings.Join(logutils.SupportedLevelsString, ","))).Required().StringVar(&ccf.LogLevel)
+	setLogLevelCmd.Arg("LEVEL", fmt.Sprintf("Log level (case-insensitive). Any of: %s", strings.Join(logutils.SupportedLevelsText, ","))).Required().StringVar(&ccf.LogLevel)
 	getLogLevelCmd := debugCmd.Command("get-log-level", "Fetches current log level.")
 	collectProfilesCmd := debugCmd.Command("profile", "Export the application profiles (pprof format). Outputs to stdout .tar.gz file contents.")
 	collectProfilesCmd.Alias(collectProfileUsageExamples) // We're using "alias" section to display usage examples.
