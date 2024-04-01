@@ -48,7 +48,7 @@ it('displays a button for Connect My Computer in the empty state if the user can
       makeRootCluster({
         uri: doc.clusterUri,
         loggedInUser: makeLoggedInUser({
-          userType: tsh.UserType.LOCAL,
+          userType: tsh.LoggedInUser_UserType.LOCAL,
           acl: {
             tokens: {
               create: true,
@@ -118,7 +118,7 @@ it('does not display a button for Connect My Computer in the empty state if the 
       makeRootCluster({
         uri: doc.clusterUri,
         loggedInUser: makeLoggedInUser({
-          userType: tsh.UserType.LOCAL,
+          userType: tsh.LoggedInUser_UserType.LOCAL,
           acl: {
             tokens: {
               create: false,

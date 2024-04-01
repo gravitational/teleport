@@ -491,7 +491,7 @@ type BaseMeta = {
     // requiredVpcsAndSubnets is a map of required vpcs for auto discovery.
     // If this is empty, then a user can skip deploying db agents.
     // If >0, auto discovery requires deploying db agents.
-    requiredVpcsAndSubnets: Record<string, string[]>;
+    requiredVpcsAndSubnets?: Record<string, string[]>;
   };
 };
 
@@ -528,6 +528,21 @@ export type EksMeta = BaseMeta & {
   kube: Kube;
 };
 
-export type AgentMeta = DbMeta | NodeMeta | KubeMeta | EksMeta;
+// SamlMeta describes the fields for SAML IdP
+// service provider resource that needs to be
+// preserved throughout the flow.
+export type SamlMeta = BaseMeta & SamlGcpWorkforceMeta;
+
+// GcpWorkforceMeta describes the fields for SAML
+// GCP workforce pool resource that needs to be
+// preserved throughout the flow.
+export type SamlGcpWorkforceMeta = {
+  isAutoConfig: boolean;
+  orgId: string;
+  poolName: string;
+  poolProviderName: string;
+};
+
+export type AgentMeta = DbMeta | NodeMeta | KubeMeta | EksMeta | SamlMeta;
 
 export type State = ReturnType<typeof useDiscover>;

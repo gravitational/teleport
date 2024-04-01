@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -76,7 +77,7 @@ func TestServiceSelfSignedHTTPS(t *testing.T) {
 	cfg := &servicecfg.Config{
 		DataDir:  t.TempDir(),
 		Hostname: "example.com",
-		Log:      utils.WrapLogger(logrus.New().WithField("test", "TestServiceSelfSignedHTTPS")),
+		Logger:   slog.Default(),
 	}
 	require.NoError(t, initSelfSignedHTTPSCert(cfg))
 	require.Len(t, cfg.Proxy.KeyPairs, 1)
@@ -205,12 +206,12 @@ func TestDynamicClientReuse(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, process.Close()) })
 
 	// wait for instance connector
-	iconn, err := process.WaitForConnector(InstanceIdentityEvent, process.log)
+	iconn, err := process.WaitForConnector(InstanceIdentityEvent, process.logger)
 	require.NoError(t, err)
 	require.NotNil(t, iconn)
 
 	// wait for proxy connector
-	pconn, err := process.WaitForConnector(ProxyIdentityEvent, process.log)
+	pconn, err := process.WaitForConnector(ProxyIdentityEvent, process.logger)
 	require.NoError(t, err)
 	require.NotNil(t, pconn)
 
@@ -222,7 +223,7 @@ func TestDynamicClientReuse(t *testing.T) {
 	// configued set.
 	process.RegisterWithAuthServer(types.RoleNode, SSHIdentityEvent)
 
-	nconn, err := process.WaitForConnector(SSHIdentityEvent, process.log)
+	nconn, err := process.WaitForConnector(SSHIdentityEvent, process.logger)
 	require.NoError(t, err)
 	require.NotNil(t, nconn)
 
@@ -406,7 +407,7 @@ func TestServiceCheckPrincipals(t *testing.T) {
 		},
 	}
 	for i, tt := range tests {
-		ok := checkServerIdentity(testConnector, tt.inPrincipals, tt.inDNS, logrus.New().WithField("test", "TestServiceCheckPrincipals"))
+		ok := checkServerIdentity(context.TODO(), testConnector, tt.inPrincipals, tt.inDNS, slog.Default().With("test", "TestServiceCheckPrincipals"))
 		require.Equal(t, tt.outRegenerate, ok, "test %d", i)
 	}
 }
@@ -488,6 +489,7 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 		},
 		backend: backend,
 		log:     utils.NewLoggerForTests(),
+		logger:  utils.NewSlogLoggerForTests(),
 	}
 
 	integrationSvc, err := local.NewIntegrationsService(backend)
@@ -996,9 +998,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 
 	// Set the Node's major version to be greater than the Auth Service's,
 	// which should make the version check fail.
-	currentVersion, err := semver.NewVersion(teleport.Version)
-	require.NoError(t, err)
-	currentVersion.Major++
+	currentVersion := semver.Version{Major: teleport.SemVersion.Major + 1}
 	nodeCfg.Testing.TeleportVersion = currentVersion.String()
 
 	t.Run("with version check", func(t *testing.T) {
@@ -1021,7 +1021,7 @@ func testVersionCheck(t *testing.T, nodeCfg *servicecfg.Config, skipVersionCheck
 		require.NoError(t, err)
 		require.NotNil(t, c)
 	} else {
-		require.True(t, trace.IsNotImplemented(err))
+		require.ErrorAs(t, err, &invalidVersionErr{})
 		require.Nil(t, c)
 	}
 
@@ -1157,7 +1157,7 @@ func Test_readOrGenerateHostID(t *testing.T) {
 
 			cfg := &servicecfg.Config{
 				DataDir:    dataDir,
-				Log:        logrus.New(),
+				Logger:     slog.Default(),
 				JoinMethod: types.JoinMethodToken,
 				Identities: tt.args.identity,
 			}

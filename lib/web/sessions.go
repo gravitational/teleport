@@ -40,6 +40,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -51,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -621,6 +623,8 @@ type sessionCacheOptions struct {
 	sessionLingeringThreshold time.Duration
 	// proxySigner is used to sign PROXY header and securely propagate client's real IP
 	proxySigner multiplexer.PROXYHeaderSigner
+	// See [sessionCache.startWebSessionWatcherImmediately]. Used for testing.
+	startWebSessionWatcherImmediately bool
 }
 
 // newSessionCache creates a [sessionCache] from the provided [config] and
@@ -637,22 +641,26 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 	}
 
 	cache := &sessionCache{
-		clusterName:               clusterName.GetClusterName(),
-		proxyClient:               config.proxyClient,
-		accessPoint:               config.accessPoint,
-		sessions:                  make(map[string]*SessionContext),
-		resources:                 make(map[string]*sessionResources),
-		authServers:               config.servers,
-		closer:                    utils.NewCloseBroadcaster(),
-		cipherSuites:              config.cipherSuites,
-		log:                       newPackageLogger(),
-		clock:                     config.clock,
-		sessionLingeringThreshold: config.sessionLingeringThreshold,
-		proxySigner:               config.proxySigner,
+		clusterName:                       clusterName.GetClusterName(),
+		proxyClient:                       config.proxyClient,
+		accessPoint:                       config.accessPoint,
+		sessions:                          make(map[string]*SessionContext),
+		resources:                         make(map[string]*sessionResources),
+		authServers:                       config.servers,
+		closer:                            utils.NewCloseBroadcaster(),
+		cipherSuites:                      config.cipherSuites,
+		log:                               newPackageLogger(),
+		clock:                             config.clock,
+		sessionLingeringThreshold:         config.sessionLingeringThreshold,
+		proxySigner:                       config.proxySigner,
+		startWebSessionWatcherImmediately: config.startWebSessionWatcherImmediately,
 	}
 
 	// periodically close expired and unused sessions
 	go cache.expireSessions(ctx)
+
+	// Watch for session updates.
+	go cache.watchWebSessions(ctx)
 
 	return cache, nil
 }
@@ -691,6 +699,11 @@ type sessionCache struct {
 
 	// proxySigner is used to sign PROXY header and securely propagate client's real IP
 	proxySigner multiplexer.PROXYHeaderSigner
+
+	// startWebSessionWatcherImmediately removes the First component of the linear
+	// backoff used to start the WebSession watcher.
+	// Used for testing.
+	startWebSessionWatcherImmediately bool
 }
 
 // Close closes all allocated resources and stops goroutines
@@ -730,6 +743,103 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 		}
 		s.removeSessionContextLocked(c.cfg.Session.GetUser(), c.cfg.Session.GetName())
 		s.log.WithField("ctx", c.String()).Debug("Context expired.")
+	}
+}
+
+// watchWebSessions runs the WebSession watcher loop.
+// It only stops when ctx is done.
+func (s *sessionCache) watchWebSessions(ctx context.Context) {
+	// Watcher not necessary for OSS.
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return
+	}
+
+	linear := utils.NewDefaultLinear()
+	if s.startWebSessionWatcherImmediately {
+		linear.First = 0
+	}
+
+	s.log.Debug("Starting sessionCache WebSession watcher")
+	for {
+		select {
+		// Stop when the context tells us to.
+		case <-ctx.Done():
+			s.log.Debug("Stopping sessionCache WebSession watcher")
+			return
+
+		case <-linear.After():
+			linear.Inc()
+		}
+
+		if err := s.watchWebSessionsOnce(ctx, linear.Reset); err != nil && !errors.Is(err, context.Canceled) {
+			const msg = "" +
+				"sessionCache WebSession watcher aborted, re-connecting. " +
+				"This may have an impact in device trust web sessions."
+			s.log.WithError(err).Warn(msg)
+		}
+	}
+}
+
+// watchWebSessionsOnce creates a watcher for WebSessions and watches for its
+// events.
+//
+// Any updated sessions are evicted from the cache. The underlying assumption
+// is that an updated session got its certificates augmented with device trust
+// extensions, so it is evicted in order for the new certificates to be loaded
+// by the Proxy.
+func (s *sessionCache) watchWebSessionsOnce(ctx context.Context, reset func()) error {
+	watcher, err := s.proxyClient.NewWatcher(ctx, types.Watch{
+		Name: teleport.ComponentWebProxy + ".sessionCache." + types.KindWebSession,
+		Kinds: []types.WatchKind{
+			{
+				Kind: types.KindWebSession,
+				// Watch only for KindWebSession.
+				// SubKinds include KindAppSession, KindSAMLIdPSession, etc.
+				SubKind: types.KindWebSession,
+			},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer watcher.Close()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+
+		case <-watcher.Done():
+			return errors.New("watcher closed")
+
+		case event := <-watcher.Events():
+			reset() // Reset linear backoff attempts.
+
+			s.log.
+				WithField("event", event).
+				Debug("Received sessionCache watcher event")
+
+			if event.Type != types.OpPut {
+				continue // We only care about OpPut at the moment.
+			}
+
+			session, ok := event.Resource.(types.WebSession)
+			if !ok {
+				s.log.
+					WithField("resource_type", fmt.Sprintf("%T", event.Resource)).
+					Warn("sessionCache WebSession watcher received unexpected resource type")
+				continue
+			}
+
+			// If the session got an update, assume it got augmented with device
+			// extensions and clear the cache.
+			// We could be more selective here, but this is good enough.
+			if err := s.releaseResources(session.GetUser(), session.GetName()); err != nil {
+				s.log.
+					WithError(err).
+					Debug("sessionCache WebSession wacher: failed to release updated session.")
+			}
+		}
 	}
 }
 
@@ -951,8 +1061,8 @@ func (s *sessionCache) upsertSessionContext(user string) *sessionResources {
 	}
 	ctx := &sessionResources{
 		log: s.log.WithFields(logrus.Fields{
-			trace.Component: "user-session",
-			"user":          user,
+			teleport.ComponentKey: "user-session",
+			"user":                user,
 		}),
 	}
 	s.resources[user] = ctx

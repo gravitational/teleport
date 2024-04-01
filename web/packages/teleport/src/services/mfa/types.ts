@@ -18,14 +18,15 @@
 
 import { WebauthnAssertionResponse } from '../auth';
 
-export type MfaDevice = {
+export interface MfaDevice {
   id: string;
   name: string;
   description: string;
   registeredDate: Date;
   lastUsedDate: Date;
-  residentKey: boolean;
-};
+  type: DeviceType;
+  usage: DeviceUsage;
+}
 
 export type AddNewTotpDeviceRequest = {
   tokenId: string;

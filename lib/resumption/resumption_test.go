@@ -42,7 +42,10 @@ func TestResumption(t *testing.T) {
 	hostID := uuid.NewString()
 
 	sshServer := discardingSSHServer(t)
-	resumableServer := NewSSHServerWrapper(nil, sshServer, hostID)
+	resumableServer := NewSSHServerWrapper(SSHServerWrapperConfig{
+		SSHServer: sshServer,
+		HostID:    hostID,
+	})
 
 	directListener, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)

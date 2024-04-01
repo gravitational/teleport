@@ -66,6 +66,54 @@ ContactAdmin --> End([End])
 
 For clarity, error cases (such as password mismatch or inability to confirm user identity) were omitted from the above diagram.
 
+We are going to implement the following changes to the WebAuthn flow and APIs:
+
+1. Move the responsibility for verifying the old password to the `ChangePassword` RPC call. This will allow us to decouple the verification from setting the new password in the UI (the old password will not be required when generating the challenge). This verification will be specific to the `ChangePassword` call and will not be a part of the generic [`LoginFlow`](https://github.com/gravitational/teleport/blob/47028caeaba99d33362a72edbb569749ff6b2f0d/lib/auth/webauthn/login_mfa.go#L89).
+2. Add a possibility to request user verification through [`ChallengeExtensions`](https://github.com/gravitational/teleport/blob/47028caeaba99d33362a72edbb569749ff6b2f0d/api/proto/teleport/mfa/v1/mfa.proto#L27):
+   ```proto
+   message ChallengeExtensions {
+     // ...
+     string user_verification_requirement = 3; // "required", "discouraged", etc.
+   }
+   ```
+   This will automatically become a parameter of the `CreateAuthenticateChallenge` RPC call through the `ChallengeExtensions` field.
+3. Deprecate (and later delete) the `/v1/webapi/mfa/authenticatechallenge/password` endpoint in favor of the more general `/v1/webapi/mfa/authenticatechallenge` one. To make it possible to specify the user verification requirement from the client side, we will accept a corresponding `userVerificationRequirement` parameter to the [`createAuthenticateChallengeRequest`](https://github.com/gravitational/teleport/blob/47028caeaba99d33362a72edbb569749ff6b2f0d/lib/web/mfa.go#L134) structure.
+4. As currently, the password-specific challenge endpoint logs the user out in case of a failed challenge, we will conditionally trigger this behavior in the generic endpoint as long as the `PASSWORD_CHANGE` scope is specified.
+5. Create a dedicated [challenge scope](https://github.com/gravitational/teleport/blob/47028caeaba99d33362a72edbb569749ff6b2f0d/api/proto/teleport/mfa/v1/mfa.proto#L47) for the challenge that allows changing a password (`CHALLENGE_SCOPE_PASSWORD_CHANGE`). This is also related to [RFD 155](https://github.com/gravitational/teleport/blob/master/rfd/0155-scoped-webauthn-credentials.md).
+
+Here is what the updated process is going to look like:
+
+```mermaid
+sequenceDiagram
+participant C as Client
+participant P as Proxy Service
+participant A as Auth Service
+C ->> P: POST mfa/authenticatechallenge/password<br>Specify user verification requirement
+activate P
+P ->> A: CreateAuthenticateChallenge<br>Request: ContextUser<br>Specify user verification requirement<br>Set scope to PASSWORD_CHANGE
+deactivate P
+activate A
+A ->> P: Challenge
+deactivate A
+activate P
+P ->> C: Challenge
+deactivate P
+activate C
+C ->> P: PUT users/password<br>Send new password, assertion response<br>Send old password only if no UV requested
+deactivate C
+activate P
+P ->> A: ChangePassword
+deactivate P
+activate A
+alt password is empty
+  A ->> A: Verify assertion:<br>scope=PASSWORD_CHANGE,<br>UserVerificationRequirement=required
+else password is not empty
+  A ->> A: Verify old password
+  A ->> A: Verify assertion:<br>scope=PASSWORD_CHANGE
+end
+deactivate A
+```
+
 ### Recognizing Users Who Configured Their Passwords
 
 Ultimately, we would like to have information about password state for as many users as possible, for the following reasons:
@@ -73,7 +121,7 @@ Ultimately, we would like to have information about password state for as many u
 1. To explicitly tell the user that they have a password configured — for example, on the account settings page.
 2. To support any other future feature that might require knowing this information.
 
-To do this, we will extend the [`UserV2`](https://github.com/gravitational/teleport/blob/6103a2b1eff2a6bece80ab138ebe68b4ba041a91/api/proto/teleport/legacy/types/types.proto#L3185) message by adding a  `PasswordState` field. This field will be inside a `Status` structure (per best practices outlined in RFD 0153):
+To do this, we will extend the [`UserV2`](https://github.com/gravitational/teleport/blob/47028caeaba99d33362a72edbb569749ff6b2f0d/api/proto/teleport/legacy/types/types.proto#L3253) message by adding a  `PasswordState` field. This field will be inside a `Status` structure (per best practices outlined in RFD 0153):
 
 ```proto
 message UserV2 {
@@ -111,13 +159,13 @@ The state changes to `PASSWORD_STATE_SET` whenever user sets/resets their passwo
 
 The old account settings page had separate paths for managing passwords and MFA devices, so there is no endpoint that would return information about all authentication methods specifically for this page. There is only an endpoint that returns a list of MFA devices.
 
-Since we already return `authType` in `/v1/webapi/sites/<site>/context`, it makes sense to extend the returned data structure with the `PasswordState` flag, thus making it appear in the `UserContext` structure on the frontend. The flag itself will be fetched from the [`GetUser`](https://github.com/gravitational/teleport/blob/53aafb44b584a41186822e802cf004d3fe4d2486/api/proto/teleport/users/v1/users_service.proto#L27) RPC call that is already performed by the endpoint. `GetUser` will return the flag in the `GetUserResponse.user.Status.PasswordState` field.
+Since we already return `authType` in `/v1/webapi/sites/<site>/context`, it makes sense to extend the returned data structure with the `PasswordState` flag, thus making it appear in the `UserContext` structure on the frontend. The flag itself will be fetched from the [`GetUser`](https://github.com/gravitational/teleport/blob/47028caeaba99d33362a72edbb569749ff6b2f0d/api/proto/teleport/users/v1/users_service.proto#L27) RPC call that is already performed by the endpoint. `GetUser` will return the flag in the `GetUserResponse.user.Status.PasswordState` field.
 
 ## Changes to the password reset flow
 
 During password reset (which, incidentally, also happens when we are creating a new account), we are setting user's password to a random, 16-character password. We propose to simply not create a password hash in this scenario at all and delete the existing one if present.
 
-The existing password validation code executed when user signs in is already prepared for a missing hash, although it recognizes it as a "missing user" scenario. The only change required here is changing a debug message; the behavior of the algorithm remains the same. Another place where it should be addressed is the [`ValidateLocalAuthSecrets`](https://github.com/gravitational/teleport/blob/53aafb44b584a41186822e802cf004d3fe4d2486/lib/services/authentication.go#L36-L40) function, where we will need to prevent a timing attack by using a Cost operation on a fake hash. Note that it's unlikely for this part to be exploited, but it's a low-cost countermeasure that we can take.
+The existing password validation code executed when user signs in is already prepared for a missing hash, although it recognizes it as a "missing user" scenario. The only change required here is changing a debug message; the behavior of the algorithm remains the same. Another place where it should be addressed is the [`ValidateLocalAuthSecrets`](https://github.com/gravitational/teleport/blob/47028caeaba99d33362a72edbb569749ff6b2f0d/lib/services/authentication.go#L36-L40) function, where we will need to prevent a timing attack by using a Cost operation on a fake hash. Note that it's unlikely for this part to be exploited, but it's a low-cost countermeasure that we can take.
 
 The proposed change is only to clean up our architecture and increase the level of protection of new passwordless accounts; it's better to have them protected by the fact that a password hash doesn't exist rather than by a hash for a random 16-byte password.
 

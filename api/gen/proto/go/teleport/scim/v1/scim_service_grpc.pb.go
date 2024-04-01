@@ -25,6 +25,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -37,6 +38,7 @@ const (
 	SCIMService_GetSCIMResource_FullMethodName    = "/teleport.scim.v1.SCIMService/GetSCIMResource"
 	SCIMService_CreateSCIMResource_FullMethodName = "/teleport.scim.v1.SCIMService/CreateSCIMResource"
 	SCIMService_UpdateSCIMResource_FullMethodName = "/teleport.scim.v1.SCIMService/UpdateSCIMResource"
+	SCIMService_DeleteSCIMResource_FullMethodName = "/teleport.scim.v1.SCIMService/DeleteSCIMResource"
 )
 
 // SCIMServiceClient is the client API for SCIMService service.
@@ -53,6 +55,8 @@ type SCIMServiceClient interface {
 	// UpdateResource handles a request to update a resource, returning a
 	// representation of the updated resource
 	UpdateSCIMResource(ctx context.Context, in *UpdateSCIMResourceRequest, opts ...grpc.CallOption) (*Resource, error)
+	// DeleteSCIMResource deletes a SCIM-managed resource
+	DeleteSCIMResource(ctx context.Context, in *DeleteSCIMResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type sCIMServiceClient struct {
@@ -99,6 +103,15 @@ func (c *sCIMServiceClient) UpdateSCIMResource(ctx context.Context, in *UpdateSC
 	return out, nil
 }
 
+func (c *sCIMServiceClient) DeleteSCIMResource(ctx context.Context, in *DeleteSCIMResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, SCIMService_DeleteSCIMResource_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SCIMServiceServer is the server API for SCIMService service.
 // All implementations must embed UnimplementedSCIMServiceServer
 // for forward compatibility
@@ -113,6 +126,8 @@ type SCIMServiceServer interface {
 	// UpdateResource handles a request to update a resource, returning a
 	// representation of the updated resource
 	UpdateSCIMResource(context.Context, *UpdateSCIMResourceRequest) (*Resource, error)
+	// DeleteSCIMResource deletes a SCIM-managed resource
+	DeleteSCIMResource(context.Context, *DeleteSCIMResourceRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedSCIMServiceServer()
 }
 
@@ -131,6 +146,9 @@ func (UnimplementedSCIMServiceServer) CreateSCIMResource(context.Context, *Creat
 }
 func (UnimplementedSCIMServiceServer) UpdateSCIMResource(context.Context, *UpdateSCIMResourceRequest) (*Resource, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateSCIMResource not implemented")
+}
+func (UnimplementedSCIMServiceServer) DeleteSCIMResource(context.Context, *DeleteSCIMResourceRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteSCIMResource not implemented")
 }
 func (UnimplementedSCIMServiceServer) mustEmbedUnimplementedSCIMServiceServer() {}
 
@@ -217,6 +235,24 @@ func _SCIMService_UpdateSCIMResource_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SCIMService_DeleteSCIMResource_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteSCIMResourceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SCIMServiceServer).DeleteSCIMResource(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SCIMService_DeleteSCIMResource_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SCIMServiceServer).DeleteSCIMResource(ctx, req.(*DeleteSCIMResourceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SCIMService_ServiceDesc is the grpc.ServiceDesc for SCIMService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -239,6 +275,10 @@ var SCIMService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateSCIMResource",
 			Handler:    _SCIMService_UpdateSCIMResource_Handler,
+		},
+		{
+			MethodName: "DeleteSCIMResource",
+			Handler:    _SCIMService_DeleteSCIMResource_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

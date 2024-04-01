@@ -41,6 +41,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport"
 )
 
 const message = "Adding diagnostic debugging handlers.\t To connect with profiler, use `go tool pprof diag_addr`."
@@ -138,7 +140,7 @@ func TestOutput(t *testing.T) {
 				logrusLogger.SetOutput(&logrusOutput)
 				logrusLogger.ReplaceHooks(logrus.LevelHooks{})
 				logrusLogger.SetLevel(test.logrusLevel)
-				entry := logrusLogger.WithField(trace.Component, "test").WithTime(clock.Now().UTC())
+				entry := logrusLogger.WithField(teleport.ComponentKey, "test").WithTime(clock.Now().UTC())
 
 				// Create a slog logger using the custom handler which outputs to a local buffer.
 				var slogOutput bytes.Buffer
@@ -152,19 +154,19 @@ func TestOutput(t *testing.T) {
 						return a
 					},
 				}
-				slogLogger := slog.New(NewSlogTextHandler(&slogOutput, slogConfig)).With(trace.Component, "test")
+				slogLogger := slog.New(NewSlogTextHandler(&slogOutput, slogConfig)).With(teleport.ComponentKey, "test")
 
 				// Add some fields and output the message at the desired log level via logrus.
 				l := entry.WithField("test", 123).WithField("animal", "llama\n").WithField("error", logErr)
 				logrusTestLogLineNumber := func() int {
-					l.WithField("diag_addr", &addr).WithField(trace.ComponentFields, fields).Log(test.logrusLevel, message)
+					l.WithField("diag_addr", &addr).WithField(teleport.ComponentFields, fields).Log(test.logrusLevel, message)
 					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
 				}()
 
 				// Add some fields and output the message at the desired log level via slog.
 				l2 := slogLogger.With("test", 123).With("animal", "llama\n").With("error", logErr)
 				slogTestLogLineNumber := func() int {
-					l2.With(trace.ComponentFields, fields).Log(context.Background(), test.slogLevel, message, "diag_addr", &addr)
+					l2.With(teleport.ComponentFields, fields).Log(context.Background(), test.slogLevel, message, "diag_addr", &addr)
 					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
 				}()
 
@@ -267,21 +269,21 @@ func TestOutput(t *testing.T) {
 				logrusLogger.SetOutput(&logrusOut)
 				logrusLogger.ReplaceHooks(logrus.LevelHooks{})
 				logrusLogger.SetLevel(test.logrusLevel)
-				entry := logrusLogger.WithField(trace.Component, "test")
+				entry := logrusLogger.WithField(teleport.ComponentKey, "test")
 
 				// Create a slog logger using the custom formatter which outputs to a local buffer.
 				var slogOutput bytes.Buffer
-				slogLogger := slog.New(NewSlogJSONHandler(&slogOutput, SlogJSONHandlerConfig{Level: test.slogLevel})).With(trace.Component, "test")
+				slogLogger := slog.New(NewSlogJSONHandler(&slogOutput, SlogJSONHandlerConfig{Level: test.slogLevel})).With(teleport.ComponentKey, "test")
 
 				// Add some fields and output the message at the desired log level via logrus.
-				l := entry.WithField("test", 123).WithField("animal", "llama").WithField("error", logErr)
+				l := entry.WithField("test", 123).WithField("animal", "llama").WithField("error", trace.Wrap(logErr))
 				logrusTestLogLineNumber := func() int {
-					l.WithField("diag_addr", &addr).Log(test.logrusLevel, message)
+					l.WithField("diag_addr", addr.String()).Log(test.logrusLevel, message)
 					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
 				}()
 
 				// Add some fields and output the message at the desired log level via slog.
-				l2 := slogLogger.With("test", 123).With("animal", "llama").With("error", logErr)
+				l2 := slogLogger.With("test", 123).With("animal", "llama").With("error", trace.Wrap(logErr))
 				slogTestLogLineNumber := func() int {
 					l2.Log(context.Background(), test.slogLevel, message, "diag_addr", &addr)
 					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
@@ -355,10 +357,10 @@ func BenchmarkFormatter(b *testing.B) {
 			logger.SetOutput(io.Discard)
 			b.ResetTimer()
 
-			entry := logger.WithField(trace.Component, "test")
+			entry := logger.WithField(teleport.ComponentKey, "test")
 			for i := 0; i < b.N; i++ {
 				l := entry.WithField("test", 123).WithField("animal", "llama\n").WithField("error", logErr)
-				l.WithField("diag_addr", &addr).WithField(trace.ComponentFields, fields).Info(message)
+				l.WithField("diag_addr", &addr).WithField(teleport.ComponentFields, fields).Info(message)
 			}
 		})
 
@@ -371,10 +373,10 @@ func BenchmarkFormatter(b *testing.B) {
 			logger.ReplaceHooks(logrus.LevelHooks{})
 			b.ResetTimer()
 
-			entry := logger.WithField(trace.Component, "test")
+			entry := logger.WithField(teleport.ComponentKey, "test")
 			for i := 0; i < b.N; i++ {
 				l := entry.WithField("test", 123).WithField("animal", "llama\n").WithField("error", logErr)
-				l.WithField("diag_addr", &addr).WithField(trace.ComponentFields, fields).Info(message)
+				l.WithField("diag_addr", &addr).WithField(teleport.ComponentFields, fields).Info(message)
 			}
 		})
 	})
@@ -384,22 +386,22 @@ func BenchmarkFormatter(b *testing.B) {
 			logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{
 				AddSource: true,
 				Level:     slog.LevelDebug,
-			})).With(trace.Component, "test")
+			})).With(teleport.ComponentKey, "test")
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
-				l.With(trace.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
+				l.With(teleport.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})
 
 		b.Run("text", func(b *testing.B) {
-			logger := slog.New(NewSlogTextHandler(io.Discard, SlogTextHandlerConfig{Level: slog.LevelDebug, EnableColors: true})).With(trace.Component, "test")
+			logger := slog.New(NewSlogTextHandler(io.Discard, SlogTextHandlerConfig{Level: slog.LevelDebug, EnableColors: true})).With(teleport.ComponentKey, "test")
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
-				l.With(trace.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
+				l.With(teleport.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})
 
@@ -407,22 +409,22 @@ func BenchmarkFormatter(b *testing.B) {
 			logger := slog.New(slog.NewJSONHandler(io.Discard, &slog.HandlerOptions{
 				AddSource: true,
 				Level:     slog.LevelDebug,
-			})).With(trace.Component, "test")
+			})).With(teleport.ComponentKey, "test")
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
-				l.With(trace.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
+				l.With(teleport.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})
 
 		b.Run("json", func(b *testing.B) {
-			logger := slog.New(NewSlogJSONHandler(io.Discard, SlogJSONHandlerConfig{Level: slog.LevelDebug})).With(trace.Component, "test")
+			logger := slog.New(NewSlogJSONHandler(io.Discard, SlogJSONHandlerConfig{Level: slog.LevelDebug})).With(teleport.ComponentKey, "test")
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
-				l.With(trace.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
+				l.With(teleport.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})
 	})
@@ -435,7 +437,7 @@ func TestConcurrentOutput(t *testing.T) {
 		logrus.SetFormatter(debugFormatter)
 		logrus.SetOutput(os.Stdout)
 
-		logger := logrus.WithField(trace.Component, "test")
+		logger := logrus.WithField(teleport.ComponentKey, "test")
 
 		var wg sync.WaitGroup
 		for i := 0; i < 1000; i++ {
@@ -451,7 +453,7 @@ func TestConcurrentOutput(t *testing.T) {
 	t.Run("slog", func(t *testing.T) {
 		logger := slog.New(NewSlogTextHandler(os.Stdout, SlogTextHandlerConfig{
 			EnableColors: true,
-		})).With(trace.Component, "test")
+		})).With(teleport.ComponentKey, "test")
 
 		var wg sync.WaitGroup
 		ctx := context.Background()
@@ -529,7 +531,7 @@ func TestExtraFields(t *testing.T) {
 				var slogHandler slog.Handler = NewSlogTextHandler(&slogOutput, SlogTextHandlerConfig{ConfiguredFields: configuredFields})
 
 				entry := &logrus.Entry{
-					Data:    logrus.Fields{"animal": "llama", "vegetable": "carrot", trace.Component: "test"},
+					Data:    logrus.Fields{"animal": "llama", "vegetable": "carrot", teleport.ComponentKey: "test"},
 					Time:    now,
 					Level:   logrus.DebugLevel,
 					Caller:  &f,
@@ -546,7 +548,7 @@ func TestExtraFields(t *testing.T) {
 					PC:      pc,
 				}
 
-				record.AddAttrs(slog.String(trace.Component, "test"), slog.String("animal", "llama"), slog.String("vegetable", "carrot"))
+				record.AddAttrs(slog.String(teleport.ComponentKey, "test"), slog.String("animal", "llama"), slog.String("vegetable", "carrot"))
 
 				require.NoError(t, slogHandler.Handle(context.Background(), record))
 
@@ -576,7 +578,7 @@ func TestExtraFields(t *testing.T) {
 				var slogHandler slog.Handler = NewSlogJSONHandler(&slogOutput, SlogJSONHandlerConfig{ConfiguredFields: configuredFields})
 
 				entry := &logrus.Entry{
-					Data:    logrus.Fields{"animal": "llama", "vegetable": "carrot", trace.Component: "test"},
+					Data:    logrus.Fields{"animal": "llama", "vegetable": "carrot", teleport.ComponentKey: "test"},
 					Time:    now,
 					Level:   logrus.DebugLevel,
 					Caller:  &f,
@@ -593,7 +595,7 @@ func TestExtraFields(t *testing.T) {
 					PC:      pc,
 				}
 
-				record.AddAttrs(slog.String(trace.Component, "test"), slog.String("animal", "llama"), slog.String("vegetable", "carrot"))
+				record.AddAttrs(slog.String(teleport.ComponentKey, "test"), slog.String("animal", "llama"), slog.String("vegetable", "carrot"))
 
 				require.NoError(t, slogHandler.Handle(context.Background(), record))
 
@@ -615,7 +617,7 @@ func TestValidateFields(t *testing.T) {
 	}{
 		{
 			comment:     "invalid key (does not exist)",
-			extraFields: []string{levelField, "invalid key"},
+			extraFields: []string{LevelField, "invalid key"},
 			assertErr:   require.Error,
 		},
 		{

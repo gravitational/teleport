@@ -24,11 +24,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -112,7 +112,7 @@ func TestDBMiddleware_OnNewConnection(t *testing.T) {
 					hasCalledOnExpiredCert = true
 					return nil
 				},
-				log:     logrus.WithField(trace.Component, "middleware"),
+				log:     logrus.WithField(teleport.ComponentKey, "middleware"),
 				dbRoute: tt.dbRoute,
 			}
 

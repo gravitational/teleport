@@ -1,5 +1,17 @@
 # Changelog
 
+## 16.0.0 (xx/xx/xx)
+
+### Breaking changes
+
+#### Opsgenie plugin annotations
+
+Opsgenie plugin users, role annotations must now contain
+`teleport.dev/notify-services` to receive notification on Opsgenie.
+`teleport.dev/schedules` is now the label used to determine auto approval flow.
+See [the Opsgenie plugin documentation](docs/pages/access-controls/access-request-plugins/opsgenie.mdx)
+for setup instructions.
+
 ## 15.0.0 (xx/xx/24)
 
 ### New features
@@ -157,9 +169,10 @@ throughout the remainder of these releases' lifecycle.
 The teleport-cluster chart no longer uses versionOverride and extraArgs to set FIPS mode. 
 
 Instead, you should use the following values file configuration:
+```
 enterpriseImage: public.ecr.aws/gravitational/teleport-ent-fips-distroless
-localAuth: false
-
+authentication:
+  localAuth: false
 ```
 
 ##### Multi-architecture Teleport Operator images
@@ -249,7 +262,8 @@ Instead, you should use the following values file configuration:
 
 ```
 enterpriseImage: public.ecr.aws/gravitational/teleport-ent-fips-distroless
-localAuth: false
+authentication:
+  localAuth: false
 
 ```
 
@@ -337,7 +351,7 @@ applications in Kubernetes clusters. When connected to a Kubernetes cluster (or
 deployed as a Helm chart), Teleport discovery service will automatically find
 and enroll web applications for use with app access.
 
-See documentation [here](docs/pages/application-access/enroll-kubernetes-applications.mdx).
+See documentation [here](docs/pages/auto-discovery/kubernetes-applications.mdx).
 
 #### Extended Kubernetes per-resource RBAC
 
@@ -3431,7 +3445,7 @@ can limit access by changing the options on the new `event` resource.
 The minimum set of Kubernetes permissions that need to be granted to Teleport
 proxies has been updated. If you use the Kubernetes integration, please make
 sure that the ClusterRole used by the proxy has [sufficient
-permissions](./docs/pages/kubernetes-access/manage-access/rbac.mdx).
+permissions](./docs/pages/kubernetes-access/controls.mdx).
 
 ##### Path prefix for etcd
 

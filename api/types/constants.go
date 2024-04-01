@@ -81,6 +81,9 @@ const (
 	// KindAccessRequest is an AccessRequest resource
 	KindAccessRequest = "access_request"
 
+	// KindAccessMonitoringRule is an access monitoring rule resource
+	KindAccessMonitoringRule = "access_monitoring_rule"
+
 	// KindPluginData is a PluginData resource
 	KindPluginData = "plugin_data"
 
@@ -169,6 +172,8 @@ const (
 	// KindAppOrSAMLIdPServiceProvider represent an App Server resource or a SAML IdP Service Provider (SAML Application) resource.
 	// This is not a real resource stored in the backend, it is a pseudo resource used only to provide a common interface to
 	// the ListResources RPC in order to be able to list both AppServers and SAMLIdPServiceProviders in the same request.
+	//
+	// DEPRECATED: Use KindAppServer and KindSAMLIdPServiceProvider individually.
 	KindAppOrSAMLIdPServiceProvider = "app_server_or_saml_idp_sp"
 
 	// KindDatabaseServer is a database proxy server resource.
@@ -254,6 +259,11 @@ const (
 
 	// KindKubeIngress is a Kubernetes Ingress resource type.
 	KindKubeIngress = "ingress"
+
+	// KindKubeWaitingContainer is a Kubernetes ephemeral
+	// container that are waiting to be created until moderated
+	// session conditions are met.
+	KindKubeWaitingContainer = "kube_ephemeral_container"
 
 	// KindToken is a provisioning token resource
 	KindToken = "token"
@@ -503,6 +513,15 @@ const (
 	// KindSecurityReportCostLimiter const limiter
 	KindSecurityReportCostLimiter = "security_report_cost_limiter"
 
+	// KindNotification is a notification resource.
+	KindNotification = "notification"
+	// KindGlobalNotification is a global notification resource.
+	KindGlobalNotification = "global_notification"
+	// KindUserLastSeenNotification is a resource which stores the timestamp of a user's last seen notification.
+	KindUserLastSeenNotification = "user_last_seen_notification"
+	// KindUserNotificationState is a resource which tracks whether a user has clicked on or dismissed a notification.
+	KindUserNotificationState = "user_notification_state"
+
 	// V7 is the seventh version of resources.
 	V7 = "v7"
 
@@ -708,10 +727,10 @@ const (
 	// DiscoveryAppIgnore specifies if a Kubernetes service should be ignored by discovery service.
 	DiscoveryAppIgnore = TeleportNamespace + "/ignore"
 
-	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
-	ReqAnnotationSchedulesLabel = "/schedules"
-	// ReqAnnotationNotifyServicesLabel is the request annotation key at which notify services are stored for access plugins.
-	ReqAnnotationNotifyServicesLabel = "/notify-services"
+	// ReqAnnotationApproveSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
+	ReqAnnotationApproveSchedulesLabel = "/schedules"
+	// ReqAnnotationNotifySchedulesLabel is the request annotation key at which notify schedules are stored for access plugins.
+	ReqAnnotationNotifySchedulesLabel = "/notify-services"
 
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"
@@ -728,6 +747,8 @@ const (
 	DiscoveredResourceKubernetes = "k8s"
 	// DiscoveredResourceAgentlessNode identifies a discovered agentless SSH node.
 	DiscoveredResourceAgentlessNode = "node.openssh"
+	// DiscoveredResourceEICENode identifies a discovered AWS EC2 Instance using the EICE access method.
+	DiscoveredResourceEICENode = "node.openssh-eice"
 	// DiscoveredResourceApp identifies a discovered Kubernetes App.
 	DiscoveredResourceApp = "app"
 
@@ -952,6 +973,9 @@ const (
 
 	// OktaGroupDescriptionLabel is the individual group description label.
 	OktaGroupDescriptionLabel = TeleportInternalLabelPrefix + "okta-group-description"
+
+	// PluginGenerationLabel is the label for the current generation of the plugin.
+	PluginGenerationLabel = TeleportInternalLabelPrefix + "plugin-generation"
 )
 
 const (

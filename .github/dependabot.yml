@@ -7,18 +7,6 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     ignore:
-      # The latest otel version contains a data race. Ignore any updates until the issue
-      # is resolved.
-      - dependency-name: go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws
-      - dependency-name: go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc
-      - dependency-name: go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp
-      - dependency-name: go.opentelemetry.io/otel
-      - dependency-name: go.opentelemetry.io/otel/exporters/otlp/otlptrace
-      - dependency-name: go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc
-      - dependency-name: go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp
-      - dependency-name: go.opentelemetry.io/otel/metric
-      - dependency-name: go.opentelemetry.io/otel/sdk
-      - dependency-name: go.opentelemetry.io/otel/trace
       # Breaks backwards compatibility
       - dependency-name: github.com/gravitational/ttlmap
       # Must be kept in-sync with libbpf
@@ -33,7 +21,7 @@ updates:
       - dependency-name: github.com/microsoft/go-mssqldb
       - dependency-name: github.com/redis/go-redis/v9
       - dependency-name: github.com/vulcand/predicate
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -55,7 +43,7 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -80,7 +68,7 @@ updates:
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -103,7 +91,7 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -128,7 +116,7 @@ updates:
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -151,7 +139,7 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       rust:
         update-types:
@@ -174,7 +162,7 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       rust:
         update-types:

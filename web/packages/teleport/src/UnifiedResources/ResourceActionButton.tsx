@@ -89,7 +89,7 @@ const NodeConnect = ({ node }: { node: Node }) => {
         horizontal: 'right',
       }}
       anchorOrigin={{
-        vertical: 'center',
+        vertical: 'bottom',
         horizontal: 'right',
       }}
     />
@@ -129,7 +129,7 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
         horizontal: 'right',
       }}
       anchorOrigin={{
-        vertical: 'center',
+        vertical: 'bottom',
         horizontal: 'right',
       }}
     />

@@ -21,7 +21,7 @@ import { render, screen, waitFor } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
 import TeleportContext from 'teleport/teleportContext';
 
-import Account from 'teleport/Account/Account';
+import { AccountPage as Account } from 'teleport/Account/Account';
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
@@ -41,17 +41,21 @@ describe('passkey + mfa button state', () => {
     cfg.auth.allowPasswordless = defaultPasswordless;
   });
 
+  // Note: the "off" and "otp" cases don't make sense with passwordless turned
+  // on (the auth server wouldn't start in this configuration), but we're still
+  // testing them for completeness.
   test.each`
     mfa           | pwdless  | pkEnabled | mfaEnabled
     ${'on'}       | ${true}  | ${true}   | ${true}
     ${'on'}       | ${false} | ${false}  | ${true}
     ${'optional'} | ${true}  | ${true}   | ${true}
     ${'optional'} | ${false} | ${false}  | ${true}
-    ${'otp'}      | ${true}  | ${false}  | ${true}
     ${'otp'}      | ${false} | ${false}  | ${true}
+    ${'otp'}      | ${true}  | ${true}   | ${true}
     ${'webauthn'} | ${true}  | ${true}   | ${true}
     ${'webauthn'} | ${false} | ${false}  | ${true}
     ${'off'}      | ${false} | ${false}  | ${false}
+    ${'off'}      | ${true}  | ${true}   | ${false}
   `(
     '2fa($mfa) with pwdless($pwdless) = passkey($pkEnabled) mfa($mfaEnabled)',
     async ({ mfa, pwdless, pkEnabled, mfaEnabled }) => {

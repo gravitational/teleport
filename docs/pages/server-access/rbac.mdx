@@ -14,14 +14,6 @@ emergency.*
 For a more general description of Teleport roles and examples see our [Access Controls guides](../access-controls/introduction.mdx), as
 this section focuses on configuring RBAC for servers connected to Teleport.
 
-<Notice type="tip">
-
-Teleport's RBAC system does not extend to OpenSSH servers, as it is not possible
-to apply labels to servers running `sshd`. You must enable access to these
-servers via the Teleport SSH Service instead.
-
-</Notice>
-
 ## Role configuration
 
 Teleport's "role" resource provides the following instruments for restricting
@@ -136,9 +128,9 @@ spec:
     #....
   options:
     # Controls whether this role supports auto provisioning of users.
-    # Options: drop (remove user on session end), keep (keep users at session end)
+    # Options: keep (keep users at session end), insecure-drop (remove user on session end),
     #          and off (disable host user creation)
-    create_host_user_mode: drop
+    create_host_user_mode: keep
     # forward_agent controls whether SSH agent forwarding is allowed
     forward_agent: true
     # port_forwarding controls whether TCP port forwarding is allowed for SSH

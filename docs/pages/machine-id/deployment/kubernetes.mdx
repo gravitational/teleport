@@ -118,9 +118,7 @@ Apply this file to your Kubernetes cluster:
 $ kubectl apply -f ./k8s-rbac.yaml
 ```
 
-## Step 2/4. Create a join token, role and bot user
-
-(!docs/pages/includes/machine-id/blank-role.mdx!)
+## Step 2/4. Create a join token and bot user
 
 Next, a join token needs to be configured. This will be used by `tbot` to join
 the cluster. As the `kubernetes` join method will be used, the public key of the
@@ -171,10 +169,10 @@ Use `tctl` to apply this file:
 $ tctl create -f bot-token.yaml
 ```
 
-Create the bot, specifying the token and role that you have created:
+Create the bot, specifying the token that you have created:
 
 ```code
-$ tctl bots add example --token example-bot --roles example-bot
+$ tctl bots add example --token example-bot
 ```
 
 ## Step 3/4. Create a `tbot` deployment
@@ -183,8 +181,8 @@ First, a ConfigMap will be created to contain the configuration file for `tbot`.
 This will then be mounted into the Pod.
 
 Create `k8s-deployment-config.yaml`, replacing the value of `token` with the
-name of the token you created earlier and the value of `auth_server` with the
-address of your Teleport Proxy or Auth Server:
+name of the token you created earlier and the value of `proxy_server` with the
+address of your Teleport Proxy Service:
 
 ```yaml
 apiVersion: v1
@@ -203,9 +201,8 @@ data:
       # a memory destination is used for the bots own state since the kubernetes
       # join method does not require persistence.
       type: memory
-    # ensure this is configured to the address of your Teleport Proxy or
-    # Auth Server. Prefer the address of the Teleport Proxy.
-    auth_server: example.teleport.sh:443
+    # ensure this is configured to the address of your Teleport Proxy Service.
+    proxy_server: example.teleport.sh:443
     # outputs will be filled in during the completion of an access guide.
     outputs: []
 ```
@@ -240,9 +237,7 @@ spec:
     spec:
       containers:
         - name: tbot
-          image: public.ecr.aws/gravitational/teleport-distroless:(=teleport.version=)
-          command:
-            - tbot
+          image: public.ecr.aws/gravitational/tbot-distroless:(=teleport.version=)
           args:
             - start
             - -c

@@ -31,7 +31,9 @@ import Users from './Users';
 import { MfaDevices } from './MfaDevices';
 
 export type SimpleListOpts = {
-  getFetchFn(selectedResourceKind: LockResourceKind): (p: any) => Promise<any>;
+  getFetchFn(
+    selectedResourceKind: LockResourceKind
+  ): (p: any, signal?: AbortSignal) => Promise<any>;
   getTable(
     selectedResourceKind: LockResourceKind,
     resources: any[],

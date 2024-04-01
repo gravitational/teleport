@@ -353,7 +353,7 @@ func (a *Server) addCertAuthorities(ctx context.Context, trustedCluster types.Tr
 func (a *Server) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
 	// To make sure remote cluster exists - to protect against random
 	// clusterName requests (e.g. when clusterName is set to local cluster name)
-	_, err := a.GetRemoteCluster(clusterName)
+	_, err := a.GetRemoteCluster(ctx, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -385,10 +385,10 @@ func (a *Server) DeleteRemoteCluster(ctx context.Context, clusterName string) er
 }
 
 // GetRemoteCluster returns remote cluster by name
-func (a *Server) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
+func (a *Server) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
 	// To make sure remote cluster exists - to protect against random
 	// clusterName requests (e.g. when clusterName is set to local cluster name)
-	remoteCluster, err := a.Services.GetRemoteCluster(clusterName)
+	remoteCluster, err := a.Services.GetRemoteCluster(ctx, clusterName)
 	return remoteCluster, trace.Wrap(err)
 }
 
@@ -412,7 +412,8 @@ func (a *Server) updateRemoteClusterStatus(ctx context.Context, netConfig types.
 		// wasn't already).
 		if remoteCluster.GetConnectionStatus() != teleport.RemoteClusterStatusOffline {
 			remoteCluster.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
-			if err := a.UpdateRemoteCluster(ctx, remoteCluster); err != nil {
+			_, err := a.UpdateRemoteCluster(ctx, remoteCluster)
+			if err != nil {
 				// if the cluster was concurrently updated, ignore the update.  either
 				// the update was consistent with our view of the world, in which case
 				// retrying would be pointless, or the update was not consistent, in which
@@ -440,7 +441,8 @@ func (a *Server) updateRemoteClusterStatus(ctx context.Context, netConfig types.
 		remoteCluster.SetLastHeartbeat(lastConn.GetLastHeartbeat().UTC())
 	}
 	if prevConnectionStatus != remoteCluster.GetConnectionStatus() || !prevLastHeartbeat.Equal(remoteCluster.GetLastHeartbeat()) {
-		if err := a.UpdateRemoteCluster(ctx, remoteCluster); err != nil {
+		_, err := a.UpdateRemoteCluster(ctx, remoteCluster)
+		if err != nil {
 			// if the cluster was concurrently updated, ignore the update.  either
 			// the update was consistent with our view of the world, in which case
 			// retrying would be pointless, or the update was not consistent, in which
@@ -457,10 +459,10 @@ func (a *Server) updateRemoteClusterStatus(ctx context.Context, netConfig types.
 }
 
 // GetRemoteClusters returns remote clusters with updated statuses
-func (a *Server) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+func (a *Server) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
 	// To make sure remote cluster exists - to protect against random
 	// clusterName requests (e.g. when clusterName is set to local cluster name)
-	remoteClusters, err := a.Services.GetRemoteClusters(opts...)
+	remoteClusters, err := a.Services.GetRemoteClusters(ctx)
 	return remoteClusters, trace.Wrap(err)
 }
 
@@ -523,7 +525,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 	}
 	remoteCluster.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 
-	err = a.CreateRemoteCluster(remoteCluster)
+	_, err = a.CreateRemoteCluster(ctx, remoteCluster)
 	if err != nil {
 		if !trace.IsAlreadyExists(err) {
 			return nil, trace.Wrap(err)

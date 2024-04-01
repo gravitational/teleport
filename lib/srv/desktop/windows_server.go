@@ -233,7 +233,7 @@ func (cfg *WindowsServiceConfig) checkAndSetDiscoveryDefaults() error {
 
 func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	if cfg.Log == nil {
-		cfg.Log = logrus.New().WithField(trace.Component, teleport.ComponentWindowsDesktop)
+		cfg.Log = logrus.New().WithField(teleport.ComponentKey, teleport.ComponentWindowsDesktop)
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -360,7 +360,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	if s.cfg.PKIDomain != "" {
 		caLDAPConfig.Domain = s.cfg.PKIDomain
 	}
-	s.cfg.Log.Infof("Windows PKI will be performed against %v", s.cfg.PKIDomain)
+	s.cfg.Log.Infof("Windows PKI will be performed against %v", caLDAPConfig.Domain)
 
 	s.ca = windows.NewCertificateStoreClient(windows.CertificateStoreConfig{
 		AccessPoint: s.cfg.AccessPoint,
@@ -855,6 +855,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	tdpConn.OnSend = s.makeTDPSendHandler(ctx, recorder, delay, tdpConn, audit)
 	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, recorder, delay, tdpConn, audit)
 	width, height := desktop.GetScreenSize()
+	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	rdpc, err := rdpclient.New(rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
@@ -877,6 +878,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		windowsUser = rdpc.GetClientUsername()
 		audit.windowsUser = windowsUser
 	}
+	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	if err != nil {
 		startEvent := audit.makeSessionStart(err)
 		s.record(ctx, recorder, startEvent)

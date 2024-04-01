@@ -154,8 +154,13 @@ or `acme`.
 
 Teleport clients automatically detect whether the Teleport Proxy Service is
 behind a layer 7 load balancer or a reverse proxy. In such cases, the client
-initiates a connection upgrade (the same principle used by `WebSocket`) and then
-sends the TLS routing request through the upgraded connection.
+initiates a connection upgrade and then sends the TLS routing request through
+the upgraded connection.
+
+The initial client implementation sends a Teleport-custom upgrade 'alpn', which
+uses the same connection upgrade principle as WebSockets. Starting from version
+15.1, Teleport clients will send native WebSocket upgrades to extend its
+compatibility with more load balancers and reverse proxies.
 
 ![Connection upgrade](../../img/architecture/tls-routing-connection-upgrade.svg)
 
@@ -232,8 +237,11 @@ protocol for the target group.
 
 ### Will TLS routing work behind my reverse proxy?
 
-TLS routing does support the Teleport Proxy Service behind layer 7 reverse
-proxies. The reverse proxy must support custom [connection
+Starting version 15.1, TLS routing is compatible with any reverse proxies that
+supports WebSocket.
+
+For Teleport version before 15.1, the reverse proxy must support custom
+[connection
 upgrades](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Upgrade)
 and long-lived connections.
 

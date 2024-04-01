@@ -125,3 +125,36 @@ has default limits of 4CPU and 4Gi memory.
 | Application   | 2500     | Proxy CPU Limits exceeded |
 | Database      | 40       | Proxy CPU Limits exceeded |
 | Kubernetes    | 50       | Proxy CPU Limits exceeded |
+
+## Windows Desktop Service
+
+Windows Desktop sessions can vary greatly in resource usage depending on the applications being used. The primary
+factor affecting resource usage per session is how often the screen is updated. For example, a session playing a video
+in full screen mode will consume significantly more resources than a session where the user is typing in a text editor.
+
+We measured the resource usage of sessions playing fullscreen videos to get the worst-case estimate for resource requirements.
+We then inferred resource requirements for more standard use cases on the basis of those measurements.
+
+**Worst Case:**
+- 1/12 vCPU per concurrent session
+- 42 MB RAM per concurrent session
+
+**Typical Case:**
+- 1/240 vCPU per concurrent session
+- 2 MB RAM per concurrent session
+
+From these estimates we calculated the following table of recommendations based on the expected maximum number of concurrent
+sessions:
+
+| Concurrent users | CPU (vCPU, low to high) | Memory (GB, low to high) |
+|------------------|-------------------------|--------------------------|
+| 1                | 1                       | 0.5                      |
+| 10               | 1                       | 0.5 to 1                 |
+| 100              | 1 to 8                  | 1 to 8                   |
+| 1000             | 4 to 96                 | 4 to 64                  |
+
+To avoid service interruptions, we recommend leaning towards the higher end of the recommendations to start while monitoring
+your resource usage, and then scaling resources based on measured outcomes.
+
+Note that you are not limited to a single `windows_desktop_service`, and can connect multiple to your cluster in order to
+spread resources out over multiple logical machines.

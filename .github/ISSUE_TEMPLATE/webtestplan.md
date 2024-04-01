@@ -585,6 +585,14 @@ Use Discover Wizard to enroll new resources and access them:
       - Run the program: `$ mc`
       - Resize Teleport Connect to see if the panels resize with it
    - [ ] Verify that the tab automatically closes on `$ exit` command.
+   - [ ] Verify that [Connect doesn't leave orphaned processes](https://github.com/gravitational/teleport/issues/27125).
+      - Open a local shell session in Connect.
+      - Open Activity Monitor, then View -> All Processes, Hierarchically.
+      - Locate Teleport Connect. There should be Teleport Connect Helper process with a shell
+        process under it.
+      - Double-click that shell process to open a window with process details.
+      - Close Teleport Connect without closing the tab first.
+      - Verify that the separate Activity Monitor window for that process now says "terminated".
    - Verify that all items from this section work on:
       - [ ] macOS
       - [ ] Windows

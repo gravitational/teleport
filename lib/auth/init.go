@@ -19,6 +19,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -49,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/ai/embedding"
+	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/migration"
@@ -59,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -66,7 +70,7 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentAuth,
+	teleport.ComponentKey: teleport.ComponentAuth,
 })
 
 // InitConfig is auth server init config
@@ -248,6 +252,9 @@ type InitConfig struct {
 	// AccessLists is a service that manages access list resources.
 	AccessLists services.AccessLists
 
+	// DatabaseObjectImportRule is a service that manages database object import rules.
+	DatabaseObjectImportRules services.DatabaseObjectImportRules
+
 	// UserLoginStates is a service that manages user login states.
 	UserLoginState services.UserLoginStates
 
@@ -279,6 +286,14 @@ type InitConfig struct {
 
 	// CloudClients provides clients for various cloud providers.
 	CloudClients cloud.Clients
+
+	// KubeWaitingContainers is a service that manages
+	// Kubernetes ephemeral containers that are waiting
+	// to be created until moderated session conditions are met.
+	KubeWaitingContainers services.KubeWaitingContainer
+
+	// Notifications is a service that manages notifications.
+	Notifications services.Notifications
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -398,21 +413,21 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	})
 
 	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/SetClusterNetworkingConfig")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeClusterNetworkingConfig")
 		defer span.End()
-		return trace.Wrap(initSetClusterNetworkingConfig(ctx, asrv, cfg.ClusterNetworkingConfig))
+		return trace.Wrap(initializeClusterNetworkingConfig(ctx, asrv, cfg.ClusterNetworkingConfig))
 	})
 
 	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/SetSessionRecordingConfig")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeSessionRecordingConfig")
 		defer span.End()
-		return trace.Wrap(initSetSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig))
+		return trace.Wrap(initializeSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig))
 	})
 
 	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/SetAuthPreference")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthPreference")
 		defer span.End()
-		return trace.Wrap(initSetAuthPreference(ctx, asrv, cfg.AuthPreference))
+		return trace.Wrap(initializeAuthPreference(ctx, asrv, cfg.AuthPreference))
 	})
 
 	g.Go(func() error {
@@ -516,6 +531,13 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 			return trace.Wrap(err)
 		}
 		span.AddEvent("completed creating preset users")
+
+		span.AddEvent("creating preset database object import rules")
+		if err := createPresetDatabaseObjectImportRule(ctx, asrv); err != nil {
+			// merely raise a warning; this is not a fatal error.
+			log.WithError(err).Warn("error creating preset database object import rules")
+		}
+		span.AddEvent("completed creating database object import rules")
 	} else {
 		log.Info("skipping preset role and user creation")
 	}
@@ -683,58 +705,123 @@ func generateAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID)
 	return ca, nil
 }
 
-func initSetAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
-	storedAuthPref, err := asrv.Services.GetAuthPreference(ctx)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedAuthPref, newAuthPref)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if shouldReplace {
-		if err := asrv.SetAuthPreference(ctx, newAuthPref); err != nil {
+func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
+	const iterationLimit = 3
+	for i := 0; i < iterationLimit; i++ {
+		storedAuthPref, err := asrv.Services.GetAuthPreference(ctx)
+		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-		log.Infof("Updating cluster auth preference: %v.", newAuthPref)
+
+		shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedAuthPref, newAuthPref)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !shouldReplace {
+			return nil
+		}
+
+		if storedAuthPref == nil {
+			log.Infof("Creating cluster auth preference: %v.", newAuthPref)
+			_, err := asrv.CreateAuthPreference(ctx, newAuthPref)
+			if trace.IsAlreadyExists(err) {
+				continue
+			}
+
+			return trace.Wrap(err)
+		}
+
+		newAuthPref.SetRevision(storedAuthPref.GetRevision())
+		_, err = asrv.UpdateAuthPreference(ctx, newAuthPref)
+		if trace.IsCompareFailed(err) {
+			continue
+		}
+
+		return trace.Wrap(err)
 	}
-	return nil
+
+	return trace.LimitExceeded("failed to initialize auth preference in %v iterations", iterationLimit)
 }
 
-func initSetClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetConfig types.ClusterNetworkingConfig) error {
-	storedNetConfig, err := asrv.Services.GetClusterNetworkingConfig(ctx)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedNetConfig, newNetConfig)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if shouldReplace {
-		if err := asrv.SetClusterNetworkingConfig(ctx, newNetConfig); err != nil {
+func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetConfig types.ClusterNetworkingConfig) error {
+	const iterationLimit = 3
+	for i := 0; i < 3; i++ {
+		storedNetConfig, err := asrv.Services.GetClusterNetworkingConfig(ctx)
+		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
+
+		shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedNetConfig, newNetConfig)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !shouldReplace {
+			return nil
+		}
+
+		if storedNetConfig == nil {
+			log.Infof("Creating cluster networking configuration: %v.", newNetConfig)
+			_, err = asrv.CreateClusterNetworkingConfig(ctx, newNetConfig)
+			if trace.IsAlreadyExists(err) {
+				continue
+			}
+
+			return trace.Wrap(err)
+		}
+
 		log.Infof("Updating cluster networking configuration: %v.", newNetConfig)
+		newNetConfig.SetRevision(storedNetConfig.GetRevision())
+		_, err = asrv.UpdateClusterNetworkingConfig(ctx, newNetConfig)
+		if trace.IsCompareFailed(err) {
+			continue
+		}
+
+		return trace.Wrap(err)
 	}
-	return nil
+
+	return trace.LimitExceeded("failed to initialize cluster networking config in %v iterations", iterationLimit)
 }
 
-func initSetSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
-	storedRecConfig, err := asrv.Services.GetSessionRecordingConfig(ctx)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedRecConfig, newRecConfig)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if shouldReplace {
-		if err := asrv.SetSessionRecordingConfig(ctx, newRecConfig); err != nil {
+func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
+	const iterationLimit = 3
+	for i := 0; i < iterationLimit; i++ {
+		storedRecConfig, err := asrv.Services.GetSessionRecordingConfig(ctx)
+		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-		log.Infof("Updating session recording configuration: %v.", newRecConfig)
+
+		shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedRecConfig, newRecConfig)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !shouldReplace {
+			return nil
+		}
+
+		if storedRecConfig == nil {
+			log.Infof("Creating session recording config: %v.", newRecConfig)
+			_, err := asrv.CreateSessionRecordingConfig(ctx, newRecConfig)
+			if trace.IsAlreadyExists(err) {
+				continue
+			}
+
+			return trace.Wrap(err)
+		}
+
+		log.Infof("Updating session recording config: %v.", newRecConfig)
+		newRecConfig.SetRevision(storedRecConfig.GetRevision())
+		_, err = asrv.UpdateSessionRecordingConfig(ctx, newRecConfig)
+		if trace.IsCompareFailed(err) {
+			continue
+		}
+
+		return trace.Wrap(err)
 	}
-	return nil
+
+	return trace.LimitExceeded("failed to initialize session recording config in %v iterations", iterationLimit)
 }
 
 // shouldInitReplaceResourceWithOrigin determines whether the candidate
@@ -836,7 +923,9 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 
 		role := role
 		g.Go(func() error {
-			if types.IsSystemResource(role) {
+			// Specifically skip the Okta requester role, as it will be
+			// modified by the Okta access list sync.
+			if types.IsSystemResource(role) && role.GetName() != teleport.SystemOktaRequesterRoleName {
 				// System resources *always* get reset on every auth startup
 				if _, err := rm.UpsertRole(gctx, role); err != nil {
 					return trace.Wrap(err, "failed upserting system role %s", role.GetName())
@@ -915,6 +1004,29 @@ func createPresetUsers(ctx context.Context, um PresetUsers) error {
 	return nil
 }
 
+// createPresetDatabaseObjectImportRule will create a sample database object import rule if there are none.
+func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.DatabaseObjectImportRules) error {
+	importRules, _, err := rules.ListDatabaseObjectImportRules(ctx, 100, "")
+	if err != nil {
+		return trace.Wrap(err, "failed listing available database object import rules")
+	}
+	if len(importRules) > 0 {
+		return nil
+	}
+
+	rule := databaseobjectimportrule.NewPresetImportAllObjectsRule()
+	if rule == nil {
+		return nil
+	}
+
+	_, err = rules.CreateDatabaseObjectImportRule(ctx, rule)
+	if err != nil {
+		return trace.Wrap(err, "failed to create default database object import rule")
+	}
+
+	return nil
+}
+
 // isFirstStart returns 'true' if the auth server is starting for the 1st time
 // on this server.
 func isFirstStart(ctx context.Context, authServer *Server, cfg InitConfig) (bool, error) {
@@ -949,7 +1061,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			switch r.GetType() {
 			case types.HostCA, types.UserCA, types.OpenSSHCA:
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
-			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA:
+			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
 			case types.JWTSigner, types.OIDCIdPCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
@@ -1384,7 +1496,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 			continue
 		}
 		// remote cluster already exists
-		_, err = asrv.Services.GetRemoteCluster(certAuthority.GetName())
+		_, err = asrv.Services.GetRemoteCluster(ctx, certAuthority.GetName())
 		if err == nil {
 			log.Debugf("Migrations: remote cluster already exists for cert authority %q.", certAuthority.GetName())
 			continue
@@ -1405,7 +1517,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		err = asrv.CreateRemoteCluster(remoteCluster)
+		_, err = asrv.CreateRemoteCluster(ctx, remoteCluster)
 		if err != nil {
 			if !trace.IsAlreadyExists(err) {
 				return trace.Wrap(err)
@@ -1440,7 +1552,7 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 	slices.SortFunc(resources, func(a, b types.Resource) int {
 		priorityA := ResourceApplyPriority[a.GetKind()]
 		priorityB := ResourceApplyPriority[b.GetKind()]
-		return priorityA - priorityB
+		return cmp.Compare(priorityA, priorityB)
 	})
 	for _, resource := range resources {
 		// Unwrap "new style" resources.
@@ -1461,11 +1573,13 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		case types.Role:
 			_, err = service.Access.UpsertRole(ctx, r)
 		case types.ClusterNetworkingConfig:
-			err = service.ClusterConfiguration.SetClusterNetworkingConfig(ctx, r)
+			_, err = service.ClusterConfiguration.UpsertClusterNetworkingConfig(ctx, r)
 		case types.AuthPreference:
-			err = service.ClusterConfiguration.SetAuthPreference(ctx, r)
+			_, err = service.ClusterConfiguration.UpsertAuthPreference(ctx, r)
 		case *machineidv1pb.Bot:
 			_, err = machineidv1.UpsertBot(ctx, service, r, time.Now(), "system")
+		case *dbobjectimportrulev1pb.DatabaseObjectImportRule:
+			_, err = dbobjectimportrulev1.UpsertDatabaseObjectImportRule(ctx, service, r)
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

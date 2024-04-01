@@ -336,8 +336,7 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 			c.AWSSession, err = awssession.NewSessionWithOptions(awssession.Options{
 				SharedConfigState: awssession.SharedConfigEnable,
 				Config: aws.Config{
-					EC2MetadataEnableFallback: aws.Bool(false),
-					UseFIPSEndpoint:           useFIPSEndpoint,
+					UseFIPSEndpoint: useFIPSEndpoint,
 				},
 			})
 			if err != nil {
@@ -369,9 +368,8 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 					}
 					session, err := awssession.NewSessionWithOptions(awssession.Options{
 						Config: aws.Config{
-							Region:                    &region,
-							EC2MetadataEnableFallback: aws.Bool(false),
-							UseFIPSEndpoint:           useFIPSEndpoint,
+							Region:          &region,
+							UseFIPSEndpoint: useFIPSEndpoint,
 						},
 						SharedConfigState: awssession.SharedConfigEnable,
 					})

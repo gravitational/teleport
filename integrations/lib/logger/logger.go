@@ -25,6 +25,9 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type Config struct {
@@ -36,15 +39,22 @@ type Fields = log.Fields
 
 type contextKey struct{}
 
-// InitLogger sets up logger for a typical daemon scenario until configuration
+// Init sets up logger for a typical daemon scenario until configuration
 // file is parsed
 func Init() {
-	log.SetFormatter(&trace.TextFormatter{
-		DisableTimestamp: true,
-		EnableColors:     trace.IsTerminal(os.Stderr),
+	formatter := &logutils.TextFormatter{
+		EnableColors:     utils.IsTerminal(os.Stderr),
 		ComponentPadding: 1, // We don't use components so strip the padding
-	})
+		ExtraFields:      []string{logutils.LevelField, logutils.ComponentField, logutils.CallerField},
+	}
+
 	log.SetOutput(os.Stderr)
+	if err := formatter.CheckAndSetDefaults(); err != nil {
+		log.WithError(err).Error("unable to create text log formatter")
+		return
+	}
+
+	log.SetFormatter(formatter)
 }
 
 func Setup(conf Config) error {

@@ -406,18 +406,22 @@ impl ScardBackend {
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: ContextCall,
     ) -> PduResult<()> {
-        let resp = self
+        debug!(
+            "received SCARD_IOCTL_CANCEL for context [{}]",
+            call.context.value
+        );
+        if let Some(resp) = self
             .contexts
-            .take_scard_cancel_response(call.context.value)?;
-        if let Some(resp) = resp {
+            .take_scard_cancel_response(call.context.value)?
+        {
+            // Take the pending SCARD_IOCTL_GETSTATUSCHANGEW response and send it back to the server.
             self.client_handle.write_rdpdr(resp.into())?;
-            Ok(())
         } else {
-            // TODO: Currently we're just returning ReturnCode::Success here (based on awly's pre-
-            // IronRDP code). Should we instead be returning SCARD_E_CANCELLED (or something else)?
             warn!("Received SCARD_IOCTL_CANCEL for a context without a pending SCARD_IOCTL_GETSTATUSCHANGEW");
-            self.send_device_control_response(req, LongReturn::new(ReturnCode::Success))
-        }
+        };
+
+        // Also return a response for the SCARD_IOCTL_CANCEL request itself.
+        self.send_device_control_response(req, LongReturn::new(ReturnCode::Success))
     }
 
     fn handle_is_valid_context(
@@ -549,6 +553,7 @@ impl Contexts {
     }
 
     fn set_scard_cancel_response(&mut self, id: u32, resp: DeviceControlResponse) -> PduResult<()> {
+        debug!("setting SCARD_IOCTL_CANCEL response for context [{}]", id);
         self.get_internal_mut(id)?.set_scard_cancel_response(resp)
     }
 
@@ -689,6 +694,7 @@ const TIMEOUT_IMMEDIATE: u32 = 0;
 
 /// A generic error type for the SmartcardBackend that can contain any arbitrary error message.
 #[derive(Debug)]
+#[allow(dead_code)] // The internal `String` is "dead code" according to the compiler, but we want it for debugging purposes.
 struct SmartcardBackendError(pub String);
 
 impl std::fmt::Display for SmartcardBackendError {
