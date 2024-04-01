@@ -1250,16 +1250,19 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(kind types.WatchKind) error 
 			return trace.Wrap(err)
 		}
 
+		// TODO (Joerger): DELETE IN 17.0.0
+		// Set LoadSecrets to true for requests from old proxies.
+		if a.hasBuiltinRole(types.RoleProxy) {
+			kind.LoadSecrets = true
+		}
+
 		// Allow reading Snowflake sessions to DB service.
 		if kind.SubKind == types.KindSnowflakeSession && a.hasBuiltinRole(types.RoleDatabase) {
 			return nil
 		}
 
 		// Users can watch their own web sessions without secrets.
-		if filter.User != "" && a.currentUserAction(filter.User) == nil {
-			if kind.LoadSecrets {
-				return trace.AccessDenied("user cannot watch web session with secrets")
-			}
+		if filter.User != "" && !kind.LoadSecrets && a.currentUserAction(filter.User) == nil {
 			return nil
 		}
 	case types.KindHeadlessAuthentication:
@@ -5371,7 +5374,7 @@ func (a *ServerWithRoles) GetAppSession(ctx context.Context, req types.GetAppSes
 			return session, nil
 		}
 
-		return session.WithoutSecrets(), nil
+		return session.CopyWithoutSecrets(), nil
 	}
 
 	return nil, trace.Wrap(authErr)
@@ -5469,7 +5472,7 @@ func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req *proto.Creat
 		return nil, trace.Wrap(err)
 	}
 
-	return session.WithoutSecrets(), nil
+	return session.CopyWithoutSecrets(), nil
 }
 
 // CreateSnowflakeSession creates a Snowflake web session.
