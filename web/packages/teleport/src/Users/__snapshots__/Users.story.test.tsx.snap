@@ -137,19 +137,15 @@ exports[`success state 1`] = `
 
 .c20:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c20:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c20:hover:enabled,
-.c20:focus:enabled {
+.c20:not(:disabled):hover,
+.c20:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c20:active:enabled {
+.c20:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -176,19 +172,15 @@ exports[`success state 1`] = `
 
 .c23:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c23:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c23:hover:enabled,
-.c23:focus:enabled {
+.c23:not(:disabled):hover,
+.c23:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c23:active:enabled {
+.c23:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 

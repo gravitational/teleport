@@ -276,14 +276,14 @@ func TestOutput(t *testing.T) {
 				slogLogger := slog.New(NewSlogJSONHandler(&slogOutput, SlogJSONHandlerConfig{Level: test.slogLevel})).With(teleport.ComponentKey, "test")
 
 				// Add some fields and output the message at the desired log level via logrus.
-				l := entry.WithField("test", 123).WithField("animal", "llama").WithField("error", logErr)
+				l := entry.WithField("test", 123).WithField("animal", "llama").WithField("error", trace.Wrap(logErr))
 				logrusTestLogLineNumber := func() int {
-					l.WithField("diag_addr", &addr).Log(test.logrusLevel, message)
+					l.WithField("diag_addr", addr.String()).Log(test.logrusLevel, message)
 					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
 				}()
 
 				// Add some fields and output the message at the desired log level via slog.
-				l2 := slogLogger.With("test", 123).With("animal", "llama").With("error", logErr)
+				l2 := slogLogger.With("test", 123).With("animal", "llama").With("error", trace.Wrap(logErr))
 				slogTestLogLineNumber := func() int {
 					l2.Log(context.Background(), test.slogLevel, message, "diag_addr", &addr)
 					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it

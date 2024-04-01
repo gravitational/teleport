@@ -137,7 +137,7 @@ export const OnlineEmptyResourcesAndCanAddResourcesAndConnectComputer = () => {
     makeRootCluster({
       uri: rootClusterDoc.clusterUri,
       loggedInUser: makeLoggedInUser({
-        userType: tsh.UserType.LOCAL,
+        userType: tsh.LoggedInUser_UserType.LOCAL,
         acl: {
           tokens: {
             create: true,
@@ -173,7 +173,7 @@ export const OnlineEmptyResourcesAndCanAddResourcesButCannotConnectComputer =
       makeRootCluster({
         uri: rootClusterDoc.clusterUri,
         loggedInUser: makeLoggedInUser({
-          userType: tsh.UserType.SSO,
+          userType: tsh.LoggedInUser_UserType.SSO,
           acl: {
             tokens: {
               create: true,
@@ -312,7 +312,7 @@ function renderState({
   doc: docTypes.DocumentCluster;
   listUnifiedResources?: ResourcesService['listUnifiedResources'];
   platform?: NodeJS.Platform;
-  userType?: tsh.UserType;
+  userType?: tsh.LoggedInUser_UserType;
 }) {
   const appContext = new MockAppContext({ platform });
   appContext.clustersService.state = state;

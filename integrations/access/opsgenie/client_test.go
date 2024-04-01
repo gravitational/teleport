@@ -36,6 +36,9 @@ import (
 func TestCreateAlert(t *testing.T) {
 	recievedReq := ""
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		if req.URL.Path != "/v2/alerts" {
+			return
+		}
 		bodyBytes, err := io.ReadAll(req.Body)
 		if err != nil {
 			log.Fatal(err)
@@ -56,7 +59,7 @@ func TestCreateAlert(t *testing.T) {
 		Roles:         []string{"role1", "role2"},
 		RequestReason: "someReason",
 		SystemAnnotations: types.Labels{
-			types.TeleportNamespace + types.ReqAnnotationSchedulesLabel: {"responder@teleport.com"},
+			types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel: {"responder@teleport.com"},
 		},
 	})
 	assert.NoError(t, err)

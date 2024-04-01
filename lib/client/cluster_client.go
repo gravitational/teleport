@@ -140,6 +140,94 @@ func (c ceremonyFailedErr) Error() string {
 	return c.err.Error()
 }
 
+// ReissueUserCerts generates a new set of certificates for the user.
+func (c *ClusterClient) ReissueUserCerts(ctx context.Context, cachePolicy CertCachePolicy, params ReissueParams) error {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"clusterClient/ReissueUserCerts",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("cluster", c.cluster),
+		),
+	)
+	defer span.End()
+
+	if params.RouteToCluster == "" {
+		params.RouteToCluster = c.cluster
+	}
+
+	key := params.ExistingCreds
+	if key == nil {
+		var err error
+
+		// Don't load the certs if we're going to drop all of them all as part
+		// of the re-issue. If we load all of the old certs now we won't be able
+		// to differentiate between legacy certificates (that need to be
+		// deleted) and newly re-issued certs (that we definitely do *not* want
+		// to delete) when it comes time to drop them from the local agent.
+		var certOptions []CertOption
+		if cachePolicy == CertCacheKeep {
+			certOptions = WithAllCerts
+		}
+
+		key, err = c.tc.localAgent.GetKey(params.RouteToCluster, certOptions...)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	req, err := c.prepareUserCertsRequest(params, key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	rootClient, err := c.ConnectToRootCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer rootClient.Close()
+
+	certs, err := rootClient.GenerateUserCerts(ctx, *req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	key.ClusterName = params.RouteToCluster
+
+	// Only update the parts of key that match the usage. See the docs on
+	// proto.UserCertsRequest_CertUsage for which certificates match which
+	// usage.
+	//
+	// This prevents us from overwriting the top-level key.TLSCert with
+	// usage-restricted certificates.
+	switch params.usage() {
+	case proto.UserCertsRequest_All:
+		key.Cert = certs.SSH
+		key.TLSCert = certs.TLS
+	case proto.UserCertsRequest_SSH:
+		key.Cert = certs.SSH
+	case proto.UserCertsRequest_App:
+		key.AppTLSCerts[params.RouteToApp.Name] = certs.TLS
+	case proto.UserCertsRequest_Database:
+		dbCert, err := makeDatabaseClientPEM(params.RouteToDatabase.Protocol, certs.TLS, key)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		key.DBTLSCerts[params.RouteToDatabase.ServiceName] = dbCert
+	case proto.UserCertsRequest_Kubernetes:
+		key.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
+	case proto.UserCertsRequest_WindowsDesktop:
+		key.WindowsDesktopCerts[params.RouteToWindowsDesktop.WindowsDesktop] = certs.TLS
+	}
+
+	if cachePolicy == CertCacheDrop {
+		c.tc.localAgent.DeleteUserCerts("", WithAllCerts...)
+	}
+
+	// save the cert to the local storage (~/.tsh usually):
+	return trace.Wrap(c.tc.localAgent.AddKey(key))
+}
+
 // SessionSSHConfig returns the [ssh.ClientConfig] that should be used to connected to the
 // provided target for the provided user. If per session MFA is required to establish the
 // connection, then the MFA ceremony will be performed.
