@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -224,6 +225,7 @@ func onCollectProfile(configPath string, rawProfiles string, seconds int, out io
 // createProfileArchive collects the profiles and generate a compressed tarball
 // file.
 func createProfilesArchive(ctx context.Context, clt *debugServiceClient, buf io.Writer, profiles []string, seconds int) error {
+	fileTime := time.Now()
 	gw := gzip.NewWriter(buf)
 	defer gw.Close()
 	tw := tar.NewWriter(gw)
@@ -236,9 +238,10 @@ func createProfilesArchive(ctx context.Context, clt *debugServiceClient, buf io.
 		}
 
 		hd := &tar.Header{
-			Name: profile + ".pprof",
-			Size: int64(len(contents)),
-			Mode: 0600,
+			Name:    profile + ".pprof",
+			Size:    int64(len(contents)),
+			Mode:    0600,
+			ModTime: fileTime,
 		}
 		if err := tw.WriteHeader(hd); err != nil {
 			return trace.Wrap(err)
