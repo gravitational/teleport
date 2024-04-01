@@ -13,7 +13,7 @@ state: draft
 
 ## What/Why
 
-This RFD describes how client tools (like `tsh` and `tctl`) can be kept up to
+This RFD describes how client tools like `tsh` and `tctl` can be kept up to
 date, either using automatic updates or self-managed updates.
 
 Keeping client tools updated helps with security (fixes for known security
@@ -30,9 +30,10 @@ rules).
 Client tools like `tsh` and `tctl` will automatically download and install the
 required version for the Teleport cluster.
 
-Enrollment in automatic updates for client tools will be required at the
-cluster level. Cluster administrators using MDM software like Jamf will be able
-to manage updates independently.
+Enrollment in automatic updates for client tools will be controlled at the
+cluster level. By default all clusters will be opted into automatic updates for
+client tools. Cluster administrators using MDM software like JamF will be able
+opt-out manually manage updates.
 
 Inspiration drawn from https://go.dev/doc/toolchain.
 
@@ -50,14 +51,13 @@ using the version required by the cluster.
 The original client tools binaries won't be overwritten. Instead, additional
 binaries will be downloaded and stored in `~/.tsh/bin` with `0555` permissions.
 A file named `version.yaml` in the same directory will maintain the mapping
-between proxies and tools versions, to support auto-purge (and free up disk
-space) of unused binaries.
+between proxies and tools versions, to support auto-purge and free up disk
+space from unused binaries.
 
-To enable concurrent operation and updates of multiple client tools, locking
-mechanisms utilizing [syscall.Flock](https://pkg.go.dev/syscall#Flock) (for
-Linux and macOS) and
+To enable concurrent operation of client tools, a locking mechanisms utilizing
+[syscall.Flock](https://pkg.go.dev/syscall#Flock) (for Linux and macOS) and
 [LockFileEx](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-lockfileex)
-(for Windows) will be employed.
+(for Windows) will be used.
 
 A side effect of automatic updates will be users will be able to connect to
 different Teleport clusters (running different versions of Teleport, including
@@ -102,15 +102,14 @@ Update progress: [▒▒▒▒▒▒     ] (Ctrl-C to cancel update)
 [...]
 ```
 
-After downloading, client tools will re-execute the downloaded version. The
-child process will inherit all environment variables and flags.
-`TELEPORT_TOOLS_VERSION=off` will be added during re-execution to prevent
-infinite loops.
-
 An environment variable `TELEPORT_TOOLS_VERSION` will be introduced that can be
-`X.Y.Z` (use specific version) or `off` (do not try to update). This
-environment variable can be used as a emergency workaround for a known issue,
-pinning to a specific version in CI/CD, or for debugging.
+`X.Y.Z` (use specific version) or `off` (do not update). This environment
+variable can be used as a emergency workaround for a known issue, pinning to a
+specific version in CI/CD, or for debugging.
+
+During re-execution, child process will inherit all environment variables and
+flags.  `TELEPORT_TOOLS_VERSION=off` will be added during re-execution to
+prevent infinite loops.
 
 Automatic updates will not be used if `tctl` is connecting to the Auth Service
 over localhost.
@@ -179,7 +178,7 @@ to this cluster.
 
 Cluster administrators that want to self-manage client tools updates will be
 able to watch for changes to client tools versions which can then be used to
-trigger other integrations (using MDM software like Jamf) to update the
+trigger other integrations (using MDM software like JamF) to update the
 installed version of client tools on endpoints.
 
 ```
@@ -202,6 +201,10 @@ A `autoupdate_version` resource will be added to allow cluster administrators
 to manage the version of tools pushed to clients.
 
 > [!NOTE]
+> Client tools configuration is broken into two resources to [prevent
+> updates](https://github.com/gravitational/teleport/blob/master/lib/modules/modules.go#L332-L355)
+> to `autoupdate_verson` on Cloud.
+>
 > While Cloud customers will be able to use `cluster_maintenance_config` to
 > turn client tools automatic updates `off` and self-manage updates, they will
 > not be able to control the version of client tools in `autoupdate_verson`.
