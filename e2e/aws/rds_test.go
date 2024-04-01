@@ -20,7 +20,6 @@ package e2e
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -55,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestDatabases(t *testing.T) {
@@ -637,16 +637,9 @@ func provisionRDSMySQLAutoUsersAdmin(t *testing.T, ctx context.Context, conn *my
 // randASCII is a helper func that returns a random string of ascii characters.
 func randASCII(t *testing.T, length int) string {
 	t.Helper()
-	const charset = "abcdefghijklmnopqrstuvwxyz"
-	b := make([]byte, length)
-
-	_, err := rand.Read(b)
+	out, err := utils.CryptoRandomHex(length / 2)
 	require.NoError(t, err)
-
-	for i := 0; i < length; i++ {
-		b[i] = charset[int(b[i])%len(charset)]
-	}
-	return string(b)
+	return out
 }
 
 const (
