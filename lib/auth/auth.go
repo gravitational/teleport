@@ -2394,6 +2394,7 @@ func (a *Server) AugmentWebSessionCertificates(
 	// Update WebSession.
 	sessionV2.Spec.Pub = newCerts.SSH
 	sessionV2.Spec.TLSCert = newCerts.TLS
+	sessionV2.Spec.HasDeviceExtensions = true
 	return trace.Wrap(sessions.Upsert(ctx, sessionV2))
 }
 
@@ -3206,30 +3207,6 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 	return trace.WithField(retErr, ErrFieldKeyUserMaxedAttempts, true)
 }
 
-// PreAuthenticatedSignIn is for MFA authentication methods where the password
-// is already checked before issuing the second factor challenge
-func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identity tlsca.Identity) (types.WebSession, error) {
-	accessInfo, err := services.AccessInfoFromLocalIdentity(identity, a)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
-		User:                 user,
-		LoginIP:              identity.LoginIP,
-		Roles:                accessInfo.Roles,
-		Traits:               accessInfo.Traits,
-		AccessRequests:       identity.ActiveRequests,
-		RequestedResourceIDs: accessInfo.AllowedResourceIDs,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := a.upsertWebSession(ctx, sess); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sess.WithoutSecrets(), nil
-}
-
 // CreateAuthenticateChallenge implements AuthService.CreateAuthenticateChallenge.
 func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 	var username string
@@ -3970,8 +3947,18 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		return nil, trace.Wrap(err)
 	}
 
+	// Keep existing device extensions in the new session.
+	opts := &newWebSessionOpts{}
+	if prevSession.GetHasDeviceExtensions() {
+		var err error
+		opts.deviceExtensions, err = decodeDeviceExtensionsFromSession(prevSession)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
-	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
+	sess, err := a.newWebSession(ctx, NewWebSessionRequest{
 		User:                 req.User,
 		LoginIP:              identity.LoginIP,
 		Roles:                roles,
@@ -3980,7 +3967,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		AccessRequests:       accessRequests,
 		RequestedResourceIDs: allowedResourceIDs,
 		PrivateKey:           prevKey,
-	})
+	}, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3995,6 +3982,29 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	}
 
 	return sess, nil
+}
+
+func decodeDeviceExtensionsFromSession(webSession types.WebSession) (*tlsca.DeviceExtensions, error) {
+	// Reading the extensions from the session itself means we are always taking
+	// them for a legitimate source (ie, certificates issued by Auth).
+	// We don't re-validate the certificates when decoding the extensions.
+
+	block, _ := pem.Decode(webSession.GetTLSCert())
+	if block == nil {
+		return nil, trace.BadParameter("failed to decode session TLS certificate")
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certIdentity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &certIdentity.DeviceExtensions, nil
 }
 
 // getWebSessionTTL returns the earliest expiration time of allowed in the access request.
@@ -4068,7 +4078,7 @@ func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
+	session, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
 		User:      user,
 		Roles:     u.GetRoles(),
 		Traits:    u.GetTraits(),
@@ -4582,8 +4592,22 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 	return tokens, nil
 }
 
-// NewWebSession creates and returns a new web session for the specified request
-func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
+// newWebSessionOpts are WebSession creation options exclusive to Auth.
+// These options complement [types.NewWebSessionRequest].
+// See [Server.newWebSession].
+type newWebSessionOpts struct {
+	// deviceExtensions are the device extensions to apply to the session.
+	// Only present on renewals, the original extensions are applied by
+	// [Server.AugmentWebSessionCertificates].
+	deviceExtensions *tlsca.DeviceExtensions
+}
+
+// newWebSession creates and returns a new web session for the specified request
+func (a *Server) newWebSession(
+	ctx context.Context,
+	req NewWebSessionRequest,
+	opts *newWebSessionOpts,
+) (types.WebSession, error) {
 	userState, err := a.GetUserOrLoginState(ctx, req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4634,7 +4658,7 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 		}
 	}
 
-	certs, err := a.generateUserCert(ctx, certRequest{
+	certReq := certRequest{
 		user:           userState,
 		loginIP:        req.LoginIP,
 		ttl:            sessionTTL,
@@ -4642,7 +4666,15 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 		checker:        checker,
 		traits:         req.Traits,
 		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
-	})
+	}
+	var hasDeviceExtensions bool
+	if opts != nil && opts.deviceExtensions != nil {
+		// Apply extensions to request.
+		certReq.deviceExtensions = DeviceExtensions(*opts.deviceExtensions)
+		hasDeviceExtensions = true
+	}
+
+	certs, err := a.generateUserCert(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4662,15 +4694,16 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 	}
 
 	sessionSpec := types.WebSessionSpecV2{
-		User:               req.User,
-		Priv:               req.PrivateKey.PrivateKeyPEM(),
-		Pub:                certs.SSH,
-		TLSCert:            certs.TLS,
-		Expires:            startTime.UTC().Add(sessionTTL),
-		BearerToken:        bearerToken,
-		BearerTokenExpires: startTime.UTC().Add(bearerTokenTTL),
-		LoginTime:          req.LoginTime,
-		IdleTimeout:        types.Duration(netCfg.GetWebIdleTimeout()),
+		User:                req.User,
+		Priv:                req.PrivateKey.PrivateKeyPEM(),
+		Pub:                 certs.SSH,
+		TLSCert:             certs.TLS,
+		Expires:             startTime.UTC().Add(sessionTTL),
+		BearerToken:         bearerToken,
+		BearerTokenExpires:  startTime.UTC().Add(bearerTokenTTL),
+		LoginTime:           req.LoginTime,
+		IdleTimeout:         types.Duration(netCfg.GetWebIdleTimeout()),
+		HasDeviceExtensions: hasDeviceExtensions,
 	}
 	UserLoginCount.Inc()
 

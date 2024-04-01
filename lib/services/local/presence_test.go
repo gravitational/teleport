@@ -996,12 +996,11 @@ func TestListResources_Helpers(t *testing.T) {
 				require.NoError(t, err)
 
 				return FakePaginate(types.Servers(nodes).AsResources(), FakePaginateParams{
-					ResourceType:        req.ResourceType,
-					Limit:               req.Limit,
-					Labels:              req.Labels,
-					SearchKeywords:      req.SearchKeywords,
-					PredicateExpression: req.PredicateExpression,
-					StartKey:            req.StartKey,
+					ResourceType:   req.ResourceType,
+					Limit:          req.Limit,
+					Labels:         req.Labels,
+					SearchKeywords: req.SearchKeywords,
+					StartKey:       req.StartKey,
 				})
 			},
 		},

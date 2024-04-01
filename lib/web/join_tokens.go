@@ -33,6 +33,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -510,16 +511,16 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		"packageName":                packageName,
 		"repoChannel":                repoChannel,
 		"installUpdater":             strconv.FormatBool(settings.installUpdater),
-		"version":                    utils.UnixShellQuote(version),
+		"version":                    shsprintf.EscapeDefaultContext(version),
 		"appInstallMode":             strconv.FormatBool(settings.appInstallMode),
-		"appName":                    utils.UnixShellQuote(settings.appName),
-		"appURI":                     utils.UnixShellQuote(settings.appURI),
-		"joinMethod":                 utils.UnixShellQuote(settings.joinMethod),
+		"appName":                    shsprintf.EscapeDefaultContext(settings.appName),
+		"appURI":                     shsprintf.EscapeDefaultContext(settings.appURI),
+		"joinMethod":                 shsprintf.EscapeDefaultContext(settings.joinMethod),
 		"labels":                     strings.Join(labelsList, ","),
 		"databaseInstallMode":        strconv.FormatBool(settings.databaseInstallMode),
 		"db_service_resource_labels": dbServiceResourceLabels,
 		"discoveryInstallMode":       settings.discoveryInstallMode,
-		"discoveryGroup":             utils.UnixShellQuote(settings.discoveryGroup),
+		"discoveryGroup":             shsprintf.EscapeDefaultContext(settings.discoveryGroup),
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

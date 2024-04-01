@@ -1392,16 +1392,14 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, cachePolicy Cert
 	)
 	defer span.End()
 
-	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
 	err = RetryWithRelogin(ctx, tc, func() error {
-		err := proxyClient.ReissueUserCerts(ctx, cachePolicy, params)
-		return trace.Wrap(err)
+		return trace.Wrap(clusterClient.ReissueUserCerts(ctx, cachePolicy, params))
 	})
 	return trace.Wrap(err)
 }
@@ -2601,34 +2599,6 @@ func (tc *TeleportClient) CreateAppSession(ctx context.Context, req *proto.Creat
 		return nil, trace.Wrap(err)
 	}
 	return ws, nil
-}
-
-// GetAppSession returns an existing application access session.
-func (tc *TeleportClient) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/GetAppSession",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(
-			attribute.String("session", req.SessionID),
-		),
-	)
-	defer span.End()
-
-	clusterClient, err := tc.ConnectToCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer clusterClient.Close()
-
-	rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rootAuthClient.Close()
-
-	ws, err := rootAuthClient.GetAppSession(ctx, req)
-	return ws, trace.Wrap(err)
 }
 
 // DeleteAppSession removes the specified application access session.

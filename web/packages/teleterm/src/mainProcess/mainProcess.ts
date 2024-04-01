@@ -31,6 +31,7 @@ import {
   shell,
 } from 'electron';
 import { ChannelCredentials } from '@grpc/grpc-js';
+import { GrpcTransport } from '@protobuf-ts/grpc-transport';
 
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
@@ -50,6 +51,7 @@ import Logger from 'teleterm/logger';
 import * as grpcCreds from 'teleterm/services/grpcCredentials';
 import { createTshdClient } from 'teleterm/services/tshd/createClient';
 import { TshdClient } from 'teleterm/services/tshd/types';
+import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 
 import {
   ConfigService,
@@ -629,7 +631,12 @@ async function setUpTshdClient({
   tshdAddress: string;
 }): Promise<TshdClient> {
   const creds = await createGrpcCredentials(runtimeSettings);
-  return createTshdClient(tshdAddress, creds);
+  const transport = new GrpcTransport({
+    host: tshdAddress,
+    channelCredentials: creds,
+    interceptors: [loggingInterceptor(new Logger('tshd'))],
+  });
+  return createTshdClient(transport);
 }
 
 async function createGrpcCredentials(

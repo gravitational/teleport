@@ -212,7 +212,7 @@ Given the ease of collecting profiles when using the new service, even regular
 usage can impact the instance. With that being said, we’re going to add rate
 limiting to the profiling endpoints.
 
-In addition, the profiling duraition (sampling) will be limited to the same
+In addition, the profiling duration (sampling) will be limited to the same
 value of the HTTP server write timeout. We'll set this timeout value into fairly
 large value to avoid the ability to diagnose issues.
 

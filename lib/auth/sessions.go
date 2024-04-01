@@ -41,6 +41,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// TODO (Joerger): Replace this alias with the definition of types.NewWebSessionRequest
+// once /e is no longer dependent on types.NewWebSessionRequest.
+type NewWebSessionRequest = types.NewWebSessionRequest
+
 // CreateAppSession creates and inserts a services.WebSession into the
 // backend with the identity of the caller used to generate the certificate.
 // The certificate is used for all access requests, which is where access
@@ -124,8 +128,8 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		Priv:        privateKey,
 		Pub:         certs.SSH,
 		TLSCert:     certs.TLS,
-		LoginTime:   a.clock.Now(),
-		Expires:     a.clock.Now().Add(ttl),
+		LoginTime:   a.clock.Now().UTC(),
+		Expires:     a.clock.Now().UTC().Add(ttl),
 		BearerToken: bearer,
 	})
 	if err != nil {
@@ -265,8 +269,8 @@ func (a *Server) generateAppToken(ctx context.Context, username string, roles []
 	return token, nil
 }
 
-func (a *Server) CreateWebSessionFromReq(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
-	session, err := a.NewWebSession(ctx, req)
+func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
+	session, err := a.newWebSession(ctx, req, nil /* opts */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
