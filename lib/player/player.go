@@ -276,8 +276,12 @@ func (p *Player) Play() error {
 // from the beginning. A duration greater than the length of the session
 // will cause playback to rapidly advance to the end of the recording.
 func (p *Player) SetPos(d time.Duration) error {
+	// we use a negative value to indicate rewinding, which means we can't
+	// rewind to position 0 (there is no negative 0)
+	if d == 0 {
+		d = 1 * time.Millisecond
+	}
 	if d.Milliseconds() < p.lastPlayed.Load() {
-		// if we're rewinding we store a negative value
 		d = -1 * d
 	}
 	p.advanceTo.Store(d.Milliseconds())
@@ -329,7 +333,6 @@ loop:
 				if err := p.waitWhilePaused(); err == errSeekWhilePaused {
 					// the user changed the playback position, so consider the delay
 					// applied and let the player pick up from the new position
-
 					return errSeekWhilePaused
 				}
 

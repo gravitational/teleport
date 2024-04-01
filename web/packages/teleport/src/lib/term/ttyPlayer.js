@@ -218,12 +218,13 @@ export default class TtyPlayer extends Tty {
       logger.error('error seeking', e);
     }
 
+    this._setTime(newPos);
+    this._lastUpdateTime = Date.now();
+    this._skipTimeUpdatesUntil = newPos;
+
     if (newPos < this._lastPlayedTimestamp) {
       this.emit(TermEvent.RESET);
     } else {
-      this._skipTimeUpdatesUntil = newPos;
-      this._setTime(newPos);
-      this._lastUpdateTime = Date.now();
       if (!this._paused) {
         this.scheduleNextUpdate(newPos);
       }
