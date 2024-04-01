@@ -1120,7 +1120,6 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
         keyboard_subtype: 0,
         keyboard_functional_keys_count: 12,
         ime_file_name: "".to_string(),
-        graphics: None,
         bitmap: Some(ironrdp_connector::BitmapConfig {
             lossy_compression: true,
             color_depth: 32, // Changing this to 16 gets us uncompressed bitmaps on machines configured like https://github.com/Devolutions/IronRDP/blob/55d11a5000ebd474c2ddc294b8b3935554443112/README.md?plain=1#L17-L36
