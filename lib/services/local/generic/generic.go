@@ -21,6 +21,7 @@ package generic
 import (
 	"context"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -51,6 +52,9 @@ type ServiceConfig[T Resource] struct {
 	BackendPrefix string
 	MarshalFunc   MarshalFunc[T]
 	UnmarshalFunc UnmarshalFunc[T]
+	// RunWhileLockedRetryInterval is the interval to retry the RunWhileLocked function.
+	// If set to 0, the default interval of 250ms will be used.
+	RunWhileLockedRetryInterval time.Duration
 }
 
 func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
@@ -75,17 +79,22 @@ func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
 		return trace.BadParameter("unmarshal func is missing")
 	}
 
+	if c.RunWhileLockedRetryInterval < 0 && !testing.Testing() {
+		return trace.BadParameter("run while locked retry interval must be greater than or equal to 0")
+	}
+
 	return nil
 }
 
 // Service is a generic service for interacting with resources in the backend.
 type Service[T Resource] struct {
-	backend       backend.Backend
-	resourceKind  string
-	pageLimit     uint
-	backendPrefix string
-	marshalFunc   MarshalFunc[T]
-	unmarshalFunc UnmarshalFunc[T]
+	backend                     backend.Backend
+	resourceKind                string
+	pageLimit                   uint
+	backendPrefix               string
+	marshalFunc                 MarshalFunc[T]
+	unmarshalFunc               UnmarshalFunc[T]
+	runWhileLockedRetryInterval time.Duration
 }
 
 // NewService will return a new generic service with the given config. This will
@@ -96,12 +105,13 @@ func NewService[T Resource](cfg *ServiceConfig[T]) (*Service[T], error) {
 	}
 
 	return &Service[T]{
-		backend:       cfg.Backend,
-		resourceKind:  cfg.ResourceKind,
-		pageLimit:     cfg.PageLimit,
-		backendPrefix: cfg.BackendPrefix,
-		marshalFunc:   cfg.MarshalFunc,
-		unmarshalFunc: cfg.UnmarshalFunc,
+		backend:                     cfg.Backend,
+		resourceKind:                cfg.ResourceKind,
+		pageLimit:                   cfg.PageLimit,
+		backendPrefix:               cfg.BackendPrefix,
+		marshalFunc:                 cfg.MarshalFunc,
+		unmarshalFunc:               cfg.UnmarshalFunc,
+		runWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
 	}, nil
 }
 
@@ -397,9 +407,10 @@ func (s *Service[T]) RunWhileLocked(ctx context.Context, lockName string, ttl ti
 	return trace.Wrap(backend.RunWhileLocked(ctx,
 		backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
-				Backend:  s.backend,
-				LockName: lockName,
-				TTL:      ttl,
+				Backend:       s.backend,
+				LockName:      lockName,
+				TTL:           ttl,
+				RetryInterval: s.runWhileLockedRetryInterval,
 			},
 		}, func(ctx context.Context) error {
 			return fn(ctx, s.backend)
