@@ -232,7 +232,6 @@ var allowDatabaseAccessRoleSpec = types.RoleSpecV6{
 var autoDBUserKeepSpec = types.RoleSpecV6{
 	Allow: types.RoleConditions{
 		DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-		DatabaseUsers:  []string{types.Wildcard},
 		DatabaseNames:  []string{types.Wildcard},
 	},
 	Options: types.RoleOptions{
@@ -243,7 +242,6 @@ var autoDBUserKeepSpec = types.RoleSpecV6{
 var autoDBUserDropSpec = types.RoleSpecV6{
 	Allow: types.RoleConditions{
 		DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-		DatabaseUsers:  []string{types.Wildcard},
 		DatabaseNames:  []string{types.Wildcard},
 	},
 	Options: types.RoleOptions{
