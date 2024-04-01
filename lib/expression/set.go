@@ -19,7 +19,7 @@
 package expression
 
 import (
-	"golang.org/x/exp/maps"
+	"maps"
 )
 
 // Set is a map of type string key and struct values.

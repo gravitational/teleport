@@ -20,11 +20,11 @@ package proxy
 
 import (
 	"context"
+	"maps"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"

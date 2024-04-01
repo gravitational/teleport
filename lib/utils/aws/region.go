@@ -19,11 +19,11 @@
 package aws
 
 import (
+	"maps"
 	"slices"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
-	"golang.org/x/exp/maps"
 )
 
 // IsKnownRegion returns true if provided region is one of the "well-known"

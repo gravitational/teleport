@@ -21,11 +21,10 @@ package main
 import (
 	"fmt"
 	"io"
+	"maps"
 	"regexp"
 	"sort"
 	"strconv"
-
-	"golang.org/x/exp/maps"
 )
 
 // separator for console output

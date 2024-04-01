@@ -19,6 +19,7 @@
 package aws
 
 import (
+	"maps"
 	"slices"
 
 	ec2TypesV2 "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -32,7 +33,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 )

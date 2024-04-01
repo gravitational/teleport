@@ -20,9 +20,9 @@ package kubeconfig
 
 import (
 	"fmt"
+	"maps"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/maps"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport/api/utils"
