@@ -3987,6 +3987,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 func decodeDeviceExtensionsFromSession(webSession types.WebSession) (*tlsca.DeviceExtensions, error) {
 	// Reading the extensions from the session itself means we are always taking
 	// them for a legitimate source (ie, certificates issued by Auth).
+	// We don't re-validate the certificates when decoding the extensions.
 
 	block, _ := pem.Decode(webSession.GetTLSCert())
 	if block == nil {
