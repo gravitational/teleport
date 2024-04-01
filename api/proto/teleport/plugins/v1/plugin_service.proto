@@ -157,9 +157,8 @@ message NeedsCleanupResponse {
   // NeedsCleanup will be set to true if the plugin needs cleanup.
   bool needs_cleanup = 1;
 
-  // ResourcesToCleanup are the resources that need to be cleaned up. Each resource will be
-  // represented as <resource-kind>/<id>.
-  repeated string resources_to_cleanup = 2;
+  // ResourcesToCleanup are the resources that need to be cleaned up.
+  repeated types.ResourceID resources_to_cleanup = 2;
 
   // PluginActive returns true if the plugin is currently active.
   bool plugin_active = 3;

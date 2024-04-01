@@ -79,7 +79,7 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *auth.Client) e
 	}
 
 	if p.dryRun {
-		fmt.Println("Since dry run is indicated, I won't delete anything.")
+		fmt.Println("Since dry run is indicated, nothing will be deleted.")
 		return nil
 	}
 
