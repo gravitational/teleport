@@ -123,6 +123,16 @@ func (s *IdentityService) ListUsersExt(ctx context.Context, req *userspb.ListUse
 		userStream = s.streamUsersWithoutSecrets(itemStream)
 	}
 
+	if req.Filter != nil {
+		userStream = stream.FilterMap(userStream, func(user *types.UserV2) (*types.UserV2, bool) {
+			if !req.Filter.Match(user) {
+				return nil, false
+			}
+
+			return user, true
+		})
+	}
+
 	users, full := stream.Take(userStream, int(pageSize))
 
 	var nextToken string
