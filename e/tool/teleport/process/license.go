@@ -1,6 +1,7 @@
 package process
 
 import (
+	"context"
 	"path/filepath"
 
 	"github.com/gravitational/trace"
@@ -18,16 +19,17 @@ func configureLicense(cfg *servicecfg.Config) (*licensefile.LicenseFile, error) 
 		return nil, nil
 	}
 
+	ctx := context.Background()
 	licenseFile, err := licensefile.NewLicenseFile(cfg.Auth.LicenseFile)
 	if err != nil {
-		cfg.Log.Debug(trace.DebugReport(err))
+		cfg.Logger.DebugContext(ctx, "Failed to load license.", "error", err, "license_file", cfg.Auth.LicenseFile)
 		return nil, trace.AccessDenied("auth server requires a valid license file to start, "+
 			"please set the correct license_file path under auth_service section "+
 			"in your teleport config or put the license into the default search "+
 			"location at %v", filepath.Join(cfg.DataDir, defaults.LicenseFile))
 	}
 
-	cfg.Log.Infof("Using license from %v %v.", cfg.Auth.LicenseFile, licenseFile.License)
+	cfg.Logger.InfoContext(ctx, "Successfully loaded license.", "license_file", cfg.Auth.LicenseFile, "license", licenseFile.License)
 	return licenseFile, nil
 }
 

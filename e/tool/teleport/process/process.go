@@ -44,7 +44,7 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 		// Features from the backend may be stale, so we should always prioritize
 		// using configureModules, and only use the backend features as a fallback in case
 		// some external service (like Cloud's API) is offline during the features fetching.
-		cfg.Log.Warnf("failed configuring cluster modules: %+v", err)
+		cfg.Logger.WarnContext(ctx, "failed configuring cluster modules", "error", err)
 		tryLoadingFeaturesFromBackend = cfg.Auth.Enabled
 	}
 
@@ -62,12 +62,12 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 	}
 
 	if tryLoadingFeaturesFromBackend {
-		cfg.Log.Info("trying to read cluster features from the backend")
+		cfg.Logger.InfoContext(ctx, "trying to read cluster features from the backend")
 		f, err := feature.Load(ctx, ossProcess.GetBackend())
 		if err != nil {
 			return nil, trace.Wrap(err, "couldn't read or load the cluster features")
 		}
-		cfg.Log.Infof("successfully loaded features from backend: %+v", *f)
+		cfg.Logger.InfoContext(ctx, "successfully loaded features from backend", "features", f)
 		modules.GetModules().SetFeatures(*f)
 	}
 

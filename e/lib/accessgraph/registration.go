@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/licensefile"
@@ -59,7 +58,7 @@ type authServer interface {
 
 // Register registers the cluster as a tenant with the Access Graph server,
 // and submits additional Host CA certificates (if any exist due to ongoing CA rotation).
-func Register(ctx context.Context, log *logrus.Entry, reg Registrator, config ServiceClientConfig, adminCreds ClientCredentials, auth authServer, license *licensefile.LicenseFile) error {
+func Register(ctx context.Context, reg Registrator, config ServiceClientConfig, adminCreds ClientCredentials, auth authServer, license *licensefile.LicenseFile) error {
 	clusterName, err := auth.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)

@@ -19,13 +19,13 @@ package accessgraph
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	_ "google.golang.org/grpc/health"
@@ -49,7 +49,7 @@ import (
 // initializeAndWatchAccessGraph initializes the access graph service and watches the auth server for events.
 // This function acquires a lock on the backend to ensure that only one instance of auth server is sending
 // events to the access graph service at a time.
-func initializeAndWatchAccessGraph(ctx context.Context, log logrus.FieldLogger, config ServiceClientConfig, creds ClientCredentials, authServer *auth.Server, bk backend.Backend) error {
+func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config ServiceClientConfig, creds ClientCredentials, authServer *auth.Server, bk backend.Backend) error {
 	// Configure health check service to monitor access graph service and
 	// automatically reconnect if the connection is lost without
 	// relying on new events from the auth server to trigger a reconnect.
@@ -88,13 +88,13 @@ func initializeAndWatchAccessGraph(ctx context.Context, log logrus.FieldLogger, 
 
 			stream, err := client.EventsStream(ctx)
 			if err != nil {
-				log.WithError(err).Error("Failed to get access graph service stream")
+				log.ErrorContext(ctx, "Failed to get access graph service stream", "error", err)
 				return trace.Wrap(err)
 			}
 
 			header, err := stream.Header()
 			if err != nil {
-				log.WithError(err).Error("Failed to get access graph service stream header")
+				log.ErrorContext(ctx, "Failed to get access graph service stream header", "error", err)
 				return trace.Wrap(err)
 			}
 			const (
@@ -113,7 +113,7 @@ func initializeAndWatchAccessGraph(ctx context.Context, log logrus.FieldLogger, 
 			go func() {
 				defer cancel()
 				if !accessGraphConn.WaitForStateChange(ctx, connectivity.Ready) {
-					log.Info("access graph service connection was closed")
+					log.InfoContext(ctx, "access graph service connection was closed")
 				}
 			}()
 
@@ -127,14 +127,14 @@ func initializeAndWatchAccessGraph(ctx context.Context, log logrus.FieldLogger, 
 				errc <- startWatching(eventWatcher, authServer, supportedKinds)
 			}()
 
-			log.Debug("Sending teleport resources to access graph service")
+			log.DebugContext(ctx, "Sending teleport resources to access graph service")
 			// Send all teleport resources to the access graph service.
 			if err := sendTeleportResources(ctx, stream, authServer, supportedKinds); err != nil {
-				log.WithError(err).Error("Failed to send teleport resources to access graph service")
+				log.ErrorContext(ctx, "Failed to send teleport resources to access graph service", "error", err)
 				return trace.Wrap(err)
 			}
 
-			log.Debug("Done sending teleport resources to access graph service")
+			log.DebugContext(ctx, "Done sending teleport resources to access graph service")
 
 			// Marks as ready and send cached resources to TAG
 			if err := eventWatcher.MarkReady(); err != nil {
@@ -143,10 +143,10 @@ func initializeAndWatchAccessGraph(ctx context.Context, log logrus.FieldLogger, 
 
 			err = <-errc
 			if errors.Is(err, context.Canceled) {
-				log.WithError(err).Info("access graph service connection was closed")
+				log.InfoContext(ctx, "access graph service connection was closed", "error", err)
 				return trace.Wrap(err)
 			} else if err != nil {
-				log.WithError(err).Error("Failed to start watching access graph service")
+				log.ErrorContext(ctx, "Failed to start watching access graph service", "error", err)
 				return trace.Wrap(err)
 			}
 

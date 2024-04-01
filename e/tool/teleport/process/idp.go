@@ -70,7 +70,7 @@ func initSAMLIdP(ctx context.Context, cfg *servicecfg.Config, plugin *web.Plugin
 
 	plugin.RegisterSAMLIdP(samlIdP)
 
-	cfg.Log.Infof("SAML identity provider has started successfully.")
+	cfg.Logger.InfoContext(ctx, "SAML identity provider has started successfully.")
 
 	return nil
 }

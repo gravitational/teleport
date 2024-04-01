@@ -134,7 +134,8 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 	if !cfg.AccessGraph.Enabled {
 		return nil
 	}
-	cfg.Log.Debug("Access Graph integration enabled")
+	ctx := process.ExitContext()
+	cfg.Logger.DebugContext(ctx, "Access Graph integration enabled")
 
 	// Register as non-critical service. We don't want to fail the startup if
 	// access graph is not available.
@@ -144,16 +145,16 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 		// https://github.com/gravitational/teleport/blob/3af6d9c1a25836bb160589a27a7d168a19a4992b/lib/service/service.go#L1873
 		features := modules.GetModules().Features()
 		if !features.Policy.Enabled {
-			cfg.Log.Info("Access Graph specified in config, but the license does not include Teleport Policy. Access graph sync will not be enabled.")
+			cfg.Logger.InfoContext(ctx, "Access Graph specified in config, but the license does not include Teleport Policy. Access graph sync will not be enabled.")
 			return nil
 		}
 		modules.GetModules().EnableAccessGraph()
 
-		cfg.Log.Info("Starting access graph service")
+		cfg.Logger.InfoContext(ctx, "Starting access graph service")
 
 		accessGraphAddr := cfg.AccessGraph.Addr
 		if accessGraphAddr == "" {
-			cfg.Log.Error("access graph endpoint not configured")
+			cfg.Logger.ErrorContext(ctx, "access graph endpoint not configured")
 			return trace.NotFound("access graph endpoint not configured")
 		}
 		const accessGraphRetryPeriod = 5 * time.Second
@@ -169,10 +170,7 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 			KeyPEM:  identity.KeyBytes,
 		}
 
-		log := cfg.Log.WithFields(logrus.Fields{
-			teleport.ComponentKey: "accessgraph",
-			"Addr":                accessGraphAddr,
-		})
+		log := cfg.Logger.With(teleport.ComponentKey, "accessgraph", "listen_address", accessGraphAddr)
 
 		config := ServiceClientConfig{
 			Addr:     accessGraphAddr,
@@ -185,12 +183,12 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 
 		// Retry registration first: after it succeeds once, we do not need to re-attempt it.
 		for {
-			err := Register(ctx, log, &registrator{}, config, adminCreds, process.GetAuthServer(), license)
+			err := Register(ctx, &registrator{}, config, adminCreds, process.GetAuthServer(), license)
 			if err == nil {
 				break
 			}
 
-			cfg.Log.Errorf("Access graph registration failed: %v", err)
+			cfg.Logger.ErrorContext(ctx, "Access graph registration failed", "error", err)
 			select {
 			case <-ctx.Done():
 				return nil
@@ -200,13 +198,13 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 		}
 
 		for {
-			cfg.Log.Debugf("Successfully registered with the access graph service")
+			cfg.Logger.DebugContext(ctx, "Successfully registered with the access graph service")
 			if err := initializeAndWatchAccessGraph(ctx,
 				log,
 				config,
 				adminCreds,
 				process.GetAuthServer(), process.GetBackend()); err != nil {
-				cfg.Log.Errorf("Access graph sync process failed: %v", err)
+				cfg.Logger.ErrorContext(ctx, "Access graph sync process failed", "error", err)
 				select {
 				case <-ctx.Done():
 					return nil

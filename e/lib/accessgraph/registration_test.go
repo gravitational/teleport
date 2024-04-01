@@ -7,7 +7,6 @@ import (
 
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -101,7 +100,6 @@ func createClusterName(t *testing.T) types.ClusterName {
 func TestRegister_CallsReplaceCAsInAllCases(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := logrus.NewEntry(logrus.StandardLogger())
 
 	ca := createCA(t, "", nil)
 	clusterName := createClusterName(t)
@@ -146,7 +144,7 @@ func TestRegister_CallsReplaceCAsInAllCases(t *testing.T) {
 					return tc.replaceCAsError
 				},
 			}
-			err := Register(ctx, log, registrator, testConfig, testAdminCreds, auth, nil)
+			err := Register(ctx, registrator, testConfig, testAdminCreds, auth, nil)
 			require.Equal(t, 1, registrator.registerCalled)
 			require.Equal(t, 1, registrator.replaceCAsCalled)
 
@@ -174,7 +172,6 @@ func TestRegister_Cloud_UsesLicenseIdentity(t *testing.T) {
 		},
 	})
 	ctx := context.Background()
-	log := logrus.NewEntry(logrus.StandardLogger())
 
 	ca := createCA(t, "", nil)
 	clusterName := createClusterName(t)
@@ -202,7 +199,7 @@ func TestRegister_Cloud_UsesLicenseIdentity(t *testing.T) {
 			return nil
 		},
 	}
-	err := Register(ctx, log, registrator, testConfig, testAdminCreds, auth, license)
+	err := Register(ctx, registrator, testConfig, testAdminCreds, auth, license)
 	require.NoError(t, err)
 	require.Equal(t, 1, registrator.registerCalled)
 	require.Equal(t, 1, registrator.replaceCAsCalled)
@@ -211,7 +208,6 @@ func TestRegister_Cloud_UsesLicenseIdentity(t *testing.T) {
 func TestRegister_CARotation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := logrus.NewEntry(logrus.StandardLogger())
 
 	additionalKeyPair := &types.TLSKeyPair{
 		Cert: []byte("additional cert"),
@@ -273,7 +269,7 @@ func TestRegister_CARotation(t *testing.T) {
 					return nil
 				},
 			}
-			err := Register(ctx, log, registrator, testConfig, testAdminCreds, auth, nil)
+			err := Register(ctx, registrator, testConfig, testAdminCreds, auth, nil)
 			require.NoError(t, err)
 			require.Equal(t, 1, registrator.registerCalled)
 			require.Equal(t, 1, registrator.replaceCAsCalled)
