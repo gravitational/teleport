@@ -340,18 +340,6 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 	return session, nil
 }
 
-// WaitForAppSession will block until the requested application session shows up in the
-// cache or a timeout occurs.
-func WaitForAppSession(ctx context.Context, sessionID, user string, ap ReadProxyAccessPoint) error {
-	req := waitForWebSessionReq{
-		newWatcherFn: ap.NewWatcher,
-		getSessionFn: func(ctx context.Context, sessionID string) (types.WebSession, error) {
-			return ap.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
-		},
-	}
-	return trace.Wrap(waitForWebSession(ctx, sessionID, user, types.KindAppSession, req))
-}
-
 // WaitForSnowflakeSession waits until the requested Snowflake session shows up int the cache
 // or a timeout occurs.
 func WaitForSnowflakeSession(ctx context.Context, sessionID, user string, ap SnowflakeSessionWatcher) error {
