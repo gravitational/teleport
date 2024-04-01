@@ -128,8 +128,8 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		Priv:        privateKey,
 		Pub:         certs.SSH,
 		TLSCert:     certs.TLS,
-		LoginTime:   a.clock.Now(),
-		Expires:     a.clock.Now().Add(ttl),
+		LoginTime:   a.clock.Now().UTC(),
+		Expires:     a.clock.Now().UTC().Add(ttl),
 		BearerToken: bearer,
 	})
 	if err != nil {
@@ -270,7 +270,7 @@ func (a *Server) generateAppToken(ctx context.Context, username string, roles []
 }
 
 func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
-	session, err := a.NewWebSession(ctx, req)
+	session, err := a.newWebSession(ctx, req, nil /* opts */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
