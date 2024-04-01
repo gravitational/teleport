@@ -3240,7 +3240,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 
 	process.RegisterFunc("diagnostic.service", func() error {
 		muxListener, err := multiplexer.New(multiplexer.Config{
-			Context:                        process.GracefulExitContext(),
+			Context:                        process.ExitContext(),
 			Listener:                       listener,
 			PROXYProtocolMode:              multiplexer.PROXYProtocolUnspecified,
 			SuppressUnexpectedPROXYWarning: true,
