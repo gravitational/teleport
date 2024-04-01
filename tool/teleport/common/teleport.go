@@ -517,9 +517,10 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	setLogLevelCmd := debugCmd.Command("set-log-level", "Changes the log level.")
 	setLogLevelCmd.Arg("LEVEL", fmt.Sprintf("Log level (case-insensitive). Any of: %s", strings.Join(logutils.SupportedLevelsString, ","))).Required().StringVar(&ccf.LogLevel)
 	getLogLevelCmd := debugCmd.Command("get-log-level", "Fetches current log level.")
-	collectProfilesCmd := debugCmd.Command("profile", "Export the application profiles (pprof format).")
+	collectProfilesCmd := debugCmd.Command("profile", "Export the application profiles (pprof format). Outputs to stdout .tar.gz file contents.")
+	collectProfilesCmd.Alias(collectProfileUsageExamples) // We're using "alias" section to display usage examples.
 	collectProfilesCmd.Arg("PROFILES", fmt.Sprintf("Comma-separated profile names to be exported. Supported profiles: %s. Default: %s", strings.Join(maps.Keys(supportedProfiles), ","), strings.Join(defaultCollectProfiles, ","))).StringVar(&ccf.Profiles)
-	collectProfilesCmd.Flag("seconds", "For CPU and trace profiles, profile for the given duration. For other profiles, return a delta profile.").Short('s').Default("10").IntVar(&ccf.ProfileSeconds)
+	collectProfilesCmd.Flag("seconds", "For CPU and trace profiles, profile for the given duration (if set to 0, it returns a profile snapshot). For other profiles, return a delta profile. Default: 10").Short('s').Default("10").IntVar(&ccf.ProfileSeconds)
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
