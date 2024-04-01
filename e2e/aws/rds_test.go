@@ -267,6 +267,11 @@ func testRDS(t *testing.T) {
 	})
 }
 
+const (
+	connTestTimeout       = 30 * time.Second
+	connTestRetryInterval = 3 * time.Second
+)
+
 // postgresConnTestFn tests connection to a postgres database via proxy web
 // multiplexer.
 func postgresConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase) {
@@ -288,7 +293,7 @@ func postgresConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, 
 		})
 		assert.NoError(t, err)
 		assert.NotNil(t, pgConn)
-	}, time.Second*10, time.Second, "connecting to postgres")
+	}, connTestTimeout, connTestRetryInterval, "connecting to postgres")
 
 	// Execute a query.
 	results, err := pgConn.Exec(ctx, "select 1").ReadAll()
@@ -321,7 +326,7 @@ func postgresLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, use
 		pgConn, err = pgconn.Connect(ctx, connString)
 		assert.NoError(t, err)
 		assert.NotNil(t, pgConn)
-	}, time.Second*10, time.Second, "connecting to postgres")
+	}, connTestTimeout, connTestRetryInterval, "connecting to postgres")
 
 	// Execute a query.
 	results, err := pgConn.Exec(ctx, "select 1").ReadAll()
@@ -353,7 +358,7 @@ func mysqlLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user s
 		conn, err = mysqlclient.Connect(lp.GetAddr(), route.Username, "" /*no password*/, route.Database)
 		assert.NoError(t, err)
 		assert.NotNil(t, conn)
-	}, time.Second*10, time.Second, "connecting to mysql")
+	}, connTestTimeout, connTestRetryInterval, "connecting to mysql")
 
 	// Execute a query.
 	_, err := conn.Execute("select 1")
