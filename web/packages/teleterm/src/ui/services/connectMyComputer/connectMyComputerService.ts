@@ -21,9 +21,8 @@ import {
   Cluster,
   CreateConnectMyComputerRoleResponse,
   Server,
-  CloneableAbortSignal,
-  TshdClient,
 } from 'teleterm/services/tshd/types';
+import { TshdClient, CloneableAbortSignal } from 'teleterm/services/tshd';
 
 import type * as uri from 'teleterm/ui/uri';
 

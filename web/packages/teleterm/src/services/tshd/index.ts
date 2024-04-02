@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,18 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { GrpcTransport } from '@protobuf-ts/grpc-transport';
-import {
-  ITerminalServiceClient,
-  TerminalServiceClient,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
-
-import { CloneableClient, cloneClient } from './cloneableClient';
-
-// Creating the client type based on the interface (ITerminalServiceClient) and not the class
-// (TerminalServiceClient) lets us omit a bunch of properties when mocking a client.
-export type TshdClient = CloneableClient<ITerminalServiceClient>;
-
-export function createTshdClient(transport: GrpcTransport): TshdClient {
-  return cloneClient(new TerminalServiceClient(transport));
-}
+export * from './createClient';
+export { cloneAbortSignal, isTshdRpcError } from './cloneableClient';
+export type { CloneableAbortSignal } from './cloneableClient';
