@@ -232,7 +232,7 @@ func (a *Server) updateGithubConnector(ctx context.Context, connector types.Gith
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit GitHub connector create event.")
+		log.WithError(err).Warn("Failed to emit GitHub connector update event.")
 	}
 
 	return updated, nil
