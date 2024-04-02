@@ -56,11 +56,26 @@ export const EnrollOktaIsTeam = () => {
   return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('okta'), ctx);
 };
 
-export const EnrollOktaEnterprise = () => {
+export const EnrollOktaEnterpriseWithCleanUp = () => {
   cfg.isTeam = false;
   cfg.isEnterprise = true;
   const ctx = createTeleportContextE();
   return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('okta'), ctx);
+};
+EnrollOktaEnterpriseWithCleanUp.parameters = {
+  msw: {
+    handlers: [
+      rest.get(ecfg.api.pluginNeedsCleanupPath, async (req, res, ctx) => {
+        return res(ctx.json({ needsCleanup: true }));
+      }),
+      rest.put(ecfg.api.pluginCleanupPath, async (req, res, ctx) => {
+        return res(ctx.json({}));
+      }),
+      rest.post(ecfg.getPluginValidateUrl(), async (req, res, ctx) => {
+        return res(ctx.json({}));
+      }),
+    ],
+  },
 };
 
 export const EnrollOktaWithIgs = () => {

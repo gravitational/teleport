@@ -17,6 +17,16 @@ export const pluginsService = {
     return api.get(cfg.getPluginUrl()).then(makePlugins);
   },
 
+  checkPluginRequiresCleanup(kind: PluginKind): Promise<boolean> {
+    return api
+      .get(cfg.getPluginNeedsCleanupUrl(kind))
+      .then(resp => resp?.needsCleanup);
+  },
+
+  cleanupPlugin(kind: PluginKind): Promise<void> {
+    return api.put(cfg.getPluginCleanupUrl(kind), null);
+  },
+
   async createPlugin(formData: FormData): Promise<Plugin> {
     const webauthnResponse =
       await auth.getWebauthnResponseForAdminAction(false);

@@ -6,6 +6,8 @@ import generateResourcePath from 'teleport/generateResourcePath';
 
 import { AccessRequestFilter, ResourceId } from 'e-teleport/services/workflow';
 
+import type { PluginKind } from 'teleport/services/integrations/types';
+
 const cfg = {
   oss: ossCfg,
 
@@ -95,6 +97,8 @@ const cfg = {
     pluginTypesPath: '/v1/enterprise/plugins/types',
     pluginPath: '/v1/enterprise/plugin/:name?',
     pluginValidatePath: '/v1/enterprise/plugins/validate',
+    pluginNeedsCleanupPath: '/v1/enterprise/plugins/needscleanup/:kind',
+    pluginCleanupPath: '/v1/enterprise/plugins/cleanup/:kind',
 
     okta: {
       groups: '/v1/enterprise/pluginconfig/okta/groups',
@@ -226,6 +230,14 @@ const cfg = {
 
   getPluginUrl(name?: string) {
     return generatePath(cfg.api.pluginPath, { name });
+  },
+
+  getPluginNeedsCleanupUrl(kind: PluginKind) {
+    return generatePath(cfg.api.pluginNeedsCleanupPath, { kind });
+  },
+
+  getPluginCleanupUrl(kind: PluginKind) {
+    return generatePath(cfg.api.pluginCleanupPath, { kind });
   },
 
   getPluginValidateUrl() {

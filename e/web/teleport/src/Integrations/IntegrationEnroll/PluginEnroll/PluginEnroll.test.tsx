@@ -111,6 +111,10 @@ describe('okta PluginEnroll.tsx', () => {
       .mockResolvedValue(null);
 
     jest
+      .spyOn(pluginsService, 'checkPluginRequiresCleanup')
+      .mockResolvedValue(false);
+
+    jest
       .spyOn(userService, 'fetchUsers')
       .mockResolvedValue([{ name: 'apple', roles: [] }]);
 
@@ -168,6 +172,7 @@ describe('okta PluginEnroll.tsx', () => {
     expect(calledWithFormData.get('apiToken')).toEqual(
       testFormData.get('apiToken')
     );
+    expect(pluginsService.checkPluginRequiresCleanup).toHaveBeenCalledTimes(1);
 
     // Test okta install api call.
     expect(pluginsService.createPlugin).toHaveBeenCalledTimes(1);
@@ -199,6 +204,7 @@ describe('okta PluginEnroll.tsx', () => {
 
     // Test plugin validation api call.
     await userEvent.click(screen.getByRole('button', { name: /next/i }));
+    expect(pluginsService.checkPluginRequiresCleanup).toHaveBeenCalledTimes(1);
 
     const testFormData = new FormData();
     testFormData.append('orgURL', 'https://some-org-url.com');
@@ -323,6 +329,37 @@ describe('okta PluginEnroll.tsx', () => {
     expect(calledWithFormData.get('groupFilters')).toBeNull();
     expect(calledWithFormData.get('appFilters')).toBeNull();
     expect(calledWithFormData.get('defaultOwners')).toBeNull();
+  });
+
+  test('okta flow, requiring clean up', async () => {
+    cfg.isIgsEnabled = true;
+
+    jest
+      .spyOn(pluginsService, 'checkPluginRequiresCleanup')
+      .mockResolvedValue(true);
+
+    jest.spyOn(pluginsService, 'cleanupPlugin').mockResolvedValue(null);
+
+    renderPluginEnroll('okta');
+    fillInFirstStepInputs();
+
+    // Go to next step.
+    await userEvent.click(screen.getByRole('button', { name: /next/i }));
+    expect(pluginsService.checkPluginRequiresCleanup).toHaveBeenCalledTimes(1);
+
+    expect(screen.getByText(/cleanup required/i)).toBeInTheDocument();
+
+    // Canceling should re-render the clean up dialogue.
+    await userEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(screen.queryByText(/cleanup required/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /next/i }));
+    expect(screen.getByText(/cleanup required/i)).toBeInTheDocument();
+
+    // Clicking on clean up should close the dialogue.
+    await userEvent.click(screen.getByRole('button', { name: /clean up/i }));
+    expect(pluginsService.cleanupPlugin).toHaveBeenCalledTimes(1);
+
+    expect(screen.queryByText('cleanup required')).not.toBeInTheDocument();
   });
 
   test('okta flow with igs enabled, custom filter error handling', async () => {

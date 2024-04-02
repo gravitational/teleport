@@ -1,4 +1,4 @@
-import React, { FormEvent } from 'react';
+import React, { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { ButtonPrimary, ButtonSecondary, Box, Flex, Text, Alert } from 'design';
@@ -14,6 +14,7 @@ import cfg from 'e-teleport/config';
 import { pluginsService, getCTAForPlugin } from 'e-teleport/services/plugins';
 
 import { CloudHostablePlugin } from './plugins';
+import { CleanupDialogue } from './MultiStep/Okta/CleanupDialogue';
 
 // SubmittablePluginForm is a form that will use the default form submission event
 // if the plugin is an `OAuth` plugin. Otherwise it will send off a conventional
@@ -41,6 +42,7 @@ export function SubmittablePluginForm({
   CustomTitle?: JSX.Element;
 }) {
   const { attempt, setAttempt } = useAttempt(''); // only for non-oauth submissions.
+  const [showCleanUpModal, setShowCleanUpModal] = useState(false);
 
   async function onSubmit(validator: Validator, e: FormEvent<HTMLFormElement>) {
     if (!validator.validate()) {
@@ -61,9 +63,18 @@ export function SubmittablePluginForm({
       let formData = new FormData(e.currentTarget as HTMLFormElement);
 
       try {
-        // Currently, only okta plugin support validating.
+        // Currently, only okta plugin support validating and cleaning up.
         if (plugin.type === 'okta') {
           await pluginsService.validatePlugin(formData);
+          const required = await pluginsService.checkPluginRequiresCleanup(
+            plugin.type
+          );
+
+          if (required) {
+            setShowCleanUpModal(true);
+            setAttempt({ status: '' });
+            return;
+          }
         }
 
         if (setFormData) {
@@ -148,7 +159,7 @@ export function SubmittablePluginForm({
         {plugin.Setup && (
           <>
             <Text fontSize={4} bold>
-              Set up the plugin
+              Set up the integration
             </Text>
             <plugin.Setup />
           </>
@@ -159,6 +170,12 @@ export function SubmittablePluginForm({
           </Text>
           {attempt.status === 'failed' && (
             <Alert kind="danger" children={attempt.statusText} mb={3} mt={3} />
+          )}
+          {showCleanUpModal && (
+            <CleanupDialogue
+              onClose={() => setShowCleanUpModal(false)}
+              pluginKind={plugin.type}
+            />
           )}
           <Validation>
             {/* A "normal" HTTP form is used here instead of an AJAX request,
@@ -186,7 +203,9 @@ export function SubmittablePluginForm({
                   <ButtonPrimary
                     type="submit"
                     mr={3}
-                    disabled={attempt.status === 'processing'}
+                    disabled={
+                      attempt.status === 'processing' || showCleanUpModal
+                    }
                   >
                     {isPartOfMultiStep ? 'Next' : `Connect ${plugin.name}`}
                   </ButtonPrimary>
