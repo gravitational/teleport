@@ -210,40 +210,63 @@ func testRDS(t *testing.T) {
 			_, _ = conn.Exec(ctx, fmt.Sprintf("DROP USER %q", autoUserDrop))
 		})
 
-		t.Run("connect", func(t *testing.T) {
-			for name, test := range map[string]struct {
-				user   string
-				dbUser string
-				query  string
-			}{
-				"existing user":  {user: hostUser, dbUser: adminUser.Name, query: "select 1"},
-				"auto user keep": {user: autoUserKeep, dbUser: autoUserKeep, query: autoRolesQuery},
-				"auto user drop": {user: autoUserDrop, dbUser: autoUserDrop, query: autoRolesQuery},
-			} {
-				test := test
-				route := tlsca.RouteToDatabase{
-					ServiceName: db.GetName(),
-					Protocol:    defaults.ProtocolPostgres,
-					Username:    test.dbUser,
-					Database:    "postgres",
+		var pgxConnMu sync.Mutex
+		for name, test := range map[string]struct {
+			user            string
+			dbUser          string
+			query           string
+			afterConnTestFn func(t *testing.T)
+		}{
+			"existing user": {
+				user:   hostUser,
+				dbUser: adminUser.Name, // admin user already has RDS IAM auth
+				query:  "select 1",
+			},
+			"auto user keep": {
+				user:   autoUserKeep,
+				dbUser: autoUserKeep,
+				query:  autoRolesQuery,
+				afterConnTestFn: func(t *testing.T) {
+					pgxConnMu.Lock()
+					defer pgxConnMu.Unlock()
+					waitForPostgresAutoUserDeactivate(t, ctx, conn, autoUserKeep)
+				},
+			},
+			"auto user drop": {
+				user:   autoUserDrop,
+				dbUser: autoUserDrop,
+				query:  autoRolesQuery,
+				afterConnTestFn: func(t *testing.T) {
+					pgxConnMu.Lock()
+					defer pgxConnMu.Unlock()
+					waitForPostgresAutoUserDrop(t, ctx, conn, autoUserDrop)
+				},
+			},
+		} {
+			test := test
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				t.Run("connect", func(t *testing.T) {
+					route := tlsca.RouteToDatabase{
+						ServiceName: db.GetName(),
+						Protocol:    defaults.ProtocolPostgres,
+						Username:    test.dbUser,
+						Database:    "postgres",
+					}
+					t.Run("via proxy", func(t *testing.T) {
+						t.Parallel()
+						postgresConnTest(t, cluster, test.user, route, test.query)
+					})
+					t.Run("via local proxy", func(t *testing.T) {
+						t.Parallel()
+						postgresLocalProxyConnTest(t, cluster, test.user, route, test.query)
+					})
+				})
+				if test.afterConnTestFn != nil {
+					test.afterConnTestFn(t)
 				}
-				t.Run(name+"/via proxy", func(t *testing.T) {
-					t.Parallel()
-					postgresConnTest(t, cluster, test.user, route, test.query)
-				})
-				t.Run(name+"/via local proxy", func(t *testing.T) {
-					t.Parallel()
-					postgresLocalProxyConnTest(t, cluster, test.user, route, test.query)
-				})
-			}
-		})
-
-		t.Run("connect/auto user keep", func(t *testing.T) {
-			waitForPostgresAutoUserDeactivate(t, ctx, conn, autoUserKeep)
-		})
-		t.Run("connect/auto user drop", func(t *testing.T) {
-			waitForPostgresAutoUserDrop(t, ctx, conn, autoUserDrop)
-		})
+			})
+		}
 	})
 
 	t.Run("mysql", func(t *testing.T) {
@@ -292,36 +315,60 @@ func testRDS(t *testing.T) {
 			_, _ = conn.Execute(fmt.Sprintf("DROP USER %q", autoUserDrop))
 		})
 
-		t.Run("connect", func(t *testing.T) {
-			for name, test := range map[string]struct {
-				user   string
-				dbUser string
-				query  string
-			}{
-				"existing user":  {user: hostUser, dbUser: adminUser.Name, query: "select 1"},
-				"auto user keep": {user: autoUserKeep, dbUser: autoUserKeep, query: autoRolesQuery},
-				"auto user drop": {user: autoUserDrop, dbUser: autoUserDrop, query: autoRolesQuery},
-			} {
-				test := test
+		for name, test := range map[string]struct {
+			user            string
+			dbUser          string
+			query           string
+			afterConnTestFn func(t *testing.T)
+		}{
+			"existing user": {
+				user:   hostUser,
+				dbUser: adminUser.Name, // admin user already has RDS IAM auth
+				query:  "select 1",
+			},
+			"auto user keep": {
+				user:   autoUserKeep,
+				dbUser: autoUserKeep,
+				query:  autoRolesQuery,
+				afterConnTestFn: func(t *testing.T) {
+					waitForMySQLAutoUserDeactivate(t, conn, autoUserKeep)
+				},
+			},
+			"auto user drop": {
+				user:   autoUserDrop,
+				dbUser: autoUserDrop,
+				query:  autoRolesQuery,
+				afterConnTestFn: func(t *testing.T) {
+					waitForMySQLAutoUserDrop(t, conn, autoUserDrop)
+				},
+			},
+		} {
+			test := test
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
 				route := tlsca.RouteToDatabase{
 					ServiceName: mysqlDBName,
 					Protocol:    defaults.ProtocolMySQL,
 					Username:    test.dbUser,
 					Database:    "", // not needed
 				}
-				t.Run(name+"/via local proxy", func(t *testing.T) {
-					t.Parallel()
-					mysqlLocalProxyConnTest(t, cluster, test.user, route, test.query)
+				t.Run("connect", func(t *testing.T) {
+					// run multiple conn tests in parallel to test parallel
+					// auto user connections.
+					t.Run("via local proxy 1", func(t *testing.T) {
+						t.Parallel()
+						mysqlLocalProxyConnTest(t, cluster, test.user, route, test.query)
+					})
+					t.Run("via local proxy 2", func(t *testing.T) {
+						t.Parallel()
+						mysqlLocalProxyConnTest(t, cluster, test.user, route, test.query)
+					})
 				})
-			}
-		})
-
-		t.Run("connect/auto user keep", func(t *testing.T) {
-			waitForMySQLAutoUserDeactivate(t, conn, autoUserKeep)
-		})
-		t.Run("connect/auto user drop", func(t *testing.T) {
-			waitForMySQLAutoUserDrop(t, conn, autoUserDrop)
-		})
+				if test.afterConnTestFn != nil {
+					test.afterConnTestFn(t)
+				}
+			})
+		}
 	})
 }
 
