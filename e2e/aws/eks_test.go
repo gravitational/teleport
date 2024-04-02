@@ -125,7 +125,7 @@ func awsEKSDiscoveryMatchedCluster(t *testing.T) {
 	// the permissions are correct.
 	kubeClient, _, err := kube.ProxyClient(kube.ProxyConfig{
 		T:           teleport,
-		Username:    username,
+		Username:    hostUser,
 		KubeUsers:   kubeUsers,
 		KubeGroups:  kubeGroups,
 		KubeCluster: clusters[0].GetName(),
@@ -179,7 +179,7 @@ func awsEKSDiscoveryUnmatchedCluster(t *testing.T) {
 // clusters.
 func withFullKubeAccessUserRole(t *testing.T) testOptionsFunc {
 	// Create a new role with full access to all kube clusters.
-	return withUserRole(t, "kubemaster", types.RoleSpecV6{
+	return withUserRole(t, hostUser, "kubemaster", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			KubeGroups: kubeGroups,
 			KubeUsers:  kubeUsers,

@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/teleterm/cmd/cmds"
 	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -148,10 +149,10 @@ func TestNewWithLocalPortReturnsErrorIfNewPortEqualsOldPort(t *testing.T) {
 
 type mockCLICommandProvider struct{}
 
-func (m mockCLICommandProvider) GetCommand(gateway Gateway) (*exec.Cmd, error) {
+func (m mockCLICommandProvider) GetCommand(gateway Gateway) (cmds.Cmds, error) {
 	absPath, err := filepath.Abs(gateway.Protocol())
 	if err != nil {
-		return nil, err
+		return cmds.Cmds{}, err
 	}
 	arg := fmt.Sprintf("%s/%s", gateway.TargetName(), gateway.TargetSubresourceName())
 	// Call exec.Command with a relative path so that cmd.Args[0] is a relative path.
@@ -164,7 +165,7 @@ func (m mockCLICommandProvider) GetCommand(gateway Gateway) (*exec.Cmd, error) {
 	cmd := exec.Command(gateway.Protocol(), arg)
 	cmd.Path = absPath
 	cmd.Env = []string{"FOO=bar"}
-	return cmd, nil
+	return cmds.Cmds{Exec: cmd, Preview: cmd}, nil
 }
 
 func createAndServeGateway(t *testing.T, tcpPortAllocator TCPPortAllocator) Gateway {

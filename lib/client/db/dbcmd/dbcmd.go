@@ -861,7 +861,7 @@ func WithPassword(pass string) ConnectCommandFunc {
 // WithPrintFormat is known to be used for the following situations:
 // - tsh db config --format cmd <database>
 // - tsh proxy db --tunnel <database>
-// - Teleport Connect where the command is put into a terminal.
+// - Teleport Connect where the gateway command is shown in the UI.
 //
 // WithPrintFormat should NOT be used when the exec.Cmd gets executed by the
 // client application.

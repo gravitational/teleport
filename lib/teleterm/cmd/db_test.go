@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -28,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/teleterm/cmd/cmds"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -77,13 +79,14 @@ type fakeDatabaseGateway struct {
 	gateway.Database
 	targetURI       uri.ResourceURI
 	subresourceName string
+	protocol        string
 }
 
 func (m fakeDatabaseGateway) TargetURI() uri.ResourceURI    { return m.targetURI }
 func (m fakeDatabaseGateway) TargetName() string            { return m.targetURI.GetDbName() }
 func (m fakeDatabaseGateway) TargetUser() string            { return "alice" }
 func (m fakeDatabaseGateway) TargetSubresourceName() string { return m.subresourceName }
-func (m fakeDatabaseGateway) Protocol() string              { return defaults.ProtocolMongoDB }
+func (m fakeDatabaseGateway) Protocol() string              { return m.protocol }
 func (m fakeDatabaseGateway) Log() *logrus.Entry            { return nil }
 func (m fakeDatabaseGateway) LocalAddress() string          { return "localhost" }
 func (m fakeDatabaseGateway) LocalPortInt() int             { return 8888 }
@@ -93,14 +96,27 @@ func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 	testCases := []struct {
 		name                  string
 		targetSubresourceName string
+		argsCount             int
+		protocol              string
+		checkCmds             func(*testing.T, fakeDatabaseGateway, cmds.Cmds)
 	}{
 		{
 			name:                  "empty name",
+			protocol:              defaults.ProtocolMongoDB,
 			targetSubresourceName: "",
+			checkCmds:             checkMongoCmds,
 		},
 		{
 			name:                  "with name",
+			protocol:              defaults.ProtocolMongoDB,
 			targetSubresourceName: "bar",
+			checkCmds:             checkMongoCmds,
+		},
+		{
+			name:                  "custom handling of DynamoDB does not blow up",
+			targetSubresourceName: "bar",
+			protocol:              defaults.ProtocolDynamoDB,
+			checkCmds:             checkArgsNotEmpty,
 		},
 	}
 
@@ -116,15 +132,14 @@ func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 			mockGateway := fakeDatabaseGateway{
 				targetURI:       cluster.URI.AppendDB("foo"),
 				subresourceName: tc.targetSubresourceName,
+				protocol:        tc.protocol,
 			}
 
 			dbcmdCLICommandProvider := NewDBCLICommandProvider(fakeStorage, fakeExec{})
-			command, err := dbcmdCLICommandProvider.GetCommand(mockGateway)
-
+			cmds, err := dbcmdCLICommandProvider.GetCommand(mockGateway)
 			require.NoError(t, err)
-			require.NotEmpty(t, command.Args)
-			require.Contains(t, command.Args[1], tc.targetSubresourceName)
-			require.Contains(t, command.Args[1], mockGateway.LocalPort())
+
+			tc.checkCmds(t, mockGateway, cmds)
 		})
 	}
 }
@@ -167,4 +182,29 @@ func TestDbcmdCLICommandProviderGetCommand_ReturnsErrorIfClusterIsNotFound(t *te
 	_, err = dbcmdCLICommandProvider.GetCommand(gateway)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err), "err is not trace.NotFound")
+}
+
+func checkMongoCmds(t *testing.T, gw fakeDatabaseGateway, cmds cmds.Cmds) {
+	t.Helper()
+	require.Len(t, cmds.Exec.Args, 2)
+	require.Len(t, cmds.Preview.Args, 2)
+
+	execConnString := cmds.Exec.Args[1]
+	previewConnString := cmds.Preview.Args[1]
+
+	require.Contains(t, execConnString, gw.TargetSubresourceName())
+	require.Contains(t, previewConnString, gw.TargetSubresourceName())
+	require.Contains(t, execConnString, gw.LocalPort())
+	require.Contains(t, previewConnString, gw.LocalPort())
+
+	// Verify that the preview cmd has exec cmd conn string wrapped in quotes.
+	require.NotContains(t, execConnString, "\"")
+	expectedPreviewConnString := fmt.Sprintf("%q", execConnString)
+	require.Equal(t, expectedPreviewConnString, previewConnString)
+}
+
+func checkArgsNotEmpty(t *testing.T, gw fakeDatabaseGateway, cmds cmds.Cmds) {
+	t.Helper()
+	require.NotEmpty(t, cmds.Exec.Args)
+	require.NotEmpty(t, cmds.Preview.Args)
 }
