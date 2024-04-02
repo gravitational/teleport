@@ -24,7 +24,7 @@ import { Logger, LoggerService } from 'teleterm/services/logger/types';
 import { FileStorage } from 'teleterm/services/fileStorage';
 import { MainProcessClient, RuntimeSettings } from 'teleterm/mainProcess/types';
 import { PtyServiceClient } from 'teleterm/services/pty';
-import { TshdClient } from 'teleterm/services/tshd/types';
+import { VnetClient, TshdClient } from 'teleterm/services/tshd/createClient';
 
 export type {
   Logger,
@@ -106,6 +106,7 @@ export type ExtractResponseType<T> =
 export type ElectronGlobals = {
   readonly mainProcessClient: MainProcessClient;
   readonly tshClient: TshdClient;
+  readonly vnetClient: VnetClient;
   readonly ptyServiceClient: PtyServiceClient;
   readonly setupTshdEventContextBridgeService: (
     listener: TshdEventContextBridgeService

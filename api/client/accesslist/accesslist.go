@@ -251,14 +251,18 @@ func (c *Client) UpsertAccessListWithMembers(ctx context.Context, list *accessli
 		return nil, nil, trace.Wrap(err)
 	}
 
-	accessList, err := conv.FromProto(resp.AccessList)
+	accessList, err := conv.FromProto(resp.AccessList, conv.WithOwnersIneligibleStatusField(resp.AccessList.GetSpec().GetOwners()))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	updatedMembers, err := conv.FromMembersProto(resp.Members)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+	updatedMembers := make([]*accesslist.AccessListMember, len(resp.Members))
+	for i, member := range resp.Members {
+		var err error
+		updatedMembers[i], err = conv.FromMemberProto(member, conv.WithMemberIneligibleStatusField(member))
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 	}
 
 	return accessList, updatedMembers, nil

@@ -15,7 +15,20 @@ spec:
     singular: teleportprovisiontoken
   scope: Namespaced
   versions:
-  - name: v2
+  - additionalPrinterColumns:
+    - description: Token join method.
+      jsonPath: .spec.join_method
+      name: Join Method
+      type: string
+    - description: System roles granted by this token.
+      jsonPath: .spec.roles
+      name: System Roles
+      type: string
+    - description: The age of this resource
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v2
     schema:
       openAPIV3Schema:
         description: ProvisionToken is the Schema for the provisiontokens API

@@ -53,6 +53,8 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
+	"github.com/gravitational/teleport/lib/integrations/samlidp"
+	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/service"
@@ -511,6 +513,13 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfExternalAuditCmd.Flag("glue-table", "The name of the Glue table used.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.GlueTable)
 	integrationConfExternalAuditCmd.Flag("aws-partition", "AWS partition (default: aws).").Default("aws").StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Partition)
 
+	integrationConfSAMLIdP := integrationConfigureCmd.Command("samlidp", "Manage SAML IdP integrations.")
+	integrationSAMLIdPGCPWorkforce := integrationConfSAMLIdP.Command("gcp-workforce", "Configures GCP Workforce Identity Federation pool and SAML provider.")
+	integrationSAMLIdPGCPWorkforce.Flag("org-id", "GCP organization ID.").Required().StringVar(&ccf.IntegrationConfSAMLIdPGCPWorkforceArguments.OrganizationID)
+	integrationSAMLIdPGCPWorkforce.Flag("pool-name", "Name for the new workforce identity pool.").Required().StringVar(&ccf.IntegrationConfSAMLIdPGCPWorkforceArguments.PoolName)
+	integrationSAMLIdPGCPWorkforce.Flag("pool-provider-name", "Name for the new workforce identity pool provider.").Required().StringVar(&ccf.IntegrationConfSAMLIdPGCPWorkforceArguments.PoolProviderName)
+	integrationSAMLIdPGCPWorkforce.Flag("idp-metadata-url", "Teleport SAML IdP metadata endpoint.").Required().StringVar(&ccf.IntegrationConfSAMLIdPGCPWorkforceArguments.SAMLIdPMetadataURL)
+
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
 	command, err := app.Parse(options.Args)
@@ -612,6 +621,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onIntegrationConfExternalAuditCmd(ccf.IntegrationConfExternalAuditStorageArguments)
 	case integrationConfTAGSyncCmd.FullCommand():
 		err = onIntegrationConfAccessGraphAWSSync(ccf.IntegrationConfAccessGraphAWSSyncArguments)
+	case integrationSAMLIdPGCPWorkforce.FullCommand():
+		err = onIntegrationConfSAMLIdPGCPWorkforce(ccf.IntegrationConfSAMLIdPGCPWorkforceArguments)
 	}
 	if err != nil {
 		utils.FatalError(err)
@@ -629,12 +640,13 @@ func OnStart(clf config.CommandLineFlags, config *servicecfg.Config) error {
 		configFileUsed = defaults.ConfigFilePath
 	}
 
+	ctx := context.Background()
 	if configFileUsed == "" {
-		config.Log.Infof("Starting Teleport v%s", teleport.Version)
+		config.Logger.InfoContext(ctx, "Starting Teleport", "version", teleport.Version)
 	} else {
-		config.Log.Infof("Starting Teleport v%s with a config file located at %q", teleport.Version, configFileUsed)
+		config.Logger.InfoContext(ctx, "Starting Teleport with a config file", "version", teleport.Version, "config_file", configFileUsed)
 	}
-	return service.Run(context.TODO(), *config, nil)
+	return service.Run(ctx, *config, nil)
 }
 
 // onStatus is the handler for "status" CLI command
@@ -1122,6 +1134,26 @@ func onIntegrationConfAccessGraphAWSSync(params config.IntegrationConfAccessGrap
 		IntegrationRole: params.Role,
 	})
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func onIntegrationConfSAMLIdPGCPWorkforce(params samlidpconfig.GCPWorkforceAPIParams) error {
+	ctx := context.Background()
+
+	// Ensure we print output to the user. LogLevel at this point was set to Error.
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
+
+	gcpWorkforceService, err := samlidp.NewGCPWorkforceService(samlidp.GCPWorkforceService{
+		APIParams: params,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := gcpWorkforceService.CreateWorkforcePoolAndProvider(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 

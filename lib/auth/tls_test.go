@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	eventtypes "github.com/gravitational/teleport/api/types/events"
@@ -1076,6 +1077,135 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.Error(t, err)
 	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT, issuer)
 	require.NoError(t, err)
+}
+
+// TestListUsers verifies basic expected behavior of remote list users calls.
+func TestListUsers(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testSrv := newTestTLSServer(t)
+
+	clt, err := testSrv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	// set up some users with distinct names/labels (the only to user attributes currently relevant to filtering)
+	usersToCreate := []struct {
+		name   string
+		labels map[string]string
+	}{
+		{
+			name: "alice@good.example.com",
+			labels: map[string]string{
+				"group":    "red",
+				"location": "mauka",
+			},
+		},
+		{
+			name: "bob@good.example.com",
+			labels: map[string]string{
+				"group":    "blue",
+				"location": "mauka",
+			},
+		},
+		{
+			name: "carol@evil.example.com",
+			labels: map[string]string{
+				"group":    "red",
+				"location": "mauka",
+			},
+		},
+		{
+			name: "dave@evil.example.com",
+			labels: map[string]string{
+				"group":    "blue",
+				"location": "makai",
+			},
+		},
+	}
+
+	var allUserNames []string
+	for _, u := range usersToCreate {
+		allUserNames = append(allUserNames, u.name)
+
+		user, err := types.NewUser(u.name)
+		require.NoError(t, err)
+
+		user.SetStaticLabels(u.labels)
+
+		_, err = clt.CreateUser(ctx, user)
+		require.NoError(t, err)
+	}
+
+	getUsers := func(t *testing.T, req *userspb.ListUsersRequest) []*types.UserV2 {
+		var users []*types.UserV2
+		for {
+			rsp, err := clt.ListUsers(ctx, req)
+			require.NoError(t, err)
+
+			users = append(users, rsp.Users...)
+
+			req.PageToken = rsp.NextPageToken
+			if req.PageToken == "" {
+				break
+			}
+		}
+
+		return users
+	}
+
+	namesOf := func(users []*types.UserV2) []string {
+		var names []string
+		for _, u := range users {
+			names = append(names, u.GetName())
+		}
+		return names
+	}
+
+	users := getUsers(t, &userspb.ListUsersRequest{})
+	require.ElementsMatch(t, allUserNames, namesOf(users))
+
+	users = getUsers(t, &userspb.ListUsersRequest{
+		Filter: &types.UserFilter{
+			SearchKeywords: []string{
+				"mauka",
+				"red",
+			},
+		},
+	})
+
+	require.ElementsMatch(t, []string{
+		"alice@good.example.com",
+		"carol@evil.example.com",
+	}, namesOf(users))
+
+	users = getUsers(t, &userspb.ListUsersRequest{
+		Filter: &types.UserFilter{
+			SearchKeywords: []string{
+				"blue",
+				"good.example.com",
+			},
+		},
+	})
+
+	require.ElementsMatch(t, []string{
+		"bob@good.example.com",
+	}, namesOf(users))
+
+	users = getUsers(t, &userspb.ListUsersRequest{
+		Filter: &types.UserFilter{
+			SearchKeywords: []string{
+				"mauka",
+			},
+		},
+		PageSize: 2,
+	})
+
+	require.ElementsMatch(t, []string{
+		"alice@good.example.com",
+		"bob@good.example.com",
+		"carol@evil.example.com",
+	}, namesOf(users))
 }
 
 // TestRemoteUser tests scenario when remote user connects to the local

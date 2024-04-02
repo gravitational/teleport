@@ -3053,16 +3053,10 @@ message RoleConditions {
   // SPIFFE is used to allow or deny access to a role holder to generating a
   // SPIFFE SVID.
   repeated SPIFFERoleCondition SPIFFE = 39 [(gogoproto.jsontag) = "spiffe,omitempty"];
-  // SAMLIdPServiceProviderLabels is a labels map used in RBAC system to allow/deny access
-  // to saml_idp_service_provider resource.
-  wrappers.LabelValues SAMLIdPServiceProviderLabels = 40 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "saml_idp_service_provider_labels,omitempty",
-    (gogoproto.customtype) = "Labels"
-  ];
-  // SAMLIdPServiceProviderLabelsExpression is a predicate expression used to allow/deny
-  // access to saml_idp_service_provider resource.
-  string SAMLIdPServiceProviderLabelsExpression = 41 [(gogoproto.jsontag) = "saml_idp_service_provider_labels_expression,omitempty"];
+  reserved 40; // removed saml_idp_service_provider_labels in favor of using app_labels.
+  reserved "SAMLIdPServiceProviderLabels";
+  reserved 41; // removed saml_idp_service_provider_labels_expression in favor of using app_labels_expression.
+  reserved "SAMLIdPServiceProviderLabelsExpression";
 }
 
 // SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or
@@ -3307,6 +3301,12 @@ message ImpersonateConditions {
 // whenever bool value can have different default value when missing
 message BoolValue {
   bool Value = 1;
+}
+
+// UserFilter matches user resources.
+message UserFilter {
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
 }
 
 // UserV2 is version 2 resource spec of the user
@@ -3817,6 +3817,9 @@ message WebSessionSpecV2 {
   // (typically performed by Connect).
   // Only present if on-behalf-of device authentication is possible.
   DeviceWebToken DeviceWebToken = 12 [(gogoproto.jsontag) = "device_web_token,omitempty"];
+  // HasDeviceExtensions is true if the session's TLS and SSH certificates are
+  // augmented with device extensions.
+  bool HasDeviceExtensions = 13 [(gogoproto.jsontag) = "has_device_extensions,omitempty"];
 }
 
 // Web-focused view of teleport.devicetrust.v1.DeviceWebToken.
@@ -6538,6 +6541,9 @@ message JamfInventoryEntry {
   // Must be either "NOOP" or "DELETE".
   // Defaults to "NOOP".
   string on_missing = 4 [(gogoproto.jsontag) = "on_missing,omitempty"];
+  // Custom page size for inventory queries.
+  // A server default is used if zeroed or negative.
+  int32 page_size = 5 [(gogoproto.jsontag) = "page_size,omitempty"];
 }
 
 // MessageWithHeader is a message with a resource header. This is used primarily

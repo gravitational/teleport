@@ -1985,6 +1985,7 @@ func TestServer_AugmentWebSessionCertificates(t *testing.T) {
 		require.NoError(t, err, "WebSessions().Get() failed: %v", err)
 		assertSSHCert(t, webSession.GetPub())
 		assertX509Cert(t, webSession.GetTLSCert())
+		assert.True(t, webSession.GetHasDeviceExtensions(), "webSesssion.GetHasDeviceExtensions() mismatch")
 
 		// Scenario requires augmented certs to work.
 		t.Run("cannot re-augment the same session", func(t *testing.T) {
@@ -2065,6 +2066,72 @@ func TestServer_AugmentWebSessionCertificates(t *testing.T) {
 					assertErr(err),
 					"AugmentWebSessionCertificates: assertErr failed: err=%v (%T)", err, trace.Unwrap(err))
 			})
+		}
+	})
+}
+
+func TestServer_ExtendWebSession_deviceExtensions(t *testing.T) {
+	t.Parallel()
+
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	ctx := context.Background()
+
+	userData := setupUserForAugmentWebSessionCertificatesTest(t, testServer)
+
+	deviceExts := &DeviceExtensions{
+		DeviceID:     "my-device-id",
+		AssetTag:     "my-device-asset-tag",
+		CredentialID: "my-device-credential-id",
+	}
+
+	// Augment the user's session, then later extend it.
+	err := authServer.AugmentWebSessionCertificates(ctx, userData.authCtx, &AugmentWebSessionCertificatesOpts{
+		WebSessionID:     userData.webSessionID,
+		DeviceExtensions: deviceExts,
+	})
+	require.NoError(t, err, "AugmentWebSessionCertificates() failed")
+
+	// Retrieve augmented session and parse its identity.
+	webSession, err := authServer.WebSessions().Get(ctx, types.GetWebSessionRequest{
+		User:      userData.user,
+		SessionID: userData.webSessionID,
+	})
+	require.NoError(t, err, "WebSessions().Get() failed")
+
+	_, sessionIdentity := parseX509PEMAndIdentity(t, webSession.GetTLSCert())
+
+	parseSSHDeviceExtensions := func(t *testing.T, sshCert []byte) tlsca.DeviceExtensions {
+		cert, err := sshutils.ParseCertificate(sshCert)
+		require.NoError(t, err, "ParseCertificate")
+
+		return tlsca.DeviceExtensions{
+			DeviceID:     cert.Extensions[teleport.CertExtensionDeviceID],
+			AssetTag:     cert.Extensions[teleport.CertExtensionDeviceAssetTag],
+			CredentialID: cert.Extensions[teleport.CertExtensionDeviceCredentialID],
+		}
+	}
+
+	t.Run("ok", func(t *testing.T) {
+		newSession, err := authServer.ExtendWebSession(ctx, WebSessionReq{
+			User:          webSession.GetUser(),
+			PrevSessionID: webSession.GetName(),
+		}, *sessionIdentity)
+		require.NoError(t, err, "ExtendWebSession() failed")
+
+		// Assert extensions flag.
+		assert.True(t, newSession.GetHasDeviceExtensions(), "newSession.GetHasDeviceExtensions() mismatch")
+
+		// Assert TLS extensions.
+		_, newIdentity := parseX509PEMAndIdentity(t, newSession.GetTLSCert())
+		wantExts := tlsca.DeviceExtensions(*deviceExts)
+		if diff := cmp.Diff(wantExts, newIdentity.DeviceExtensions); diff != "" {
+			t.Errorf("newSession.TLSCert DeviceExtensions mismatch (-want +got)\n%s", diff)
+		}
+
+		// Assert SSH extensions.
+		if diff := cmp.Diff(wantExts, parseSSHDeviceExtensions(t, newSession.GetPub())); diff != "" {
+			t.Errorf("newSession.Pub DeviceExtensions mismatch (-want +got)\n%s", diff)
 		}
 	})
 }
@@ -2807,7 +2874,7 @@ func TestNewWebSession(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a new web session.
-	req := types.NewWebSessionRequest{
+	req := NewWebSessionRequest{
 		User:       user.GetName(),
 		Roles:      user.GetRoles(),
 		Traits:     user.GetTraits(),
@@ -2816,7 +2883,7 @@ func TestNewWebSession(t *testing.T) {
 	}
 	bearerTokenTTL := min(req.SessionTTL, defaults.BearerTokenTTL)
 
-	ws, err := p.a.NewWebSession(ctx, req)
+	ws, err := p.a.newWebSession(ctx, req, nil /* opts */)
 	require.NoError(t, err)
 	require.Equal(t, user.GetName(), ws.GetUser())
 	require.Equal(t, duration, ws.GetIdleTimeout())

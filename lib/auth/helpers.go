@@ -294,6 +294,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			},
 		},
 		EmbeddingRetriever: ai.NewSimpleRetriever(),
+		HostUUID:           uuid.New().String(),
 	},
 		WithClock(cfg.Clock),
 		WithEmbedder(cfg.Embedder),
@@ -449,7 +450,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	userNotificationCache, err := services.NewUserNotificationCache(services.NotificationCacheConfig{
 		Events: srv.AuthServer.Services,
-		Getter: srv.AuthServer.Services,
+		Getter: srv.AuthServer.Cache,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -459,7 +460,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	globalNotificationCache, err := services.NewGlobalNotificationCache(services.NotificationCacheConfig{
 		Events: srv.AuthServer.Services,
-		Getter: srv.AuthServer.Services,
+		Getter: srv.AuthServer.Cache,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

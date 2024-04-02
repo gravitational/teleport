@@ -381,6 +381,11 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
+              "title": "GCP Workforce Identity Federation",
+              "slug": "/access-controls/idps/saml-gcp-workforce-identity-federation/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
               "title": "SAML Identity Provider Reference",
               "slug": "/access-controls/idps/saml-reference/",
               "forScopes": ["enterprise", "cloud"]
@@ -491,6 +496,14 @@
               "title": "TAG for Self-Hosted Clusters with Helm",
               "slug": "/access-controls/access-graph/self-hosted-helm/",
               "forScopes": [
+                "enterprise"
+              ]
+            },
+            {
+              "title": "Analyze AWS IAM policies",
+              "slug": "/access-controls/access-graph/aws-sync/",
+              "forScopes": [
+                "cloud",
                 "enterprise"
               ]
             }
@@ -623,6 +636,10 @@
             {
               "title": "Managing Users and Roles",
               "slug": "/management/dynamic-resources/user-and-role/"
+            },
+            {
+              "title": "Registering Agentless OpenSSH",
+              "slug": "/management/dynamic-resources/agentless-ssh-servers/"
             },
             {
               "title": "Managing Access Lists",
@@ -964,6 +981,11 @@
           "title": "Securing Cloud Provider APIs",
           "slug": "/application-access/cloud-apis/",
           "entries": [
+            {
+              "title": "Google Cloud Web Console Access",
+              "slug": "/access-controls/idps/saml-gcp-workforce-identity-federation/",
+              "forScopes": ["enterprise", "cloud"]
+            },
             {
               "title": "Google Cloud CLI Access",
               "slug": "/application-access/cloud-apis/google-cloud/"
@@ -1841,7 +1863,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "15.1.9",
+      "version": "15.1.10",
       "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",

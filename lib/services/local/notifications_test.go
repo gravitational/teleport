@@ -53,15 +53,18 @@ func TestUserNotificationCRUD(t *testing.T) {
 	testUsername := "test-username"
 
 	// Create a couple notifications.
-	userNotification1 := newUserNotification(t, "test-notification-1")
-	userNotification2 := newUserNotification(t, "test-notification-2")
+	userNotification1 := newUserNotification(t, testUsername, "test-notification-1")
+	userNotification2 := newUserNotification(t, testUsername, "test-notification-2")
 
 	// Create notifications.
-	notification, err := service.CreateUserNotification(ctx, testUsername, userNotification1)
+	notification, err := service.CreateUserNotification(ctx, userNotification1)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(userNotification1, notification, protocmp.Transform()))
 	notification1Id := notification.Spec.Id
-	notification, err = service.CreateUserNotification(ctx, testUsername, userNotification2)
+	// Prevent flakiness caused by notifications being created too close one after the other, which causes their UUID timestamps to be the same
+	// and the lexicographical ordering to possibly be wrong as it then relies on the random section of the UUID.
+	time.Sleep(250 * time.Millisecond)
+	notification, err = service.CreateUserNotification(ctx, userNotification2)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(userNotification2, notification, protocmp.Transform()))
 	notification2Id := notification.Spec.Id
@@ -81,8 +84,8 @@ func TestUserNotificationCRUD(t *testing.T) {
 	// Test deleting all of a user's user-specific notifications.
 	// Upsert userNotification1 again.
 	// We reset it to the mock first because the previous CreateUserNotification will have mutated it and populated the `Created` field which should be empty.
-	userNotification1 = newUserNotification(t, "test-notification-1")
-	_, err = service.CreateUserNotification(ctx, testUsername, userNotification1)
+	userNotification1 = newUserNotification(t, testUsername, "test-notification-1")
+	_, err = service.CreateUserNotification(ctx, userNotification1)
 	require.NoError(t, err)
 	notification1Id = notification.Spec.Id
 	err = service.DeleteAllUserNotificationsForUser(ctx, testUsername)
@@ -181,12 +184,15 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 	testUsername := "test-username"
 
 	// Create a and upsert the notifications that these states will be for.
-	userNotification1 := newUserNotification(t, "test-notification-1")
-	userNotification2 := newUserNotification(t, "test-notification-2")
-	notification, err := service.CreateUserNotification(ctx, testUsername, userNotification1)
+	userNotification1 := newUserNotification(t, testUsername, "test-notification-1")
+	userNotification2 := newUserNotification(t, testUsername, "test-notification-2")
+	notification, err := service.CreateUserNotification(ctx, userNotification1)
 	require.NoError(t, err)
 	notification1Id := notification.Spec.Id
-	notification, err = service.CreateUserNotification(ctx, testUsername, userNotification2)
+	// Prevent flakiness caused by notifications being created too close one after the other, which causes their UUID timestamps to be the same
+	// and the lexicographical ordering to possibly be wrong as it then relies on the random section of the UUID.
+	time.Sleep(250 * time.Millisecond)
+	notification, err = service.CreateUserNotification(ctx, userNotification2)
 	require.NoError(t, err)
 	notification2Id := notification.Spec.Id
 
@@ -368,12 +374,14 @@ func TestUserLastSeenNotificationCRUD(t *testing.T) {
 	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to user_last_seen_notification for test-username not existing", err)
 }
 
-func newUserNotification(t *testing.T, description string) *notificationsv1.Notification {
+func newUserNotification(t *testing.T, username string, description string) *notificationsv1.Notification {
 	t.Helper()
 
 	notification := notificationsv1.Notification{
 		SubKind: "test-subkind",
-		Spec:    &notificationsv1.NotificationSpec{},
+		Spec: &notificationsv1.NotificationSpec{
+			Username: username,
+		},
 		Metadata: &headerv1.Metadata{
 			Labels: map[string]string{"description": description},
 		},

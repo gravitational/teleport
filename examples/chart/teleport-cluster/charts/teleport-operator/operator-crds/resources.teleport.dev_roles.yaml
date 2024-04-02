@@ -303,7 +303,7 @@ spec:
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
                           they also offer a mechanism for forwarding claims from an
-                          external identity provider, to a plugin via {{ `{{external.trait_name}}` }}
+                          external identity provider, to a plugin via `{{external.trait_name}}`
                           style substitutions.
                         type: object
                       claims_to_roles:
@@ -496,18 +496,6 @@ spec:
                           type: string
                       type: object
                     type: array
-                  saml_idp_service_provider_labels:
-                    additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
-                    description: SAMLIdPServiceProviderLabels is a labels map used
-                      in RBAC system to allow/deny access to saml_idp_service_provider
-                      resource.
-                    type: object
-                  saml_idp_service_provider_labels_expression:
-                    description: SAMLIdPServiceProviderLabelsExpression is a predicate
-                      expression used to allow/deny access to saml_idp_service_provider
-                      resource.
-                    type: string
                   spiffe:
                     description: SPIFFE is used to allow or deny access to a role
                       holder to generating a SPIFFE SVID.
@@ -841,7 +829,7 @@ spec:
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
                           they also offer a mechanism for forwarding claims from an
-                          external identity provider, to a plugin via {{ `{{external.trait_name}}` }}
+                          external identity provider, to a plugin via `{{external.trait_name}}`
                           style substitutions.
                         type: object
                       claims_to_roles:
@@ -1034,18 +1022,6 @@ spec:
                           type: string
                       type: object
                     type: array
-                  saml_idp_service_provider_labels:
-                    additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
-                    description: SAMLIdPServiceProviderLabels is a labels map used
-                      in RBAC system to allow/deny access to saml_idp_service_provider
-                      resource.
-                    type: object
-                  saml_idp_service_provider_labels_expression:
-                    description: SAMLIdPServiceProviderLabelsExpression is a predicate
-                      expression used to allow/deny access to saml_idp_service_provider
-                      resource.
-                    type: string
                   spiffe:
                     description: SPIFFE is used to allow or deny access to a role
                       holder to generating a SPIFFE SVID.
@@ -1659,7 +1635,7 @@ spec:
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
                           they also offer a mechanism for forwarding claims from an
-                          external identity provider, to a plugin via {{ `{{external.trait_name}}` }}
+                          external identity provider, to a plugin via `{{external.trait_name}}`
                           style substitutions.
                         type: object
                       claims_to_roles:
@@ -1852,18 +1828,6 @@ spec:
                           type: string
                       type: object
                     type: array
-                  saml_idp_service_provider_labels:
-                    additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
-                    description: SAMLIdPServiceProviderLabels is a labels map used
-                      in RBAC system to allow/deny access to saml_idp_service_provider
-                      resource.
-                    type: object
-                  saml_idp_service_provider_labels_expression:
-                    description: SAMLIdPServiceProviderLabelsExpression is a predicate
-                      expression used to allow/deny access to saml_idp_service_provider
-                      resource.
-                    type: string
                   spiffe:
                     description: SPIFFE is used to allow or deny access to a role
                       holder to generating a SPIFFE SVID.
@@ -2197,7 +2161,7 @@ spec:
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
                           they also offer a mechanism for forwarding claims from an
-                          external identity provider, to a plugin via {{ `{{external.trait_name}}` }}
+                          external identity provider, to a plugin via `{{external.trait_name}}`
                           style substitutions.
                         type: object
                       claims_to_roles:
@@ -2390,18 +2354,6 @@ spec:
                           type: string
                       type: object
                     type: array
-                  saml_idp_service_provider_labels:
-                    additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
-                    description: SAMLIdPServiceProviderLabels is a labels map used
-                      in RBAC system to allow/deny access to saml_idp_service_provider
-                      resource.
-                    type: object
-                  saml_idp_service_provider_labels_expression:
-                    description: SAMLIdPServiceProviderLabelsExpression is a predicate
-                      expression used to allow/deny access to saml_idp_service_provider
-                      resource.
-                    type: string
                   spiffe:
                     description: SPIFFE is used to allow or deny access to a role
                       holder to generating a SPIFFE SVID.

@@ -578,6 +578,10 @@ pub enum FileType {
     Directory = 1,
 }
 
+/// CGOData is a wrapper around data that needs to be passed to Go.
+///
+/// See [`CGOWithData`] for more information.
+#[allow(dead_code)] // Dead code is required to ensure that the data is available in Go. See [`CGOWithData`].
 enum CGOData {
     CString(CString),
     VecU8(Vec<u8>),
