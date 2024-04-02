@@ -35,7 +35,7 @@ const IdentityOutputType = "identity"
 
 // IdentityOutput produces credentials which can be used with `tsh`, `tctl`,
 // `openssh` and most SSH compatible tooling. It can also be used with the
-// Teleport API and things which use the API client (e.g the terraform provider)
+// Teleport API and things which use the API client (e.g the terraform Provider)
 //
 // It cannot be used to connect to Applications, Databases or Kubernetes
 // Clusters.
@@ -69,7 +69,7 @@ func (o *IdentityOutput) templates() []template {
 	}
 }
 
-func (o *IdentityOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
+func (o *IdentityOutput) Render(ctx context.Context, p Provider, ident *identity.Identity) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"IdentityOutput/Render",

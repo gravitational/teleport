@@ -92,7 +92,7 @@ type template interface {
 	// Render writes the config template to the Destination.
 	render(
 		ctx context.Context,
-		p provider,
+		p Provider,
 		identity *identity.Identity,
 		destination bot.Destination,
 	) error
@@ -101,25 +101,25 @@ type template interface {
 // BotConfigWriter is a trivial adapter to use the identityfile package with
 // bot destinations.
 type BotConfigWriter struct {
-	ctx context.Context
+	Ctx context.Context
 
-	// dest is the Destination that will handle writing of files.
-	dest bot.Destination
+	// Dest is the Destination that will handle writing of files.
+	Dest bot.Destination
 
-	// subpath is the subdirectory within the Destination to which the files
+	// SubPath is the subdirectory within the Destination to which the files
 	// should be written.
-	subpath string
+	SubPath string
 }
 
 // WriteFile writes the file to the Destination. Only the basename of the path
 // is used. Specified permissions are ignored.
 func (b *BotConfigWriter) WriteFile(name string, data []byte, _ os.FileMode) error {
 	p := path.Base(name)
-	if b.subpath != "" {
-		p = path.Join(b.subpath, p)
+	if b.SubPath != "" {
+		p = path.Join(b.SubPath, p)
 	}
 
-	return trace.Wrap(b.dest.Write(b.ctx, p, data))
+	return trace.Wrap(b.Dest.Write(b.Ctx, p, data))
 }
 
 // Remove removes files. This is a dummy implementation that always returns not found.
@@ -141,8 +141,8 @@ func (b *BotConfigWriter) ReadFile(name string) ([]byte, error) {
 // identityfile.ConfigWriter interface
 var _ identityfile.ConfigWriter = (*BotConfigWriter)(nil)
 
-// newClientKey returns a sane client.Key for the given bot identity.
-func newClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) (*client.Key, error) {
+// NewClientKey returns a sane client.Key for the given bot identity.
+func NewClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) (*client.Key, error) {
 	pk, err := keys.ParsePrivateKey(ident.PrivateKeyBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)

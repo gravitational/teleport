@@ -63,8 +63,8 @@ func (t *templateTLSCAs) describe() []FileDescription {
 	}
 }
 
-// concatCACerts borrow's identityfile's CA cert concat method.
-func concatCACerts(cas []types.CertAuthority) []byte {
+// ConcatCACerts borrow's identityfile's CA cert concat method.
+func ConcatCACerts(cas []types.CertAuthority) []byte {
 	trusted := auth.AuthoritiesToTrustedCerts(cas)
 
 	var caCerts []byte
@@ -79,7 +79,7 @@ func concatCACerts(cas []types.CertAuthority) []byte {
 
 func (t *templateTLSCAs) render(
 	ctx context.Context,
-	bot provider,
+	bot Provider,
 	_ *identity.Identity,
 	destination bot.Destination,
 ) error {
@@ -108,15 +108,15 @@ func (t *templateTLSCAs) render(
 	// that mariadb at least does not seem to like being passed more than one
 	// CA so there may be some compat issues to address in the future for the
 	// rare case where a CA rotation is in progress.
-	if err := destination.Write(ctx, HostCAPath, concatCACerts(hostCAs)); err != nil {
+	if err := destination.Write(ctx, HostCAPath, ConcatCACerts(hostCAs)); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := destination.Write(ctx, UserCAPath, concatCACerts(userCAs)); err != nil {
+	if err := destination.Write(ctx, UserCAPath, ConcatCACerts(userCAs)); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := destination.Write(ctx, DatabaseCAPath, concatCACerts(databaseCAs)); err != nil {
+	if err := destination.Write(ctx, DatabaseCAPath, ConcatCACerts(databaseCAs)); err != nil {
 		return trace.Wrap(err)
 	}
 

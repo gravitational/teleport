@@ -60,7 +60,7 @@ func (t *templateTLS) describe() []FileDescription {
 
 func (t *templateTLS) render(
 	ctx context.Context,
-	bot provider,
+	bot Provider,
 	identity *identity.Identity,
 	destination bot.Destination,
 ) error {
@@ -75,7 +75,7 @@ func (t *templateTLS) render(
 		return trace.Wrap(err)
 	}
 
-	key, err := newClientKey(identity, cas)
+	key, err := NewClientKey(identity, cas)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -83,8 +83,8 @@ func (t *templateTLS) render(
 	cfg := identityfile.WriteConfig{
 		OutputPath: defaultTLSPrefix,
 		Writer: &BotConfigWriter{
-			ctx:  ctx,
-			dest: destination,
+			Ctx:  ctx,
+			Dest: destination,
 		},
 		Key:    key,
 		Format: identityfile.FormatTLS,

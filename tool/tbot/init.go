@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -381,28 +382,33 @@ func getAndTestACLOptions(cf *config.CLIConf, destDir string) (*user.User, *user
 	return ownerUser, ownerGroup, &opts, nil
 }
 
+type output interface {
+	Init(ctx context.Context) error
+	Describe() []config.FileDescription
+}
+
 func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var output config.Output
+	var outputCfg config.Output
 	var err error
 	// First, resolve the correct output. If using a config file with only
 	// 1 destination we can assume we want to init that one; otherwise,
 	// --init-dir is required.
 	if cf.InitDir == "" {
 		if len(botConfig.Outputs) == 1 {
-			output = botConfig.Outputs[0]
+			outputCfg = botConfig.Outputs[0]
 		} else {
 			return trace.BadParameter("An output to initialize must be specified with --init-dir")
 		}
 	} else {
-		output, err = botConfig.GetOutputByPath(cf.InitDir)
+		outputCfg, err = botConfig.GetOutputByPath(cf.InitDir)
 		if err != nil {
 			return trace.WrapWithMessage(err, "Could not find specified destination %q", cf.InitDir)
 		}
 
-		if output == nil {
+		if outputCfg == nil {
 			// TODO: in the future if/when other backends are supported,
 			// destination might be nil because the user tried to enter a non
 			// filesystem path, so this error message could be misleading.
@@ -411,7 +417,7 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		}
 	}
 
-	destImpl := output.GetDestination()
+	destImpl := outputCfg.GetDestination()
 
 	destDir, ok := destImpl.(*config.DestinationDirectory)
 	if !ok {
@@ -420,9 +426,19 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 
 	log.Infof("Initializing destination: %s", destImpl)
 
+	// Convert from the output config to the output type that offers up the
+	// file descriptions and init
+	var o output
+	switch v := outputCfg.(type) {
+	case output:
+		o = v
+	case *config.DatabaseOutput:
+		o = &tbot.ServiceDatabaseOutput{cfg: v}
+	}
+
 	// Create the directory if needed. We haven't checked directory ownership,
 	// but it will fail when the ACLs are created if anything is misconfigured.
-	if err := output.Init(ctx); err != nil {
+	if err := outputCfg.Init(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 

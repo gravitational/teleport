@@ -128,7 +128,7 @@ func generateKubeConfig(ks *kubernetesStatus, destPath string, executablePath st
 
 func (t *templateKubernetes) render(
 	ctx context.Context,
-	bot provider,
+	bot Provider,
 	identity *identity.Identity,
 	destination bot.Destination,
 ) error {
@@ -160,7 +160,7 @@ func (t *templateKubernetes) render(
 		return trace.Wrap(err)
 	}
 
-	key, err := newClientKey(identity, hostCAs)
+	key, err := NewClientKey(identity, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}

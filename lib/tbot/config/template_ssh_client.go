@@ -76,7 +76,7 @@ func (c *templateSSHClient) describe() []FileDescription {
 }
 
 func getClusterNames(
-	ctx context.Context, bot provider, connectedClusterName string,
+	ctx context.Context, bot Provider, connectedClusterName string,
 ) ([]string, error) {
 	allClusterNames := []string{connectedClusterName}
 
@@ -93,7 +93,7 @@ func getClusterNames(
 
 func (c *templateSSHClient) render(
 	ctx context.Context,
-	bot provider,
+	bot Provider,
 	_ *identity.Identity,
 	destination bot.Destination,
 ) error {
@@ -180,7 +180,7 @@ func (c *templateSSHClient) render(
 	return nil
 }
 
-func fetchKnownHosts(ctx context.Context, bot provider, clusterNames []string, proxyHosts string) (string, error) {
+func fetchKnownHosts(ctx context.Context, bot Provider, clusterNames []string, proxyHosts string) (string, error) {
 	certAuthorities := make([]types.CertAuthority, 0, len(clusterNames))
 	for _, cn := range clusterNames {
 		ca, err := bot.GetCertAuthority(ctx, types.CertAuthID{

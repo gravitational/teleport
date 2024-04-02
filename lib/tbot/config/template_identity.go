@@ -49,7 +49,7 @@ func (t *templateIdentity) describe() []FileDescription {
 
 func (t *templateIdentity) render(
 	ctx context.Context,
-	bot provider,
+	bot Provider,
 	identity *identity.Identity,
 	destination bot.Destination,
 ) error {
@@ -64,7 +64,7 @@ func (t *templateIdentity) render(
 		return trace.Wrap(err)
 	}
 
-	key, err := newClientKey(identity, hostCAs)
+	key, err := NewClientKey(identity, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -72,8 +72,8 @@ func (t *templateIdentity) render(
 	cfg := identityfile.WriteConfig{
 		OutputPath: IdentityFilePath,
 		Writer: &BotConfigWriter{
-			ctx:  ctx,
-			dest: destination,
+			Ctx:  ctx,
+			Dest: destination,
 		},
 		Key:    key,
 		Format: identityfile.FormatFile,
