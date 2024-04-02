@@ -148,6 +148,19 @@ func (a *AccessListService) GetAccessListsToReview(ctx context.Context) ([]*acce
 
 // UpsertAccessList creates or updates an access list resource.
 func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
+	op := a.service.UpsertResource
+	return a.runOpWithLock(ctx, accessList, op)
+}
+
+// UpdateAccessList updates an access list resource.
+func (a *AccessListService) UpdateAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
+	op := a.service.ConditionalUpdateResource
+	return a.runOpWithLock(ctx, accessList, op)
+}
+
+type opFunc func(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
+
+func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *accesslist.AccessList, op opFunc) (*accesslist.AccessList, error) {
 	var upserted *accesslist.AccessList
 	upsertWithLockFn := func() error {
 		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
@@ -160,7 +173,7 @@ func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *ac
 			}
 
 			var err error
-			upserted, err = a.service.UpsertResource(ctx, accessList)
+			upserted, err = op(ctx, accessList)
 			return trace.Wrap(err)
 		})
 	}
@@ -287,6 +300,23 @@ func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *
 		return nil, trace.Wrap(err)
 	}
 	return upserted, nil
+}
+
+// UpdateAccessListMember conditionally updates an access list member resource.
+func (a *AccessListService) UpdateAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
+	var updated *accesslist.AccessListMember
+	err := a.service.RunWhileLocked(ctx, lockName(member.Spec.AccessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		_, err := a.service.GetResource(ctx, member.Spec.AccessList)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		updated, err = a.memberService.WithPrefix(member.Spec.AccessList).ConditionalUpdateResource(ctx, member)
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return updated, nil
 }
 
 // DeleteAccessListMember hard deletes the specified access list member resource.

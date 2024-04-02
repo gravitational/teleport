@@ -65,6 +65,8 @@ type AccessLists interface {
 
 	// UpsertAccessList creates or updates an access list resource.
 	UpsertAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
+	// UpdateAccessList updates an access list resource.
+	UpdateAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
 	// DeleteAccessList removes the specified access list resource.
 	DeleteAccessList(context.Context, string) error
 	// DeleteAllAccessLists removes all access lists.
@@ -166,6 +168,8 @@ type AccessListMembers interface {
 
 	// UpsertAccessListMember creates or updates an access list member resource.
 	UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
+	// UpdateAccessListMember conditionally updates an access list member resource.
+	UpdateAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
 	// DeleteAccessListMember hard deletes the specified access list member resource.
 	DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error
 	// DeleteAllAccessListMembersForAccessList hard deletes all access list members for an access list.

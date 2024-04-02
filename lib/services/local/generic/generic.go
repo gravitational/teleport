@@ -261,6 +261,26 @@ func (s *Service[T]) UpdateResource(ctx context.Context, resource T) (T, error) 
 	return resource, trace.Wrap(err)
 }
 
+// ConditionalUpdateResource updates an existing resource if revision matches.
+func (s *Service[T]) ConditionalUpdateResource(ctx context.Context, resource T) (T, error) {
+	var t T
+	item, err := s.MakeBackendItem(resource, resource.GetName())
+	if err != nil {
+		return t, trace.Wrap(err)
+	}
+
+	lease, err := s.backend.ConditionalUpdate(ctx, item)
+	if trace.IsNotFound(err) {
+		return t, trace.NotFound("%s %q doesn't exist", s.resourceKind, resource.GetName())
+	}
+	if err != nil {
+		return t, trace.Wrap(err)
+	}
+
+	types.SetRevision(resource, lease.Revision)
+	return resource, trace.Wrap(err)
+}
+
 // UpsertResource upserts a resource.
 func (s *Service[T]) UpsertResource(ctx context.Context, resource T) (T, error) {
 	var t T
