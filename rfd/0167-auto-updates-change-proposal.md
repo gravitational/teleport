@@ -56,7 +56,7 @@ Teleport Cloud maintains major version channels along with the deprecated global
 ![version-channels](assets/0167-auto-updates-change-proposal/version-channels.png)
 
 ### Publishing
-Teleport maintains a stable/cloud channel for APT and RPM packages. After updating Teleport Cloud tenants to vX.X.X, Teleport Cloud deploys a GitHub workflow to publish the necessary packages. The workflow publishes vX.X.X teleport-ent and teleport-ent-updater packages to the stable/cloud repositories, and then updates the version channels.
+Teleport maintains a stable/cloud channel for APT and RPM packages. After updating Teleport Cloud tenants to vX.Y.Z, Teleport Cloud deploys a GitHub workflow to publish the necessary packages. The workflow publishes vX.Y.Z teleport-ent and teleport-ent-updater packages to the stable/cloud repositories, and then updates the version channels.
 
 Teleport also maintains a Helm repository. The teleport/teleport-kube-agent Helm chart is published regularly with the OSS release of Teleport.
 
@@ -80,7 +80,7 @@ The initial design of auto updates relied on a single version channel. All Telep
 Issue: However, there are still a number of Teleport agents using the deprecated version of the Teleport updater. Until all Teleport updaters are updated, Teleport Cloud needs to continue to maintain the global version channel. The global version has to stay at the minimum version of all tenants using the deprecated version of the Teleport updater.
 
 ### Packages
-The initial design assumed that Teleport Cloud would be able to get all tenants enrolled in automatic updates and updated to the latest version of Teleport. This would allow Teleport Cloud to publish vX.X.X to the stable/cloud channel package repository when version v.X.X.X is compatible with the control plane of all Teleport Cloud users. With this assumption, it was communicated that it should always be safe to pull the latest version of teleport-ent from the stable/cloud package repository.
+The initial design assumed that Teleport Cloud would be able to get all tenants enrolled in automatic updates and updated to the latest version of Teleport. This would allow Teleport Cloud to publish vX.Y.Z to the stable/cloud channel package repository when version v.X.Y.Z is compatible with the control plane of all Teleport Cloud users. With this assumption, it was communicated that it should always be safe to pull the latest version of teleport-ent from the stable/cloud package repository.
 
 This did not end up being the case. Teleport Cloud was unable to get all tenants enrolled in automatic updates and updated to the latest version of Teleport. It has become clear that Teleport Cloud will need to support tenants on multiple major versions for an extended period of time.
 
@@ -107,6 +107,11 @@ Issue: This has lead to some incidents where changes made specifically for Telep
 
 ### Integrations
 The automatic updates feature does not support Teleport integrations. The Teleport Operator was introduced in Teleport 15 and is already being used for self-hosted plugins. As adoption increases, users may face the same issues with keeping their integrations updated.
+
+### Agent Version Management
+Currently, the Teleport proxies rely on the upstream major version channels to serve the latest compatible version of Teleport to the updaters. This is configurable by modifying the teleport.yaml proxy configuration, but this requires pausing reconciliation for the resource because the Teleport Controller will revert the changes back to the default. Changing the proxy configuration also requires redeploying the proxy.
+
+The agent version should be made easier to configure using the Kubernetes or Cloud API. Modifying the agent version should not require reconciliation to be paused, and it should not require the Teleport proxy to be redeployed.
 
 ## Change proposals
 These proposals contain minimal implementation details. If the proposals are approved, an execution plan will be written up for each item with more implementation details.
@@ -139,11 +144,44 @@ The Teleport updater must be able to resolve conflict for these two situations:
 Step 4: The Teleport documentation should be updated to include a new section with instructions about how a user can build their own update automation.
 
 ### Agent Version Management
-Currently, the Teleport proxies rely on the upstream major version channels to serve the latest compatible version of Teleport to the updaters. This is configurable by modifying the teleport.yaml proxy configuration, but this requires pausing reconciliation for the resource because the Teleport Controller will revert the changes back to the default. Changing the proxy configuration also requires redeploying the proxy.
+A autoupdate_version resource will now be used to manage the version of auto updates for agents (matching management of client tools auto updates, defined in teleport rfd 0144). The resource can be updated directly or by using tctl.
+```
+kind: autoupdate_version
+spec:
+  # agent_version is the version of the agent the cluster will advertise.
+  # Can be auto (match the version of the proxy) or an exact semver formatted
+  # version.
+  agent_version: auto|X.Y.Z
+  # jitter specifies the amount of jitter to introduce across agent updates.
+  # The value is specified as a time duration.
+  jitter: 15m
+  # update_time specifies the timestamp for update to be performed. Updates will
+  # be performed within one hour of the specified value.
+  update_time: 2024-04-02T17:00:00
+  # (Out of scope) bucket_id specifies a bucket id. This value is used for staged
+  # rollouts. Updaters will only update when the bucket_id matches the locally
+  # configured value.
+  bucket_id: "A
+```
 
-The agent version should be made easier to configure using the Kubernetes or Cloud API. Modifying the agent version should not require reconciliation to be paused, and it should not require the Teleport proxy to be redeployed.
+```
+$ tctl autoupdate update --set-agent-version=1.0.1 --set-jitter=30m --set-update-time=2024-04-03T12:00:00 --set-bucket-id=B
+Automatic updates configuration has been updated.
+```
 
-A simple solution is to configure the Teleport proxies to now read the agent version from a monitored file on disk. Teleport Cloud will be able to easily and dynamically modify the agent version via the Kubernetes API.
+For Cloud clusters, agent_version will always be X.Y.Z, with the version controlled by the Cloud team.
+For self-hosted clusters, the default will be `agent_version: auto` matching the agent version with the proxy version. This way, automatic updates will be available to self-hosted customers by default, without any extra effort from the cluster administrator.
+
+The above configuration will then be available from the unauthenticated endpoint `/v1/webapi/ping` which clients will consult.
+```
+curl https://proxy.example.com/v1/webapi/ping | jq .
+{
+	"agent_version": "X.Y.Z",
+    "jitter": "15m",
+    "update_time": "2024-04-02T17:00:00",
+    [...]
+}
+```
 
 ### Updating the Teleport Updater
 The purpose of the Teleport updater is to reduce the maintenance required to keep Teleport client software up to date. If users need to periodically update the Teleport updater to receive new patches, that defeats the purpose of the automatic updates feature.
