@@ -21,12 +21,12 @@ package handler
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/gravitational/trace"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 )
@@ -82,7 +82,7 @@ func (s *Handler) RemoveGateway(ctx context.Context, req *api.RemoveGatewayReque
 }
 
 func (s *Handler) newAPIGateway(gateway gateway.Gateway) (*api.Gateway, error) {
-	command, err := s.DaemonService.GetGatewayCLICommand(gateway)
+	cmds, err := s.DaemonService.GetGatewayCLICommand(gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -96,21 +96,21 @@ func (s *Handler) newAPIGateway(gateway gateway.Gateway) (*api.Gateway, error) {
 		Protocol:              gateway.Protocol(),
 		LocalAddress:          gateway.LocalAddress(),
 		LocalPort:             gateway.LocalPort(),
-		GatewayCliCommand:     makeGatewayCLICommand(command),
+		GatewayCliCommand:     makeGatewayCLICommand(cmds),
 	}, nil
 }
 
-func makeGatewayCLICommand(cmd *exec.Cmd) *api.GatewayCLICommand {
-	cmdString := strings.TrimSpace(
+func makeGatewayCLICommand(cmds cmd.Cmds) *api.GatewayCLICommand {
+	preview := strings.TrimSpace(
 		fmt.Sprintf("%s %s",
-			strings.Join(cmd.Env, " "),
-			strings.Join(cmd.Args, " ")))
+			strings.Join(cmds.Preview.Env, " "),
+			strings.Join(cmds.Preview.Args, " ")))
 
 	return &api.GatewayCLICommand{
-		Path:    cmd.Path,
-		Args:    cmd.Args,
-		Env:     cmd.Env,
-		Preview: cmdString,
+		Path:    cmds.Exec.Path,
+		Args:    cmds.Exec.Args,
+		Env:     cmds.Exec.Env,
+		Preview: preview,
 	}
 }
 

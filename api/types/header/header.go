@@ -162,6 +162,11 @@ func (h *ResourceHeader) CheckAndSetDefaults() error {
 	return trace.Wrap(h.Metadata.CheckAndSetDefaults())
 }
 
+// IsEqual determines if two resource headers are equivalent to one another.
+func (h *ResourceHeader) IsEqual(i *ResourceHeader) bool {
+	return deriveTeleportEqualResourceHeader(h, i)
+}
+
 // Metadata is resource metadata
 type Metadata struct {
 	// Name is an object name
@@ -286,4 +291,9 @@ func (m *Metadata) GetLabel(key string) (string, bool) {
 // GetAllLabels returns all labels from the resource.
 func (m *Metadata) GetAllLabels() map[string]string {
 	return m.Labels
+}
+
+// IsEqual determines if two metadata resources are equivalent to one another.
+func (m *Metadata) IsEqual(i *Metadata) bool {
+	return deriveTeleportEqualMetadata(m, i)
 }

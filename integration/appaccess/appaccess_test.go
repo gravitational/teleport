@@ -38,6 +38,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/integration/helpers"
@@ -269,14 +270,14 @@ func testClientCert(p *Pack, t *testing.T) {
 		},
 	})
 	evilUser, _ := p.CreateUser(t)
-	rootWs, err := p.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+	rootWs, err := p.tc.CreateAppSession(context.Background(), &proto.CreateAppSessionRequest{
 		Username:    p.user.GetName(),
 		PublicAddr:  p.rootAppPublicAddr,
 		ClusterName: p.rootAppClusterName,
 	})
 	require.NoError(t, err)
 
-	leafWs, err := p.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+	leafWs, err := p.tc.CreateAppSession(context.Background(), &proto.CreateAppSessionRequest{
 		Username:    p.user.GetName(),
 		PublicAddr:  p.leafAppPublicAddr,
 		ClusterName: p.leafAppClusterName,
@@ -639,13 +640,13 @@ func TestTCP(t *testing.T) {
 	pack := Setup(t)
 	evilUser, _ := pack.CreateUser(t)
 
-	rootWs, err := pack.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+	rootWs, err := pack.tc.CreateAppSession(context.Background(), &proto.CreateAppSessionRequest{
 		Username:    pack.tc.Username,
 		PublicAddr:  pack.rootTCPPublicAddr,
 		ClusterName: pack.rootAppClusterName,
 	})
 	require.NoError(t, err)
-	leafWs, err := pack.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+	leafWs, err := pack.tc.CreateAppSession(context.Background(), &proto.CreateAppSessionRequest{
 		Username:    pack.tc.Username,
 		PublicAddr:  pack.leafTCPPublicAddr,
 		ClusterName: pack.leafAppClusterName,
@@ -718,7 +719,7 @@ func TestTCPLock(t *testing.T) {
 	msg := []byte(uuid.New().String())
 
 	// Start the proxy to the two way communication app.
-	rootWs, err := pack.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+	rootWs, err := pack.tc.CreateAppSession(context.Background(), &proto.CreateAppSessionRequest{
 		Username:    pack.tc.Username,
 		PublicAddr:  pack.rootTCPTwoWayPublicAddr,
 		ClusterName: pack.rootAppClusterName,
@@ -796,7 +797,7 @@ func TestTCPCertExpiration(t *testing.T) {
 	msg := []byte(uuid.New().String())
 
 	// Start the proxy to the two way communication app.
-	rootWs, err := pack.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+	rootWs, err := pack.tc.CreateAppSession(context.Background(), &proto.CreateAppSessionRequest{
 		Username:    pack.tc.Username,
 		PublicAddr:  pack.rootTCPTwoWayPublicAddr,
 		ClusterName: pack.rootAppClusterName,

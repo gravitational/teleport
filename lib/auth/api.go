@@ -28,6 +28,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -253,6 +255,16 @@ type ReadProxyAccessPoint interface {
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
+	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+	// containers that are waiting to be created until moderated
+	// session conditions are met.
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+
+	// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
+	// container that are waiting to be created until moderated
+	// session conditions are met.
+	GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
+
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 
@@ -449,6 +461,16 @@ type ReadKubernetesAccessPoint interface {
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
+
+	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+	// containers that are waiting to be created until moderated
+	// session conditions are met.
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+
+	// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
+	// container that are waiting to be created until moderated
+	// session conditions are met.
+	GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
 
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
@@ -957,7 +979,7 @@ type Cache interface {
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// ListUsers returns a page of users.
-	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
+	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
@@ -1009,6 +1031,16 @@ type Cache interface {
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
+
+	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+	// containers that are waiting to be created until moderated
+	// session conditions are met.
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+
+	// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
+	// container that are waiting to be created until moderated
+	// session conditions are met.
+	GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
@@ -1114,6 +1146,9 @@ type Cache interface {
 
 	// IntegrationsGetter defines read/list methods for integrations.
 	services.IntegrationsGetter
+
+	// NotificationsGetter defines list methods for notifications.
+	services.NotificationGetter
 }
 
 type NodeWrapper struct {

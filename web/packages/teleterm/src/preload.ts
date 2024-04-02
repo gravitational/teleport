@@ -18,8 +18,13 @@
 
 import { contextBridge } from 'electron';
 import { ChannelCredentials, ServerCredentials } from '@grpc/grpc-js';
+import { GrpcTransport } from '@protobuf-ts/grpc-transport';
 
-import { createTshdClient } from 'teleterm/services/tshd/createClient';
+import {
+  createTshdClient,
+  createVnetClient,
+} from 'teleterm/services/tshd/createClient';
+import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import createMainProcessClient from 'teleterm/mainProcess/mainProcessClient';
 import { createFileLoggerService } from 'teleterm/services/logger';
 import Logger from 'teleterm/logger';
@@ -60,7 +65,13 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     mainProcessClient.getResolvedChildProcessAddresses(),
     createGrpcCredentials(runtimeSettings),
   ]);
-  const tshClient = createTshdClient(addresses.tsh, credentials.tshd);
+  const tshdTransport = new GrpcTransport({
+    host: addresses.tsh,
+    channelCredentials: credentials.tshd,
+    interceptors: [loggingInterceptor(new Logger('tshd'))],
+  });
+  const tshClient = createTshdClient(tshdTransport);
+  const vnetClient = createVnetClient(tshdTransport);
   const ptyServiceClient = createPtyService(
     addresses.shared,
     credentials.shared,
@@ -83,11 +94,14 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
   // All uses of tshClient must wait before updateTshdEventsServerAddress finishes to ensure that
   // the client is ready. Otherwise we run into a risk of causing panics in tshd due to a missing
   // tshd events client.
-  await tshClient.updateTshdEventsServerAddress(tshdEventsServerAddress);
+  await tshClient.updateTshdEventsServerAddress({
+    address: tshdEventsServerAddress,
+  });
 
   return {
     mainProcessClient,
     tshClient,
+    vnetClient,
     ptyServiceClient,
     setupTshdEventContextBridgeService,
   };

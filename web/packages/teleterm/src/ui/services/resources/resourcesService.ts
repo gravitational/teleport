@@ -25,15 +25,29 @@ import {
   TshdRpcError,
 } from 'teleterm/services/tshd/cloneableClient';
 
+import {
+  resourceOneOfIsServer,
+  resourceOneOfIsDatabase,
+  resourceOneOfIsApp,
+  resourceOneOfIsKube,
+} from 'teleterm/helpers';
+
+import Logger from 'teleterm/logger';
+
 import type * as types from 'teleterm/services/tshd/types';
 import type * as uri from 'teleterm/ui/uri';
 import type { ResourceTypeFilter } from 'teleterm/ui/Search/searchResult';
 
 export class ResourcesService {
+  private logger = new Logger('ResourcesService');
+
   constructor(private tshClient: types.TshdClient) {}
 
-  fetchServers(params: types.GetResourcesParams) {
-    return this.tshClient.getServers(params);
+  async fetchServers(params: types.GetResourcesParams) {
+    const { response } = await this.tshClient.getServers(
+      makeGetResourcesParamsRequest(params)
+    );
+    return response;
   }
 
   // TODO(ravicious): Refactor it to use logic similar to that in the Web UI.
@@ -57,20 +71,30 @@ export class ResourcesService {
     return servers[0];
   }
 
-  fetchDatabases(params: types.GetResourcesParams) {
-    return this.tshClient.getDatabases(params);
+  async fetchDatabases(params: types.GetResourcesParams) {
+    const { response } = await this.tshClient.getDatabases(
+      makeGetResourcesParamsRequest(params)
+    );
+    return response;
   }
 
-  fetchKubes(params: types.GetResourcesParams) {
-    return this.tshClient.getKubes(params);
+  async fetchKubes(params: types.GetResourcesParams) {
+    const { response } = await this.tshClient.getKubes(
+      makeGetResourcesParamsRequest(params)
+    );
+    return response;
   }
 
-  fetchApps(params: types.GetResourcesParams) {
-    return this.tshClient.getApps(params);
+  async fetchApps(params: types.GetResourcesParams) {
+    const { response } = await this.tshClient.getApps(
+      makeGetResourcesParamsRequest(params)
+    );
+    return response;
   }
 
   async getDbUsers(dbUri: uri.DatabaseUri): Promise<string[]> {
-    return await this.tshClient.listDatabaseUsers(dbUri);
+    const { response } = await this.tshClient.listDatabaseUsers({ dbUri });
+    return response.users;
   }
 
   /**
@@ -147,14 +171,51 @@ export class ResourcesService {
     return Promise.allSettled(promises);
   }
 
-  listUnifiedResources(
+  async listUnifiedResources(
     params: types.ListUnifiedResourcesRequest,
     abortSignal: AbortSignal
-  ) {
-    return this.tshClient.listUnifiedResources(
-      params,
-      cloneAbortSignal(abortSignal)
-    );
+  ): Promise<{ nextKey: string; resources: UnifiedResourceResponse[] }> {
+    const { response } = await this.tshClient.listUnifiedResources(params, {
+      abort: cloneAbortSignal(abortSignal),
+    });
+    return {
+      nextKey: response.nextKey,
+      resources: response.resources
+        .map(p => {
+          if (resourceOneOfIsServer(p.resource)) {
+            return {
+              kind: 'server' as const,
+              resource: p.resource.server,
+            };
+          }
+
+          if (resourceOneOfIsDatabase(p.resource)) {
+            return {
+              kind: 'database' as const,
+              resource: p.resource.database,
+            };
+          }
+
+          if (resourceOneOfIsApp(p.resource)) {
+            return {
+              kind: 'app' as const,
+              resource: p.resource.app,
+            };
+          }
+
+          if (resourceOneOfIsKube(p.resource)) {
+            return {
+              kind: 'kube' as const,
+              resource: p.resource.kube,
+            };
+          }
+
+          this.logger.info(
+            `Ignoring unsupported resource ${JSON.stringify(p)}.`
+          );
+        })
+        .filter(Boolean),
+    };
   }
 }
 
@@ -228,3 +289,25 @@ export type SearchResultResource<Kind extends SearchResult['kind']> =
         : Kind extends 'kube'
           ? SearchResultKube['resource']
           : never;
+
+function makeGetResourcesParamsRequest(params: types.GetResourcesParams) {
+  return {
+    ...params,
+    search: params.search || '',
+    query: params.query || '',
+    searchAsRoles: params.searchAsRoles || '',
+    startKey: params.startKey || '',
+    sortBy: params.sort
+      ? `${params.sort.fieldName}:${params.sort.dir.toLowerCase()}`
+      : '',
+  };
+}
+
+export type UnifiedResourceResponse =
+  | { kind: 'server'; resource: types.Server }
+  | {
+      kind: 'database';
+      resource: types.Database;
+    }
+  | { kind: 'kube'; resource: types.Kube }
+  | { kind: 'app'; resource: types.App };
