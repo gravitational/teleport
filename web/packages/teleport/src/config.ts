@@ -273,7 +273,7 @@ const cfg = {
     thumbprintPath: '/v1/webapi/thumbprint',
 
     awsConfigureIamScriptOidcIdpPath:
-      '/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName&s3Bucket=:s3Bucket&s3Prefix=:s3Prefix',
+      '/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
     awsConfigureIamScriptDeployServicePath:
       '/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
     awsConfigureIamScriptListDatabasesPath:
@@ -468,10 +468,11 @@ const cfg = {
   },
 
   getAwsOidcConfigureIdpScriptUrl(p: UrlAwsOidcConfigureIdp) {
-    return (
-      cfg.baseUrl +
-      generatePath(cfg.api.awsConfigureIamScriptOidcIdpPath, { ...p })
-    );
+    let path = cfg.api.awsConfigureIamScriptOidcIdpPath;
+    if (p.s3Bucket && p.s3Prefix) {
+      path += '&s3Bucket=:s3Bucket&s3Prefix=:s3Prefix';
+    }
+    return cfg.baseUrl + generatePath(path, { ...p });
   },
 
   getDbScriptUrl(token: string) {
@@ -1163,8 +1164,8 @@ export interface UrlDeployServiceIamConfigureScriptParams {
 export interface UrlAwsOidcConfigureIdp {
   integrationName: string;
   roleName: string;
-  s3Bucket: string;
-  s3Prefix: string;
+  s3Bucket?: string;
+  s3Prefix?: string;
 }
 
 export interface UrlAwsConfigureIamScriptParams {
