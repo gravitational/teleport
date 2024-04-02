@@ -45,7 +45,7 @@ type basicHTTPVersionClient struct {
 // body to contain a valid semver tag without the "v".
 func (b *basicHTTPVersionClient) Get(ctx context.Context) (string, error) {
 	versionURL := b.baseURL.JoinPath(constants.VersionPath)
-	body, err := b.client.GetContent(ctx, *versionURL)
+	body, err := b.client.GetContent(ctx, versionURL)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

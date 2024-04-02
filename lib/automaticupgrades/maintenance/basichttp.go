@@ -46,7 +46,7 @@ type basicHTTPMaintenanceClient struct {
 // represents a critical update.
 func (b *basicHTTPMaintenanceClient) Get(ctx context.Context) (bool, error) {
 	versionURL := b.baseURL.JoinPath(constants.MaintenancePath)
-	body, err := b.client.GetContent(ctx, *versionURL)
+	body, err := b.client.GetContent(ctx, versionURL)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

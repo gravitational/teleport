@@ -20,6 +20,7 @@ package utils
 
 import (
 	"archive/tar"
+	"compress/gzip"
 	"errors"
 	"io"
 	"os"
@@ -57,6 +58,15 @@ func Extract(r io.Reader, dir string) error {
 		}
 	}
 	return nil
+}
+
+// ExtractGzip extracts a gzip compressed tarball under dir.
+func ExtractGzip(r io.Reader, dir string) error {
+	gr, err := gzip.NewReader(r)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(Extract(gr, dir))
 }
 
 // extractFile extracts a single file or directory from tarball into dir.

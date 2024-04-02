@@ -37,7 +37,7 @@ type Client struct {
 }
 
 // GetContent sends a GET HTTP request and fails if the response is not 200.
-func (c *Client) GetContent(ctx context.Context, targetURL url.URL) ([]byte, error) {
+func (c *Client) GetContent(ctx context.Context, targetURL *url.URL) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL.String(), nil)
 	if err != nil {
 		return []byte{}, trace.Wrap(err)
@@ -58,4 +58,27 @@ func (c *Client) GetContent(ctx context.Context, targetURL url.URL) ([]byte, err
 	}
 
 	return body, nil
+}
+
+// Download downloads the contents from target url into the destination
+func (c *Client) Download(ctx context.Context, dst io.Writer, targetURL *url.URL) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL.String(), nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	res, err := c.Do(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return trace.Errorf("non-200 status code received: '%d'", res.StatusCode)
+	}
+
+	_, err = io.Copy(dst, res.Body)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
