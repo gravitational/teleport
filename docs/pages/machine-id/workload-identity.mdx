@@ -10,7 +10,12 @@ We currently do not recommend using this feature in production.
 </Admonition>
 
 Teleport's Workload Identity issues flexible short-lived identities intended
-for workloads. It is compatible with the industry-standard SPIFFE specification
+for workloads. The term workload refers generally to pieces of software running
+within your system. These identities can be used to secure workload to workload
+communication (e.g mTLS) or to allow these workloads to access third party
+systems.
+
+It is compatible with the industry-standard [SPIFFE Specification](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE.md)
 meaning that it can be used in place of other SPIFFE compatible identity
 providers.
 
