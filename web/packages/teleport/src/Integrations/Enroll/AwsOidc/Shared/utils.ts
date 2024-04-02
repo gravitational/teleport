@@ -23,98 +23,104 @@ import cfg from 'teleport/config';
 // Must start and end with lowercase letters or numbers.
 // Can have hyphens in between start and end.
 const bucketNameRegex = new RegExp(/^[a-z0-9][a-z0-9-]*[a-z0-9]$/);
-export const requiredBucketName: Rule = inputVal => () => {
-  if (!inputVal) {
-    return {
-      valid: false,
-      message: 'required',
-    };
-  }
+export const requiredBucketName =
+  (required): Rule =>
+  inputVal =>
+  () => {
+    if (!inputVal) {
+      return {
+        valid: !required,
+        message: required ? 'required' : '',
+      };
+    }
 
-  if (inputVal.length < 3 || inputVal.length > 63) {
-    return {
-      valid: false,
-      message: 'name should be 3-63 characters',
-    };
-  }
+    if (inputVal.length < 3 || inputVal.length > 63) {
+      return {
+        valid: false,
+        message: 'name should be 3-63 characters',
+      };
+    }
 
-  if (!bucketNameRegex.test(inputVal)) {
-    return {
-      valid: false,
-      message: 'name is in a invalid format',
-    };
-  }
+    if (!bucketNameRegex.test(inputVal)) {
+      return {
+        valid: false,
+        message: 'name is in a invalid format',
+      };
+    }
 
-  if (inputVal.startsWith('xn--')) {
-    return {
-      valid: false,
-      message: 'cannot start with "xn--"',
-    };
-  }
+    if (inputVal.startsWith('xn--')) {
+      return {
+        valid: false,
+        message: 'cannot start with "xn--"',
+      };
+    }
 
-  if (inputVal.startsWith('sthree-')) {
-    return {
-      valid: false,
-      message: 'cannot start with "sthree-"',
-    };
-  }
+    if (inputVal.startsWith('sthree-')) {
+      return {
+        valid: false,
+        message: 'cannot start with "sthree-"',
+      };
+    }
 
-  if (inputVal.startsWith('sthree-configurator')) {
-    return {
-      valid: false,
-      message: 'cannot start with "sthree-configurator"',
-    };
-  }
+    if (inputVal.startsWith('sthree-configurator')) {
+      return {
+        valid: false,
+        message: 'cannot start with "sthree-configurator"',
+      };
+    }
 
-  if (inputVal.endsWith('-s3alias')) {
-    return {
-      valid: false,
-      message: 'cannot end with "-s3alias"',
-    };
-  }
+    if (inputVal.endsWith('-s3alias')) {
+      return {
+        valid: false,
+        message: 'cannot end with "-s3alias"',
+      };
+    }
 
-  if (inputVal.endsWith('--ol-s3')) {
-    return {
-      valid: false,
-      message: 'cannot end with "--ol-s3"',
-    };
-  }
+    if (inputVal.endsWith('--ol-s3')) {
+      return {
+        valid: false,
+        message: 'cannot end with "--ol-s3"',
+      };
+    }
 
-  return {
-    valid: true,
+    return {
+      valid: true,
+    };
   };
-};
 
 // Must start and end with letters or numbers.
 // Can have hyphens, underscores, and periods in between start and end.
 const prefixNameRegex = new RegExp(/^[a-zA-Z0-9][a-zA-Z0-9-_.]*[a-zA-Z0-9]$/);
-export const requiredPrefixName: Rule = inputVal => () => {
-  if (!inputVal) {
-    return {
-      valid: false,
-      message: 'required',
-    };
-  }
+export const requiredPrefixName =
+  (required): Rule =>
+  inputVal =>
+  () => {
+    if (!inputVal) {
+      return {
+        valid: !required,
+        message: required ? 'required' : '',
+      };
+    }
 
-  // Just a random hard cap.
-  if (inputVal.length > 63) {
-    return {
-      valid: false,
-      message: 'name can be max 63 characters long',
-    };
-  }
+    // Just a random hard cap.
+    if (inputVal.length > 63) {
+      return {
+        valid: false,
+        message: 'name can be max 63 characters long',
+      };
+    }
 
-  if (!prefixNameRegex.test(inputVal)) {
-    return {
-      valid: false,
-      message: 'name is in a invalid format',
-    };
-  }
+    if (!prefixNameRegex.test(inputVal)) {
+      return {
+        valid: false,
+        message: 'name is in a invalid format',
+      };
+    }
 
-  return {
-    valid: true,
+    return {
+      valid: true,
+    };
   };
-};
 
 export function getDefaultS3BucketName() {
   const modifiedClusterName = cfg.proxyCluster.replaceAll('.', '-');
