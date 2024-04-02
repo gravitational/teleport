@@ -38,6 +38,7 @@ import (
 	"github.com/jackc/pgtype"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -160,8 +161,8 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 		port:      port,
 		tlsConfig: tlsConfig,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: defaults.ProtocolPostgres,
-			"name":          config.Name,
+			teleport.ComponentKey: defaults.ProtocolPostgres,
+			"name":                config.Name,
 		}),
 		parametersCh:           make(chan map[string]string, 100),
 		pids:                   make(map[uint32]*pidHandle),

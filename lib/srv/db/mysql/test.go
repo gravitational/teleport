@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -135,8 +136,8 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 	}
 
 	log := logrus.WithFields(logrus.Fields{
-		trace.Component: defaults.ProtocolMySQL,
-		"name":          config.Name,
+		teleport.ComponentKey: defaults.ProtocolMySQL,
+		"name":                config.Name,
 	})
 	server := &TestServer{
 		cfg:      config,

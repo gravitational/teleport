@@ -302,7 +302,7 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 		playbackDir:    filepath.Join(cfg.DataDir, PlaybackDir, SessionLogsDir, apidefaults.Namespace),
 		AuditLogConfig: cfg,
 		log: log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentAuditLog,
+			teleport.ComponentKey: teleport.ComponentAuditLog,
 		}),
 		activeDownloads: make(map[string]context.Context),
 		ctx:             ctx,

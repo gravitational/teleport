@@ -59,6 +59,8 @@ authority to manage resources in the cluster. To prepare credentials using a loc
          '*': '*'
        app_labels:
          '*': '*'
+       node_labels:
+         '*': '*'
        rules:
          - resources:
            - app
@@ -77,6 +79,7 @@ authority to manage resources in the cluster. To prepare credentials using a loc
            - trusted_cluster
            - user
            - access_list
+           - node
            verbs: ['list','create','read','update','delete']
    version: v7
    ```
@@ -102,10 +105,11 @@ authority to manage resources in the cluster. To prepare credentials using a loc
    tbot start \
      --destination-dir=./terraform-identity \
      --token="$TOKEN" \
+     --data-dir=./tbot-data \
+     --join-method=token \
+     --auth-server=tele.example.com:443
      # Replace with the host and port of your Teleport Auth Service
      # or Teleport Proxy Service
-     --auth-server=tele.example.com:443 \
-     --join-method=token
    ```
 
    When run, this creates a new bot with the token retrieved from the JSON output. That token
@@ -163,7 +167,7 @@ To apply the configuration:
 
    ```code
    $ ls
-   # provider.tf  terraform-identity  create_and_run_terraform_bot.sh remove_terraform_bot.sh  terraform_role.yaml
+   # provider.tf  terraform-identity/  create_and_run_terraform_bot.sh remove_terraform_bot.sh  terraform_role.yaml
    ```
 
 1. Initialize the working directory that contains Terraform configuration files

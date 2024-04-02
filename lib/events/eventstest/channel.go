@@ -21,9 +21,9 @@ package eventstest
 import (
 	"context"
 
-	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 )
@@ -37,7 +37,7 @@ type ChannelEmitter struct {
 // NewChannelEmitter returns a new instance of test emitter.
 func NewChannelEmitter(capacity int) *ChannelEmitter {
 	return &ChannelEmitter{
-		log:    logrus.WithField(trace.Component, "channel_emitter"),
+		log:    logrus.WithField(teleport.ComponentKey, "channel_emitter"),
 		events: make(chan apievents.AuditEvent, capacity),
 	}
 }
@@ -65,7 +65,7 @@ type ChannelRecorder struct {
 // NewChannelRecorder returns a new instance of test recorder.
 func NewChannelRecorder(capacity int) *ChannelRecorder {
 	return &ChannelRecorder{
-		log:    logrus.WithField(trace.Component, "channel_recorder"),
+		log:    logrus.WithField(teleport.ComponentKey, "channel_recorder"),
 		events: make(chan apievents.AuditEvent, capacity),
 	}
 }

@@ -155,7 +155,7 @@ func newLocalTerminal(ctx *ServerContext) (*terminal, error) {
 
 	t := &terminal{
 		log: log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentLocalTerm,
+			teleport.ComponentKey: teleport.ComponentLocalTerm,
 		}),
 		serverContext: ctx,
 		terminateFD:   ctx.killShellw,
@@ -510,7 +510,7 @@ func newRemoteTerminal(ctx *ServerContext) (*remoteTerminal, error) {
 
 	t := &remoteTerminal{
 		log: log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRemoteTerm,
+			teleport.ComponentKey: teleport.ComponentRemoteTerm,
 		}),
 		ctx:       ctx,
 		session:   ctx.RemoteSession,

@@ -108,7 +108,7 @@ the same major version as the service that manages automatic updates:
 ```code
 $ TELEPORT_EDITION="cloud"
 $ TELEPORT_DOMAIN=<Var name="example.teleport.sh" />
-$ TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/default/version | sed 's/v//')
+$ TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/stable/cloud/version | sed 's/v//')"
 ```
 
 </TabItem>
@@ -149,6 +149,7 @@ repositories.
    ```code
    $ export TELEPORT_PKG=teleport
    $ export TELEPORT_VERSION=v(=teleport.major_version=)
+   $ export TELEPORT_CHANNEL=stable/${TELEPORT_VERSION?}
    ```
    
    </TabItem>
@@ -160,9 +161,17 @@ repositories.
    has the same major version as the service that conducts automatic updates:
    
    ```code
-   $ export TELEPORT_PKG="teleport-ent teleport-ent-updater"
    $ export TELEPORT_DOMAIN=<Var name="example.teleport.com" />
-   $ export TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/default/version | sed 's/v//')
+   $ export TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/stable/cloud/version | sed 's/v//')"
+   $ export TELEPORT_PKG="teleport-ent-${TELEPORT_VERSION?} teleport-ent-updater"
+   $ export TELEPORT_CHANNEL=stable/cloud
+   ```
+
+   If you are installing Teleport on Debian or Ubuntu, `TELEPORT_PKG` is
+   slightly different:
+
+   ```code
+   $ export TELEPORT_PKG="teleport-ent=${TELEPORT_VERSION?} teleport-ent-updater"
    ```
 
    </TabItem>
@@ -171,6 +180,7 @@ repositories.
    ```code
    $ export TELEPORT_PKG=teleport-ent
    $ export TELEPORT_VERSION=v(=teleport.major_version=)
+   $ export TELEPORT_CHANNEL=stable/${TELEPORT_VERSION?}
    ```
    
    For FedRAMP/FIPS-compliant installations, install the `teleport-ent-fips` package instead:
@@ -235,7 +245,7 @@ repositories.
    # major release of Teleport.
    $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
    https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} \
-   stable/${TELEPORT_VERSION?}" \
+   ${TELEPORT_CHANNEL?}" \
    | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
    
    $ sudo apt-get update
@@ -253,7 +263,7 @@ repositories.
    # package version.
    $ VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
    $ sudo yum install -y yum-utils
-   $ sudo yum-config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/${TELEPORT_VERSION?}/teleport.repo")"
+   $ sudo yum-config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/${TELEPORT_CHANNEL?}/teleport.repo")"
    $ sudo yum install ${TELEPORT_PKG?}
    #
    # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
@@ -271,8 +281,9 @@ repositories.
    # package version.
    $ VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
    # Use zypper to add the teleport RPM repo
-   $ sudo zypper addrepo --refresh --repo $(rpm --eval "https://zypper.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/${TELEPORT_VERSION?}/teleport-zypper.repo")
-   $ sudo yum install ${TELEPORT_PKG?}
+   $ sudo zypper addrepo --refresh --repo $(rpm --eval "https://zypper.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/${TELEPORT_CHANNEL?}/teleport-zypper.repo")
+   $ sudo zypper --gpg-auto-import-keys refresh teleport
+   $ sudo zypper install ${TELEPORT_PKG?}
    #
    # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
    # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
@@ -291,7 +302,7 @@ repositories.
    # Install dnf config-manager
    $ sudo yum install -y yum-utils
    # Use the dnf config manager plugin to add the teleport RPM repo
-   $ sudo dnf config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/${TELEPORT_VERSION?}/teleport.repo")"
+   $ sudo dnf config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/${TELEPORT_CHANNEL?}/teleport.repo")"
    
    # Install teleport
    $ sudo dnf install ${TELEPORT_PKG}
@@ -484,6 +495,9 @@ $ kubectl exec -i my-pod -- tctl status
 
 # sending local files via stdin
 $ kubectl exec -i my-pod -- tctl create -f < my-local-file.yaml
+
+# retrieving the teleport service config file from the configmap
+$ kubectl get configmap teleport-cluster-auth -o jsonpath="{.data['teleport\.yaml']}"
 
 # retrieving output via stdout and tar
 $ kubectl exec -i my-pod -- tctl auth sign --user admin --format tls --ttl 10m --tar -o admin| tar xv -C local

@@ -29,10 +29,13 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 )
 
-type ResourceTestingPrimitives[T resources.TeleportResource, K resources.TeleportKubernetesResource[T]] interface {
+type ResourceTestingPrimitives[T reconcilers.Resource, K reconcilers.KubernetesCR[T]] interface {
+	// Adapter allows to recover the name revision and labels of a resource
+	reconcilers.Adapter[T]
+	// Setup the testing suite
 	Init(setup *TestSetup)
 	SetupTeleportFixtures(context.Context) error
 	// Interacting with the Teleport Resource
@@ -48,7 +51,7 @@ type ResourceTestingPrimitives[T resources.TeleportResource, K resources.Telepor
 	CompareTeleportAndKubernetesResource(T, K) (bool, string)
 }
 
-func ResourceCreationTest[T resources.TeleportResource, K resources.TeleportKubernetesResource[T]](t *testing.T, test ResourceTestingPrimitives[T, K], opts ...TestOption) {
+func ResourceCreationTest[T reconcilers.Resource, K reconcilers.KubernetesCR[T]](t *testing.T, test ResourceTestingPrimitives[T, K], opts ...TestOption) {
 	ctx := context.Background()
 	setup := SetupTestEnv(t, opts...)
 	test.Init(setup)
@@ -66,9 +69,8 @@ func ResourceCreationTest[T resources.TeleportResource, K resources.TeleportKube
 		return !trace.IsNotFound(err)
 	})
 	require.NoError(t, err)
-	require.Equal(t, resourceName, tResource.GetName())
-	require.Contains(t, tResource.GetMetadata().Labels, types.OriginLabel)
-	require.Equal(t, types.OriginKubernetes, tResource.GetMetadata().Labels[types.OriginLabel])
+	require.Equal(t, resourceName, test.GetResourceName(tResource))
+	require.Equal(t, types.OriginKubernetes, test.GetResourceOrigin(tResource))
 
 	err = test.DeleteKubernetesResource(ctx, resourceName)
 	require.NoError(t, err)
@@ -79,7 +81,7 @@ func ResourceCreationTest[T resources.TeleportResource, K resources.TeleportKube
 	})
 }
 
-func ResourceDeletionDriftTest[T resources.TeleportResource, K resources.TeleportKubernetesResource[T]](t *testing.T, test ResourceTestingPrimitives[T, K], opts ...TestOption) {
+func ResourceDeletionDriftTest[T reconcilers.Resource, K reconcilers.KubernetesCR[T]](t *testing.T, test ResourceTestingPrimitives[T, K], opts ...TestOption) {
 	ctx := context.Background()
 	setup := SetupTestEnv(t, opts...)
 	test.Init(setup)
@@ -98,10 +100,9 @@ func ResourceDeletionDriftTest[T resources.TeleportResource, K resources.Telepor
 	})
 	require.NoError(t, err)
 
-	require.Equal(t, resourceName, tResource.GetName())
+	require.Equal(t, resourceName, test.GetResourceName(tResource))
 
-	require.Contains(t, tResource.GetMetadata().Labels, types.OriginLabel)
-	require.Equal(t, types.OriginKubernetes, tResource.GetMetadata().Labels[types.OriginLabel])
+	require.Equal(t, types.OriginKubernetes, test.GetResourceOrigin(tResource))
 
 	// We cause a drift by altering the Teleport resource.
 	// To make sure the operator does not reconcile while we're finished we suspend the operator
@@ -128,7 +129,7 @@ func ResourceDeletionDriftTest[T resources.TeleportResource, K resources.Telepor
 	})
 }
 
-func ResourceUpdateTest[T resources.TeleportResource, K resources.TeleportKubernetesResource[T]](t *testing.T, test ResourceTestingPrimitives[T, K], opts ...TestOption) {
+func ResourceUpdateTest[T reconcilers.Resource, K reconcilers.KubernetesCR[T]](t *testing.T, test ResourceTestingPrimitives[T, K], opts ...TestOption) {
 	ctx := context.Background()
 	setup := SetupTestEnv(t, opts...)
 	test.Init(setup)

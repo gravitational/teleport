@@ -105,7 +105,7 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 	uploader := &Uploader{
 		cfg: cfg,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: cfg.Component,
+			teleport.ComponentKey: cfg.Component,
 		}),
 		closeC:        make(chan struct{}),
 		semaphore:     make(chan struct{}, cfg.ConcurrentUploads),

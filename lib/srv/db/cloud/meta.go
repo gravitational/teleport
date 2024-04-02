@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
@@ -73,7 +74,7 @@ func NewMetadata(config MetadataConfig) (*Metadata, error) {
 	}
 	return &Metadata{
 		cfg: config,
-		log: logrus.WithField(trace.Component, "meta"),
+		log: logrus.WithField(teleport.ComponentKey, "meta"),
 	}, nil
 }
 

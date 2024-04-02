@@ -155,30 +155,17 @@ func (c *Client) Close() error {
 	return c.APIClient.Close()
 }
 
+// CreateAuthPreference not implemented: can only be called locally.
 func (c *Client) CreateAuthPreference(context.Context, types.AuthPreference) (types.AuthPreference, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-func (c *Client) UpdateAuthPreference(context.Context, types.AuthPreference) (types.AuthPreference, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-func (c *Client) UpsertAuthPreference(context.Context, types.AuthPreference) (types.AuthPreference, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
+// CreateSessionRecordingConfig not implemented: can only be called locally.
 func (c *Client) CreateSessionRecordingConfig(context.Context, types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-func (c *Client) UpdateSessionRecordingConfig(context.Context, types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-func (c *Client) UpsertSessionRecordingConfig(context.Context, types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
+// CreateClusterAuditConfig not implemented: can only be called locally.
 func (c *Client) CreateClusterAuditConfig(context.Context, types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
@@ -192,14 +179,6 @@ func (c *Client) UpsertClusterAuditConfig(context.Context, types.ClusterAuditCon
 }
 
 func (c *Client) CreateClusterNetworkingConfig(context.Context, types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-func (c *Client) UpdateClusterNetworkingConfig(ctx context.Context, preference types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-func (c *Client) UpsertClusterNetworkingConfig(ctx context.Context, preference types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
@@ -1040,6 +1019,12 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient
 
+	// ClusterConfigClient returns a Cluster Configuration client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClient
+
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
 
@@ -1051,6 +1036,11 @@ type ClientI interface {
 
 	// UpsertUserPreferences creates or updates user preferences for a given username.
 	UpsertUserPreferences(ctx context.Context, req *userpreferencesv1.UpsertUserPreferencesRequest) error
+
+	// ListAllAccessRequests is a helper for using the ListAccessRequests API's additional sort order/index features without
+	// mucking about with pagination. It also implements backwards-comatibility with older control planes that only
+	// support GetAccessRequests.
+	ListAllAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) ([]*types.AccessRequestV3, error)
 
 	// ListUnifiedResources returns a paginated list of unified resources.
 	ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error)

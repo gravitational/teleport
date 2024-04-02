@@ -27,6 +27,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -45,7 +46,7 @@ type EventsService struct {
 // NewEventsService returns new events service instance
 func NewEventsService(b backend.Backend) *EventsService {
 	return &EventsService{
-		Entry:   logrus.WithFields(logrus.Fields{trace.Component: "Events"}),
+		Entry:   logrus.WithFields(logrus.Fields{teleport.ComponentKey: "Events"}),
 		backend: b,
 	}
 }
@@ -194,6 +195,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessListReviewParser()
 		case types.KindKubeWaitingContainer:
 			parser = newKubeWaitingContainerParser()
+		case types.KindNotification:
+			parser = newUserNotificationParser()
+		case types.KindGlobalNotification:
+			parser = newGlobalNotificationParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -1940,6 +1945,64 @@ func (p *kubeWaitingContainerParser) parse(event backend.Event) (types.Resource,
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(resource), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newUserNotificationParser() *userNotificationParser {
+	return &userNotificationParser{
+		baseParser: newBaseParser(backend.Key(notificationsUserSpecificPrefix)),
+	}
+}
+
+type userNotificationParser struct {
+	baseParser
+}
+
+func (p *userNotificationParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindNotification, types.V1, 0)
+	case types.OpPut:
+		notification, err := services.UnmarshalNotification(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(notification), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newGlobalNotificationParser() *globalNotificationParser {
+	return &globalNotificationParser{
+		baseParser: newBaseParser(backend.Key(notificationsGlobalPrefix)),
+	}
+}
+
+type globalNotificationParser struct {
+	baseParser
+}
+
+func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindGlobalNotification, types.V1, 0)
+	case types.OpPut:
+		globalNotification, err := services.UnmarshalGlobalNotification(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(globalNotification), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

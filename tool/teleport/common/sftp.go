@@ -573,7 +573,7 @@ func onSFTP() error {
 
 	// Ensure the parent process will receive log messages from us
 	l := utils.NewLogger()
-	logger := l.WithField(trace.Component, teleport.ComponentSubsystemSFTP)
+	logger := l.WithField(teleport.ComponentKey, teleport.ComponentSubsystemSFTP)
 
 	currentUser, err := user.Current()
 	if err != nil {

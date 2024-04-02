@@ -29,6 +29,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
 )
 
 // TextFormatter is a [logrus.Formatter] that outputs messages in
@@ -85,13 +87,17 @@ const (
 	callerField    = "caller"
 	timestampField = "timestamp"
 	messageField   = "message"
+	// defaultComponentPadding is a default padding for component field
+	defaultComponentPadding = 11
+	// defaultLevelPadding is a default padding for level field
+	defaultLevelPadding = 4
 )
 
 // NewDefaultTextFormatter creates a TextFormatter with
 // the default options set.
 func NewDefaultTextFormatter(enableColors bool) *TextFormatter {
 	return &TextFormatter{
-		ComponentPadding: trace.DefaultComponentPadding,
+		ComponentPadding: defaultComponentPadding,
 		FormatCaller:     formatCallerWithPathAndLine,
 		ExtraFields:      defaultFormatFields,
 		EnableColors:     enableColors,
@@ -104,7 +110,7 @@ func NewDefaultTextFormatter(enableColors bool) *TextFormatter {
 func (tf *TextFormatter) CheckAndSetDefaults() error {
 	// set padding
 	if tf.ComponentPadding == 0 {
-		tf.ComponentPadding = trace.DefaultComponentPadding
+		tf.ComponentPadding = defaultComponentPadding
 	}
 	// set caller
 	tf.FormatCaller = formatCallerWithPathAndLine
@@ -171,16 +177,16 @@ func (tf *TextFormatter) Format(e *logrus.Entry) ([]byte, error) {
 				color = noColor
 			}
 
-			w.writeField(padMax(level, trace.DefaultLevelPadding), color)
+			w.writeField(padMax(level, defaultLevelPadding), color)
 		case componentField:
-			padding := trace.DefaultComponentPadding
+			padding := defaultComponentPadding
 			if tf.ComponentPadding != 0 {
 				padding = tf.ComponentPadding
 			}
 			if w.Len() > 0 {
 				w.WriteByte(' ')
 			}
-			component, ok := e.Data[trace.Component].(string)
+			component, ok := e.Data[teleport.ComponentKey].(string)
 			if ok && component != "" {
 				component = fmt.Sprintf("[%v]", component)
 			}
@@ -267,10 +273,10 @@ func (j *JSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	}
 
 	if j.componentEnabled {
-		e.Data[componentField] = e.Data[trace.Component]
+		e.Data[componentField] = e.Data[teleport.ComponentKey]
 	}
 
-	delete(e.Data, trace.Component)
+	delete(e.Data, teleport.ComponentKey)
 
 	return j.JSONFormatter.Format(e)
 }
@@ -359,7 +365,7 @@ func (w *writer) writeMap(m map[string]any) {
 	}
 	slices.Sort(keys)
 	for _, key := range keys {
-		if key == trace.Component {
+		if key == teleport.ComponentKey {
 			continue
 		}
 		switch value := m[key].(type) {
