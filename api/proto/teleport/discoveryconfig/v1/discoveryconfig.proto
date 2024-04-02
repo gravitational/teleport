@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.discoveryconfig.v1;
 
+import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/resourceheader.proto";
 import "teleport/legacy/types/types.proto";
 
@@ -63,6 +64,8 @@ message DiscoveryConfigStatus {
   optional string error_message = 2;
   // discovered_resources holds the count of the discovered resources in the previous iteration.
   uint64 discovered_resources = 3;
+  // last_sync_time is the timestamp when the Discovery Config was last sync.
+  google.protobuf.Timestamp last_sync_time = 4;
 }
 
 // DiscoveryConfigState is the state of the discovery config resource.
