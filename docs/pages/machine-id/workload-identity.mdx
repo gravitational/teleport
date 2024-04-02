@@ -27,6 +27,11 @@ already familiar with, such as:
 - Rotation and management of the SPIFFE CA.
 - Using Teleport SPIFFE CA with 3rd party services such as AWS Roles Anywhere.
 
+Teleport Workload Identity is different from Teleport Machine Identity in that
+it is intended for workload to workload communication and is not
+intended to grant access to the Teleport cluster itself. Workload Identity does
+not leverage the Teleport Proxy.
+
 ## What is SPIFFE?
 
 SPIFFE (Secure Production Identity Framework For Everyone) is a set of standards
