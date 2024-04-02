@@ -26,6 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -90,7 +91,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = logrus.WithField(trace.Component, "presence.service")
+		cfg.Logger = logrus.WithField(teleport.ComponentKey, "presence.service")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
