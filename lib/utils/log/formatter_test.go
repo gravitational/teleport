@@ -278,7 +278,7 @@ func TestOutput(t *testing.T) {
 				// Add some fields and output the message at the desired log level via logrus.
 				l := entry.WithField("test", 123).WithField("animal", "llama").WithField("error", trace.Wrap(logErr))
 				logrusTestLogLineNumber := func() int {
-					l.WithField("diag_addr", &addr).Log(test.logrusLevel, message)
+					l.WithField("diag_addr", addr.String()).Log(test.logrusLevel, message)
 					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
 				}()
 

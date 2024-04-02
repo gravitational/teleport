@@ -1392,16 +1392,14 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, cachePolicy Cert
 	)
 	defer span.End()
 
-	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
 	err = RetryWithRelogin(ctx, tc, func() error {
-		err := proxyClient.ReissueUserCerts(ctx, cachePolicy, params)
-		return trace.Wrap(err)
+		return trace.Wrap(clusterClient.ReissueUserCerts(ctx, cachePolicy, params))
 	})
 	return trace.Wrap(err)
 }
