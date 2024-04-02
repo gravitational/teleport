@@ -533,6 +533,20 @@ func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler
 					a = slog.String(CallerField, fmt.Sprintf("%s:%d", file, line))
 				}
 
+				// Convert [slog.KindAny] values that are backed by an [error] or [fmt.Stringer]
+				// to strings so that only the message is output instead of a json object. The kind is
+				// first checked to avoid allocating an interface for the values stored inline
+				// in [slog.Attr].
+				if a.Value.Kind() == slog.KindAny {
+					if err, ok := a.Value.Any().(error); ok {
+						a.Value = slog.StringValue(err.Error())
+					}
+
+					if stringer, ok := a.Value.Any().(fmt.Stringer); ok {
+						a.Value = slog.StringValue(stringer.String())
+					}
+				}
+
 				return a
 			},
 		}),

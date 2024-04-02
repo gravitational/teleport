@@ -20,27 +20,40 @@ import React from 'react';
 import styled from 'styled-components';
 import { Box } from 'design';
 
-export const ConnectionStatusIndicator: React.FC<Props> = props => {
-  const { connected, ...styles } = props;
-  return <StyledStatus $connected={connected} {...styles} />;
+type Status = 'on' | 'off' | 'error';
+
+export const ConnectionStatusIndicator = (props: {
+  status: Status;
+  [key: string]: any;
+}) => {
+  const { status, ...styles } = props;
+  return <StyledStatus $status={status} {...styles} />;
 };
 
-const StyledStatus = styled<Props>(Box)`
+const StyledStatus = styled(Box)`
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  ${props => {
-    const { $connected, theme } = props;
-    const backgroundColor = $connected
-      ? theme.colors.success.main
-      : theme.colors.grey[300];
+  ${(props: { $status: Status; [key: string]: any }) => {
+    const { $status, theme } = props;
+    let backgroundColor: string;
+
+    switch ($status) {
+      case 'on':
+        backgroundColor = theme.colors.success.main;
+        break;
+      case 'off':
+        backgroundColor = theme.colors.grey[300];
+        break;
+      case 'error':
+        // TODO(ravicious): Don't depend on color alone, add an exclamation mark.
+        backgroundColor = theme.colors.error.main;
+        break;
+      default:
+        $status satisfies never;
+    }
     return {
       backgroundColor,
     };
   }}
 `;
-
-type Props = {
-  connected: boolean;
-  [key: string]: any;
-};

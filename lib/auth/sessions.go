@@ -27,6 +27,8 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -39,11 +41,15 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// TODO (Joerger): Replace this alias with the definition of types.NewWebSessionRequest
+// once /e is no longer dependent on types.NewWebSessionRequest.
+type NewWebSessionRequest = types.NewWebSessionRequest
+
 // CreateAppSession creates and inserts a services.WebSession into the
 // backend with the identity of the caller used to generate the certificate.
 // The certificate is used for all access requests, which is where access
 // control is enforced.
-func (a *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest, user services.UserState, identity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
+func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest, user services.UserState, identity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
 	if !modules.GetModules().Features().App {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
@@ -63,6 +69,16 @@ func (a *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	_, traits, err := services.ExtractFromIdentity(ctx, a, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	var verifiedMFADeviceID string
+	if req.MFAResponse != nil {
+		requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
+		mfaData, err := a.ValidateMFAAuthResponse(ctx, req.GetMFAResponse(), req.Username, requiredExt)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		verifiedMFADeviceID = mfaData.Device.Id
 	}
 
 	// Create certificate for this session.
@@ -92,6 +108,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		skipAttestation: true,
 		// Pass along device extensions from the user.
 		deviceExtensions: DeviceExtensions(identity.DeviceExtensions),
+		mfaVerified:      verifiedMFADeviceID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -111,8 +128,8 @@ func (a *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		Priv:        privateKey,
 		Pub:         certs.SSH,
 		TLSCert:     certs.TLS,
-		LoginTime:   a.clock.Now(),
-		Expires:     a.clock.Now().Add(ttl),
+		LoginTime:   a.clock.Now().UTC(),
+		Expires:     a.clock.Now().UTC().Add(ttl),
 		BearerToken: bearer,
 	})
 	if err != nil {
@@ -252,8 +269,8 @@ func (a *Server) generateAppToken(ctx context.Context, username string, roles []
 	return token, nil
 }
 
-func (a *Server) CreateWebSessionFromReq(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
-	session, err := a.NewWebSession(ctx, req)
+func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
+	session, err := a.newWebSession(ctx, req, nil /* opts */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

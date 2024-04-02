@@ -131,7 +131,6 @@ export function ServerSideSupportedList(props: CommonListProps) {
       css={`
         border-radius: 8px;
         overflow: hidden;
-        box-shadow: ${props => props.theme.boxShadow[0]};
       `}
     >
       <SearchPanel

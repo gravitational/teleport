@@ -58,9 +58,9 @@ it('creates a gateway on mount if it does not exist already', async () => {
 
   expect(appContext.clustersService.createGateway).toHaveBeenCalledWith({
     targetUri: doc.targetUri,
-    subresource_name: doc.targetSubresourceName,
-    user: doc.targetUser,
-    port: doc.port,
+    targetSubresourceName: doc.targetSubresourceName,
+    targetUser: doc.targetUser,
+    localPort: doc.port,
   });
   expect(appContext.clustersService.createGateway).toHaveBeenCalledTimes(1);
 });

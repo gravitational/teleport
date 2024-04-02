@@ -290,6 +290,8 @@ func (p ReissueParams) isMFARequiredRequest(sshLogin string) *proto.IsMFARequire
 		req.Target = &proto.IsMFARequiredRequest_Database{Database: &p.RouteToDatabase}
 	case p.RouteToWindowsDesktop.WindowsDesktop != "":
 		req.Target = &proto.IsMFARequiredRequest_WindowsDesktop{WindowsDesktop: &p.RouteToWindowsDesktop}
+	case p.RouteToApp.Name != "":
+		req.Target = &proto.IsMFARequiredRequest_App{App: &p.RouteToApp}
 	}
 	return req
 }
@@ -793,7 +795,7 @@ func (proxy *ProxyClient) FindAppServersByFiltersForCluster(ctx context.Context,
 }
 
 // CreateAppSession creates a new application access session.
-func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
+func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/CreateAppSession",
@@ -827,30 +829,6 @@ func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req types.Create
 	defer accessPoint.Close()
 
 	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), accessPoint)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ws, nil
-}
-
-// GetAppSession creates a new application access session.
-func (proxy *ProxyClient) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
-	ctx, span := proxy.Tracer.Start(
-		ctx,
-		"proxyClient/GetAppSession",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	clusterName, err := proxy.RootClusterName(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	authClient, err := proxy.ConnectToCluster(ctx, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ws, err := authClient.GetAppSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
