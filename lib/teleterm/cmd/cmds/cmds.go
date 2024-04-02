@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 package cmds
 
 import (
@@ -30,4 +31,3 @@ type Cmds struct {
 	// properly when the user copies and then pastes it into a terminal.
 	Preview *exec.Cmd
 }
-
