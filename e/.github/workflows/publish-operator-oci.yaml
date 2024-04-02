@@ -83,12 +83,14 @@ jobs:
 
           for label in "${labels[@]}"; do
             dst="${DST_REPO}:${label}"
-            if docker manifest inspect "${dst}"; then
-              echo "Skipped publishing existing image: ${dst}" >> "$GITHUB_STEP_SUMMARY"
+            exists=false
+            if docker manifest inspect "${dst}"; then exists=true; fi
+            docker buildx imagetools create --tag "${dst}" "${SRC_REPO}:${SRC_LABEL}"
+            if "${exists}"; then
+              echo "Updated existing image tag: ${dst}"
             else
-              docker buildx imagetools create --tag "${dst}" "${SRC_REPO}:${SRC_LABEL}"
-              echo "Published image: ${dst}" >> "$GITHUB_STEP_SUMMARY"
-            fi
+              echo "Published image: ${dst}"
+            fi >> "$GITHUB_STEP_SUMMARY"
           done
 
       # Required for gh-trigger-workflow to find dispatched workflow.
