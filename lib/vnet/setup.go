@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -45,8 +46,7 @@ func CreateAndSetupTUNDevice(ctx context.Context, customDNSZones []string) (tun.
 	if os.Getuid() == 0 {
 		device, name, cleanup, err = createAndSetupTUNDeviceAsRoot(ctx, customDNSZones)
 	} else {
-		device, name, err = createAndSetupTUNDeviceWithoutRoot(ctx, customDNSZones)
-		cleanup = func() {}
+		device, name, cleanup, err = createAndSetupTUNDeviceWithoutRoot(ctx, customDNSZones)
 	}
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -72,25 +72,31 @@ func createAndSetupTUNDeviceAsRoot(ctx context.Context, customDNSZones []string)
 	return tun, tunName, cleanup, nil
 }
 
-func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, customDNSZones []string) (tun.Device, string, error) {
+func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, customDNSZones []string) (tun.Device, string, func(), error) {
 	slog.Info("Spawning child process as root to create and setup TUN device")
 	socket, socketPath, err := createUnixSocket()
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, "", nil, trace.Wrap(err)
 	}
 
 	// Read errors from separate goroutines. If the admin subcommand exits prematurely, this function
 	// will return an error immediately instead of waiting for the deadline from recvTUNNameAndFd.
 	errC := make(chan error, 2)
+	ctx, cancel := context.WithCancel(ctx)
 	var tunName string
 	var tunFd uintptr
 
 	go func() {
-		// If everything goes well, this will write to the channel only after the context gets canceled,
-		// in which case the error will be ignored as no one will read it.
-		// Not wrapping err in another message as those returned from runAdminSubcommand are enough.
+		// If everything goes well, this will write to the channel only after
+		// the context gets canceled.
 		errC <- trace.Wrap(runAdminSubcommand(ctx, socketPath, customDNSZones))
 	}()
+
+	cleanup := func() {
+		cancel()
+		slog.Debug("Waiting for admin subcommand to exit.")
+		slog.With("error", <-errC).Debug("Admin subcommand exited.")
+	}
 
 	go func() {
 		// This is expected to finish and write to the channel first.
@@ -99,14 +105,17 @@ func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, customDNSZones []st
 	}()
 
 	if err := <-errC; err != nil {
-		return nil, "", trace.Wrap(err)
+		cleanup()
+		return nil, "", nil, trace.Wrap(err)
 	}
 
 	tunDevice, err := tun.CreateTUNFromFile(os.NewFile(tunFd, ""), 0)
 	if err != nil {
-		return nil, "", trace.Wrap(err, "creating TUN device from file descriptor")
+		cleanup()
+		return nil, "", nil, trace.Wrap(err, "creating TUN device from file descriptor")
 	}
-	return tunDevice, tunName, nil
+
+	return tunDevice, tunName, cleanup, nil
 }
 
 func createUnixSocket() (*net.UnixListener, string, error) {
@@ -239,8 +248,8 @@ do shell script quoted form of executableName & " %s --socket " & quoted form of
 	// spawns the privileged process, canceling the context (and thus killing osascript) has no effect
 	// on the privileged process.
 	cmd := exec.CommandContext(ctx, "osascript", "-e", appleScript)
-	stderr := new(strings.Builder)
-	cmd.Stderr = stderr
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
 		if err, ok := err.(*exec.ExitError); ok {
@@ -251,8 +260,7 @@ do shell script quoted form of executableName & " %s --socket " & quoted form of
 			if strings.Contains(stderr, "-128") {
 				return trace.Errorf("password prompt closed by user")
 			}
-
-			return trace.Wrap(err, fmt.Sprintf("subcommand exited, stderr: %s", stderr))
+			return trace.Wrap(err, "admin subcommand exited, stderr: %s", stderr)
 		}
 		return trace.Wrap(err)
 	}
@@ -314,9 +322,12 @@ func setupHostIPRoutes(ctx context.Context, tunName string) error {
 	return nil
 }
 
+var (
+	resolverPath = filepath.Join("/", "etc", "resolver")
+)
+
 func setupHostDNS(ctx context.Context, customDNSZones []string) (func(), error) {
-	// TODO: support multiple active profiles, custom DNS zones, and react to
-	// changes.
+	// TODO: support multiple active profiles and react to changes.
 	profileDir := profile.FullProfilePath(os.Getenv("TELEPORT_HOME"))
 	currentProfile, err := profile.GetCurrentProfileName(profileDir)
 	if err != nil {
@@ -324,8 +335,12 @@ func setupHostDNS(ctx context.Context, customDNSZones []string) (func(), error) 
 	}
 	proxyAddress := currentProfile
 
+	if err := os.MkdirAll(resolverPath, os.FileMode(0755)); err != nil {
+		return nil, trace.Wrap(err, "creating /etc/resolver/")
+	}
+
 	allZones := append(customDNSZones, proxyAddress)
-	allFiles := make([]string, len(allZones))
+	allFiles := make([]string, 0, len(allZones))
 	cleanup := func() {
 		for _, fileName := range allFiles {
 			if err := os.Remove(fileName); err != nil {
@@ -333,9 +348,8 @@ func setupHostDNS(ctx context.Context, customDNSZones []string) (func(), error) 
 			}
 		}
 	}
-
 	for _, zone := range allZones {
-		fileName := "/etc/resolver/" + zone
+		fileName := filepath.Join(resolverPath, zone)
 		allFiles = append(allFiles, fileName)
 		contents := "nameserver " + defaultDNSAddress.String()
 		if err := os.WriteFile(fileName, []byte(contents), 0644); err != nil {
