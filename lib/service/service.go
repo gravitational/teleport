@@ -3239,17 +3239,18 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	logger.InfoContext(process.ExitContext(), "Starting diagnostic service.", "listen_address", process.Config.DiagnosticAddr.Addr)
 
 	var muxListener *multiplexer.Mux
+	muxListener, err = multiplexer.New(multiplexer.Config{
+		Context:                        process.ExitContext(),
+		Listener:                       listener,
+		PROXYProtocolMode:              multiplexer.PROXYProtocolUnspecified,
+		SuppressUnexpectedPROXYWarning: true,
+		ID:                             teleport.Component(teleport.ComponentDiagnostic),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	process.RegisterFunc("diagnostic.service", func() error {
-		muxListener, err = multiplexer.New(multiplexer.Config{
-			Context:                        process.ExitContext(),
-			Listener:                       listener,
-			PROXYProtocolMode:              multiplexer.PROXYProtocolUnspecified,
-			SuppressUnexpectedPROXYWarning: true,
-			ID:                             teleport.Component(teleport.ComponentDiagnostic),
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
 		listenerHTTP := muxListener.HTTP()
 		go func() {
 			if err := muxListener.Serve(); err != nil && !utils.IsOKNetworkError(err) {
