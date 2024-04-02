@@ -4538,11 +4538,11 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	var annotations *apievents.Struct
-	if len(req.GetSystemAnnotations()) > 0 {
+	if sa := req.GetSystemAnnotations(); len(sa) > 0 {
 		var err error
-		annotations, err = apievents.EncodeMapStrings(req.GetSystemAnnotations())
+		annotations, err = apievents.EncodeMapStrings(sa)
 		if err != nil {
-			log.WithError(err).Debugf("Failed to encode access request annotations.")
+			log.WithError(err).Debug("Failed to encode access request annotations.")
 		}
 	}
 
@@ -4662,11 +4662,11 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 		Roles:           params.Roles,
 		AssumeStartTime: params.AssumeStartTime,
 	}
-	if len(req.GetSystemAnnotations()) > 0 {
+	if sa := req.GetSystemAnnotations(); len(sa) > 0 {
 		var err error
-		event.Annotations, err = apievents.EncodeMapStrings(req.GetSystemAnnotations())
+		event.Annotations, err = apievents.EncodeMapStrings(sa)
 		if err != nil {
-			log.WithError(err).Debugf("Failed to encode access request annotations.")
+			log.WithError(err).Debug("Failed to encode access request annotations.")
 		}
 	}
 
