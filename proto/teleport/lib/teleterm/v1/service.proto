@@ -656,7 +656,7 @@ message AuthenticateWebDeviceRequest {
   // Device web token to be spent in exchange for the device authentication
   // attempt.
   teleport.devicetrust.v1.DeviceWebToken device_web_token = 1;
-  string cluster_uri = 2;
+  string root_cluster_uri = 2;
 }
 
 // Response for AuthenticateWebDevice.
