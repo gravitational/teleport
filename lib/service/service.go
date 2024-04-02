@@ -3202,8 +3202,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 
 	logger.InfoContext(process.ExitContext(), "Starting diagnostic service.", "listen_address", process.Config.DiagnosticAddr.Addr)
 
-	var muxListener *multiplexer.Mux
-	muxListener, err = multiplexer.New(multiplexer.Config{
+	muxListener, err := multiplexer.New(multiplexer.Config{
 		Context:                        process.ExitContext(),
 		Listener:                       listener,
 		PROXYProtocolMode:              multiplexer.PROXYProtocolUnspecified,
