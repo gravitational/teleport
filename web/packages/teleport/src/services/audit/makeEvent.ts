@@ -202,12 +202,6 @@ export const formatters: Formatters = {
     format: ({ user, name }) =>
       `User [${user}] updated GitHub connector [${name}]`,
   },
-  [eventCodes.GITHUB_CONNECTOR_PREVCODE_UPDATED]: {
-    type: 'github.updated',
-    desc: 'GITHUB Auth Connector Updated',
-    format: ({ user, name }) =>
-      `User [${user}] updated GitHub connector [${name}]`,
-  },
   [eventCodes.OIDC_CONNECTOR_CREATED]: {
     type: 'oidc.created',
     desc: 'OIDC Auth Connector Created',

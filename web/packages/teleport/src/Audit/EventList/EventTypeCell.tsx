@@ -34,7 +34,6 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.GITHUB_CONNECTOR_CREATED]: Icons.Info,
   [eventCodes.GITHUB_CONNECTOR_DELETED]: Icons.Info,
   [eventCodes.GITHUB_CONNECTOR_UPDATED]: Icons.Info,
-  [eventCodes.GITHUB_CONNECTOR_PREVCODE_UPDATED]: Icons.Info,
   [eventCodes.OIDC_CONNECTOR_CREATED]: Icons.Info,
   [eventCodes.OIDC_CONNECTOR_DELETED]: Icons.Info,
   [eventCodes.OIDC_CONNECTOR_UPDATED]: Icons.Info,
