@@ -392,6 +392,10 @@ spec:
         # DNS SANs that the user can request be included in a SVID along with
         # the SPIFFE ID in this block. This field is optional and if omitted,
         # the user will not be able to request a SVID with DNS SANs.
+        #
+        # The '*' wildcard character is supported to indicated one or more of
+        # any character. For example, '*.example.com' would match
+        # 'foo.example.com'.
         dns_sans: ["foo.svc.example.com"]
 
     # rules allow a user holding this role to modify other resources
