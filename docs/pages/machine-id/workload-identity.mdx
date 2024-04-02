@@ -105,6 +105,17 @@ trust domain.
 
 ## Workload API
 
+The Workload API is a standardized gRPC API that workloads should use to request
+SVIDs and trust bundles from a SPIFFE identity provider. The Workload API
+server also handles automatically renewing the credentials for subscribed
+workloads.
+
+The Workload API is usually exposed by an agent that is installed on the same
+host as the workloads and is accessed using a unix socket rather than a TCP
+endpoint. As this API is unauthenticated, the unix socket means that standard
+Linux filesystem access controls can be used to restrict access to specific
+workloads running on the host.
+
 ## Teleport's Workload Identity
 
 Teleport's Workload Identity is an implementation of SPIFFE. Each Teleport
