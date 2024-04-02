@@ -47,6 +47,9 @@ service DiscoveryConfigService {
 
   // DeleteAllDiscoveryConfigs removes all DiscoveryConfigs.
   rpc DeleteAllDiscoveryConfigs(DeleteAllDiscoveryConfigsRequest) returns (google.protobuf.Empty);
+
+  // UpdateDiscoveryConfigState updates an existing DiscoveryConfig resource state object.
+  rpc UpdateDiscoveryConfigState(UpdateDiscoveryConfigStateRequest) returns (DiscoveryConfig);
 }
 
 // ListDiscoveryConfigsRequest is a request for a paginated list of DiscoveryConfigs.
@@ -100,3 +103,12 @@ message DeleteDiscoveryConfigRequest {
 
 // DeleteAllDiscoveryConfigsRequest is the request for deleting all DiscoveryConfigs.
 message DeleteAllDiscoveryConfigsRequest {}
+
+// UpdateDiscoveryConfigStateRequest is the request to update the status field of the provided
+// Discovery Config.
+message UpdateDiscoveryConfigStateRequest {
+  // Name is the name of the DiscoveryConfig to receive the status update.
+  string name = 1;
+  // status is the status payload to be persisted.
+  DiscoveryConfigStatus status = 2;
+}
