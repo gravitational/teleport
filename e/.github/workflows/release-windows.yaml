@@ -60,8 +60,8 @@ jobs:
           repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
       # Note: the artifact-version value for tag events is NOT based on the makefile VERSION variable,
-      # rather, it is the name of the tag. This prevents a pre-release or dev build from accidentally 
-      # overwriting a release asset in the event that the makefile variable is not updated. This does 
+      # rather, it is the name of the tag. This prevents a pre-release or dev build from accidentally
+      # overwriting a release asset in the event that the makefile variable is not updated. This does
       # not provide protection against overwriting a release tag and force pushing.
       - name: Set environment output values
         id: set-variables
@@ -101,7 +101,7 @@ jobs:
 
             echo "environment=build-stage" >> "$GITHUB_OUTPUT"
             BUILD_METADATA="$(echo "${COMMIT_HASH:0:8}" | tr '[:upper:]' '[:lower:]')"
-            echo "artifact-version=$(make print-version)+$BUILD_METADATA" >> "$GITHUB_OUTPUT"
+            echo "artifact-version=$(make -s print-version)+$BUILD_METADATA" >> "$GITHUB_OUTPUT"
           fi
 
           # Set job summary
@@ -125,7 +125,7 @@ jobs:
     uses: ./.github/workflows/build-windows.yaml
     with:
       artifact-version: ${{ needs.setup.outputs.artifact-version }}
-      environment: "build-prod"
+      environment: 'build-prod'
       ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}

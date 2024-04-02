@@ -93,7 +93,7 @@ jobs:
 
       - name: Determine Toolchain Versions and cache paths
         run: |
-          echo NODE_VERSION=$(make -C build.assets print-node-version) >> $GITHUB_ENV
+          echo NODE_VERSION=$(make -s -C build.assets print-node-version) >> $GITHUB_ENV
 
       - name: Print versions
         run: |

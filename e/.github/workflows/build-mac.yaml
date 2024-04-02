@@ -85,11 +85,11 @@ jobs:
 
       - name: Determine Toolchain Versions and cache paths
         run: |
-          echo NODE_VERSION=$(make -C build.assets print-node-version) >> $GITHUB_ENV
-          echo GOLANG_VERSION=$(make -C build.assets print-go-version | sed 's/^go//') >> $GITHUB_ENV
-          echo RUST_VERSION=$(make -C build.assets print-rust-version) >> $GITHUB_ENV
-          echo WASM_PACK_VERSION=$(make -C build.assets print-wasm-pack-version) >> $GITHUB_ENV
-          echo PKG_CONFIG_PATH="$(make print-fido2-pkg-path)" >> $GITHUB_ENV
+          echo NODE_VERSION=$(make -s -C build.assets print-node-version) >> $GITHUB_ENV
+          echo GOLANG_VERSION=$(make -s -C build.assets print-go-version | sed 's/^go//') >> $GITHUB_ENV
+          echo RUST_VERSION=$(make -s -C build.assets print-rust-version) >> $GITHUB_ENV
+          echo WASM_PACK_VERSION=$(make -s -C build.assets print-wasm-pack-version) >> $GITHUB_ENV
+          echo PKG_CONFIG_PATH="$(make -s print-fido2-pkg-path)" >> $GITHUB_ENV
 
       - name: Print versions
         run: |
