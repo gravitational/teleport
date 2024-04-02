@@ -157,7 +157,7 @@ const (
 
 // Render generates the SVID and writes it to the destination.
 func (o *SPIFFESVIDOutput) Render(
-	ctx context.Context, p provider, _ *identity.Identity,
+	ctx context.Context, p Provider, _ *identity.Identity,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,

@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -52,7 +53,33 @@ import (
 
 const renewalRetryLimit = 5
 
-// outputsService is responsible for generating and renewing all outputs.
+type legacyOutput interface {
+	config.Output
+	// GetRoles returns the roles configured for that Output so that the
+	// tbot.Bot the Output belongs to knows what impersonated identity to pass
+	// to Render.
+	//
+	// This will eventually be removed as we move more logic into the Outputs.
+	GetRoles() []string
+	// Render executes the Output with the given identity and provider, causing
+	// the Output to write to the configured bot.Destination.
+	Render(context.Context, config.Provider, *identity.Identity) error
+	// Init instructs the Output to initialize its underlying bot.Destination.
+	// Typical Init activities include creating any necessary folders or
+	// initializing in-memory maps.
+	//
+	// This must be called before Render.
+	Init(ctx context.Context) error
+	// MarshalYAML enables the yaml package to correctly marshal the Output as
+	// YAML.
+	MarshalYAML() (interface{}, error)
+	// Describe returns a list of all files that will be created by an Output,
+	// this enables commands like `tbot init` to pre-create and configure these
+	// files with the correct permissions
+	Describe() []config.FileDescription
+}
+
+// outputsService is responsible for generating and renewing all legacy outputs.
 //
 // Eventually, this will be refactored to run a single output in a single
 // service. Before that can happen, a more global cache needs to be built for
@@ -66,6 +93,7 @@ type outputsService struct {
 	getBotIdentity    getBotIdentityFn
 	cfg               *config.BotConfig
 	resolver          reversetunnelclient.Resolver
+	outputs           []legacyOutput
 }
 
 func (s *outputsService) String() string {
@@ -79,6 +107,24 @@ func (s *outputsService) OneShot(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	s.log.Info("Generated outputs. One-shot mode is enabled so finishing.")
+	return nil
+}
+
+func testDestination(ctx context.Context, dest bot.Destination) error {
+	// Check the ACLs. We can't fix them, but we can warn if they're
+	// misconfigured. We'll need to precompute a list of keys to check.
+	// Note: This may only log a warning, depending on configuration.
+	if err := dest.Verify(identity.ListKeys(identity.DestinationKinds()...)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Ensure this destination is also writable. This is a hard fail if
+	// ACLs are misconfigured, regardless of configuration.
+	// TODO: consider not making these a hard error? e.g. write other
+	// destinations even if this one is broken?
+	if err := identity.VerifyWrite(ctx, dest); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
@@ -108,24 +154,12 @@ func (s *outputsService) renewOutputs(
 	}
 
 	// Next, generate impersonated certs
-	for _, output := range s.cfg.Outputs {
+	for _, output := range s.outputs {
 		s.log.WithFields(logrus.Fields{
 			"output": output,
 		}).Info("Generating output.")
 
-		dest := output.GetDestination()
-		// Check the ACLs. We can't fix them, but we can warn if they're
-		// misconfigured. We'll need to precompute a list of keys to check.
-		// Note: This may only log a warning, depending on configuration.
-		if err := dest.Verify(identity.ListKeys(identity.DestinationKinds()...)); err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Ensure this destination is also writable. This is a hard fail if
-		// ACLs are misconfigured, regardless of configuration.
-		// TODO: consider not making these a hard error? e.g. write other
-		// destinations even if this one is broken?
-		if err := identity.VerifyWrite(ctx, dest); err != nil {
+		if err := testDestination(ctx, output.GetDestination()); err != nil {
 			return trace.Wrap(err, "testing output destination: %s", output)
 		}
 
@@ -166,63 +200,9 @@ func (s *outputsService) Run(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "outputsService/Run")
 	defer span.End()
 
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
-	defer unsubscribe()
-
-	s.log.Infof(
-		"Beginning output renewal loop: ttl=%s interval=%s",
-		s.cfg.CertificateTTL,
-		s.cfg.RenewalInterval,
-	)
-
-	ticker := time.NewTicker(s.cfg.RenewalInterval)
-	jitter := retryutils.NewJitter()
-	defer ticker.Stop()
-	for {
-		var err error
-		for attempt := 1; attempt <= renewalRetryLimit; attempt++ {
-			s.log.Infof(
-				"Renewing outputs. Attempt %d of %d.",
-				attempt,
-				renewalRetryLimit,
-			)
-			err = s.renewOutputs(ctx)
-			if err == nil {
-				break
-			}
-
-			if attempt != renewalRetryLimit {
-				// exponentially back off with jitter, starting at 1 second.
-				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
-				backoffTime = jitter(backoffTime)
-				s.log.WithError(err).Warnf(
-					"Output renewal attempt %d of %d failed. Retrying after %s.",
-					attempt,
-					renewalRetryLimit,
-					backoffTime,
-				)
-				select {
-				case <-ctx.Done():
-					return nil
-				case <-time.After(backoffTime):
-				}
-			}
-		}
-		if err != nil {
-			s.log.Warnf("%d retry attempts exhausted renewing outputs. Waiting for next normal renewal cycle in %s.", renewalRetryLimit, s.cfg.RenewalInterval)
-		} else {
-			s.log.Infof("Renewed outputs. Next output renewal in approximately %s.", s.cfg.RenewalInterval)
-		}
-
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-			continue
-		case <-reloadCh:
-			continue
-		}
-	}
+	return renewLoop(ctx, s.log, s.cfg.RenewalInterval, s.reloadBroadcaster, func(ctx context.Context) error {
+		return s.renewOutputs(ctx)
+	})
 }
 
 // generateKeys generates TLS and SSH keypairs.
@@ -468,7 +448,7 @@ func (s *outputsService) generateImpersonatedIdentity(
 	ctx context.Context,
 	botClient *auth.Client,
 	botIdentity *identity.Identity,
-	output config.Output,
+	output legacyOutput,
 	defaultRoles []string,
 ) (impersonatedIdentity *identity.Identity, impersonatedClient *auth.Client, err error) {
 	ctx, span := tracer.Start(ctx, "outputsService/generateImpersonatedIdentity")
@@ -523,40 +503,6 @@ func (s *outputsService) generateImpersonatedIdentity(
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		return routedIdentity, impersonatedClient, nil
-	case *config.DatabaseOutput:
-		route, err := getRouteToDatabase(
-			ctx,
-			s.log,
-			impersonatedClient,
-			output.Service,
-			output.Username,
-			output.Database,
-		)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		// The impersonated identity is not allowed to reissue certificates,
-		// so we'll request the database access identity using the main bot
-		// identity (having gathered the necessary info for RouteToDatabase
-		// using the correct impersonated unroutedIdentity.)
-		routedIdentity, err := generateIdentity(
-			ctx,
-			botClient,
-			impersonatedIdentity,
-			roles,
-			s.cfg.CertificateTTL,
-			func(req *proto.UserCertsRequest) {
-				req.RouteToDatabase = route
-			},
-		)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		s.log.Infof("Generated identity for database %q", output.Service)
-
 		return routedIdentity, impersonatedClient, nil
 	case *config.KubernetesOutput:
 		kc, err := getKubeCluster(ctx, impersonatedClient, output.KubernetesCluster)
@@ -804,4 +750,70 @@ func makeNameOrDiscoveredNamePredicate(name string) string {
 	return fmt.Sprintf("(%v) || (%v)",
 		matchName, matchDiscoveredName,
 	)
+}
+
+func renewLoop(
+	ctx context.Context,
+	log logrus.FieldLogger,
+	interval time.Duration,
+	reloadBroadcaster *channelBroadcaster,
+	f func(ctx context.Context) error,
+) error {
+	reloadCh, unsubscribe := reloadBroadcaster.subscribe()
+	defer unsubscribe()
+
+	ticker := time.NewTicker(interval)
+	jitter := retryutils.NewJitter()
+	defer ticker.Stop()
+	for {
+		var err error
+		for attempt := 1; attempt <= renewalRetryLimit; attempt++ {
+			log.Infof(
+				"Renewing. Attempt %d of %d.",
+				attempt,
+				renewalRetryLimit,
+			)
+			err = f(ctx)
+			if err == nil {
+				break
+			}
+			if attempt != renewalRetryLimit {
+				// exponentially back off with jitter, starting at 1 second.
+				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
+				backoffTime = jitter(backoffTime)
+				log.WithError(err).Warnf(
+					"Renewal attempt %d of %d failed. Retrying after %s.",
+					attempt,
+					renewalRetryLimit,
+					backoffTime,
+				)
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(backoffTime):
+				}
+			}
+		}
+		if err != nil {
+			log.Warnf(
+				"%d retry attempts exhausted. Waiting for next normal renewal cycle in %s.",
+				renewalRetryLimit,
+				interval,
+			)
+		} else {
+			log.Infof(
+				"Renewed. Next renewal in approximately %s.",
+				interval,
+			)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-reloadCh:
+			continue
+		case <-ticker.C:
+			continue
+		}
+	}
 }

@@ -30,9 +30,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// provider is an interface that allows Templates to fetch information they
+// Provider is an interface that allows Templates to fetch information they
 // need to render from the bot hosting the template rendering.
-type provider interface {
+type Provider interface {
 	// AuthPing pings the auth server and returns the (possibly cached) response.
 	AuthPing(ctx context.Context) (*proto.PingResponse, error)
 

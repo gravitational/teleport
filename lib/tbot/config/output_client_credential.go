@@ -109,7 +109,7 @@ func (o *UnstableClientCredentialOutput) Facade() (*identity.Facade, error) {
 // Render implements the Destination interface and is called regularly by the
 // bot with new credentials. Render passes these credentials down to the
 // underlying facade so that they can be used in TLS/SSH configs.
-func (o *UnstableClientCredentialOutput) Render(ctx context.Context, _ provider, ident *identity.Identity) error {
+func (o *UnstableClientCredentialOutput) Render(ctx context.Context, _ Provider, ident *identity.Identity) error {
 	_, span := tracer.Start(
 		ctx,
 		"UnstableClientCredentialOutput/Render",

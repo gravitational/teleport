@@ -60,7 +60,7 @@ func (o *ApplicationOutput) templates() []template {
 	return templates
 }
 
-func (o *ApplicationOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
+func (o *ApplicationOutput) Render(ctx context.Context, p Provider, ident *identity.Identity) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"ApplicationOutput/Render",

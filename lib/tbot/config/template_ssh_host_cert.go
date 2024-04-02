@@ -108,7 +108,7 @@ func exportSSHUserCAs(cas []types.CertAuthority, localAuthName string) (string, 
 // Render generates SSH host cert files.
 func (c *templateSSHHostCert) render(
 	ctx context.Context,
-	bot provider,
+	bot Provider,
 	_ *identity.Identity,
 	destination bot.Destination,
 ) error {
@@ -150,8 +150,8 @@ func (c *templateSSHHostCert) render(
 	cfg := identityfile.WriteConfig{
 		OutputPath: defaultSSHHostCertPrefix,
 		Writer: &BotConfigWriter{
-			ctx:  ctx,
-			dest: destination,
+			Ctx:  ctx,
+			Dest: destination,
 		},
 		Key:    key,
 		Format: identityfile.FormatOpenSSH,
