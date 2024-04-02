@@ -15,14 +15,14 @@
 package cmd
 
 import (
-	"os/exec"
-
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/teleterm/cmd/cmds"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -45,10 +45,10 @@ func NewDBCLICommandProvider(storage StorageByResourceURI, execer dbcmd.Execer) 
 	}
 }
 
-func (d DBCLICommandProvider) GetCommand(gateway gateway.Gateway) (*exec.Cmd, error) {
+func (d DBCLICommandProvider) GetCommand(gateway gateway.Gateway) (cmds.Cmds, error) {
 	cluster, _, err := d.storage.GetByResourceURI(gateway.TargetURI())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return cmds.Cmds{}, trace.Wrap(err)
 	}
 
 	routeToDb := tlsca.RouteToDatabase{
@@ -58,17 +58,35 @@ func (d DBCLICommandProvider) GetCommand(gateway gateway.Gateway) (*exec.Cmd, er
 		Database:    gateway.TargetSubresourceName(),
 	}
 
-	cmd, err := clusters.NewDBCLICmdBuilder(cluster, routeToDb,
+	opts := []dbcmd.ConnectCommandFunc{
 		dbcmd.WithLogger(gateway.Log()),
 		dbcmd.WithLocalProxy(gateway.LocalAddress(), gateway.LocalPortInt(), ""),
 		dbcmd.WithNoTLS(),
-		dbcmd.WithPrintFormat(),
 		dbcmd.WithTolerateMissingCLIClient(),
 		dbcmd.WithExecer(d.execer),
-	).GetConnectCommand()
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
-	return cmd, nil
+	// DynamoDB doesn't support non-print-format use.
+	if gateway.Protocol() == defaults.ProtocolDynamoDB {
+		opts = append(opts, dbcmd.WithPrintFormat())
+	}
+
+	previewOpts := append(opts, dbcmd.WithPrintFormat())
+
+	execCmd, err := clusters.NewDBCLICmdBuilder(cluster, routeToDb, opts...).GetConnectCommand()
+	if err != nil {
+		return cmds.Cmds{}, trace.Wrap(err)
+	}
+
+	previewCmd, err := clusters.NewDBCLICmdBuilder(cluster, routeToDb, previewOpts...).GetConnectCommand()
+	if err != nil {
+		return cmds.Cmds{}, trace.Wrap(err)
+	}
+
+	cmds := cmds.Cmds{
+		Exec:    execCmd,
+		Preview: previewCmd,
+	}
+
+	return cmds, nil
 }

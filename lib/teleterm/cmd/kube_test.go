@@ -33,5 +33,5 @@ func (m fakeKubeGateway) KubeconfigPath() string { return "test.kubeconfig" }
 func TestKubeCLICommandProvider(t *testing.T) {
 	cmd, err := NewKubeCLICommandProvider().GetCommand(fakeKubeGateway{})
 	require.NoError(t, err)
-	require.Equal(t, []string{"KUBECONFIG=test.kubeconfig"}, cmd.Env)
+	require.Equal(t, []string{"KUBECONFIG=test.kubeconfig"}, cmd.Exec.Env)
 }
