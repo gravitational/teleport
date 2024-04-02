@@ -147,21 +147,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Print Rust version command output
-        run: make -C build.assets print-rust-version
-
       - name: Set Rust version
-        run: |
-          RUST_VERSION=$(make -C build.assets -s print-rust-version)
-          echo "RUST_VERSION=$RUST_VERSION"
-          echo "RUST_VERSION=$RUST_VERSION" >> $GITHUB_ENV
-
-      - name: Print Rust version from GITHUB_ENV
-        run: echo "RUST_VERSION from GITHUB_ENV is ${RUST_VERSION}"
+        run: echo "RUST_VERSION=$(make -C build.assets -s print-rust-version)" >> $GITHUB_ENV
 
       - name: Set up Rust
         run: |
-          echo "Setting up Rust ${RUST_VERSION}"
+          echo "Setting up Rust version ${RUST_VERSION}"
           rustup toolchain install ${RUST_VERSION} --component rustfmt,clippy
           rustup override set ${RUST_VERSION}
           rustc --version
