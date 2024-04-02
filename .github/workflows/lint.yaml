@@ -152,7 +152,7 @@ jobs:
 
       - name: Set Rust version
         run: |
-          RUST_VERSION=$(make -C build.assets print-rust-version)
+          RUST_VERSION=$(make -C build.assets -s print-rust-version)
           echo "RUST_VERSION=$RUST_VERSION"
           echo "RUST_VERSION=$RUST_VERSION" >> $GITHUB_ENV
 
