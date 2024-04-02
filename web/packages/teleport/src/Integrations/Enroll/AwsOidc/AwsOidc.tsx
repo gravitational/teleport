@@ -192,7 +192,7 @@ export function AwsOidc() {
                   onBlur={() => {
                     // s3Bucket by default is defined.
                     // If empty user intentionally cleared it.
-                    if (!s3Bucket && !s3Prefix) return;
+                    if (!integrationName || (!s3Bucket && !s3Prefix)) return;
                     // Help come up with a default prefix name for user.
                     if (!s3Prefix) {
                       setS3Prefix(`${integrationName}-oidc-idp`);
