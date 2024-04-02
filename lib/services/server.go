@@ -25,7 +25,8 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	ec2v1 "github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -434,7 +435,7 @@ func NodeHasMissedKeepAlives(s types.Server) bool {
 
 // NewAWSNodeFromEC2Instance creates a Node resource from an EC2 Instance.
 // It has a pre-populated spec which contains info that is not available in the ec2.Instance object.
-func NewAWSNodeFromEC2Instance(instance ec2Types.Instance, awsCloudMetadata *types.AWSInfo) (types.Server, error) {
+func NewAWSNodeFromEC2Instance(instance ec2types.Instance, awsCloudMetadata *types.AWSInfo) (types.Server, error) {
 	labels := libaws.TagsToLabels(instance.Tags)
 	if labels == nil {
 		labels = make(map[string]string)
@@ -443,6 +444,7 @@ func NewAWSNodeFromEC2Instance(instance ec2Types.Instance, awsCloudMetadata *typ
 
 	instanceID := aws.ToString(instance.InstanceId)
 	labels[types.AWSInstanceIDLabel] = instanceID
+	labels[types.AWSAccountIDLabel] = awsCloudMetadata.AccountID
 
 	awsCloudMetadata.InstanceID = instanceID
 	awsCloudMetadata.VPCID = aws.ToString(instance.VpcId)
@@ -472,4 +474,31 @@ func NewAWSNodeFromEC2Instance(instance ec2Types.Instance, awsCloudMetadata *typ
 	}
 
 	return server, nil
+}
+
+// NewAWSNodeFromEC2v1Instance creates a Node resource from an EC2 Instance.
+// It has a pre-populated spec which contains info that is not available in the ec2.Instance object.
+// Uses AWS SDK Go V1
+func NewAWSNodeFromEC2v1Instance(instance ec2v1.Instance, awsCloudMetadata *types.AWSInfo) (types.Server, error) {
+	server, err := NewAWSNodeFromEC2Instance(ec2InstanceV1ToV2(instance), awsCloudMetadata)
+	return server, trace.Wrap(err)
+}
+
+func ec2InstanceV1ToV2(instance ec2v1.Instance) ec2types.Instance {
+	tags := make([]ec2types.Tag, 0, len(instance.Tags))
+	for _, tag := range instance.Tags {
+		tags = append(tags, ec2types.Tag{
+			Key:   tag.Key,
+			Value: tag.Value,
+		})
+	}
+
+	return ec2types.Instance{
+		InstanceId:       instance.InstanceId,
+		VpcId:            instance.VpcId,
+		SubnetId:         instance.SubnetId,
+		PrivateIpAddress: instance.PrivateIpAddress,
+		PrivateDnsName:   instance.PrivateDnsName,
+		Tags:             tags,
+	}
 }

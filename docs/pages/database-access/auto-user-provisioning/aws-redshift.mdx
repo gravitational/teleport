@@ -56,6 +56,10 @@ Users created within the database will:
 
 (!docs/pages/includes/database-access/auto-user-provisioning/troubleshooting-remote-username.mdx!)
 
+(!docs/pages/includes/database-access/pg-cancel-request-limitation.mdx PIDQuery="SELECT pid,starttime,duration,trim(user_name) AS user,trim(query) AS query FROM stv_recents WHERE status = 'Running';"!)
+
+(!docs/pages/includes/database-access/psql-ssl-syscall-error.mdx!)
+
 ## Next steps
 
 - Connect using your [GUI database client](../../connect-your-client/gui-clients.mdx).

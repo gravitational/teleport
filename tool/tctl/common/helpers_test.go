@@ -74,7 +74,7 @@ func withEditor(editor func(string) error) optionsFunc {
 	}
 }
 
-func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opts ...optionsFunc) auth.ClientI {
+func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opts ...optionsFunc) *auth.Client {
 	var options options
 	for _, v := range opts {
 		v(&options)
@@ -104,7 +104,7 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 
 type cliCommand interface {
 	Initialize(app *kingpin.Application, cfg *servicecfg.Config)
-	TryRun(ctx context.Context, cmd string, client auth.ClientI) (bool, error)
+	TryRun(ctx context.Context, cmd string, client *auth.Client) (bool, error)
 }
 
 func runCommand(t *testing.T, fc *config.FileConfig, cmd cliCommand, args []string, opts ...optionsFunc) error {
@@ -185,23 +185,24 @@ func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
 	return out
 }
 
-func mustDecodeYAMLDocuments[T any](t *testing.T, r io.Reader, out *[]T) error {
+func mustDecodeYAMLDocuments[T any](t *testing.T, r io.Reader, out *[]T) {
+	t.Helper()
 	decoder := yaml.NewDecoder(r)
 	for {
 		var entry T
 		if err := decoder.Decode(&entry); err != nil {
 			// Break when there are no more documents to decode
 			if !errors.Is(err, io.EOF) {
-				return err
+				require.FailNow(t, "error decoding YAML: %v", err)
 			}
 			break
 		}
 		*out = append(*out, entry)
 	}
-	return nil
 }
 
 func mustDecodeYAML[T any](t *testing.T, r io.Reader) T {
+	t.Helper()
 	var out T
 	err := yaml.NewDecoder(r).Decode(&out)
 	require.NoError(t, err)

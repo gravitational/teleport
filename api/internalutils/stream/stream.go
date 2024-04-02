@@ -186,6 +186,46 @@ func MapWhile[A, B any](stream Stream[A], fn func(A) (B, bool)) Stream[B] {
 	}
 }
 
+// chain is a stream that performs a Chain operation.
+type chain[T any] struct {
+	streams []Stream[T]
+	err     error
+}
+
+func (stream *chain[T]) Next() bool {
+	for len(stream.streams) != 0 && stream.err == nil {
+		if stream.streams[0].Next() {
+			return true
+		}
+
+		stream.err = stream.streams[0].Done()
+		stream.streams[0] = nil
+		stream.streams = stream.streams[1:]
+	}
+
+	return false
+}
+
+func (stream *chain[T]) Item() T {
+	return stream.streams[0].Item()
+}
+
+func (stream *chain[T]) Done() error {
+	for _, s := range stream.streams {
+		s.Done()
+	}
+	stream.streams = nil
+
+	return stream.err
+}
+
+// Chain joins multiple streams in order, fully consuming one before moving to the next.
+func Chain[T any](streams ...Stream[T]) Stream[T] {
+	return &chain[T]{
+		streams: streams,
+	}
+}
+
 // empty is a stream that halts immediately
 type empty[T any] struct {
 	err error
@@ -239,6 +279,45 @@ func (stream *once[T]) Done() error {
 func Once[T any](item T) Stream[T] {
 	return &once[T]{
 		item: item,
+	}
+}
+
+// onceFunc is a stream that produces zero or one items based on
+// a lazily evaluated closure.
+type onceFunc[T any] struct {
+	fn   func() (T, error)
+	item T
+	err  error
+}
+
+func (stream *onceFunc[T]) Next() bool {
+	if stream.fn == nil {
+		return false
+	}
+
+	stream.item, stream.err = stream.fn()
+	stream.fn = nil
+	return stream.err == nil
+}
+
+func (stream *onceFunc[T]) Item() T {
+	return stream.item
+}
+
+func (stream *onceFunc[T]) Done() error {
+	if errors.Is(stream.err, io.EOF) {
+		return nil
+	}
+	return stream.err
+}
+
+// OnceFunc builds a stream from a closure that will yield exactly zero or one items. This stream
+// is the lazy equivalent of the Once/Fail/Empty combinators. A nil error value results
+// in a single-element stream. An error value of io.EOF results in an empty stream. All other error
+// values result in a failing stream.
+func OnceFunc[T any](fn func() (T, error)) Stream[T] {
+	return &onceFunc[T]{
+		fn: fn,
 	}
 }
 
@@ -370,5 +449,114 @@ func RateLimit[T any](stream Stream[T], wait func() error) Stream[T] {
 	return &rateLimit[T]{
 		inner: stream,
 		wait:  wait,
+	}
+}
+
+// mergedStream is an adapter for merging two streams based on a less function, it will get the next items from both streams and yield the result of streamA if the comparison function returns true,
+// or the result of streamB if false.
+// The streams can be of different types, however, the resulting merged stream must be of one type.
+type mergedStream[T, U, V any] struct {
+	streamA Stream[T]
+	streamB Stream[U]
+	itemA   T
+	itemB   U
+	// hasItemA keeps track of whether we have an item available from streamA.
+	// We use this flag instead of just checking whether itemA is nil in order to ensure that this adapter also works with non-nullable types.
+	hasItemA bool
+	// hasItemB keeps track of whether we have an item available from streamB.
+	hasItemB bool
+	// less is the comparison function used to compare the items from both lists. If true, the merged stream will yield the item from streamA, if false, it will yield the item from streamB.
+	less func(a T, b U) bool
+	// convert is the function that is used to convert an item from the streamB type into the V type which is the type of the merged stream.
+	// If the streams are of the same type, this can simply be a function that returns the item as-is.
+	// convertA converts an item from streamA into the V type.
+	convertA func(item T) V
+	// convertB converts an item from streamB into the V type.
+	convertB func(item U) V
+}
+
+// Next attempts to advance each stream to the next item. If false is returned, then no more items are available.
+func (ms *mergedStream[T, U, V]) Next() bool {
+	// Attempt to advance to the next item in streamA, if we don't already have an item from it.
+	if !ms.hasItemA && ms.streamA.Next() {
+		ms.itemA = ms.streamA.Item()
+		ms.hasItemA = true
+	}
+	// Attempt to advance to the next item in streamB, if we don't already  have an item from it.
+	if !ms.hasItemB && ms.streamB.Next() {
+		ms.itemB = ms.streamB.Item()
+		ms.hasItemB = true
+	}
+
+	// Return true if either stream has an item available.
+	return ms.hasItemA || ms.hasItemB
+}
+
+// Item yields the current item.
+// If only an item from one stream is available, then it will yield that item.
+// If the items from both streams are available, then the less function will be used to decide which item to yield.
+// After yielding an item, it will also reset the availability flag of the yielded item's stream so that subsequent calls know to fetch a new item.
+func (ms *mergedStream[T, U, V]) Item() V {
+	// If both streams have items available, use the less function to determine which to yield.
+	if ms.hasItemA && ms.hasItemB {
+		if ms.less(ms.itemA, ms.itemB) {
+			// Reset the hasItemA flag since it has been consumed.
+			ms.hasItemA = false
+			return ms.convertA(ms.itemA)
+		}
+		// Reset the hasItemB flag since it has been consumed.
+		ms.hasItemB = false
+		return ms.convertB(ms.itemB)
+
+	}
+
+	// If only streamA has an item available, yield it.
+	if ms.hasItemA {
+		ms.hasItemA = false
+		return ms.convertA(ms.itemA)
+	}
+
+	// If only streamB has an item available, yield it.
+	if ms.hasItemB {
+		ms.hasItemB = false
+		return ms.convertB(ms.itemB)
+	}
+
+	// If neither stream has an available item, then this function should not have been called at all and there is a logic error.
+	panic("Item() was called but neither stream has an item, this is a bug")
+}
+
+// Done closes both streams.
+func (ms *mergedStream[T, U, V]) Done() error {
+	errA := ms.streamA.Done()
+	errB := ms.streamB.Done()
+
+	if errA != nil && errB != nil {
+		return trace.NewAggregate(errA, errB)
+	}
+	if errA != nil {
+		return trace.Wrap(errA, "failed to close the first stream")
+	}
+	if errB != nil {
+		return trace.Wrap(errB, "failed to close the second stream")
+	}
+
+	return nil
+}
+
+// MergeStreams merges two streams and returns a single stream which uses the provided less function to determine which item to yield.
+func MergeStreams[T any, U, V any](
+	streamA Stream[T],
+	streamB Stream[U],
+	less func(a T, b U) bool,
+	convertA func(item T) V,
+	convertB func(item U) V,
+) Stream[V] {
+	return &mergedStream[T, U, V]{
+		streamA:  streamA,
+		streamB:  streamB,
+		less:     less,
+		convertA: convertA,
+		convertB: convertB,
 	}
 }

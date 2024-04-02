@@ -40,7 +40,7 @@ func (h *Handler) updateUserHandle(w http.ResponseWriter, r *http.Request, param
 		return nil, trace.Wrap(err)
 	}
 
-	return updateUser(r, clt, ctx.GetUser())
+	return updateUser(r, clt)
 }
 
 func (h *Handler) createUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -146,7 +146,7 @@ func updateUserTraits(req *saveUserRequest, user types.User) {
 	}
 }
 
-func updateUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, error) {
+func updateUser(r *http.Request, m userAPIGetter) (*ui.User, error) {
 	var req *saveUserRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)

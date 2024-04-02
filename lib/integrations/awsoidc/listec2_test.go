@@ -194,6 +194,7 @@ func TestListEC2(t *testing.T) {
 							"account-id":               "123456789012",
 							"region":                   "us-east-1",
 							"teleport.dev/instance-id": "i-123456789abcedf",
+							"teleport.dev/account-id":  "123456789012",
 						},
 						Namespace: "default",
 					},

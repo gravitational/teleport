@@ -32,6 +32,7 @@ import { desktops } from 'teleport/Desktops/fixtures';
 import { nodes } from 'teleport/Nodes/fixtures';
 
 import makeApp from 'teleport/services/apps/makeApps';
+import { ResourceActionButton } from 'teleport/UnifiedResources/ResourceActionButton';
 
 import {
   makeUnifiedResourceViewItemApp,
@@ -104,7 +105,9 @@ export const Cards: Story = {
       <Grid gap={2}>
         {[
           ...apps.map(resource =>
-            makeUnifiedResourceViewItemApp(resource, { ActionButton })
+            makeUnifiedResourceViewItemApp(resource, {
+              ActionButton: <ResourceActionButton resource={resource} />,
+            })
           ),
           ...databases.map(resource =>
             makeUnifiedResourceViewItemDatabase(resource, {
@@ -115,7 +118,9 @@ export const Cards: Story = {
             makeUnifiedResourceViewItemKube(resource, { ActionButton })
           ),
           ...nodes.map(resource =>
-            makeUnifiedResourceViewItemNode(resource, { ActionButton })
+            makeUnifiedResourceViewItemNode(resource, {
+              ActionButton,
+            })
           ),
           ...additionalResources.map(resource =>
             makeUnifiedResourceViewItemApp(resource, { ActionButton })

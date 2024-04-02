@@ -144,6 +144,10 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.DATABASE_SESSION_QUERY_FAILURE]: Icons.Database,
   [eventCodes.DATABASE_SESSION_MALFORMED_PACKET]: Icons.Database,
   [eventCodes.DATABASE_SESSION_PERMISSIONS_UPDATE]: Icons.Database,
+  [eventCodes.DATABASE_SESSION_USER_CREATE]: Icons.Database,
+  [eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE]: Icons.Database,
+  [eventCodes.DATABASE_SESSION_USER_DEACTIVATE]: Icons.Database,
+  [eventCodes.DATABASE_SESSION_USER_DEACTIVATE_FAILURE]: Icons.Database,
   [eventCodes.DATABASE_CREATED]: Icons.Database,
   [eventCodes.DATABASE_UPDATED]: Icons.Database,
   [eventCodes.DATABASE_DELETED]: Icons.Database,
@@ -195,6 +199,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.DEVICE_ENROLL_TOKEN_CREATE]: Icons.Info,
   [eventCodes.DEVICE_ENROLL_TOKEN_SPENT]: Icons.Info,
   [eventCodes.DEVICE_UPDATE]: Icons.Info,
+  [eventCodes.DEVICE_WEB_TOKEN_CREATE]: Icons.Info,
   [eventCodes.MFA_DEVICE_ADD]: Icons.Info,
   [eventCodes.MFA_DEVICE_DELETE]: Icons.Info,
   [eventCodes.BILLING_CARD_CREATE]: Icons.CreditCard,
@@ -267,6 +272,9 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.EXTERNAL_AUDIT_STORAGE_DISABLE]: Icons.Database,
   [eventCodes.SPIFFE_SVID_ISSUED]: Icons.Keypair,
   [eventCodes.SPIFFE_SVID_ISSUED_FAILURE]: Icons.Warning,
+  [eventCodes.AUTH_PREFERENCE_UPDATE]: Icons.Info,
+  [eventCodes.CLUSTER_NETWORKING_CONFIG_UPDATE]: Icons.Info,
+  [eventCodes.SESSION_RECORDING_CONFIG_UPDATE]: Icons.Info,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 

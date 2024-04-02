@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	eventtypes "github.com/gravitational/teleport/api/types/events"
@@ -784,7 +785,7 @@ func TestAppTokenRotation(t *testing.T) {
 				"trait2": {"value3", "value4"},
 				"trait3": nil,
 			},
-			URI:     "http://localhost:8080",
+			URI:     "https://localhost:8080",
 			Expires: clock.Now().Add(1 * time.Minute),
 		})
 	require.NoError(t, err)
@@ -845,7 +846,7 @@ func TestAppTokenRotation(t *testing.T) {
 				"trait2": {"value3", "value4"},
 				"trait3": nil,
 			},
-			URI:     "http://localhost:8080",
+			URI:     "https://localhost:8080",
 			Expires: clock.Now().Add(1 * time.Minute),
 		})
 	require.NoError(t, err)
@@ -926,12 +927,29 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	clt, err := testSrv.NewClient(TestAdmin())
 	require.NoError(t, err)
 
+	publicAddress := "https://localhost:8080"
+
+	issuer := "https://my-bucket.s3.amazonaws.com/prefix"
+
 	proxyServer, err := types.NewServer("proxy-hostname", types.KindProxy, types.ServerSpecV2{
-		PublicAddrs: []string{"http://localhost:8080"},
+		PublicAddrs: []string{publicAddress},
 	})
 	require.NoError(t, err)
 
 	err = clt.UpsertProxy(ctx, proxyServer)
+	require.NoError(t, err)
+
+	integrationName := "my-integration"
+
+	ig, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: integrationName},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN:     "arn:aws:iam::123456789012:role/OpsTeam",
+			IssuerS3URI: "s3://my-bucket/prefix",
+		},
+	)
+	require.NoError(t, err)
+	_, err = clt.CreateIntegration(ctx, ig)
 	require.NoError(t, err)
 
 	user1, _, err := CreateUserAndRole(clt, "user1", nil, []types.Rule{
@@ -944,7 +962,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 
 	// Create a JWT using the current CA, this will become the "old" CA during
 	// rotation.
-	oldJWT, err := client.GenerateAWSOIDCToken(ctx)
+	oldJWT, err := client.GenerateAWSOIDCToken(ctx, integrationName)
 	require.NoError(t, err)
 
 	// Check that the "old" CA can be used to verify tokens.
@@ -956,7 +974,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.Len(t, oldCA.GetTrustedJWTKeyPairs(), 1)
 
 	// Verify that the JWT token validates with the JWT authority.
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT, issuer)
 	require.NoError(t, err, clock.Now())
 
 	// Start rotation and move to initial phase. A new CA will be added (for
@@ -980,7 +998,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.Len(t, oldCA.GetTrustedJWTKeyPairs(), 2)
 
 	// Verify that the JWT token validates with the JWT authority.
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT, issuer)
 	require.NoError(t, err)
 
 	// Move rotation into the update client phase. In this phase, requests will
@@ -994,7 +1012,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// New tokens should now fail to validate with the old key.
-	newJWT, err := client.GenerateAWSOIDCToken(ctx)
+	newJWT, err := client.GenerateAWSOIDCToken(ctx, integrationName)
 	require.NoError(t, err)
 
 	// New tokens will validate with the new key.
@@ -1007,9 +1025,9 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 2)
 
 	// Both JWT should now validate.
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT, issuer)
 	require.NoError(t, err)
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT, issuer)
 	require.NoError(t, err)
 
 	// Move rotation into update servers phase.
@@ -1031,9 +1049,9 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 2)
 
 	// Both JWT should continue to validate.
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT, issuer)
 	require.NoError(t, err)
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT, issuer)
 	require.NoError(t, err)
 
 	// Complete rotation. The old CA will be removed.
@@ -1055,10 +1073,139 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 1)
 
 	// Old token should no longer validate.
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT, issuer)
 	require.Error(t, err)
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT, issuer)
 	require.NoError(t, err)
+}
+
+// TestListUsers verifies basic expected behavior of remote list users calls.
+func TestListUsers(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testSrv := newTestTLSServer(t)
+
+	clt, err := testSrv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	// set up some users with distinct names/labels (the only to user attributes currently relevant to filtering)
+	usersToCreate := []struct {
+		name   string
+		labels map[string]string
+	}{
+		{
+			name: "alice@good.example.com",
+			labels: map[string]string{
+				"group":    "red",
+				"location": "mauka",
+			},
+		},
+		{
+			name: "bob@good.example.com",
+			labels: map[string]string{
+				"group":    "blue",
+				"location": "mauka",
+			},
+		},
+		{
+			name: "carol@evil.example.com",
+			labels: map[string]string{
+				"group":    "red",
+				"location": "mauka",
+			},
+		},
+		{
+			name: "dave@evil.example.com",
+			labels: map[string]string{
+				"group":    "blue",
+				"location": "makai",
+			},
+		},
+	}
+
+	var allUserNames []string
+	for _, u := range usersToCreate {
+		allUserNames = append(allUserNames, u.name)
+
+		user, err := types.NewUser(u.name)
+		require.NoError(t, err)
+
+		user.SetStaticLabels(u.labels)
+
+		_, err = clt.CreateUser(ctx, user)
+		require.NoError(t, err)
+	}
+
+	getUsers := func(t *testing.T, req *userspb.ListUsersRequest) []*types.UserV2 {
+		var users []*types.UserV2
+		for {
+			rsp, err := clt.ListUsers(ctx, req)
+			require.NoError(t, err)
+
+			users = append(users, rsp.Users...)
+
+			req.PageToken = rsp.NextPageToken
+			if req.PageToken == "" {
+				break
+			}
+		}
+
+		return users
+	}
+
+	namesOf := func(users []*types.UserV2) []string {
+		var names []string
+		for _, u := range users {
+			names = append(names, u.GetName())
+		}
+		return names
+	}
+
+	users := getUsers(t, &userspb.ListUsersRequest{})
+	require.ElementsMatch(t, allUserNames, namesOf(users))
+
+	users = getUsers(t, &userspb.ListUsersRequest{
+		Filter: &types.UserFilter{
+			SearchKeywords: []string{
+				"mauka",
+				"red",
+			},
+		},
+	})
+
+	require.ElementsMatch(t, []string{
+		"alice@good.example.com",
+		"carol@evil.example.com",
+	}, namesOf(users))
+
+	users = getUsers(t, &userspb.ListUsersRequest{
+		Filter: &types.UserFilter{
+			SearchKeywords: []string{
+				"blue",
+				"good.example.com",
+			},
+		},
+	})
+
+	require.ElementsMatch(t, []string{
+		"bob@good.example.com",
+	}, namesOf(users))
+
+	users = getUsers(t, &userspb.ListUsersRequest{
+		Filter: &types.UserFilter{
+			SearchKeywords: []string{
+				"mauka",
+			},
+		},
+		PageSize: 2,
+	})
+
+	require.ElementsMatch(t, []string{
+		"alice@good.example.com",
+		"bob@good.example.com",
+		"carol@evil.example.com",
+	}, namesOf(users))
 }
 
 // TestRemoteUser tests scenario when remote user connects to the local
@@ -1231,7 +1378,7 @@ func TestAuthPreferenceSettings(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = clt.SetAuthPreference(ctx, ap)
+	upsertedAP, err := clt.UpsertAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
 	gotAP, err := clt.GetAuthPreference(ctx)
@@ -1240,6 +1387,7 @@ func TestAuthPreferenceSettings(t *testing.T) {
 	require.Equal(t, "local", gotAP.GetType())
 	require.Equal(t, constants.SecondFactorOTP, gotAP.GetSecondFactor())
 	require.True(t, gotAP.GetDisconnectExpiredCert())
+	require.Empty(t, cmp.Diff(upsertedAP, gotAP, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 }
 
 func TestTunnelConnectionsCRUD(t *testing.T) {
@@ -1259,16 +1407,54 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 
 func TestRemoteClustersCRUD(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	testSrv := newTestTLSServer(t)
-
 	clt, err := testSrv.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	suite := &suite.ServicesTestSuite{
-		PresenceS: clt,
-	}
-	suite.RemoteClustersCRUD(t)
+	clusterName := "example.com"
+	out, err := clt.GetRemoteClusters(ctx)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	rc, err := types.NewRemoteCluster(clusterName)
+	require.NoError(t, err)
+	rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
+
+	rc, err = testSrv.Auth().CreateRemoteCluster(ctx, rc)
+	require.NoError(t, err)
+
+	out, err = clt.GetRemoteClusters(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff(out[0], rc))
+
+	update := rc.Clone()
+	update.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
+	_, err = clt.UpdateRemoteCluster(ctx, update)
+	require.NoError(t, err)
+	updated, err := clt.GetRemoteCluster(ctx, rc.GetName())
+	require.NoError(t, err)
+	require.Equal(t, teleport.RemoteClusterStatusOnline, updated.GetConnectionStatus())
+	// Ensure other fields unchanged
+	require.Empty(t,
+		cmp.Diff(
+			rc,
+			updated,
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+			cmpopts.IgnoreFields(types.RemoteClusterStatusV3{}, "Connection"),
+		),
+	)
+
+	err = clt.DeleteRemoteCluster(ctx, clusterName)
+	require.NoError(t, err)
+	err = clt.DeleteRemoteCluster(ctx, clusterName)
+	require.True(t, trace.IsNotFound(err))
+
+	out, err = clt.GetRemoteClusters(ctx)
+	require.NoError(t, err)
+	require.Empty(t, out)
 }
 
 func TestServersCRUD(t *testing.T) {
@@ -1570,7 +1756,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	// Create remote cluster so create access request doesn't err due to non existent cluster
 	rc, err := types.NewRemoteCluster("foobar")
 	require.NoError(t, err)
-	err = testSrv.AuthServer.AuthServer.CreateRemoteCluster(rc)
+	_, err = testSrv.AuthServer.AuthServer.CreateRemoteCluster(ctx, rc)
 	require.NoError(t, err)
 
 	// Create approved resource request
@@ -2334,7 +2520,8 @@ func TestGenerateCerts(t *testing.T) {
 		authPref, err := srv.Auth().GetAuthPreference(ctx)
 		require.NoError(t, err)
 		authPref.SetDefaultSessionTTL(types.Duration(maxSessionTTL))
-		srv.Auth().SetAuthPreference(ctx, authPref)
+		_, err = srv.Auth().UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err)
 		superImpersonatorRole, err := types.NewRole("superimpersonator", types.RoleSpecV6{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.Duration(maxSessionTTL),
@@ -2427,7 +2614,7 @@ func TestGenerateCerts(t *testing.T) {
 		// but can renew their own cert, for example set route to cluster
 		rc, err := types.NewRemoteCluster("cluster-remote")
 		require.NoError(t, err)
-		err = srv.Auth().CreateRemoteCluster(rc)
+		rc, err = srv.Auth().CreateRemoteCluster(ctx, rc)
 		require.NoError(t, err)
 
 		userCerts, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -2456,7 +2643,7 @@ func TestGenerateCerts(t *testing.T) {
 
 		rc1, err := types.NewRemoteCluster("cluster1")
 		require.NoError(t, err)
-		err = srv.Auth().CreateRemoteCluster(rc1)
+		rc1, err = srv.Auth().CreateRemoteCluster(ctx, rc1)
 		require.NoError(t, err)
 
 		// User can renew their certificates, however the TTL will be limited
@@ -2556,7 +2743,7 @@ func TestGenerateCerts(t *testing.T) {
 		meta := rc2.GetMetadata()
 		meta.Labels = map[string]string{"env": "prod"}
 		rc2.SetMetadata(meta)
-		err = srv.Auth().CreateRemoteCluster(rc2)
+		rc2, err = srv.Auth().CreateRemoteCluster(ctx, rc2)
 		require.NoError(t, err)
 
 		// User can't generate certificates for leaf cluster they don't have access
@@ -2648,7 +2835,7 @@ func TestGenerateAppToken(t *testing.T) {
 					"trait2": {"value3", "value4"},
 					"trait3": nil,
 				},
-				URI:     "http://localhost:8080",
+				URI:     "https://localhost:8080",
 				Expires: clock.Now().Add(1 * time.Minute),
 			})
 		require.Equal(t, err != nil, ts.outError, ts.inComment)
@@ -2656,7 +2843,7 @@ func TestGenerateAppToken(t *testing.T) {
 			claims, err := key.Verify(jwt.VerifyParams{
 				Username: "foo@example.com",
 				RawToken: token,
-				URI:      "http://localhost:8080",
+				URI:      "https://localhost:8080",
 			})
 			require.NoError(t, err, ts.inComment)
 			require.Equal(t, "foo@example.com", claims.Username, ts.inComment)
@@ -2777,7 +2964,7 @@ func TestClusterConfigContext(t *testing.T) {
 		Mode: types.RecordAtProxy,
 	})
 	require.NoError(t, err)
-	err = testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
+	_, err = testSrv.Auth().UpsertSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	// try and generate a host cert
@@ -2832,7 +3019,7 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	require.NoError(t, err)
-	err = testSrv.Auth().SetAuthPreference(ctx, authPreference)
+	_, err = testSrv.Auth().UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
 	// authentication attempt fails with wrong password
@@ -2938,7 +3125,7 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = testSrv.Auth().SetAuthPreference(ctx, authPref)
+	_, err = testSrv.Auth().UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2950,7 +3137,7 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = testSrv.Auth().SetAuthPreference(ctx, authPreference)
+	_, err = testSrv.Auth().UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
 	username := "user1"
@@ -3047,7 +3234,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 		AllowLocalAuth: types.NewBoolOption(false),
 	})
 	require.NoError(t, err)
-	err = testSrv.Auth().SetAuthPreference(ctx, authPref)
+	_, err = testSrv.Auth().UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Make sure access is denied for web login.
@@ -3893,7 +4080,7 @@ func TestEvents(t *testing.T) {
 		ConfigS:       clt,
 		LocalConfigS:  testSrv.Auth(),
 		EventsS:       clt,
-		PresenceS:     clt,
+		PresenceS:     testSrv.Auth(),
 		CAS:           clt,
 		ProvisioningS: clt,
 		Access:        clt,
@@ -4667,7 +4854,7 @@ func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyP
 		claims, err := key.Verify(jwt.VerifyParams{
 			RawToken: token,
 			Username: "foo",
-			URI:      "http://localhost:8080",
+			URI:      "https://localhost:8080",
 		})
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
@@ -4679,7 +4866,7 @@ func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyP
 }
 
 // verifyJWTAWSOIDC verifies that the token was signed by one the passed in key pair.
-func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyPair, token string) (*jwt.Claims, error) {
+func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyPair, token, issuer string) (*jwt.Claims, error) {
 	errs := []error{}
 	for _, pair := range pairs {
 		publicKey, err := utils.ParsePublicKey(pair.PublicKey)
@@ -4700,7 +4887,7 @@ func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.
 		}
 		claims, err := key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
 			RawToken: token,
-			Issuer:   "http://localhost:8080",
+			Issuer:   issuer,
 		})
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
@@ -4713,6 +4900,7 @@ func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.
 
 type testTLSServerOptions struct {
 	cacheEnabled bool
+	accessGraph  *AccessGraphConfig
 }
 
 type testTLSServerOption func(*testTLSServerOptions)
@@ -4720,6 +4908,12 @@ type testTLSServerOption func(*testTLSServerOptions)
 func withCacheEnabled(enabled bool) testTLSServerOption {
 	return func(options *testTLSServerOptions) {
 		options.cacheEnabled = enabled
+	}
+}
+
+func withAccessGraphConfig(cfg AccessGraphConfig) testTLSServerOption {
+	return func(options *testTLSServerOptions) {
+		options.accessGraph = &cfg
 	}
 }
 
@@ -4739,8 +4933,11 @@ func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *TestTLSServer 
 		CacheEnabled: options.cacheEnabled,
 	})
 	require.NoError(t, err)
-
-	srv, err := as.NewTestTLSServer()
+	var tlsServerOpts []TestTLSServerOption
+	if options.accessGraph != nil {
+		tlsServerOpts = append(tlsServerOpts, WithAccessGraphConfig(*options.accessGraph))
+	}
+	srv, err := as.NewTestTLSServer(tlsServerOpts...)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

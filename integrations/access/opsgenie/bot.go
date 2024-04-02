@@ -60,13 +60,17 @@ func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipi
 }
 
 // BroadcastAccessRequestMessage creates an alert for the provided recipients (schedules)
-func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (data accessrequest.SentMessages, err error) {
-	schedules := []string{}
-	for _, recipient := range recipients {
-		schedules = append(schedules, recipient.Name)
+func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipientSchedules []common.Recipient, reqID string, reqData pd.AccessRequestData) (data accessrequest.SentMessages, err error) {
+	notificationSchedules := make([]string, 0, len(recipientSchedules))
+	for _, notifySchedule := range recipientSchedules {
+		notificationSchedules = append(notificationSchedules, notifySchedule.Name)
 	}
-	if len(recipients) == 0 {
-		schedules = append(schedules, b.client.DefaultSchedules...)
+	autoApprovalSchedules := []string{}
+	if annotationAutoApprovalSchedules, ok := reqData.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationApproveSchedulesLabel]; ok {
+		autoApprovalSchedules = annotationAutoApprovalSchedules
+	}
+	if len(autoApprovalSchedules) == 0 {
+		autoApprovalSchedules = append(autoApprovalSchedules, b.client.DefaultSchedules...)
 	}
 	opsgenieReqData := RequestData{
 		User:          reqData.User,
@@ -79,7 +83,8 @@ func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []co
 			Reason: reqData.ResolutionReason,
 		},
 		SystemAnnotations: types.Labels{
-			types.TeleportNamespace + types.ReqAnnotationSchedulesLabel: schedules,
+			types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel: autoApprovalSchedules,
+			types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel:  notificationSchedules,
 		},
 	}
 	opsgenieData, err := b.client.CreateAlert(ctx, reqID, opsgenieReqData)

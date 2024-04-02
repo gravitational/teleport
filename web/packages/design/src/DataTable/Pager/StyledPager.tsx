@@ -22,7 +22,7 @@ import { ButtonIcon } from 'design';
 
 export const StyledArrowBtn = styled(ButtonIcon)`
   svg {
-    font-size: 20px;
+    font-size: ${props => props.theme.fontSizes[5]}px;
   }
   svg:before {
     // arrow icons have some padding that makes them look slightly off-center, padding compensates it
@@ -39,7 +39,7 @@ export const StyledFetchMoreBtn = styled.button`
   border: none;
   font-weight: bold;
   line-height: 0;
-  font-size: 12px;
+  font-size: ${props => props.theme.fontSizes[1]}px;
 
   &:hover,
   &:focus {

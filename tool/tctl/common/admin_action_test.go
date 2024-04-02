@@ -699,7 +699,8 @@ func (s *adminActionTestSuite) testClusterAuthPreference(t *testing.T) {
 			return trace.Wrap(err)
 		}
 		authPref.SetOrigin(types.OriginDynamic)
-		return s.authServer.SetAuthPreference(ctx, authPref)
+		_, err = s.authServer.UpsertAuthPreference(ctx, authPref)
+		return trace.Wrap(err)
 	}
 
 	getAuthPref := func() (types.Resource, error) {
@@ -707,7 +708,8 @@ func (s *adminActionTestSuite) testClusterAuthPreference(t *testing.T) {
 	}
 
 	resetAuthPref := func() error {
-		return s.authServer.SetAuthPreference(ctx, originalAuthPref)
+		_, err = s.authServer.UpsertAuthPreference(ctx, originalAuthPref)
+		return trace.Wrap(err)
 	}
 
 	t.Run("ResourceCommands", func(t *testing.T) {
@@ -770,7 +772,8 @@ func (s *adminActionTestSuite) testNetworkingConfig(t *testing.T) {
 	netConfig.SetOrigin(types.OriginDynamic)
 
 	createNetConfig := func() error {
-		return s.authServer.SetClusterNetworkingConfig(ctx, netConfig)
+		_, err := s.authServer.UpsertClusterNetworkingConfig(ctx, netConfig)
+		return err
 	}
 
 	getNetConfig := func() (types.Resource, error) {
@@ -778,7 +781,8 @@ func (s *adminActionTestSuite) testNetworkingConfig(t *testing.T) {
 	}
 
 	resetNetConfig := func() error {
-		return s.authServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+		_, err := s.authServer.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+		return err
 	}
 
 	t.Run("ResourceCommands", func(t *testing.T) {
@@ -806,7 +810,8 @@ func (s *adminActionTestSuite) testSessionRecordingConfig(t *testing.T) {
 	sessionRecordingConfig.SetOrigin(types.OriginDynamic)
 
 	createSessionRecordingConfig := func() error {
-		return s.authServer.SetSessionRecordingConfig(ctx, sessionRecordingConfig)
+		_, err := s.authServer.UpsertSessionRecordingConfig(ctx, sessionRecordingConfig)
+		return err
 	}
 
 	getSessionRecordingConfig := func() (types.Resource, error) {
@@ -814,7 +819,8 @@ func (s *adminActionTestSuite) testSessionRecordingConfig(t *testing.T) {
 	}
 
 	resetSessionRecordingConfig := func() error {
-		return s.authServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+		_, err := s.authServer.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+		return err
 	}
 
 	t.Run("ResourceCommands", func(t *testing.T) {
@@ -934,9 +940,9 @@ func (s *adminActionTestSuite) testEditCommand(t *testing.T, ctx context.Context
 type adminActionTestSuite struct {
 	authServer *auth.Server
 	// userClientWithMFA supports MFA prompt for admin actions.
-	userClientWithMFA auth.ClientI
+	userClientWithMFA *auth.Client
 	// userClientWithMFA does not support MFA prompt for admin actions.
-	userClientNoMFA  auth.ClientI
+	userClientNoMFA  *auth.Client
 	localAdminClient *auth.Client
 }
 
@@ -1107,9 +1113,11 @@ func (s *adminActionTestSuite) testCommand(t *testing.T, ctx context.Context, tc
 		originalAuthPref, err := s.authServer.GetAuthPreference(ctx)
 		require.NoError(t, err)
 
-		require.NoError(t, s.authServer.SetAuthPreference(ctx, authPref))
+		_, err = s.authServer.UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err)
 		t.Cleanup(func() {
-			require.NoError(t, s.authServer.SetAuthPreference(ctx, originalAuthPref))
+			_, err = s.authServer.UpsertAuthPreference(ctx, originalAuthPref)
+			require.NoError(t, err)
 		})
 
 		err = runTestCase(t, ctx, s.userClientNoMFA, tc)
@@ -1117,7 +1125,7 @@ func (s *adminActionTestSuite) testCommand(t *testing.T, ctx context.Context, tc
 	})
 }
 
-func runTestCase(t *testing.T, ctx context.Context, client auth.ClientI, tc adminActionTestCase) error {
+func runTestCase(t *testing.T, ctx context.Context, client *auth.Client, tc adminActionTestCase) error {
 	t.Helper()
 
 	if tc.setup != nil {

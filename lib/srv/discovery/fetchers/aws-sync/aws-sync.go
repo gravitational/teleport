@@ -65,7 +65,7 @@ type awsFetcher struct {
 // AWSSync is the interface for fetching AWS resources.
 type AWSSync interface {
 	// Poll polls all AWS resources and returns the result.
-	Poll(ctx context.Context) (*Resources, error)
+	Poll(context.Context, Features) (*Resources, error)
 }
 
 // Resources is a collection of polled AWS resources.
@@ -102,6 +102,14 @@ type Resources struct {
 	RoleAttachedPolicies []*accessgraphv1alpha.AWSRoleAttachedPolicies
 	// InstanceProfiles is the list of AWS IAM instance profiles.
 	InstanceProfiles []*accessgraphv1alpha.AWSInstanceProfileV1
+	// EKSClusters is the list of EKS clusters
+	EKSClusters []*accessgraphv1alpha.AWSEKSClusterV1
+	// AssociatedAccessPolicies is the list of Associated Access policies
+	AssociatedAccessPolicies []*accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1
+	// AccessEntries is the list of Access Entries.
+	AccessEntries []*accessgraphv1alpha.AWSEKSClusterAccessEntryV1
+	// RDSDatabases is a list of RDS instances and clusters.
+	RDSDatabases []*accessgraphv1alpha.AWSRDSDatabaseV1
 }
 
 // NewAWSFetcher creates a new AWS fetcher.
@@ -121,12 +129,12 @@ func NewAWSFetcher(ctx context.Context, cfg Config) (AWSSync, error) {
 // Poll is a blocking call and will return when all resources have been fetched.
 // It's possible that the call returns Resources and an error at the same time
 // if some resources were fetched successfully and some were not.
-func (a *awsFetcher) Poll(ctx context.Context) (*Resources, error) {
-	result, err := a.poll(ctx)
+func (a *awsFetcher) Poll(ctx context.Context, features Features) (*Resources, error) {
+	result, err := a.poll(ctx, features)
 	return result, trace.Wrap(err)
 }
 
-func (a *awsFetcher) poll(ctx context.Context) (*Resources, error) {
+func (a *awsFetcher) poll(ctx context.Context, features Features) (*Resources, error) {
 	eGroup, ctx := errgroup.WithContext(ctx)
 	// Set the limit for the number of concurrent pollers running in parallel.
 	// This is to prevent the number of concurrent pollers from growing too large
@@ -150,27 +158,49 @@ func (a *awsFetcher) poll(ctx context.Context) (*Resources, error) {
 	// - inline policies
 	// - attached policies
 	// - user groups they are members of
-	eGroup.Go(a.pollAWSUsers(ctx, result, collectErr))
+	if features.Users {
+		eGroup.Go(a.pollAWSUsers(ctx, result, collectErr))
+	}
 
 	// fetch AWS groups and their associated resources.
 	// - inline policies
 	// - attached policies
-	eGroup.Go(a.pollAWSRoles(ctx, result, collectErr))
+	if features.Roles {
+		eGroup.Go(a.pollAWSRoles(ctx, result, collectErr))
+	}
 
 	// fetch AWS groups and their associated resources.
 	// - inline policies
 	// - attached policies
-	eGroup.Go(a.pollAWSGroups(ctx, result, collectErr))
+	if features.Groups {
+		eGroup.Go(a.pollAWSGroups(ctx, result, collectErr))
+	}
 
 	// fetch AWS EC2 instances and their associated resources.
 	// - instance profiles
-	eGroup.Go(a.pollAWSEC2Instances(ctx, result, collectErr))
+	if features.EC2 {
+		eGroup.Go(a.pollAWSEC2Instances(ctx, result, collectErr))
+	}
 
 	// fetch AWS IAM policies and their policy documents.
-	eGroup.Go(a.pollAWSPolicies(ctx, result, collectErr))
+	if features.Users || features.Roles {
+		eGroup.Go(a.pollAWSPolicies(ctx, result, collectErr))
+	}
 
 	// fetch AWS S3 buckets.
-	eGroup.Go(a.pollAWSS3Buckets(ctx, result, collectErr))
+	if features.S3 {
+		eGroup.Go(a.pollAWSS3Buckets(ctx, result, collectErr))
+	}
+
+	// fetch AWS EKS clusters
+	if features.EKS {
+		eGroup.Go(a.pollAWSEKSClusters(ctx, result, collectErr))
+	}
+
+	// fetch AWS RDS instances and clusters
+	if features.RDS {
+		eGroup.Go(a.pollAWSRDSDatabases(ctx, result, collectErr))
+	}
 
 	if err := eGroup.Wait(); err != nil {
 		return nil, trace.Wrap(err)

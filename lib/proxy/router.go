@@ -112,7 +112,7 @@ type SiteGetter interface {
 // RemoteClusterGetter provides access to remote cluster resources
 type RemoteClusterGetter interface {
 	// GetRemoteCluster returns a remote cluster by name
-	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
+	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
 }
 
 // RouterConfig contains all the dependencies required
@@ -136,7 +136,7 @@ type RouterConfig struct {
 // CheckAndSetDefaults ensures the required items were populated
 func (c *RouterConfig) CheckAndSetDefaults() error {
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "Router")
+		c.Log = logrus.WithField(teleport.ComponentKey, "Router")
 	}
 
 	if c.ClusterName == "" {
@@ -368,7 +368,7 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 		return nil, trace.Wrap(err)
 	}
 
-	rc, err := r.clusterGetter.GetRemoteCluster(clusterName)
+	rc, err := r.clusterGetter.GetRemoteCluster(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

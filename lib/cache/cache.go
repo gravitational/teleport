@@ -37,6 +37,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -166,6 +169,9 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessList},
 		{Kind: types.KindAccessListMember},
 		{Kind: types.KindAccessListReview},
+		{Kind: types.KindKubeWaitingContainer},
+		{Kind: types.KindNotification},
+		{Kind: types.KindGlobalNotification},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -217,6 +223,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindAuditQuery},
 		{Kind: types.KindSecurityReport},
 		{Kind: types.KindSecurityReportState},
+		{Kind: types.KindKubeWaitingContainer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -229,7 +236,7 @@ func ForProxy(cfg Config) Config {
 // incompatible changes don't render a remote cluster permanently unhealthy.
 // First, the cfg.Watches of ForOldRemoteProxy must be replaced
 // with the current cfg.Watches of ForRemoteProxy. Next, the
-// version used by `lib/reversetunnel/srv/go` to determine whether
+// version used by `lib/reversetunnel/srv.go` to determine whether
 // to use ForRemoteProxy or ForOldRemoteProxy must be updated
 // to be the release in which the new resource(s) will exist in. Finally,
 // add the new types.WatchKind below. Also note that this only
@@ -340,6 +347,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindKubeWaitingContainer},
 	}
 	cfg.QueueSize = defaults.KubernetesQueueSize
 	return cfg
@@ -539,6 +547,8 @@ type Cache struct {
 	accessListCache              *simple.AccessListService
 	eventsFanout                 *services.FanoutV2
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
+	kubeWaitingContsCache        *local.KubeWaitingContainerService
+	notificationsCache           services.Notifications
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -701,6 +711,10 @@ type Config struct {
 	SecReports services.SecReports
 	// AccessLists is the access lists service.
 	AccessLists services.AccessLists
+	// KubeWaitingContainers is the Kubernetes waiting container service.
+	KubeWaitingContainers services.KubeWaitingContainer
+	// Notifications is the notifications service
+	Notifications services.Notifications
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -900,10 +914,22 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	notificationsCache, err := local.NewNotificationsService(config.Backend, config.Clock)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	fanout := services.NewFanoutV2(services.FanoutV2Config{})
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
 	for i := 0; i < config.FanoutShards; i++ {
 		lowVolumeFanouts = append(lowVolumeFanouts, services.NewFanoutV2(services.FanoutV2Config{}))
+	}
+
+	kubeWaitingContsCache, err := local.NewKubeWaitingContainerService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
 	}
 
 	cs := &Cache{
@@ -939,10 +965,12 @@ func New(config Config) (*Cache, error) {
 		secReportsCache:              secReprotsCache,
 		userLoginStateCache:          userLoginStatesCache,
 		accessListCache:              accessListCache,
+		notificationsCache:           notificationsCache,
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
+		kubeWaitingContsCache:        kubeWaitingContsCache,
 		Logger: log.WithFields(log.Fields{
-			trace.Component: config.Component,
+			teleport.ComponentKey: config.Component,
 		}),
 	}
 	collections, err := setupCollections(cs, config.Watches)
@@ -973,7 +1001,6 @@ func (c *Cache) Start() error {
 		Jitter: retryutils.NewHalfJitter(),
 		Clock:  c.Clock,
 	})
-
 	if err != nil {
 		c.Close()
 		return trace.Wrap(err)
@@ -2054,8 +2081,8 @@ type remoteClustersCacheKey struct {
 var _ map[remoteClustersCacheKey]struct{} // compile-time hashability check
 
 // GetRemoteClusters returns a list of remote clusters
-func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
-	ctx, span := c.Tracer.Start(context.TODO(), "cache/GetRemoteClusters")
+func (c *Cache) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetRemoteClusters")
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.remoteClusters)
@@ -2065,7 +2092,7 @@ func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remot
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		cachedRemotes, err := utils.FnCacheGet(ctx, c.fnCache, remoteClustersCacheKey{}, func(ctx context.Context) ([]types.RemoteCluster, error) {
-			remotes, err := rg.reader.GetRemoteClusters(opts...)
+			remotes, err := rg.reader.GetRemoteClusters(ctx)
 			return remotes, err
 		})
 		if err != nil || cachedRemotes == nil {
@@ -2078,12 +2105,12 @@ func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remot
 		}
 		return remotes, nil
 	}
-	return rg.reader.GetRemoteClusters(opts...)
+	return rg.reader.GetRemoteClusters(ctx)
 }
 
 // GetRemoteCluster returns a remote cluster by name
-func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
-	ctx, span := c.Tracer.Start(context.TODO(), "cache/GetRemoteCluster")
+func (c *Cache) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetRemoteCluster")
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.remoteClusters)
@@ -2093,7 +2120,7 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		cachedRemote, err := utils.FnCacheGet(ctx, c.fnCache, remoteClustersCacheKey{clusterName}, func(ctx context.Context) (types.RemoteCluster, error) {
-			remote, err := rg.reader.GetRemoteCluster(clusterName)
+			remote, err := rg.reader.GetRemoteCluster(ctx, clusterName)
 			return remote, err
 		})
 		if err != nil {
@@ -2102,17 +2129,31 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 
 		return cachedRemote.Clone(), nil
 	}
-	rc, err := rg.reader.GetRemoteCluster(clusterName)
+	rc, err := rg.reader.GetRemoteCluster(ctx, clusterName)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
 		// fallback is sane because this method is never used
 		// in construction of derivative caches.
-		if rc, err := c.Config.Presence.GetRemoteCluster(clusterName); err == nil {
+		if rc, err := c.Config.Presence.GetRemoteCluster(ctx, clusterName); err == nil {
 			return rc, nil
 		}
 	}
 	return rc, trace.Wrap(err)
+}
+
+// ListRemoteClusters returns a page of remote clusters.
+func (c *Cache) ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error) {
+	_, span := c.Tracer.Start(ctx, "cache/ListRemoteClusters")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.remoteClusters)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	remoteClusters, token, err := rg.reader.ListRemoteClusters(ctx, pageSize, nextToken)
+	return remoteClusters, token, trace.Wrap(err)
 }
 
 // GetUser is a part of auth.Cache implementation.
@@ -2159,21 +2200,21 @@ func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, e
 }
 
 // ListUsers returns a page of users.
-func (c *Cache) ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
+func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
 	_, span := c.Tracer.Start(ctx, "cache/ListUsers")
 	defer span.End()
 
-	if withSecrets { // cache never tracks user secrets
-		users, token, err := c.Users.ListUsers(ctx, pageSize, nextToken, withSecrets)
-		return users, token, trace.Wrap(err)
+	if req.WithSecrets { // cache never tracks user secrets
+		rsp, err := c.Users.ListUsers(ctx, req)
+		return rsp, trace.Wrap(err)
 	}
 	rg, err := readCollectionCache(c, c.collections.users)
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	users, token, err := rg.reader.ListUsers(ctx, pageSize, nextToken, withSecrets)
-	return users, token, trace.Wrap(err)
+	rsp, err := rg.reader.ListUsers(ctx, req)
+	return rsp, trace.Wrap(err)
 }
 
 // GetTunnelConnections is a part of auth.Cache implementation
@@ -2213,6 +2254,36 @@ func (c *Cache) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, e
 	}
 	defer rg.Release()
 	return rg.reader.GetKubernetesServers(ctx)
+}
+
+// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+// containers that are waiting to be created until moderated
+// session conditions are met.
+func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListKubernetesWaitingContainers")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.kubeWaitingContainers)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListKubernetesWaitingContainers(ctx, pageSize, pageToken)
+}
+
+// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
+// container that are waiting to be created until moderated
+// session conditions are met.
+func (c *Cache) GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesWaitingContainer")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.kubeWaitingContainers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetKubernetesWaitingContainer(ctx, req)
 }
 
 // GetApplicationServers returns all registered application servers.
@@ -2998,6 +3069,37 @@ func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pa
 	return rg.reader.ListAccessListReviews(ctx, accessList, pageSize, pageToken)
 }
 
+// ListUserNotifications returns a paginated list of user-specific notifications for all users.
+func (c *Cache) ListUserNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.Notification, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListUserNotifications")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.userNotifications)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	defer rg.Release()
+
+	out, nextKey, err := rg.reader.ListUserNotifications(ctx, pageSize, startKey)
+	return out, nextKey, trace.Wrap(err)
+}
+
+// ListGlobalNotifications returns a paginated list of global notifications.
+func (c *Cache) ListGlobalNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.GlobalNotification, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListGlobalNotifications")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.globalNotifications)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	out, nextKey, err := rg.reader.ListGlobalNotifications(ctx, pageSize, startKey)
+	return out, nextKey, trace.Wrap(err)
+}
+
 // ListResources is a part of auth.Cache implementation
 func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListResources")
@@ -3026,14 +3128,23 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 				return nil, trace.Wrap(err)
 			}
 
-			return local.FakePaginate(servers.AsResources(), local.FakePaginateParams{
-				ResourceType:        req.ResourceType,
-				Limit:               req.Limit,
-				Labels:              req.Labels,
-				SearchKeywords:      req.SearchKeywords,
-				PredicateExpression: req.PredicateExpression,
-				StartKey:            req.StartKey,
-			})
+			params := local.FakePaginateParams{
+				ResourceType:   req.ResourceType,
+				Limit:          req.Limit,
+				Labels:         req.Labels,
+				SearchKeywords: req.SearchKeywords,
+				StartKey:       req.StartKey,
+			}
+
+			if req.PredicateExpression != "" {
+				expression, err := services.NewResourceExpression(req.PredicateExpression)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				params.PredicateExpression = expression
+			}
+
+			return local.FakePaginate(servers.AsResources(), params)
 		}
 	}
 

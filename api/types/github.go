@@ -17,10 +17,11 @@ limitations under the License.
 package types
 
 import (
+	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -191,7 +192,7 @@ func (c *GithubConnectorV3) CheckAndSetDefaults() error {
 
 	// DELETE IN 11.0.0
 	if len(c.Spec.TeamsToLogins) > 0 {
-		log.Warn("GitHub connector field teams_to_logins is deprecated and will be removed in the next version. Please use teams_to_roles instead.")
+		slog.WarnContext(context.Background(), "GitHub connector field teams_to_logins is deprecated and will be removed in the next version. Please use teams_to_roles instead.")
 	}
 
 	// make sure claim mappings have either roles or a role template

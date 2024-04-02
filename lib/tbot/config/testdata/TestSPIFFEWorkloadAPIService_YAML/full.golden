@@ -1,0 +1,11 @@
+type: spiffe-workload-api
+listen: unix:///var/run/spiffe.sock
+svids:
+  - path: /foo
+    hint: hint
+    sans:
+      dns:
+        - example.com
+      ip:
+        - 10.0.0.1
+        - 10.42.0.1

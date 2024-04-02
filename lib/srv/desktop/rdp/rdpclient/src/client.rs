@@ -32,8 +32,9 @@ use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
 use ironrdp_pdu::mcs::DisconnectReason;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
+use ironrdp_pdu::rdp::client_info::PerformanceFlags;
 use ironrdp_pdu::rdp::RdpError;
-use ironrdp_pdu::{custom_err, function, PduError, PduParsing};
+use ironrdp_pdu::{custom_err, function, PduError};
 use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
@@ -123,8 +124,7 @@ impl Client {
         let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
         let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
 
-        let connector_config =
-            create_config(params.screen_width, params.screen_height, pin.clone());
+        let connector_config = create_config(&params, pin.clone());
 
         // Create a channel for sending/receiving function calls to/from the Client.
         let (client_handle, function_receiver) = ClientHandle::new(100);
@@ -207,8 +207,7 @@ impl Client {
             connection_result.static_channels,
             connection_result.user_channel_id,
             connection_result.io_channel_id,
-            None,
-            None,
+            connection_result.connection_activation,
         );
 
         Ok(Self {
@@ -321,6 +320,13 @@ impl Client {
                                 }
                                 ProcessorOutput::Disconnect(reason) => {
                                     return Ok(Some(reason));
+                                }
+                                ProcessorOutput::DeactivateAll(_) => {
+                                    // DeactivateAll is not implemented yet, but will
+                                    // be in the near future when resize support lands.
+                                    return Err(ClientError::InternalError(
+                                        "DeactivateAll not implemented".to_string(),
+                                    ));
                                 }
                             }
                         }
@@ -540,11 +546,9 @@ impl Client {
         write_stream: &mut RdpWriteStream,
         event: FastPathInputEvent,
     ) -> ClientResult<()> {
-        let mut data: Vec<u8> = Vec::new();
-        let input_pdu = FastPathInput(vec![event]);
-        input_pdu.to_buffer(&mut data)?;
-
-        write_stream.write_all(&data).await?;
+        write_stream
+            .write_all(&ironrdp_pdu::encode_vec(&FastPathInput(vec![event]))?)
+            .await?;
         Ok(())
     }
 
@@ -1097,9 +1101,12 @@ impl FunctionReceiver {
 type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
 type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 
-fn create_config(width: u16, height: u16, pin: String) -> Config {
+fn create_config(params: &ConnectParams, pin: String) -> Config {
     Config {
-        desktop_size: ironrdp_connector::DesktopSize { width, height },
+        desktop_size: ironrdp_connector::DesktopSize {
+            width: params.screen_width,
+            height: params.screen_height,
+        },
         enable_tls: true,
         enable_credssp: false,
         credentials: Credentials::SmartCard { pin },
@@ -1113,7 +1120,6 @@ fn create_config(width: u16, height: u16, pin: String) -> Config {
         keyboard_subtype: 0,
         keyboard_functional_keys_count: 12,
         ime_file_name: "".to_string(),
-        graphics: None,
         bitmap: Some(ironrdp_connector::BitmapConfig {
             lossy_compression: true,
             color_depth: 32, // Changing this to 16 gets us uncompressed bitmaps on machines configured like https://github.com/Devolutions/IronRDP/blob/55d11a5000ebd474c2ddc294b8b3935554443112/README.md?plain=1#L17-L36
@@ -1126,6 +1132,12 @@ fn create_config(width: u16, height: u16, pin: String) -> Config {
         no_server_pointer: false,
         autologon: true,
         pointer_software_rendering: false,
+        performance_flags: PerformanceFlags::default()
+            | if !params.show_desktop_wallpaper {
+                PerformanceFlags::DISABLE_WALLPAPER
+            } else {
+                PerformanceFlags::empty()
+            },
     }
 }
 

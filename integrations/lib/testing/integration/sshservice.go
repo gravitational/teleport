@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
-var regexpSSHStarting = regexp.MustCompile(`Service [^ ]+ is starting on [^ ]+:(\d+)`)
+var regexpSSHStarting = regexp.MustCompile(`SSH Service is starting.*listen_address:[^ ]+:(\d+)`)
 
 type SSHService struct {
 	mu           sync.Mutex

@@ -48,9 +48,9 @@ const (
 	// A day is sometimes 23 hours, sometimes 25 hours, usually 24 hours.
 	day = 24 * time.Hour
 
-	// maxAccessDuration is the maximum duration that an access request can be
+	// MaxAccessDuration is the maximum duration that an access request can be
 	// granted for.
-	maxAccessDuration = 14 * day
+	MaxAccessDuration = 14 * day
 
 	// requestTTL is the the TTL for an access request, i.e. the amount of time that
 	// the access request can be reviewed. Defaults to 1 week.
@@ -81,7 +81,7 @@ type ClusterGetter interface {
 	// GetClusterName returns the local cluster name
 	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
 	// GetRemoteCluster returns a remote cluster by name
-	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
+	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
 }
 
 // ValidateAccessRequestClusterNames checks that the clusters in the access request exist
@@ -98,7 +98,7 @@ func ValidateAccessRequestClusterNames(cg ClusterGetter, ar types.AccessRequest)
 		if resourceID.ClusterName == localClusterName.GetClusterName() {
 			continue
 		}
-		_, err := cg.GetRemoteCluster(resourceID.ClusterName)
+		_, err := cg.GetRemoteCluster(context.TODO(), resourceID.ClusterName)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err, "failed to fetch remote cluster %q", resourceID.ClusterName)
 		}
@@ -377,8 +377,8 @@ func ValidateAccessPredicates(role types.Role) error {
 	}
 
 	if maxDuration := role.GetAccessRequestConditions(types.Allow).MaxDuration; maxDuration.Duration() != 0 &&
-		maxDuration.Duration() > maxAccessDuration {
-		return trace.BadParameter("max access duration must be less than or equal to %v", maxAccessDuration)
+		maxDuration.Duration() > MaxAccessDuration {
+		return trace.BadParameter("max access duration must be less than or equal to %v", MaxAccessDuration)
 	}
 
 	return nil
@@ -426,8 +426,8 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 	req.SetReviews(append(req.GetReviews(), rev))
 
 	if rev.AssumeStartTime != nil {
-		if rev.AssumeStartTime.After(req.GetAccessExpiry()) {
-			return trace.BadParameter("request start time is after expiry")
+		if err := types.ValidateAssumeStartTime(*rev.AssumeStartTime, req.GetAccessExpiry(), req.GetCreationTime()); err != nil {
+			return trace.Wrap(err)
 		}
 		req.SetAssumeStartTime(*rev.AssumeStartTime)
 	}
@@ -1187,21 +1187,6 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 			req.SetSuggestedReviewers(apiutils.Deduplicate(m.SuggestedReviewers))
 		}
 
-		now := m.clock.Now().UTC()
-
-		// Calculate the expiration time of the Access Request (how long it
-		// will await approval).
-		ttl, err := m.requestTTL(ctx, identity, req)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		req.SetExpiry(now.Add(ttl))
-
-		maxDuration, err := m.calculateMaxAccessDuration(req)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
 		// Calculate the expiration time of the elevated certificate that will
 		// be issued if the Access Request is approved.
 		sessionTTL, err := m.sessionTTL(ctx, identity, req)
@@ -1209,19 +1194,46 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 			return trace.Wrap(err)
 		}
 
-		// If the maxDuration flag is set, consider it instead of only using the session TTL.
-		if maxDuration > 0 {
-			req.SetSessionTLL(now.Add(min(sessionTTL, maxDuration)))
-			ttl = maxDuration
-		} else {
-			req.SetSessionTLL(now.Add(sessionTTL))
-			ttl = sessionTTL
+		maxDuration, err := m.calculateMaxAccessDuration(req, sessionTTL)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 
-		accessTTL := now.Add(ttl)
-		req.SetAccessExpiry(accessTTL)
+		// If the maxDuration flag is set, consider it instead of only using the session TTL.
+		var maxAccessDuration time.Duration
+		now := m.clock.Now().UTC()
+		if maxDuration > 0 {
+			req.SetSessionTLL(now.Add(min(sessionTTL, maxDuration)))
+			maxAccessDuration = maxDuration
+		} else {
+			req.SetSessionTLL(now.Add(sessionTTL))
+			maxAccessDuration = sessionTTL
+		}
+
+		// This is the final adjusted access expiry where both max duration
+		// and session TTL were taken into consideration.
+		accessExpiry := now.Add(maxAccessDuration)
 		// Adjusted max access duration is equal to the access expiry time.
-		req.SetMaxDuration(accessTTL)
+		req.SetMaxDuration(accessExpiry)
+
+		// Setting access expiry before calling `calculatePendingRequesetTTL`
+		// matters since the func relies on this adjusted expiry.
+		req.SetAccessExpiry(accessExpiry)
+
+		// Calculate the expiration time of the Access Request (how long it
+		// will await approval).
+		requestTTL, err := m.calculatePendingRequestTTL(req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		req.SetExpiry(now.Add(requestTTL))
+
+		if req.GetAssumeStartTime() != nil {
+			assumeStartTime := *req.GetAssumeStartTime()
+			if err := types.ValidateAssumeStartTime(assumeStartTime, accessExpiry, req.GetCreationTime()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
 	}
 
 	return nil
@@ -1230,7 +1242,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 // calculateMaxAccessDuration calculates the maximum time for the access request.
 // The max duration time is the minimum of the max_duration time set on the request
 // and the max_duration time set on the request role.
-func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (time.Duration, error) {
+func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest, sessionTTL time.Duration) (time.Duration, error) {
 	// Check if the maxDuration time is set.
 	maxDurationTime := req.GetMaxDuration()
 	if maxDurationTime.IsZero() {
@@ -1242,13 +1254,13 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (
 	// For dry run requests, use the maximum possible duration.
 	// This prevents the time drift that can occur as the value is set on the client side.
 	if req.GetDryRun() {
-		maxDuration = maxAccessDuration
+		maxDuration = MaxAccessDuration
 	} else if maxDuration < 0 {
 		return 0, trace.BadParameter("invalid maxDuration: must be greater than creation time")
 	}
 
-	if maxDuration > maxAccessDuration {
-		return 0, trace.BadParameter("max_duration must be less than or equal to %v", maxAccessDuration)
+	if maxDuration > MaxAccessDuration {
+		return 0, trace.BadParameter("max_duration must be less than or equal to %v", MaxAccessDuration)
 	}
 
 	minAdjDuration := maxDuration
@@ -1270,16 +1282,32 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (
 		}
 	}
 
+	// minAdjDuration can end up being 0, if any role does not have
+	// field `max_duration` defined.
+	// In this case, return the smaller value between the sessionTTL
+	// and the requested max duration.
+	if minAdjDuration == 0 && maxDuration < sessionTTL {
+		return maxDuration, nil
+	}
+
 	return minAdjDuration, nil
 }
 
-// requestTTL calculates the TTL of the Access Request (how long it will await
-// approval).
-func (m *RequestValidator) requestTTL(ctx context.Context, identity tlsca.Identity, r types.AccessRequest) (time.Duration, error) {
+// calculatePendingRequestTTL calculates the TTL of the Access Request (how long it will await
+// approval). request TTL is capped to the smaller value between the const requsetTTL and the
+// access request access expiry.
+func (m *RequestValidator) calculatePendingRequestTTL(r types.AccessRequest) (time.Duration, error) {
+	accessExpiryTTL := r.GetAccessExpiry().Sub(m.clock.Now().UTC())
+
 	// If no expiration provided, use default.
 	expiry := r.Expiry()
 	if expiry.IsZero() {
-		expiry = m.clock.Now().UTC().Add(requestTTL)
+		// Guard against the default expiry being greater than access expiry.
+		if requestTTL < accessExpiryTTL {
+			expiry = m.clock.Now().UTC().Add(requestTTL)
+		} else {
+			expiry = m.clock.Now().UTC().Add(accessExpiryTTL)
+		}
 	}
 
 	if expiry.Before(m.clock.Now().UTC()) {
@@ -1290,8 +1318,13 @@ func (m *RequestValidator) requestTTL(ctx context.Context, identity tlsca.Identi
 	// than the maximum value allowed. Used to return a sensible error to the
 	// user.
 	requestedTTL := expiry.Sub(m.clock.Now().UTC())
-	if !r.Expiry().IsZero() && requestedTTL > requestTTL {
-		return 0, trace.BadParameter("invalid request TTL: %v greater than maximum allowed (%v)", requestedTTL.Round(time.Minute), requestTTL.Round(time.Minute))
+	if !r.Expiry().IsZero() {
+		if requestedTTL > requestTTL {
+			return 0, trace.BadParameter("invalid request TTL: %v greater than maximum allowed (%v)", requestedTTL.Round(time.Minute), requestTTL.Round(time.Minute))
+		}
+		if requestedTTL > accessExpiryTTL {
+			return 0, trace.BadParameter("invalid request TTL: %v greater than maximum allowed (%v)", requestedTTL.Round(time.Minute), accessExpiryTTL.Round(time.Minute))
+		}
 	}
 
 	return requestedTTL, nil

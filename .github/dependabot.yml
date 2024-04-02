@@ -7,11 +7,6 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     ignore:
-      # AWS, otel and k8s have their own groups.
-      - dependency-name: github.com/aws/*
-      - dependency-name: go.opentelemetry.io/*
-      - dependency-name: k8s.io/*
-      - dependency-name: sigs.k8s.io/*
       # Breaks backwards compatibility
       - dependency-name: github.com/gravitational/ttlmap
       # Must be kept in-sync with libbpf
@@ -26,7 +21,7 @@ updates:
       - dependency-name: github.com/microsoft/go-mssqldb
       - dependency-name: github.com/redis/go-redis/v9
       - dependency-name: github.com/vulcand/predicate
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -48,84 +43,7 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
-    groups:
-      go:
-        update-types:
-          - "minor"
-          - "patch"
-    reviewers:
-      - codingllama
-      - jentfoo
-      - rosstimothy
-      - zmb3
-    labels:
-      - "dependencies"
-      - "go"
-      - "no-changelog"
-
-  # Group certain dependencies together.
-  # These contain numerous packages and are either frequently updated (AWS) or
-  # better updated in lockstep (k8s, otel).
-  # AWS group.
-  - package-ecosystem: gomod
-    directory: "/"
-    schedule:
-      interval: weekly
-      day: "sunday"
-      time: "09:00" # 9am UTC
-    allow:
-      - dependency-name: github.com/aws/*
-    open-pull-requests-limit: 10
-    groups:
-      go:
-        update-types:
-          - "minor"
-          - "patch"
-    reviewers:
-      - codingllama
-      - jentfoo
-      - rosstimothy
-      - zmb3
-    labels:
-      - "dependencies"
-      - "go"
-      - "no-changelog"
-  # otel group.
-  - package-ecosystem: gomod
-    directory: "/"
-    schedule:
-      interval: weekly
-      day: "sunday"
-      time: "09:00" # 9am UTC
-    allow:
-      - dependency-name: go.opentelemetry.io/*
-    open-pull-requests-limit: 10
-    groups:
-      go:
-        update-types:
-          - "minor"
-          - "patch"
-    reviewers:
-      - codingllama
-      - jentfoo
-      - rosstimothy
-      - zmb3
-    labels:
-      - "dependencies"
-      - "go"
-      - "no-changelog"
-  # k8s group.
-  - package-ecosystem: gomod
-    directory: "/"
-    schedule:
-      interval: weekly
-      day: "sunday"
-      time: "09:00" # 9am UTC
-    allow:
-      - dependency-name: k8s.io/*
-      - dependency-name: sigs.k8s.io/*
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -150,7 +68,7 @@ updates:
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -173,7 +91,7 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -198,7 +116,7 @@ updates:
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -221,7 +139,7 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       rust:
         update-types:
@@ -244,7 +162,7 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       rust:
         update-types:

@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 	"github.com/gravitational/teleport/lib/automaticupgrades/maintenance"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
@@ -34,26 +33,36 @@ import (
 const testVersion = "v1.2.3"
 
 func Test_Channels_CheckAndSetDefaults(t *testing.T) {
-	noFeatures := proto.Features{}
-	cloudFeatures := proto.Features{Cloud: true, AutomaticUpgrades: true}
 	customChannelURL := "https://foo.example.com/bar"
 	t.Run("no channels", func(t *testing.T) {
+		// When we start without channels, two channels must be created:
+		// - "default"
+		// - "stable/cloud"
 		c := Channels{}
-		require.NoError(t, c.CheckAndSetDefaults(noFeatures))
+		require.NoError(t, c.CheckAndSetDefaults())
+		require.Len(t, c, 2)
 	})
 	t.Run("single channel", func(t *testing.T) {
+		// When we start with a channel, we must keep it and create "default"
+		// and "stable/cloud".
+		// The channel we passed must also get initialized.
 		channel := &Channel{StaticVersion: testVersion}
 		c := Channels{"foo": channel}
-		require.NoError(t, c.CheckAndSetDefaults(noFeatures))
+		require.NoError(t, c.CheckAndSetDefaults())
+		require.Len(t, c, 3)
 		require.NotNil(t, channel.versionGetter)
 		require.NotNil(t, channel.criticalTrigger)
 	})
 	t.Run("many channels", func(t *testing.T) {
+		// When we start with many channels, we must keep them and create "default"
+		// and "stable/cloud".
+		// The channels passed must also get initialized.
 		channel1 := &Channel{StaticVersion: testVersion}
 		channel2 := &Channel{StaticVersion: testVersion}
 		channel3 := &Channel{StaticVersion: testVersion}
 		c := Channels{"foo": channel1, "bar": channel2, "baz": channel3}
-		require.NoError(t, c.CheckAndSetDefaults(noFeatures))
+		require.NoError(t, c.CheckAndSetDefaults())
+		require.Len(t, c, 5)
 		require.NotNil(t, channel1.versionGetter)
 		require.NotNil(t, channel1.criticalTrigger)
 		require.NotNil(t, channel2.versionGetter)
@@ -61,10 +70,12 @@ func Test_Channels_CheckAndSetDefaults(t *testing.T) {
 		require.NotNil(t, channel3.versionGetter)
 		require.NotNil(t, channel3.criticalTrigger)
 	})
-	t.Run("default channels for cloud", func(t *testing.T) {
-		// Cloud must have `default` and `stable/cloud` channels by default
-		c := Channels{}
-		require.NoError(t, c.CheckAndSetDefaults(cloudFeatures))
+	t.Run("stable/cloud set but not default", func(t *testing.T) {
+		// When "stable/cloud" is set but not "default", we must use "stable/cloud" as "default".
+		c := Channels{
+			DefaultCloudChannelName: &Channel{ForwardURL: stableCloudVersionBaseURL},
+		}
+		require.NoError(t, c.CheckAndSetDefaults())
 		require.Len(t, c, 2)
 		defaultChannel, ok := c[DefaultChannelName]
 		require.True(t, ok)
@@ -73,11 +84,27 @@ func Test_Channels_CheckAndSetDefaults(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, stableCloudVersionBaseURL, stableCloudChannel.ForwardURL)
 	})
-	t.Run("cloud override stable/cloud", func(t *testing.T) {
-		// When "stable/cloud" channel is configured, CheckAndSetDefaults
-		// must honor it AND also use it as the "default" channel.
-		c := Channels{DefaultCloudChannelName: &Channel{ForwardURL: customChannelURL}}
-		require.NoError(t, c.CheckAndSetDefaults(cloudFeatures))
+	t.Run("default set but not stable/cloud", func(t *testing.T) {
+		// When "default" is set but not "stable/cloud", we must use "default" as "stable/cloud".
+		c := Channels{
+			DefaultChannelName: &Channel{ForwardURL: stableCloudVersionBaseURL},
+		}
+		require.NoError(t, c.CheckAndSetDefaults())
+		require.Len(t, c, 2)
+		defaultChannel, ok := c[DefaultChannelName]
+		require.True(t, ok)
+		require.Equal(t, stableCloudVersionBaseURL, defaultChannel.ForwardURL)
+		stableCloudChannel, ok := c[DefaultCloudChannelName]
+		require.True(t, ok)
+		require.Equal(t, stableCloudVersionBaseURL, stableCloudChannel.ForwardURL)
+	})
+	t.Run("stable/cloud and default set", func(t *testing.T) {
+		// When both "stable/cloud" and "default" are set we must not change them.
+		c := Channels{
+			DefaultChannelName:      &Channel{ForwardURL: customChannelURL},
+			DefaultCloudChannelName: &Channel{ForwardURL: customChannelURL},
+		}
+		require.NoError(t, c.CheckAndSetDefaults())
 		require.Len(t, c, 2)
 		stableCloudChannel, ok := c[DefaultCloudChannelName]
 		require.True(t, ok)
@@ -86,53 +113,25 @@ func Test_Channels_CheckAndSetDefaults(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, customChannelURL, defaultChannel.ForwardURL)
 	})
-	t.Run("cloud override default", func(t *testing.T) {
-		// When the "default" channel is manually configured, CheckAndSetDefaults
-		// must honor it.
-		// In this test, only the "default" channel must be custom, the
-		// "stable/cloud" channel must point to the standard cloud URL.
-		c := Channels{DefaultChannelName: &Channel{ForwardURL: customChannelURL}}
-		require.NoError(t, c.CheckAndSetDefaults(cloudFeatures))
-		require.Len(t, c, 2)
-		defaultChannel, ok := c[DefaultChannelName]
-		require.True(t, ok)
-		require.Equal(t, customChannelURL, defaultChannel.ForwardURL)
-		stableCloudChannel, ok := c[DefaultCloudChannelName]
-		require.True(t, ok)
-		require.Equal(t, stableCloudVersionBaseURL, stableCloudChannel.ForwardURL)
-	})
-	t.Run("self-hosted no channel", func(t *testing.T) {
-		// In self-hosted automatic-upgrades setups, we need a default channel.
-		// For backward compatibility we should add it instead of requiring it.
-		c := Channels{}
-		require.NoError(t, c.CheckAndSetDefaults(proto.Features{AutomaticUpgrades: true}))
-		require.Len(t, c, 1)
-		defaultChannel, ok := c[DefaultChannelName]
-		require.True(t, ok)
-		require.Equal(t, stableCloudVersionBaseURL, defaultChannel.ForwardURL)
-		_, ok = c[DefaultCloudChannelName]
-		require.False(t, ok)
-	})
-
 }
 
 func Test_Channel_CheckAndSetDefaults(t *testing.T) {
 
 	tests := []struct {
 		name                        string
-		channel                     Channel
+		channel                     *Channel
 		assertError                 require.ErrorAssertionFunc
 		expectedVersionGetterType   interface{}
 		expectedCriticalTriggerType interface{}
 	}{
 		{
 			name:        "empty (invalid)",
-			channel:     Channel{},
+			channel:     &Channel{},
 			assertError: require.Error,
 		},
 		{
 			name: "forward URL (valid)",
-			channel: Channel{
+			channel: &Channel{
 				ForwardURL: stableCloudVersionBaseURL,
 			},
 			assertError:                 require.NoError,
@@ -141,7 +140,7 @@ func Test_Channel_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "static version (valid)",
-			channel: Channel{
+			channel: &Channel{
 				StaticVersion: testVersion,
 			},
 			assertError:                 require.NoError,
@@ -150,7 +149,7 @@ func Test_Channel_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "all set (invalid)",
-			channel: Channel{
+			channel: &Channel{
 				ForwardURL:    stableCloudVersionBaseURL,
 				StaticVersion: testVersion,
 			},
@@ -189,7 +188,7 @@ func Test_Channel_GetVersion(t *testing.T) {
 		{
 			name:            "version too high",
 			targetVersion:   "v99.1.1",
-			expectedVersion: teleport.Version,
+			expectedVersion: "v" + teleport.Version,
 			assertErr:       require.NoError,
 		},
 		{
@@ -208,4 +207,15 @@ func Test_Channel_GetVersion(t *testing.T) {
 			require.Equal(t, tt.expectedVersion, result)
 		})
 	}
+}
+
+func TestNewDefaultChannel(t *testing.T) {
+	channel, err := NewDefaultChannel()
+	require.NoError(t, err)
+	// Default channel must return teleport version
+	require.Equal(t, teleport.Version, channel.StaticVersion)
+	require.False(t, channel.Critical)
+	// And the default channel must be initialized
+	require.NotNil(t, channel.versionGetter)
+	require.NotNil(t, channel.criticalTrigger)
 }

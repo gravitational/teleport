@@ -20,11 +20,15 @@ package web
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 
+	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
@@ -42,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/deployserviceconfig"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/oidc"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -264,11 +267,11 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 	// teleport integration configure deployservice-iam
 	argsList := []string{
 		"integration", "configure", "deployservice-iam",
-		fmt.Sprintf("--cluster=%s", clusterName),
-		fmt.Sprintf("--name=%s", integrationName),
-		fmt.Sprintf("--aws-region=%s", awsRegion),
-		fmt.Sprintf("--role=%s", role),
-		fmt.Sprintf("--task-role=%s", taskRole),
+		fmt.Sprintf("--cluster=%s", shsprintf.EscapeDefaultContext(clusterName)),
+		fmt.Sprintf("--name=%s", shsprintf.EscapeDefaultContext(integrationName)),
+		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(awsRegion)),
+		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
+		fmt.Sprintf("--task-role=%s", shsprintf.EscapeDefaultContext(taskRole)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
@@ -303,8 +306,8 @@ func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request
 	// teleport integration configure eice-iam
 	argsList := []string{
 		"integration", "configure", "eice-iam",
-		fmt.Sprintf("--aws-region=%s", awsRegion),
-		fmt.Sprintf("--role=%s", role),
+		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(awsRegion)),
+		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
@@ -338,8 +341,8 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 	// "teleport integration configure eks-iam"
 	argsList := []string{
 		"integration", "configure", "eks-iam",
-		fmt.Sprintf("--aws-region=%s", awsRegion),
-		fmt.Sprintf("--role=%s", role),
+		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(awsRegion)),
+		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
@@ -473,6 +476,11 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
+	identity, err := sctx.GetIdentity()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -480,11 +488,12 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 
 	servers := make([]ui.Server, 0, len(listResp.Servers))
 	for _, s := range listResp.Servers {
-		serverUI, err := ui.MakeServer(h.auth.clusterName, s, accessChecker)
+		logins, err := calculateSSHLogins(identity, accessChecker, s, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		servers = append(servers, serverUI)
+
+		servers = append(servers, ui.MakeServer(h.auth.clusterName, s, logins))
 	}
 
 	return ui.AWSOIDCListEC2Response{
@@ -857,7 +866,18 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.BadParameter("invalid role %q", role)
 	}
 
-	proxyAddr, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
+	s3Bucket := queryParams.Get("s3Bucket")
+	s3Prefix := queryParams.Get("s3Prefix")
+	if s3Bucket == "" || s3Prefix == "" {
+		return nil, trace.BadParameter("s3Bucket and s3Prefix query params are required")
+	}
+	s3URI := url.URL{Scheme: "s3", Host: s3Bucket, Path: s3Prefix}
+
+	jwksContents, err := h.jwks(r.Context(), types.OIDCIdPCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	jwksJSON, err := json.Marshal(jwksContents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -866,10 +886,11 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 	// teleport integration configure awsoidc-idp
 	argsList := []string{
 		"integration", "configure", "awsoidc-idp",
-		fmt.Sprintf("--cluster=%s", clusterName),
-		fmt.Sprintf("--name=%s", integrationName),
-		fmt.Sprintf("--role=%s", role),
-		fmt.Sprintf("--proxy-public-url=%s", proxyAddr),
+		fmt.Sprintf("--cluster=%s", shsprintf.EscapeDefaultContext(clusterName)),
+		fmt.Sprintf("--name=%s", shsprintf.EscapeDefaultContext(integrationName)),
+		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
+		fmt.Sprintf("--s3-bucket-uri=%s", shsprintf.EscapeDefaultContext(s3URI.String())),
+		fmt.Sprintf("--s3-jwks-base64=%s", base64.StdEncoding.EncodeToString(jwksJSON)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
@@ -903,8 +924,8 @@ func (h *Handler) awsOIDCConfigureListDatabasesIAM(w http.ResponseWriter, r *htt
 	// teleport integration configure listdatabases-iam
 	argsList := []string{
 		"integration", "configure", "listdatabases-iam",
-		fmt.Sprintf("--aws-region=%s", awsRegion),
-		fmt.Sprintf("--role=%s", role),
+		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(awsRegion)),
+		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
@@ -944,7 +965,7 @@ func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request,
 	// "teleport integration configure access-graph aws-iam"
 	argsList := []string{
 		"integration", "configure", "access-graph", "aws-iam",
-		fmt.Sprintf("--role=%s", role),
+		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),

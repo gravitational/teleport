@@ -157,8 +157,7 @@ func (s *Config) CheckAndSetDefaults() error {
 	}
 	if s.Session == nil {
 		awsConfig := aws.Config{
-			EC2MetadataEnableFallback: aws.Bool(false),
-			UseFIPSEndpoint:           events.FIPSProtoStateToAWSState(s.UseFIPSEndpoint),
+			UseFIPSEndpoint: events.FIPSProtoStateToAWSState(s.UseFIPSEndpoint),
 		}
 		if s.Region != "" {
 			awsConfig.Region = aws.String(s.Region)
@@ -210,7 +209,7 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 
 	h := &Handler{
 		Entry: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(teleport.SchemeS3),
+			teleport.ComponentKey: teleport.Component(teleport.SchemeS3),
 		}),
 		Config:     cfg,
 		uploader:   uploader,
