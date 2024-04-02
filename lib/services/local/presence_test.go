@@ -822,6 +822,25 @@ func TestListResources(t *testing.T) {
 				return presence.DeleteAllWindowsDesktopServices(ctx)
 			},
 		},
+		"WindowsDesktop": {
+			resourceType: types.KindWindowsDesktop,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				desktopService := NewWindowsDesktopService(presence.Backend)
+				desktop, err := types.NewWindowsDesktopV3(name, labels, types.WindowsDesktopSpecV3{
+					Addr: "localhost:1234",
+				})
+				if err != nil {
+					return err
+				}
+
+				err = desktopService.UpsertWindowsDesktop(ctx, desktop)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				desktopService := NewWindowsDesktopService(presence.Backend)
+				return desktopService.DeleteAllWindowsDesktops(ctx)
+			},
+		},
 	}
 
 	for testName, test := range tests {
