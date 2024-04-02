@@ -5,7 +5,7 @@ description: Teleport's Workload Identity for SPIFFE
 
 <Admonition type="tip" title="Preview">
 Teleport Workload Identity is currently in Preview. We are actively working on
-improving the feature and would love to [hear your feedback](mailto: product@goteleport.com).
+improving the feature and would love to [hear your feedback](mailto:product@goteleport.com).
 We currently do not recommend using this feature in production.
 </Admonition>
 
@@ -17,15 +17,12 @@ providers.
 Teleport Workload Identity brings a number of Teleport features you are
 already familiar with, such as:
 
-- Rich auditing of the issuance of SPIFFE SVIDs.
-- Powerful RBAC for limiting access to SPIFFE IDs to specific machines and
-  users.
-- Easy rotation and management of the SPIFFE CA.
+- Auditing of the issuance of SPIFFE SVIDs.
+- RBAC for limiting access to SPIFFE IDs to specific machines and users.
+- Rotation and management of the SPIFFE CA.
 - Using Teleport SPIFFE CA with 3rd party services such as AWS Roles Anywhere.
 
-## Overview
-
-### What is SPIFFE?
+## What is SPIFFE?
 
 SPIFFE (Secure Production Identity Framework For Everyone) is a set of standards
 for securely identifying workloads.
@@ -44,10 +41,10 @@ off-the-shelf SDKs exist for implementing SPIFFE directly into your own
 services.
 
 It's important to recognise that SPIFFE does not specify how to use SPIFFE IDs
-authorization. This gives a high level of flexibility, allowing you to implement
-authorization in a way that suits you.
+for authorization. This gives a high level of flexibility, allowing you to
+implement authorization in a way that suits you.
 
-### SPIFFE IDs and Trust Domains
+## SPIFFE IDs and Trust Domains
 
 The basis of identity in SPIFFE is the SPIFFE ID. This is a unique string that
 identifies a workload. The SPIFFE ID is formatted as a URI with a scheme of
@@ -74,7 +71,7 @@ Together, this produces a SPIFFE ID that looks like:
 spiffe://example.teleport.sh/region/europe/svc/foo
 ```
 
-### Secure Verifiable Identity Documents (SVIDs)
+## Secure Verifiable Identity Documents (SVIDs)
 
 The SPIFFE ID may be a unique identifier for a workload, but provides no way
 for a workload to verifiably prove its identity. This is where the Secure
@@ -95,9 +92,9 @@ The data needed by a workload to verify a SVID is known as the trust bundle.
 This is a set of certificates belonging to the trusted authorities within the
 trust domain.
 
-### Workload API
+## Workload API
 
-### Teleport's Workload Identity
+## Teleport's Workload Identity
 
 Teleport's Workload Identity is an implementation of SPIFFE. Each Teleport
 cluster acts as a SPIFFE trust domain, with the Auth Service as a certificate
@@ -125,13 +122,13 @@ to fetch SVIDs and Trust Bundles.
 
 Teleport's Workload Identity currently only supports issuing X.509-SVIDs.
 
-## Next Steps
+## Next steps
 
 - [Getting Started](./workload-identity/getting-started.mdx): How to configure Teleport for Workload Identity.
 - [Best Practices](./workload-identity/best-practices.mdx): Best practices for using Workload Identity in Production.
 - [TSH Support](./workload-identity/tsh.mdx): How to use `tsh` with Workload Identity to issue SVIDs to users.
 
-### Other Resources
+### Other resources
 
 - [SPIFFE Specification](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE.md): The official SPIFFE specification. Useful for understanding the SPIFFE ID and SVID formats.
 - [Solving The Bottom Turtle](https://spiffe.io/pdf/Solving-the-bottom-turtle-SPIFFE-SPIRE-Book.pdf): A book covering the fundamentals and details of SPIFFE.
