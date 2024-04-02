@@ -258,9 +258,36 @@ func testRDS(t *testing.T) {
 
 		conn := connectAsRDSMySQLAdmin(t, ctx, db.GetAWS().RDS.InstanceID)
 		provisionRDSMySQLAutoUsersAdmin(t, ctx, conn, adminUser.Name)
+
+		// create a couple test tables to test role assignment with.
+		testTable1 := "teleport.test_" + randASCII(t, 4)
+		_, err = conn.Execute(fmt.Sprintf("CREATE TABLE %s (x int)", testTable1))
+		require.NoError(t, err)
+		testTable2 := "teleport.test_" + randASCII(t, 4)
+		_, err = conn.Execute(fmt.Sprintf("CREATE TABLE %s (x int)", testTable2))
+		require.NoError(t, err)
+
+		// create the roles that Teleport will auto assign.
+		// role 1 only allows SELECT on test table 1.
+		// role 2 only allows SELECT on test table 2.
+		// a user needs to have both roles to select from a join of the tables.
+		_, err = conn.Execute(fmt.Sprintf("CREATE ROLE %q", autoRole1))
+		require.NoError(t, err)
+		_, err = conn.Execute(fmt.Sprintf("CREATE ROLE %q", autoRole2))
+		require.NoError(t, err)
+		_, err = conn.Execute(fmt.Sprintf("GRANT SELECT on %s TO %q", testTable1, autoRole1))
+		require.NoError(t, err)
+		_, err = conn.Execute(fmt.Sprintf("GRANT SELECT on %s TO %q", testTable2, autoRole2))
+		require.NoError(t, err)
+		autoRolesQuery := fmt.Sprintf("SELECT 1 FROM %s JOIN %s", testTable1, testTable2)
+
 		t.Cleanup(func() {
 			// best effort cleanup all the users created for the tests,
 			// including the auto drop user in case Teleport fails to do so.
+			_, _ = conn.Execute(fmt.Sprintf("DROP TABLE %s", testTable1))
+			_, _ = conn.Execute(fmt.Sprintf("DROP TABLE %s", testTable2))
+			_, _ = conn.Execute(fmt.Sprintf("DROP ROLE %q", autoRole1))
+			_, _ = conn.Execute(fmt.Sprintf("DROP ROLE %q", autoRole2))
 			_, _ = conn.Execute(fmt.Sprintf("DROP USER %q", autoUserKeep))
 			_, _ = conn.Execute(fmt.Sprintf("DROP USER %q", autoUserDrop))
 		})
@@ -269,10 +296,11 @@ func testRDS(t *testing.T) {
 			for name, test := range map[string]struct {
 				user   string
 				dbUser string
+				query  string
 			}{
-				"existing user":  {user: hostUser, dbUser: adminUser.Name},
-				"auto user keep": {user: autoUserKeep, dbUser: autoUserKeep},
-				"auto user drop": {user: autoUserDrop, dbUser: autoUserDrop},
+				"existing user":  {user: hostUser, dbUser: adminUser.Name, query: "select 1"},
+				"auto user keep": {user: autoUserKeep, dbUser: autoUserKeep, query: autoRolesQuery},
+				"auto user drop": {user: autoUserDrop, dbUser: autoUserDrop, query: autoRolesQuery},
 			} {
 				test := test
 				route := tlsca.RouteToDatabase{
@@ -283,7 +311,7 @@ func testRDS(t *testing.T) {
 				}
 				t.Run(name+"/via local proxy", func(t *testing.T) {
 					t.Parallel()
-					mysqlLocalProxyConnTest(t, cluster, test.user, route)
+					mysqlLocalProxyConnTest(t, cluster, test.user, route, test.query)
 				})
 			}
 		})
@@ -372,7 +400,7 @@ func postgresLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, use
 
 // mysqlLocalProxyConnTest tests connection to a MySQL database via
 // local proxy tunnel.
-func mysqlLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase) {
+func mysqlLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase, query string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	t.Cleanup(cancel)
@@ -391,7 +419,7 @@ func mysqlLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user s
 	}, connTestTimeout, connTestRetryInterval, "connecting to mysql")
 
 	// Execute a query.
-	_, err := conn.Execute("select 1")
+	_, err := conn.Execute(query)
 	require.NoError(t, err)
 
 	// Disconnect.
