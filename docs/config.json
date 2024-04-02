@@ -1627,6 +1627,24 @@
           ]
         },
         {
+          "title": "Workload Identity (SPIFFE)",
+          "slug": "/machine-id/workload-identity/",
+          "entries": [
+            {
+              "title": "Getting Started",
+              "slug": "/machine-id/workload-identity/getting-started/"
+            },
+            {
+              "title": "Best Practices",
+              "slug": "/machine-id/workload-identity/best-practices/"
+            },
+            {
+              "title": "Tsh Support",
+              "slug": "/machine-id/workload-identity/tsh/"
+            }
+          ]
+        },
+        {
           "title": "FAQ",
           "slug": "/machine-id/faq/"
         },
