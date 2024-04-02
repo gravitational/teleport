@@ -129,6 +129,7 @@ export const eventCodes = {
   GITHUB_CONNECTOR_CREATED: 'T8000I',
   GITHUB_CONNECTOR_DELETED: 'T8001I',
   GITHUB_CONNECTOR_UPDATED: 'T8002I',
+  GITHUB_CONNECTOR_PREVCODE_UPDATED: 'T80002I',
   KUBE_REQUEST: 'T3009I',
   KUBE_CREATED: 'T3010I',
   KUBE_UPDATED: 'T3011I',
@@ -370,6 +371,9 @@ export type RawEvents = {
   >;
   [eventCodes.GITHUB_CONNECTOR_UPDATED]: RawEventConnector<
     typeof eventCodes.GITHUB_CONNECTOR_UPDATED
+  >;
+  [eventCodes.GITHUB_CONNECTOR_PREVCODE_UPDATED]: RawEventConnector<
+    typeof eventCodes.GITHUB_CONNECTOR_PREVCODE_UPDATED
   >;
   [eventCodes.OIDC_CONNECTOR_CREATED]: RawEventConnector<
     typeof eventCodes.OIDC_CONNECTOR_CREATED
