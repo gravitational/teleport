@@ -1115,7 +1115,14 @@ func (c *Client) listAllAccessRequestsCompat(ctx context.Context, req *proto.Lis
 		// no custom sort order needed
 	case proto.AccessRequestSort_CREATED:
 		slices.SortFunc(requests, func(a, b *types.AccessRequestV3) int {
-			return a.GetCreationTime().Compare(b.GetCreationTime())
+			at, bt := a.GetCreationTime().UnixNano(), b.GetCreationTime().UnixNano()
+			switch {
+			case at < bt:
+				return -1
+			case at > bt:
+				return 1
+			}
+			return 0
 		})
 	case proto.AccessRequestSort_STATE:
 		slices.SortFunc(requests, func(a, b *types.AccessRequestV3) int {
