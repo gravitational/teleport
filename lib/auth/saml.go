@@ -100,7 +100,7 @@ func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 			Name: connector.GetName(),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit SAML connector create event.")
+		log.WithError(err).Warn("Failed to emit SAML connector update event.")
 	}
 
 	return updated, nil
