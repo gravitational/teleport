@@ -3257,8 +3257,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 			}
 		}()
 
-		err = server.Serve(listenerHTTP)
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := server.Serve(listenerHTTP); !errors.Is(err, http.ErrServerClosed) {
 			logger.WarnContext(process.ExitContext(), "Diagnostic server exited with error.", "error", err)
 		}
 		return nil
