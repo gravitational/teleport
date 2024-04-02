@@ -46,7 +46,7 @@ type KubernetesOutput struct {
 	// name of the Teleport cluster to use.
 	KubernetesCluster string `yaml:"kubernetes_cluster"`
 
-	// DisableExecPlugin disables the default behaviour of using `tbot` as a
+	// DisableExecPlugin disables the default behavior of using `tbot` as a
 	// `kubectl` credentials exec plugin. This is useful in environments where
 	// `tbot` may not exist on the system that will consume the outputted
 	// kubeconfig. It does mean that kubectl will not be able to automatically
