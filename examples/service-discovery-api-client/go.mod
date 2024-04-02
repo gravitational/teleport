@@ -5,7 +5,7 @@ go 1.21
 toolchain go1.21.2
 
 require (
-	github.com/docker/docker v24.0.7+incompatible
+	github.com/docker/docker v24.0.9+incompatible
 	github.com/gravitational/teleport/api v0.0.0-20240220221413-126de63e7e40
 	github.com/gravitational/trace v1.3.1
 	google.golang.org/grpc v1.61.1

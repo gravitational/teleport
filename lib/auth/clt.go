@@ -40,10 +40,12 @@ import (
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -565,6 +567,101 @@ func (c *Client) SetStaticTokens(st types.StaticTokens) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// CreateGlobalNotification creates a global notification.
+func (c *Client) CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
+	// TODO(rudream): implement client methods for notifications
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// CreateUserNotification creates a user-specific notification.
+func (c *Client) CreateUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
+	// TODO(rudream): implement client methods for notifications
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteGlobalNotification deletes a global notification.
+func (c *Client) DeleteGlobalNotification(ctx context.Context, notificationId string) error {
+	// TODO(rudream): implement client methods for notifications
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// UpsertUserNotificationState creates or updates a user notification state which records whether the user has clicked on or dismissed a notification.
+func (c *Client) UpsertUserNotificationState(ctx context.Context, username string, state *notificationsv1.UserNotificationState) (*notificationsv1.UserNotificationState, error) {
+	// TODO(rudream): implement client methods for notifications
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// UpsertUserLastSeenNotification creates or updates a user's last seen notification item.
+func (c *Client) UpsertUserLastSeenNotification(ctx context.Context, username string, ulsn *notificationsv1.UserLastSeenNotification) (*notificationsv1.UserLastSeenNotification, error) {
+	// TODO(rudream): implement client methods for notifications
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteAllGlobalNotifications not implemented: can only be called locally.
+func (c *Client) DeleteAllGlobalNotifications(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteAllUserNotificationStatesForUser not implemented: can only be called locally.
+func (c *Client) DeleteAllUserNotificationStatesForUser(ctx context.Context, username string) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteAllUserNotifications not implemented: can only be called locally.
+func (c *Client) DeleteAllUserNotifications(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteAllUserNotificationsForUser not implemented: can only be called locally.
+func (c *Client) DeleteAllUserNotificationsForUser(ctx context.Context, username string) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteUserLastSeenNotification not implemented: can only be called locally.
+func (c *Client) DeleteUserLastSeenNotification(ctx context.Context, username string) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteUserNotification not implemented: can only be called locally.
+func (c *Client) DeleteUserNotification(ctx context.Context, username string, notificationId string) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteUserNotificationState not implemented: can only be called locally.
+func (c *Client) DeleteUserNotificationState(ctx context.Context, username string, notificationId string) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetUserLastSeenNotification not implemented: can only be called locally.
+func (c *Client) GetUserLastSeenNotification(ctx context.Context, username string) (*notificationsv1.UserLastSeenNotification, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// ListGlobalNotifications not implemented: can only be called locally.
+func (c *Client) ListGlobalNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.GlobalNotification, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
+// ListUserNotifications not implemented: can only be called locally.
+func (c *Client) ListUserNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.Notification, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
+// ListUserNotificationStates not implemented: can only be called locally.
+func (c *Client) ListUserNotificationStates(ctx context.Context, username string, pageSize int, nextToken string) ([]*notificationsv1.UserNotificationState, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
+// UpsertGlobalNotification not implemented: can only be called locally.
+func (c *Client) UpsertGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// UpsertUserNotification not implemented: can only be called locally.
+func (c *Client) UpsertUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
@@ -680,7 +777,7 @@ type IdentityService interface {
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 
 	// ListUsers returns a page of users.
-	ListUsers(ctx context.Context, pageSize int, pageToken string, withSecrets bool) ([]types.User, string, error)
+	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 
 	// ChangePassword changes user password
 	ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error
@@ -809,6 +906,8 @@ type ClientI interface {
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
 	services.Integrations
+	services.KubeWaitingContainer
+	services.Notifications
 	types.Events
 
 	types.WebSessionsGetter
@@ -883,7 +982,7 @@ type ClientI interface {
 
 	// CreateAppSession creates an application web session. Application web
 	// sessions represent a browser session the client holds.
-	CreateAppSession(context.Context, types.CreateAppSessionRequest) (types.WebSession, error)
+	CreateAppSession(context.Context, *proto.CreateAppSessionRequest) (types.WebSession, error)
 
 	// CreateSnowflakeSession creates a Snowflake web session. Snowflake web
 	// sessions represent Database Access Snowflake session the client holds.
@@ -1050,4 +1149,7 @@ type ClientI interface {
 	// and prompts the user to answer the challenge with the given promptOpts, and ultimately returning
 	// an MFA challenge response for the user.
 	PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error)
+
+	// GetClusterAccessGraphConfig retrieves the cluster Access Graph configuration from Auth server.
+	GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error)
 }

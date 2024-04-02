@@ -27,6 +27,20 @@ import (
 // PluginType represents the type of the plugin
 type PluginType string
 
+// AllPluginTypes is a list of all plugins known to Teleport.
+var AllPluginTypes = []PluginType{
+	PluginTypeServiceNow,
+	PluginTypeSlack,
+	PluginTypeOpenAI,
+	PluginTypeOkta,
+	PluginTypeJamf,
+	PluginTypeJira,
+	PluginTypeOpsgenie,
+	PluginTypePagerDuty,
+	PluginTypeMattermost,
+	PluginTypeDiscord,
+}
+
 const (
 	// PluginTypeUnknown is returned when no plugin type matches.
 	PluginTypeUnknown PluginType = ""
@@ -74,6 +88,7 @@ type Plugin interface {
 	GetType() PluginType
 	SetCredentials(PluginCredentials) error
 	SetStatus(PluginStatus) error
+	GetGeneration() string
 }
 
 // PluginCredentials are the credentials embedded in Plugin
@@ -397,6 +412,11 @@ func (p *PluginV1) SetStatus(status PluginStatus) error {
 		Code: status.GetCode(),
 	}
 	return nil
+}
+
+// GetGeneration returns the plugin generation.
+func (p *PluginV1) GetGeneration() string {
+	return p.Spec.Generation
 }
 
 // GetType implements Plugin

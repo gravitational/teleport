@@ -140,7 +140,7 @@ install_teleport() {
       fi
     else
       # no automatic upgrades
-      sudo apt-get install -y "$TELEPORT_PACKAGE"
+      sudo apt-get install -y "$TELEPORT_PACKAGE" jq
     fi
 
   elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ]; then
@@ -166,7 +166,7 @@ install_teleport() {
       fi
     else
       # no automatic upgrades
-      sudo yum install -y "$TELEPORT_PACKAGE"
+      sudo yum install -y "$TELEPORT_PACKAGE" jq
     fi
 
   elif [ "$ID" = "sles" ] || [ "$ID" = "opensuse-tumbleweed" ] || [ "$ID" = "opensuse-leap" ]; then
@@ -193,7 +193,7 @@ install_teleport() {
       fi
     else
       # no automatic upgrades
-      sudo zypper --non-interactive install -y "$TELEPORT_PACKAGE"
+      sudo zypper --non-interactive install -y "$TELEPORT_PACKAGE" jq
     fi
   else
     echo "Unsupported distro: $ID"

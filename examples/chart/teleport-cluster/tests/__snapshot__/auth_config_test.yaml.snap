@@ -1673,3 +1673,139 @@ matches snapshot for volumes.yaml:
           output: stderr
           severity: INFO
       version: v3
+uses athena as primary backend when configured:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: "on"
+          type: local
+          webauthn:
+            rp_id: teleport.example.com
+        cluster_name: teleport.example.com
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: teleport.example.com
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: 127.0.0.1:3025
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+        storage:
+          audit_events_uri:
+          - athena://db.table?topicArn=arn:aws:sns:region:account_id:topic_name
+          - dynamodb://my-dynamodb-table
+          audit_sessions_uri: s3://asd
+          auto_scaling: false
+          continuous_backups: false
+          region: asd
+          table_name: asd
+          type: dynamodb
+      version: v3
+uses athena, dynamo, and stdout when everything is on:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: "on"
+          type: local
+          webauthn:
+            rp_id: teleport.example.com
+        cluster_name: teleport.example.com
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: teleport.example.com
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: 127.0.0.1:3025
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+        storage:
+          audit_events_uri:
+          - athena://db.table?topicArn=arn:aws:sns:region:account_id:topic_name
+          - dynamodb://my-dynamodb-table
+          - stdout://
+          audit_sessions_uri: s3://asd
+          auto_scaling: false
+          continuous_backups: false
+          region: asd
+          table_name: asd
+          type: dynamodb
+      version: v3
+uses dynamo as primary backend when configured:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: "on"
+          type: local
+          webauthn:
+            rp_id: teleport.example.com
+        cluster_name: teleport.example.com
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: teleport.example.com
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: 127.0.0.1:3025
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+        storage:
+          audit_events_uri:
+          - dynamodb://my-dynamodb-table
+          - athena://db.table?topicArn=arn:aws:sns:region:account_id:topic_name
+          audit_sessions_uri: s3://asd
+          auto_scaling: false
+          continuous_backups: false
+          region: asd
+          table_name: asd
+          type: dynamodb
+      version: v3

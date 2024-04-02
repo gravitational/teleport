@@ -45,22 +45,6 @@ const size = props => {
   return sizeMap[props.size] || defaultSize;
 };
 
-const fromProps = props => {
-  const { theme } = props;
-  return {
-    '&:disabled': {
-      color: theme.colors.text.disabled,
-      cursor: 'default',
-    },
-    '&:hover:enabled, &:focus:enabled': {
-      background: theme.colors.spotBackground[1],
-    },
-    '&:active:enabled': {
-      background: theme.colors.spotBackground[2],
-    },
-  };
-};
-
 const ButtonIcon = props => {
   const { children, setRef, css, ...rest } = props;
   return (
@@ -88,9 +72,22 @@ const StyledButtonIcon = styled.button`
 
   &:disabled {
     color: ${({ theme }) => theme.colors.text.disabled};
+    cursor: default;
   }
 
-  ${fromProps}
+  // Using :not(:disabled) instead of :enabled since ButtonIcon can be used with as="a"
+  // and :enabled doesn't work with <a> tags.
+  &:not(:disabled) {
+    &:hover,
+    &:focus {
+      background: ${({ theme }) => theme.colors.spotBackground[1]};
+    }
+
+    &:active {
+      background: ${({ theme }) => theme.colors.spotBackground[2]};
+    }
+  }
+
   ${size}
   ${space}
   ${color}

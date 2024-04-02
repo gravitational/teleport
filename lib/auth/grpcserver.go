@@ -53,6 +53,7 @@ import (
 	dbobjectimportrulev12 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	discoveryconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -74,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
+	kubewaitingcontainerv1 "github.com/gravitational/teleport/lib/auth/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/auth/loginrule"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
@@ -1749,14 +1751,7 @@ func (g *GRPCServer) CreateAppSession(ctx context.Context, req *authpb.CreateApp
 		return nil, trace.Wrap(err)
 	}
 
-	session, err := auth.CreateAppSession(ctx, types.CreateAppSessionRequest{
-		Username:          req.GetUsername(),
-		PublicAddr:        req.GetPublicAddr(),
-		ClusterName:       req.GetClusterName(),
-		AWSRoleARN:        req.GetAWSRoleARN(),
-		AzureIdentity:     req.GetAzureIdentity(),
-		GCPServiceAccount: req.GetGCPServiceAccount(),
-	})
+	session, err := auth.CreateAppSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5415,12 +5410,29 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Backend:    cfg.AuthServer.Services,
 		Authorizer: cfg.Authorizer,
 		Emitter:    cfg.Emitter,
+		AccessGraph: clusterconfigv1.AccessGraphConfig{
+			Enabled:  cfg.APIConfig.AccessGraph.Enabled,
+			CA:       cfg.APIConfig.AccessGraph.CA,
+			Address:  cfg.APIConfig.AccessGraph.Address,
+			Insecure: cfg.APIConfig.AccessGraph.Insecure,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	clusterconfigpb.RegisterClusterConfigServiceServer(server, clusterConfigService)
+
+	// Initialize and register the Kubernetes waiting container service.
+	kubeWaitingContsServer, err := kubewaitingcontainerv1.NewService(kubewaitingcontainerv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+		Cache:      cfg.AuthServer.Cache,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	kubewaitingcontainerpb.RegisterKubeWaitingContainersServiceServer(server, kubeWaitingContsServer)
 
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all

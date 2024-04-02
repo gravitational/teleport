@@ -104,6 +104,10 @@ type WebSession interface {
 	// GetDeviceWebToken returns the session's DeviceWebToken, if any.
 	// The token is considered a secret.
 	GetDeviceWebToken() *DeviceWebToken
+	// GetHasDeviceExtensions returns the HasDeviceExtensions value.
+	// If true the session's TLS and SSH certificates are augmented with device
+	// extensions.
+	GetHasDeviceExtensions() bool
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
@@ -194,6 +198,13 @@ func (ws *WebSessionV2) GetIdleTimeout() time.Duration {
 
 // WithoutSecrets returns a copy of the WebSession without secrets.
 func (ws *WebSessionV2) WithoutSecrets() WebSession {
+	// With gogoproto, proto.Clone and proto.Merge panic with
+	// nonnullabe stdtime types unless they are in UTC.
+	// https://github.com/gogo/protobuf/issues/519
+	ws.Spec.Expires = ws.Spec.Expires.UTC()
+	ws.Spec.LoginTime = ws.Spec.LoginTime.UTC()
+	ws.Spec.BearerTokenExpires = ws.Spec.BearerTokenExpires.UTC()
+
 	cp := proto.Clone(ws).(*WebSessionV2)
 	cp.Spec.Priv = nil
 	cp.Spec.SAMLSession = nil
@@ -231,6 +242,13 @@ func (ws *WebSessionV2) SetDeviceWebToken(webToken *DeviceWebToken) {
 // The token is considered a secret.
 func (ws *WebSessionV2) GetDeviceWebToken() *DeviceWebToken {
 	return ws.Spec.DeviceWebToken
+}
+
+// GetHasDeviceExtensions returns the HasDeviceExtensions value.
+// If true the session's TLS and SSH certificates are augmented with device
+// extensions.
+func (ws *WebSessionV2) GetHasDeviceExtensions() bool {
+	return ws.Spec.HasDeviceExtensions
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -368,38 +386,6 @@ func (r *GetSAMLIdPSessionRequest) Check() error {
 	if r.SessionID == "" {
 		return trace.BadParameter("session ID missing")
 	}
-	return nil
-}
-
-// CreateAppSessionRequest contains the parameters needed to request
-// creating an application web session.
-type CreateAppSessionRequest struct {
-	// Username is the identity of the user requesting the session.
-	Username string `json:"username"`
-	// PublicAddr is the public address of the application.
-	PublicAddr string `json:"public_addr"`
-	// ClusterName is the name of the cluster within which the application is running.
-	ClusterName string `json:"cluster_name"`
-	// AWSRoleARN is AWS role this the user wants to assume.
-	AWSRoleARN string `json:"aws_role_arn"`
-	// AzureIdentity is Azure identity this the user wants to assume.
-	AzureIdentity string `json:"azure_identity"`
-	// GCPServiceAccount is GCP service account this the user wants to assume.
-	GCPServiceAccount string `json:"gcp_service_account"`
-}
-
-// Check validates the request.
-func (r CreateAppSessionRequest) Check() error {
-	if r.Username == "" {
-		return trace.BadParameter("username missing")
-	}
-	if r.PublicAddr == "" {
-		return trace.BadParameter("public address missing")
-	}
-	if r.ClusterName == "" {
-		return trace.BadParameter("cluster name missing")
-	}
-
 	return nil
 }
 
@@ -648,6 +634,8 @@ func (r *NewWebSessionRequest) CheckAndSetDefaults() error {
 
 // NewWebSessionRequest defines a request to create a new user
 // web session
+// TODO (Joerger): Remove this and replace it with lib/auth.NewWebSessionRequest
+// once /e is no longer dependent on this.
 type NewWebSessionRequest struct {
 	// User specifies the user this session is bound to
 	User string

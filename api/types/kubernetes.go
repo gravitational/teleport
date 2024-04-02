@@ -404,6 +404,14 @@ func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 	return nil
 }
 
+// IsEqual determines if two user resources are equivalent to one another.
+func (k *KubernetesClusterV3) IsEqual(i KubeCluster) bool {
+	if other, ok := i.(*KubernetesClusterV3); ok {
+		return deriveTeleportEqualKubernetesClusterV3(k, other)
+	}
+	return false
+}
+
 func (k KubeAzure) CheckAndSetDefaults() error {
 	if len(k.ResourceGroup) == 0 {
 		return trace.BadParameter("invalid Azure ResourceGroup")

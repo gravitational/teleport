@@ -533,6 +533,20 @@ func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler
 					a = slog.String(CallerField, fmt.Sprintf("%s:%d", file, line))
 				}
 
+				// Convert [slog.KindAny] values that are backed by an [error] or [fmt.Stringer]
+				// to strings so that only the message is output instead of a json object. The kind is
+				// first checked to avoid allocating an interface for the values stored inline
+				// in [slog.Attr].
+				if a.Value.Kind() == slog.KindAny {
+					if err, ok := a.Value.Any().(error); ok {
+						a.Value = slog.StringValue(err.Error())
+					}
+
+					if stringer, ok := a.Value.Any().(fmt.Stringer); ok {
+						a.Value = slog.StringValue(stringer.String())
+					}
+				}
+
 				return a
 			},
 		}),
@@ -556,4 +570,27 @@ func getCaller(a slog.Attr) (file string, line int) {
 	line = s.Line
 
 	return file, line
+}
+
+type stringerAttr struct {
+	fmt.Stringer
+}
+
+// StringerAttr creates a [slog.LogValuer] that will defer to
+// the provided [fmt.Stringer]. All slog attributes are always evaluated,
+// even if the log event is discarded due to the configured log level.
+// A text [slog.Handler] will try to defer evaluation if the attribute is a
+// [fmt.Stringer], however, the JSON [slog.Handler] only defers to [json.Marshaler].
+// This means that to defer evaluation and creation of the string representation,
+// the object must implement [fmt.Stringer] and [json.Marshaler], otherwise additional
+// and unwanted values may be emitted if the logger is configured to use JSON
+// instead of text. This wrapping mechanism allows a value that implements [fmt.Stringer],
+// to be guaranteed to be lazily constructed and always output the same
+// content regardless of the output format.
+func StringerAttr(s fmt.Stringer) slog.LogValuer {
+	return stringerAttr{Stringer: s}
+}
+
+func (s stringerAttr) LogValue() slog.Value {
+	return slog.StringValue(s.Stringer.String())
 }

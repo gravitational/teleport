@@ -47,5 +47,5 @@ jobs:
         uses: jetpack-io/devbox-install-action@4a7f1d5332cc72057d5e8080edebfcdf652e642e # v0.8.0
         with:
           enable-cache: true
-          devbox-version: 0.9.0
-          sha256-sum: a4f66cacf6091530f3d51148df83a08353906496c8ada001b0edd7ac29226dc5
+          devbox-version: 0.9.1
+          sha256-checksum: f58202279237b9e0e7d69ef9334c7ca0628db31e5575f105dad6f41a171ebb6a

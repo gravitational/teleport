@@ -463,7 +463,7 @@ func (c *mockClient) GetApplicationServers(context.Context, string) ([]types.App
 	return c.appServices, nil
 }
 
-func (c *mockClient) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
+func (c *mockClient) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error) {
 	return c.appSession, nil
 }
 

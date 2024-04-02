@@ -457,8 +457,6 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
     - [ ] OIDC Screenshots are up-to-date
 - [ ] All providers with guides in docs are covered in this test plan
 - [ ] Login Rules work to transform traits from SSO provider
-- [ ] SAML IdP guide instructions work
-    - [ ] SAML IdP screenshots are up to date
 
 ### GitHub External SSO
 
@@ -1547,6 +1545,27 @@ Assist test plan is in the core section instead of WebUI as most functionality i
     - [ ] Verify that users/apps/groups are displayed in the Teleport Web UI.
   - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in OKTA.
   - [ ] Verify access to OKTA apps granted by access_list/access_request.
+
+## Teleport SAML Identity Provider
+Verify SAML IdP service provider resource management.
+
+### Docs:
+- [ ] Verify SAML IdP guide instructions work.
+
+### Manage Service Provider (SP)
+- [ ] `saml_idp_service_provider` resource can be created, updated and deleted with `tctl create/update/delete sp.yaml` command.
+  - [ ] SP can be created with `name` and `entity descriptor`.
+  - [ ] SP can be created with `name`, `entity_id`, `acs_url`.
+    - [ ] Verify Entity descriptor is generated.
+  - [ ] Verify attribute mapping configuration works.
+  - [ ] Verify test attribute mapping command. `$ tctl idp saml test-attribute-mapping --users <usernames or name of file containing user spec> --sp <name of file containing user spec> --format <json/yaml/defaults to text>`
+
+### SAML service provider catalog
+- [ ] GCP Workforce Identity Federation
+  - [ ] Verify guided flow works end-to-end, signing into GCP web console from Teleport resource page.
+  - [ ] Verify that when a SAML resource is created with preset value `preset: gcp-workforce`, Teleport adds
+        relay state `relay_state: https://console.cloud.google/` value in the resulting resource spec.
+
 
 ## Resources
 

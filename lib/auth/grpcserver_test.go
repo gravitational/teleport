@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
@@ -648,7 +649,7 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 			userClient, err := testServer.NewClient(u)
 			require.NoError(t, err, "NewClient failed")
 
-			session, err := userClient.CreateAppSession(ctx, types.CreateAppSessionRequest{
+			session, err := userClient.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
 				Username:    user.GetName(),
 				PublicAddr:  app.GetPublicAddr(),
 				ClusterName: testServer.ClusterName(),
@@ -4385,6 +4386,75 @@ func TestDropDBClientCAEvents(t *testing.T) {
 			}
 			// watcher should see the first event if it wasn't dropped.
 			require.Equal(t, types.DatabaseClientCA, gotCA.GetType(), "db client CA event was not supposed to be dropped")
+		})
+	}
+}
+
+func TestGetAccessGraphConfig(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Policy: modules.PolicyFeature{
+				Enabled: true,
+			},
+		},
+	})
+	server := newTestTLSServer(t,
+		withAccessGraphConfig(AccessGraphConfig{
+			Enabled: true,
+			CA:      []byte("ca"),
+			Address: "addr",
+		}),
+	)
+	user, _, err := CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
+	require.NoError(t, err)
+	positiveResponse := &clusterconfigpb.AccessGraphConfig{
+		Enabled: true,
+		Ca:      []byte("ca"),
+		Address: "addr",
+	}
+
+	tests := []struct {
+		desc      string
+		identity  authz.IdentityGetter
+		assertErr require.ErrorAssertionFunc
+		expected  *clusterconfigpb.AccessGraphConfig
+	}{
+		{
+			desc: "users can't pull the access graph config",
+			identity: authz.LocalUser{
+				Username: user.GetName(),
+			},
+			assertErr: require.Error,
+		},
+		{
+			desc: "proxy can pull access graph config",
+			identity: authz.BuiltinRole{
+				Role:     types.RoleProxy,
+				Username: server.ClusterName(),
+			},
+			assertErr: require.NoError,
+			expected:  positiveResponse,
+		},
+		{
+			desc: "discovery can pull access graph config",
+			identity: authz.BuiltinRole{
+				Role:     types.RoleDiscovery,
+				Username: server.ClusterName(),
+			},
+			assertErr: require.NoError,
+			expected:  positiveResponse,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			client, err := server.NewClient(TestIdentity{
+				I: test.identity,
+			})
+			require.NoError(t, err)
+			rsp, err := client.GetClusterAccessGraphConfig(context.Background())
+			test.assertErr(t, err)
+			require.Empty(t, cmp.Diff(test.expected, rsp, protocmp.Transform()))
 		})
 	}
 }

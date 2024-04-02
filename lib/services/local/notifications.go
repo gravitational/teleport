@@ -27,6 +27,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -75,16 +76,60 @@ func NewNotificationsService(backend backend.Backend, clock clockwork.Clock) (*N
 	}, nil
 }
 
-// ListNotificationsForUser returns a paginated list of notifications which match a user, including both user-specific and global ones.
-func (s *NotificationsService) ListNotificationsForUser(ctx context.Context) ([]*notificationsv1.Notification, string, error) {
-	// TODO: rudream - implement listing notifications for a user with filtering/matching
-	return []*notificationsv1.Notification{}, "", nil
+// ListUserNotifications returns a paginated list of user-specific notifications for all users.
+func (s *NotificationsService) ListUserNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.Notification, string, error) {
+	if pageSize < 1 {
+		pageSize = apidefaults.DefaultChunkSize
+	}
+
+	if pageSize > apidefaults.DefaultChunkSize {
+		return nil, "", trace.BadParameter("pageSize of %d is too large", pageSize)
+	}
+
+	resp, nextKey, err := s.userNotificationService.ListResources(ctx, pageSize, startKey)
+	return resp, nextKey, trace.Wrap(err)
+}
+
+// DeleteAllUserNotifications deletes all user-specific notifications for all users. This should only be used by the cache.
+func (s *NotificationsService) DeleteAllUserNotifications(ctx context.Context) error {
+	if err := s.userNotificationService.DeleteAllResources(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// ListGlobalNotifications returns a paginated list of global notifications.
+func (s *NotificationsService) ListGlobalNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.GlobalNotification, string, error) {
+	if pageSize < 1 {
+		pageSize = apidefaults.DefaultChunkSize
+	}
+
+	if pageSize > apidefaults.DefaultChunkSize {
+		return nil, "", trace.BadParameter("pageSize of %d is too large", pageSize)
+	}
+
+	resp, nextKey, err := s.globalNotificationService.ListResources(ctx, pageSize, startKey)
+	return resp, nextKey, trace.Wrap(err)
+}
+
+// DeleteAllGlobalNotifications deletes all global notifications. This should only be used by the cache.
+func (s *NotificationsService) DeleteAllGlobalNotifications(ctx context.Context) error {
+	if err := s.globalNotificationService.DeleteAllResources(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // CreateUserNotification creates a user-specific notification.
-func (s *NotificationsService) CreateUserNotification(ctx context.Context, username string, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
+func (s *NotificationsService) CreateUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
 	if err := services.ValidateNotification(notification); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if notification.Spec.Username == "" {
+		return nil, trace.BadParameter("a username must be specified")
 	}
 
 	notification.Kind = types.KindNotification
@@ -107,9 +152,27 @@ func (s *NotificationsService) CreateUserNotification(ctx context.Context, usern
 	notification.Spec.Created = timestamppb.New(s.clock.Now())
 
 	// Append username prefix.
-	serviceWithPrefix := s.userNotificationService.WithPrefix(username)
+	serviceWithPrefix := s.userNotificationService.WithPrefix(notification.Spec.Username)
 
 	created, err := serviceWithPrefix.CreateResource(ctx, notification)
+	return created, trace.Wrap(err)
+}
+
+// UpsertUserNotification upserts a user notification resource that has already had its contents validated and its defaults such as the generated UUID, created date, and expiry date set.
+func (s *NotificationsService) UpsertUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
+	if err := services.ValidateNotification(notification); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Precautionary check in case of accidental misuse.
+	if notification.Spec.Id == "" {
+		return nil, trace.BadParameter("notification id is missing. Did you mean to use CreateUserNotification?")
+	}
+
+	// Append username prefix.
+	serviceWithPrefix := s.userNotificationService.WithPrefix(notification.Spec.Username)
+
+	created, err := serviceWithPrefix.UpsertResource(ctx, notification)
 	return created, trace.Wrap(err)
 }
 
@@ -179,6 +242,21 @@ func (s *NotificationsService) CreateGlobalNotification(ctx context.Context, glo
 	globalNotification.Spec.Notification.Spec.Created = timestamppb.New(s.clock.Now())
 
 	created, err := s.globalNotificationService.CreateResource(ctx, globalNotification)
+	return created, trace.Wrap(err)
+}
+
+// UpsertGlobalNotification upserts a global notification resource that has already had its contents validated and its defaults such as the generated UUID, created date, and expiry date set.
+func (s *NotificationsService) UpsertGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
+	if err := services.ValidateGlobalNotification(globalNotification); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Precautionary check in case of accidental misuse.
+	if globalNotification.Spec.Notification.Spec.Id == "" {
+		return nil, trace.BadParameter("notification id is missing. Did you mean to use CreateGlobalNotification?")
+	}
+
+	created, err := s.globalNotificationService.UpsertResource(ctx, globalNotification)
 	return created, trace.Wrap(err)
 }
 

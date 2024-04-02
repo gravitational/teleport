@@ -58,18 +58,25 @@ calculate two types of billing metrics:
 
 ### Monthly Active Users
 
-Monthly Active Users (MAU) is the aggregate number of unique
-active users accessing Teleport.
+Monthly Active Users (MAU) is the aggregate number of unique active users
+accessing Teleport.
 
-We aggregate MAU over each monthly period starting on the subscription start date and ending on each
-monthly anniversary thereafter.
+We aggregate MAU over each monthly period starting on the subscription start
+date and ending on each monthly anniversary thereafter.
 
-"Active" means a user having performed any activity that would appear in a Teleport audit log, for example,
-connecting to a resource via the Web UI or via `tsh login`, submitting an Access Request, and so on.
+"Active" means a user having performed any activity that would appear in a
+Teleport audit log, for example, connecting to a resource via the Web UI or via
+`tsh login`, submitting an Access Request, and so on.
 
-We do not count automated actions, such as the modification
-of a user's role by an administrator or the automatic creation of a user
-through an identity provider, as user activity.
+We do not count automated actions, such as the modification of a user's role by
+an administrator or the automatic creation of a user through an identity
+provider, as user activity.
+
+Note: when configured to perform single-sign-on against an external identity
+provider, Teleport creates temporary user records that are valid for the
+duration of the SSO session. As a result, the *Users* page in Teleport's web UI
+will only show users who have recently logged in and is not a true
+representation of all active users over the last month.
 
 ### Teleport Protected Resources
 
