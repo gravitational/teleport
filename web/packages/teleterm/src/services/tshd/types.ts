@@ -110,13 +110,6 @@ export {
  */
 export * from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 
-export type {
-  /**
-   * @deprecated Import directly from tshd instead.
-   */
-  CloneableAbortSignal,
-} from './cloneableClient';
-
 /**
  * Available types are listed here:
  * https://github.com/gravitational/teleport/blob/v9.0.3/lib/defaults/defaults.go#L513-L530
