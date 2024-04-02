@@ -3181,15 +3181,33 @@ func (process *TeleportProcess) initDiagnosticService() error {
 
 	log.Infof("Starting diagnostic service on %v.", process.Config.DiagnosticAddr.Addr)
 
+	muxListener, err := multiplexer.New(multiplexer.Config{
+		Context:                        process.ExitContext(),
+		Listener:                       listener,
+		PROXYProtocolMode:              multiplexer.PROXYProtocolUnspecified,
+		SuppressUnexpectedPROXYWarning: true,
+		ID:                             teleport.Component(teleport.ComponentDiagnostic),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	process.RegisterFunc("diagnostic.service", func() error {
-		err := server.Serve(listener)
-		if err != nil && err != http.ErrServerClosed {
+		listenerHTTP := muxListener.HTTP()
+		go func() {
+			if err := muxListener.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+				muxListener.Entry.WithError(err).Error("Mux encountered err serving")
+			}
+		}()
+
+		if err := server.Serve(listenerHTTP); !errors.Is(err, http.ErrServerClosed) {
 			log.Warningf("Diagnostic server exited with error: %v.", err)
 		}
 		return nil
 	})
 
 	process.OnExit("diagnostic.shutdown", func(payload interface{}) {
+		warnOnErr(muxListener.Close(), log)
 		if payload == nil {
 			log.Infof("Shutting down immediately.")
 			warnOnErr(server.Close(), log)
