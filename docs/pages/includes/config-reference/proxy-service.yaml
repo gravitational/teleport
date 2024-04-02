@@ -164,7 +164,7 @@ proxy_service:
 
     # Configuration for the built-in version server for agent automatic updates.
     # If you leave this configuration unset, a default channel is created and
-    # serves the teleport version run by the proxy.
+    # serves the Teleport version run by the Proxy Service.
     automatic_upgrades_channels:
       # Override the default version channel
       default:

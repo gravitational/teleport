@@ -43,11 +43,11 @@ Teleport v13.3.2 forward, including future major releases.
 
 ## Step 1/4. Check the version served by the proxy
 
-The Teleport Proxy serviceexposes by default a version channel called `default`
-and serving the same version the proxy is running.
+The Teleport Proxy service exposes by default a version channel called `default`
+that serves the same version the Proxy Service is running.
 
 If your proxy public address is <Var value="teleport.example.com:443" />, you can
-query the version server with the following command:\
+query the version server with the following command:
 
 ```code
 $ curl "https://<Var value="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/default/version"
@@ -56,9 +56,9 @@ $ curl "https://<Var value="teleport.example.com:443" />/v1/webapi/automaticupgr
 
 <Details title="Changing which version is served by the version server">
 
-By default, the version server has a single `default` channel, serving the proxy
-version. If you want to override the default version or add other channels you
-can pass custom proxy configuration:
+By default, the version server has a single `default` channel, serving the
+version of the Teleport Proxy Service. If you want to override the default version or add other channels you
+can use the `automatic_upgrades_channels` field in the Proxy Service configuration file:
 
 ```yaml
 proxy_service:
