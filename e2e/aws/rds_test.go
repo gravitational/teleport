@@ -565,19 +565,24 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, wantNames ...
 // rdsAdminInfo contains common info needed to connect as an RDS admin user via
 // password auth.
 type rdsAdminInfo struct {
-	endpoint,
+	address,
 	username,
 	password string
+	port int
 }
 
 func connectAsRDSPostgresAdmin(t *testing.T, ctx context.Context, instanceID string) *pgx.Conn {
 	t.Helper()
 	info := getRDSAdminInfo(t, ctx, instanceID)
-	pgCfg, err := pgx.ParseConfig(fmt.Sprintf("postgres://%s/?sslmode=require", info.endpoint))
+	pgCfg, err := pgx.ParseConfig(fmt.Sprintf("postgres://%s:%d/?sslmode=verify-full", info.address, info.port))
 	require.NoError(t, err)
 	pgCfg.User = info.username
 	pgCfg.Password = info.password
 	pgCfg.Database = "postgres"
+	pgCfg.TLSConfig = &tls.Config{
+		ServerName: info.address,
+		RootCAs:    awsCertPool.Clone(),
+	}
 
 	conn, err := pgx.ConnectConfig(ctx, pgCfg)
 	require.NoError(t, err)
@@ -603,7 +608,15 @@ func connectAsRDSMySQLAdmin(t *testing.T, ctx context.Context, instanceID string
 	t.Helper()
 	const dbName = "mysql"
 	info := getRDSAdminInfo(t, ctx, instanceID)
-	conn, err := mysqlclient.Connect(info.endpoint, info.username, info.password, dbName)
+
+	opt := func(conn *mysqlclient.Conn) {
+		conn.SetTLSConfig(&tls.Config{
+			ServerName: info.address,
+			RootCAs:    awsCertPool.Clone(),
+		})
+	}
+	endpoint := fmt.Sprintf("%s:%d", info.address, info.port)
+	conn, err := mysqlclient.Connect(endpoint, info.username, info.password, dbName, opt)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = conn.Close()
@@ -626,7 +639,8 @@ func getRDSAdminInfo(t *testing.T, ctx context.Context, instanceID string) rdsAd
 	require.Len(t, result.DBInstances, 1)
 	dbInstance := result.DBInstances[0]
 	return rdsAdminInfo{
-		endpoint: fmt.Sprintf("%s:%d", *dbInstance.Endpoint.Address, *dbInstance.Endpoint.Port),
+		address:  *dbInstance.Endpoint.Address,
+		port:     int(*dbInstance.Endpoint.Port),
 		username: *dbInstance.MasterUsername,
 		password: getRDSMasterUserPassword(t, ctx, *dbInstance.MasterUserSecret.SecretArn),
 	}

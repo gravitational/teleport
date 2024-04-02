@@ -19,12 +19,17 @@
 package e2e
 
 import (
+	"crypto/x509"
+	"io"
+	"net/http"
 	"os"
 	"os/user"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
@@ -38,12 +43,49 @@ import (
 // hostUser is the name of the host user used for tests.
 var hostUser string
 
+// awsCertPool is an x509 cert pool containing the AWS global cert bundle.
+var awsCertPool *x509.CertPool
+
 func init() {
 	me, err := user.Current()
 	if err != nil {
 		panic(err)
 	}
 	hostUser = me.Username
+
+	pool, err := getAWSGlobalCertBundlePool()
+	if err != nil {
+		panic(err)
+	}
+	awsCertPool = pool
+}
+
+func getAWSGlobalCertBundlePool() (*x509.CertPool, error) {
+	// AWS global certificate bundle
+	const certBundleURL = "https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem"
+
+	resp, err := http.Get(certBundleURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	if http.StatusOK != resp.StatusCode {
+		return nil, trace.Errorf("got non-ok response from AWS: %d", resp.StatusCode)
+	}
+
+	certBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certPool := x509.NewCertPool()
+	ok := certPool.AppendCertsFromPEM(certBytes)
+	if !ok {
+		return nil, trace.Errorf("error parsing AWS cert bundle")
+	}
+
+	return certPool, nil
 }
 
 // mustGetEnv is a test helper that fetches an env variable or fails with an
