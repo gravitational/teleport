@@ -57,9 +57,6 @@ func UnmarshalAccessMonitoringRule(data []byte, opts ...MarshalOption) (*accessm
 	if err := utils.FastUnmarshal(data, &accessMonitoringRule); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
-	if cfg.ID != 0 {
-		accessMonitoringRule.Metadata.Id = cfg.ID
-	}
 	if cfg.Revision != "" {
 		accessMonitoringRule.Metadata.Revision = cfg.Revision
 	}
