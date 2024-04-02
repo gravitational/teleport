@@ -48,6 +48,7 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/accesslist"
+	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
@@ -60,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
@@ -4732,6 +4734,14 @@ func (c *Client) SCIMClient() *scim.Client {
 // (as per the default gRPC behavior).
 func (c *Client) AccessListClient() *accesslist.Client {
 	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(c.conn))
+}
+
+// AccessMonitoringRulesClient returns an Access Monitoring Rules client.
+// Clients connecting to  older Teleport versions, still get an access list client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+func (c *Client) AccessMonitoringRulesClient() *accessmonitoringrules.Client {
+	return accessmonitoringrules.NewClient(accessmonitoringrulev1.NewAccessMonitoringRulesServiceClient(c.conn))
 }
 
 // DatabaseObjectImportRuleClient returns a client for managing database object import rules.
