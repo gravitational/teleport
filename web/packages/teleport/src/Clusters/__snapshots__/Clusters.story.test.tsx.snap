@@ -95,19 +95,15 @@ exports[`render clusters 1`] = `
 
 .c14:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c14:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c14:hover:enabled,
-.c14:focus:enabled {
+.c14:not(:disabled):hover,
+.c14:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c14:active:enabled {
+.c14:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -138,19 +134,15 @@ exports[`render clusters 1`] = `
 
 .c18:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c18:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c18:hover:enabled,
-.c18:focus:enabled {
+.c18:not(:disabled):hover,
+.c18:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c18:active:enabled {
+.c18:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
