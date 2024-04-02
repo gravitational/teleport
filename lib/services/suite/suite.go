@@ -240,6 +240,15 @@ func (s *ServicesTestSuite) UsersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, u)
 
+	u1, err := types.NewUser("user1")
+	require.NoError(t, err)
+	_, err = s.WebS.CreateUser(ctx, u1)
+	require.NoError(t, err)
+	u2, err := types.NewUser("user2")
+	require.NoError(t, err)
+	_, err = s.WebS.CreateUser(ctx, u2)
+	require.NoError(t, err)
+
 	require.NoError(t, s.WebS.UpsertPasswordHash("user1", []byte("hash")))
 	require.NoError(t, s.WebS.UpsertPasswordHash("user2", []byte("hash2")))
 
@@ -547,7 +556,14 @@ func (s *ServicesTestSuite) ReverseTunnelsCRUD(t *testing.T) {
 }
 
 func (s *ServicesTestSuite) PasswordHashCRUD(t *testing.T) {
-	_, err := s.WebS.GetPasswordHash("user1")
+	ctx := context.Background()
+
+	u1, err := types.NewUser("user1")
+	require.NoError(t, err)
+	_, err = s.WebS.CreateUser(ctx, u1)
+	require.NoError(t, err)
+
+	_, err = s.WebS.GetPasswordHash("user1")
 	require.True(t, trace.IsNotFound(err), fmt.Sprintf("%#v", err))
 
 	err = s.WebS.UpsertPasswordHash("user1", []byte("hello123"))
