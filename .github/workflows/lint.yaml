@@ -136,7 +136,7 @@ jobs:
 
   lint-rust:
     name: Lint (Rust)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: changes
     if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_rust == 'true' }}
 
@@ -147,9 +147,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Print Rust version command output
+        run: make -C build.assets print-rust-version
+
       - name: Set Rust version
         run: |
           echo RUST_VERSION=$(make -C build.assets print-rust-version) >> $GITHUB_ENV
+          echo "RUST_VERSION set to $RUST_VERSION"
+
+      - name: Print Rust version from GITHUB_ENV
+        run: echo "RUST_VERSION from GITHUB_ENV is ${RUST_VERSION}"
 
       - name: Set up Rust
         run: |
