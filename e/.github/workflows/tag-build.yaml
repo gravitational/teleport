@@ -1,7 +1,7 @@
 # Build a Teleport release from a tag.
 
 name: Tag Build
-run-name: Tag Build of ${{ inputs.oss-teleport-repo }}@${{ inputs.oss-teleport-ref }}${{ inputs.teleport-version && format(' ({0})', inputs.teleport-version) }}
+run-name: ${{ inputs.cloud-only && 'Cloud ' || '' }}Tag Build of ${{ inputs.oss-teleport-repo }}@${{ inputs.oss-teleport-ref }}${{ inputs.teleport-version && format(' ({0})', inputs.teleport-version) }}
 on:
   workflow_dispatch:
     inputs:
@@ -31,6 +31,11 @@ on:
         type: string
         default: build-prod
 
+      cloud-only:
+        description: Perform a cloud-only release (distroless OCI only)
+        type: boolean
+        default: false
+
       workflow-tag:
         description: Tag used to identify workflow runs spawned by this event.
         type: string
@@ -54,23 +59,31 @@ jobs:
           # Do nothing
 
   build-linux:
-    name: Build Linux Artifacts
     needs: setup
     strategy:
       # Turn off fail-fast so one matrix job failure does not cancel others. We
       # can let the others run to completion so we can re-run just the failed jobs.
       fail-fast: false
       matrix:
+        arch: [ 'amd64', 'arm64', '386', 'arm' ]
+        fips: [ false, true ]
+        cloud-only:
+          - ${{ inputs.cloud-only }}
         include:
+          # Build Teleport connect on amd64 non-fips regular releases (not cloud-only)
           - arch: amd64
-            build-connect: true
-          - arch: amd64
-            release-target: release-amd64-fips
-          - arch: arm64
-          - arch: arm64
-            release-target: release-arm64-fips
+            fips: false
+            build-connect: ${{ !inputs.cloud-only }}
+        exclude:
+          # No FIPS for 386 or arm
           - arch: '386'
+            fips: true
           - arch: arm
+            fips: true
+          # No 386 for cloud-only
+          - arch: '386'
+            cloud-only: true
+    name: Build Linux ${{ matrix.arch }}${{ matrix.fips && ' FIPS' || '' }}${{ matrix.build-connect && ' w/Connect' || '' }}
     secrets: inherit
     permissions:
       contents: read
@@ -80,7 +93,7 @@ jobs:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
-      release-target: ${{ matrix.release-target || format('release-{0}', matrix.arch) }}
+      release-target: ${{ format('release-{0}', matrix.arch) }}${{ matrix.fips && '-fips' || '' }}
       release-artifacts: true
       build-connect: ${{ matrix.build-connect || false }}
       build-os-packages: true
@@ -89,6 +102,7 @@ jobs:
 
   build-darwin:
     name: Build Darwin (macOS) Artifacts
+    if: ${{ !inputs.cloud-only }}
     needs: setup
     secrets: inherit
     permissions:
@@ -107,6 +121,7 @@ jobs:
 
   build-windows:
     name: Build Windows Artifacts
+    if: ${{ !inputs.cloud-only }}
     needs: setup
     secrets: inherit
     permissions:
@@ -122,6 +137,7 @@ jobs:
 
   build-operator-oci:
     name: Build Operator OCI
+    if: ${{ !inputs.cloud-only }}
     needs: setup
     secrets: inherit
     permissions:
@@ -139,6 +155,7 @@ jobs:
 
   build-kube-agent-updater-oci:
     name: Build Kube Agent Updater OCI
+    if: ${{ !inputs.cloud-only }}
     needs: setup
     secrets: inherit
     permissions:
@@ -156,6 +173,7 @@ jobs:
 
   build-spacelift-runner-oci:
     name: Build Spacelift Runner OCI
+    if: ${{ !inputs.cloud-only }}
     needs: setup
     secrets: inherit
     permissions:
@@ -190,6 +208,7 @@ jobs:
 
   build-tbot-distroless-oci:
     name: Build Tbot Distroless OCI
+    if: ${{ !inputs.cloud-only }}
     needs: [setup, build-linux]
     secrets: inherit
     permissions:
@@ -207,6 +226,7 @@ jobs:
 
   build-hardened-ami:
     name: Build Hardened AMI
+    if: ${{ !inputs.cloud-only }}
     needs: [setup, build-linux]
     secrets: inherit
     permissions:
