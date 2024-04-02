@@ -134,9 +134,10 @@ jobs:
       - name: Check if derived functions are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make derive-up-to-date
+
   lint-rust:
     name: Lint (Rust)
-    runs-on: ubuntu-22.04-16core
+    runs-on: ubuntu-latest
     needs: changes
     if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_rust == 'true' }}
 
