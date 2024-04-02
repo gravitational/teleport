@@ -150,7 +150,7 @@ jobs:
 
       - name: Set up Rust
         run: |
-          RUST_VERSION=$(make -C build.assets print-rust-version)
+          export RUST_VERSION="$(make -C build.assets print-rust-version)"
           rustup toolchain install $RUST_VERSION --component rustfmt,clippy
           rustup override set $RUST_VERSION
           rustc --version
