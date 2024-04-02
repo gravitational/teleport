@@ -21,7 +21,10 @@ import {
   ITerminalServiceClient,
   TerminalServiceClient,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
-import * as vnetServiceProtobuf from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb.client';
+import {
+  IVnetServiceClient,
+  VnetServiceClient,
+} from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb.client';
 
 import { CloneableClient, cloneClient } from './cloneableClient';
 
@@ -29,13 +32,12 @@ import { CloneableClient, cloneClient } from './cloneableClient';
 // (TerminalServiceClient) lets us omit a bunch of properties when mocking a client.
 export type TshdClient = CloneableClient<ITerminalServiceClient>;
 
-export type VnetClient =
-  CloneableClient<vnetServiceProtobuf.IVnetServiceClient>;
+export type VnetClient = CloneableClient<IVnetServiceClient>;
 
 export function createTshdClient(transport: GrpcTransport): TshdClient {
   return cloneClient(new TerminalServiceClient(transport));
 }
 
 export function createVnetClient(transport: GrpcTransport): VnetClient {
-  return cloneClient(new vnetServiceProtobuf.VnetServiceClient(transport));
+  return cloneClient(new VnetServiceClient(transport));
 }
