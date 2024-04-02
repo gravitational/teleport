@@ -186,19 +186,19 @@ export const formatters: Formatters = {
   },
   [eventCodes.GITHUB_CONNECTOR_CREATED]: {
     type: 'github.created',
-    desc: 'GITHUB Auth Connector Created',
+    desc: 'GitHub Auth Connector Created',
     format: ({ user, name }) =>
       `User [${user}] created GitHub connector [${name}]`,
   },
   [eventCodes.GITHUB_CONNECTOR_DELETED]: {
     type: 'github.deleted',
-    desc: 'GITHUB Auth Connector Deleted',
+    desc: 'GitHub Auth Connector Deleted',
     format: ({ user, name }) =>
       `User [${user}] deleted GitHub connector [${name}]`,
   },
   [eventCodes.GITHUB_CONNECTOR_UPDATED]: {
     type: 'github.updated',
-    desc: 'GITHUB Auth Connector Updated',
+    desc: 'GitHub Auth Connector Updated',
     format: ({ user, name }) =>
       `User [${user}] updated GitHub connector [${name}]`,
   },

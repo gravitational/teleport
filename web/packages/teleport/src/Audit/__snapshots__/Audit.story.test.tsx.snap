@@ -9353,7 +9353,7 @@ exports[`list of all events 1`] = `
                 />
               </svg>
             </span>
-            GITHUB Auth Connector Updated
+            GitHub Auth Connector Updated
           </div>
         </td>
         <td
@@ -9407,7 +9407,7 @@ exports[`list of all events 1`] = `
                 />
               </svg>
             </span>
-            GITHUB Auth Connector Deleted
+            GitHub Auth Connector Deleted
           </div>
         </td>
         <td
@@ -9461,7 +9461,7 @@ exports[`list of all events 1`] = `
                 />
               </svg>
             </span>
-            GITHUB Auth Connector Created
+            GitHub Auth Connector Created
           </div>
         </td>
         <td
