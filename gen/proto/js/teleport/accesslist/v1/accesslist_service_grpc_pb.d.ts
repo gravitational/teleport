@@ -16,6 +16,7 @@ interface IAccessListServiceService extends grpc.ServiceDefinition<grpc.UntypedS
     listAccessLists: IAccessListServiceService_IListAccessLists;
     getAccessList: IAccessListServiceService_IGetAccessList;
     upsertAccessList: IAccessListServiceService_IUpsertAccessList;
+    updateAccessList: IAccessListServiceService_IUpdateAccessList;
     deleteAccessList: IAccessListServiceService_IDeleteAccessList;
     deleteAllAccessLists: IAccessListServiceService_IDeleteAllAccessLists;
     getAccessListsToReview: IAccessListServiceService_IGetAccessListsToReview;
@@ -24,6 +25,7 @@ interface IAccessListServiceService extends grpc.ServiceDefinition<grpc.UntypedS
     listAllAccessListMembers: IAccessListServiceService_IListAllAccessListMembers;
     getAccessListMember: IAccessListServiceService_IGetAccessListMember;
     upsertAccessListMember: IAccessListServiceService_IUpsertAccessListMember;
+    updateAccessListMember: IAccessListServiceService_IUpdateAccessListMember;
     deleteAccessListMember: IAccessListServiceService_IDeleteAccessListMember;
     deleteAllAccessListMembersForAccessList: IAccessListServiceService_IDeleteAllAccessListMembersForAccessList;
     deleteAllAccessListMembers: IAccessListServiceService_IDeleteAllAccessListMembers;
@@ -69,6 +71,15 @@ interface IAccessListServiceService_IUpsertAccessList extends grpc.MethodDefinit
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_accesslist_v1_accesslist_service_pb.UpsertAccessListRequest>;
     requestDeserialize: grpc.deserialize<teleport_accesslist_v1_accesslist_service_pb.UpsertAccessListRequest>;
+    responseSerialize: grpc.serialize<teleport_accesslist_v1_accesslist_pb.AccessList>;
+    responseDeserialize: grpc.deserialize<teleport_accesslist_v1_accesslist_pb.AccessList>;
+}
+interface IAccessListServiceService_IUpdateAccessList extends grpc.MethodDefinition<teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListRequest, teleport_accesslist_v1_accesslist_pb.AccessList> {
+    path: "/teleport.accesslist.v1.AccessListService/UpdateAccessList";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListRequest>;
+    requestDeserialize: grpc.deserialize<teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListRequest>;
     responseSerialize: grpc.serialize<teleport_accesslist_v1_accesslist_pb.AccessList>;
     responseDeserialize: grpc.deserialize<teleport_accesslist_v1_accesslist_pb.AccessList>;
 }
@@ -141,6 +152,15 @@ interface IAccessListServiceService_IUpsertAccessListMember extends grpc.MethodD
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_accesslist_v1_accesslist_service_pb.UpsertAccessListMemberRequest>;
     requestDeserialize: grpc.deserialize<teleport_accesslist_v1_accesslist_service_pb.UpsertAccessListMemberRequest>;
+    responseSerialize: grpc.serialize<teleport_accesslist_v1_accesslist_pb.Member>;
+    responseDeserialize: grpc.deserialize<teleport_accesslist_v1_accesslist_pb.Member>;
+}
+interface IAccessListServiceService_IUpdateAccessListMember extends grpc.MethodDefinition<teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListMemberRequest, teleport_accesslist_v1_accesslist_pb.Member> {
+    path: "/teleport.accesslist.v1.AccessListService/UpdateAccessListMember";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListMemberRequest>;
+    requestDeserialize: grpc.deserialize<teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListMemberRequest>;
     responseSerialize: grpc.serialize<teleport_accesslist_v1_accesslist_pb.Member>;
     responseDeserialize: grpc.deserialize<teleport_accesslist_v1_accesslist_pb.Member>;
 }
@@ -242,6 +262,7 @@ export interface IAccessListServiceServer {
     listAccessLists: grpc.handleUnaryCall<teleport_accesslist_v1_accesslist_service_pb.ListAccessListsRequest, teleport_accesslist_v1_accesslist_service_pb.ListAccessListsResponse>;
     getAccessList: grpc.handleUnaryCall<teleport_accesslist_v1_accesslist_service_pb.GetAccessListRequest, teleport_accesslist_v1_accesslist_pb.AccessList>;
     upsertAccessList: grpc.handleUnaryCall<teleport_accesslist_v1_accesslist_service_pb.UpsertAccessListRequest, teleport_accesslist_v1_accesslist_pb.AccessList>;
+    updateAccessList: grpc.handleUnaryCall<teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListRequest, teleport_accesslist_v1_accesslist_pb.AccessList>;
     deleteAccessList: grpc.handleUnaryCall<teleport_accesslist_v1_accesslist_service_pb.DeleteAccessListRequest, google_protobuf_empty_pb.Empty>;
     deleteAllAccessLists: grpc.handleUnaryCall<teleport_accesslist_v1_accesslist_service_pb.DeleteAllAccessListsRequest, google_protobuf_empty_pb.Empty>;
     getAccessListsToReview: grpc.handleUnaryCall<teleport_accesslist_v1_accesslist_service_pb.GetAccessListsToReviewRequest, teleport_accesslist_v1_accesslist_service_pb.GetAccessListsToReviewResponse>;
@@ -250,6 +271,7 @@ export interface IAccessListServiceServer {
     listAllAccessListMembers: grpc.handleUnaryCall<teleport_accesslist_v1_accesslist_service_pb.ListAllAccessListMembersRequest, teleport_accesslist_v1_accesslist_service_pb.ListAllAccessListMembersResponse>;
     getAccessListMember: grpc.handleUnaryCall<teleport_accesslist_v1_accesslist_service_pb.GetAccessListMemberRequest, teleport_accesslist_v1_accesslist_pb.Member>;
     upsertAccessListMember: grpc.handleUnaryCall<teleport_accesslist_v1_accesslist_service_pb.UpsertAccessListMemberRequest, teleport_accesslist_v1_accesslist_pb.Member>;
+    updateAccessListMember: grpc.handleUnaryCall<teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListMemberRequest, teleport_accesslist_v1_accesslist_pb.Member>;
     deleteAccessListMember: grpc.handleUnaryCall<teleport_accesslist_v1_accesslist_service_pb.DeleteAccessListMemberRequest, google_protobuf_empty_pb.Empty>;
     deleteAllAccessListMembersForAccessList: grpc.handleUnaryCall<teleport_accesslist_v1_accesslist_service_pb.DeleteAllAccessListMembersForAccessListRequest, google_protobuf_empty_pb.Empty>;
     deleteAllAccessListMembers: grpc.handleUnaryCall<teleport_accesslist_v1_accesslist_service_pb.DeleteAllAccessListMembersRequest, google_protobuf_empty_pb.Empty>;
@@ -275,6 +297,9 @@ export interface IAccessListServiceClient {
     upsertAccessList(request: teleport_accesslist_v1_accesslist_service_pb.UpsertAccessListRequest, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.AccessList) => void): grpc.ClientUnaryCall;
     upsertAccessList(request: teleport_accesslist_v1_accesslist_service_pb.UpsertAccessListRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.AccessList) => void): grpc.ClientUnaryCall;
     upsertAccessList(request: teleport_accesslist_v1_accesslist_service_pb.UpsertAccessListRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.AccessList) => void): grpc.ClientUnaryCall;
+    updateAccessList(request: teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListRequest, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.AccessList) => void): grpc.ClientUnaryCall;
+    updateAccessList(request: teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.AccessList) => void): grpc.ClientUnaryCall;
+    updateAccessList(request: teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.AccessList) => void): grpc.ClientUnaryCall;
     deleteAccessList(request: teleport_accesslist_v1_accesslist_service_pb.DeleteAccessListRequest, callback: (error: grpc.ServiceError | null, response: google_protobuf_empty_pb.Empty) => void): grpc.ClientUnaryCall;
     deleteAccessList(request: teleport_accesslist_v1_accesslist_service_pb.DeleteAccessListRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: google_protobuf_empty_pb.Empty) => void): grpc.ClientUnaryCall;
     deleteAccessList(request: teleport_accesslist_v1_accesslist_service_pb.DeleteAccessListRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: google_protobuf_empty_pb.Empty) => void): grpc.ClientUnaryCall;
@@ -299,6 +324,9 @@ export interface IAccessListServiceClient {
     upsertAccessListMember(request: teleport_accesslist_v1_accesslist_service_pb.UpsertAccessListMemberRequest, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.Member) => void): grpc.ClientUnaryCall;
     upsertAccessListMember(request: teleport_accesslist_v1_accesslist_service_pb.UpsertAccessListMemberRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.Member) => void): grpc.ClientUnaryCall;
     upsertAccessListMember(request: teleport_accesslist_v1_accesslist_service_pb.UpsertAccessListMemberRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.Member) => void): grpc.ClientUnaryCall;
+    updateAccessListMember(request: teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListMemberRequest, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.Member) => void): grpc.ClientUnaryCall;
+    updateAccessListMember(request: teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListMemberRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.Member) => void): grpc.ClientUnaryCall;
+    updateAccessListMember(request: teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListMemberRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.Member) => void): grpc.ClientUnaryCall;
     deleteAccessListMember(request: teleport_accesslist_v1_accesslist_service_pb.DeleteAccessListMemberRequest, callback: (error: grpc.ServiceError | null, response: google_protobuf_empty_pb.Empty) => void): grpc.ClientUnaryCall;
     deleteAccessListMember(request: teleport_accesslist_v1_accesslist_service_pb.DeleteAccessListMemberRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: google_protobuf_empty_pb.Empty) => void): grpc.ClientUnaryCall;
     deleteAccessListMember(request: teleport_accesslist_v1_accesslist_service_pb.DeleteAccessListMemberRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: google_protobuf_empty_pb.Empty) => void): grpc.ClientUnaryCall;
@@ -345,6 +373,9 @@ export class AccessListServiceClient extends grpc.Client implements IAccessListS
     public upsertAccessList(request: teleport_accesslist_v1_accesslist_service_pb.UpsertAccessListRequest, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.AccessList) => void): grpc.ClientUnaryCall;
     public upsertAccessList(request: teleport_accesslist_v1_accesslist_service_pb.UpsertAccessListRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.AccessList) => void): grpc.ClientUnaryCall;
     public upsertAccessList(request: teleport_accesslist_v1_accesslist_service_pb.UpsertAccessListRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.AccessList) => void): grpc.ClientUnaryCall;
+    public updateAccessList(request: teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListRequest, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.AccessList) => void): grpc.ClientUnaryCall;
+    public updateAccessList(request: teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.AccessList) => void): grpc.ClientUnaryCall;
+    public updateAccessList(request: teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.AccessList) => void): grpc.ClientUnaryCall;
     public deleteAccessList(request: teleport_accesslist_v1_accesslist_service_pb.DeleteAccessListRequest, callback: (error: grpc.ServiceError | null, response: google_protobuf_empty_pb.Empty) => void): grpc.ClientUnaryCall;
     public deleteAccessList(request: teleport_accesslist_v1_accesslist_service_pb.DeleteAccessListRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: google_protobuf_empty_pb.Empty) => void): grpc.ClientUnaryCall;
     public deleteAccessList(request: teleport_accesslist_v1_accesslist_service_pb.DeleteAccessListRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: google_protobuf_empty_pb.Empty) => void): grpc.ClientUnaryCall;
@@ -369,6 +400,9 @@ export class AccessListServiceClient extends grpc.Client implements IAccessListS
     public upsertAccessListMember(request: teleport_accesslist_v1_accesslist_service_pb.UpsertAccessListMemberRequest, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.Member) => void): grpc.ClientUnaryCall;
     public upsertAccessListMember(request: teleport_accesslist_v1_accesslist_service_pb.UpsertAccessListMemberRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.Member) => void): grpc.ClientUnaryCall;
     public upsertAccessListMember(request: teleport_accesslist_v1_accesslist_service_pb.UpsertAccessListMemberRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.Member) => void): grpc.ClientUnaryCall;
+    public updateAccessListMember(request: teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListMemberRequest, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.Member) => void): grpc.ClientUnaryCall;
+    public updateAccessListMember(request: teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListMemberRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.Member) => void): grpc.ClientUnaryCall;
+    public updateAccessListMember(request: teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListMemberRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_accesslist_v1_accesslist_pb.Member) => void): grpc.ClientUnaryCall;
     public deleteAccessListMember(request: teleport_accesslist_v1_accesslist_service_pb.DeleteAccessListMemberRequest, callback: (error: grpc.ServiceError | null, response: google_protobuf_empty_pb.Empty) => void): grpc.ClientUnaryCall;
     public deleteAccessListMember(request: teleport_accesslist_v1_accesslist_service_pb.DeleteAccessListMemberRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: google_protobuf_empty_pb.Empty) => void): grpc.ClientUnaryCall;
     public deleteAccessListMember(request: teleport_accesslist_v1_accesslist_service_pb.DeleteAccessListMemberRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: google_protobuf_empty_pb.Empty) => void): grpc.ClientUnaryCall;

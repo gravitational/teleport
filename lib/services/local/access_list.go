@@ -145,6 +145,31 @@ func (a *AccessListService) GetAccessListsToReview(ctx context.Context) ([]*acce
 
 // UpsertAccessList creates or updates an access list resource.
 func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
+	op := a.service.UpsertResource
+	return a.runOpWithLock(ctx, accessList, op)
+}
+
+// UpdateAccessList updates an access list resource.
+func (a *AccessListService) UpdateAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
+	op := func(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
+		oldAccessList, err := a.service.GetResource(ctx, accessList.GetName())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Compare the old and new members to ensure that the member has not been modified.
+		// This is fine because we are under a lock and the member is not being modified by
+		// another process.
+		if oldAccessList.GetRevision() != accessList.GetRevision() {
+			return nil, trace.CompareFailed("access list %v has been modified", accessList.GetName())
+		}
+		return a.service.UpdateResource(ctx, accessList)
+	}
+	return a.runOpWithLock(ctx, accessList, op)
+}
+
+type opFunc func(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
+
+func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *accesslist.AccessList, op opFunc) (*accesslist.AccessList, error) {
 	var upserted *accesslist.AccessList
 	upsertWithLockFn := func() error {
 		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
@@ -157,7 +182,7 @@ func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *ac
 			}
 
 			var err error
-			upserted, err = a.service.UpsertResource(ctx, accessList)
+			upserted, err = op(ctx, accessList)
 			return trace.Wrap(err)
 		})
 	}
@@ -284,6 +309,34 @@ func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *
 		return nil, trace.Wrap(err)
 	}
 	return upserted, nil
+}
+
+// UpdateAccessListMember conditionally updates an access list member resource.
+func (a *AccessListService) UpdateAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
+	var updated *accesslist.AccessListMember
+	err := a.service.RunWhileLocked(ctx, lockName(member.Spec.AccessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		_, err := a.service.GetResource(ctx, member.Spec.AccessList)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		oldMember, err := a.memberService.WithPrefix(member.Spec.AccessList).GetResource(ctx, member.GetName())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// Compare the old and new members to ensure that the member has not been modified.
+		// This is fine because we are under a lock and the member is not being modified by
+		// another process.
+		if oldMember.GetRevision() != member.GetRevision() {
+			return trace.CompareFailed("access list member %v has been modified", member.GetName())
+		}
+
+		updated, err = a.memberService.WithPrefix(member.Spec.AccessList).UpdateResource(ctx, member)
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return updated, nil
 }
 
 // DeleteAccessListMember hard deletes the specified access list member resource.

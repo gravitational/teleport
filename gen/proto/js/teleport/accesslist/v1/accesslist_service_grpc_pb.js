@@ -386,6 +386,28 @@ function deserialize_teleport_accesslist_v1_Member(buffer_arg) {
   return teleport_accesslist_v1_accesslist_pb.Member.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_teleport_accesslist_v1_UpdateAccessListMemberRequest(arg) {
+  if (!(arg instanceof teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListMemberRequest)) {
+    throw new Error('Expected argument of type teleport.accesslist.v1.UpdateAccessListMemberRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_accesslist_v1_UpdateAccessListMemberRequest(buffer_arg) {
+  return teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListMemberRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_accesslist_v1_UpdateAccessListRequest(arg) {
+  if (!(arg instanceof teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListRequest)) {
+    throw new Error('Expected argument of type teleport.accesslist.v1.UpdateAccessListRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_accesslist_v1_UpdateAccessListRequest(buffer_arg) {
+  return teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_teleport_accesslist_v1_UpsertAccessListMemberRequest(arg) {
   if (!(arg instanceof teleport_accesslist_v1_accesslist_service_pb.UpsertAccessListMemberRequest)) {
     throw new Error('Expected argument of type teleport.accesslist.v1.UpsertAccessListMemberRequest');
@@ -478,6 +500,18 @@ upsertAccessList: {
     responseType: teleport_accesslist_v1_accesslist_pb.AccessList,
     requestSerialize: serialize_teleport_accesslist_v1_UpsertAccessListRequest,
     requestDeserialize: deserialize_teleport_accesslist_v1_UpsertAccessListRequest,
+    responseSerialize: serialize_teleport_accesslist_v1_AccessList,
+    responseDeserialize: deserialize_teleport_accesslist_v1_AccessList,
+  },
+  // UpdateAccessList updates an access list resource.
+updateAccessList: {
+    path: '/teleport.accesslist.v1.AccessListService/UpdateAccessList',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListRequest,
+    responseType: teleport_accesslist_v1_accesslist_pb.AccessList,
+    requestSerialize: serialize_teleport_accesslist_v1_UpdateAccessListRequest,
+    requestDeserialize: deserialize_teleport_accesslist_v1_UpdateAccessListRequest,
     responseSerialize: serialize_teleport_accesslist_v1_AccessList,
     responseDeserialize: deserialize_teleport_accesslist_v1_AccessList,
   },
@@ -577,6 +611,18 @@ upsertAccessListMember: {
     responseType: teleport_accesslist_v1_accesslist_pb.Member,
     requestSerialize: serialize_teleport_accesslist_v1_UpsertAccessListMemberRequest,
     requestDeserialize: deserialize_teleport_accesslist_v1_UpsertAccessListMemberRequest,
+    responseSerialize: serialize_teleport_accesslist_v1_Member,
+    responseDeserialize: deserialize_teleport_accesslist_v1_Member,
+  },
+  // UpdateAccessListMember conditionally updates an access list member resource.
+updateAccessListMember: {
+    path: '/teleport.accesslist.v1.AccessListService/UpdateAccessListMember',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_accesslist_v1_accesslist_service_pb.UpdateAccessListMemberRequest,
+    responseType: teleport_accesslist_v1_accesslist_pb.Member,
+    requestSerialize: serialize_teleport_accesslist_v1_UpdateAccessListMemberRequest,
+    requestDeserialize: deserialize_teleport_accesslist_v1_UpdateAccessListMemberRequest,
     responseSerialize: serialize_teleport_accesslist_v1_Member,
     responseDeserialize: deserialize_teleport_accesslist_v1_Member,
   },
