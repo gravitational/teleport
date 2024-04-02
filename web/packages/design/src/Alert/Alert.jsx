@@ -56,8 +56,16 @@ const kind = props => {
       };
     case 'outline-info':
       return {
-        background: fade(theme.colors.link, 0.1),
-        border: `${theme.radii[1]}px solid ${theme.colors.link}`,
+        background: fade(theme.colors.accent.main, 0.1),
+        border: `${theme.radii[1]}px solid ${theme.colors.accent.main}`,
+        borderRadius: `${theme.radii[3]}px`,
+        boxShadow: 'none',
+        justifyContent: 'normal',
+      };
+    case 'outline-warn':
+      return {
+        background: fade(theme.colors.warning.main, 0.1),
+        border: `${theme.radii[1]}px solid ${theme.colors.warning.main}`,
         borderRadius: `${theme.radii[3]}px`,
         boxShadow: 'none',
         justifyContent: 'normal',
@@ -100,6 +108,7 @@ Alert.propTypes = {
     'success',
     'outline-danger',
     'outline-info',
+    'outline-warn',
   ]),
   ...color.propTypes,
   ...space.propTypes,
@@ -121,3 +130,4 @@ export const OutlineDanger = props => (
   <Alert kind="outline-danger" {...props} />
 );
 export const OutlineInfo = props => <Alert kind="outline-info" {...props} />;
+export const OutlineWarn = props => <Alert kind="outline-warn" {...props} />;
