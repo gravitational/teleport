@@ -127,10 +127,12 @@ func (a *Server) newWebSession(
 		// TODO(antonam): consider turning this into error after all use cases are covered (before v14.0 testplan)
 		log.Debug("Creating new web session without login IP specified.")
 	}
+
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	checker, err := services.NewAccessChecker(&services.AccessInfo{
 		Roles:              req.Roles,
 		Traits:             req.Traits,
@@ -283,7 +285,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 
 	// Encode user traits in the app access certificate. This will allow to
 	// pass user traits when talking to app servers in leaf clusters.
-	_, traits, err := services.ExtractFromIdentity(ctx, a, identity)
+	roles, traits, err := services.ExtractFromIdentity(ctx, a, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -303,6 +305,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 			User:           req.Username,
 			LoginIP:        identity.LoginIP,
 			SessionTTL:     ttl,
+			Roles:          roles,
 			Traits:         traits,
 			AccessRequests: identity.ActiveRequests,
 		},
@@ -336,9 +339,11 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	checker, err := services.NewAccessChecker(&services.AccessInfo{
-		Roles:              user.GetRoles(),
-		Traits:             user.GetTraits(),
+		Username:           req.User,
+		Roles:              req.Roles,
+		Traits:             req.Traits,
 		AllowedResourceIDs: req.RequestedResourceIDs,
 	}, clusterName.GetClusterName(), a)
 	if err != nil {

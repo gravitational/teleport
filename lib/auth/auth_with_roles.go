@@ -3164,6 +3164,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 					LoginIP:        a.context.Identity.GetIdentity().LoginIP,
 					SessionTTL:     req.Expires.Sub(a.authServer.GetClock().Now()),
 					Traits:         accessInfo.Traits,
+					Roles:          accessInfo.Roles,
 					AccessRequests: req.AccessRequests,
 				},
 				PublicAddr:        req.RouteToApp.PublicAddr,
