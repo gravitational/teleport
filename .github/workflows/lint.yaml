@@ -148,20 +148,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Determine Toolchain Version
-        run: echo RUST_VERSION=$(make -C build.assets print-rust-version) >> $GITHUB_ENV
-
       - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
-          override: true
-          profile: minimal
-          components: rustfmt, clippy
-
-      - name: Print versions
         run: |
-          echo "rust: ${RUST_VERSION}"
+          RUST_VERSION=$(make -C build.assets print-rust-version)
+          rustup toolchain install $RUST_VERSION --component rustfmt,clippy
+          rustup override set $RUST_VERSION
           rustc --version
           cargo --version
           clippy --version
