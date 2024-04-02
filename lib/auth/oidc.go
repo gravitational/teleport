@@ -76,7 +76,7 @@ func (a *Server) UpdateOIDCConnector(ctx context.Context, connector types.OIDCCo
 			Name: connector.GetName(),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit OIDC connector create event.")
+		log.WithError(err).Warn("Failed to emit OIDC connector update event.")
 	}
 
 	return updated, nil
