@@ -12,13 +12,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	jamffake "github.com/gravitational/teleport/e/lib/jamf/fake"
 	"github.com/gravitational/teleport/e/lib/jamf/testenv"
 	"github.com/gravitational/teleport/e/lib/plugins"
-	"github.com/gravitational/teleport/e/lib/teleport"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -47,8 +50,12 @@ func withLabel[T types.ResourceWithLabels](key, requiredValue string) func(T) bo
 }
 
 func TestPluginCreateDelete(t *testing.T) {
-	t.Parallel()
-
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			IdentityGovernanceSecurity: true,
+		},
+	})
 	const validAuthCode = "123456"
 	const invalidAuthCode = "654321"
 	const validRedirectURI = "https://foo.localhost/callback"
@@ -216,7 +223,7 @@ func TestPluginCreateDelete(t *testing.T) {
 		require.NoError(t, err)
 
 		credRefLabels := stored.GetCredentials().GetStaticCredentialsRef().Labels
-		pluginLabel := credRefLabels[teleport.PluginLabel]
+		pluginLabel := credRefLabels[eteleport.PluginLabel]
 		require.NotEmpty(t, pluginLabel)
 
 		expectedLabels := utils.CopyStringsMap(staticCredentials.GetStaticLabels())
@@ -225,7 +232,7 @@ func TestPluginCreateDelete(t *testing.T) {
 				delete(expectedLabels, k)
 			}
 		}
-		expectedLabels[teleport.PluginLabel] = pluginLabel
+		expectedLabels[eteleport.PluginLabel] = pluginLabel
 		require.Equal(t, expectedLabels, credRefLabels)
 
 		allCreds, err := suite.pluginStaticCredentialsService.GetPluginStaticCredentialsByLabels(ctx, credRefLabels)
@@ -248,6 +255,50 @@ func TestPluginCreateDelete(t *testing.T) {
 		allCreds, err = suite.pluginStaticCredentialsService.GetPluginStaticCredentialsByLabels(ctx, credRefLabels)
 		require.NoError(t, err)
 		require.Empty(t, allCreds)
+	})
+
+	t.Run("valid request needs cleanup", func(t *testing.T) {
+		accessListsToCleanup := []*accesslist.AccessList{
+			newAccessList(t, "al1-cleanup", types.OriginOkta),
+			newAccessList(t, "al2-cleanup", types.OriginOkta),
+			newAccessList(t, "al3-cleanup", types.OriginOkta),
+		}
+		accessLists := []*accesslist.AccessList{
+			newAccessList(t, "al4", ""),
+			newAccessList(t, "al5", ""),
+			newAccessList(t, "al6", ""),
+		}
+		rolesToCleanup := []types.Role{
+			newRole(t, "r1-cleanup", types.OriginOkta),
+			newRole(t, "r2-cleanup", types.OriginOkta),
+			newRole(t, "r3-cleanup", types.OriginOkta),
+		}
+		roles := []types.Role{
+			newRole(t, teleport.SystemOktaRequesterRoleName, types.OriginOkta), // This role is special and shouldn't be deleted
+			newRole(t, "r4", ""),
+			newRole(t, "r5", ""),
+			newRole(t, "r6", ""),
+		}
+
+		t.Cleanup(func() {
+			deleteAccessLists(t, ctx, suite.svc.authServer, accessListsToCleanup)
+			deleteAccessLists(t, ctx, suite.svc.authServer, accessLists)
+			deleteRoles(t, ctx, suite.svc.authServer, rolesToCleanup)
+			deleteRoles(t, ctx, suite.svc.authServer, roles)
+		})
+
+		upsertAccessLists(t, ctx, suite.svc.authServer, accessListsToCleanup)
+		upsertAccessLists(t, ctx, suite.svc.authServer, accessLists)
+
+		upsertRoles(t, ctx, suite.svc.authServer, rolesToCleanup...)
+		upsertRoles(t, ctx, suite.svc.authServer, roles...)
+
+		// Create plugin fails because there are Okta resources that need to be cleaned up.
+		_, err := suite.svc.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
+			Plugin:            oktaPlugin,
+			StaticCredentials: staticCredentials,
+		})
+		require.ErrorContains(t, err, "plugin needs to be cleaned up first")
 	})
 
 	t.Run("valid request with multiple static credentials", func(t *testing.T) {
@@ -292,11 +343,11 @@ func TestPluginCreateDelete(t *testing.T) {
 		// Expect that the back-end plugin resource's credential ref was
 		// populated with the labels specified in the request
 		credRefLabels := stored.GetCredentials().GetStaticCredentialsRef().Labels
-		pluginLabel := credRefLabels[teleport.PluginLabel]
+		pluginLabel := credRefLabels[eteleport.PluginLabel]
 		require.NotEmpty(t, pluginLabel)
 
 		expectedLabels := utils.CopyStringsMap(credIdentityLabels)
-		expectedLabels[teleport.PluginLabel] = pluginLabel
+		expectedLabels[eteleport.PluginLabel] = pluginLabel
 		require.Equal(t, expectedLabels, credRefLabels)
 
 		// When I query the plugin credentials by label...

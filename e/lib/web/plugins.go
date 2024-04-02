@@ -407,7 +407,6 @@ func getPluginClientFromSessionContext(sessCtx *web.SessionContext) (pluginspb.P
 }
 
 func installPlugin(ctx context.Context, sessCtx *web.SessionContext, req *pluginspb.CreatePluginRequest, plugin *Plugin) (*ui.Plugin, error) {
-
 	pluginsClt, err := getPluginClientFromSessionContext(sessCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -423,4 +422,54 @@ func installPlugin(ctx context.Context, sessCtx *web.SessionContext, req *plugin
 		return nil, trace.Wrap(err)
 	}
 	return uiPlugin, nil
+}
+
+// pluginNeedsCleanup expects a type and will return whether the plugin needs to be cleaned up.
+func (p *Plugin) pluginNeedsCleanup(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+	pluginType := params.ByName("type")
+	_, ok := p.pluginDescriptors[types.PluginType(pluginType)]
+	if !ok {
+		return nil, trace.BadParameter("unknown plugin type: %q", pluginType)
+	}
+
+	pluginsClt, err := getPluginClientFromSessionContext(sessCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := pluginsClt.NeedsCleanup(r.Context(), &pluginspb.NeedsCleanupRequest{
+		Type: pluginType,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if resp.NeedsCleanup {
+		return &ui.PluginNeedsCleanup{NeedsCleanup: true}, nil
+	}
+
+	return &ui.PluginNeedsCleanup{NeedsCleanup: false}, nil
+}
+
+// pluginCleanup expects a type and will cleanup the resources for the given plugin type.
+func (p *Plugin) pluginCleanup(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+	pluginType := params.ByName("type")
+	_, ok := p.pluginDescriptors[types.PluginType(pluginType)]
+	if !ok {
+		return nil, trace.BadParameter("unknown plugin type: %q", pluginType)
+	}
+
+	pluginsClt, err := getPluginClientFromSessionContext(sessCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err = pluginsClt.Cleanup(r.Context(), &pluginspb.CleanupRequest{
+		Type: pluginType,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return web.OK(), nil
 }

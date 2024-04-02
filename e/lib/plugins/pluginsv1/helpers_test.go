@@ -12,6 +12,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/plugins"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -71,8 +72,13 @@ func createSuite(t *testing.T) *suite {
 	t.Cleanup(func() { require.NoError(t, mem.Close()) })
 
 	authorizer := &fakeAuthorizer{checker: &fakeChecker{}}
-	pluginService := local.NewPluginsService(mem)
-	pluginStaticCredentialsService, err := local.NewPluginStaticCredentialsService(mem)
+	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+	pluginService := local.NewPluginsService(authServer.Backend)
+	pluginStaticCredentialsService, err := local.NewPluginStaticCredentialsService(authServer.Backend)
 	require.NoError(t, err)
 	pluginAuthorizers := plugins.NewAuthorizerSet()
 
@@ -83,6 +89,7 @@ func createSuite(t *testing.T) *suite {
 		pluginAuthorizers:              pluginAuthorizers,
 		svc: &Service{
 			authorizer:                     authorizer,
+			authServer:                     authServer.AuthServer,
 			pluginService:                  pluginService,
 			pluginStaticCredentialsService: pluginStaticCredentialsService,
 			pluginAuthorizers:              pluginAuthorizers,

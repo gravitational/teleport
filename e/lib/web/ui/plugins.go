@@ -160,3 +160,9 @@ func pluginDetails(p types.Plugin) string {
 		return ""
 	}
 }
+
+// PluginNeedsCleanup is the response from the needs cleanup endpoint.
+type PluginNeedsCleanup struct {
+	// NeedsCleanup is whether or not the plugin needs cleanup.
+	NeedsCleanup bool `json:"needsCleanup"`
+}

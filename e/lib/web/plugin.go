@@ -299,6 +299,8 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.GET("/enterprise/plugins/types", h.WithAuth(p.getAvailablePluginTypesHandle))
 	// validate (possibly partial) plugin config without trying to create the plugin itself
 	h.POST("/enterprise/plugins/validate", h.WithAuth(p.validatePluginConfig))
+	h.GET("/enterprise/plugins/needscleanup/:type", h.WithAuth(p.pluginNeedsCleanup))
+	h.PUT("/enterprise/plugins/cleanup/:type", h.WithAuth(p.pluginCleanup))
 	h.POST("/enterprise/pluginconfig/okta/groups", h.WithAuth(p.getOktaGroups))
 	h.POST("/enterprise/pluginconfig/okta/apps", h.WithAuth(p.getOktaApps))
 

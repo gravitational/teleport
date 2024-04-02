@@ -3,6 +3,7 @@ package pluginsv1
 import (
 	"context"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -11,11 +12,13 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/jamf"
 	"github.com/gravitational/teleport/e/lib/plugins"
-	"github.com/gravitational/teleport/e/lib/teleport"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -47,6 +50,7 @@ func getStaticPlugins() []types.PluginType {
 // ServiceConfig holds configuration options for the plugins gRPC service.
 type ServiceConfig struct {
 	Authorizer                     authz.Authorizer
+	AuthServer                     *auth.Server
 	PluginAuthorizers              *plugins.AuthorizerSet
 	PluginService                  services.Plugins
 	PluginStaticCredentialsService services.PluginStaticCredentials
@@ -57,6 +61,9 @@ type ServiceConfig struct {
 func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	if cfg.Authorizer == nil {
 		return trace.BadParameter("authorizer must be set")
+	}
+	if cfg.AuthServer == nil {
+		return trace.BadParameter("authServer must be set")
 	}
 	if cfg.PluginAuthorizers == nil {
 		return trace.BadParameter("pluginAuthorizers must be set")
@@ -78,6 +85,7 @@ type Service struct {
 	pluginspb.UnimplementedPluginServiceServer
 
 	authorizer                     authz.Authorizer
+	authServer                     *auth.Server
 	pluginAuthorizers              *plugins.AuthorizerSet
 	pluginService                  services.Plugins
 	pluginStaticCredentialsService services.PluginStaticCredentials
@@ -92,6 +100,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 	return &Service{
 		authorizer:                     cfg.Authorizer,
+		authServer:                     cfg.AuthServer,
 		pluginAuthorizers:              cfg.PluginAuthorizers,
 		pluginService:                  cfg.PluginService,
 		pluginStaticCredentialsService: cfg.PluginStaticCredentialsService,
@@ -116,6 +125,16 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 	plugin := req.Plugin
 	if plugin == nil {
 		return nil, trace.BadParameter("Plugin must be set")
+	}
+
+	// If the plugin needs cleanup, we won't allow the plugin to be created.
+	needsCleanup, _, err := s.needsCleanup(ctx, plugin.GetType())
+	// We'll ignore the not found error for now and let the rest of this function produce a more specific error.
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	if len(needsCleanup) > 0 {
+		return nil, trace.BadParameter("plugin needs to be cleaned up first, please run the plugin cleanup command")
 	}
 
 	if err := s.updatePluginWithLiveCredentials(ctx, plugin, req.BootstrapCredentials); err != nil {
@@ -200,7 +219,7 @@ func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, pl
 	// both the static credentials and the static credentials reference to ensure
 	// that the plugin only reads the static credentials specified here.
 	pluginUUID := uuid.NewString()
-	credLabels[teleport.PluginLabel] = pluginUUID
+	credLabels[eteleport.PluginLabel] = pluginUUID
 
 	// Update the plugin to contain the a CredentialsRef that will select all
 	// credentials tagged with `credLabels`
@@ -493,4 +512,108 @@ func (s *Service) SearchPluginStaticCredentials(ctx context.Context, req *plugin
 
 	// This has some other role, so deny access.
 	return nil, trace.AccessDenied("access denied")
+}
+
+// NeedsCleanup will indicate whether artifacts from a previous instance of the plugin needs to be cleaned up before a
+// new one can be created.
+func (s *Service) NeedsCleanup(ctx context.Context, req *pluginspb.NeedsCleanupRequest) (*pluginspb.NeedsCleanupResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// We'll allow this if the user has access to create plugins.
+	if err := authCtx.CheckAccessToKind(types.KindPlugin, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	needsCleanup, active, err := s.needsCleanup(ctx, types.PluginType(req.GetType()))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &pluginspb.NeedsCleanupResponse{
+		NeedsCleanup:       len(needsCleanup) > 0,
+		ResourcesToCleanup: needsCleanup,
+		PluginActive:       active,
+	}, nil
+}
+
+// Cleanup will clean up the artifactes from a previous instance of the given plugin.
+func (s *Service) Cleanup(ctx context.Context, req *pluginspb.CleanupRequest) (*emptypb.Empty, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// We'll allow this if the user has access to create plugins.
+	if err := authCtx.CheckAccessToKind(types.KindPlugin, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.cleanup(ctx, types.PluginType(req.Type)); err != nil {
+		return nil, trace.Wrap(err, "cleanup of plugin %s failed", req.Type)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// needsCleanup will return the resources that need to be cleaned up. It will also return true if the plugin
+// is currently active.
+func (s *Service) needsCleanup(ctx context.Context, pluginType types.PluginType) ([]*types.ResourceID, bool, error) {
+	switch pluginType {
+	case types.PluginTypeOkta:
+		return s.oktaNeedsCleanup(ctx)
+	}
+
+	// If this plugin is valid and we don't need to clean it up, just return.
+	if slices.Contains(types.AllPluginTypes, pluginType) {
+		active, err := s.isPluginOfTypeActive(ctx, pluginType)
+		if err != nil {
+			return nil, false, trace.Wrap(err)
+		}
+		return nil, active, nil
+	}
+
+	return nil, false, trace.NotFound("Teleport doesn't support plugin type %s", pluginType)
+}
+
+// cleanup will cleanup the resources necessary to start the plugin
+func (s *Service) cleanup(ctx context.Context, pluginType types.PluginType) error {
+	switch pluginType {
+	case types.PluginTypeOkta:
+		return s.cleanupOkta(ctx)
+	}
+
+	// If this plugin is valid and we don't need to clean it up, just return.
+	if slices.Contains(types.AllPluginTypes, pluginType) {
+		return nil
+	}
+
+	return trace.NotFound("Teleport doesn't support plugin type %s", pluginType)
+}
+
+// isPluginOfTypeActive will return true if a plugin of the given type is active.
+func (s *Service) isPluginOfTypeActive(ctx context.Context, pluginType types.PluginType) (bool, error) {
+	pageToken := ""
+	for {
+		var plugins []types.Plugin
+		var err error
+		plugins, pageToken, err = s.pluginService.ListPlugins(ctx, apidefaults.DefaultChunkSize, pageToken, false /* withSecrets */)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		for _, plugin := range plugins {
+			if plugin.GetType() == pluginType {
+				return true, nil
+			}
+		}
+
+		if pageToken == "" {
+			break
+		}
+	}
+
+	return false, nil
 }

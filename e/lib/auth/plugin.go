@@ -594,6 +594,7 @@ func (p *Plugin) registerPluginsService(server *auth.GRPCServer, pluginStaticCre
 	p.plugins = local.NewPluginsService(server.GetBackend())
 	service, err := pluginsv1.NewService(pluginsv1.ServiceConfig{
 		Authorizer:                     p.authServer.Authorizer,
+		AuthServer:                     p.authServer.AuthServer,
 		PluginService:                  p.plugins,
 		PluginStaticCredentialsService: pluginStaticCredentialsService,
 		PluginAuthorizers:              authorizers,

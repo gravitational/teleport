@@ -1,11 +1,20 @@
 package web
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/e/lib/web/ui"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func TestCreatePluginHandle(t *testing.T) {
@@ -131,6 +140,51 @@ func TestCreatePluginHandle(t *testing.T) {
 	}
 }
 
+func TestPluginCleanup(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+
+	s := newWebSuite(t)
+	webPack := s.newAuthWebPack(t, "foo")
+
+	_, err := s.testAuthServer.AuthServer.AuthServer.UpsertRole(s.ctx, services.NewSystemOktaAccessRole())
+	require.NoError(t, err)
+	_, err = s.testAuthServer.AuthServer.AuthServer.UpsertRole(s.ctx, services.NewSystemOktaRequesterRole())
+	require.NoError(t, err)
+
+	endpoint := webPack.clt.Endpoint("enterprise", "plugins", "needscleanup", types.PluginTypeOkta)
+	resp, err := webPack.clt.Get(s.ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+	needsCleanup := ui.PluginNeedsCleanup{}
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &needsCleanup))
+	require.False(t, needsCleanup.NeedsCleanup)
+
+	ctx := context.Background()
+	_, err = s.testAuthServer.AuthServer.AuthServer.UpsertAccessList(ctx, newAccessList(t, "okta-access-list", types.OriginOkta))
+	require.NoError(t, err)
+
+	resp, err = webPack.clt.Get(s.ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &needsCleanup))
+	require.True(t, needsCleanup.NeedsCleanup)
+
+	endpoint = webPack.clt.Endpoint("enterprise", "plugins", "cleanup", types.PluginTypeOkta)
+	resp, err = webPack.clt.PutForm(s.ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+	require.Contains(t, string(resp.Bytes()), "ok")
+
+	endpoint = webPack.clt.Endpoint("enterprise", "plugins", "needscleanup", types.PluginTypeOkta)
+	resp, err = webPack.clt.Get(s.ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &needsCleanup))
+	require.False(t, needsCleanup.NeedsCleanup)
+}
+
 func cookieExist(cookies []*http.Cookie, name string) bool {
 	for i := range cookies {
 		if cookies[i].Name == name {
@@ -138,4 +192,36 @@ func cookieExist(cookies []*http.Cookie, name string) bool {
 		}
 	}
 	return false
+}
+
+func newAccessList(t *testing.T, name, origin string) *accesslist.AccessList {
+	t.Helper()
+
+	var labels map[string]string
+	if origin != "" {
+		labels = map[string]string{}
+		labels[types.OriginLabel] = origin
+	}
+
+	accessList, err := accesslist.NewAccessList(header.Metadata{
+		Name:   name,
+		Labels: labels,
+	}, accesslist.Spec{
+		Title: "some title",
+		OwnerGrants: accesslist.Grants{
+			Roles: []string{"grant-role"},
+		},
+		Grants: accesslist.Grants{
+			Roles: []string{"role"},
+		},
+		Owners: []accesslist.Owner{
+			{
+
+				Name: "some-owner",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	return accessList
 }
