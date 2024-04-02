@@ -41,7 +41,7 @@ Teleport v13.3.2 forward, including future major releases.
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/4. Check the version served by the proxy
+## Step 1/4. Check the version advertised by the Teleport Proxy Service
 
 The Teleport Proxy service exposes by default a version channel called `default`
 that serves the same version the Proxy Service is running.
@@ -64,14 +64,16 @@ can use the `automatic_upgrades_channels` field in the Proxy Service configurati
 proxy_service:
   enabled: "yes"
   automatic_upgrades_channels:
-    # Override the default version channel
+    # Override the default version channel reachable at
+    # https://<Var value="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/default/version
     default:
       static_version: v14.2.1
-    # Define a new version channel with a static version
-    additional/channel/static:
+    # Define a new version channel with a static version reachable at
+    # https://<Var value="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/m-static-channel/version
+    my-static-channel:
       static_version: v14.2.0
     # Define a new version channel forwarding requests to an upstream version server
-    additional/channel/remote:
+    my-remote-channel:
       forward_url: https://updates.releases.teleport.dev/v1/stable/cloud
 ```
 
