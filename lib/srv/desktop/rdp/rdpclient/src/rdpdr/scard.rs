@@ -94,15 +94,15 @@ impl ScardBackend {
                 ScardCall::EstablishContextCall(_) => self.handle_establish_context(req),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
-            ScardIoCtlCode::ListReadersW => match call {
+            ScardIoCtlCode::ListReadersW | ScardIoCtlCode::ListReadersA => match call {
                 ScardCall::ListReadersCall(_) => self.handle_list_readers(req),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
-            ScardIoCtlCode::GetStatusChangeW => match call {
+            ScardIoCtlCode::GetStatusChangeW | ScardIoCtlCode::GetStatusChangeA => match call {
                 ScardCall::GetStatusChangeCall(call) => self.handle_get_status_change(req, call),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
-            ScardIoCtlCode::ConnectW => match call {
+            ScardIoCtlCode::ConnectW | ScardIoCtlCode::ConnectA => match call {
                 ScardCall::ConnectCall(call) => self.handle_connect(req, call),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
@@ -142,11 +142,11 @@ impl ScardBackend {
                 ScardCall::GetDeviceTypeIdCall(call) => self.handle_get_device_type_id(req, call),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
-            ScardIoCtlCode::ReadCacheW => match call {
+            ScardIoCtlCode::ReadCacheW | ScardIoCtlCode::ReadCacheA => match call {
                 ScardCall::ReadCacheCall(call) => self.handle_read_cache(req, call),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
-            ScardIoCtlCode::WriteCacheW => match call {
+            ScardIoCtlCode::WriteCacheW | ScardIoCtlCode::WriteCacheA => match call {
                 ScardCall::WriteCacheCall(call) => self.handle_write_cache(req, call),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
@@ -414,10 +414,10 @@ impl ScardBackend {
             .contexts
             .take_scard_cancel_response(call.context.value)?
         {
-            // Take the pending SCARD_IOCTL_GETSTATUSCHANGEW response and send it back to the server.
+            // Take the pending SCARD_IOCTL_GETSTATUSCHANGE response and send it back to the server.
             self.client_handle.write_rdpdr(resp.into())?;
         } else {
-            warn!("Received SCARD_IOCTL_CANCEL for a context without a pending SCARD_IOCTL_GETSTATUSCHANGEW");
+            warn!("Received SCARD_IOCTL_CANCEL for a context without a pending SCARD_IOCTL_GETSTATUSCHANGE");
         };
 
         // Also return a response for the SCARD_IOCTL_CANCEL request itself.
@@ -599,12 +599,12 @@ struct ContextInternal {
     handles: HashMap<u32, piv::Card<TRANSMIT_DATA_LIMIT>>,
     next_id: u32,
     cache: HashMap<String, Vec<u8>>,
-    // If we receive a SCARD_IOCTL_GETSTATUSCHANGEW with an infinite timeout, we need to
+    // If we receive a SCARD_IOCTL_GETSTATUSCHANGE with an infinite timeout, we need to
     // return a GetStatusChange_Return (embedded in a DeviceControlResponse) with
     // its return code set to SCARD_E_CANCELLED in the case that we receive a
     // SCARD_IOCTL_CANCEL.
     //
-    // This value will be set during the handling of the SCARD_IOCTL_GETSTATUSCHANGEW, so that
+    // This value will be set during the handling of the SCARD_IOCTL_GETSTATUSCHANGE, so that
     // it can be fetched and returned in response to a SCARD_IOCTL_CANCEL.
     scard_cancel_response: Option<DeviceControlResponse>,
 }
