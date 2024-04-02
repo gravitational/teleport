@@ -157,6 +157,8 @@ jobs:
           rustup override set ${RUST_VERSION}
           rustc --version
           cargo --version
+          rustfmt --version
+          cargo clippy --version
 
       - name: Run Rust linters
         run: make lint-rust
