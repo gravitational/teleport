@@ -514,6 +514,7 @@ func createStack() (*stack.Stack, error) {
 }
 
 func forwardBetweenOsAndVnet(ctx context.Context, osTUN tun.Device, vnetEndpoint *channel.Endpoint) error {
+	slog.Debug("Started forwarding packets between OS and VNet.")
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error { return forwardVnetEndpointToOsTUN(ctx, vnetEndpoint, osTUN) })
 	g.Go(func() error { return forwardOsTUNToVnetEndpoint(ctx, osTUN, vnetEndpoint) })
