@@ -395,7 +395,7 @@ const (
 	// GithubConnectorDeletedCode is the Github connector deleted event code.
 	GithubConnectorDeletedCode = "T8001I"
 	// GithubConnectorUpdatedCode is the Github connector updated event code.
-	GithubConnectorUpdatedCode = "T80002I"
+	GithubConnectorUpdatedCode = "T8002I"
 
 	// OIDCConnectorCreatedCode is the OIDC connector created event code.
 	OIDCConnectorCreatedCode = "T8100I"
