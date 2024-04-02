@@ -21,11 +21,10 @@ import {
   makeAppGateway,
 } from 'teleterm/services/tshd/testHelpers';
 
-import * as types from '../types';
-import { VnetServiceClient } from '../createClient';
+import { VnetClient, TshdClient } from '../createClient';
 import { MockedUnaryCall } from '../cloneableClient';
 
-export class MockTshClient implements types.TshdClient {
+export class MockTshClient implements TshdClient {
   listRootClusters = () => new MockedUnaryCall({ clusters: [] });
   listLeafClusters = () => new MockedUnaryCall({ clusters: [] });
   getKubes = () =>
@@ -116,10 +115,7 @@ export class MockTshClient implements types.TshdClient {
   authenticateWebDevice = () => new MockedUnaryCall({});
 }
 
-export class MockVnetClient implements VnetServiceClient {
-  typeName: never;
-  methods: never;
-  options: never;
+export class MockVnetClient implements VnetClient {
   start = () => new MockedUnaryCall({});
   stop = () => new MockedUnaryCall({});
 }

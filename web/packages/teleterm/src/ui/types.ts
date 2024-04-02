@@ -37,8 +37,7 @@ import { UsageService } from 'teleterm/ui/services/usage';
 import { ConfigService } from 'teleterm/services/config';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
 import { HeadlessAuthenticationService } from 'teleterm/ui/services/headlessAuthn/headlessAuthnService';
-import { TshdClient } from 'teleterm/services/tshd/types';
-import { VnetServiceClient } from 'teleterm/services/tshd/createClient';
+import { TshdClient, VnetClient } from 'teleterm/services/tshd';
 
 export interface IAppContext {
   clustersService: ClustersService;
@@ -63,7 +62,7 @@ export interface IAppContext {
   connectMyComputerService: ConnectMyComputerService;
   headlessAuthenticationService: HeadlessAuthenticationService;
   tshd: TshdClient;
-  vnet: VnetServiceClient;
+  vnet: VnetClient;
 
   pullInitialState(): Promise<void>;
 }
