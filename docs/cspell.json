@@ -912,7 +912,8 @@
     "SVIDs",
     "Ghostunnel",
     "Linkerd",
-    "Istio"
+    "Istio",
+    "mydb"
   ],
   "flagWords": [
     "hte"
