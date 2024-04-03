@@ -486,15 +486,14 @@ type authPingCache struct {
 	log    logrus.FieldLogger
 
 	mu          sync.RWMutex
-	fetched     bool
-	cachedValue proto.PingResponse
+	cachedValue *proto.PingResponse
 }
 
 func (a *authPingCache) ping(ctx context.Context) (proto.PingResponse, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.fetched {
-		return a.cachedValue, nil
+	if a.cachedValue != nil {
+		return *a.cachedValue, nil
 	}
 
 	a.log.Debug("Pinging auth server.")
@@ -503,11 +502,10 @@ func (a *authPingCache) ping(ctx context.Context) (proto.PingResponse, error) {
 		a.log.WithError(err).Error("Failed to ping auth server.")
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
-	a.fetched = true
-	a.cachedValue = res
+	a.cachedValue = &res
 	a.log.WithField("pong", res).Debug("Successfully pinged auth server.")
 
-	return a.cachedValue, nil
+	return *a.cachedValue, nil
 }
 
 type proxyPingCache struct {
@@ -516,14 +514,13 @@ type proxyPingCache struct {
 	log           logrus.FieldLogger
 
 	mu          sync.RWMutex
-	fetched     bool
 	cachedValue *webclient.PingResponse
 }
 
 func (p *proxyPingCache) ping(ctx context.Context) (*webclient.PingResponse, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.fetched {
+	if p.cachedValue != nil {
 		return p.cachedValue, nil
 	}
 
@@ -554,7 +551,6 @@ func (p *proxyPingCache) ping(ctx context.Context) (*webclient.PingResponse, err
 		return nil, trace.Wrap(err)
 	}
 	p.log.WithField("pong", res).Debug("Successfully pinged proxy.")
-	p.fetched = true
 	p.cachedValue = res
 
 	return p.cachedValue, nil
