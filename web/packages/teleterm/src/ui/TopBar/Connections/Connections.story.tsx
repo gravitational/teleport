@@ -17,6 +17,7 @@
  */
 
 import { useLayoutEffect } from 'react';
+import { Flex, Text } from 'design';
 
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -62,6 +63,48 @@ export function JustVnet() {
   );
 }
 
+export function WithScroll() {
+  const appContext = new MockAppContext();
+  prepareAppContext(appContext);
+  appContext.connectionTracker.getConnections = () => [
+    {
+      connected: false,
+      kind: 'connection.server' as const,
+      title: 'last-item',
+      id: 'last-item',
+      serverUri: '/clusters/foo/servers/last-item',
+      login: 'item',
+      clusterName: 'teleport.example.sh',
+    },
+    ...Array(10)
+      .fill(undefined)
+      .flatMap((_, index) => makeConnections(index)),
+  ];
+
+  return (
+    <Flex
+      flexDirection="row"
+      justifyContent="space-between"
+      gap={3}
+      minWidth="500px"
+      maxWidth="600px"
+    >
+      <AppContextProvider value={appContext}>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </AppContextProvider>
+      <Text
+        css={`
+          max-width: 20ch;
+        `}
+      >
+        Manipulate window height to simulate how the list behaves in Connect.
+      </Text>
+    </Flex>
+  );
+}
+
 export function WithoutVnet() {
   const appContext = new MockAppContext({ platform: 'win32' });
   prepareAppContext(appContext);
@@ -87,40 +130,44 @@ export function EmptyWithoutVnet() {
   );
 }
 
+const makeConnections = (index = 0) => {
+  const suffix = index === 0 ? '' : `-${index}`;
+
+  return [
+    {
+      connected: true,
+      kind: 'connection.server' as const,
+      title: 'ansible' + suffix,
+      id: 'e9c4fbc2' + suffix,
+      serverUri: '/clusters/foo/servers/ansible' + suffix,
+      login: 'casey',
+      clusterName: 'teleport.example.sh',
+    },
+    {
+      connected: true,
+      kind: 'connection.gateway' as const,
+      title: 'postgres' + suffix,
+      targetName: 'postgres',
+      id: '68b6a281' + suffix,
+      targetUri: '/clusters/foo/dbs/brock' + suffix,
+      port: '22',
+      gatewayUri: '/gateways/empty',
+      clusterName: 'teleport.example.sh',
+    },
+    {
+      connected: false,
+      kind: 'connection.server' as const,
+      title: 'ansible-staging' + suffix,
+      id: '949651ed' + suffix,
+      serverUri: '/clusters/foo/servers/ansible-staging' + suffix,
+      login: 'casey',
+      clusterName: 'teleport.example.sh',
+    },
+  ];
+};
+
 const prepareAppContext = (appContext: MockAppContext) => {
-  appContext.connectionTracker.getConnections = () => {
-    return [
-      {
-        connected: true,
-        kind: 'connection.server',
-        title: 'ansible',
-        id: 'e9c4fbc2',
-        serverUri: '/clusters/foo/servers/ansible',
-        login: 'casey',
-        clusterName: 'teleport.example.sh',
-      },
-      {
-        connected: true,
-        kind: 'connection.gateway',
-        title: 'postgres',
-        targetName: 'postgres',
-        id: '68b6a281',
-        targetUri: '/clusters/foo/dbs/brock',
-        port: '22',
-        gatewayUri: '/gateways/empty',
-        clusterName: 'teleport.example.sh',
-      },
-      {
-        connected: false,
-        kind: 'connection.server',
-        title: 'ansible-staging',
-        id: '949651ed',
-        serverUri: '/clusters/foo/servers/ansible-staging',
-        login: 'casey',
-        clusterName: 'teleport.example.sh',
-      },
-    ];
-  };
+  appContext.connectionTracker.getConnections = () => makeConnections();
   appContext.connectionTracker.activateItem = async () => {};
   appContext.connectionTracker.disconnectItem = async () => {};
   appContext.connectionTracker.removeItem = async () => {};
