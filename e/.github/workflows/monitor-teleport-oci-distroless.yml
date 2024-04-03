@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@062f2592684a31eb3aa050cc61e7ca1451cecd3d # v0.18.0
+        uses: aquasecurity/trivy-action@d710430a6722f083d3b36b8339ff66b32f22ee55 # v0.19.0
         with:
           image-ref: 'public.ecr.aws/gravitational/teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}:${{ matrix.teleport-major-version }}'
           ignore-unfixed: true
