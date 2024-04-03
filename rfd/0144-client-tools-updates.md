@@ -43,10 +43,10 @@ Inspiration drawn from https://go.dev/doc/toolchain.
 
 ##### Automatic updates
 
-When `tsh login` is executed, client tools will check
-`/v1/webapi/automaticupdates` to determine if automatic updates are enabled. If
-the cluster's required version differs from the current binary, client tools
-will download and re-execute using the version required by the cluster.
+When `tsh login` is executed, client tools will check `/v1/webapi/ping` to
+determine if automatic updates are enabled. If the cluster's required version
+differs from the current binary, client tools will download and re-execute
+using the version required by the cluster.
 
 The original client tools binaries won't be overwritten. Instead, additional
 binaries will be downloaded and stored in `~/.tsh/versions` with `0755`
@@ -136,8 +136,8 @@ Warning: Client tools are out of date, update to vX.Y.Z.
 Update Teleport to vX.Y.Z from https://goteleport.com/download or your system
 package manager.
 
-Run "tsh autoupdate enroll" to enroll in automatic updates and keep client
-tools like tsh and tctl automatically updated.
+Enroll in automatic updates to keep client tools like tsh and tctl
+automatically updated. https://goteleport.com/docs/upgrading/automatic-updates
 
 [...]
 ```
@@ -153,8 +153,8 @@ WARNING: Client tools are 1 major version out of date, update to vX.Y.Z.
 Some functionality may not work. Update Teleport to vX.Y.Z from
 https://goteleport.com/download or your system package manager.
 
-Run "tsh autoupdate enroll" to enroll in automatic updates and keep client
-tools like tsh and tctl automatically updated.
+Enroll in automatic updates to keep client tools like tsh and tctl
+automatically updated. https://goteleport.com/docs/upgrading/automatic-updates
 ```
 
 If the version of client tools is 2 (or more) versions lower than the version
@@ -169,8 +169,8 @@ ERROR: Client tools are N major versions out of date, update to vX.Y.Z.
 Your cluster requires {tsh,tctl} vX.Y.Z. Update Teleport from
 https://goteleport.com/download or your system package manager.
 
-Run "tsh autoupdate enroll" to enroll in automatic updates and keep client
-tools like tsh and tctl automatically updated.
+Enroll in automatic updates to keep client tools like tsh and tctl
+automatically updated. https://goteleport.com/docs/upgrading/automatic-updates
 
 Use the "--skip-version-check" flag to bypass this check and attempt to connect
 to this cluster.
@@ -263,10 +263,10 @@ available to self-hosted customers by default, without any extra effort from
 the cluster administrator.
 
 The above configuration will then be available from the unauthenticated
-endpoint `/v1/webapi/automaticupdates` which clients will consult.
+endpoint `/v1/webapi/ping` which clients will consult.
 
 ```
-curl https://proxy.example.com/v1/webapi/automaticupdates | jq .
+curl https://proxy.example.com/v1/webapi/ping | jq .
 {
     "tools_auto_update": true,
     "tools_version": "X.Y.Z",
