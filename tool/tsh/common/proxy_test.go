@@ -582,6 +582,10 @@ func TestProxySSHJumpHost(t *testing.T) {
 				require.NoError(t, err)
 				accessUser.SetRoles([]string{"access"})
 
+				user, err := user.Current()
+				require.NoError(t, err)
+				accessUser.SetLogins([]string{user.Name})
+
 				connector := mockConnector(t)
 				rootServerOpts := []testserver.TestServerOptFunc{
 					testserver.WithBootstrap(connector, accessUser),
@@ -592,6 +596,8 @@ func TestProxySSHJumpHost(t *testing.T) {
 							cfg.NetworkingConfig.SetProxyListenerMode(rootListenerMode)
 							// Disable session recording to prevent writing to disk after the test concludes.
 							cfg.SessionRecordingConfig.SetMode(types.RecordOff)
+							// Load all CAs on login so that leaf CA is trusted by clients.
+							cfg.LoadAllCAs = true
 						},
 					),
 				}
@@ -616,8 +622,6 @@ func TestProxySSHJumpHost(t *testing.T) {
 				require.NoError(t, err)
 				leafProxyAddr, err := leafServer.ProxyWebAddr()
 				require.NoError(t, err)
-				leafNodeAddr, err := leafServer.NodeSSHAddr()
-				require.NoError(t, err)
 
 				// login to root
 				tshHome := t.TempDir()
@@ -628,15 +632,14 @@ func TestProxySSHJumpHost(t *testing.T) {
 				}, setHomePath(tshHome), setMockSSOLogin(rootServer.GetAuthServer(), accessUser, connector.GetName()))
 				require.NoError(t, err)
 
-				// Connect to leaf node though proxy jump host. This should automatically
-				// reissue leaf certs from the root without explicility switching clusters.
-				err = Run(context.Background(), []string{
-					"--insecure",
+				// Connect through the leaf proxy jumphost.
+				err = Run(ctx, []string{
 					"--debug",
 					"proxy",
 					"ssh",
+					"--no-resume",
 					"-J", leafProxyAddr.String(),
-					leafNodeAddr.String(),
+					"node02",
 				}, setHomePath(tshHome))
 				require.NoError(t, err)
 
@@ -644,14 +647,15 @@ func TestProxySSHJumpHost(t *testing.T) {
 				err = rootServer.Close()
 				require.NoError(t, err)
 
-				// Since we've already retrieved valid leaf certs, we should be able to connect without root.
-				err = Run(context.Background(), []string{
-					"--insecure",
+				// We should be able to connect without root online.
+				err = Run(ctx, []string{
 					"--debug",
+					"--insecure",
 					"proxy",
 					"ssh",
+					"--no-resume",
 					"-J", leafProxyAddr.String(),
-					leafNodeAddr.String(),
+					"node02",
 				}, setHomePath(tshHome))
 				require.NoError(t, err)
 			})
