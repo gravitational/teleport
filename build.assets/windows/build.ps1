@@ -365,6 +365,44 @@ function Build-Tsh {
     return "$SignedBinaryPath"  # This is needed for building Connect
 }
 
+function Build-Tctl {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $TeleportSourceDirectory,
+        [Parameter(Mandatory)]
+        [string] $ArtifactDirectory,
+        [Parameter(Mandatory)]
+        [string] $TeleportVersion
+    )
+
+    $BinaryName = "tctl.exe"
+    $BuildDirectory = "$TeleportSourceDirectory\build"
+    $SignedBinaryPath = "$BuildDirectory\$BinaryName"
+
+    $CommandDuration = Measure-Block {
+        Write-Host "::group::Building tctl..."
+        $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
+        go build -tags piv -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tctl"
+        Write-Host "::endgroup::"
+
+        Write-Host "::group::Signing tctl..."
+        Invoke-SignBinary -UnsignedBinaryPath "$UnsignedBinaryPath" -SignedBinaryPath "$SignedBinaryPath"
+        Write-Host "::endgroup::"
+
+        $PackageDirectory = New-TempDirectory
+        Write-Host "Packaging tctl with zip directory $PackageDirectory..."
+        Copy-Item -Path "$SignedBinaryPath" -Destination "$PackageDirectory"
+        Copy-Item -Path "$TeleportSourceDirectory\CHANGELOG.md" -Destination "$PackageDirectory"
+        Copy-Item -Path "$TeleportSourceDirectory\README.md" -Destination "$PackageDirectory"
+        Out-File -FilePath "$PackageDirectory\VERSION" -InputObject "v$TeleportVersion"
+        Compress-Archive -Path "$PackageDirectory\*" -DestinationPath "$ArtifactDirectory\teleport-v$TeleportVersion-windows-amd64-bin.zip"
+    }
+    Write-Host $("Built TCTL in {0:g}" -f $CommandDuration)
+
+    return
+}
+
 function Build-Connect {
     [CmdletBinding()]
     param(
@@ -409,6 +447,12 @@ function Build-Artifacts {
 
     # Create the artifact output directory
     New-Item -Path "$ArtifactDirectory" -ItemType Directory -Force | Out-Null
+
+    # Build tctl
+    $SignedTshBinaryPath = Build-Tctl `
+        -TeleportSourceDirectory "$TeleportSourceDirectory" `
+        -ArtifactDirectory "$ArtifactDirectory" `
+        -TeleportVersion "$TeleportVersion"
 
     # Build tsh
     $SignedTshBinaryPath = Build-Tsh `
