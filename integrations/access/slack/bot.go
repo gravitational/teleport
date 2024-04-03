@@ -188,6 +188,28 @@ func (b Bot) lookupDirectChannelByEmail(ctx context.Context, email string) (stri
 	return result.User.ID, nil
 }
 
+// NotifyUser directly messages a user when their request is updated
+func (b Bot) NotifyUser(ctx context.Context, reqID string, reqData pd.AccessRequestData) error {
+	recipient, err := b.FetchRecipient(ctx, reqData.User)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if recipient.Kind != "Email" {
+		return trace.BadParameter("user was not found, cant directly notify")
+	}
+
+	_, err = b.client.NewRequest().
+		SetContext(ctx).
+		SetBody(Message{BaseMessage: BaseMessage{Channel: recipient.ID}, BlockItems: []BlockItem{
+			NewBlockItem(SectionBlock{
+				Text: NewTextObjectItem(MarkdownObject{Text: fmt.Sprintf("Request with ID %q has been updated: *%s*", reqID, reqData.ResolutionTag)}),
+			}),
+		}}).
+		Post("chat.postMessage")
+	return trace.Wrap(err)
+}
+
 // Expire updates request's Slack post with EXPIRED status and removes action buttons.
 func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.AccessRequestData, slackData accessrequest.SentMessages, reviews []types.AccessReview) error {
 	var errors []error
@@ -271,12 +293,6 @@ func (b Bot) slackAccessListReminderMsgSection(accessList *accesslist.AccessList
 func (b Bot) slackAccessRequestMsgSections(reqID string, reqData pd.AccessRequestData) []BlockItem {
 	fields := accessrequest.MsgFields(reqID, reqData, b.clusterName, b.webProxyURL)
 	statusText := accessrequest.MsgStatusText(reqData.ResolutionTag, reqData.ResolutionReason)
-
-	if !lib.IsEmail(reqData.User) {
-		log.Warningf("Failed to notify the requester: %q does not look like a valid email", reqData.User)
-	} else {
-		statusText += " @ " + reqData.User
-	}
 
 	sections := []BlockItem{
 		NewBlockItem(SectionBlock{
