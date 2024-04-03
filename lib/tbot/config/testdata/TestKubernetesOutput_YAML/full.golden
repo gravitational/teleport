@@ -4,3 +4,4 @@ destination:
 roles:
   - access
 kubernetes_cluster: k8s.example.com
+disable_exec_plugin: false
