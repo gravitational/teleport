@@ -248,7 +248,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						},
 					},
 				},
-				Services: []bot.Service{
+				Services: []ServiceConfig{
 					&ExampleService{
 						Message: "llama",
 					},
