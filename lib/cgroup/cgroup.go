@@ -47,7 +47,7 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentCgroup,
+	teleport.ComponentKey: teleport.ComponentCgroup,
 })
 
 // Config holds configuration for the cgroup service.

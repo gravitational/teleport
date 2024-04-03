@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 // PresenceService records and reports the presence of all components
@@ -55,7 +57,7 @@ type backendItemToResourceFunc func(item backend.Item) (types.ResourceWithLabels
 // NewPresenceService returns new presence service instance
 func NewPresenceService(b backend.Backend) *PresenceService {
 	return &PresenceService{
-		log:     logrus.WithFields(logrus.Fields{trace.Component: "Presence"}),
+		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "Presence"}),
 		jitter:  retryutils.NewFullJitter(),
 		Backend: b,
 	}
@@ -1706,10 +1708,17 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	rangeStart := backend.Key(append(keyPrefix, req.StartKey)...)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(keyPrefix...))
 	filter := services.MatchResourceFilter{
-		ResourceKind:        req.ResourceType,
-		Labels:              req.Labels,
-		SearchKeywords:      req.SearchKeywords,
-		PredicateExpression: req.PredicateExpression,
+		ResourceKind:   req.ResourceType,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+	}
+
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		filter.PredicateExpression = expression
 	}
 
 	// Get most limit+1 results to determine if there will be a next key.
@@ -1843,14 +1852,23 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 		return nil, trace.NotImplemented("resource type %q is not supported for ListResourcesWithSort", req.ResourceType)
 	}
 
-	return FakePaginate(resources, FakePaginateParams{
-		ResourceType:        req.ResourceType,
-		Limit:               req.Limit,
-		Labels:              req.Labels,
-		SearchKeywords:      req.SearchKeywords,
-		PredicateExpression: req.PredicateExpression,
-		StartKey:            req.StartKey,
-	})
+	params := FakePaginateParams{
+		ResourceType:   req.ResourceType,
+		Limit:          req.Limit,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+		StartKey:       req.StartKey,
+	}
+
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		params.PredicateExpression = expression
+	}
+
+	return FakePaginate(resources, params)
 }
 
 // FakePaginateParams is used in FakePaginate to help filter down listing of resources into pages
@@ -1870,7 +1888,7 @@ type FakePaginateParams struct {
 	// Labels is a label-based matcher if non-empty.
 	Labels map[string]string
 	// PredicateExpression defines boolean conditions that will be matched against the resource.
-	PredicateExpression string
+	PredicateExpression typical.Expression[types.ResourceWithLabels, bool]
 	// SearchKeywords is a list of search keywords to match against resource field values.
 	SearchKeywords []string
 	// SortBy describes which resource field and which direction to sort by.
@@ -1882,6 +1900,9 @@ type FakePaginateParams struct {
 	Kinds []string
 	// NeedTotalCount indicates whether or not the caller also wants the total number of resources after filtering.
 	NeedTotalCount bool
+	// EnrichResourceFn if provided allows the resource to be enriched with additional
+	// information (logins, db names, etc.) before being added to the response.
+	EnrichResourceFn func(types.ResourceWithLabels) (types.ResourceWithLabels, error)
 }
 
 // GetWindowsDesktopFilter retrieves the WindowsDesktopFilter from params
@@ -1934,6 +1955,12 @@ func FakePaginate(resources []types.ResourceWithLabels, req FakePaginateParams) 
 			return nil, trace.Wrap(err)
 		case !match:
 			continue
+		}
+
+		if req.EnrichResourceFn != nil {
+			if enriched, err := req.EnrichResourceFn(resource); err == nil {
+				resource = enriched
+			}
 		}
 
 		filtered = append(filtered, resource)

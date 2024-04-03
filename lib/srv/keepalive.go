@@ -22,7 +22,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -61,7 +60,7 @@ func StartKeepAliveLoop(p KeepAliveParams) {
 	var missedCount int64
 
 	log := logrus.WithFields(logrus.Fields{
-		trace.Component: teleport.ComponentKeepAlive,
+		teleport.ComponentKey: teleport.ComponentKeepAlive,
 	})
 	log.Debugf("Starting keep-alive loop with interval %v and max count %v.", p.Interval, p.MaxCount)
 

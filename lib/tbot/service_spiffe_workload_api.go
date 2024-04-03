@@ -27,6 +27,8 @@ import (
 	"math/big"
 	"net"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -44,7 +46,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/experiment"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -168,7 +169,7 @@ func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) (err error) {
 	return nil
 }
 
-func createListener(addr string) (net.Listener, error) {
+func createListener(log logrus.FieldLogger, addr string) (net.Listener, error) {
 	parsed, err := url.Parse(addr)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing %q", addr)
@@ -178,7 +179,21 @@ func createListener(addr string) (net.Listener, error) {
 	case "tcp":
 		return net.Listen("tcp", parsed.Host)
 	case "unix":
-		return net.Listen("unix", parsed.Path)
+		absPath, err := filepath.Abs(parsed.Path)
+		if err != nil {
+			return nil, trace.Wrap(err, "resolving absolute path for %q", parsed.Path)
+		}
+
+		// Remove the file if it already exists. This is necessary to handle
+		// unclean exits.
+		if err := os.Remove(absPath); err != nil && !os.IsNotExist(err) {
+			log.WithError(err).Warn("Failed to remove existing socket file")
+		}
+
+		return net.ListenUnix("unix", &net.UnixAddr{
+			Net:  "unix",
+			Name: absPath,
+		})
 	default:
 		return nil, trace.BadParameter("unsupported scheme %q", parsed.Scheme)
 	}
@@ -187,9 +202,6 @@ func createListener(addr string) (net.Listener, error) {
 func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/Run")
 	defer span.End()
-	if !experiment.Enabled() {
-		return trace.BadParameter("workload identity has not been enabled")
-	}
 
 	s.log.Debug("Starting pre-run initialization")
 	if err := s.setup(ctx); err != nil {
@@ -227,7 +239,7 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 	)
 	workloadpb.RegisterSpiffeWorkloadAPIServer(srv, s)
 
-	lis, err := createListener(s.cfg.Listen)
+	lis, err := createListener(s.log, s.cfg.Listen)
 	if err != nil {
 		return trace.Wrap(err, "creating listener")
 	}

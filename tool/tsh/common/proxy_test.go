@@ -288,7 +288,7 @@ func TestWithRsync(t *testing.T) {
 				asrv := s.root.GetAuthServer()
 				ctx := context.Background()
 
-				err = asrv.SetAuthPreference(ctx, &types.AuthPreferenceV2{
+				_, err = asrv.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
 					Spec: types.AuthPreferenceSpecV2{
 						Type:         constants.Local,
 						SecondFactor: constants.SecondFactorOptional,
@@ -572,9 +572,11 @@ func TestProxySSHJumpHost(t *testing.T) {
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 				withLeafConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 			},
 		},
@@ -583,9 +585,11 @@ func TestProxySSHJumpHost(t *testing.T) {
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 				withLeafConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 			},
 		},
@@ -594,9 +598,11 @@ func TestProxySSHJumpHost(t *testing.T) {
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 				withLeafConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 			},
 		},
@@ -605,9 +611,11 @@ func TestProxySSHJumpHost(t *testing.T) {
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 				withLeafConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 				}),
 			},
 		},

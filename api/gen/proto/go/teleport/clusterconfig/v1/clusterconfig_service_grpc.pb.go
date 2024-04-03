@@ -47,9 +47,7 @@ const (
 	ClusterConfigService_UpsertAuthPreference_FullMethodName          = "/teleport.clusterconfig.v1.ClusterConfigService/UpsertAuthPreference"
 	ClusterConfigService_ResetAuthPreference_FullMethodName           = "/teleport.clusterconfig.v1.ClusterConfigService/ResetAuthPreference"
 	ClusterConfigService_GetClusterAuditConfig_FullMethodName         = "/teleport.clusterconfig.v1.ClusterConfigService/GetClusterAuditConfig"
-	ClusterConfigService_UpdateClusterAuditConfig_FullMethodName      = "/teleport.clusterconfig.v1.ClusterConfigService/UpdateClusterAuditConfig"
-	ClusterConfigService_UpsertClusterAuditConfig_FullMethodName      = "/teleport.clusterconfig.v1.ClusterConfigService/UpsertClusterAuditConfig"
-	ClusterConfigService_ResetClusterAuditConfig_FullMethodName       = "/teleport.clusterconfig.v1.ClusterConfigService/ResetClusterAuditConfig"
+	ClusterConfigService_GetClusterAccessGraphConfig_FullMethodName   = "/teleport.clusterconfig.v1.ClusterConfigService/GetClusterAccessGraphConfig"
 )
 
 // ClusterConfigServiceClient is the client API for ClusterConfigService service.
@@ -82,12 +80,8 @@ type ClusterConfigServiceClient interface {
 	ResetAuthPreference(ctx context.Context, in *ResetAuthPreferenceRequest, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error)
 	// GetClusterAuditConfig retrieves the active cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, in *GetClusterAuditConfigRequest, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error)
-	// UpdateClusterAuditConfig updates the cluster audit configuration..
-	UpdateClusterAuditConfig(ctx context.Context, in *UpdateClusterAuditConfigRequest, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error)
-	// UpsertClusterAuditConfig overwrites the active cluster audit configuration..
-	UpsertClusterAuditConfig(ctx context.Context, in *UpsertClusterAuditConfigRequest, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error)
-	// ResetClusterAuditConfig restores the active cluster audit configuration. to default settings.
-	ResetClusterAuditConfig(ctx context.Context, in *ResetClusterAuditConfigRequest, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error)
+	// GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
+	GetClusterAccessGraphConfig(ctx context.Context, in *GetClusterAccessGraphConfigRequest, opts ...grpc.CallOption) (*GetClusterAccessGraphConfigResponse, error)
 }
 
 type clusterConfigServiceClient struct {
@@ -215,27 +209,9 @@ func (c *clusterConfigServiceClient) GetClusterAuditConfig(ctx context.Context, 
 	return out, nil
 }
 
-func (c *clusterConfigServiceClient) UpdateClusterAuditConfig(ctx context.Context, in *UpdateClusterAuditConfigRequest, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error) {
-	out := new(types.ClusterAuditConfigV2)
-	err := c.cc.Invoke(ctx, ClusterConfigService_UpdateClusterAuditConfig_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *clusterConfigServiceClient) UpsertClusterAuditConfig(ctx context.Context, in *UpsertClusterAuditConfigRequest, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error) {
-	out := new(types.ClusterAuditConfigV2)
-	err := c.cc.Invoke(ctx, ClusterConfigService_UpsertClusterAuditConfig_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *clusterConfigServiceClient) ResetClusterAuditConfig(ctx context.Context, in *ResetClusterAuditConfigRequest, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error) {
-	out := new(types.ClusterAuditConfigV2)
-	err := c.cc.Invoke(ctx, ClusterConfigService_ResetClusterAuditConfig_FullMethodName, in, out, opts...)
+func (c *clusterConfigServiceClient) GetClusterAccessGraphConfig(ctx context.Context, in *GetClusterAccessGraphConfigRequest, opts ...grpc.CallOption) (*GetClusterAccessGraphConfigResponse, error) {
+	out := new(GetClusterAccessGraphConfigResponse)
+	err := c.cc.Invoke(ctx, ClusterConfigService_GetClusterAccessGraphConfig_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -272,12 +248,8 @@ type ClusterConfigServiceServer interface {
 	ResetAuthPreference(context.Context, *ResetAuthPreferenceRequest) (*types.AuthPreferenceV2, error)
 	// GetClusterAuditConfig retrieves the active cluster audit configuration.
 	GetClusterAuditConfig(context.Context, *GetClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error)
-	// UpdateClusterAuditConfig updates the cluster audit configuration..
-	UpdateClusterAuditConfig(context.Context, *UpdateClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error)
-	// UpsertClusterAuditConfig overwrites the active cluster audit configuration..
-	UpsertClusterAuditConfig(context.Context, *UpsertClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error)
-	// ResetClusterAuditConfig restores the active cluster audit configuration. to default settings.
-	ResetClusterAuditConfig(context.Context, *ResetClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error)
+	// GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
+	GetClusterAccessGraphConfig(context.Context, *GetClusterAccessGraphConfigRequest) (*GetClusterAccessGraphConfigResponse, error)
 	mustEmbedUnimplementedClusterConfigServiceServer()
 }
 
@@ -324,14 +296,8 @@ func (UnimplementedClusterConfigServiceServer) ResetAuthPreference(context.Conte
 func (UnimplementedClusterConfigServiceServer) GetClusterAuditConfig(context.Context, *GetClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetClusterAuditConfig not implemented")
 }
-func (UnimplementedClusterConfigServiceServer) UpdateClusterAuditConfig(context.Context, *UpdateClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateClusterAuditConfig not implemented")
-}
-func (UnimplementedClusterConfigServiceServer) UpsertClusterAuditConfig(context.Context, *UpsertClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpsertClusterAuditConfig not implemented")
-}
-func (UnimplementedClusterConfigServiceServer) ResetClusterAuditConfig(context.Context, *ResetClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ResetClusterAuditConfig not implemented")
+func (UnimplementedClusterConfigServiceServer) GetClusterAccessGraphConfig(context.Context, *GetClusterAccessGraphConfigRequest) (*GetClusterAccessGraphConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetClusterAccessGraphConfig not implemented")
 }
 func (UnimplementedClusterConfigServiceServer) mustEmbedUnimplementedClusterConfigServiceServer() {}
 
@@ -580,56 +546,20 @@ func _ClusterConfigService_GetClusterAuditConfig_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ClusterConfigService_UpdateClusterAuditConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateClusterAuditConfigRequest)
+func _ClusterConfigService_GetClusterAccessGraphConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetClusterAccessGraphConfigRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ClusterConfigServiceServer).UpdateClusterAuditConfig(ctx, in)
+		return srv.(ClusterConfigServiceServer).GetClusterAccessGraphConfig(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ClusterConfigService_UpdateClusterAuditConfig_FullMethodName,
+		FullMethod: ClusterConfigService_GetClusterAccessGraphConfig_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterConfigServiceServer).UpdateClusterAuditConfig(ctx, req.(*UpdateClusterAuditConfigRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ClusterConfigService_UpsertClusterAuditConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpsertClusterAuditConfigRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ClusterConfigServiceServer).UpsertClusterAuditConfig(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ClusterConfigService_UpsertClusterAuditConfig_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterConfigServiceServer).UpsertClusterAuditConfig(ctx, req.(*UpsertClusterAuditConfigRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ClusterConfigService_ResetClusterAuditConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ResetClusterAuditConfigRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ClusterConfigServiceServer).ResetClusterAuditConfig(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ClusterConfigService_ResetClusterAuditConfig_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterConfigServiceServer).ResetClusterAuditConfig(ctx, req.(*ResetClusterAuditConfigRequest))
+		return srv.(ClusterConfigServiceServer).GetClusterAccessGraphConfig(ctx, req.(*GetClusterAccessGraphConfigRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -694,16 +624,8 @@ var ClusterConfigService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ClusterConfigService_GetClusterAuditConfig_Handler,
 		},
 		{
-			MethodName: "UpdateClusterAuditConfig",
-			Handler:    _ClusterConfigService_UpdateClusterAuditConfig_Handler,
-		},
-		{
-			MethodName: "UpsertClusterAuditConfig",
-			Handler:    _ClusterConfigService_UpsertClusterAuditConfig_Handler,
-		},
-		{
-			MethodName: "ResetClusterAuditConfig",
-			Handler:    _ClusterConfigService_ResetClusterAuditConfig_Handler,
+			MethodName: "GetClusterAccessGraphConfig",
+			Handler:    _ClusterConfigService_GetClusterAccessGraphConfig_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

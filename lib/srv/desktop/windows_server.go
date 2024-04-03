@@ -233,7 +233,7 @@ func (cfg *WindowsServiceConfig) checkAndSetDiscoveryDefaults() error {
 
 func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	if cfg.Log == nil {
-		cfg.Log = logrus.New().WithField(trace.Component, teleport.ComponentWindowsDesktop)
+		cfg.Log = logrus.New().WithField(teleport.ComponentKey, teleport.ComponentWindowsDesktop)
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -360,7 +360,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	if s.cfg.PKIDomain != "" {
 		caLDAPConfig.Domain = s.cfg.PKIDomain
 	}
-	s.cfg.Log.Infof("Windows PKI will be performed against %v", s.cfg.PKIDomain)
+	s.cfg.Log.Infof("Windows PKI will be performed against %v", caLDAPConfig.Domain)
 
 	s.ca = windows.NewCertificateStoreClient(windows.CertificateStoreConfig{
 		AccessPoint: s.cfg.AccessPoint,

@@ -57,6 +57,7 @@ helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}'
 app.kubernetes.io/managed-by: '{{ .Release.Service }}'
 app.kubernetes.io/version: '{{ include "teleport-cluster.version" . }}'
 teleport.dev/majorVersion: '{{ include "teleport-cluster.majorVersion" . }}'
+teleport.dev/release: '{{ include "teleport-cluster.operator.namespacedRelease" . }}'
 {{- end -}}
 
 {{/* Teleport auth or proxy address */}}
@@ -75,3 +76,56 @@ teleport.dev/majorVersion: '{{ include "teleport-cluster.majorVersion" . }}'
 {{- /* This template is a placeholder.
 If we are imported by the main chart "teleport-cluster" it is overridden*/ -}}
 {{- define "teleport-cluster.auth.serviceFQDN" -}}{{- end }}
+
+{{- /* This templates returns "true" or "false"  describing if the CRDs should be deployed.
+If we have an explicit requirement ("always" or "never") things are easy.
+If we don't we check if the operator is enabled.
+However, we cannot just trash the CRDs if the operator is disabled, this causes
+a mass CR deletion and users will shoot themselves in the foot whith this
+(temporarily disabling the operator would cause havoc).
+So we check if there's a CRD already deployed, it that's the case, we keep the CRDs.
+*/ -}}
+{{- define "teleport-cluster.operator.shouldInstallCRDs" -}}
+  {{- if eq .Values.installCRDs "always" -}}
+    true
+  {{- else if eq .Values.installCRDs "never" -}}
+    false
+  {{- else if eq .Values.installCRDs "dynamic" -}}
+    {{- if .Values.enabled -}}
+      true
+    {{- else -}}
+      {{- include "teleport-cluster.operator.checkExistingCRDs" . -}}
+    {{- end -}}
+  {{- else -}}
+    {{- fail ".Values.installCRDs must be 'never', 'always' or 'dynamic'." -}}
+  {{- end -}}
+{{- end -}}
+
+{{- /* This template checks if a known CRD is depployed (rolev7) and owned by
+the release. As CRDs are not namespaced, we must use a custom annotation to avoid
+a conflict when two releases are deployed with the same name in different namespaces. */ -}}
+{{- define "teleport-cluster.operator.checkExistingCRDs" -}}
+  {{ $existingCRD := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "teleportrolesv7.resources.teleport.dev"}}
+  {{- if not $existingCRD -}}
+    false
+  {{- else -}}
+    {{- $release := index $existingCRD.metadata.labels "teleport.dev/release" }}
+    {{- if eq $release (include "teleport-cluster.operator.namespacedRelease" .) -}}
+      true
+    {{- else -}}
+    false
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{- /* This is a custom label containing the namespaced release.
+This is used to avoid conflicts for non-namespaced resources like CRDs. */ -}}
+{{- define "teleport-cluster.operator.namespacedRelease" -}}
+  {{ .Release.Namespace }}_{{ .Release.Name }}
+{{- end -}}
+
+{{- /* This is the object merged with CRDs manifests to enrich them (add labels). */ -}}
+{{- define "teleport-cluster.operator.crdOverrides" -}}
+metadata:
+  labels: {{- include "teleport-cluster.operator.labels" . | nindent 4 }}
+{{- end -}}

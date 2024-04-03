@@ -479,7 +479,7 @@ type upsertTaskRequest struct {
 func upsertTask(ctx context.Context, clt DeployServiceClient, req upsertTaskRequest) (*ecsTypes.TaskDefinition, error) {
 	taskAgentContainerImage := getDistrolessTeleportImage(req.TeleportVersionTag)
 
-	taskDefOut, err := clt.RegisterTaskDefinition(ctx, &ecs.RegisterTaskDefinitionInput{
+	taskDefIn := &ecs.RegisterTaskDefinitionInput{
 		Family: aws.String(req.TaskName),
 		RequiresCompatibilities: []ecsTypes.Compatibility{
 			ecsTypes.CompatibilityFargate,
@@ -491,10 +491,12 @@ func upsertTask(ctx context.Context, clt DeployServiceClient, req upsertTaskRequ
 		TaskRoleArn:      &req.TaskRoleARN,
 		ExecutionRoleArn: &req.TaskRoleARN,
 		ContainerDefinitions: []ecsTypes.ContainerDefinition{{
-			Environment: []ecsTypes.KeyValuePair{{
-				Name:  aws.String(types.InstallMethodAWSOIDCDeployServiceEnvVar),
-				Value: aws.String("true"),
-			}},
+			Environment: []ecsTypes.KeyValuePair{
+				{
+					Name:  aws.String(types.InstallMethodAWSOIDCDeployServiceEnvVar),
+					Value: aws.String("true"),
+				},
+			},
 			Command: []string{
 				// --rewrite 15:3 rewrites SIGTERM -> SIGQUIT. This enables graceful shutdown of teleport
 				"--rewrite",
@@ -519,7 +521,15 @@ func upsertTask(ctx context.Context, clt DeployServiceClient, req upsertTaskRequ
 			},
 		}},
 		Tags: req.ResourceCreationTags.ToECSTags(),
-	})
+	}
+
+	// Ensure that the upgrader environment variables are set.
+	// These will ensure that the instance reports Teleport upgrader metrics.
+	if err := ensureUpgraderEnvironmentVariables(taskDefIn); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	taskDefOut, err := clt.RegisterTaskDefinition(ctx, taskDefIn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

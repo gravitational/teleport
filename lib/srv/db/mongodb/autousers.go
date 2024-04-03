@@ -88,7 +88,7 @@ func (r userRoles) sort() {
 }
 
 // ActivateUser creates or enables the database user.
-func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) error {
+func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) (errOut error) {
 	userRoles, err := makeUserRoles(sessionCtx.DatabaseRoles)
 	if err != nil {
 		return trace.Wrap(err)
@@ -101,6 +101,9 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	defer client.Disconnect(ctx)
 
 	e.Log.Infof("Activating MongoDB user %q with roles %v.", sessionCtx.DatabaseUser, sessionCtx.DatabaseRoles)
+
+	// Call activate.
+	defer func() { e.Audit.OnDatabaseUserCreate(ctx, sessionCtx, errOut) }()
 
 	user, found, err := e.getUser(ctx, sessionCtx, client)
 	switch {
@@ -152,7 +155,9 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 		authRestrictions := []userAuthRestriction{{
 			ClientSource: []string{lockedClientSource},
 		}}
-		return trace.Wrap(e.updateUser(ctx, sessionCtx, client, []userRole{}, authRestrictions))
+		err = e.updateUser(ctx, sessionCtx, client, []userRole{}, authRestrictions)
+		e.Audit.OnDatabaseUserDeactivate(ctx, sessionCtx, false, err)
+		return trace.Wrap(err)
 	}
 }
 
@@ -176,7 +181,9 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 		return nil
 
 	default:
-		return trace.Wrap(e.dropUser(ctx, sessionCtx, client))
+		err = e.dropUser(ctx, sessionCtx, client)
+		e.Audit.OnDatabaseUserDeactivate(ctx, sessionCtx, true, err)
+		return trace.Wrap(err)
 	}
 }
 

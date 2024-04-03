@@ -29,6 +29,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -112,7 +113,7 @@ func NewIAM(ctx context.Context, config IAMConfig) (*IAM, error) {
 	}
 	return &IAM{
 		cfg:             config,
-		log:             logrus.WithField(trace.Component, "iam"),
+		log:             logrus.WithField(teleport.ComponentKey, "iam"),
 		tasks:           make(chan iamTask, defaultIAMTaskQueueSize),
 		iamPolicyStatus: sync.Map{},
 	}, nil

@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -64,6 +65,8 @@ type AccessLists interface {
 
 	// UpsertAccessList creates or updates an access list resource.
 	UpsertAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
+	// UpdateAccessList updates an access list resource.
+	UpdateAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
 	// DeleteAccessList removes the specified access list resource.
 	DeleteAccessList(context.Context, string) error
 	// DeleteAllAccessLists removes all access lists.
@@ -165,6 +168,8 @@ type AccessListMembers interface {
 
 	// UpsertAccessListMember creates or updates an access list member resource.
 	UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
+	// UpdateAccessListMember conditionally updates an access list member resource.
+	UpdateAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
 	// DeleteAccessListMember hard deletes the specified access list member resource.
 	DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error
 	// DeleteAllAccessListMembersForAccessList hard deletes all access list members for an access list.
@@ -226,22 +231,15 @@ func IsAccessListOwner(identity tlsca.Identity, accessList *accesslist.AccessLis
 	// An opaque access denied error.
 	accessDenied := trace.AccessDenied("access denied")
 
-	if accessList.HasExplicitOwnership() {
-		isOwner := false
-
-		for _, owner := range accessList.GetOwners() {
-			if owner.Name == identity.Username {
-				isOwner = true
-				break
-			}
-		}
-
-		// User is not an owner, so we'll access denied.
-		if !isOwner {
-			return accessDenied
-		}
+	// Is the supplied identity in the owners list?
+	ownerIdx := slices.IndexFunc(accessList.GetOwners(), func(owner accesslist.Owner) bool {
+		return owner.Name == identity.Username
+	})
+	if ownerIdx == -1 {
+		return accessDenied
 	}
 
+	// Does the supplied Identity meet the ownership requirements?
 	if !UserMeetsRequirements(identity, accessList.Spec.OwnershipRequires) {
 		return accessDenied
 	}
@@ -285,20 +283,18 @@ func (a AccessListMembershipChecker) IsAccessListMember(ctx context.Context, ide
 		}
 	}
 
-	if accessList.HasExplicitMembership() {
-		member, err := a.members.GetAccessListMember(ctx, accessList.GetName(), username)
-		if trace.IsNotFound(err) {
-			// The member has not been found, so we know they're not a member of this list.
-			return trace.NotFound("user %s is not a member of the access list", username)
-		} else if err != nil {
-			// Some other error has occurred
-			return trace.Wrap(err)
-		}
+	member, err := a.members.GetAccessListMember(ctx, accessList.GetName(), username)
+	if trace.IsNotFound(err) {
+		// The member has not been found, so we know they're not a member of this list.
+		return trace.NotFound("user %s is not a member of the access list", username)
+	} else if err != nil {
+		// Some other error has occurred
+		return trace.Wrap(err)
+	}
 
-		expires := member.Spec.Expires
-		if !expires.IsZero() && !a.clock.Now().Before(expires) {
-			return trace.AccessDenied("user %s's membership has expired in the access list", username)
-		}
+	expires := member.Spec.Expires
+	if !expires.IsZero() && !a.clock.Now().Before(expires) {
+		return trace.AccessDenied("user %s's membership has expired in the access list", username)
 	}
 
 	if !UserMeetsRequirements(identity, accessList.Spec.MembershipRequires) {

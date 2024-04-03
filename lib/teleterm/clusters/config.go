@@ -23,6 +23,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
 )
 
@@ -52,7 +53,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "conn:storage")
+		c.Log = logrus.WithField(teleport.ComponentKey, "conn:storage")
 	}
 
 	return nil

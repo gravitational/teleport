@@ -66,7 +66,7 @@ const (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentTBot,
+	teleport.ComponentKey: teleport.ComponentTBot,
 })
 
 // Identity is collection of raw key and certificate data as well as the

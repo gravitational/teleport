@@ -44,13 +44,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -80,7 +80,7 @@ func TestAuthPOST(t *testing.T) {
 	stateValue := fmt.Sprintf("%s_%s", secretToken, cookieID)
 	appCookieValue := "5588e2be54a2834b4f152c56bafcd789f53b15477129d2ab4044e9a3c1bf0f3b"
 
-	fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
+	fakeClock := clockwork.NewFakeClock()
 	clusterName := "test-cluster"
 	publicAddr := "app.example.com"
 	// Generate CA TLS key and cert with the cluster and application DNS.
@@ -249,7 +249,7 @@ func TestAuthPOST_Legacy(t *testing.T) {
 		cookieValue = "5588e2be54a2834b4f152c56bafcd789f53b15477129d2ab4044e9a3c1bf0f3b" // random value we set in the header and expect to get back as a cookie
 	)
 
-	fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
+	fakeClock := clockwork.NewFakeClock()
 	clusterName := "test-cluster"
 	publicAddr := "proxy.goteleport.com:443"
 
@@ -681,7 +681,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
+			fakeClock := clockwork.NewFakeClock()
 			appSession := createAppSession(t, fakeClock, key, cert, clusterName, tc.publicAddr)
 			authClient := &mockAuthClient{
 				clusterName: clusterName,
@@ -870,7 +870,6 @@ func (r *fakeRemoteListener) Accept() (net.Conn, error) {
 	}
 
 	return conn, nil
-
 }
 
 func (r *fakeRemoteListener) Close() error {
@@ -883,7 +882,26 @@ func (r *fakeRemoteListener) Addr() net.Addr {
 
 // createAppSession generates a WebSession for an application.
 func createAppSession(t *testing.T, clock clockwork.FakeClock, caKey, caCert []byte, clusterName, publicAddr string) types.WebSession {
+	key, cert := createAppKeyCertPair(t, clock, caKey, caCert, clusterName, publicAddr)
+	appSession, err := types.NewWebSession(uuid.New().String(), types.KindAppSession, types.WebSessionSpecV2{
+		User:        "testuser",
+		Priv:        key.PrivateKeyPEM(),
+		Pub:         key.MarshalSSHPublicKey(),
+		TLSCert:     cert,
+		Expires:     clock.Now().Add(5 * time.Minute),
+		BearerToken: "abc123",
+	})
+	require.NoError(t, err)
+
+	return appSession
+}
+
+// createAppKeyCertPair creates and a client key and signed app cert for the client key
+func createAppKeyCertPair(t *testing.T, clock clockwork.FakeClock, caKey, caCert []byte, clusterName, publicAddr string) (*keys.PrivateKey, []byte) {
 	tlsCA, err := tlsca.FromKeys(caCert, caKey)
+	require.NoError(t, err)
+
+	privateKey, err := native.GeneratePrivateKey()
 	require.NoError(t, err)
 
 	// Generate the identity with a `RouteToApp` option.
@@ -898,30 +916,15 @@ func createAppSession(t *testing.T, clock clockwork.FakeClock, caKey, caCert []b
 	}).Subject()
 	require.NoError(t, err)
 
-	// Generate public and private keys for the application request certificate.
-	priv, pub, err := testauthority.New().GetNewKeyPairFromPool()
-	require.NoError(t, err)
-	cryptoPubKey, err := sshutils.CryptoPublicKey(pub)
-	require.NoError(t, err)
-
 	cert, err := tlsCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
-		PublicKey: cryptoPubKey,
+		PublicKey: privateKey.Public(),
 		Subject:   subj,
 		NotAfter:  clock.Now().Add(5 * time.Minute),
 	})
 	require.NoError(t, err)
 
-	appSession, err := types.NewWebSession(uuid.New().String(), types.KindAppSession, types.WebSessionSpecV2{
-		User:        "testuser",
-		Priv:        priv,
-		TLSCert:     cert,
-		Expires:     clock.Now().Add(5 * time.Minute),
-		BearerToken: "abc123",
-	})
-	require.NoError(t, err)
-
-	return appSession
+	return privateKey, cert
 }
 
 func createAppServer(t *testing.T, publicAddr string) types.AppServer {

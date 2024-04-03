@@ -612,7 +612,8 @@ enum DatabaseTLSMode {
 
 // DatabaseTLS contains TLS configuration options.
 message DatabaseTLS {
-  // Mode is a TLS connection mode. See DatabaseTLSMode for details.
+  // Mode is a TLS connection mode.
+  // 0 is "verify-full"; 1 is "verify-ca", 2 is "insecure".
   DatabaseTLSMode Mode = 1 [(gogoproto.jsontag) = "mode"];
   // CACert is an optional user provided CA certificate used for verifying
   // database TLS connection.
@@ -942,6 +943,10 @@ message AppSpecV3 {
   string Cloud = 7 [(gogoproto.jsontag) = "cloud,omitempty"];
   // UserGroups are a list of user group IDs that this app is associated with.
   repeated string UserGroups = 8;
+  // Integration is the integration name that must be used to access this Application.
+  // Only applicable to AWS App Access.
+  // If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
+  string Integration = 9 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
@@ -1715,9 +1720,11 @@ message ClusterNetworkingConfigSpecV2 {
   ];
 
   // ProxyListenerMode is proxy listener mode used by Teleport Proxies.
+  // 0 is "separate"; 1 is "multiplex".
   ProxyListenerMode ProxyListenerMode = 7 [(gogoproto.jsontag) = "proxy_listener_mode,omitempty"];
 
   // RoutingStrategy determines the strategy used to route to nodes.
+  // 0 is "unambiguous_match"; 1 is "most_recent".
   RoutingStrategy RoutingStrategy = 8 [(gogoproto.jsontag) = "routing_strategy,omitempty"];
 
   // TunnelStrategyV1 determines the tunnel strategy used in the cluster.
@@ -1895,6 +1902,8 @@ message AuthPreferenceSpecV2 {
   ];
 
   // RequireMFAType is the type of MFA requirement enforced for this cluster.
+  // 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH",
+  // 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
   RequireMFAType RequireMFAType = 12 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
 
   // DeviceTrust holds settings related to trusted device verification.
@@ -2420,6 +2429,20 @@ message AccessRequestSpecV3 {
   ];
 }
 
+enum AccessRequestScope {
+  // DEFAULT allows all requests to be viewed
+  DEFAULT = 0;
+  // MY_REQUESTS will return only requests created by the requester
+  MY_REQUESTS = 1;
+  // NEEDS_REVIEW will return only requests that were not created by
+  // the requester and do not include a review made by the requester
+  NEEDS_REVIEW = 2;
+  // REVIEWED will return only requests that were not created by
+  // the requester and have a review submitted by the requester. This
+  // can include requests that have no yet been completely approved/denied.
+  REVIEWED = 3;
+}
+
 // AccessRequestFilter encodes filter params for access requests.
 message AccessRequestFilter {
   // ID specifies a request ID if set.
@@ -2428,6 +2451,17 @@ message AccessRequestFilter {
   string User = 2 [(gogoproto.jsontag) = "user,omitempty"];
   // RequestState filters for requests in a specific state.
   RequestState State = 3 [(gogoproto.jsontag) = "state,omitempty"];
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  // The matcher goes through select field values from a resource
+  // and tries to match against the list of search values, ignoring case and order.
+  // Returns true if all search vals were matched (or if nil search vals).
+  // Returns false if no or partial match (or nil field values).
+  repeated string SearchKeywords = 4 [(gogoproto.jsontag) = "search,omitempty"];
+  // Scope is an aditional filter to view requests based on needs review, reviewed, my requests
+  AccessRequestScope Scope = 5 [(gogoproto.jsontag) = "scope,omitempty"];
+  // Requester is the requester of the api call. This is set by the auth server
+  // Use User for the requester of the request.
+  string Requester = 6 [(gogoproto.jsontag) = "requester,omitempty"];
 }
 
 // AccessCapabilities is a summary of capabilities that a user
@@ -2550,6 +2584,12 @@ message PluginDataUpdateParams {
   map<string, string> Set = 4 [(gogoproto.jsontag) = "set,omitempty"];
   // Expect optionally indicates the expected state of fields prior to this update.
   map<string, string> Expect = 5 [(gogoproto.jsontag) = "expect,omitempty"];
+}
+
+// RoleFilter matches role resources.
+message RoleFilter {
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
 }
 
 // RoleV6 represents role resource specification
@@ -2758,6 +2798,8 @@ message RoleOptions {
   ];
 
   // RequireMFAType is the type of MFA requirement enforced for this user.
+  // 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH",
+  // 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
   RequireMFAType RequireMFAType = 23 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
 
   // DeviceTrustMode is the device authorization mode used for the resources
@@ -2785,11 +2827,14 @@ message RoleOptions {
   ];
 
   // CreateHostUserMode allows users to be automatically created on a
-  // host when not set to off
+  // host when not set to off.
+  // 0 is "unspecified"; 1 is "off"; 2 is "drop" (removed for v15 and above),
+  // 3 is "keep"; 4 is "insecure-drop".
   CreateHostUserMode CreateHostUserMode = 28 [(gogoproto.jsontag) = "create_host_user_mode,omitempty"];
 
   // CreateDatabaseUserMode allows users to be automatically created on a
   // database when not set to off.
+  // 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop".
   CreateDatabaseUserMode CreateDatabaseUserMode = 29 [(gogoproto.jsontag) = "create_db_user_mode,omitempty"];
 }
 
@@ -2833,9 +2878,11 @@ enum CertExtensionType {
 message CertExtension {
   // Type represents the certificate type being extended, only ssh
   // is supported at this time.
+  // 0 is "ssh".
   CertExtensionType Type = 1 [(gogoproto.jsontag) = "type"];
   // Mode is the type of extension to be used -- currently
-  // critical-option is not supported
+  // critical-option is not supported.
+  // 0 is "extension".
   CertExtensionMode Mode = 2 [(gogoproto.jsontag) = "mode"];
   // Name specifies the key to be used in the cert extension.
   string Name = 3 [(gogoproto.jsontag) = "name"];
@@ -3006,16 +3053,10 @@ message RoleConditions {
   // SPIFFE is used to allow or deny access to a role holder to generating a
   // SPIFFE SVID.
   repeated SPIFFERoleCondition SPIFFE = 39 [(gogoproto.jsontag) = "spiffe,omitempty"];
-  // SAMLIdPServiceProviderLabels is a labels map used in RBAC system to allow/deny access
-  // to saml_idp_service_provider resource.
-  wrappers.LabelValues SAMLIdPServiceProviderLabels = 40 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "saml_idp_service_provider_labels,omitempty",
-    (gogoproto.customtype) = "Labels"
-  ];
-  // SAMLIdPServiceProviderLabelsExpression is a predicate expression used to allow/deny
-  // access to saml_idp_service_provider resource.
-  string SAMLIdPServiceProviderLabelsExpression = 41 [(gogoproto.jsontag) = "saml_idp_service_provider_labels_expression,omitempty"];
+  reserved 40; // removed saml_idp_service_provider_labels in favor of using app_labels.
+  reserved "SAMLIdPServiceProviderLabels";
+  reserved 41; // removed saml_idp_service_provider_labels_expression in favor of using app_labels_expression.
+  reserved "SAMLIdPServiceProviderLabelsExpression";
 }
 
 // SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or
@@ -3260,6 +3301,12 @@ message ImpersonateConditions {
 // whenever bool value can have different default value when missing
 message BoolValue {
   bool Value = 1;
+}
+
+// UserFilter matches user resources.
+message UserFilter {
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
 }
 
 // UserV2 is version 2 resource spec of the user
@@ -3770,6 +3817,9 @@ message WebSessionSpecV2 {
   // (typically performed by Connect).
   // Only present if on-behalf-of device authentication is possible.
   DeviceWebToken DeviceWebToken = 12 [(gogoproto.jsontag) = "device_web_token,omitempty"];
+  // HasDeviceExtensions is true if the session's TLS and SSH certificates are
+  // augmented with device extensions.
+  bool HasDeviceExtensions = 13 [(gogoproto.jsontag) = "has_device_extensions,omitempty"];
 }
 
 // Web-focused view of teleport.devicetrust.v1.DeviceWebToken.
@@ -5659,6 +5709,13 @@ message PluginSpecV1 {
     // Settings for the ServiceNow plugin
     PluginServiceNowSettings serviceNow = 10;
   }
+
+  // generation contains a unique ID that should:
+  // - Be created by the backed on plugin creation.
+  // - Be updated by the backend if the plugin is updated in any way.
+  //
+  // For older plugins, it's possible for this to be empty.
+  string generation = 11;
 }
 
 message PluginSlackAccessSettings {
@@ -5986,6 +6043,10 @@ message SAMLIdPServiceProviderSpecV1 {
   // Preset is used to define service provider profile that will have a custom behavior
   // processed by Teleport.
   string Preset = 5 [(gogoproto.jsontag) = "preset"];
+  // RelayState is used to add custom value in the SAML response as a relay_state HTTP parameter.
+  // The value can contain service provider specific redirect URL, static state token etc.
+  // The value is only applied in the IdP initiated SSO flow.
+  string RelayState = 6 [(gogoproto.jsontag) = "relay_state"];
 }
 
 // SAMLAttributeMapping represents SAML service provider requested attribute
@@ -6289,6 +6350,14 @@ message AWSOIDCIntegrationSpecV1 {
   // RoleARN contains the Role ARN used to set up the Integration.
   // This is the AWS Role that Teleport will use to issue tokens for API Calls.
   string RoleARN = 1 [(gogoproto.jsontag) = "role_arn,omitempty"];
+
+  // IssuerS3URI is the Identity Provider that was configured in AWS.
+  // This bucket/prefix/* files must be publicly accessible and contain the following:
+  // > .well-known/openid-configuration
+  // > .well-known/jwks
+  // Format: s3://<bucket>/<prefix>
+  // Optional. The proxy's endpoint is used if it is not specified.
+  string IssuerS3URI = 2 [(gogoproto.jsontag) = "issuer_s3_uri,omitempty"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.
@@ -6472,6 +6541,9 @@ message JamfInventoryEntry {
   // Must be either "NOOP" or "DELETE".
   // Defaults to "NOOP".
   string on_missing = 4 [(gogoproto.jsontag) = "on_missing,omitempty"];
+  // Custom page size for inventory queries.
+  // A server default is used if zeroed or negative.
+  int32 page_size = 5 [(gogoproto.jsontag) = "page_size,omitempty"];
 }
 
 // MessageWithHeader is a message with a resource header. This is used primarily

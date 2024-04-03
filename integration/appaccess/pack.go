@@ -40,6 +40,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -338,7 +339,7 @@ func (p *Pack) CreateAppSession(t *testing.T, publicAddr, clusterName string) []
 // cluster and returns the client cert that can be used for an application
 // request.
 func (p *Pack) CreateAppSessionWithClientCert(t *testing.T) []tls.Certificate {
-	session, err := p.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+	session, err := p.tc.CreateAppSession(context.Background(), &proto.CreateAppSessionRequest{
 		Username:    p.username,
 		PublicAddr:  p.rootAppPublicAddr,
 		ClusterName: p.rootAppClusterName,

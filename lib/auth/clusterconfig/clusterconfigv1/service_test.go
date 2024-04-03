@@ -18,6 +18,7 @@ package clusterconfigv1_test
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"testing"
 
@@ -26,16 +27,21 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/constants"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestCreateAuthPreference(t *testing.T) {
@@ -264,6 +270,10 @@ func TestUpdateAuthPreference(t *testing.T) {
 						rules: map[string][]string{types.KindClusterAuthPreference: {types.VerbUpdate}},
 					},
 					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity: authz.LocalUser{
+						Username: "llama",
+						Identity: tlsca.Identity{Username: "llama"},
+					},
 				}, nil
 			}),
 			preference: func(p types.AuthPreference) {
@@ -383,6 +393,10 @@ func TestUpsertAuthPreference(t *testing.T) {
 						rules: map[string][]string{types.KindClusterAuthPreference: {types.VerbUpdate, types.VerbCreate}},
 					},
 					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity: authz.LocalUser{
+						Username: "llama",
+						Identity: tlsca.Identity{Username: "llama"},
+					},
 				}, nil
 			}),
 			preference: func(p types.AuthPreference) {
@@ -476,6 +490,10 @@ func TestResetAuthPreference(t *testing.T) {
 						rules: map[string][]string{types.KindClusterAuthPreference: {types.VerbUpdate, types.VerbCreate}},
 					},
 					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity: authz.LocalUser{
+						Username: "llama",
+						Identity: tlsca.Identity{Username: "llama"},
+					},
 				}, nil
 			}),
 			assertion: func(t *testing.T, reset types.AuthPreference, err error) {
@@ -704,6 +722,10 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate}},
 					},
 					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity: authz.LocalUser{
+						Username: "llama",
+						Identity: tlsca.Identity{Username: "llama"},
+					},
 				}, nil
 			}),
 			config: func(p types.ClusterNetworkingConfig) {
@@ -810,6 +832,10 @@ func TestUpsertClusterNetworkingConfig(t *testing.T) {
 						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate, types.VerbCreate}},
 					},
 					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity: authz.LocalUser{
+						Username: "llama",
+						Identity: tlsca.Identity{Username: "llama"},
+					},
 				}, nil
 			}),
 			config: func(p types.ClusterNetworkingConfig) {
@@ -903,6 +929,10 @@ func TestResetClusterNetworkingConfig(t *testing.T) {
 						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate, types.VerbCreate}},
 					},
 					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity: authz.LocalUser{
+						Username: "llama",
+						Identity: tlsca.Identity{Username: "llama"},
+					},
 				}, nil
 			}),
 			assertion: func(t *testing.T, reset types.ClusterNetworkingConfig, err error) {
@@ -1069,6 +1099,10 @@ func TestUpdateSessionRecordingConfig(t *testing.T) {
 						rules: map[string][]string{types.KindSessionRecordingConfig: {types.VerbUpdate}},
 					},
 					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity: authz.LocalUser{
+						Username: "llama",
+						Identity: tlsca.Identity{Username: "llama"},
+					},
 				}, nil
 			}),
 			config: func(p types.SessionRecordingConfig) {
@@ -1154,6 +1188,10 @@ func TestUpsertSessionRecordingConfig(t *testing.T) {
 						rules: map[string][]string{types.KindSessionRecordingConfig: {types.VerbUpdate, types.VerbCreate}},
 					},
 					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity: authz.LocalUser{
+						Username: "llama",
+						Identity: tlsca.Identity{Username: "llama"},
+					},
 				}, nil
 			}),
 			config: func(p types.SessionRecordingConfig) {
@@ -1247,6 +1285,10 @@ func TestResetSessionRecordingConfig(t *testing.T) {
 						rules: map[string][]string{types.KindSessionRecordingConfig: {types.VerbUpdate, types.VerbCreate}},
 					},
 					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity: authz.LocalUser{
+						Username: "llama",
+						Identity: tlsca.Identity{Username: "llama"},
+					},
 				}, nil
 			}),
 			assertion: func(t *testing.T, reset types.SessionRecordingConfig, err error) {
@@ -1271,6 +1313,320 @@ func TestResetSessionRecordingConfig(t *testing.T) {
 	}
 }
 
+type failingConfigService struct {
+	services.ClusterConfiguration
+}
+
+func (failingConfigService) GetAuthPreference(context.Context) (types.AuthPreference, error) {
+	return types.DefaultAuthPreference(), nil
+}
+
+func (failingConfigService) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
+	return types.DefaultClusterNetworkingConfig(), nil
+}
+
+func (failingConfigService) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
+	return types.DefaultSessionRecordingConfig(), nil
+}
+
+func (failingConfigService) CreateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error) {
+	return nil, errors.New("fail")
+}
+func (failingConfigService) UpdateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error) {
+	return nil, errors.New("fail")
+}
+func (failingConfigService) UpsertAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error) {
+	return nil, errors.New("fail")
+}
+
+func (failingConfigService) CreateClusterNetworkingConfig(ctx context.Context, preference types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
+	return nil, errors.New("fail")
+}
+func (failingConfigService) UpdateClusterNetworkingConfig(ctx context.Context, preference types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
+	return nil, errors.New("fail")
+}
+func (failingConfigService) UpsertClusterNetworkingConfig(ctx context.Context, preference types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
+	return nil, errors.New("fail")
+}
+
+func (failingConfigService) CreateSessionRecordingConfig(ctx context.Context, preference types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	return nil, errors.New("fail")
+}
+func (failingConfigService) UpdateSessionRecordingConfig(ctx context.Context, preference types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	return nil, errors.New("fail")
+}
+func (failingConfigService) UpsertSessionRecordingConfig(ctx context.Context, preference types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	return nil, errors.New("fail")
+}
+
+func TestAuditEventsEmitted(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("successful events", func(t *testing.T) {
+		env, err := newTestEnv(
+			withAuthorizer(authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{
+							types.KindSessionRecordingConfig:  {types.VerbUpdate, types.VerbCreate, types.VerbRead},
+							types.KindClusterAuthPreference:   {types.VerbUpdate, types.VerbCreate, types.VerbRead},
+							types.KindClusterNetworkingConfig: {types.VerbUpdate, types.VerbCreate, types.VerbRead},
+						},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity: authz.LocalUser{
+						Username: "llama",
+						Identity: tlsca.Identity{Username: "llama"},
+					},
+				}, nil
+			})),
+			withDefaultRecordingConfig(types.DefaultSessionRecordingConfig()),
+			withDefaultAuthPreference(types.DefaultAuthPreference()),
+			withDefaultClusterNetworkingConfig(types.DefaultClusterNetworkingConfig()),
+		)
+		require.NoError(t, err, "creating test service")
+
+		t.Run("auth preference", func(t *testing.T) {
+			expectedEvent := &apievents.AuthPreferenceUpdate{
+				Metadata: apievents.Metadata{
+					Type: events.AuthPreferenceUpdateEvent,
+					Code: events.AuthPreferenceUpdateCode,
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User:     "llama",
+					UserKind: apievents.UserKind_USER_KIND_HUMAN,
+				},
+			}
+
+			p, err := env.ResetAuthPreference(ctx, &clusterconfigpb.ResetAuthPreferenceRequest{})
+			require.NoError(t, err)
+
+			evt := <-env.emitter.C()
+			require.Empty(t, cmp.Diff(expectedEvent, evt))
+
+			p.SetLockingMode(constants.LockingModeStrict)
+
+			p, err = env.UpdateAuthPreference(ctx, &clusterconfigpb.UpdateAuthPreferenceRequest{AuthPreference: p})
+			require.NoError(t, err)
+
+			evt = <-env.emitter.C()
+			require.Empty(t, cmp.Diff(expectedEvent, evt))
+
+			_, err = env.UpsertAuthPreference(ctx, &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: p})
+			require.NoError(t, err)
+
+			evt = <-env.emitter.C()
+			require.Empty(t, cmp.Diff(expectedEvent, evt))
+		})
+
+		t.Run("cluster networking config", func(t *testing.T) {
+			expectedEvent := &apievents.ClusterNetworkingConfigUpdate{
+				Metadata: apievents.Metadata{
+					Type: events.ClusterNetworkingConfigUpdateEvent,
+					Code: events.ClusterNetworkingConfigUpdateCode,
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User:     "llama",
+					UserKind: apievents.UserKind_USER_KIND_HUMAN,
+				},
+			}
+
+			cfg, err := env.ResetClusterNetworkingConfig(ctx, &clusterconfigpb.ResetClusterNetworkingConfigRequest{})
+			require.NoError(t, err)
+
+			evt := <-env.emitter.C()
+			require.Empty(t, cmp.Diff(expectedEvent, evt))
+
+			cfg.SetRoutingStrategy(types.RoutingStrategy_MOST_RECENT)
+
+			cfg, err = env.UpdateClusterNetworkingConfig(ctx, &clusterconfigpb.UpdateClusterNetworkingConfigRequest{ClusterNetworkConfig: cfg})
+			require.NoError(t, err)
+
+			evt = <-env.emitter.C()
+			require.Empty(t, cmp.Diff(expectedEvent, evt))
+
+			_, err = env.UpsertClusterNetworkingConfig(ctx, &clusterconfigpb.UpsertClusterNetworkingConfigRequest{ClusterNetworkConfig: cfg})
+			require.NoError(t, err)
+
+			evt = <-env.emitter.C()
+			require.Empty(t, cmp.Diff(expectedEvent, evt))
+		})
+
+		t.Run("session recording config", func(t *testing.T) {
+			expectedEvent := &apievents.SessionRecordingConfigUpdate{
+				Metadata: apievents.Metadata{
+					Type: events.SessionRecordingConfigUpdateEvent,
+					Code: events.SessionRecordingConfigUpdateCode,
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User:     "llama",
+					UserKind: apievents.UserKind_USER_KIND_HUMAN,
+				},
+			}
+
+			cfg, err := env.ResetSessionRecordingConfig(ctx, &clusterconfigpb.ResetSessionRecordingConfigRequest{})
+			require.NoError(t, err)
+
+			evt := <-env.emitter.C()
+			require.Empty(t, cmp.Diff(expectedEvent, evt))
+
+			cfg.SetMode(types.RecordAtProxy)
+
+			cfg, err = env.UpdateSessionRecordingConfig(ctx, &clusterconfigpb.UpdateSessionRecordingConfigRequest{SessionRecordingConfig: cfg})
+			require.NoError(t, err)
+
+			evt = <-env.emitter.C()
+			require.Empty(t, cmp.Diff(expectedEvent, evt))
+
+			_, err = env.UpsertSessionRecordingConfig(ctx, &clusterconfigpb.UpsertSessionRecordingConfigRequest{SessionRecordingConfig: cfg})
+			require.NoError(t, err)
+
+			evt = <-env.emitter.C()
+			require.Empty(t, cmp.Diff(expectedEvent, evt))
+		})
+	})
+
+	t.Run("failed events", func(t *testing.T) {
+		env, err := newTestEnv(
+			withClusterConfigurationService(failingConfigService{}),
+			withAuthorizer(authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{
+							types.KindSessionRecordingConfig:  {types.VerbUpdate, types.VerbCreate, types.VerbRead},
+							types.KindClusterAuthPreference:   {types.VerbUpdate, types.VerbCreate, types.VerbRead},
+							types.KindClusterNetworkingConfig: {types.VerbUpdate, types.VerbCreate, types.VerbRead},
+						},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity: authz.LocalUser{
+						Username: "llama",
+						Identity: tlsca.Identity{Username: "llama"},
+					},
+				}, nil
+			})),
+		)
+		require.NoError(t, err, "creating test service")
+
+		t.Run("auth preference", func(t *testing.T) {
+			expectedEvent := &apievents.AuthPreferenceUpdate{
+				Metadata: apievents.Metadata{
+					Type: events.AuthPreferenceUpdateEvent,
+					Code: events.AuthPreferenceUpdateCode,
+				},
+				Status: apievents.Status{
+					Success:     false,
+					Error:       "fail",
+					UserMessage: "fail",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User:     "llama",
+					UserKind: apievents.UserKind_USER_KIND_HUMAN,
+				},
+			}
+
+			_, err := env.ResetAuthPreference(ctx, &clusterconfigpb.ResetAuthPreferenceRequest{})
+			require.Error(t, err)
+
+			evt := <-env.emitter.C()
+			require.Empty(t, cmp.Diff(expectedEvent, evt))
+
+			_, err = env.UpdateAuthPreference(ctx, &clusterconfigpb.UpdateAuthPreferenceRequest{AuthPreference: types.DefaultAuthPreference().(*types.AuthPreferenceV2)})
+			require.Error(t, err)
+
+			evt = <-env.emitter.C()
+			require.Empty(t, cmp.Diff(expectedEvent, evt))
+
+			_, err = env.UpsertAuthPreference(ctx, &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: types.DefaultAuthPreference().(*types.AuthPreferenceV2)})
+			require.Error(t, err)
+
+			evt = <-env.emitter.C()
+			require.Empty(t, cmp.Diff(expectedEvent, evt))
+		})
+
+		t.Run("cluster networking config", func(t *testing.T) {
+			expectedEvent := &apievents.ClusterNetworkingConfigUpdate{
+				Metadata: apievents.Metadata{
+					Type: events.ClusterNetworkingConfigUpdateEvent,
+					Code: events.ClusterNetworkingConfigUpdateCode,
+				},
+				Status: apievents.Status{
+					Success:     false,
+					Error:       "fail",
+					UserMessage: "fail",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User:     "llama",
+					UserKind: apievents.UserKind_USER_KIND_HUMAN,
+				},
+			}
+
+			_, err := env.ResetClusterNetworkingConfig(ctx, &clusterconfigpb.ResetClusterNetworkingConfigRequest{})
+			require.Error(t, err)
+
+			evt := <-env.emitter.C()
+			require.Empty(t, cmp.Diff(expectedEvent, evt))
+
+			_, err = env.UpdateClusterNetworkingConfig(ctx, &clusterconfigpb.UpdateClusterNetworkingConfigRequest{ClusterNetworkConfig: types.DefaultClusterNetworkingConfig().(*types.ClusterNetworkingConfigV2)})
+			require.Error(t, err)
+
+			evt = <-env.emitter.C()
+			require.Empty(t, cmp.Diff(expectedEvent, evt))
+
+			_, err = env.UpsertClusterNetworkingConfig(ctx, &clusterconfigpb.UpsertClusterNetworkingConfigRequest{ClusterNetworkConfig: types.DefaultClusterNetworkingConfig().(*types.ClusterNetworkingConfigV2)})
+			require.Error(t, err)
+
+			evt = <-env.emitter.C()
+			require.Empty(t, cmp.Diff(expectedEvent, evt))
+		})
+
+		t.Run("session recording config", func(t *testing.T) {
+			expectedEvent := &apievents.SessionRecordingConfigUpdate{
+				Metadata: apievents.Metadata{
+					Type: events.SessionRecordingConfigUpdateEvent,
+					Code: events.SessionRecordingConfigUpdateCode,
+				},
+				Status: apievents.Status{
+					Success:     false,
+					Error:       "fail",
+					UserMessage: "fail",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User:     "llama",
+					UserKind: apievents.UserKind_USER_KIND_HUMAN,
+				},
+			}
+
+			_, err := env.ResetSessionRecordingConfig(ctx, &clusterconfigpb.ResetSessionRecordingConfigRequest{})
+			require.Error(t, err)
+
+			evt := <-env.emitter.C()
+			require.Empty(t, cmp.Diff(expectedEvent, evt))
+
+			_, err = env.UpdateSessionRecordingConfig(ctx, &clusterconfigpb.UpdateSessionRecordingConfigRequest{SessionRecordingConfig: types.DefaultSessionRecordingConfig().(*types.SessionRecordingConfigV2)})
+			require.Error(t, err)
+
+			evt = <-env.emitter.C()
+			require.Empty(t, cmp.Diff(expectedEvent, evt))
+
+			_, err = env.UpsertSessionRecordingConfig(ctx, &clusterconfigpb.UpsertSessionRecordingConfigRequest{SessionRecordingConfig: types.DefaultSessionRecordingConfig().(*types.SessionRecordingConfigV2)})
+			require.Error(t, err)
+
+			evt = <-env.emitter.C()
+			require.Empty(t, cmp.Diff(expectedEvent, evt))
+		})
+	})
+}
+
 type fakeChecker struct {
 	services.AccessChecker
 	rules map[string][]string
@@ -1291,9 +1647,12 @@ func (f fakeChecker) CheckAccessToRule(context services.RuleContext, namespace s
 
 type envConfig struct {
 	authorizer              authz.Authorizer
+	emitter                 apievents.Emitter
 	defaultAuthPreference   types.AuthPreference
 	defaultNetworkingConfig types.ClusterNetworkingConfig
 	defaultRecordingConfig  types.SessionRecordingConfig
+	service                 services.ClusterConfiguration
+	accessGraphConfig       clusterconfigv1.AccessGraphConfig
 }
 type serviceOpt = func(config *envConfig)
 
@@ -1321,9 +1680,21 @@ func withDefaultRecordingConfig(c types.SessionRecordingConfig) serviceOpt {
 	}
 }
 
+func withClusterConfigurationService(svc services.ClusterConfiguration) serviceOpt {
+	return func(config *envConfig) {
+		config.service = svc
+	}
+}
+
+func withAccessGraphConfig(cfg clusterconfigv1.AccessGraphConfig) serviceOpt {
+	return func(config *envConfig) {
+		config.accessGraphConfig = cfg
+	}
+}
+
 type env struct {
 	*clusterconfigv1.Service
-	backend                 clusterconfigv1.Backend
+	emitter                 *eventstest.ChannelEmitter
 	defaultPreference       types.AuthPreference
 	defaultNetworkingConfig types.ClusterNetworkingConfig
 	defaultRecordingConfig  types.SessionRecordingConfig
@@ -1340,16 +1711,21 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 		return nil, trace.Wrap(err, "created cluster configuration storage service")
 	}
 
-	var cfg envConfig
+	emitter := eventstest.NewChannelEmitter(10)
+	cfg := envConfig{
+		emitter: emitter,
+		service: struct{ services.ClusterConfiguration }{ClusterConfiguration: storage},
+	}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 
-	service := struct{ services.ClusterConfiguration }{ClusterConfiguration: storage}
 	svc, err := clusterconfigv1.NewService(clusterconfigv1.ServiceConfig{
-		Cache:      service,
-		Backend:    service,
-		Authorizer: cfg.authorizer,
+		Cache:       cfg.service,
+		Backend:     cfg.service,
+		Authorizer:  cfg.authorizer,
+		Emitter:     cfg.emitter,
+		AccessGraph: cfg.accessGraphConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating users service")
@@ -1358,7 +1734,7 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 	ctx := context.Background()
 	var defaultPreference types.AuthPreference
 	if cfg.defaultAuthPreference != nil {
-		defaultPreference, err = service.CreateAuthPreference(ctx, cfg.defaultAuthPreference)
+		defaultPreference, err = cfg.service.CreateAuthPreference(ctx, cfg.defaultAuthPreference)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating default auth preference")
 		}
@@ -1366,7 +1742,7 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 
 	var defaultNetworkingConfig types.ClusterNetworkingConfig
 	if cfg.defaultNetworkingConfig != nil {
-		defaultNetworkingConfig, err = service.CreateClusterNetworkingConfig(ctx, cfg.defaultNetworkingConfig)
+		defaultNetworkingConfig, err = cfg.service.CreateClusterNetworkingConfig(ctx, cfg.defaultNetworkingConfig)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating default networking config")
 		}
@@ -1374,7 +1750,7 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 
 	var defaultSessionRecordingConfig types.SessionRecordingConfig
 	if cfg.defaultRecordingConfig != nil {
-		defaultSessionRecordingConfig, err = service.CreateSessionRecordingConfig(ctx, cfg.defaultRecordingConfig)
+		defaultSessionRecordingConfig, err = cfg.service.CreateSessionRecordingConfig(ctx, cfg.defaultRecordingConfig)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating session recording config")
 		}
@@ -1382,9 +1758,109 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 
 	return &env{
 		Service:                 svc,
-		backend:                 service,
 		defaultPreference:       defaultPreference,
 		defaultNetworkingConfig: defaultNetworkingConfig,
 		defaultRecordingConfig:  defaultSessionRecordingConfig,
+		emitter:                 emitter,
 	}, nil
+}
+
+func TestGetAccessGraphConfig(t *testing.T) {
+	cfgEnabled := clusterconfigv1.AccessGraphConfig{
+		Enabled:  true,
+		Address:  "address",
+		CA:       []byte("ca"),
+		Insecure: true,
+	}
+	cases := []struct {
+		name              string
+		accessGraphConfig clusterconfigv1.AccessGraphConfig
+		role              types.SystemRole
+		testSetup         func(*testing.T)
+		errorAssertion    require.ErrorAssertionFunc
+		responseAssertion *clusterconfigpb.GetClusterAccessGraphConfigResponse
+	}{
+		{
+			name:              "authorized proxy with non empty access graph config; Policy module is disabled",
+			role:              types.RoleProxy,
+			testSetup:         func(t *testing.T) {},
+			accessGraphConfig: cfgEnabled,
+			errorAssertion:    require.NoError,
+			responseAssertion: &clusterconfigpb.GetClusterAccessGraphConfigResponse{
+				AccessGraph: &clusterconfigpb.AccessGraphConfig{
+					Enabled: false,
+				},
+			},
+		},
+		{
+			name: "authorized proxy with non empty access graph config; Policy module is enabled",
+			role: types.RoleProxy,
+			testSetup: func(t *testing.T) {
+				m := modules.TestModules{
+					TestFeatures: modules.Features{
+						Policy: modules.PolicyFeature{
+							Enabled: true,
+						},
+					},
+				}
+				modules.SetTestModules(t, &m)
+			},
+			accessGraphConfig: cfgEnabled,
+			errorAssertion:    require.NoError,
+			responseAssertion: &clusterconfigpb.GetClusterAccessGraphConfigResponse{
+				AccessGraph: &clusterconfigpb.AccessGraphConfig{
+					Enabled:  true,
+					Insecure: true,
+					Address:  "address",
+					Ca:       []byte("ca"),
+				},
+			},
+		},
+		{
+			name: "authorized discovery with non empty access graph config; Policy module is enabled",
+			role: types.RoleDiscovery,
+			testSetup: func(t *testing.T) {
+				m := modules.TestModules{
+					TestFeatures: modules.Features{
+						Policy: modules.PolicyFeature{
+							Enabled: true,
+						},
+					},
+				}
+				modules.SetTestModules(t, &m)
+			},
+			accessGraphConfig: cfgEnabled,
+			errorAssertion:    require.NoError,
+			responseAssertion: &clusterconfigpb.GetClusterAccessGraphConfigResponse{
+				AccessGraph: &clusterconfigpb.AccessGraphConfig{
+					Enabled:  true,
+					Insecure: true,
+					Address:  "address",
+					Ca:       []byte("ca"),
+				},
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			test.testSetup(t)
+
+			authRoleContext, err := authz.ContextForBuiltinRole(authz.BuiltinRole{
+				Role:     test.role,
+				Username: string(test.role),
+			}, nil)
+			require.NoError(t, err, "creating auth role context")
+			authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return authRoleContext, nil
+			})
+			env, err := newTestEnv(withAuthorizer(authorizer), withAccessGraphConfig(test.accessGraphConfig))
+			require.NoError(t, err, "creating test service")
+
+			got, err := env.GetClusterAccessGraphConfig(context.Background(), &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
+			test.errorAssertion(t, err)
+
+			require.Empty(t, cmp.Diff(test.responseAssertion, got, protocmp.Transform()))
+		})
+	}
 }
