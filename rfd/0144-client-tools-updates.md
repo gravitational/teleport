@@ -266,7 +266,7 @@ The above configuration will then be available from the unauthenticated
 endpoint `/v1/webapi/ping` which clients will consult.
 
 ```
-curl https://proxy.example.com/v1/webapi/ping | jq .
+$ curl https://proxy.example.com/v1/webapi/ping | jq .
 {
     "tools_auto_update": true,
     "tools_version": "X.Y.Z",
