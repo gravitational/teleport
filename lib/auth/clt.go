@@ -35,6 +35,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -978,8 +979,11 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	AccessListClient() services.AccessLists
 
-	// DatabaseObjectImportRuleClient returns a database import rule client.
+	// DatabaseObjectImportRuleClient returns a database object import rule client.
 	DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient
+
+	// DatabaseObjectClient returns a database object client.
+	DatabaseObjectClient() dbobjectv1.DatabaseObjectServiceClient
 
 	// SecReportsClient returns a client for security reports.
 	// Clients connecting to  older Teleport versions, still get an access list client
