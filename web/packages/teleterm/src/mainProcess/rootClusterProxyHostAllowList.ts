@@ -58,9 +58,11 @@ export function manageRootClusterProxyHostAllowList({
 
     let rootClusters: tshd.Cluster[];
     try {
-      rootClusters = await tshdClient.listRootClusters(
-        cloneAbortSignal(abortController.signal)
+      const { response } = await tshdClient.listRootClusters(
+        {},
+        { abort: cloneAbortSignal(abortController.signal) }
       );
+      rootClusters = response.clusters;
     } catch (error) {
       if (isAbortError(error)) {
         // Ignore abort errors. They will be logged by the gRPC client middleware.
