@@ -86,15 +86,21 @@ jobs:
     permissions:
       contents: read
       id-token: write  # required for aws-actions/configure-aws-credentials
+    strategy:
+      matrix:
+        release: ['oss', 'fips']
+        include:
+          - release: 'fips'
+            repo-infix: '-fips'
     uses: ./.github/workflows/oci-image-promote.yml
     with:
       pending-registry: ${{ inputs.pending-registry }}
-      pending-repository: tbot-distroless
+      pending-repository: tbot${{ matrix.repo-infix }}-distroless
       pending-tag: ${{ needs.configure.outputs.teleport-version }}
       validation-key-url: ${{ inputs.validation-key-url }}
       production-registry: public.ecr.aws
       production-registry-region: us-east-1
-      production-repository: gravitational/tbot-distroless
+      production-repository: gravitational/tbot${{ matrix.repo-infix }}-distroless
       production-tags: "${{ needs.configure.outputs.dest-image-tags }}"
       production-signing-key-url: ${{ inputs.production-signing-key-url }}
       promotion-role-arn: ${{ inputs.promotion-role-arn }}

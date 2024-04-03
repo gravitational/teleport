@@ -107,9 +107,24 @@ jobs:
       contents: read
       id-token: write  # required for aws-actions/configure-aws-credentials
       security-events: write # required for trivy scan
+    strategy:
+      matrix:
+        release: ['oss', 'fips']
+        include:
+          - architectures: |
+              amd64
+              arm
+              arm64
+          # FIPS release is currently amd64 and arm64-only
+          - release: 'fips'
+            repo-infix: '-fips'
+            dockerfile-suffix: '-fips'
+            architectures: |
+              amd64
+              arm64
     uses: ./.github/workflows/oci-image-build.yml
     with:
-      teleport-release: 'oss'
+      teleport-release: ${{ matrix.release }}
       base-image: 'gcr.io/distroless/cc-debian12:latest'
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
@@ -118,17 +133,14 @@ jobs:
       source-tag: ${{ inputs.source-tag }}
       teleport-version: ${{ needs.configure.outputs.teleport-version }}
       dest-image-registry: ${{ inputs.dest-repo-prefix }}
-      dest-image-repo: tbot-distroless
+      dest-image-repo: tbot${{ matrix.repo-infix }}-distroless
       dest-image-tags: ${{ needs.configure.outputs.teleport-version }}
       build-role-arn: ${{ inputs.build-role-arn }}
       signing-key-url: ${{ inputs.signing-key-url }}
-      architectures: |
-        amd64
-        arm
-        arm64
+      architectures: ${{ matrix.architectures }}
       image-build-args: |
         TELEPORT_VERSION=${{ needs.configure.outputs.teleport-version }}
-      image-build-dockerfile: Dockerfile-tbot-distroless
+      image-build-dockerfile: Dockerfile-tbot-distroless${{ matrix.dockerfile-suffix }}
       allow-overwrites: false
     secrets:
       deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
