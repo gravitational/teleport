@@ -170,7 +170,7 @@ func signx509SVID(
 		IPAddresses: ipSANS,
 	}
 
-	// For legacy compatability, we set the subject common name to the first
+	// For legacy compatibility, we set the subject common name to the first
 	// DNS SAN. This allows interoperability with non-SPIFFE aware clients that
 	// trust the CA, or interoperability with servers like Postgres which can
 	// only inspect the common name when making authz/authn decisions.
