@@ -343,6 +343,75 @@ func TestResourceExpression_NameIdentifier(t *testing.T) {
 	require.True(t, match)
 }
 
+func TestResourceParserLabelExpansion(t *testing.T) {
+	t.Parallel()
+
+	// Server resource should use hostname when using name identifier.
+	server, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
+		Hostname: "server-hostname",
+	}, map[string]string{"ip": "1.2.3.11,1.2.3.101,1.2.3.1", "foo": "bar"})
+	require.NoError(t, err)
+
+	tests := []struct {
+		expression string
+		assertion  require.BoolAssertionFunc
+	}{
+		{
+			expression: `contains(split(labels["ip"], ","), "1.2.3.1")`,
+			assertion:  require.True,
+		},
+		{
+			expression: `contains(split(labels.ip, ","), "1.2.3.1",)`,
+			assertion:  require.True,
+		},
+		{
+			expression: `contains(split(labels["ip"], ","),  "1.2.3.2")`,
+			assertion:  require.False,
+		},
+		{
+			expression: `contains(split(labels.llama, ","),  "1.2.3.2")`,
+			assertion:  require.False,
+		},
+		{
+			expression: `contains(split(labels.ip, ","), "1.2.3.2")`,
+			assertion:  require.False,
+		},
+		{
+			expression: `contains(split(labels.foo, ","), "bar")`,
+			assertion:  require.True,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.expression, func(t *testing.T) {
+			expression, err := NewResourceExpression(test.expression)
+			require.NoError(t, err)
+
+			match, err := expression.Evaluate(server)
+			require.NoError(t, err)
+			test.assertion(t, match)
+		})
+	}
+}
+
+func BenchmarkContains(b *testing.B) {
+	server, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
+		Hostname: "server-hostname",
+	}, map[string]string{"ip": "1.2.3.11|1.2.3.101|1.2.3.1"})
+	require.NoError(b, err)
+
+	expression, err := NewResourceExpression(`contains(split(labels["ip"], "|"), "1.2.3.1")`)
+	require.NoError(b, err)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		match, err := expression.Evaluate(server)
+		require.NoError(b, err)
+		require.True(b, match)
+	}
+}
+
 // TestParserHostCertContext tests set functions with a custom host cert
 // context.
 func TestParserHostCertContext(t *testing.T) {
