@@ -35,8 +35,11 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
+// startKubeIntegrationWatchers starts kube watchers that use integration for the credentials. Currently only
+// EKS watchers can do that and they behave differently from non-integration ones - we install agent on the
+// discovered clusters, instead of just proxying them.
 func (s *Server) startKubeIntegrationWatchers() error {
-	if s.dynamicMatcherWatcher == nil {
+	if len(s.getKubeIntegrationFetchers()) == 0 && s.dynamicMatcherWatcher == nil {
 		return nil
 	}
 
@@ -53,7 +56,11 @@ func (s *Server) startKubeIntegrationWatchers() error {
 	}
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
-		FetchersFn:     s.getKubeIntegrationFetchers,
+		FetchersFn: func() []common.Fetcher {
+			kubeIntegrationFetchers := s.getKubeIntegrationFetchers()
+			s.submitFetchersEvent(kubeIntegrationFetchers)
+			return kubeIntegrationFetchers
+		},
 		Log:            s.Log.WithField("kind", types.KindKubernetesCluster),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,
@@ -110,7 +117,6 @@ func (s *Server) startKubeIntegrationWatchers() error {
 					continue
 				}
 
-				// When enrolling EKS clusters, client for enrollment depends on the region and integration used.
 				// When enrolling EKS clusters, client for enrollment depends on the region and integration used.
 				type regionIntegrationMapKey struct {
 					region      string
@@ -220,16 +226,48 @@ func (s *Server) getKubeAgentVersion(releaseChannels automaticupgrades.Channels)
 	return strings.TrimPrefix(agentVersion, "v"), nil
 }
 
-func (s *Server) getKubeIntegrationFetchers() []common.Fetcher {
+type IntegrationFetcher interface {
+	// GetIntegration returns the integration name that is used for getting credentials of the fetcher.
+	GetIntegration() string
+}
+
+func (s *Server) getKubeFetchers(integration bool) []common.Fetcher {
 	var kubeFetchers []common.Fetcher
 
-	s.muDynamicKubeIntegrationFetchers.RLock()
-	for _, fetcherSet := range s.dynamicKubeIntegrationFetchers {
-		kubeFetchers = append(kubeFetchers, fetcherSet...)
+	filter := func(fetcher common.Fetcher) bool {
+		f, ok := fetcher.(IntegrationFetcher)
+		if !ok {
+			// If fetcher doesn't provide integration field, return true if non-integration fetchers were requested.
+			return !integration
+		}
+		// If fetcher provides integration field, return true if integration fetchers were requested and integration
+		// field actually has a value.
+		return integration == (len(f.GetIntegration()) > 0)
 	}
-	s.muDynamicKubeIntegrationFetchers.RUnlock()
 
-	s.submitFetchersEvent(kubeFetchers)
+	s.muDynamicKubeFetchers.RLock()
+	for _, fetcherSet := range s.dynamicKubeFetchers {
+		for _, f := range fetcherSet {
+			if filter(f) {
+				kubeFetchers = append(kubeFetchers, f)
+			}
+		}
+	}
+	s.muDynamicKubeFetchers.RUnlock()
+
+	for _, f := range s.kubeFetchers {
+		if filter(f) {
+			kubeFetchers = append(kubeFetchers, f)
+		}
+	}
 
 	return kubeFetchers
+}
+
+func (s *Server) getKubeIntegrationFetchers() []common.Fetcher {
+	return s.getKubeFetchers(true)
+}
+
+func (s *Server) getKubeNonIntegrationFetchers() []common.Fetcher {
+	return s.getKubeFetchers(false)
 }

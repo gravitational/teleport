@@ -1686,6 +1686,12 @@ type AWSMatcher struct {
 	// SSM provides options to use when sending a document command to
 	// an EC2 node
 	SSM AWSSSM `yaml:"ssm,omitempty"`
+	// Integration is the integration name used to generate credentials to interact with AWS APIs.
+	// Environment credentials will not be used when this value is set.
+	Integration string `yaml:"integration"`
+	// KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
+	// discovered clusters, currently only affects AWS EKS discovery in integration mode.
+	KubeAppDiscovery bool `yaml:"kube_app_discovery"`
 }
 
 // InstallParams sets join method to use on discovered nodes

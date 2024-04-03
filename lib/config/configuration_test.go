@@ -363,6 +363,15 @@ func TestConfigReading(t *testing.T) {
 					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
 					ExternalID:    "externalID123",
 				},
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"us-west-1", "us-east-1"},
+					Tags: map[string]apiutils.Strings{
+						"a": {"b"},
+					},
+					Integration:      "integration1",
+					KubeAppDiscovery: true,
+				},
 			},
 			AzureMatchers: []AzureMatcher{
 				{
@@ -1488,6 +1497,13 @@ func makeConfigFixture() string {
 			Tags:          map[string]apiutils.Strings{"a": {"b"}},
 			AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
 			ExternalID:    "externalID123",
+		},
+		{
+			Types:            []string{"eks"},
+			Regions:          []string{"us-west-1", "us-east-1"},
+			Tags:             map[string]apiutils.Strings{"a": {"b"}},
+			Integration:      "integration1",
+			KubeAppDiscovery: true,
 		},
 	}
 
