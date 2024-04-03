@@ -4,10 +4,10 @@ metadata:
   name: my_custom_rule
 spec:
   # Priority determines how important the rule is, with lower number indicating lower priority.
-  # In case of conflicts, when the same label is applied by two rules, 
+  # In case of conflicts, when the same label is applied by two rules,
   # the label applied by rule with higher priority wins.
   priority: 123
-  # database_labels is a filter specifiying which database resources are in scope of this rule.
+  # database_labels is a filter specifying which database resources are in scope of this rule.
   database_labels:
   - name: 'env'
     values:

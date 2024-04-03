@@ -26,10 +26,10 @@ metadata:
   name: import_all_objects
 spec:
   # Priority determines how important the rule is, with lower number indicating lower priority.
-  # In case of conflicts, when the same label is applied by two rules, 
+  # In case of conflicts, when the same label is applied by two rules,
   # the label applied by rule with higher priority wins.
   priority: 0
-  # database_labels is a filter specifiying which database resources are in scope of this rule.
+  # database_labels is a filter specifying which database resources are in scope of this rule.
   database_labels:
   - name: '*'
     values:
@@ -65,7 +65,7 @@ metadata:
 spec:
   priority: 100
   database_labels:
-  # Affect `dev` and `staging` environments. 
+  # Affect `dev` and `staging` environments.
   # Prod environment may have a different rule.
   - name: 'env'
     values:
@@ -125,7 +125,7 @@ spec:
     db_names:
     - '*'
     db_permissions:
-    # defult permission: read-only
+    # default permission: read-only
     - match:
         object_kind: table
         dept: hr
@@ -164,11 +164,13 @@ A user can maintain multiple simultaneous connections to the same database. All 
 
 To diagnose the import process, refer to the Database Service logs to find details such as the number of objects fetched from the database, the number of imported objects (the difference comprising objects not matched by any import rule), and finally, the number of objects for which the user has been granted permissions.
 
+{/* spell-checker: disable */}
 ```code
 INFO [DB:SERVIC] Database objects fetched from the database (table:75). db:my-postgres id:b4a33740-1d82-4a8d-b2be-2aa90ae9d2eb total:75 postgres/users.go:212
 INFO [DB:SERVIC] Database objects imported (table:75). db:my-postgres err_count:0 id:b4a33740-1d82-4a8d-b2be-2aa90ae9d2eb total:75 postgres/users.go:216
 INFO [DB:SERVIC] Calculated database permissions: "INSERT": 75 objects (table:75), "SELECT": 75 objects (table:75), "UPDATE": 75 objects (table:75). db:my-postgres id:b4a33740-1d82-4a8d-b2be-2aa90ae9d2eb user:teleport-user postgres/users.go:223
 ```
+{/* spell-checker: enable */}
 
 ### Invalid database admin user permissions
 
@@ -187,7 +189,7 @@ ERROR: exit status 2
 Import rules undergo validation upon creation. An invalid rule will trigger an error during tctl create. For instance:
 
 ```yaml
-... 
+...
   mappings:
   - add_labels:
       invalid_label: '{{'

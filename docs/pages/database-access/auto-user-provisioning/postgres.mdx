@@ -1,5 +1,5 @@
 ---
-title: PostgreSQL Automatic User Provisioning 
+title: PostgreSQL Automatic User Provisioning
 description: Configure automatic user provisioning for PostgreSQL.
 ---
 
@@ -111,8 +111,8 @@ spec:
     - "{{external.db_roles}}"
 ```
 
-The provisioned database user will be assigned all roles from the Teleport user's role set that match the database. 
-The role names must be valid and exist in the database. 
+The provisioned database user will be assigned all roles from the Teleport user's role set that match the database.
+The role names must be valid and exist in the database.
 See PostgreSQL [CREATE ROLE](https://www.postgresql.org/docs/current/sql-createrole.html) for information on how to create database roles.
 
 </TabItem>
@@ -254,7 +254,7 @@ GRANT rds_iam TO "teleport-admin" WITH ADMIN OPTION;
 - Learn about [role
   templating](../../access-controls/guides/role-templates.mdx#interpolation-rules).
 - Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).
-- Read database permission managemend [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0151-database-permission-management.md).
+- Read database permission management [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0151-database-permission-management.md).
 - The `internal.db_roles` traits we illustrated in this guide
   are replaced with values from the Teleport local user database. For full
   details on how variable expansion works in Teleport roles, see the [Teleport
