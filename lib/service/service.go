@@ -2636,7 +2636,9 @@ func (process *TeleportProcess) initSSH() error {
 		// If a tunnel is not being used, set the default here (could not be done in
 		// file configuration because at that time it's not known if server is
 		// joining cluster directly or through a tunnel).
-		if conn.UseTunnel() {
+		useTunnel := conn.UseTunnel() && cfg.SSH.Addr.IsEmpty()
+
+		if useTunnel {
 			if !cfg.SSH.Addr.IsEmpty() {
 				logger.InfoContext(process.ExitContext(), "Connected to cluster over tunnel connection, ignoring listen_addr setting.")
 			}
@@ -2644,6 +2646,7 @@ func (process *TeleportProcess) initSSH() error {
 				logger.InfoContext(process.ExitContext(), "Connected to cluster over tunnel connection, ignoring public_addr setting.")
 			}
 		}
+
 		if !conn.UseTunnel() && cfg.SSH.Addr.IsEmpty() {
 			cfg.SSH.Addr = *defaults.SSHServerListenAddr()
 		}
@@ -2710,7 +2713,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetMACAlgorithms(cfg.MACAlgorithms),
 			regular.SetPAMConfig(cfg.SSH.PAM),
 			regular.SetRotationGetter(process.GetRotation),
-			regular.SetUseTunnel(conn.UseTunnel()),
+			regular.SetUseTunnel(useTunnel),
 			regular.SetFIPS(cfg.FIPS),
 			regular.SetBPF(ebpf),
 			regular.SetOnHeartbeat(process.OnHeartbeat(teleport.ComponentNode)),
@@ -2750,7 +2753,7 @@ func (process *TeleportProcess) initSSH() error {
 		}
 
 		var agentPool *reversetunnel.AgentPool
-		if !conn.UseTunnel() {
+		if !useTunnel {
 			listener, err := process.importOrCreateListener(ListenerNodeSSH, cfg.SSH.Addr.Addr)
 			if err != nil {
 				return trace.Wrap(err)
