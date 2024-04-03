@@ -32,8 +32,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/debug"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -53,7 +53,7 @@ func newDebugServiceClient(configPath string) (*debugServiceClient, error) {
 		clt: &http.Client{
 			Transport: &http.Transport{
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial("unix", filepath.Join(cfg.DataDir, constants.DebugServiceSocketName))
+					return net.Dial("unix", filepath.Join(cfg.DataDir, debug.ServiceSocketName))
 				},
 			},
 		},
@@ -62,7 +62,7 @@ func newDebugServiceClient(configPath string) (*debugServiceClient, error) {
 
 // SetLogLevel changes the application's log level and a change status message.
 func (c *debugServiceClient) SetLogLevel(ctx context.Context, level string) (string, error) {
-	resp, err := c.do(ctx, constants.DebugServiceSetLogLevelMethod, constants.DebugServiceLogLevelEndpoint, []byte(level))
+	resp, err := c.do(ctx, debug.SetLogLevelMethod, debug.LogLevelEndpoint, []byte(level))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -82,7 +82,7 @@ func (c *debugServiceClient) SetLogLevel(ctx context.Context, level string) (str
 
 // GetLogLevel fetches the current log level.
 func (c *debugServiceClient) GetLogLevel(ctx context.Context) (string, error) {
-	resp, err := c.do(ctx, constants.DebugServiceGetLogLevelMethod, constants.DebugServiceLogLevelEndpoint, []byte{})
+	resp, err := c.do(ctx, debug.GetLogLevelMethod, debug.LogLevelEndpoint, []byte{})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -102,7 +102,7 @@ func (c *debugServiceClient) GetLogLevel(ctx context.Context) (string, error) {
 
 // CollectProfile collects a pprof profile.
 func (c *debugServiceClient) CollectProfile(ctx context.Context, profileName string, seconds int) ([]byte, error) {
-	path := constants.PProfEndpointsPrefix + profileName
+	path := debug.PProfEndpointsPrefix + profileName
 	if seconds > 0 {
 		path += fmt.Sprintf("?seconds=%d", seconds)
 	}

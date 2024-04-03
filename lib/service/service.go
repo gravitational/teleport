@@ -99,6 +99,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/debug"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/athena"
@@ -3272,77 +3273,13 @@ func (process *TeleportProcess) initDiagnosticService() error {
 func (process *TeleportProcess) initDebugService() error {
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDebug, process.id))
 
-	// logPProfMiddleware logs /debug/pprof requests.
-	logPProfMiddleware := func(next http.HandlerFunc) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
-			seconds := r.URL.Query().Get("seconds")
-			if seconds == "" {
-				seconds = "default"
-			}
-
-			logger.InfoContext(
-				process.ExitContext(),
-				"Collecting pprof profile.",
-				"profile", strings.TrimSuffix(r.URL.Path, constants.PProfEndpointsPrefix),
-				"seconds", seconds,
-			)
-
-			next(w, r)
-		}
-	}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc(constants.PProfEndpointsPrefix, logPProfMiddleware(pprof.Index))
-	mux.HandleFunc(constants.PProfEndpointsPrefix+"cmdline", logPProfMiddleware(pprof.Cmdline))
-	mux.HandleFunc(constants.PProfEndpointsPrefix+"profile", logPProfMiddleware(pprof.Profile))
-	mux.HandleFunc(constants.PProfEndpointsPrefix+"symbol", logPProfMiddleware(pprof.Symbol))
-	mux.HandleFunc(constants.PProfEndpointsPrefix+"trace", logPProfMiddleware(pprof.Trace))
-
-	mux.HandleFunc(constants.DebugServiceLogLevelEndpoint, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == constants.DebugServiceGetLogLevelMethod {
-			w.Write([]byte(logutils.MarshalText(process.Config.LoggerLevel.Level())))
-			return
-		}
-
-		if r.Method != constants.DebugServiceSetLogLevelMethod {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-
-		rawLevel, err := io.ReadAll(io.LimitReader(r.Body, 1024))
-		defer r.Body.Close()
-		if err != nil {
-			w.WriteHeader(http.StatusUnprocessableEntity)
-			w.Write([]byte("Unable to read request body."))
-			return
-		}
-
-		level, err := logutils.UnmarshalText(rawLevel)
-		if err != nil {
-			logger.WarnContext(process.ExitContext(), "Failed to parse log level", "error", err)
-			w.WriteHeader(http.StatusUnprocessableEntity)
-			w.Write([]byte("Invalid log level."))
-			return
-		}
-
-		currLevel := process.Config.LoggerLevel.Level()
-		message := fmt.Sprintf("Log level already set to %q.", level)
-		if level != currLevel {
-			message = fmt.Sprintf("Changed log level from %q to %q.", currLevel, level)
-			process.Config.SetLogLevel(level)
-			logger.InfoContext(process.ExitContext(), "Changed log level.", "old", currLevel, "new", string(rawLevel))
-		}
-
-		w.Write([]byte(message))
-	})
-
-	listener, err := process.importOrCreateListener(ListenerDebug, filepath.Join(process.Config.DataDir, constants.DebugServiceSocketName))
+	listener, err := process.importOrCreateListener(ListenerDebug, filepath.Join(process.Config.DataDir, debug.ServiceSocketName))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	server := &http.Server{
-		Handler:           mux,
+		Handler:           debug.NewServeMux(process.ExitContext(), logger, process.Config),
 		ReadTimeout:       apidefaults.DefaultIOTimeout,
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 		WriteTimeout:      apidefaults.DefaultIOTimeout,

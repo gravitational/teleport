@@ -451,20 +451,3 @@ const (
 	// Multiple decisions can be sent for the same request if the policy requires it.
 	FileTransferDecision string = "file-transfer-decision@goteleport.com"
 )
-
-const (
-	// DebugServiceSocketName represents the Unix domain socket name of the
-	// Debug service.
-	DebugServiceSocketName = "debug.sock"
-	// DebugServiceLogLevelEndpoint is the HTTP endpoint used for retrieving
-	// and changing log level.
-	DebugServiceLogLevelEndpoint = "/log-level"
-	// DebugServiceGetLogLevelMethod is the HTTP method used to retrieve the
-	// current log level.
-	DebugServiceGetLogLevelMethod = "GET"
-	// DebugServiceSetLogLevelMethod is the HTTP method used to change the log
-	// level.
-	DebugServiceSetLogLevelMethod = "PUT"
-	// PProfEndpointsPrefix PProf endpoints path prefix.
-	PProfEndpointsPrefix = "/debug/pprof/"
-)

@@ -2,6 +2,7 @@
 gitref.go
 .data
 debug
+!/lib/debug
 default.etcd
 /darwin
 

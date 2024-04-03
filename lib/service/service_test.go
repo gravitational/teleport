@@ -19,12 +19,10 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -50,7 +48,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -58,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/debug"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/athena"
@@ -69,7 +67,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestMain(m *testing.M) {
@@ -1567,11 +1564,14 @@ func TestSingleProcessModeResolver(t *testing.T) {
 	}
 }
 
-func TestDebugService(t *testing.T) {
+// TestDebugServiceStartSocket ensures the debug service socket starts
+// correctly, and is accessible.
+func TestDebugServiceStartSocket(t *testing.T) {
 	t.Parallel()
 	fakeClock := clockwork.NewFakeClock()
 
 	cfg := servicecfg.MakeDefaultConfig()
+	cfg.DebugService.Enabled = true
 	cfg.Clock = fakeClock
 	var err error
 	cfg.DataDir = t.TempDir()
@@ -1585,11 +1585,6 @@ func TestDebugService(t *testing.T) {
 	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
 	cfg.SSH.Enabled = false
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.DebugService.Enabled = true
-
-	// Define the logger to avoid modifying global loggers.
-	cfg.Log = logrus.New()
-	cfg.Logger = slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{}))
 
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
@@ -1600,59 +1595,14 @@ func TestDebugService(t *testing.T) {
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial("unix", filepath.Join(process.Config.DataDir, constants.DebugServiceSocketName))
+				return net.Dial("unix", filepath.Join(process.Config.DataDir, debug.ServiceSocketName))
 			},
 		},
 	}
 
-	t.Run("LogLevel", func(t *testing.T) {
-		require.Equal(t, cfg.LoggerLevel.Level().String(), retrieveLogLevel(t, httpClient))
-
-		// Invalid log level
-		resp, err := httpClient.Do(makeDebugSocketRequest(t, http.MethodPut, constants.DebugServiceLogLevelEndpoint, "RANDOM"))
-		require.NoError(t, err)
-		defer resp.Body.Close()
-		require.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
-
-		for _, logLevel := range logutils.SupportedLevelsText {
-			t.Run("Set"+logLevel, func(t *testing.T) {
-				resp, err = httpClient.Do(makeDebugSocketRequest(t, http.MethodPut, constants.DebugServiceLogLevelEndpoint, logLevel))
-				require.NoError(t, err)
-				defer resp.Body.Close()
-				require.Equal(t, http.StatusOK, resp.StatusCode)
-				require.Equal(t, logLevel, retrieveLogLevel(t, httpClient))
-			})
-		}
-	})
-
-	t.Run("CollectProfiles", func(t *testing.T) {
-		resp, err := httpClient.Do(makeDebugSocketRequest(t, http.MethodGet, "/debug/pprof/goroutine", ""))
-		require.NoError(t, err)
-		defer resp.Body.Close()
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-
-		respBody, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		require.NotEmpty(t, respBody)
-	})
-}
-
-func retrieveLogLevel(t *testing.T, httpClient *http.Client) string {
-	t.Helper()
-
-	resp, err := httpClient.Do(makeDebugSocketRequest(t, constants.DebugServiceGetLogLevelMethod, constants.DebugServiceLogLevelEndpoint, ""))
+	// Fetch a random path, it should return 404 error.
+	req, err := httpClient.Get("http://debug/random")
 	require.NoError(t, err)
-
-	respBody, err := io.ReadAll(resp.Body)
-	defer resp.Body.Close()
-	require.NoError(t, err)
-
-	return string(respBody)
-}
-
-func makeDebugSocketRequest(t *testing.T, method, path, body string) *http.Request {
-	t.Helper()
-	req, err := http.NewRequest(method, "http://debug"+path, bytes.NewBufferString(body))
-	require.NoError(t, err)
-	return req
+	defer req.Body.Close()
+	require.Equal(t, http.StatusNotFound, req.StatusCode)
 }

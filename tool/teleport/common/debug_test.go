@@ -30,8 +30,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/debug"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -129,10 +129,10 @@ func TestCollectProfiles(t *testing.T) {
 			requestedPaths := closeFn()
 			for _, uri := range requestedPaths {
 				path, args, _ := strings.Cut(uri, "?")
-				require.True(t, strings.HasPrefix(path, constants.PProfEndpointsPrefix), "expected %q request but got %q", constants.PProfEndpointsPrefix, path)
+				require.True(t, strings.HasPrefix(path, debug.PProfEndpointsPrefix), "expected %q request but got %q", debug.PProfEndpointsPrefix, path)
 				require.Equal(t, test.expectedArgs, args)
 
-				requestedProfiles = append(requestedProfiles, strings.TrimPrefix(path, constants.PProfEndpointsPrefix))
+				requestedProfiles = append(requestedProfiles, strings.TrimPrefix(path, debug.PProfEndpointsPrefix))
 			}
 			require.ElementsMatch(t, test.collectedProfilesExpected, requestedProfiles)
 
@@ -178,7 +178,7 @@ func newConfigWithDataDir(t *testing.T) (string, string) {
 func newSocketMockService(t *testing.T, dataDir string, contents []byte) func() []string {
 	t.Helper()
 
-	l, err := net.Listen("unix", filepath.Join(dataDir, constants.DebugServiceSocketName))
+	l, err := net.Listen("unix", filepath.Join(dataDir, debug.ServiceSocketName))
 	require.NoError(t, err)
 
 	var requests []string
