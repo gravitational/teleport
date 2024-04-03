@@ -20,7 +20,8 @@ import { FileTransferListeners } from 'shared/components/FileTransfer';
 
 import { FileTransferDirection } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 
-import { FileTransferRequest, TshdClient } from 'teleterm/services/tshd/types';
+import { FileTransferRequest } from 'teleterm/services/tshd/types';
+import { TshdClient } from 'teleterm/services/tshd';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
 
