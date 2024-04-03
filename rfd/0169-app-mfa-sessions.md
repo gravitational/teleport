@@ -8,7 +8,6 @@ state: draft
 ## Required Approvers
 
 - Engineering: @rosstimothy || @zmb3
-- Product: @klizhentas || @xinding33
 - Security: @reedloden || @jentfoo
 
 ## What
