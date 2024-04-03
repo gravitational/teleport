@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=16.0.0-dev-win-tctl
+VERSION=16.0.0-dev-win-tctl-2
 
 DOCKER_IMAGE ?= teleport
 
@@ -1192,8 +1192,7 @@ tag-build:
 		--repo gravitational/teleport.e \
 		--ref "v$(VERSION)" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
-		-f "oss-teleport-ref=v$(VERSION)" \
-		-f "cloud-only=$(CLOUD_ONLY)"
+		-f "oss-teleport-ref=v$(VERSION)"
 	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-build.yaml
 
 # Publishes a tag build.
