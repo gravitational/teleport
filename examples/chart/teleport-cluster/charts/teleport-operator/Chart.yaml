@@ -1,4 +1,4 @@
-.version: &version "16.0.0-dev-tctl-win-4"
+.version: &version "16.0.0-dev-tctl-win-5"
 
 name: teleport-operator
 apiVersion: v2
