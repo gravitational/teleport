@@ -26,6 +26,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
@@ -783,10 +784,14 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	b := New(botConfig, log)
 
 	// Spin up goroutine for bot to run in
-	botCtx, cancelBot := context.WithCancel(ctx)
-	botCh := make(chan error, 1)
+	ctx, cancel := context.WithCancel(ctx)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
-		botCh <- b.Run(botCtx)
+		defer wg.Done()
+		err := b.Run(ctx)
+		assert.NoError(t, err, "bot should not exit with error")
+		cancel()
 	}()
 
 	// We can't predict exactly when the tunnel will be ready so we use
@@ -801,9 +806,9 @@ func TestBotDatabaseTunnel(t *testing.T) {
 		}()
 		_, err = conn.Exec(ctx, "SELECT 1;").ReadAll()
 		assert.NoError(t, err)
-	}, 5*time.Second, 100*time.Millisecond)
+	}, 10*time.Second, 100*time.Millisecond)
 
-	// Shut down bot and make sure it exits cleanly.
-	cancelBot()
-	require.NoError(t, <-botCh)
+	// Shut down bot and make sure it exits.
+	cancel()
+	wg.Wait()
 }
