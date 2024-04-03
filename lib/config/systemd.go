@@ -39,6 +39,7 @@ After=network.target
 [Service]
 Type=simple
 Restart=on-failure
+RestartSec=5
 EnvironmentFile=-{{ .EnvironmentFile }}
 ExecStart={{ .TeleportInstallationFile }} start --pid-file={{ .PIDFile }}
 ExecReload=/bin/kill -HUP $MAINPID
