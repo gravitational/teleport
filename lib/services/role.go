@@ -1773,7 +1773,7 @@ func (set RoleSet) CertificateExtensions() []*types.CertExtension {
 // SessionRecordingMode returns the recording mode for a specific service.
 func (set RoleSet) SessionRecordingMode(service constants.SessionRecordingService) constants.SessionRecordingMode {
 	defaultValue := constants.SessionRecordingModeBestEffort
-	useDefault := true
+	serviceValue := constants.SessionRecordingModeUnspecified
 
 	for _, role := range set {
 		recordSession := role.GetOptions().RecordSession
@@ -1794,16 +1794,22 @@ func (set RoleSet) SessionRecordingMode(service constants.SessionRecordingServic
 			// Early return as "strict" since it is the strictest value.
 			return constants.SessionRecordingModeStrict
 		case constants.SessionRecordingModeBestEffort:
-			useDefault = false
+			serviceValue = roleMode
+		case constants.SessionRecordingModeOff:
+			// "off" will only take place if the service value is unspecified.
+			// This avoids it to overwrite stricter modes.
+			if serviceValue == constants.SessionRecordingModeUnspecified {
+				serviceValue = roleMode
+			}
 		}
 	}
 
-	// Return the strictest default value.
-	if useDefault {
-		return defaultValue
+	// If service value it set, return it.
+	if serviceValue != constants.SessionRecordingModeUnspecified {
+		return serviceValue
 	}
 
-	return constants.SessionRecordingModeBestEffort
+	return defaultValue
 }
 
 func contains[S ~[]E, E any](s S, f func(E) (bool, error)) (bool, error) {

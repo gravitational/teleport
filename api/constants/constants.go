@@ -332,11 +332,16 @@ const (
 	SessionRecordingServiceSSH SessionRecordingService = iota
 )
 
-// SessionRecordingMode determines how session recording will behave in failure
-// scenarios.
+// SessionRecordingMode determines how session recording will behave.
 type SessionRecordingMode string
 
 const (
+	// SessionRecordingModeUnspecified non-specified session recording mode.
+	SessionRecordingModeUnspecified = SessionRecordingMode("")
+
+	// SessionRecordingModeOff disables session recording.
+	SessionRecordingModeOff = SessionRecordingMode("off")
+
 	// SessionRecordingModeStrict causes any failure session recording to
 	// terminate the session or prevent a new session from starting.
 	SessionRecordingModeStrict = SessionRecordingMode("strict")

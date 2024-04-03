@@ -286,6 +286,46 @@ func TestSession_newRecorder(t *testing.T) {
 			recAssertion: isNotSessionWriter,
 		},
 		{
+			desc: "discard-stream-when-recording-disabled",
+			sess: &session{
+				id:  "test",
+				log: logger,
+				registry: &SessionRegistry{
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: &mockServer{
+							component: teleport.ComponentNode,
+						},
+					},
+				},
+			},
+			sctx: &ServerContext{
+				ClusterName:            "test",
+				SessionRecordingConfig: nodeRecordingSync,
+				srv: &mockServer{
+					component: teleport.ComponentNode,
+					datadir:   t.TempDir(),
+				},
+				Identity: IdentityContext{
+					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+						Roles: []string{"dev"},
+					}, "test", services.RoleSet{
+						&types.RoleV6{
+							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+							Spec: types.RoleSpecV6{
+								Options: types.RoleOptions{
+									RecordSession: &types.RecordSession{
+										SSH: constants.SessionRecordingModeOff,
+									},
+								},
+							},
+						},
+					}),
+				},
+			},
+			errAssertion: require.NoError,
+			recAssertion: isNotSessionWriter,
+		},
+		{
 			desc: "strict-err-new-audit-writer-fails",
 			sess: &session{
 				id:  "test",
@@ -387,6 +427,11 @@ func TestSession_newRecorder(t *testing.T) {
 				srv: &mockServer{
 					MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
 					datadir:             t.TempDir(),
+				},
+				Identity: IdentityContext{
+					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+						Roles: []string{"dev"},
+					}, "test", services.RoleSet{}),
 				},
 			},
 			errAssertion: require.NoError,
@@ -901,10 +946,11 @@ func TestTrackingSession(t *testing.T) {
 
 func TestSessionRecordingMode(t *testing.T) {
 	tests := []struct {
-		name          string
-		serverSubKind string
-		mode          string
-		expectedMode  string
+		name              string
+		serverSubKind     string
+		mode              string
+		expectedMode      string
+		recordSessionMode constants.SessionRecordingMode
 	}{
 		{
 			name:          "teleport node record at node",
@@ -966,6 +1012,11 @@ func TestSessionRecordingMode(t *testing.T) {
 			mode:          types.RecordAtProxySync,
 			expectedMode:  types.RecordAtProxySync,
 		},
+		{
+			name:              "disabled by role",
+			recordSessionMode: constants.SessionRecordingModeOff,
+			expectedMode:      types.RecordOff,
+		},
 	}
 
 	for _, tt := range tests {
@@ -976,6 +1027,22 @@ func TestSessionRecordingMode(t *testing.T) {
 						Spec: types.SessionRecordingConfigSpecV2{
 							Mode: tt.mode,
 						},
+					},
+					Identity: IdentityContext{
+						AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+							Roles: []string{"dev"},
+						}, "test", services.RoleSet{
+							&types.RoleV6{
+								Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+								Spec: types.RoleSpecV6{
+									Options: types.RoleOptions{
+										RecordSession: &types.RecordSession{
+											SSH: tt.recordSessionMode,
+										},
+									},
+								},
+							},
+						}),
 					},
 				},
 				serverMeta: apievents.ServerMetadata{
