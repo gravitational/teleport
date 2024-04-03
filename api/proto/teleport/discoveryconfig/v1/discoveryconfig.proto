@@ -77,9 +77,6 @@ enum DiscoveryConfigState {
   // DISCOVERY_CONFIG_STATE_ERROR is used when the operation reports
   // incidents.
   DISCOVERY_CONFIG_STATE_ERROR = 2;
-  // DISCOVERY_CONFIG_STATE_MISMATCHED_RESOURCE_GROUP is used when no Discovery service is configured
-  // with the discovery_group configured in this Discovery Config object.
-  DISCOVERY_CONFIG_STATE_MISMATCHED_RESOURCE_GROUP = 3;
   // DISCOVERY_CONFIG_STATE_SYNCING is used when the discovery process has started but didn't finished yet.
-  DISCOVERY_CONFIG_STATE_SYNCING = 4;
+  DISCOVERY_CONFIG_STATE_SYNCING = 3;
 }
