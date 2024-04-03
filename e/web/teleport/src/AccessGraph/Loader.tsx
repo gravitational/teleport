@@ -61,6 +61,7 @@ interface AccessGraphProps {
   urlNavigationEnabled: boolean;
   cfg: EnterpriseConfig;
   backUrl: string;
+  s3BucketOptional: boolean;
 }
 
 function loadAccessGraph() {
@@ -137,6 +138,7 @@ export function AccessGraph() {
         urlNavigationEnabled={true}
         cfg={cfg}
         backUrl={backUrl}
+        s3BucketOptional={true}
       />
     </Suspense>
   );
