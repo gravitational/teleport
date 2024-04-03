@@ -35,23 +35,23 @@ import (
 func TestLogLevel(t *testing.T) {
 	cfg, ts := makeServer()
 	defer ts.Close()
-	httpClient := ts.Client()
 
-	require.Equal(t, cfg.LoggerLevel.Level().String(), retrieveLogLevel(t, ts.URL, httpClient))
+	statusCode, logLevel := makeRequest(t, ts, GetLogLevelMethod, LogLevelEndpoint, "")
+	require.Equal(t, http.StatusOK, statusCode)
+	require.Equal(t, cfg.LoggerLevel.Level().String(), logLevel)
 
 	// Invalid log level
-	resp, err := httpClient.Do(makeRequest(t, ts.URL, http.MethodPut, LogLevelEndpoint, "RANDOM"))
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	require.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
+	statusCode, _ = makeRequest(t, ts, http.MethodPut, LogLevelEndpoint, "RANDOM")
+	require.Equal(t, http.StatusUnprocessableEntity, statusCode)
 
 	for _, logLevel := range logutils.SupportedLevelsText {
 		t.Run("Set"+logLevel, func(t *testing.T) {
-			resp, err = httpClient.Do(makeRequest(t, ts.URL, http.MethodPut, LogLevelEndpoint, logLevel))
-			require.NoError(t, err)
-			defer resp.Body.Close()
-			require.Equal(t, http.StatusOK, resp.StatusCode)
-			require.Equal(t, logLevel, retrieveLogLevel(t, ts.URL, httpClient))
+			statusCode, _ := makeRequest(t, ts, http.MethodPut, LogLevelEndpoint, logLevel)
+			require.Equal(t, http.StatusOK, statusCode)
+
+			statusCode, retrievedLogLevel := makeRequest(t, ts, GetLogLevelMethod, LogLevelEndpoint, "")
+			require.Equal(t, http.StatusOK, statusCode)
+			require.Equal(t, logLevel, retrievedLogLevel)
 		})
 	}
 }
@@ -59,29 +59,10 @@ func TestLogLevel(t *testing.T) {
 func TestCollectProfiles(t *testing.T) {
 	_, ts := makeServer()
 	defer ts.Close()
-	httpClient := ts.Client()
 
-	resp, err := httpClient.Do(makeRequest(t, ts.URL, http.MethodGet, "/debug/pprof/goroutine", ""))
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	respBody, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.NotEmpty(t, respBody)
-}
-
-func retrieveLogLevel(t *testing.T, url string, httpClient *http.Client) string {
-	t.Helper()
-
-	resp, err := httpClient.Do(makeRequest(t, url, GetLogLevelMethod, LogLevelEndpoint, ""))
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	return string(respBody)
+	statusCode, body := makeRequest(t, ts, http.MethodGet, "/debug/pprof/goroutine", "")
+	require.Equal(t, http.StatusOK, statusCode)
+	require.NotEmpty(t, body)
 }
 
 func makeServer() (*servicecfg.Config, *httptest.Server) {
@@ -95,9 +76,17 @@ func makeServer() (*servicecfg.Config, *httptest.Server) {
 	return cfg, httptest.NewServer(NewServeMux(context.Background(), cfg.Logger, cfg))
 }
 
-func makeRequest(t *testing.T, url, method, path, body string) *http.Request {
+func makeRequest(t *testing.T, ts *httptest.Server, method, path, body string) (int, string) {
 	t.Helper()
-	req, err := http.NewRequest(method, url+path, bytes.NewBufferString(body))
+
+	req, err := http.NewRequest(method, ts.URL+path, bytes.NewBufferString(body))
 	require.NoError(t, err)
-	return req
+
+	resp, err := ts.Client().Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	return resp.StatusCode, string(respBody)
 }
