@@ -49,10 +49,10 @@ differs from the current binary, client tools will download and re-execute
 using the version required by the cluster.
 
 The original client tools binaries won't be overwritten. Instead, additional
-binaries will be downloaded and stored in `~/.tsh/bin` with `0555` permissions.
-A file named `version.yaml` in the same directory will maintain the mapping
-between proxies and tools versions, to support auto-purge and free up disk
-space from unused binaries.
+binaries will be downloaded and stored in `~/.tsh/versions` with `0755`
+permissions.  A file named `versions.yaml` in the same directory will maintain
+the mapping between proxies and tools versions, to support auto-purge and free
+up disk space from unused binaries.
 
 To enable concurrent operation of client tools, a locking mechanisms utilizing
 [syscall.Flock](https://pkg.go.dev/syscall#Flock) (for Linux and macOS) and
@@ -66,14 +66,6 @@ pre-releases) without juggling multiple versions of client tools.
 ```
 $ tree ~/.tsh
 ~/.tsh
-├── bin
-│  ├── 15.0.0
-│  │  ├── tctl
-│  │  └── tsh
-│  ├── 15.1.1
-│  │  ├── tctl
-│  │  └── tsh
-│  └── version.yaml
 ├── current-profile
 ├── keys
 │  └── proxy.example.com
@@ -86,7 +78,17 @@ $ tree ~/.tsh
 │     ├── foo-x509.pem
 │     └── foo.pub
 ├── known_hosts
-└── proxy.example.com.yaml
+├── proxy.example.com.yaml
+└── versions
+   ├── 15.0.0
+   │  └── bin
+   │     ├── tctl
+   │     └── tsh
+   ├── 15.1.1
+   │  └── bin
+   │     ├── tctl
+   │     └── tsh
+   └── versions.yaml
 ```
 
 Users can cancel client tools updates using `Ctrl-C`. This may be needed if the
@@ -177,8 +179,8 @@ to this cluster.
 #### Self-managed client tools updates
 
 Cluster administrators that want to self-manage client tools updates will be
-able to watch for changes to client tools versions which can then be used to
-trigger other integrations (using MDM software like JamF) to update the
+able to get and watch for changes to client tools versions which can then be
+used to trigger other integrations (using MDM software like JamF) to update the
 installed version of client tools on endpoints.
 
 ```
@@ -188,6 +190,11 @@ $ tctl autoupdate watch
 {"tools_version": "2.0.0"}
 
 [...]
+```
+
+```
+$ tctl autoupdate get
+{"tools_version": "2.0.0"}
 ```
 
 ##### Cluster configuration
