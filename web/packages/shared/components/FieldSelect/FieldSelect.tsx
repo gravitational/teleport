@@ -16,17 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { Box, LabelInput } from 'design';
 
 import { useRule } from 'shared/components/Validation';
+import { useAsync } from 'shared/hooks/useAsync';
 
-import Select, { Props as SelectProps } from '../Select';
+import Select, {
+  Props as SelectProps,
+  SelectAsync,
+  AsyncProps as AsyncSelectProps,
+} from '../Select';
 
 import { LabelTip, defaultRule } from './shared';
 
-export default function FieldSelect({
+export function FieldSelect({
   components,
   label,
   labelTip,
@@ -48,7 +51,7 @@ export default function FieldSelect({
   elevated = false,
   inputId = 'select',
   ...styles
-}: Props) {
+}: SelectProps & FieldProps) {
   const { valid, message } = useRule(rule(value));
   const hasError = Boolean(!valid);
   const labelText = hasError ? message : label;
@@ -84,9 +87,84 @@ export default function FieldSelect({
   );
 }
 
-type Props = SelectProps & {
+/** @deprecated Use the named export `{ FieldSelect }`. */
+export default FieldSelect;
+
+export function FieldSelectAsync({
+  components,
+  label,
+  labelTip,
+  value,
+  name,
+  onChange,
+  placeholder,
+  maxMenuHeight,
+  isClearable,
+  isMulti,
+  menuPosition,
+  rule = defaultRule,
+  stylesConfig,
+  isSearchable,
+  isSimpleValue,
+  autoFocus,
+  isDisabled,
+  elevated,
+  noOptionsMessage,
+  loadOptions,
+  inputId = 'select',
+  ...styles
+}: AsyncSelectProps & FieldProps) {
+  const [attempt, runAttempt] = useAsync(loadOptions);
+  const { valid, message } = useRule(rule(value));
+  const hasError = Boolean(!valid);
+  const labelText = hasError ? message : label;
+  return (
+    <Box mb="4" {...styles}>
+      <LabelInput htmlFor={inputId} hasError={hasError}>
+        {labelText}
+        {labelTip && <LabelTip text={labelTip} />}
+      </LabelInput>
+      <SelectAsync
+        components={components}
+        stylesConfig={stylesConfig}
+        inputId={inputId}
+        name={name}
+        menuPosition={menuPosition}
+        hasError={hasError}
+        isSimpleValue={isSimpleValue}
+        isSearchable={isSearchable}
+        isClearable={isClearable}
+        value={value}
+        onChange={onChange}
+        loadOptions={async (input, option) => {
+          const [options, error] = await runAttempt(input, option);
+          if (error) {
+            return [];
+          }
+          return options;
+        }}
+        noOptionsMessage={() => {
+          if (attempt.status === 'error') {
+            return `Could not load options: ${attempt.error}`;
+          }
+          return noOptionsMessage();
+        }}
+        maxMenuHeight={maxMenuHeight}
+        defaultOptions={true}
+        placeholder={placeholder}
+        isMulti={isMulti}
+        autoFocus={autoFocus}
+        isDisabled={isDisabled}
+        elevated={elevated}
+      />
+    </Box>
+  );
+}
+
+type FieldProps = {
   autoFocus?: boolean;
   label?: string;
+  labelTip?: string;
   rule?: (options: unknown) => () => unknown;
   // styles
   [key: string]: any;
