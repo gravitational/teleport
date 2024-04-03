@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -117,12 +118,17 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
+	key, err := tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 		RouteToCluster: profile.Cluster,
 		RouteToApp:     routeToApp,
 		AccessRequests: profile.ActiveRequests.AccessRequests,
-	})
+	}, mfa.WithPromptReasonSessionMFA("Application", app.GetName()))
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Add the key to disk where it can be used for subsequent App requests.
+	if err := tc.LocalAgent().AddAppKey(key); err != nil {
 		return trace.Wrap(err)
 	}
 
