@@ -18,6 +18,8 @@
 
 import React from 'react';
 
+import { UserPreferences } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+
 import {
   ManagementSection,
   NavigationCategory,
@@ -26,7 +28,7 @@ import {
 export type NavGroup = 'team' | 'activity' | 'clusters' | 'accessrequests';
 
 export interface Context {
-  init(): Promise<void>;
+  init(preferences: UserPreferences): Promise<void>;
   getFeatureFlags(): FeatureFlags;
 }
 
