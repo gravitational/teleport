@@ -43,6 +43,11 @@ type Audit interface {
 	EmitEvent(ctx context.Context, event events.AuditEvent)
 	// OnPermissionsUpdate is called when granular database-level user permissions are updated.
 	OnPermissionsUpdate(ctx context.Context, session *Session, entries []events.DatabasePermissionEntry)
+	// OnDatabaseUserCreate is called when a database user is provisioned.
+	OnDatabaseUserCreate(ctx context.Context, session *Session, err error)
+	// OnDatabaseUserDeactivate is called when a database user is disabled or deleted.
+	// Shouldn't be called if deactivation failed due to the user being active.
+	OnDatabaseUserDeactivate(ctx context.Context, session *Session, delete bool, err error)
 }
 
 // Query combines database query parameters.
@@ -184,6 +189,57 @@ func (a *audit) OnPermissionsUpdate(ctx context.Context, session *Session, entri
 		SessionMetadata:   MakeSessionMetadata(session),
 		DatabaseMetadata:  MakeDatabaseMetadata(session),
 		PermissionSummary: entries,
+	}
+	a.EmitEvent(ctx, event)
+}
+
+func (a *audit) OnDatabaseUserCreate(ctx context.Context, session *Session, err error) {
+	event := &events.DatabaseUserCreate{
+		Metadata: MakeEventMetadata(session,
+			libevents.DatabaseSessionUserCreateEvent,
+			libevents.DatabaseSessionUserCreateCode,
+		),
+		UserMetadata:     MakeUserMetadata(session),
+		SessionMetadata:  MakeSessionMetadata(session),
+		DatabaseMetadata: MakeDatabaseMetadata(session),
+
+		Status:   events.Status{Success: true},
+		Username: session.DatabaseUser,
+		Roles:    session.DatabaseRoles,
+	}
+
+	if err != nil {
+		event.Metadata.Code = libevents.DatabaseSessionUserCreateFailureCode
+		event.Status = events.Status{
+			Success:     false,
+			Error:       trace.Unwrap(err).Error(),
+			UserMessage: err.Error(),
+		}
+	}
+	a.EmitEvent(ctx, event)
+}
+
+func (a *audit) OnDatabaseUserDeactivate(ctx context.Context, session *Session, delete bool, err error) {
+	event := &events.DatabaseUserDeactivate{
+		Metadata: MakeEventMetadata(session,
+			libevents.DatabaseSessionUserDeactivateEvent,
+			libevents.DatabaseSessionUserDeactivateCode,
+		),
+		UserMetadata:     MakeUserMetadata(session),
+		SessionMetadata:  MakeSessionMetadata(session),
+		DatabaseMetadata: MakeDatabaseMetadata(session),
+		Status:           events.Status{Success: true},
+		Username:         session.DatabaseUser,
+		Delete:           delete,
+	}
+
+	if err != nil {
+		event.Metadata.Code = libevents.DatabaseSessionUserDeactivateFailureCode
+		event.Status = events.Status{
+			Success:     false,
+			Error:       trace.Unwrap(err).Error(),
+			UserMessage: err.Error(),
+		}
 	}
 	a.EmitEvent(ctx, event)
 }

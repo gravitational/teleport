@@ -1392,16 +1392,14 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, cachePolicy Cert
 	)
 	defer span.End()
 
-	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
 	err = RetryWithRelogin(ctx, tc, func() error {
-		err := proxyClient.ReissueUserCerts(ctx, cachePolicy, params)
-		return trace.Wrap(err)
+		return trace.Wrap(clusterClient.ReissueUserCerts(ctx, cachePolicy, params))
 	})
 	return trace.Wrap(err)
 }
@@ -1423,14 +1421,13 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	)
 	defer span.End()
 
-	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	key, err := proxyClient.IssueUserCertsWithMFA(ctx, params, tc.NewMFAPrompt(mfaPromptOpts...))
+	key, _, err := clusterClient.IssueUserCertsWithMFA(ctx, params, tc.NewMFAPrompt(mfaPromptOpts...))
 	return key, trace.Wrap(err)
 }
 
@@ -2383,13 +2380,22 @@ func isRemoteDest(name string) bool {
 // ListNodesWithFilters returns all nodes that match the filters in the current cluster
 // that the logged in user has access to.
 func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Server, error) {
-	req := tc.ResourceFilter(types.KindNode)
+	req := proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{types.KindNode},
+		Labels:              tc.Labels,
+		SearchKeywords:      tc.SearchKeywords,
+		PredicateExpression: tc.PredicateExpression,
+		UseSearchAsRoles:    tc.UseSearchAsRoles,
+		SortBy: types.SortBy{
+			Field: types.ResourceKind,
+		},
+	}
+
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ListNodesWithFilters",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
-			attribute.String("resource", req.ResourceType),
 			attribute.Int("limit", int(req.Limit)),
 			attribute.String("predicate", req.PredicateExpression),
 			attribute.StringSlice("keywords", req.SearchKeywords),
@@ -2403,8 +2409,30 @@ func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Ser
 	}
 	defer clt.Close()
 
-	servers, err := client.GetAllResources[types.Server](ctx, clt.AuthClient, req)
-	return servers, trace.Wrap(err)
+	var servers []types.Server
+	for {
+		page, next, err := client.GetUnifiedResourcePage(ctx, clt.AuthClient, &req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, r := range page {
+			srv, ok := r.ResourceWithLabels.(types.Server)
+			if !ok {
+				log.Warnf("expected types.Server but received unexpected type %T", r)
+				continue
+			}
+
+			servers = append(servers, srv)
+		}
+
+		req.StartKey = next
+		if req.StartKey == "" {
+			break
+		}
+	}
+
+	return servers, nil
 }
 
 // GetClusterAlerts returns a list of matching alerts from the current cluster.
@@ -2540,7 +2568,7 @@ func (tc *TeleportClient) ListAppsAllClusters(ctx context.Context, customFilter 
 }
 
 // CreateAppSession creates a new application access session.
-func (tc *TeleportClient) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
+func (tc *TeleportClient) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/CreateAppSession",
@@ -2570,34 +2598,6 @@ func (tc *TeleportClient) CreateAppSession(ctx context.Context, req types.Create
 		return nil, trace.Wrap(err)
 	}
 	return ws, nil
-}
-
-// GetAppSession returns an existing application access session.
-func (tc *TeleportClient) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/GetAppSession",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(
-			attribute.String("session", req.SessionID),
-		),
-	)
-	defer span.End()
-
-	clusterClient, err := tc.ConnectToCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer clusterClient.Close()
-
-	rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rootAuthClient.Close()
-
-	ws, err := rootAuthClient.GetAppSession(ctx, req)
-	return ws, trace.Wrap(err)
 }
 
 // DeleteAppSession removes the specified application access session.

@@ -47,9 +47,12 @@ type Services interface {
 	SAMLIdPServiceProviders
 	UserGroups
 	Integrations
+	KubeWaitingContainer
+	Notifications
 
 	OktaClient() Okta
 	AccessListClient() AccessLists
+	AccessMonitoringRuleClient() AccessMonitoringRules
 	UserLoginStateClient() UserLoginStates
 	DiscoveryConfigClient() DiscoveryConfigs
 	SecReportsClient() *secreport.Client

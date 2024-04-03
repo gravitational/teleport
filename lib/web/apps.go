@@ -238,7 +238,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	//
 	// PublicAddr and ClusterName will get encoded within the certificate and
 	// used for request routing.
-	ws, err := authClient.CreateAppSession(r.Context(), types.CreateAppSessionRequest{
+	ws, err := authClient.CreateAppSession(r.Context(), &proto.CreateAppSessionRequest{
 		Username:    ctx.GetUser(),
 		PublicAddr:  result.App.GetPublicAddr(),
 		ClusterName: result.ClusterName,

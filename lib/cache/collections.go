@@ -28,6 +28,9 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -54,7 +57,7 @@ type collection interface {
 
 // executor[T, R] is a specific way to run the collector operations that we need
 // for the genericCollector for a generic resource type T and its reader type R.
-type executor[T types.Resource, R any] interface {
+type executor[T any, R any] interface {
 	// getAll returns all of the target resources from the auth server.
 	// For singleton objects, this should be a size-1 slice.
 	getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]T, error)
@@ -84,7 +87,7 @@ type noReader struct{}
 // genericCollection is a generic collection implementation for resource type T with collection-specific logic
 // encapsulated in executor type E. Type R provides getter methods related to the collection, e.g. GetNodes(),
 // GetRoles().
-type genericCollection[T types.Resource, R any, E executor[T, R]] struct {
+type genericCollection[T any, R any, E executor[T, R]] struct {
 	cache *Cache
 	watch types.WatchKind
 	exec  E
@@ -143,10 +146,18 @@ func (g *genericCollection[T, R, _]) processEvent(ctx context.Context, event typ
 			}
 		}
 	case types.OpPut:
-		resource, ok := event.Resource.(T)
+		var resource T
+		var ok bool
+		switch r := event.Resource.(type) {
+		case types.Resource153Unwrapper:
+			resource, ok = r.Unwrap().(T)
+		default:
+			resource, ok = event.Resource.(T)
+		}
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
+
 		if err := g.exec.upsert(ctx, g.cache, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -199,6 +210,7 @@ type cacheCollections struct {
 	installers               collectionReader[installerGetter]
 	integrations             collectionReader[services.IntegrationsGetter]
 	kubeClusters             collectionReader[kubernetesClusterGetter]
+	kubeWaitingContainers    collectionReader[kubernetesWaitingContainerGetter]
 	kubeServers              collectionReader[kubeServerGetter]
 	locks                    collectionReader[services.LockGetter]
 	namespaces               collectionReader[namespaceGetter]
@@ -223,6 +235,8 @@ type cacheCollections struct {
 	webTokens                collectionReader[webTokenGetter]
 	windowsDesktops          collectionReader[windowsDesktopsGetter]
 	windowsDesktopServices   collectionReader[windowsDesktopServiceGetter]
+	userNotifications        collectionReader[notificationGetter]
+	globalNotifications      collectionReader[notificationGetter]
 }
 
 // setupCollections returns a registry of collections.
@@ -655,6 +669,33 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			}
 			collections.accessListReviews = &genericCollection[*accesslist.Review, accessListReviewsGetter, accessListReviewExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.accessListReviews
+		case types.KindKubeWaitingContainer:
+			if c.KubeWaitingContainers == nil {
+				return nil, trace.BadParameter("missing parameter KubeWaitingContainers")
+			}
+			collections.kubeWaitingContainers = &genericCollection[*kubewaitingcontainerpb.KubernetesWaitingContainer, kubernetesWaitingContainerGetter, kubeWaitingContainerExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.kubeWaitingContainers
+		case types.KindNotification:
+			if c.Notifications == nil {
+				return nil, trace.BadParameter("missing parameter Notifications")
+			}
+			collections.userNotifications = &genericCollection[*notificationsv1.Notification, notificationGetter, userNotificationExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.userNotifications
+		case types.KindGlobalNotification:
+			if c.Notifications == nil {
+				return nil, trace.BadParameter("missing parameter Notifications")
+			}
+			collections.globalNotifications = &genericCollection[*notificationsv1.GlobalNotification, notificationGetter, globalNotificationExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.globalNotifications
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -1193,7 +1234,7 @@ func (userExecutor) getReader(cache *Cache, cacheOK bool) userGetter {
 type userGetter interface {
 	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
-	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
+	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 }
 
 var _ executor[types.User, userGetter] = userExecutor{}
@@ -2081,7 +2122,72 @@ type kubernetesClusterGetter interface {
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
 
-var _ executor[types.KubeCluster, kubernetesClusterGetter] = kubeClusterExecutor{}
+type kubeWaitingContainerExecutor struct{}
+
+func (kubeWaitingContainerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+	var (
+		startKey string
+		allConts []*kubewaitingcontainerpb.KubernetesWaitingContainer
+	)
+	for {
+		conts, nextKey, err := cache.KubeWaitingContainers.ListKubernetesWaitingContainers(ctx, 0, startKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		allConts = append(allConts, conts...)
+
+		if nextKey == "" {
+			break
+		}
+		startKey = nextKey
+	}
+	return allConts, nil
+}
+
+func (kubeWaitingContainerExecutor) upsert(ctx context.Context, cache *Cache, resource *kubewaitingcontainerpb.KubernetesWaitingContainer) error {
+	_, err := cache.kubeWaitingContsCache.UpsertKubernetesWaitingContainer(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (kubeWaitingContainerExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return trace.Wrap(cache.kubeWaitingContsCache.DeleteAllKubernetesWaitingContainers(ctx))
+}
+
+func (kubeWaitingContainerExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	switch r := resource.(type) {
+	case types.Resource153Unwrapper:
+		switch wc := r.Unwrap().(type) {
+		case *kubewaitingcontainerpb.KubernetesWaitingContainer:
+			err := cache.kubeWaitingContsCache.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
+				Username:      wc.Spec.Username,
+				Cluster:       wc.Spec.Cluster,
+				Namespace:     wc.Spec.Namespace,
+				PodName:       wc.Spec.PodName,
+				ContainerName: wc.Spec.ContainerName,
+			})
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.BadParameter("unknown KubeWaitingContainer type, expected *kubewaitingcontainerpb.KubernetesWaitingContainer, got %T", resource)
+}
+
+func (kubeWaitingContainerExecutor) isSingleton() bool { return false }
+
+func (kubeWaitingContainerExecutor) getReader(cache *Cache, cacheOK bool) kubernetesWaitingContainerGetter {
+	if cacheOK {
+		return cache.kubeWaitingContsCache
+	}
+	return cache.Config.KubeWaitingContainers
+}
+
+type kubernetesWaitingContainerGetter interface {
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+	GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
+}
+
+var _ executor[*kubewaitingcontainerpb.KubernetesWaitingContainer, kubernetesWaitingContainerGetter] = kubeWaitingContainerExecutor{}
 
 //nolint:revive // Because we want this to be IdP.
 type samlIdPServiceProvidersExecutor struct{}
@@ -2719,6 +2825,7 @@ type accessListMembersGetter interface {
 	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error)
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error)
 }
 
 type accessListReviewExecutor struct{}
@@ -2782,3 +2889,135 @@ func (accessListReviewExecutor) getReader(cache *Cache, cacheOK bool) accessList
 type accessListReviewsGetter interface {
 	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
 }
+
+type notificationGetter interface {
+	ListUserNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.Notification, string, error)
+	ListGlobalNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.GlobalNotification, string, error)
+}
+
+type userNotificationExecutor struct{}
+
+func (userNotificationExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*notificationsv1.Notification, error) {
+	var notifications []*notificationsv1.Notification
+	var startKey string
+	for {
+		notifs, nextKey, err := cache.notificationsCache.ListUserNotifications(ctx, 0, startKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		notifications = append(notifications, notifs...)
+
+		if nextKey == "" {
+			break
+		}
+		startKey = nextKey
+	}
+
+	return notifications, nil
+}
+
+func (userNotificationExecutor) upsert(ctx context.Context, cache *Cache, notification *notificationsv1.Notification) error {
+	_, err := cache.notificationsCache.UpsertUserNotification(ctx, notification)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (userNotificationExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.notificationsCache.DeleteAllUserNotifications(ctx)
+}
+
+func (userNotificationExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	r, ok := resource.(types.Resource153Unwrapper)
+	if !ok {
+		return trace.BadParameter("unknown resource type, expected types.Resource153Unwrapper, got %T", resource)
+	}
+
+	notification, ok := r.Unwrap().(*notificationsv1.Notification)
+	if !ok {
+		return trace.BadParameter("unknown Notification type, expected *notificationsv1.Notification, got %T", resource)
+	}
+
+	username := notification.GetSpec().GetUsername()
+	notificationId := notification.GetSpec().GetId()
+
+	err := cache.notificationsCache.DeleteUserNotification(ctx, username, notificationId)
+	return trace.Wrap(err)
+}
+
+func (userNotificationExecutor) isSingleton() bool { return false }
+
+func (userNotificationExecutor) getReader(cache *Cache, cacheOK bool) notificationGetter {
+	if cacheOK {
+		return cache.notificationsCache
+	}
+	return cache.Config.Notifications
+}
+
+var _ executor[*notificationsv1.Notification, notificationGetter] = userNotificationExecutor{}
+
+type globalNotificationExecutor struct{}
+
+func (globalNotificationExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*notificationsv1.GlobalNotification, error) {
+	var notifications []*notificationsv1.GlobalNotification
+	var startKey string
+	for {
+		notifs, nextKey, err := cache.notificationsCache.ListGlobalNotifications(ctx, 0, startKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		notifications = append(notifications, notifs...)
+
+		if nextKey == "" {
+			break
+		}
+		startKey = nextKey
+	}
+
+	return notifications, nil
+}
+
+func (globalNotificationExecutor) upsert(ctx context.Context, cache *Cache, notification *notificationsv1.GlobalNotification) error {
+	if _, err := cache.notificationsCache.UpsertGlobalNotification(ctx, notification); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (globalNotificationExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.notificationsCache.DeleteAllGlobalNotifications(ctx)
+}
+
+func (globalNotificationExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+
+	r, ok := resource.(types.Resource153Unwrapper)
+	if !ok {
+		return trace.BadParameter("unknown resource type, expected types.Resource153Unwrapper, got %T", resource)
+	}
+
+	globalNotification, ok := r.Unwrap().(*notificationsv1.GlobalNotification)
+	if !ok {
+		return trace.BadParameter("unknown Notification type, expected *notificationsv1.GlobalNotification, got %T", resource)
+	}
+
+	notificationId := globalNotification.GetSpec().GetNotification().GetSpec().GetId()
+
+	err := cache.notificationsCache.DeleteGlobalNotification(ctx, notificationId)
+	return trace.Wrap(err)
+}
+
+func (globalNotificationExecutor) isSingleton() bool { return false }
+
+func (globalNotificationExecutor) getReader(cache *Cache, cacheOK bool) notificationGetter {
+	if cacheOK {
+		return cache.notificationsCache
+	}
+	return cache.Config.Notifications
+}
+
+var _ executor[*notificationsv1.GlobalNotification, notificationGetter] = globalNotificationExecutor{}

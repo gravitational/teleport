@@ -290,6 +290,8 @@ func (p ReissueParams) isMFARequiredRequest(sshLogin string) *proto.IsMFARequire
 		req.Target = &proto.IsMFARequiredRequest_Database{Database: &p.RouteToDatabase}
 	case p.RouteToWindowsDesktop.WindowsDesktop != "":
 		req.Target = &proto.IsMFARequiredRequest_WindowsDesktop{WindowsDesktop: &p.RouteToWindowsDesktop}
+	case p.RouteToApp.Name != "":
+		req.Target = &proto.IsMFARequiredRequest_App{App: &p.RouteToApp}
 	}
 	return req
 }
@@ -430,24 +432,8 @@ func makeDatabaseClientPEM(proto string, cert []byte, pk *Key) ([]byte, error) {
 // or an error if anything goes wrong.
 type PromptMFAChallengeHandler func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 
-// issueUserCertsOpts contains extra options for issuing user certs.
-type issueUserCertsOpts struct {
-	mfaRequired *bool
-}
-
-// IssueUserCertsOpt is an option func for issuing user certs.
-type IssueUserCertsOpt func(*issueUserCertsOpts)
-
-// WithMFARequired is an IssueUserCertsOpt that sets the MFA required check
-// result in provided bool ptr.
-func WithMFARequired(mfaRequired *bool) IssueUserCertsOpt {
-	return func(opt *issueUserCertsOpts) {
-		opt.mfaRequired = mfaRequired
-	}
-}
-
 // IssueUserCertsWithMFA generates a single-use certificate for the user.
-func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPrompt mfa.Prompt, applyOpts ...IssueUserCertsOpt) (*Key, error) {
+func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPrompt mfa.Prompt) (*Key, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/IssueUserCertsWithMFA",
@@ -457,11 +443,6 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		),
 	)
 	defer span.End()
-
-	issueOpts := issueUserCertsOpts{}
-	for _, applyOpt := range applyOpts {
-		applyOpt(&issueOpts)
-	}
 
 	if params.RouteToCluster == "" {
 		params.RouteToCluster = proxy.siteName
@@ -509,10 +490,6 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 			return nil, trace.Wrap(err)
 		}
 		requiredCheck = check
-	}
-
-	if issueOpts.mfaRequired != nil {
-		*issueOpts.mfaRequired = requiredCheck.Required
 	}
 
 	if !requiredCheck.Required {
@@ -793,7 +770,7 @@ func (proxy *ProxyClient) FindAppServersByFiltersForCluster(ctx context.Context,
 }
 
 // CreateAppSession creates a new application access session.
-func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
+func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/CreateAppSession",
@@ -827,30 +804,6 @@ func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req types.Create
 	defer accessPoint.Close()
 
 	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), accessPoint)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ws, nil
-}
-
-// GetAppSession creates a new application access session.
-func (proxy *ProxyClient) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
-	ctx, span := proxy.Tracer.Start(
-		ctx,
-		"proxyClient/GetAppSession",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	clusterName, err := proxy.RootClusterName(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	authClient, err := proxy.ConnectToCluster(ctx, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ws, err := authClient.GetAppSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

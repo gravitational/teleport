@@ -20,11 +20,16 @@ package app
 
 import (
 	"context"
+	"crypto"
+	"crypto/tls"
+	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -33,7 +38,10 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -190,7 +198,6 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			tr, err := newTransport(&tt.transportConfig)
 			require.NoError(t, err)
 
@@ -256,4 +263,161 @@ func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 		require.Error(t, res.err)
 		require.Nil(t, res.conn)
 	}
+}
+
+func Test_transport_rewriteRequest(t *testing.T) {
+	rootCluster := "root.teleport.example.com"
+
+	caKey, caCert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: rootCluster},
+		[]string{rootCluster, apiutils.EncodeClusterName(rootCluster)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	appName := "azure"
+	azureApp, err := types.NewAppV3(types.Metadata{Name: appName},
+		types.AppSpecV3{
+			PublicAddr: fmt.Sprintf("%v.%v", appName, rootCluster),
+			URI:        fmt.Sprintf("https://%v.internal.example.com:8888", appName),
+			Cloud:      types.CloudAzure,
+		},
+	)
+	require.NoError(t, err)
+
+	azureAppServer, err := types.NewAppServerV3FromApp(azureApp, rootCluster, "azure-server")
+	require.NoError(t, err)
+
+	clock := clockwork.NewFakeClock()
+
+	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster)
+	tr, err := newTransport(&transportConfig{
+		clock:       clock,
+		clusterName: rootCluster,
+		identity: &tlsca.Identity{
+			RouteToApp: tlsca.RouteToApp{
+				ClusterName:   rootCluster,
+				AzureIdentity: "azure-identity",
+			},
+		},
+		servers:      []types.AppServer{azureAppServer},
+		cipherSuites: utils.DefaultCipherSuites(),
+		proxyClient:  &mockProxyClient{},
+		accessPoint: &mockAuthClient{
+			caKey:       caKey,
+			caCert:      caCert,
+			clusterName: rootCluster,
+		},
+		ws: appSession,
+	})
+	require.NoError(t, err)
+
+	t.Run("remove teleport web session cookies", func(t *testing.T) {
+		request := &http.Request{Header: make(http.Header), URL: &url.URL{}}
+		cookies := []*http.Cookie{
+			{
+				Name:  CookieName,
+				Value: "teleport-cookie",
+			}, {
+				Name:  SubjectCookieName,
+				Value: "teleport-subject-cookie",
+			}, {
+				Name:  "__Host-non_teleport_cookie",
+				Value: "non-teleport-cookie",
+			},
+		}
+		for _, cookie := range cookies {
+			request.AddCookie(cookie)
+		}
+
+		err = tr.rewriteRequest(request)
+		require.NoError(t, err)
+
+		require.Equal(t, cookies[2:], request.Cookies())
+	})
+
+	t.Run("resign azure JWT", func(t *testing.T) {
+		azureClaims := jwt.AzureTokenClaims{
+			TenantID: "azure-tenant",
+			Resource: "root",
+		}
+
+		clientKey, clientCertPEM := createAppKeyCertPair(t, clock, caKey, caCert, rootCluster, rootCluster)
+		b, _ := pem.Decode(clientCertPEM)
+		clientCert, err := x509.ParseCertificate(b.Bytes)
+		require.NoError(t, err)
+
+		wsPrivateKey, err := keys.ParsePrivateKey(appSession.GetPriv())
+		require.NoError(t, err)
+
+		unknownKey, err := native.GeneratePrivateKey()
+		require.NoError(t, err)
+
+		for _, tt := range []struct {
+			name          string
+			jwtPrivateKey crypto.Signer
+			expectErr     bool
+		}{
+			{
+				name:          "OK signed by client key",
+				jwtPrivateKey: clientKey,
+			}, {
+				// old clients will sign the JWT using the web session key.
+				name:          "OK signed by web session key",
+				jwtPrivateKey: wsPrivateKey,
+			}, {
+				name:          "NOK signed by unknown key",
+				jwtPrivateKey: unknownKey,
+				expectErr:     true,
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				request := &http.Request{
+					Header: make(http.Header),
+					URL:    &url.URL{},
+					TLS: &tls.ConnectionState{
+						PeerCertificates: []*x509.Certificate{clientCert},
+					},
+				}
+
+				// Sign a azure JWT for the request using the test case key.
+				jwtKey, err := jwt.New(&jwt.Config{
+					Clock:       tr.c.clock,
+					PrivateKey:  tt.jwtPrivateKey,
+					Algorithm:   defaults.ApplicationTokenAlgorithm,
+					ClusterName: types.TeleportAzureMSIEndpoint,
+				})
+				require.NoError(t, err)
+
+				jwtToken, err := jwtKey.SignAzureToken(azureClaims)
+				require.NoError(t, err)
+
+				request.Header.Set("Authorization", "Bearer "+jwtToken)
+
+				// rewriteRequest should resign the jwt token with the web session
+				// private key so it can be parsed by the App Service.
+				err = tr.rewriteRequest(request)
+				require.NoError(t, err)
+
+				bearerToken, err := parseBearerToken(request)
+				require.NoError(t, err)
+
+				wsJWTKey, err := jwt.New(&jwt.Config{
+					Clock:       tr.c.clock,
+					PrivateKey:  wsPrivateKey,
+					Algorithm:   defaults.ApplicationTokenAlgorithm,
+					ClusterName: types.TeleportAzureMSIEndpoint,
+				})
+				require.NoError(t, err)
+
+				gotClaims, err := wsJWTKey.VerifyAzureToken(bearerToken)
+				if tt.expectErr {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+					require.Equal(t, &azureClaims, gotClaims)
+				}
+			})
+		}
+	})
 }

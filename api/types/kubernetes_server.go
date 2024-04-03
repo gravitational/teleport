@@ -308,6 +308,14 @@ func (s *KubernetesServerV3) MatchSearch(values []string) bool {
 	return MatchSearch(nil, values, nil)
 }
 
+// IsEqual determines if two kube server resources are equivalent to one another.
+func (k *KubernetesServerV3) IsEqual(i KubeServer) bool {
+	if other, ok := i.(*KubernetesServerV3); ok {
+		return deriveTeleportEqualKubernetesServerV3(k, other)
+	}
+	return false
+}
+
 // KubeServers represents a list of kube servers.
 type KubeServers []KubeServer
 

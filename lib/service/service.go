@@ -733,7 +733,7 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 	if !errors.Is(err, ErrTeleportReloading) {
 		return nil, trace.Wrap(err)
 	}
-	cfg.Log.Infof("Started in-process service reload.")
+	cfg.Logger.InfoContext(ctx, "Started in-process service reload.")
 	fileDescriptors, err := srv.ExportFileDescriptors()
 	if err != nil {
 		warnOnErr(ctx, srv.Close(), cfg.Logger)
@@ -749,7 +749,7 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 		warnOnErr(ctx, srv.Close(), cfg.Logger)
 		return nil, trace.Wrap(err, "failed to create a new service")
 	}
-	cfg.Log.Infof("Created new process.")
+	cfg.Logger.InfoContext(ctx, "Created new process.")
 	if err := newSrv.Start(); err != nil {
 		warnOnErr(ctx, srv.Close(), cfg.Logger)
 		return nil, trace.Wrap(err, "failed to start a new service")
@@ -769,7 +769,7 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 		warnOnErr(ctx, srv.Close(), cfg.Logger)
 		return nil, trace.BadParameter("the new service has failed to start")
 	}
-	cfg.Log.Infof("New service has started successfully.")
+	cfg.Logger.InfoContext(ctx, "New service has started successfully.")
 	startCancel()
 
 	shutdownTimeout := cfg.Testing.ShutdownTimeout
@@ -778,7 +778,7 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 		// longer running connections.
 		shutdownTimeout = defaults.DefaultGracefulShutdownTimeout
 	}
-	cfg.Log.Infof("Shutting down the old service with timeout %v.", shutdownTimeout)
+	cfg.Logger.InfoContext(ctx, "Gracefully shutting down the old service.", "grace_period", shutdownTimeout)
 	// After the new process has started, initiate the graceful shutdown of the old process
 	// new process could have generated connections to the new process's server
 	// so not all connections can be kept forever.
@@ -791,7 +791,7 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 		// connections can keep hanging the old auth service and prevent
 		// the services from shutting down, so abort the graceful way
 		// after some time to keep going.
-		cfg.Log.Infof("Some connections to the old service were aborted after timeout of %v.", shutdownTimeout)
+		cfg.Logger.InfoContext(ctx, "Some connections to the old service were aborted after exceeding grace period.", "grace_period", shutdownTimeout)
 		// Make sure that all parts of the service have exited, this function
 		// can not allow execution to continue if the shutdown is not complete,
 		// otherwise subsequent Run executions will hold system resources in case
@@ -803,7 +803,7 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 			return nil, trace.BadParameter("the old service has failed to exit.")
 		}
 	} else {
-		cfg.Log.Infof("The old service was successfully shut down gracefully.")
+		cfg.Logger.InfoContext(ctx, "The old service was successfully shut down gracefully.")
 	}
 
 	return newSrv, nil
@@ -860,7 +860,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0o700)
 		if err != nil {
 			if errors.Is(err, fs.ErrPermission) {
-				cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
+				cfg.Logger.ErrorContext(context.Background(), "Teleport does not have permission to write to the data directory. Ensure that you are running as a user with appropriate permissions.", "data_dir", cfg.DataDir)
 			}
 			return nil, trace.ConvertSystemError(err)
 		}
@@ -899,7 +899,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 	_, err = uuid.Parse(cfg.HostUUID)
 	if err != nil && !aws.IsEC2NodeID(cfg.HostUUID) {
-		cfg.Log.Warnf("Host UUID %q is not a true UUID (not eligible for UUID-based proxying)", cfg.HostUUID)
+		cfg.Logger.WarnContext(supervisor.ExitContext(), "Host UUID is not a true UUID (not eligible for UUID-based proxying)", "host_uuid", cfg.HostUUID)
 	}
 
 	if cfg.Clock == nil {
@@ -926,12 +926,12 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		if err == nil {
 			cloudHostname = strings.ReplaceAll(cloudHostname, " ", "_")
 			if utils.IsValidHostname(cloudHostname) {
-				cfg.Log.Infof("Found %q tag in cloud instance. Using %q as hostname.", types.CloudHostnameTag, cloudHostname)
+				cfg.Logger.InfoContext(supervisor.ExitContext(), "Overriding hostname with value from cloud tag TeleportHostname.", "hostname", cloudHostname)
 				cfg.Hostname = cloudHostname
 
 				// cloudHostname exists but is not a valid hostname.
 			} else if cloudHostname != "" {
-				cfg.Log.Infof("Found %q tag in cloud instance, but %q is not a valid hostname.", types.CloudHostnameTag, cloudHostname)
+				cfg.Logger.InfoContext(supervisor.ExitContext(), "Found invalid hostname in cloud tag TeleportHostname.", "hostname", cloudHostname)
 			}
 		} else if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -1947,6 +1947,26 @@ func (process *TeleportProcess) initAuthService() error {
 
 	authServer.SetAccessRequestCache(accessRequestCache)
 
+	userNotificationCache, err := services.NewUserNotificationCache(services.NotificationCacheConfig{
+		Events: authServer.Services,
+		Getter: authServer.Cache,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authServer.SetUserNotificationCache(userNotificationCache)
+
+	globalNotificationCache, err := services.NewGlobalNotificationCache(services.NotificationCacheConfig{
+		Events: authServer.Services,
+		Getter: authServer.Cache,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authServer.SetGlobalNotificationCache(globalNotificationCache)
+
 	if embedderClient != nil {
 		logger.DebugContext(process.ExitContext(), "Starting embedding watcher")
 		embeddingProcessor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
@@ -2033,6 +2053,13 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	var accessGraphCAData []byte
+	if cfg.AccessGraph.Enabled && cfg.AccessGraph.CA != "" {
+		accessGraphCAData, err = os.ReadFile(cfg.AccessGraph.CA)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	apiConf := &auth.APIConfig{
 		AuthServer:     authServer,
 		Authorizer:     authorizer,
@@ -2040,6 +2067,12 @@ func (process *TeleportProcess) initAuthService() error {
 		PluginRegistry: process.PluginRegistry,
 		Emitter:        authServer,
 		MetadataGetter: uploadHandler,
+		AccessGraph: auth.AccessGraphConfig{
+			Enabled:  cfg.AccessGraph.Enabled,
+			Address:  cfg.AccessGraph.Addr,
+			CA:       accessGraphCAData,
+			Insecure: cfg.AccessGraph.Insecure,
+		},
 	}
 
 	// Auth initialization is done (including creation/updating of all singleton
@@ -3203,15 +3236,33 @@ func (process *TeleportProcess) initDiagnosticService() error {
 
 	logger.InfoContext(process.ExitContext(), "Starting diagnostic service.", "listen_address", process.Config.DiagnosticAddr.Addr)
 
+	muxListener, err := multiplexer.New(multiplexer.Config{
+		Context:                        process.ExitContext(),
+		Listener:                       listener,
+		PROXYProtocolMode:              multiplexer.PROXYProtocolUnspecified,
+		SuppressUnexpectedPROXYWarning: true,
+		ID:                             teleport.Component(teleport.ComponentDiagnostic),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	process.RegisterFunc("diagnostic.service", func() error {
-		err := server.Serve(listener)
-		if err != nil && err != http.ErrServerClosed {
+		listenerHTTP := muxListener.HTTP()
+		go func() {
+			if err := muxListener.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+				muxListener.Entry.WithError(err).Error("Mux encountered err serving")
+			}
+		}()
+
+		if err := server.Serve(listenerHTTP); !errors.Is(err, http.ErrServerClosed) {
 			logger.WarnContext(process.ExitContext(), "Diagnostic server exited with error.", "error", err)
 		}
 		return nil
 	})
 
 	process.OnExit("diagnostic.shutdown", func(payload interface{}) {
+		warnOnErr(process.ExitContext(), muxListener.Close(), logger)
 		if payload == nil {
 			logger.InfoContext(process.ExitContext(), "Shutting down immediately.")
 			warnOnErr(process.ExitContext(), server.Close(), logger)
@@ -4100,7 +4151,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Emitter:          asyncEmitter,
 			PluginRegistry:   process.PluginRegistry,
 			HostUUID:         process.Config.HostUUID,
-			Context:          process.ExitContext(),
+			Context:          process.GracefulExitContext(),
 			StaticFS:         fs,
 			ClusterFeatures:  process.getClusterFeatures(),
 			GetProxyIdentity: func() (*auth.Identity, error) {
@@ -4186,7 +4237,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		})
 
 		if listeners.reverseTunnelMux != nil {
-			if minimalWebServer, err = process.initMinimalReverseTunnel(listeners, tlsConfigWeb, cfg, webConfig, process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id))); err != nil {
+			if minimalWebServer, err = process.initMinimalReverseTunnel(listeners, tlsConfigWeb, cfg, webConfig); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -4851,7 +4902,8 @@ func (process *TeleportProcess) getPROXYSigner(ident *auth.Identity) (multiplexe
 	return proxySigner, nil
 }
 
-func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListeners, tlsConfigWeb *tls.Config, cfg *servicecfg.Config, webConfig web.Config, log *logrus.Entry) (*web.Server, error) {
+func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListeners, tlsConfigWeb *tls.Config, cfg *servicecfg.Config, webConfig web.Config) (*web.Server, error) {
+	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id))
 	internalListener := listeners.minimalWeb
 	if !cfg.Proxy.DisableTLS {
 		internalListener = tls.NewListener(internalListener, tlsConfigWeb)
@@ -4877,13 +4929,15 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 	minimalProxyLimiter.WrapHandle(minimalWebHandler)
 
 	process.RegisterCriticalFunc("proxy.reversetunnel.tls", func() error {
-		log.Infof("TLS multiplexer is starting on %v.", cfg.Proxy.ReverseTunnelListenAddr.Addr)
+		logger.InfoContext(process.ExitContext(), "TLS multiplexer is starting.", "listen_address", cfg.Proxy.ReverseTunnelListenAddr.Addr)
 		if err := minimalListener.Serve(); !trace.IsConnectionProblem(err) {
-			log.WithError(err).Warn("TLS multiplexer error.")
+			logger.WarnContext(process.ExitContext(), "TLS multiplexer error.", "error", err)
 		}
-		log.Info("TLS multiplexer exited.")
+		logger.InfoContext(process.ExitContext(), "TLS multiplexer exited.")
 		return nil
 	})
+
+	log := process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id))
 
 	minimalWebServer, err := web.NewServer(web.ServerConfig{
 		Server: &http.Server{
@@ -4902,12 +4956,12 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 	}
 
 	process.RegisterCriticalFunc("proxy.reversetunnel.web", func() error {
-		log.Infof("Minimal web proxy service %s:%s is starting on %v.", teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr)
+		logger.InfoContext(process.ExitContext(), "Minimal web proxy service is starting.", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", cfg.Proxy.ReverseTunnelListenAddr.Addr)
 		defer minimalWebHandler.Close()
 		if err := minimalWebServer.Serve(minimalListener.Web()); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Warningf("Error while serving web requests: %v", err)
+			logger.WarnContext(process.ExitContext(), "Error while serving web requests", "error", err)
 		}
-		log.Info("Exited.")
+		logger.InfoContext(process.ExitContext(), "Exited.")
 		return nil
 	})
 
@@ -4930,7 +4984,7 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 	var tlsConfig *tls.Config
 	acmeCfg := process.Config.Proxy.ACME
 	if acmeCfg.Enabled {
-		process.Config.Log.Infof("Managing certs using ACME https://datatracker.ietf.org/doc/rfc8555/.")
+		process.Config.Logger.InfoContext(process.ExitContext(), "Managing certs using ACME https://datatracker.ietf.org/doc/rfc8555/.")
 
 		acmePath := filepath.Join(process.Config.DataDir, teleport.ComponentACME)
 		if err := os.MkdirAll(acmePath, teleport.PrivateDirMode); err != nil {
@@ -5591,8 +5645,6 @@ func (process *TeleportProcess) Shutdown(ctx context.Context) {
 func (process *TeleportProcess) Close() error {
 	process.BroadcastEvent(Event{Name: TeleportExitEvent})
 
-	process.Config.Keygen.Close()
-
 	var errors []error
 
 	if localAuth := process.getLocalAuth(); localAuth != nil {
@@ -5613,7 +5665,8 @@ func (process *TeleportProcess) Close() error {
 // initSelfSignedHTTPSCert generates and self-signs a TLS key+cert pair for https connection
 // to the proxy server.
 func initSelfSignedHTTPSCert(cfg *servicecfg.Config) (err error) {
-	cfg.Log.Warningf("No TLS Keys provided, using self-signed certificate.")
+	ctx := context.Background()
+	cfg.Logger.WarnContext(ctx, "No TLS Keys provided, using self-signed certificate.")
 
 	keyPath := filepath.Join(cfg.DataDir, defaults.SelfSignedKeyPath)
 	certPath := filepath.Join(cfg.DataDir, defaults.SelfSignedCertPath)
@@ -5631,7 +5684,7 @@ func initSelfSignedHTTPSCert(cfg *servicecfg.Config) (err error) {
 	if !os.IsNotExist(err) {
 		return trace.Wrap(err, "unrecognized error reading certs")
 	}
-	cfg.Log.Warningf("Generating self-signed key and cert to %v %v.", keyPath, certPath)
+	cfg.Logger.WarnContext(ctx, "Generating self-signed key and cert.", "key_path", keyPath, "cert_path", certPath)
 
 	hosts := []string{cfg.Hostname, "localhost"}
 	var ips []string
@@ -5641,7 +5694,7 @@ func initSelfSignedHTTPSCert(cfg *servicecfg.Config) (err error) {
 		proxyHost, _, err := net.SplitHostPort(addr.String())
 		if err != nil {
 			// log and skip error since this is a nice to have
-			cfg.Log.Warnf("Error parsing proxy.public_address %v, skipping adding to self-signed cert: %v", addr.String(), err)
+			cfg.Logger.WarnContext(ctx, "Error parsing proxy.public_address, skipping adding to self-signed cert", "public_address", addr.String(), "error", err)
 			continue
 		}
 		// If the address is a IP have it added as IP SAN
@@ -5806,7 +5859,7 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			if errors.Is(err, fs.ErrPermission) {
-				cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
+				cfg.Logger.ErrorContext(ctx, "Teleport does not have permission to write to the data directory. Ensure that you are running as a user with appropriate permissions.", "data_dir", cfg.DataDir)
 			}
 			return trace.Wrap(err)
 		}
@@ -5814,7 +5867,7 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 		// one of the identities
 		if len(cfg.Identities) != 0 {
 			cfg.HostUUID = cfg.Identities[0].ID.HostUUID
-			cfg.Log.Infof("Taking host UUID from first identity: %v.", cfg.HostUUID)
+			cfg.Logger.InfoContext(ctx, "Taking host UUID from first identity.", "host_uuid", cfg.HostUUID)
 		} else {
 			switch cfg.JoinMethod {
 			case types.JoinMethodToken,
@@ -5846,7 +5899,7 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 			default:
 				return trace.BadParameter("unknown join method %q", cfg.JoinMethod)
 			}
-			cfg.Log.Infof("Generating new host UUID: %v.", cfg.HostUUID)
+			cfg.Logger.InfoContext(ctx, "Generating new host UUID", "host_uuid", cfg.HostUUID)
 		}
 		// persistHostUUIDToStorages will persist the host_uuid to the local storage
 		// and to Kubernetes Secret if this process is running on a Kubernetes Cluster.
@@ -5901,7 +5954,7 @@ func readHostIDFromStorages(ctx context.Context, dataDir string, kubeBackend kub
 func persistHostIDToStorages(ctx context.Context, cfg *servicecfg.Config, kubeBackend kubernetesBackend) error {
 	if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {
 		if errors.Is(err, fs.ErrPermission) {
-			cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
+			cfg.Logger.ErrorContext(ctx, "Teleport does not have permission to write to the data directory. Ensure that you are running as a user with appropriate permissions.", "data_dir", cfg.DataDir)
 		}
 		return trace.Wrap(err)
 	}

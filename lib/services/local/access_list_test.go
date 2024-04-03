@@ -170,6 +170,40 @@ func TestAccessListCreate_UpsertAccessList_WithoutLimit(t *testing.T) {
 	require.Len(t, out, 3)
 }
 
+// TestAccessListCreate_UpdateAccessList tests creating access list
+// and updating access list with the same name.
+func TestAccessListCreate_UpdateAccessList(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	// No limit to creating access list.
+	result, err := service.UpsertAccessList(ctx, newAccessList(t, "accessList1", clock))
+	require.NoError(t, err)
+	// Fetch all access lists.
+	out, err := service.GetAccessLists(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+
+	result.Spec.Description = "changing description"
+	// Update access list with the correct revision.
+	_, err = service.UpdateAccessList(ctx, result)
+	require.NoError(t, err)
+	result.Spec.Description = "changing description again"
+	result.Metadata.Revision = "fake revision"
+	// Update access list with wrong revision should return an error.
+	_, err = service.UpdateAccessList(ctx, result)
+	require.Error(t, err)
+	require.True(t, trace.IsCompareFailed(err), "expected precondition failed error, got %v", err)
+}
+
 // TestAccessListCreate_UpsertAccessList_WithLimit tests creating access list
 // is limited to the limit defined in feature if IGS is NOT enabled.
 // Also tests "upserting" and deleting is allowed despite "create" limit reached.
@@ -547,6 +581,12 @@ func TestAccessListMembersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	_, err = service.UpsertAccessListMember(ctx, accessList1Member2)
 	require.NoError(t, err)
+
+	// try to update a member with the wrong revision.
+	accessList1Member2.Metadata.Revision = "fake revision"
+	_, err = service.UpdateAccessListMember(ctx, accessList1Member2)
+	require.Error(t, err)
+	require.True(t, trace.IsCompareFailed(err), "expected precondition failed error, got %v", err)
 
 	// Delete all members from access list 1.
 	require.NoError(t, service.DeleteAllAccessListMembersForAccessList(ctx, accessList1.GetName()))
