@@ -29,6 +29,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -36,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -45,6 +45,29 @@ import (
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot")
 
 const componentTBot = "tbot"
+
+// Service is a long-running sub-component of tbot.
+type Service interface {
+	// String returns a human-readable name for the service that can be used
+	// in logging. It should identify the type of the service and any top
+	// level configuration that could distinguish it from a same-type service.
+	String() string
+	// Run starts the service and blocks until the service exits. It should
+	// return a nil error if the service exits successfully and an error
+	// if it is unable to proceed. It should exit gracefully if the context
+	// is canceled.
+	Run(ctx context.Context) error
+}
+
+// OneShotService is a [Service] that offers a mode in which it runs a single
+// time and then exits. This aligns with the `--oneshot` mode of tbot.
+type OneShotService interface {
+	Service
+	// OneShot runs the service once and then exits. It should return a nil
+	// error if the service exits successfully and an error if it is unable
+	// to proceed. It should exit gracefully if the context is canceled.
+	OneShot(ctx context.Context) error
+}
 
 type Bot struct {
 	cfg     *config.BotConfig
@@ -123,7 +146,7 @@ func (b *Bot) Run(ctx context.Context) error {
 
 	// Create an error group to manage all the services lifetimes.
 	eg, egCtx := errgroup.WithContext(ctx)
-	var services []bot.Service
+	var services []Service
 
 	// ReloadBroadcaster allows multiple entities to trigger a reload of
 	// all services. This allows os signals and other events such as CA
@@ -167,6 +190,16 @@ func (b *Bot) Run(ctx context.Context) error {
 	}()
 	services = append(services, b.botIdentitySvc)
 
+	authPingCache := &authPingCache{
+		client: b.botIdentitySvc.GetClient(),
+		log:    b.log,
+	}
+	proxyPingCache := &proxyPingCache{
+		authPingCache: authPingCache,
+		botCfg:        b.cfg,
+		log:           b.log,
+	}
+
 	// Setup all other services
 	if b.cfg.DiagAddr != "" {
 		services = append(services, &diagnosticsService{
@@ -178,6 +211,8 @@ func (b *Bot) Run(ctx context.Context) error {
 		})
 	}
 	services = append(services, &outputsService{
+		authPingCache:  authPingCache,
+		proxyPingCache: proxyPingCache,
 		getBotIdentity: b.botIdentitySvc.GetIdentity,
 		botClient:      b.botIdentitySvc.GetClient(),
 		cfg:            b.cfg,
@@ -196,7 +231,30 @@ func (b *Bot) Run(ctx context.Context) error {
 		reloadBroadcaster: reloadBroadcaster,
 	})
 	// Append any services configured by the user
-	services = append(services, b.cfg.Services...)
+	for _, svcCfg := range b.cfg.Services {
+		// Convert the service config into the actual service type.
+		switch svcCfg := svcCfg.(type) {
+		case *config.DatabaseTunnelService:
+			svc := &DatabaseTunnelService{
+				getBotIdentity: b.botIdentitySvc.GetIdentity,
+				proxyPingCache: proxyPingCache,
+				botClient:      b.botIdentitySvc.GetClient(),
+				resolver:       resolver,
+				botCfg:         b.cfg,
+				cfg:            svcCfg,
+			}
+			svc.log = b.log.WithField(
+				trace.Component, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		case *config.ExampleService:
+			services = append(services, &ExampleService{
+				cfg: svcCfg,
+			})
+		default:
+			return trace.BadParameter("unknown service type: %T", svcCfg)
+		}
+	}
 
 	b.log.Info("Initialization complete. Starting services.")
 	// Start services
@@ -205,7 +263,7 @@ func (b *Bot) Run(ctx context.Context) error {
 		log := b.log.WithField("service", svc.String())
 
 		if b.cfg.Oneshot {
-			svc, ok := svc.(bot.OneShotService)
+			svc, ok := svc.(OneShotService)
 			// We ignore services with no one-shot implementation
 			if !ok {
 				log.Debug("Service does not support oneshot mode, ignoring.")
@@ -398,4 +456,79 @@ func clientForFacade(
 
 	c, err := authclient.Connect(ctx, authClientConfig)
 	return c, trace.Wrap(err)
+}
+
+type authPingCache struct {
+	client *auth.Client
+	log    logrus.FieldLogger
+
+	mu          sync.RWMutex
+	cachedValue *proto.PingResponse
+}
+
+func (a *authPingCache) ping(ctx context.Context) (proto.PingResponse, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.cachedValue != nil {
+		return *a.cachedValue, nil
+	}
+
+	a.log.Debug("Pinging auth server.")
+	res, err := a.client.Ping(ctx)
+	if err != nil {
+		a.log.WithError(err).Error("Failed to ping auth server.")
+		return proto.PingResponse{}, trace.Wrap(err)
+	}
+	a.cachedValue = &res
+	a.log.WithField("pong", res).Debug("Successfully pinged auth server.")
+
+	return *a.cachedValue, nil
+}
+
+type proxyPingCache struct {
+	authPingCache *authPingCache
+	botCfg        *config.BotConfig
+	log           logrus.FieldLogger
+
+	mu          sync.RWMutex
+	cachedValue *webclient.PingResponse
+}
+
+func (p *proxyPingCache) ping(ctx context.Context) (*webclient.PingResponse, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.cachedValue != nil {
+		return p.cachedValue, nil
+	}
+
+	// Determine the Proxy address to use.
+	addr, addrKind := p.botCfg.Address()
+	switch addrKind {
+	case config.AddressKindAuth:
+		// If the address is an auth address, ping auth to determine proxy addr.
+		authPong, err := p.authPingCache.ping(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		addr = authPong.ProxyPublicAddr
+	case config.AddressKindProxy:
+		// If the address is a proxy address, use it directly.
+	default:
+		return nil, trace.BadParameter("unsupported address kind: %v", addrKind)
+	}
+
+	p.log.WithField("addr", addr).Debug("Pinging proxy.")
+	res, err := webclient.Find(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: addr,
+		Insecure:  p.botCfg.Insecure,
+	})
+	if err != nil {
+		p.log.WithError(err).Error("Failed to ping proxy.")
+		return nil, trace.Wrap(err)
+	}
+	p.log.WithField("pong", res).Debug("Successfully pinged proxy.")
+	p.cachedValue = res
+
+	return p.cachedValue, nil
 }

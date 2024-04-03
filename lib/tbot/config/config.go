@@ -270,7 +270,7 @@ type BotConfig struct {
 	Onboarding OnboardingConfig `yaml:"onboarding,omitempty"`
 	Storage    *StorageConfig   `yaml:"storage,omitempty"`
 	Outputs    Outputs          `yaml:"outputs,omitempty"`
-	Services   Services         `yaml:"services,omitempty"`
+	Services   ServiceConfigs   `yaml:"services,omitempty"`
 
 	Debug      bool   `yaml:"debug"`
 	AuthServer string `yaml:"auth_server,omitempty"`
@@ -374,6 +374,13 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		}
 	}
 
+	// Validate configured services
+	for i, service := range conf.Services {
+		if err := service.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "validating service[%d]", i)
+		}
+	}
+
 	if conf.CertificateTTL == 0 {
 		conf.CertificateTTL = DefaultCertificateTTL
 	}
@@ -418,11 +425,17 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Services assists polymorphic unmarshaling of a slice of Services.
-type Services []bot.Service
+// ServiceConfig is an interface over the various service configurations.
+type ServiceConfig interface {
+	Type() string
+	CheckAndSetDefaults() error
+}
 
-func (o *Services) UnmarshalYAML(node *yaml.Node) error {
-	var out []bot.Service
+// ServiceConfigs assists polymorphic unmarshaling of a slice of ServiceConfigs.
+type ServiceConfigs []ServiceConfig
+
+func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
+	var out []ServiceConfig
 	for _, node := range node.Content {
 		header := struct {
 			Type string `yaml:"type"`
@@ -434,6 +447,12 @@ func (o *Services) UnmarshalYAML(node *yaml.Node) error {
 		switch header.Type {
 		case ExampleServiceType:
 			v := &ExampleService{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case DatabaseTunnelServiceType:
+			v := &DatabaseTunnelService{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
