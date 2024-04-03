@@ -50,7 +50,7 @@ const service = {
       public_addr: params.publicAddr,
     };
 
-    // Prompt for MFA is per-session MFA is required for this app.
+    // Prompt for MFA if per-session MFA is required for this app.
     const webauthnResponse = await auth.getWebauthnResponse(
       MfaChallengeScope.USER_SESSION,
       false,
