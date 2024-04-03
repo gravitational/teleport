@@ -1,4 +1,4 @@
-.version: &version "15.2.0"
+.version: &version "15.2.1-dev.vnet.3"
 
 name: teleport-operator
 apiVersion: v2
