@@ -194,13 +194,8 @@ func (c *Cluster) reissueAppCert(ctx context.Context, proxyClient *client.ProxyC
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	cert, ok := key.AppTLSCerts[app.GetName()]
-	if !ok {
-		return tls.Certificate{}, trace.NotFound("the user is not logged in into the application %v", app.GetName())
-	}
-
-	tlsCert, err := key.TLSCertificate(cert)
-	return tlsCert, trace.Wrap(err)
+	appCert, err := key.AppTLSCert(app.GetName())
+	return appCert, trace.Wrap(err)
 }
 
 // AssembleAppFQDN is a wrapper on top of [utils.AssembleAppFQDN] which encapsulates translation
