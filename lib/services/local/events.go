@@ -29,7 +29,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/backend"
@@ -1963,7 +1965,28 @@ type userNotificationParser struct {
 func (p *userNotificationParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindNotification, types.V1, 0)
+		// Remove the first separator so none of the separated parts will be
+		// empty strings
+		key := string(event.Item.Key)
+		key = strings.TrimPrefix(key, string(backend.Separator))
+		parts := strings.Split(key, string(backend.Separator))
+		if len(parts) != 4 {
+			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindNotification, event.Item.Key)
+		}
+
+		notification := &notificationsv1.Notification{
+			Kind:    types.KindNotification,
+			Version: types.V1,
+			Spec: &notificationsv1.NotificationSpec{
+				Username: parts[2],
+				Id:       parts[3],
+			},
+			Metadata: &headerv1.Metadata{
+				Name: parts[3],
+			},
+		}
+
+		return types.Resource153ToLegacy(notification), nil
 	case types.OpPut:
 		notification, err := services.UnmarshalNotification(
 			event.Item.Value,
@@ -1992,7 +2015,32 @@ type globalNotificationParser struct {
 func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindGlobalNotification, types.V1, 0)
+		// Remove the first separator so none of the separated parts will be
+		// empty strings
+		key := string(event.Item.Key)
+		key = strings.TrimPrefix(key, string(backend.Separator))
+		// notifications/global/<uuid>
+		parts := strings.Split(key, string(backend.Separator))
+		if len(parts) != 3 {
+			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindGlobalNotification, event.Item.Key)
+		}
+
+		globalNotification := &notificationsv1.GlobalNotification{
+			Kind:    types.KindGlobalNotification,
+			Version: types.V1,
+			Spec: &notificationsv1.GlobalNotificationSpec{
+				Notification: &notificationsv1.Notification{
+					Spec: &notificationsv1.NotificationSpec{
+						Id: parts[2],
+					},
+				},
+			},
+			Metadata: &headerv1.Metadata{
+				Name: parts[2],
+			},
+		}
+
+		return types.Resource153ToLegacy(globalNotification), nil
 	case types.OpPut:
 		globalNotification, err := services.UnmarshalGlobalNotification(
 			event.Item.Value,

@@ -266,13 +266,6 @@ type Role interface {
 	GetSPIFFEConditions(rct RoleConditionType) []*SPIFFERoleCondition
 	// SetSPIFFEConditions sets the allow or deny SPIFFERoleCondition.
 	SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCondition)
-
-	// GetSAMLIdPServiceProviderLabels gets the map of saml_idp_service_provider resource
-	// labels this role is allowed or denied access to.
-	GetSAMLIdPServiceProviderLabels(RoleConditionType) Labels
-	// SetSAMLIdPServiceProviderLabels sets the map of saml_idp_service_provider resource
-	// labels this role is allowed or denied access to.
-	SetSAMLIdPServiceProviderLabels(RoleConditionType, Labels)
 }
 
 // NewRole constructs new standard V7 role.
@@ -950,25 +943,6 @@ func (r *RoleV6) SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCo
 	}
 }
 
-// GetSAMLIdPServiceProviderLabels gets the map of saml_idp_service_provider resource
-// labels this role is allowed or denied access to.
-func (r *RoleV6) GetSAMLIdPServiceProviderLabels(rct RoleConditionType) Labels {
-	if rct == Allow {
-		return r.Spec.Allow.SAMLIdPServiceProviderLabels
-	}
-	return r.Spec.Deny.SAMLIdPServiceProviderLabels
-}
-
-// SetSAMLIdPServiceProviderLabels sets the map of saml_idp_service_provider resource
-// labels this role is allowed or denied access to.
-func (r *RoleV6) SetSAMLIdPServiceProviderLabels(rct RoleConditionType, labels Labels) {
-	if rct == Allow {
-		r.Spec.Allow.SAMLIdPServiceProviderLabels = labels.Clone()
-	} else {
-		r.Spec.Deny.SAMLIdPServiceProviderLabels = labels.Clone()
-	}
-}
-
 // GetPrivateKeyPolicy returns the private key policy enforced for this role.
 func (r *RoleV6) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 	switch r.Spec.Options.RequireMFAType {
@@ -1227,7 +1201,6 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		r.Spec.Allow.DatabaseLabels,
 		r.Spec.Allow.WindowsDesktopLabels,
 		r.Spec.Allow.GroupLabels,
-		r.Spec.Allow.SAMLIdPServiceProviderLabels,
 	} {
 		if err := checkWildcardSelector(labels); err != nil {
 			return trace.Wrap(err)
@@ -1874,8 +1847,6 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
 	case KindUserGroup:
 		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
-	case KindSAMLIdPServiceProvider:
-		return LabelMatchers{cond.SAMLIdPServiceProviderLabels, cond.SAMLIdPServiceProviderLabelsExpression}, nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
 }
@@ -1925,10 +1896,6 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 	case KindUserGroup:
 		cond.GroupLabels = labelMatchers.Labels
 		cond.GroupLabelsExpression = labelMatchers.Expression
-		return nil
-	case KindSAMLIdPServiceProvider:
-		cond.SAMLIdPServiceProviderLabels = labelMatchers.Labels
-		cond.SAMLIdPServiceProviderLabelsExpression = labelMatchers.Expression
 		return nil
 	}
 	return trace.BadParameter("can't set label matchers for resource kind %q", kind)
@@ -1992,7 +1959,6 @@ var LabelMatcherKinds = []string{
 	KindWindowsDesktop,
 	KindWindowsDesktopService,
 	KindUserGroup,
-	KindSAMLIdPServiceProvider,
 }
 
 const (

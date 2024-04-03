@@ -1,28 +1,37 @@
-Select an edition, then follow the instructions for that edition to install Teleport.
+Install Teleport on your Linux server:
 
-<Tabs dropdownView dropdownCaption="Teleport Edition">
-  <TabItem label="Teleport Community Edition">
+1. Assign <Var name="edition" /> to one of the following, depending on your
+   Teleport edition:
 
-  (!docs/pages/includes/install-linux-oss.mdx!)
+   | Edition                           | Value        |
+   |-----------------------------------|--------------|
+   | Teleport Enterprise Cloud         | `cloud`      |
+   | Teleport Enterprise (Self-Hosted) | `enterprise` |
+   | Teleport Community Edition        | `oss`        |
 
-  </TabItem>
-  <TabItem label="Teleport Enterprise">
-  (!docs/pages/includes/install-linux-ent-self-hosted.mdx!)
+1. Get the version of Teleport to install. If you have automatic agent updates
+   enabled in your cluster, query the latest Teleport version that is compatible
+   with the updater:
 
-  (!docs/pages/includes/repo-channels.mdx!)
-  </TabItem>
-  <TabItem label="Teleport Enterprise Cloud">
-  (!docs/pages/includes/cloud/install-linux-cloud.mdx!)
+   ```code
+   $ TELEPORT_DOMAIN=<Var name="example.teleport.com" />
+   $ TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/default/version | sed 's/v//')"
+   ```
+   
+   Otherwise, get the version of your Teleport cluster:
+   
+   ```code 
+   $ TELEPORT_DOMAIN=<Var name="example.teleport.com" />
+   $ TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/ping | jq -r '.server_version')"
+   ```
 
-  (!docs/pages/includes/repo-channels.mdx!)
-  <Details title="Is my Teleport instance compatible with Teleport Enterprise Cloud?">
+1. Install Teleport on your Linux server:
 
-  Before installing a `teleport` binary with a version besides v(=cloud.major_version=),
-  read our compatibility rules to ensure that the binary is compatible with
-  Teleport Enterprise Cloud.
+   ```code
+   $ curl https://goteleport.com/static/install.sh | bash -s ${TELEPORT_VERSION} <Var name="edition" />
+   ```
 
-  (!docs/pages/includes/compatibility.mdx!)
-
-  </Details>
-  </TabItem>
-</Tabs>
+   The installation script detects the package manager on your Linux server and
+   uses it to install Teleport binaries. To customize your installation, learn
+   about the Teleport package repositories in the [installation
+   guide](../installation.mdx#linux).

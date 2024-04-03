@@ -123,6 +123,18 @@ func (c *Client) UpsertAccessList(ctx context.Context, accessList *accesslist.Ac
 	return responseAccessList, trace.Wrap(err)
 }
 
+// UpdateAccessList updates an access list resource.
+func (c *Client) UpdateAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
+	resp, err := c.grpcClient.UpdateAccessList(ctx, &accesslistv1.UpdateAccessListRequest{
+		AccessList: conv.ToProto(accessList),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	responseAccessList, err := conv.FromProto(resp)
+	return responseAccessList, trace.Wrap(err)
+}
+
 // DeleteAccessList removes the specified access list resource.
 func (c *Client) DeleteAccessList(ctx context.Context, name string) error {
 	_, err := c.grpcClient.DeleteAccessList(ctx, &accesslistv1.DeleteAccessListRequest{
@@ -210,6 +222,18 @@ func (c *Client) GetAccessListMember(ctx context.Context, accessList string, mem
 // UpsertAccessListMember creates or updates an access list member resource.
 func (c *Client) UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
 	resp, err := c.grpcClient.UpsertAccessListMember(ctx, &accesslistv1.UpsertAccessListMemberRequest{
+		Member: conv.ToMemberProto(member),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	responseMember, err := conv.FromMemberProto(resp)
+	return responseMember, trace.Wrap(err)
+}
+
+// UpdateAccessListMember updates an access list member resource using a conditional update.
+func (c *Client) UpdateAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.UpdateAccessListMember(ctx, &accesslistv1.UpdateAccessListMemberRequest{
 		Member: conv.ToMemberProto(member),
 	})
 	if err != nil {
