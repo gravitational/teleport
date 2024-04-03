@@ -93,39 +93,3 @@ export function compareByString(a: string, b: string) {
   }
   return 0;
 }
-
-// sortRolesAndFriendlyNames supports roles and their friendly names
-// in the same order.
-export function sortRolesAndFriendlyNames(
-  roles: string[],
-  friendlyNames: string[]
-) {
-  if (roles.length != friendlyNames.length) {
-    let sortedRoles = roles.sort();
-    // If the lengths don't match, we'll just return the regular roles as both.
-    return { roles: sortedRoles, friendlyNames: sortedRoles };
-  }
-
-  let rolesAndFriendlyNames = [];
-  for (let i = 0; i < roles.length; i++) {
-    rolesAndFriendlyNames.push({
-      role: roles[i],
-      friendlyName: friendlyNames[i],
-    });
-  }
-
-  rolesAndFriendlyNames.sort(function (item1, item2) {
-    if (item1.friendlyName < item2.friendlyName) {
-      return -1;
-    }
-    if (item1.friendlyName == item2.friendlyName) {
-      return 0;
-    }
-    return 1;
-  });
-
-  return {
-    roles: rolesAndFriendlyNames.map(r => r.role),
-    friendlyNames: rolesAndFriendlyNames.map(r => r.friendlyName),
-  };
-}
