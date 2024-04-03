@@ -23,7 +23,7 @@ import { UnifiedResource, ResourcesResponse } from '../agents';
 
 import { makeUnifiedResource } from './makeUnifiedResource';
 
-import { makeResource, makeResourceList } from './';
+import { makeResource, makeResourceList, RoleResource } from './';
 
 class ResourceService {
   fetchTrustedClusters() {
@@ -56,10 +56,21 @@ class ResourceService {
       .then(res => makeResourceList<'github'>(res));
   }
 
-  fetchRoles() {
-    return api
-      .get(cfg.getRolesUrl())
-      .then(res => makeResourceList<'role'>(res));
+  fetchRoles(params?: {
+    search?: string;
+    startKey?: string;
+    limit?: number;
+  }): Promise<{
+    items: RoleResource[];
+    startKey: string;
+  }> {
+    return api.get(
+      cfg.getListRolesUrl({
+        search: params?.search || undefined,
+        startKey: params?.startKey || undefined,
+        limit: params?.limit || undefined,
+      })
+    );
   }
 
   fetchPresetRoles() {
@@ -76,7 +87,7 @@ class ResourceService {
 
   createRole(content: string) {
     return api
-      .post(cfg.getRolesUrl(), { content })
+      .post(cfg.getRoleUrl(), { content })
       .then(res => makeResource<'role'>(res));
   }
 
@@ -94,7 +105,7 @@ class ResourceService {
 
   updateRole(name: string, content: string) {
     return api
-      .put(cfg.getRolesUrl(name), { content })
+      .put(cfg.getRoleUrl(name), { content })
       .then(res => makeResource<'role'>(res));
   }
 
@@ -109,7 +120,7 @@ class ResourceService {
   }
 
   deleteRole(name: string) {
-    return api.delete(cfg.getRolesUrl(name));
+    return api.delete(cfg.getRoleUrl(name));
   }
 
   deleteGithubConnector(name: string) {
