@@ -33,14 +33,16 @@ export function SearchPanel({
   filter,
   showSearchBar,
   disableSearch,
+  hideAdvancedSearch,
   extraChildren,
 }: {
   updateQuery(s: string): void;
   updateSearch(s: string): void;
-  pageIndicators: { from: number; to: number; total: number };
+  pageIndicators?: { from: number; to: number; total: number };
   filter: ResourceFilter;
   showSearchBar: boolean;
   disableSearch: boolean;
+  hideAdvancedSearch?: boolean;
   extraChildren?: JSX.Element;
 }) {
   const [query, setQuery] = useState(filter.search || filter.query || '');
@@ -82,22 +84,26 @@ export function SearchPanel({
           >
             {showSearchBar && (
               <InputSearch searchValue={query} setSearchValue={setQuery}>
-                <AdvancedSearchToggle
-                  isToggled={isAdvancedSearch}
-                  onToggle={onToggle}
-                  px={3}
-                />
+                {!hideAdvancedSearch && (
+                  <AdvancedSearchToggle
+                    isToggled={isAdvancedSearch}
+                    onToggle={onToggle}
+                    px={3}
+                  />
+                )}
               </InputSearch>
             )}
           </StyledFlex>
         </Flex>
         <Flex alignItems="center">
-          <PageIndicatorText
-            from={pageIndicators.from}
-            to={pageIndicators.to}
-            count={pageIndicators.total}
-          />
-          {extraChildren && extraChildren}
+          {pageIndicators && (
+            <PageIndicatorText
+              from={pageIndicators.from}
+              to={pageIndicators.to}
+              count={pageIndicators.total}
+            />
+          )}
+          {extraChildren}
         </Flex>
       </Flex>
     </StyledPanel>
