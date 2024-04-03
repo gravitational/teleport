@@ -123,7 +123,7 @@ func (f *Forwarder) ephemeralContainersLocal(authCtx *authContext, sess *cluster
 		return trace.Wrap(err)
 	}
 
-	reqContentType := req.Header.Get("Content-Type")
+	reqContentType := responsewriters.GetContentTypeHeader(req.Header)
 	// Remove "; charset=" if included in header.
 	if idx := strings.Index(reqContentType, ";"); idx > 0 {
 		reqContentType = reqContentType[:idx]
@@ -143,13 +143,15 @@ func (f *Forwarder) ephemeralContainersLocal(authCtx *authContext, sess *cluster
 
 	patchedPod, ephemeralContName, err := f.mergeEphemeralPatchWithCurrentPod(
 		req.Context(),
-		sess.kubeClusterName,
-		authCtx.kubeResource.Namespace,
-		authCtx.kubeResource.Name,
-		decoder,
-		encoder,
-		podPatch,
-		reqPatchType,
+		mergeEphemeralPatchWithCurrentPodConfig{
+			kubeCluster:   sess.kubeClusterName,
+			kubeNamespace: authCtx.kubeResource.Namespace,
+			podName:       authCtx.kubeResource.Name,
+			decoder:       decoder,
+			encoder:       encoder,
+			podPatch:      podPatch,
+			patchType:     reqPatchType,
+		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -170,6 +172,18 @@ func (f *Forwarder) ephemeralContainersLocal(authCtx *authContext, sess *cluster
 	return trace.Wrap(err)
 }
 
+// mergeEphemeralPatchWithCurrentPodConfig is a configuration struct for
+// mergeEphemeralPatchWithCurrentPod.
+type mergeEphemeralPatchWithCurrentPodConfig struct {
+	kubeCluster   string
+	kubeNamespace string
+	podName       string
+	decoder       runtime.Decoder
+	encoder       runtime.Encoder
+	podPatch      []byte
+	patchType     apimachinerytypes.PatchType
+}
+
 // mergeEphemeralPatchWithCurrentPod merges the provided patch with the
 // current pod and returns the patched pod.
 // This function gets the current pod from the Kubernetes API server and
@@ -177,32 +191,26 @@ func (f *Forwarder) ephemeralContainersLocal(authCtx *authContext, sess *cluster
 // merge patch that adds an ephemeral container to the pod.
 func (f *Forwarder) mergeEphemeralPatchWithCurrentPod(
 	ctx context.Context,
-	kubeCluster,
-	kubeNamespace,
-	podName string,
-	decoder runtime.Decoder,
-	encoder runtime.Encoder,
-	podPatch []byte,
-	patchType apimachinerytypes.PatchType,
+	cfg mergeEphemeralPatchWithCurrentPodConfig,
 ) (*corev1.Pod, string, error) {
-	details, err := f.findKubeDetailsByClusterName(kubeCluster)
+	details, err := f.findKubeDetailsByClusterName(cfg.kubeCluster)
 	if err != nil {
-		return nil, "", trace.NotFound("kubernetes cluster %q not found", kubeCluster)
+		return nil, "", trace.NotFound("kubernetes cluster %q not found", cfg.kubeCluster)
 	}
 
 	pod, err := details.getKubeClient().CoreV1().
-		Pods(kubeNamespace).
-		Get(ctx, podName, metav1.GetOptions{})
+		Pods(cfg.kubeNamespace).
+		Get(ctx, cfg.podName, metav1.GetOptions{})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
 	podSerializedBuf := &bytes.Buffer{}
-	if err := encoder.Encode(pod, podSerializedBuf); err != nil {
+	if err := cfg.encoder.Encode(pod, podSerializedBuf); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	patchedPod, ephemeralContName, err := patchPodWithDebugContainer(decoder, podSerializedBuf.Bytes(), podPatch, *pod, patchType)
+	patchedPod, ephemeralContName, err := patchPodWithDebugContainer(cfg.decoder, podSerializedBuf.Bytes(), cfg.podPatch, *pod, cfg.patchType)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -315,13 +323,15 @@ func (f *Forwarder) getPatchedPodEvent(ctx context.Context, sess *clusterSession
 
 	patchedPod, _, err := f.mergeEphemeralPatchWithCurrentPod(
 		ctx,
-		waitingCont.Spec.Cluster,
-		waitingCont.Spec.Namespace,
-		waitingCont.Spec.PodName,
-		decoder,
-		encoder,
-		waitingCont.Spec.Patch,
-		apimachinerytypes.PatchType(waitingCont.Spec.PatchType),
+		mergeEphemeralPatchWithCurrentPodConfig{
+			kubeCluster:   waitingCont.Spec.Cluster,
+			kubeNamespace: waitingCont.Spec.Namespace,
+			podName:       waitingCont.Spec.PodName,
+			decoder:       decoder,
+			encoder:       encoder,
+			podPatch:      waitingCont.Spec.Patch,
+			patchType:     apimachinerytypes.PatchType(waitingCont.Spec.PatchType),
+		},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

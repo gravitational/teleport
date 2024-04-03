@@ -38,6 +38,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	kubeapitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
@@ -345,7 +346,9 @@ type session struct {
 
 	emitter apievents.Emitter
 
-	podName string
+	podName      string
+	podNamespace string
+	container    string
 
 	started bool
 
@@ -404,7 +407,13 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 
 	io := srv.NewTermManager()
 	streamContext, streamContextCancel := context.WithCancel(forwarder.ctx)
+	namespace := params.ByName("podNamespace")
+	podName := params.ByName("podName")
+	container := q.Get("container")
 	s := &session{
+		podName:                        podName,
+		podNamespace:                   namespace,
+		container:                      container,
 		ctx:                            ctx,
 		forwarder:                      forwarder,
 		req:                            req,
@@ -1315,6 +1324,11 @@ func getRolesByName(forwarder *Forwarder, roleNames []string) ([]types.Role, err
 // While ctx is open, the session tracker's expiration will be extended
 // on an interval until the session tracker is closed.
 func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicySet) error {
+	ctx := s.req.Context()
+	command := s.req.URL.Query()["command"]
+	if len(command) == 0 {
+		command = s.retrieveEphemeralContainerCommand(ctx, p.Ctx.User.GetName(), s.req.URL.Query().Get("container"))
+	}
 	trackerSpec := types.SessionTrackerSpecV1{
 		SessionID:         s.id.String(),
 		Kind:              string(types.KubernetesSessionKind),
@@ -1329,13 +1343,11 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 		Reason:            s.reason,
 		Invited:           s.invitedUsers,
 		HostID:            s.forwarder.cfg.HostID,
-		InitialCommand:    s.req.URL.Query()["command"],
+		InitialCommand:    command,
 	}
 
 	s.log.Debug("Creating session tracker")
 	sessionTrackerService := s.forwarder.cfg.AuthClient
-
-	ctx := s.req.Context()
 
 	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, sessionTrackerService)
 	switch {
@@ -1456,4 +1468,58 @@ func (s *session) retrieveAlreadyStoppedPodLogs(namespace, podName, container st
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(r.Close())
+}
+
+// retrieveEphemeralContainerCommand retrieves the command of an ephemeral container
+// if it exists.
+func (s *session) retrieveEphemeralContainerCommand(ctx context.Context, username, containerName string) []string {
+	containers, err := s.forwarder.getUserEphemeralContainersForPod(ctx, username, s.ctx.kubeClusterName, s.podNamespace, s.podName)
+	if err != nil {
+		s.log.WithError(err).Warn("Failed to retrieve ephemeral containers")
+		return nil
+	}
+	if len(containers) == 0 {
+		return nil
+	}
+	for _, container := range containers {
+		if container.GetMetadata().GetName() != containerName {
+			continue
+		}
+
+		contentType, err := patchTypeToContentType(apimachinerytypes.PatchType(container.Spec.PatchType))
+		if err != nil {
+			return nil
+		}
+		encoder, decoder, err := newEncoderAndDecoderForContentType(
+			contentType,
+			newClientNegotiator(s.sess.codecFactory),
+		)
+		if err != nil {
+			s.log.WithError(err).Warn("Failed to create encoder and decoder")
+			return nil
+		}
+		pod, _, err := s.forwarder.mergeEphemeralPatchWithCurrentPod(
+			ctx,
+			mergeEphemeralPatchWithCurrentPodConfig{
+				kubeCluster:   s.ctx.kubeClusterName,
+				kubeNamespace: s.podNamespace,
+				podName:       s.podName,
+				decoder:       decoder,
+				encoder:       encoder,
+				podPatch:      container.GetSpec().Patch,
+				patchType:     apimachinerytypes.PatchType(container.GetSpec().PatchType),
+			},
+		)
+		if err != nil {
+			s.log.WithError(err).Warn("Failed to merge ephemeral patch with current pod")
+			return nil
+		}
+		for _, ephemeral := range pod.Spec.EphemeralContainers {
+			if ephemeral.Name == containerName {
+				return ephemeral.Command
+			}
+		}
+
+	}
+	return nil
 }
