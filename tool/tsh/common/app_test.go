@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
@@ -474,7 +475,15 @@ uri: https://test-tp.teleport:8443
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			test.tc.InsecureSkipVerify = test.insecure
-			result, err := formatAppConfig(test.tc, testProfile, testAppName, testAppPublicAddr, test.format, testCluster, test.awsArn, test.azureIdentity, test.gcpServiceAccount)
+			routeToApp := proto.RouteToApp{
+				Name:              testAppName,
+				PublicAddr:        testAppPublicAddr,
+				ClusterName:       testCluster,
+				AWSRoleARN:        test.awsArn,
+				AzureIdentity:     test.azureIdentity,
+				GCPServiceAccount: test.gcpServiceAccount,
+			}
+			result, err := formatAppConfig(test.tc, testProfile, routeToApp, test.format)
 			if test.wantErr {
 				assert.Error(t, err)
 			} else {
