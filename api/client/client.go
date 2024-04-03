@@ -17,7 +17,6 @@ limitations under the License.
 package client
 
 import (
-	"cmp"
 	"compress/gzip"
 	"context"
 	"crypto/tls"
@@ -25,7 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -36,6 +35,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
@@ -1115,11 +1115,18 @@ func (c *Client) listAllAccessRequestsCompat(ctx context.Context, req *proto.Lis
 		// no custom sort order needed
 	case proto.AccessRequestSort_CREATED:
 		slices.SortFunc(requests, func(a, b *types.AccessRequestV3) int {
-			return a.GetCreationTime().Compare(b.GetCreationTime())
+			at, bt := a.GetCreationTime().UnixNano(), b.GetCreationTime().UnixNano()
+			switch {
+			case at < bt:
+				return -1
+			case at > bt:
+				return 1
+			}
+			return 0
 		})
 	case proto.AccessRequestSort_STATE:
 		slices.SortFunc(requests, func(a, b *types.AccessRequestV3) int {
-			return cmp.Compare(a.GetState().String(), b.GetState().String())
+			return strings.Compare(a.GetState().String(), b.GetState().String())
 		})
 	default:
 		return nil, trace.BadParameter("list access request compat fallback does not support sort order %q", req.Sort)
