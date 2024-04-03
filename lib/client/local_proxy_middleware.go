@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -109,15 +108,11 @@ func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy
 		return trace.Wrap(err)
 	}
 
-	dbCert, ok := key.DBTLSCerts[c.dbRoute.ServiceName]
-	if !ok {
-		return trace.NotFound("database '%v' TLS cert missing", c.dbRoute.ServiceName)
-	}
-	tlsCert, err := keys.X509KeyPair(dbCert, key.PrivateKeyPEM())
+	dbCert, err := key.DBTLSCert(c.dbRoute.ServiceName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	leaf, err := utils.TLSCertLeaf(tlsCert)
+	leaf, err := utils.TLSCertLeaf(dbCert)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -125,7 +120,7 @@ func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy
 	log.Debugf("Database certificate renewed: valid until %s [valid for %v]",
 		leaf.NotAfter.Format(time.RFC3339), certTTL)
 	// reduce per-handshake processing by setting the parsed leaf.
-	tlsCert.Leaf = leaf
-	lp.SetCerts([]tls.Certificate{tlsCert})
+	dbCert.Leaf = leaf
+	lp.SetCerts([]tls.Certificate{dbCert})
 	return nil
 }
