@@ -879,6 +879,12 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 	// We have two set up modes:
 	// - use the Proxy HTTP endpoint as Identity Provider
 	// - use an S3 Bucket for storing the public keys
+	//
+	// The script will pick a mode depending on the query params received here.
+	// If the S3 location was defined, then it will use that mode and upload the Public Keys to the S3 Bucket.
+	// Otherwise, it will create an IdP pointing to the current Cluster.
+	//
+	// Whatever the chosen mode, the Proxy HTTP endpoint will always return the public keys.
 	s3Bucket := queryParams.Get("s3Bucket")
 	s3Prefix := queryParams.Get("s3Prefix")
 
