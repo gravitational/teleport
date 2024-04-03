@@ -319,6 +319,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.Notifications == nil {
+		cfg.Notifications, err = local.NewNotificationsService(cfg.Backend, cfg.Clock)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -360,6 +366,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 
+	if cfg.AccessMonitoringRules == nil {
+		cfg.AccessMonitoringRules, err = local.NewAccessMonitoringRulesService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		Trust:                     cfg.Trust,
@@ -396,6 +409,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		UserPreferences:           cfg.UserPreferences,
 		PluginData:                cfg.PluginData,
 		KubeWaitingContainer:      cfg.KubeWaitingContainers,
+		Notifications:             cfg.Notifications,
+		AccessMonitoringRules:     cfg.AccessMonitoringRules,
 	}
 
 	as := Server{
@@ -547,11 +562,13 @@ type Services struct {
 	services.UserPreferences
 	services.PluginData
 	services.SCIM
+	services.Notifications
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
 	services.SecReports
 	services.KubeWaitingContainer
+	services.AccessMonitoringRules
 }
 
 // SecReportsClient returns the security reports client.
@@ -590,6 +607,11 @@ func (r *Services) SCIMClient() services.SCIM {
 
 // AccessListClient returns the access list client.
 func (r *Services) AccessListClient() services.AccessLists {
+	return r
+}
+
+// AccessMonitoringRuleClient returns the access monitoring rules client.
+func (r *Services) AccessMonitoringRuleClient() services.AccessMonitoringRules {
 	return r
 }
 
@@ -832,6 +854,12 @@ type Server struct {
 	// custom sorting options not available via the standard backend.
 	AccessRequestCache *services.AccessRequestCache
 
+	// UserNotificationCache is a cache of user-specific notifications.
+	UserNotificationCache *services.UserNotificationCache
+
+	// GlobalNotificationCache is a cache of global notifications.
+	GlobalNotificationCache *services.GlobalNotificationCache
+
 	inventory *inventory.Controller
 
 	// githubOrgSSOCache is used to cache whether Github organizations use
@@ -1017,6 +1045,20 @@ func (a *Server) SetAccessRequestCache(accessRequestCache *services.AccessReques
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.AccessRequestCache = accessRequestCache
+}
+
+// SetUserNotificationsCache sets the user notification cache.
+func (a *Server) SetUserNotificationCache(userNotificationCache *services.UserNotificationCache) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.UserNotificationCache = userNotificationCache
+}
+
+// SetGlobalNotificationsCache sets the global notification cache.
+func (a *Server) SetGlobalNotificationCache(globalNotificationCache *services.GlobalNotificationCache) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.GlobalNotificationCache = globalNotificationCache
 }
 
 func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
@@ -1653,6 +1695,18 @@ func (a *Server) Close() error {
 
 	if a.AccessRequestCache != nil {
 		if err := a.AccessRequestCache.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if a.UserNotificationCache != nil {
+		if err := a.UserNotificationCache.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if a.GlobalNotificationCache != nil {
+		if err := a.GlobalNotificationCache.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -2362,6 +2416,7 @@ func (a *Server) AugmentWebSessionCertificates(
 	// Update WebSession.
 	sessionV2.Spec.Pub = newCerts.SSH
 	sessionV2.Spec.TLSCert = newCerts.TLS
+	sessionV2.Spec.HasDeviceExtensions = true
 	return trace.Wrap(sessions.Upsert(ctx, sessionV2))
 }
 
@@ -3174,30 +3229,6 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 	return trace.WithField(retErr, ErrFieldKeyUserMaxedAttempts, true)
 }
 
-// PreAuthenticatedSignIn is for MFA authentication methods where the password
-// is already checked before issuing the second factor challenge
-func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identity tlsca.Identity) (types.WebSession, error) {
-	accessInfo, err := services.AccessInfoFromLocalIdentity(identity, a)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
-		User:                 user,
-		LoginIP:              identity.LoginIP,
-		Roles:                accessInfo.Roles,
-		Traits:               accessInfo.Traits,
-		AccessRequests:       identity.ActiveRequests,
-		RequestedResourceIDs: accessInfo.AllowedResourceIDs,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := a.upsertWebSession(ctx, sess); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sess.WithoutSecrets(), nil
-}
-
 // CreateAuthenticateChallenge implements AuthService.CreateAuthenticateChallenge.
 func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 	var username string
@@ -3938,8 +3969,18 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		return nil, trace.Wrap(err)
 	}
 
+	// Keep existing device extensions in the new session.
+	opts := &newWebSessionOpts{}
+	if prevSession.GetHasDeviceExtensions() {
+		var err error
+		opts.deviceExtensions, err = decodeDeviceExtensionsFromSession(prevSession)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
-	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
+	sess, err := a.newWebSession(ctx, NewWebSessionRequest{
 		User:                 req.User,
 		LoginIP:              identity.LoginIP,
 		Roles:                roles,
@@ -3948,7 +3989,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		AccessRequests:       accessRequests,
 		RequestedResourceIDs: allowedResourceIDs,
 		PrivateKey:           prevKey,
-	})
+	}, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3963,6 +4004,29 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	}
 
 	return sess, nil
+}
+
+func decodeDeviceExtensionsFromSession(webSession types.WebSession) (*tlsca.DeviceExtensions, error) {
+	// Reading the extensions from the session itself means we are always taking
+	// them for a legitimate source (ie, certificates issued by Auth).
+	// We don't re-validate the certificates when decoding the extensions.
+
+	block, _ := pem.Decode(webSession.GetTLSCert())
+	if block == nil {
+		return nil, trace.BadParameter("failed to decode session TLS certificate")
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certIdentity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &certIdentity.DeviceExtensions, nil
 }
 
 // getWebSessionTTL returns the earliest expiration time of allowed in the access request.
@@ -4036,7 +4100,7 @@ func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
+	session, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
 		User:      user,
 		Roles:     u.GetRoles(),
 		Traits:    u.GetTraits(),
@@ -4550,105 +4614,6 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 	return tokens, nil
 }
 
-// NewWebSession creates and returns a new web session for the specified request
-func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
-	userState, err := a.GetUserOrLoginState(ctx, req.User)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if req.LoginIP == "" {
-		// TODO(antonam): consider turning this into error after all use cases are covered (before v14.0 testplan)
-		log.Debug("Creating new web session without login IP specified.")
-	}
-	clusterName, err := a.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	checker, err := services.NewAccessChecker(&services.AccessInfo{
-		Roles:              req.Roles,
-		Traits:             req.Traits,
-		AllowedResourceIDs: req.RequestedResourceIDs,
-	}, clusterName.GetClusterName(), a)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	netCfg, err := a.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if req.PrivateKey == nil {
-		req.PrivateKey, err = native.GeneratePrivateKey()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	sessionTTL := req.SessionTTL
-	if sessionTTL == 0 {
-		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
-	}
-
-	if req.AttestWebSession {
-		// Upsert web session attestation data so that this key's certs
-		// will be marked with the web session private key policy.
-		webAttData, err := services.NewWebSessionAttestationData(req.PrivateKey.Public())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err = a.UpsertKeyAttestationData(ctx, webAttData, sessionTTL); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	certs, err := a.generateUserCert(ctx, certRequest{
-		user:           userState,
-		loginIP:        req.LoginIP,
-		ttl:            sessionTTL,
-		publicKey:      req.PrivateKey.MarshalSSHPublicKey(),
-		checker:        checker,
-		traits:         req.Traits,
-		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	token, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	bearerToken, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	bearerTokenTTL := min(sessionTTL, defaults.BearerTokenTTL)
-
-	startTime := a.clock.Now()
-	if !req.LoginTime.IsZero() {
-		startTime = req.LoginTime
-	}
-
-	sessionSpec := types.WebSessionSpecV2{
-		User:               req.User,
-		Priv:               req.PrivateKey.PrivateKeyPEM(),
-		Pub:                certs.SSH,
-		TLSCert:            certs.TLS,
-		Expires:            startTime.UTC().Add(sessionTTL),
-		BearerToken:        bearerToken,
-		BearerTokenExpires: startTime.UTC().Add(bearerTokenTTL),
-		LoginTime:          req.LoginTime,
-		IdleTimeout:        types.Duration(netCfg.GetWebIdleTimeout()),
-	}
-	UserLoginCount.Inc()
-
-	sess, err := types.NewWebSession(token, types.KindWebSession, sessionSpec)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sess, nil
-}
-
 // GetWebSessionInfo returns the web session specified with sessionID for the given user.
 // The session is stripped of any authentication details.
 // Implements auth.WebUIService
@@ -4829,6 +4794,16 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if _, err := a.Services.CreateAccessRequestV2(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var annotations *apievents.Struct
+	if sa := req.GetSystemAnnotations(); len(sa) > 0 {
+		var err error
+		annotations, err = apievents.EncodeMapStrings(sa)
+		if err != nil {
+			log.WithError(err).Debug("Failed to encode access request annotations.")
+		}
+	}
+
 	err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
 			Type: events.AccessRequestCreateEvent,
@@ -4844,6 +4819,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		RequestState:         req.GetState().String(),
 		Reason:               req.GetRequestReason(),
 		MaxDuration:          req.GetMaxDuration(),
+		Annotations:          annotations,
 	})
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
@@ -4943,6 +4919,13 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 		Reason:          params.Reason,
 		Roles:           params.Roles,
 		AssumeStartTime: params.AssumeStartTime,
+	}
+	if sa := req.GetSystemAnnotations(); len(sa) > 0 {
+		var err error
+		event.Annotations, err = apievents.EncodeMapStrings(sa)
+		if err != nil {
+			log.WithError(err).Debug("Failed to encode access request annotations.")
+		}
 	}
 
 	if delegator := apiutils.GetDelegator(ctx); delegator != "" {
@@ -6416,23 +6399,6 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}
-}
-
-func (a *Server) upsertWebSession(ctx context.Context, session types.WebSession) error {
-	if err := a.WebSessions().Upsert(ctx, session); err != nil {
-		return trace.Wrap(err)
-	}
-	token, err := types.NewWebToken(session.GetBearerTokenExpiryTime(), types.WebTokenSpecV3{
-		User:  session.GetUser(),
-		Token: session.GetBearerToken(),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.WebTokens().Upsert(ctx, token); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {

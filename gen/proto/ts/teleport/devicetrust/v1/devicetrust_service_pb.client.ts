@@ -25,6 +25,8 @@ import type { DevicesUsage } from "./usage_pb";
 import type { GetDevicesUsageRequest } from "./devicetrust_service_pb";
 import type { SyncInventoryResponse } from "./devicetrust_service_pb";
 import type { SyncInventoryRequest } from "./devicetrust_service_pb";
+import type { ConfirmDeviceWebAuthenticationResponse } from "./devicetrust_service_pb";
+import type { ConfirmDeviceWebAuthenticationRequest } from "./devicetrust_service_pb";
 import type { AuthenticateDeviceResponse } from "./devicetrust_service_pb";
 import type { AuthenticateDeviceRequest } from "./devicetrust_service_pb";
 import type { EnrollDeviceResponse } from "./devicetrust_service_pb";
@@ -192,6 +194,25 @@ export interface IDeviceTrustServiceClient {
      * @generated from protobuf rpc: AuthenticateDevice(stream teleport.devicetrust.v1.AuthenticateDeviceRequest) returns (stream teleport.devicetrust.v1.AuthenticateDeviceResponse);
      */
     authenticateDevice(options?: RpcOptions): DuplexStreamingCall<AuthenticateDeviceRequest, AuthenticateDeviceResponse>;
+    /**
+     * ConfirmDeviceWebAuthentication finalizes the device web authentication
+     * ceremony started by the creation of a DeviceWebToken and subsequent
+     * AuthenticateDevice call.
+     *
+     * The DeviceConfirmationToken issued by AuthenticateDevice is spent in this
+     * method, which consequently augments the corresponding Web Session
+     * certificates with device extensions.
+     *
+     * This method must be called by the Teleport Proxy, and the Proxy itself must
+     * be called by the same browser that started the on-behalf-of authentication
+     * attempt. See the /webapi/device/webconfirm endpoint.
+     *
+     * See
+     * https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
+     *
+     * @generated from protobuf rpc: ConfirmDeviceWebAuthentication(teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationRequest) returns (teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationResponse);
+     */
+    confirmDeviceWebAuthentication(input: ConfirmDeviceWebAuthenticationRequest, options?: RpcOptions): UnaryCall<ConfirmDeviceWebAuthenticationRequest, ConfirmDeviceWebAuthenticationResponse>;
     /**
      * Syncs device inventory from a source exterior to Teleport, for example an
      * MDM.
@@ -394,6 +415,28 @@ export class DeviceTrustServiceClient implements IDeviceTrustServiceClient, Serv
         return stackIntercept<AuthenticateDeviceRequest, AuthenticateDeviceResponse>("duplex", this._transport, method, opt);
     }
     /**
+     * ConfirmDeviceWebAuthentication finalizes the device web authentication
+     * ceremony started by the creation of a DeviceWebToken and subsequent
+     * AuthenticateDevice call.
+     *
+     * The DeviceConfirmationToken issued by AuthenticateDevice is spent in this
+     * method, which consequently augments the corresponding Web Session
+     * certificates with device extensions.
+     *
+     * This method must be called by the Teleport Proxy, and the Proxy itself must
+     * be called by the same browser that started the on-behalf-of authentication
+     * attempt. See the /webapi/device/webconfirm endpoint.
+     *
+     * See
+     * https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
+     *
+     * @generated from protobuf rpc: ConfirmDeviceWebAuthentication(teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationRequest) returns (teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationResponse);
+     */
+    confirmDeviceWebAuthentication(input: ConfirmDeviceWebAuthenticationRequest, options?: RpcOptions): UnaryCall<ConfirmDeviceWebAuthenticationRequest, ConfirmDeviceWebAuthenticationResponse> {
+        const method = this.methods[11], opt = this._transport.mergeOptions(options);
+        return stackIntercept<ConfirmDeviceWebAuthenticationRequest, ConfirmDeviceWebAuthenticationResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
      * Syncs device inventory from a source exterior to Teleport, for example an
      * MDM.
      * Allows both partial and full syncs; for the latter, devices missing from
@@ -404,7 +447,7 @@ export class DeviceTrustServiceClient implements IDeviceTrustServiceClient, Serv
      * @generated from protobuf rpc: SyncInventory(stream teleport.devicetrust.v1.SyncInventoryRequest) returns (stream teleport.devicetrust.v1.SyncInventoryResponse);
      */
     syncInventory(options?: RpcOptions): DuplexStreamingCall<SyncInventoryRequest, SyncInventoryResponse> {
-        const method = this.methods[11], opt = this._transport.mergeOptions(options);
+        const method = this.methods[12], opt = this._transport.mergeOptions(options);
         return stackIntercept<SyncInventoryRequest, SyncInventoryResponse>("duplex", this._transport, method, opt);
     }
     /**
@@ -414,7 +457,7 @@ export class DeviceTrustServiceClient implements IDeviceTrustServiceClient, Serv
      * @generated from protobuf rpc: GetDevicesUsage(teleport.devicetrust.v1.GetDevicesUsageRequest) returns (teleport.devicetrust.v1.DevicesUsage);
      */
     getDevicesUsage(input: GetDevicesUsageRequest, options?: RpcOptions): UnaryCall<GetDevicesUsageRequest, DevicesUsage> {
-        const method = this.methods[12], opt = this._transport.mergeOptions(options);
+        const method = this.methods[13], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetDevicesUsageRequest, DevicesUsage>("unary", this._transport, method, opt, input);
     }
 }

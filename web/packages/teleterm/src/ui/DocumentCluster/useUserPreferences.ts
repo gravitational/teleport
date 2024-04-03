@@ -77,12 +77,17 @@ export function useUserPreferences(clusterUri: ClusterUri): {
   const [initialFetchAttempt, runInitialFetchAttempt] = useAsync(
     useCallback(
       async () =>
-        retryWithRelogin(appContext, clusterUri, () =>
-          appContext.tshd.getUserPreferences(
+        retryWithRelogin(appContext, clusterUri, async () => {
+          const { response } = await appContext.tshd.getUserPreferences(
             { clusterUri },
-            cloneAbortSignal(initialFetchAttemptAbortController.current.signal)
-          )
-        ),
+            {
+              abort: cloneAbortSignal(
+                initialFetchAttemptAbortController.current.signal
+              ),
+            }
+          );
+          return response.userPreferences;
+        }),
       [appContext, clusterUri]
     )
   );
@@ -97,12 +102,13 @@ export function useUserPreferences(clusterUri: ClusterUri): {
   const [, runUpdateAttempt] = useAsync(
     useCallback(
       async (newPreferences: UserPreferences) =>
-        retryWithRelogin(appContext, clusterUri, () =>
-          appContext.tshd.updateUserPreferences({
+        retryWithRelogin(appContext, clusterUri, async () => {
+          const { response } = await appContext.tshd.updateUserPreferences({
             clusterUri,
             userPreferences: newPreferences,
-          })
-        ),
+          });
+          return response.userPreferences;
+        }),
       [appContext, clusterUri]
     )
   );

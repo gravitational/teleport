@@ -32,6 +32,86 @@ func TestAssertAccessRequestImplementsResourceWithLabels(t *testing.T) {
 	require.Implements(t, (*ResourceWithLabels)(nil), ar)
 }
 
+func TestAccessRequestFilter(t *testing.T) {
+	var reqs []AccessRequest
+	req1, err := NewAccessRequest("0001", "bob", "test")
+	require.NoError(t, err)
+	reqs = append(reqs, req1)
+
+	req2, err := NewAccessRequest("0002", "alice", "test")
+	require.NoError(t, err)
+	reqs = append(reqs, req2)
+
+	req3, err := NewAccessRequest("0003", "alice", "test")
+	req3.SetReviews([]AccessReview{{Author: "bob"}})
+	require.NoError(t, err)
+	reqs = append(reqs, req3)
+
+	req4, err := NewAccessRequest("0004", "alice", "test")
+	req4.SetReviews([]AccessReview{{Author: "bob"}})
+	require.NoError(t, err)
+	req4.SetState(RequestState_APPROVED)
+	reqs = append(reqs, req4)
+
+	req5, err := NewAccessRequest("0005", "jan", "test")
+	require.NoError(t, err)
+	req5.SetState(RequestState_DENIED)
+	reqs = append(reqs, req5)
+
+	req6, err := NewAccessRequest("0006", "jan", "test")
+	require.NoError(t, err)
+	reqs = append(reqs, req6)
+
+	cases := []struct {
+		name     string
+		filter   AccessRequestFilter
+		expected []string
+	}{
+		{
+			name: "user wants their own requests",
+			filter: AccessRequestFilter{
+				Requester: "alice",
+				Scope:     AccessRequestScope_MY_REQUESTS,
+			},
+			expected: []string{"0002", "0003", "0004"},
+		},
+		{
+			name: "user wants requests they need to review",
+			filter: AccessRequestFilter{
+				Requester: "bob",
+				Scope:     AccessRequestScope_NEEDS_REVIEW,
+			},
+			expected: []string{"0002", "0006"},
+		},
+		{
+			name: "user wants all requests",
+			filter: AccessRequestFilter{
+				Requester: "bob",
+			},
+			expected: []string{"0001", "0002", "0003", "0004", "0005", "0006"},
+		},
+		{
+			name: "user wants requests theyve reviewed",
+			filter: AccessRequestFilter{
+				Requester: "bob",
+				Scope:     AccessRequestScope_REVIEWED,
+			},
+			expected: []string{"0003", "0004"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var ids []string
+			for _, req := range reqs {
+				if tc.filter.Match(req) {
+					ids = append(ids, req.GetName())
+				}
+			}
+			require.Equal(t, tc.expected, ids)
+		})
+	}
+}
+
 func TestValidateAssumeStartTime(t *testing.T) {
 	creation := time.Now().UTC()
 	const day = 24 * time.Hour

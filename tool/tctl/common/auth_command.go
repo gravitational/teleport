@@ -193,6 +193,7 @@ var allowedCertificateTypes = []string{
 	"tls-host",
 	"tls-user",
 	"tls-user-der",
+	"tls-spiffe",
 	"windows",
 	"db",
 	"db-der",
@@ -241,7 +242,6 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt *auth.Client) e
 // GenerateKeys generates a new keypair
 func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 	keygen := keygen.New(ctx)
-	defer keygen.Close()
 	privBytes, pubBytes, err := keygen.GenerateKeyPair()
 	if err != nil {
 		return trace.Wrap(err)

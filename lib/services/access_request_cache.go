@@ -43,6 +43,8 @@ const (
 	accessRequestCreated = "Created"
 	// accessRequestState is the name of the sort index used for sorting requests by their current state (pending, approved, etc).
 	accessRequestState = "State"
+	// accessRequestUser is the name of the sort index used for sorting requests by the person who created the request.
+	accessRequestUser = "User"
 )
 
 // AccessRequestCacheConfig holds the configuration parameters for an [AccessRequestCache].
@@ -186,6 +188,8 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 		index = accessRequestCreated
 	case proto.AccessRequestSort_STATE:
 		index = accessRequestState
+	case proto.AccessRequestSort_USER:
+		index = accessRequestUser
 	default:
 		return nil, trace.BadParameter("unsupported access request sort index '%v'", req.Sort)
 	}
@@ -249,6 +253,9 @@ func (c *AccessRequestCache) fetch(ctx context.Context) (*sortcache.SortCache[*t
 			},
 			accessRequestState: func(req *types.AccessRequestV3) string {
 				return fmt.Sprintf("%s/%s", req.GetState().String(), req.GetName())
+			},
+			accessRequestUser: func(req *types.AccessRequestV3) string {
+				return fmt.Sprintf("%s/%s", req.GetUser(), req.GetName())
 			},
 		},
 	})

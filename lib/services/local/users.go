@@ -44,7 +44,6 @@ import (
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
-	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
@@ -102,6 +101,16 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 		userStream = s.streamUsersWithSecrets(itemStream)
 	} else {
 		userStream = s.streamUsersWithoutSecrets(itemStream)
+	}
+
+	if req.Filter != nil {
+		userStream = stream.FilterMap(userStream, func(user *types.UserV2) (*types.UserV2, bool) {
+			if !req.Filter.Match(user) {
+				return nil, false
+			}
+
+			return user, true
+		})
 	}
 
 	users, full := stream.Take(userStream, int(pageSize))
@@ -816,7 +825,7 @@ func (s *IdentityService) UpsertWebauthnLocalAuth(ctx context.Context, user stri
 	if err != nil {
 		return trace.Wrap(err, "marshal webauthn local auth")
 	}
-	userJSON, err := json.Marshal(&wanpb.User{
+	userJSON, err := json.Marshal(&webauthnUser{
 		TeleportUser: user,
 	})
 	if err != nil {
@@ -873,11 +882,17 @@ func (s *IdentityService) GetTeleportUserByWebauthnID(ctx context.Context, webID
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	user := &wanpb.User{}
+	user := &webauthnUser{}
 	if err := json.Unmarshal(item.Value, user); err != nil {
 		return "", trace.Wrap(err)
 	}
 	return user.TeleportUser, nil
+}
+
+// webauthnUser represents a WebAuthn user stored under [webauthnUserKey].
+// Looked up during passwordless logins.
+type webauthnUser struct {
+	TeleportUser string `json:"teleport_user"`
 }
 
 func webauthnLocalAuthKey(user string) []byte {

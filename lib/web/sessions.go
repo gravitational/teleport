@@ -623,6 +623,8 @@ type sessionCacheOptions struct {
 	sessionLingeringThreshold time.Duration
 	// proxySigner is used to sign PROXY header and securely propagate client's real IP
 	proxySigner multiplexer.PROXYHeaderSigner
+	// See [sessionCache.startWebSessionWatcherImmediately]. Used for testing.
+	startWebSessionWatcherImmediately bool
 }
 
 // newSessionCache creates a [sessionCache] from the provided [config] and
@@ -639,30 +641,26 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 	}
 
 	cache := &sessionCache{
-		clusterName:               clusterName.GetClusterName(),
-		proxyClient:               config.proxyClient,
-		accessPoint:               config.accessPoint,
-		sessions:                  make(map[string]*SessionContext),
-		resources:                 make(map[string]*sessionResources),
-		authServers:               config.servers,
-		closer:                    utils.NewCloseBroadcaster(),
-		cipherSuites:              config.cipherSuites,
-		log:                       newPackageLogger(),
-		clock:                     config.clock,
-		sessionLingeringThreshold: config.sessionLingeringThreshold,
-		proxySigner:               config.proxySigner,
+		clusterName:                       clusterName.GetClusterName(),
+		proxyClient:                       config.proxyClient,
+		accessPoint:                       config.accessPoint,
+		sessions:                          make(map[string]*SessionContext),
+		resources:                         make(map[string]*sessionResources),
+		authServers:                       config.servers,
+		closer:                            utils.NewCloseBroadcaster(),
+		cipherSuites:                      config.cipherSuites,
+		log:                               newPackageLogger(),
+		clock:                             config.clock,
+		sessionLingeringThreshold:         config.sessionLingeringThreshold,
+		proxySigner:                       config.proxySigner,
+		startWebSessionWatcherImmediately: config.startWebSessionWatcherImmediately,
 	}
-
-	sessionWatcher, err := cache.prepareWebSessionWatcher(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Watch for session updates.
-	go sessionWatcher(ctx)
 
 	// periodically close expired and unused sessions
 	go cache.expireSessions(ctx)
+
+	// Watch for session updates.
+	go cache.watchWebSessions(ctx)
 
 	return cache, nil
 }
@@ -701,6 +699,11 @@ type sessionCache struct {
 
 	// proxySigner is used to sign PROXY header and securely propagate client's real IP
 	proxySigner multiplexer.PROXYHeaderSigner
+
+	// startWebSessionWatcherImmediately removes the First component of the linear
+	// backoff used to start the WebSession watcher.
+	// Used for testing.
+	startWebSessionWatcherImmediately bool
 }
 
 // Close closes all allocated resources and stops goroutines
@@ -743,14 +746,48 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 	}
 }
 
-// prepareWebSessionWatcher prepares the WebSession watcher for sessionCache and
-// returns a function that executes the watcher loop.
-func (s *sessionCache) prepareWebSessionWatcher(ctx context.Context) (watchFn func(context.Context), err error) {
+// watchWebSessions runs the WebSession watcher loop.
+// It only stops when ctx is done.
+func (s *sessionCache) watchWebSessions(ctx context.Context) {
 	// Watcher not necessary for OSS.
 	if modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return func(context.Context) {}, nil
+		return
 	}
 
+	linear := utils.NewDefaultLinear()
+	if s.startWebSessionWatcherImmediately {
+		linear.First = 0
+	}
+
+	s.log.Debug("Starting sessionCache WebSession watcher")
+	for {
+		select {
+		// Stop when the context tells us to.
+		case <-ctx.Done():
+			s.log.Debug("Stopping sessionCache WebSession watcher")
+			return
+
+		case <-linear.After():
+			linear.Inc()
+		}
+
+		if err := s.watchWebSessionsOnce(ctx, linear.Reset); err != nil && !errors.Is(err, context.Canceled) {
+			const msg = "" +
+				"sessionCache WebSession watcher aborted, re-connecting. " +
+				"This may have an impact in device trust web sessions."
+			s.log.WithError(err).Warn(msg)
+		}
+	}
+}
+
+// watchWebSessionsOnce creates a watcher for WebSessions and watches for its
+// events.
+//
+// Any updated sessions are evicted from the cache. The underlying assumption
+// is that an updated session got its certificates augmented with device trust
+// extensions, so it is evicted in order for the new certificates to be loaded
+// by the Proxy.
+func (s *sessionCache) watchWebSessionsOnce(ctx context.Context, reset func()) error {
 	watcher, err := s.proxyClient.NewWatcher(ctx, types.Watch{
 		Name: teleport.ComponentWebProxy + ".sessionCache." + types.KindWebSession,
 		Kinds: []types.WatchKind{
@@ -763,40 +800,21 @@ func (s *sessionCache) prepareWebSessionWatcher(ctx context.Context) (watchFn fu
 		},
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
+	defer watcher.Close()
 
-	return func(ctx context.Context) {
-		s.log.Debug("Starting sessionCache WebSession watcher")
-
-		// Watch sessions. Blocks indefinitely.
-		err := s.watchWebSessions(ctx, watcher)
-
-		switch {
-		case errors.Is(err, context.Canceled):
-			s.log.Debug("Stopped sessionCache WebSession watcher")
-		case err != nil:
-			s.log.
-				WithError(err).
-				Warn("Stopped sessionCache WebSession watcher. This may have an impact in device trust web sessions.")
-		}
-	}, nil
-}
-
-// watchWebSessions is returned wrapped by "watchFn" by [prepareWebSessionWatcher].
-// Do not call it directly.
-//
-// watchWebSessions watches WebSessions and releases any updated sessions.
-// The underlying assumption is that an updated session got its certificates
-// augmented with device trust extensions, so it is cleared in order for the new
-// certificates to be loaded by the Proxy.
-func (s *sessionCache) watchWebSessions(ctx context.Context, watcher types.Watcher) error {
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 
+		case <-watcher.Done():
+			return errors.New("watcher closed")
+
 		case event := <-watcher.Events():
+			reset() // Reset linear backoff attempts.
+
 			s.log.
 				WithField("event", event).
 				Debug("Received sessionCache watcher event")

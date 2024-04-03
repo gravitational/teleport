@@ -1647,6 +1647,7 @@ impl Iterator for FileCacheObject {
 
 /// A generic error type for the FilesystemBackend that can contain any arbitrary error message.
 #[derive(Debug)]
+#[allow(dead_code)] // The internal `String` is "dead code" according to the compiler, but we want it for debugging purposes.
 struct FilesystemBackendError(pub String);
 
 impl std::fmt::Display for FilesystemBackendError {

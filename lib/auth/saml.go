@@ -37,7 +37,7 @@ import (
 // TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 // we can't currently propagate wrapped errors across the gRPC boundary,
 // and we want tctl to display a clean user-facing message in this case
-var ErrSAMLRequiresEnterprise = trace.AccessDenied("SAML is only available in Teleport Enterprise")
+var ErrSAMLRequiresEnterprise = &trace.AccessDeniedError{Message: "SAML is only available in Teleport Enterprise"}
 
 // SAMLService are the methods that the auth server delegates to a plugin for
 // implementing the SAML connector. These are the core functions of SAML
@@ -100,7 +100,7 @@ func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 			Name: connector.GetName(),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit SAML connector create event.")
+		log.WithError(err).Warn("Failed to emit SAML connector update event.")
 	}
 
 	return updated, nil

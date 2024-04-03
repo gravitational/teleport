@@ -59,6 +59,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
+	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -80,6 +81,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/loginrule"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
+	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
@@ -145,6 +147,11 @@ type GRPCServer struct {
 	// botService is used to forward requests to deprecated bot RPCs to the
 	// new service.
 	botService *machineidv1.BotService
+
+	// presenceService is used to forward requests to deprecated presence RPCs
+	// to the new service.
+	// TODO(noah) DELETE IN 17.0.0
+	presenceService *presencev1.Service
 
 	// TraceServiceServer exposes the exporter server so that the auth server may
 	// collect and forward spans
@@ -2075,12 +2082,11 @@ func (g *GRPCServer) DeleteAllWebTokens(ctx context.Context, _ *emptypb.Empty) (
 }
 
 // UpdateRemoteCluster updates remote cluster
+// Deprecated: use [presencev1.PresenceService.UpdateRemoteCluster] instead.
+// TODO(noah): DELETE IN 17.0.0
 func (g *GRPCServer) UpdateRemoteCluster(ctx context.Context, req *types.RemoteClusterV3) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	_, err := g.presenceService.UpdateRemoteCluster(ctx, &presencev1pb.UpdateRemoteClusterRequest{RemoteCluster: req})
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.UpdateRemoteCluster(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
@@ -5235,8 +5241,20 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	userspb.RegisterUsersServiceServer(server, usersService)
+
+	presenceService, err := presencev1.NewService(presencev1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		AuthServer: cfg.AuthServer,
+		Backend:    cfg.AuthServer.Services,
+		Emitter:    cfg.Emitter,
+		Reporter:   cfg.AuthServer.Services.UsageReporter,
+		Clock:      cfg.AuthServer.GetClock(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	presencev1pb.RegisterPresenceServiceServer(server, presenceService)
 
 	botService, err := machineidv1.NewBotService(machineidv1.BotServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5287,9 +5305,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Entry: logrus.WithFields(logrus.Fields{
 			teleport.ComponentKey: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
 		}),
-		server:       server,
-		usersService: usersService,
-		botService:   botService,
+		server:          server,
+		usersService:    usersService,
+		botService:      botService,
+		presenceService: presenceService,
 	}
 
 	authpb.RegisterAuthServiceServer(server, authServer)

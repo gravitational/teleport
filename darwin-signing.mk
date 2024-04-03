@@ -4,9 +4,9 @@
 # releases and `build` for development testing. These environment names
 # come from our configuration in GitHub Actions.
 
-# Default environment name if not specified. This is currently for Drone
-# which does not set `ENVIRONMENT_NAME`. Once migrated fully to GitHub
-# actions, we should change this to `build` as the default.
+# Default environment name if not specified.
+# Once migrated fully to GitHub actions, we should change this to
+# `build` as the default.
 ENVIRONMENT_NAME ?= promote
 
 # Variables defined here are defined with the environment name suffix
