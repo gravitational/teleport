@@ -66,6 +66,7 @@ const (
 	// method. Documentation regarding implementation of this can be found in
 	// lib/spacelift.
 	JoinMethodSpacelift JoinMethod = "spacelift"
+	JoinMethodTPM       JoinMethod = "tpm"
 )
 
 var JoinMethods = []JoinMethod{
@@ -79,6 +80,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodKubernetes,
 	JoinMethodSpacelift,
 	JoinMethodToken,
+	JoinMethodTPM,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {

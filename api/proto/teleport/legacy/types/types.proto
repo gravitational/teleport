@@ -1268,6 +1268,19 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2GCP GCP = 13 [(gogoproto.jsontag) = "gcp,omitempty"];
   // Spacelift allows the configuration of options specific to the "spacelift" join method.
   ProvisionTokenSpecV2Spacelift Spacelift = 14 [(gogoproto.jsontag) = "spacelift,omitempty"];
+  ProvisionTokenSpecV2TPM TPM = 15 [(gogoproto.jsontag) = "tpm,omitempty"];
+}
+
+message ProvisionTokenSpecV2TPM {
+  message Rule {
+    string Description = 1 [(gogoproto.jsontag) = "description,omitempty"];
+    oneof Identifier {
+      string EKPubHash = 2 [(gogoproto.jsontag) = "ekpub_hash,omitempty"];
+      string EKCertSerial = 3 [(gogoproto.jsontag) = "ekcert_serial,omitempty"];
+    }
+  }
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  repeated bytes EKCertAllowedCAs = 2 [(gogoproto.jsontag) = "ekcert_allowed_cas,omitempty"];
 }
 
 // ProvisionTokenSpecV2Github contains the GitHub-specific part of the

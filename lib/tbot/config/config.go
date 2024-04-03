@@ -57,6 +57,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodKubernetes),
 	string(types.JoinMethodSpacelift),
 	string(types.JoinMethodToken),
+	string(types.JoinMethodTPM),
 }
 
 var log = logrus.WithFields(logrus.Fields{
