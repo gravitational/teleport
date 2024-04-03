@@ -37,6 +37,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -130,7 +131,7 @@ func NewCloud(cfg CloudConfig) (Cloud, error) {
 	}
 	return &cloud{
 		cfg: cfg,
-		log: logrus.WithField(trace.Component, "cloud"),
+		log: logrus.WithField(teleport.ComponentKey, "cloud"),
 	}, nil
 }
 

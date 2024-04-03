@@ -466,7 +466,13 @@ func onRequestSearch(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		tableColumns = []string{"Name", "Hostname", "Labels", "Resource ID"}
+
+		switch cf.ResourceKind {
+		case types.KindDatabase:
+			tableColumns = []string{"Database Name", "Labels", "Resource ID"}
+		default:
+			tableColumns = []string{"Name", "Hostname", "Labels", "Resource ID"}
+		}
 	}
 
 	var rows [][]string
@@ -509,11 +515,21 @@ func onRequestSearch(cf *CLIConf) error {
 			if r, ok := resource.(interface{ GetHostname() string }); ok {
 				hostName = r.GetHostname()
 			}
-			row = []string{
-				common.FormatResourceName(resource, cf.Verbose),
-				hostName,
-				common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
-				resourceID,
+
+			switch cf.ResourceKind {
+			case types.KindDatabase:
+				row = []string{
+					common.FormatResourceName(resource, cf.Verbose),
+					common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
+					resourceID,
+				}
+			default:
+				row = []string{
+					common.FormatResourceName(resource, cf.Verbose),
+					hostName,
+					common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
+					resourceID,
+				}
 			}
 		}
 		rows = append(rows, row)

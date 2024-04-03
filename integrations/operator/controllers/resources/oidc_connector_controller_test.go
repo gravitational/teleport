@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -46,6 +47,7 @@ var oidcSpec = types.OIDCConnectorSpecV3{
 
 type oidcTestingPrimitives struct {
 	setup *testSetup
+	reconcilers.ResourceWithoutLabelsAdapter[types.OIDCConnector]
 }
 
 func (g *oidcTestingPrimitives) Init(setup *testSetup) {

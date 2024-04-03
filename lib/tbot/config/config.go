@@ -60,7 +60,7 @@ var SupportedJoinMethods = []string{
 }
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentTBot,
+	teleport.ComponentKey: teleport.ComponentTBot,
 })
 
 // RemainingArgsList is a custom kingpin parser that consumes all remaining
@@ -450,6 +450,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 			out = append(out, v)
 		case SPIFFEWorkloadAPIServiceType:
 			v := &SPIFFEWorkloadAPIService{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case DatabaseTunnelServiceType:
+			v := &DatabaseTunnelService{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}

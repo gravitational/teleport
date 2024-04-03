@@ -39,7 +39,7 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentKubeClient,
+	teleport.ComponentKey: teleport.ComponentKubeClient,
 })
 
 const (

@@ -81,6 +81,9 @@ const (
 	// KindAccessRequest is an AccessRequest resource
 	KindAccessRequest = "access_request"
 
+	// KindAccessMonitoringRule is an access monitoring rule resource
+	KindAccessMonitoringRule = "access_monitoring_rule"
+
 	// KindPluginData is a PluginData resource
 	KindPluginData = "plugin_data"
 
@@ -254,6 +257,11 @@ const (
 
 	// KindKubeIngress is a Kubernetes Ingress resource type.
 	KindKubeIngress = "ingress"
+
+	// KindKubeWaitingContainer is a Kubernetes ephemeral
+	// container that are waiting to be created until moderated
+	// session conditions are met.
+	KindKubeWaitingContainer = "kube_ephemeral_container"
 
 	// KindToken is a provisioning token resource
 	KindToken = "token"
@@ -503,6 +511,15 @@ const (
 	// KindSecurityReportCostLimiter const limiter
 	KindSecurityReportCostLimiter = "security_report_cost_limiter"
 
+	// KindNotification is a notification resource.
+	KindNotification = "notification"
+	// KindGlobalNotification is a global notification resource.
+	KindGlobalNotification = "global_notification"
+	// KindUserLastSeenNotification is a resource which stores the timestamp of a user's last seen notification.
+	KindUserLastSeenNotification = "user_last_seen_notification"
+	// KindUserNotificationState is a resource which tracks whether a user has clicked on or dismissed a notification.
+	KindUserNotificationState = "user_notification_state"
+
 	// V7 is the seventh version of resources.
 	V7 = "v7"
 
@@ -728,6 +745,8 @@ const (
 	DiscoveredResourceKubernetes = "k8s"
 	// DiscoveredResourceAgentlessNode identifies a discovered agentless SSH node.
 	DiscoveredResourceAgentlessNode = "node.openssh"
+	// DiscoveredResourceEICENode identifies a discovered AWS EC2 Instance using the EICE access method.
+	DiscoveredResourceEICENode = "node.openssh-eice"
 	// DiscoveredResourceApp identifies a discovered Kubernetes App.
 	DiscoveredResourceApp = "app"
 

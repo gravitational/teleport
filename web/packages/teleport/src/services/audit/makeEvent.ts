@@ -186,19 +186,19 @@ export const formatters: Formatters = {
   },
   [eventCodes.GITHUB_CONNECTOR_CREATED]: {
     type: 'github.created',
-    desc: 'GITHUB Auth Connector Created',
+    desc: 'GitHub Auth Connector Created',
     format: ({ user, name }) =>
       `User [${user}] created GitHub connector [${name}]`,
   },
   [eventCodes.GITHUB_CONNECTOR_DELETED]: {
     type: 'github.deleted',
-    desc: 'GITHUB Auth Connector Deleted',
+    desc: 'GitHub Auth Connector Deleted',
     format: ({ user, name }) =>
       `User [${user}] deleted GitHub connector [${name}]`,
   },
   [eventCodes.GITHUB_CONNECTOR_UPDATED]: {
     type: 'github.updated',
-    desc: 'GITHUB Auth Connector Updated',
+    desc: 'GitHub Auth Connector Updated',
     format: ({ user, name }) =>
       `User [${user}] updated GitHub connector [${name}]`,
   },
@@ -901,10 +901,12 @@ export const formatters: Formatters = {
       `Received malformed packet from [${user}] in [${db_name}] on database [${db_service}]`,
   },
   [eventCodes.DATABASE_SESSION_PERMISSIONS_UPDATE]: {
-    type: ' db.session.permissions.update',
-    desc: 'Database Permissions Update',
+    type: 'db.session.permissions.update',
+    desc: 'Database User Permissions Updated',
     format: ({ user, db_service, db_name, permission_summary }) => {
-      console.log(permission_summary);
+      if (!permission_summary) {
+        return `Database user [${user}] permissions updated for database [${db_name}] on [${db_service}]`;
+      }
       const summary = permission_summary
         .map(p => {
           const details = Object.entries(p.counts)
@@ -913,7 +915,41 @@ export const formatters: Formatters = {
           return `${p.permission}:${details}`;
         })
         .join('; ');
-      return `User permissions [${user}] in [${db_name}] on database [${db_service}]: ${summary}`;
+      return `Database user [${user}] permissions updated for database [${db_name}] on [${db_service}]: ${summary}`;
+    },
+  },
+  [eventCodes.DATABASE_SESSION_USER_CREATE]: {
+    type: 'db.session.user.create',
+    desc: 'Database User Created',
+    format: ev => {
+      if (!ev.roles) {
+        return `Database user [${ev.user}] created in database [${ev.db_service}]`;
+      }
+      return `Database user [${ev.user}] created in database [${ev.db_service}], roles: [${ev.roles}]`;
+    },
+  },
+  [eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE]: {
+    type: 'db.session.user.create',
+    desc: 'Database User Creation Failed',
+    format: ev => {
+      return `Failed to create database user [${ev.user}] in database [${ev.db_service}], error: [${ev.error}]`;
+    },
+  },
+  [eventCodes.DATABASE_SESSION_USER_DEACTIVATE]: {
+    type: 'db.session.user.deactivate',
+    desc: 'Database User Deactivated',
+    format: ev => {
+      if (!ev.delete) {
+        return `Database user [${ev.user}] disabled in database [${ev.db_service}]`;
+      }
+      return `Database user [${ev.user}] deleted in database [${ev.db_service}]`;
+    },
+  },
+  [eventCodes.DATABASE_SESSION_USER_DEACTIVATE_FAILURE]: {
+    type: 'db.session.user.deactivate',
+    desc: 'Database User Deactivate Failure',
+    format: ev => {
+      return `Failed to disable database user [${ev.user}] in database [${ev.db_service}], error: [${ev.error}]`;
     },
   },
   [eventCodes.DATABASE_CREATED]: {
@@ -1305,7 +1341,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.DEVICE_CREATE]: {
     type: 'device.create',
-    desc: 'Device Register',
+    desc: 'Device Registered',
     format: ({ user, status, success }) =>
       success || (status && status.success)
         ? `User [${user}] has registered a device`
@@ -1313,7 +1349,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.DEVICE_DELETE]: {
     type: 'device.delete',
-    desc: 'Device Delete',
+    desc: 'Device Deleted',
     format: ({ user, status, success }) =>
       success || (status && status.success)
         ? `User [${user}] has deleted a device`
@@ -1321,7 +1357,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.DEVICE_AUTHENTICATE]: {
     type: 'device.authenticate',
-    desc: 'Device Authenticate',
+    desc: 'Device Authenticated',
     format: ({ user, status, success }) =>
       success || (status && status.success)
         ? `User [${user}] has successfully authenticated their device`
@@ -1329,7 +1365,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.DEVICE_ENROLL]: {
     type: 'device.enroll',
-    desc: 'Device Enrollment',
+    desc: 'Device Enrolled',
     format: ({ user, status, success }) =>
       success || (status && status.success)
         ? `User [${user}] has successfully enrolled their device`
@@ -1337,7 +1373,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.DEVICE_ENROLL_TOKEN_CREATE]: {
     type: 'device.token.create',
-    desc: 'Device Enroll Token Create',
+    desc: 'Device Enroll Token Created',
     format: ({ user, status, success }) =>
       success || (status && status.success)
         ? `User [${user}] created a device enroll token`
@@ -1353,7 +1389,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.DEVICE_UPDATE]: {
     type: 'device.update',
-    desc: 'Device Update',
+    desc: 'Device Updated',
     format: ({ user, status, success }) =>
       success || (status && status.success)
         ? `User [${user}] has updated a device`
@@ -1623,7 +1659,7 @@ export const formatters: Formatters = {
     type: 'access_list.review',
     desc: 'Access list review failed',
     format: ({ name, updated_by }) =>
-      `User [${updated_by}] failed to to review access list [${name}]]`,
+      `User [${updated_by}] failed to to review access list [${name}]`,
   },
   [eventCodes.ACCESS_LIST_MEMBER_CREATE]: {
     type: 'access_list.member.create',
@@ -1723,6 +1759,24 @@ export const formatters: Formatters = {
     desc: 'SPIFFE SVID Issued Failure',
     format: ({ user, spiffe_id }) =>
       `User [${user}] failed to issue SPIFFE SVID [${spiffe_id}]`,
+  },
+  [eventCodes.AUTH_PREFERENCE_UPDATE]: {
+    type: 'auth_preference.update',
+    desc: 'Cluster Authentication Preferences Updated',
+    format: ({ user }) =>
+      `User [${user}] updated the cluster authentication preferences`,
+  },
+  [eventCodes.CLUSTER_NETWORKING_CONFIG_UPDATE]: {
+    type: 'cluster_networking_config.update',
+    desc: 'Cluster Networking Configuration Updated',
+    format: ({ user }) =>
+      `User [${user}] updated the cluster networking configuration`,
+  },
+  [eventCodes.SESSION_RECORDING_CONFIG_UPDATE]: {
+    type: 'session_recording_config.update',
+    desc: 'Session Recording Configuration Updated',
+    format: ({ user }) =>
+      `User [${user}] updated the cluster session recording configuration`,
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',

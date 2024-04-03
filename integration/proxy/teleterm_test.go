@@ -197,7 +197,9 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
 			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 		},
-		ClientCache:    clientcache.NewNoCache(storage),
+		CreateClientCacheFunc: func(resolveCluster daemon.ResolveClusterFunc) daemon.ClientCache {
+			return clientcache.NewNoCache(clientcache.ResolveClusterFunc(resolveCluster))
+		},
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
 	})
@@ -513,9 +515,10 @@ func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGa
 func checkKubeconfigPathInCommandEnv(t *testing.T, daemonService *daemon.Service, gw gateway.Gateway, wantKubeconfigPath string) {
 	t.Helper()
 
-	cmd, err := daemonService.GetGatewayCLICommand(gw)
+	cmds, err := daemonService.GetGatewayCLICommand(gw)
 	require.NoError(t, err)
-	require.Equal(t, []string{"KUBECONFIG=" + wantKubeconfigPath}, cmd.Env)
+	require.Equal(t, []string{"KUBECONFIG=" + wantKubeconfigPath}, cmds.Exec.Env)
+	require.Equal(t, []string{"KUBECONFIG=" + wantKubeconfigPath}, cmds.Preview.Env)
 }
 
 // setupUserMFA upserts role so that it requires per-session MFA and configures the user account to
@@ -527,7 +530,7 @@ func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, ro
 	t.Helper()
 
 	// Enable optional MFA.
-	err := authServer.SetAuthPreference(ctx, &types.AuthPreferenceV2{
+	_, err := authServer.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOptional,

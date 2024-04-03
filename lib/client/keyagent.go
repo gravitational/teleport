@@ -121,7 +121,7 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 	}
 	a = &LocalKeyAgent{
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentKeyAgent,
+			teleport.ComponentKey: teleport.ComponentKeyAgent,
 		}),
 		ExtendedAgent: conf.Agent,
 		clientStore:   conf.ClientStore,

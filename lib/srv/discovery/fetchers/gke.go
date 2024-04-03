@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/services"
@@ -61,7 +62,7 @@ func (c *GKEFetcherConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "fetcher:gke")
+		c.Log = logrus.WithField(teleport.ComponentKey, "fetcher:gke")
 	}
 	return nil
 }

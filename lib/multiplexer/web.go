@@ -29,6 +29,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	dbcommon "github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -65,7 +66,7 @@ func NewWebListener(cfg WebListenerConfig) (*WebListener, error) {
 	}
 	context, cancel := context.WithCancel(context.Background())
 	return &WebListener{
-		log:         logrus.WithField(trace.Component, "mxweb"),
+		log:         logrus.WithField(teleport.ComponentKey, "mxweb"),
 		cfg:         cfg,
 		webListener: newListener(context, cfg.Listener.Addr()),
 		dbListener:  newListener(context, cfg.Listener.Addr()),

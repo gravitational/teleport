@@ -96,10 +96,10 @@ type AccessPoint interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
 	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 
 	// GetAuthPreference returns the cluster authentication configuration.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
@@ -498,8 +498,8 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		"id":           child.id,
 	}
 	child.Entry = log.WithFields(log.Fields{
-		trace.Component:       child.srv.Component(),
-		trace.ComponentFields: fields,
+		teleport.ComponentKey:    child.srv.Component(),
+		teleport.ComponentFields: fields,
 	})
 
 	if identityContext.Login == teleport.SSHSessionJoinPrincipal {
@@ -524,8 +524,8 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		fields["idle"] = child.clientIdleTimeout
 	}
 	child.Entry = log.WithFields(log.Fields{
-		trace.Component:       srv.Component(),
-		trace.ComponentFields: fields,
+		teleport.ComponentKey:    srv.Component(),
+		teleport.ComponentFields: fields,
 	})
 
 	clusterName, err := srv.GetAccessPoint().GetClusterName()

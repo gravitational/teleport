@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -118,13 +119,13 @@ type ReadNodeAccessPoint interface {
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
 	// GetAuthPreference returns the cluster authentication configuration.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 
 	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
@@ -176,13 +177,13 @@ type ReadProxyAccessPoint interface {
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
 	// GetAuthPreference returns the cluster authentication configuration.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 
 	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 
 	// GetUIConfig returns configuration for the UI served by the proxy service
 	GetUIConfig(ctx context.Context) (types.UIConfig, error)
@@ -252,6 +253,16 @@ type ReadProxyAccessPoint interface {
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
+
+	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+	// containers that are waiting to be created until moderated
+	// session conditions are met.
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+
+	// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
+	// container that are waiting to be created until moderated
+	// session conditions are met.
+	GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
@@ -333,13 +344,13 @@ type ReadRemoteProxyAccessPoint interface {
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
 	// GetAuthPreference returns the cluster authentication configuration.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 
 	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
@@ -424,13 +435,13 @@ type ReadKubernetesAccessPoint interface {
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
 	// GetAuthPreference returns the cluster authentication configuration.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 
 	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 
 	// GetUser returns a services.User for this cluster.
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
@@ -449,6 +460,16 @@ type ReadKubernetesAccessPoint interface {
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
+
+	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+	// containers that are waiting to be created until moderated
+	// session conditions are met.
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+
+	// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
+	// container that are waiting to be created until moderated
+	// session conditions are met.
+	GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
 
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
@@ -490,13 +511,13 @@ type ReadAppsAccessPoint interface {
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
 	// GetAuthPreference returns the cluster authentication configuration.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 
 	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 
 	// GetUser returns a services.User for this cluster.
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
@@ -557,13 +578,13 @@ type ReadDatabaseAccessPoint interface {
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
 	// GetAuthPreference returns the cluster authentication configuration.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 
 	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 
 	// GetUser returns a services.User for this cluster.
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
@@ -624,13 +645,13 @@ type ReadWindowsDesktopAccessPoint interface {
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
 	// GetAuthPreference returns the cluster authentication configuration.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 
 	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 
 	// GetUser returns a services.User for this cluster.
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
@@ -893,10 +914,10 @@ type AccessCache interface {
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
 	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -921,13 +942,13 @@ type Cache interface {
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
 	// GetAuthPreference returns the cluster authentication configuration.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 
 	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]types.Namespace, error)
@@ -1009,6 +1030,16 @@ type Cache interface {
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
+
+	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+	// containers that are waiting to be created until moderated
+	// session conditions are met.
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+
+	// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
+	// container that are waiting to be created until moderated
+	// session conditions are met.
+	GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)

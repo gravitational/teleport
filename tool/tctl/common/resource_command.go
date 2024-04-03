@@ -152,11 +152,14 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindDatabaseObjectImportRule: rc.createDatabaseObjectImportRule,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
-		types.KindUser:            rc.updateUser,
-		types.KindGithubConnector: rc.updateGithubConnector,
-		types.KindOIDCConnector:   rc.updateOIDCConnector,
-		types.KindSAMLConnector:   rc.updateSAMLConnector,
-		types.KindRole:            rc.updateRole,
+		types.KindUser:                    rc.updateUser,
+		types.KindGithubConnector:         rc.updateGithubConnector,
+		types.KindOIDCConnector:           rc.updateOIDCConnector,
+		types.KindSAMLConnector:           rc.updateSAMLConnector,
+		types.KindRole:                    rc.updateRole,
+		types.KindClusterNetworkingConfig: rc.updateClusterNetworkingConfig,
+		types.KindClusterAuthPreference:   rc.updateAuthPreference,
+		types.KindSessionRecordingConfig:  rc.updateSessionRecordingConfig,
 	}
 	rc.config = config
 
@@ -644,7 +647,20 @@ func (rc *ResourceCommand) createAuthPreference(ctx context.Context, client *aut
 		return trace.Wrap(err)
 	}
 
-	if err := client.SetAuthPreference(ctx, newAuthPref); err != nil {
+	if _, err := client.UpsertAuthPreference(ctx, newAuthPref); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("cluster auth preference has been created\n")
+	return nil
+}
+
+func (rc *ResourceCommand) updateAuthPreference(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+	newAuthPref, err := services.UnmarshalAuthPreference(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := client.UpdateAuthPreference(ctx, newAuthPref); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("cluster auth preference has been updated\n")
@@ -666,7 +682,21 @@ func (rc *ResourceCommand) createClusterNetworkingConfig(ctx context.Context, cl
 		return trace.Wrap(err)
 	}
 
-	if err := client.SetClusterNetworkingConfig(ctx, newNetConfig); err != nil {
+	if _, err := client.UpsertClusterNetworkingConfig(ctx, newNetConfig); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("cluster networking configuration has been updated\n")
+	return nil
+}
+
+// updateClusterNetworkingConfig
+func (rc *ResourceCommand) updateClusterNetworkingConfig(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+	newNetConfig, err := services.UnmarshalClusterNetworkingConfig(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := client.UpdateClusterNetworkingConfig(ctx, newNetConfig); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("cluster networking configuration has been updated\n")
@@ -711,7 +741,20 @@ func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, cli
 		return trace.Wrap(err)
 	}
 
-	if err := client.SetSessionRecordingConfig(ctx, newRecConfig); err != nil {
+	if _, err := client.UpsertSessionRecordingConfig(ctx, newRecConfig); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("session recording configuration has been updated\n")
+	return nil
+}
+
+func (rc *ResourceCommand) updateSessionRecordingConfig(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+	newRecConfig, err := services.UnmarshalSessionRecordingConfig(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := client.UpdateSessionRecordingConfig(ctx, newRecConfig); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("session recording configuration has been updated\n")
@@ -1852,19 +1895,53 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *auth.Clien
 		}
 		return &authorityCollection{cas: []types.CertAuthority{authority}}, nil
 	case types.KindNode:
-		nodes, err := client.GetNodes(ctx, rc.namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		var search []string
+		if rc.ref.Name != "" {
+			search = []string{rc.ref.Name}
 		}
-		if rc.ref.Name == "" {
-			return &serverCollection{servers: nodes}, nil
+
+		req := proto.ListUnifiedResourcesRequest{
+			Kinds:          []string{types.KindNode},
+			SearchKeywords: search,
+			SortBy:         types.SortBy{Field: types.ResourceKind},
 		}
-		for _, node := range nodes {
-			if node.GetName() == rc.ref.Name || node.GetHostname() == rc.ref.Name {
-				return &serverCollection{servers: []types.Server{node}}, nil
+
+		var collection serverCollection
+		for {
+			page, next, err := apiclient.GetUnifiedResourcePage(ctx, client, &req)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			for _, r := range page {
+				srv, ok := r.ResourceWithLabels.(types.Server)
+				if !ok {
+					log.Warnf("expected types.Server but received unexpected type %T", r)
+					continue
+				}
+
+				if rc.ref.Name == "" {
+					collection.servers = append(collection.servers, srv)
+					continue
+				}
+
+				if srv.GetName() == rc.ref.Name || srv.GetHostname() == rc.ref.Name {
+					collection.servers = []types.Server{srv}
+					return &collection, nil
+				}
+			}
+
+			req.StartKey = next
+			if req.StartKey == "" {
+				break
 			}
 		}
-		return nil, trace.NotFound("node with ID %q not found", rc.ref.Name)
+
+		if len(collection.servers) == 0 && rc.ref.Name != "" {
+			return nil, trace.NotFound("node with ID %q not found", rc.ref.Name)
+		}
+
+		return &collection, nil
 	case types.KindAuthServer:
 		servers, err := client.GetAuthServers()
 		if err != nil {

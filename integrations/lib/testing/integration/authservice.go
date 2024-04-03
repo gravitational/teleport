@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
-var regexpAuthStarting = regexp.MustCompile(`Auth service [^ ]+ is starting on [^ ]+:(\d+)`)
+var regexpAuthStarting = regexp.MustCompile(`Auth service.*listen_address:[^ ]+:(\d+)`)
 
 type AuthService struct {
 	mu           sync.Mutex

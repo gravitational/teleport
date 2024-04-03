@@ -26,6 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -71,8 +72,11 @@ type Config struct {
 	ConnectMyComputerNodeDelete       *connectmycomputer.NodeDelete
 	ConnectMyComputerNodeName         *connectmycomputer.NodeName
 
-	ClientCache ClientCache
+	CreateClientCacheFunc func(resolver ResolveClusterFunc) ClientCache
 }
+
+// ResolveClusterFunc returns a cluster by URI.
+type ResolveClusterFunc func(uri uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error)
 
 // ClientCache stores clients keyed by cluster URI.
 type ClientCache interface {
@@ -112,7 +116,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.NewEntry(logrus.StandardLogger()).WithField(trace.Component, "daemon")
+		c.Log = logrus.NewEntry(logrus.StandardLogger()).WithField(teleport.ComponentKey, "daemon")
 	}
 
 	if c.ConnectMyComputerRoleSetup == nil {
@@ -156,11 +160,13 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.ConnectMyComputerNodeName = nodeName
 	}
 
-	if c.ClientCache == nil {
-		c.ClientCache = clientcache.New(clientcache.Config{
-			Log:      c.Log,
-			Resolver: c.Storage,
-		})
+	if c.CreateClientCacheFunc == nil {
+		c.CreateClientCacheFunc = func(resolver ResolveClusterFunc) ClientCache {
+			return clientcache.New(clientcache.Config{
+				Log:                c.Log,
+				ResolveClusterFunc: clientcache.ResolveClusterFunc(resolver),
+			})
+		}
 	}
 
 	return nil

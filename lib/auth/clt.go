@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -152,6 +153,33 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 func (c *Client) Close() error {
 	c.HTTPClient.Close()
 	return c.APIClient.Close()
+}
+
+// CreateAuthPreference not implemented: can only be called locally.
+func (c *Client) CreateAuthPreference(context.Context, types.AuthPreference) (types.AuthPreference, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// CreateSessionRecordingConfig not implemented: can only be called locally.
+func (c *Client) CreateSessionRecordingConfig(context.Context, types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// CreateClusterAuditConfig not implemented: can only be called locally.
+func (c *Client) CreateClusterAuditConfig(context.Context, types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpdateClusterAuditConfig(context.Context, types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpsertClusterAuditConfig(context.Context, types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) CreateClusterNetworkingConfig(context.Context, types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // CreateCertAuthority not implemented: can only be called locally.
@@ -383,12 +411,12 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context, opts ...services.Mar
 }
 
 // GetClusterNetworkingConfig gets cluster networking configuration.
-func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (c *Client) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	return c.APIClient.GetClusterNetworkingConfig(ctx)
 }
 
 // GetSessionRecordingConfig gets session recording configuration.
-func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+func (c *Client) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
 	return c.APIClient.GetSessionRecordingConfig(ctx)
 }
 
@@ -788,6 +816,7 @@ type ClientI interface {
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
 	services.Integrations
+	services.KubeWaitingContainer
 	types.Events
 
 	types.WebSessionsGetter
@@ -990,6 +1019,12 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient
 
+	// ClusterConfigClient returns a Cluster Configuration client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClient
+
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
 
@@ -1001,6 +1036,11 @@ type ClientI interface {
 
 	// UpsertUserPreferences creates or updates user preferences for a given username.
 	UpsertUserPreferences(ctx context.Context, req *userpreferencesv1.UpsertUserPreferencesRequest) error
+
+	// ListAllAccessRequests is a helper for using the ListAccessRequests API's additional sort order/index features without
+	// mucking about with pagination. It also implements backwards-comatibility with older control planes that only
+	// support GetAccessRequests.
+	ListAllAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) ([]*types.AccessRequestV3, error)
 
 	// ListUnifiedResources returns a paginated list of unified resources.
 	ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error)
@@ -1015,4 +1055,7 @@ type ClientI interface {
 	// and prompts the user to answer the challenge with the given promptOpts, and ultimately returning
 	// an MFA challenge response for the user.
 	PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error)
+
+	// GetClusterAccessGraphConfig retrieves the cluster Access Graph configuration from Auth server.
+	GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error)
 }

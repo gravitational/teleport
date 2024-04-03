@@ -98,7 +98,7 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 	}
 	logger := opts.Logger
 	if logger == nil {
-		logger = logrus.WithFields(logrus.Fields{trace.Component: "authorizer"})
+		logger = logrus.WithFields(logrus.Fields{teleport.ComponentKey: "authorizer"})
 	}
 
 	return &authorizer{
@@ -150,10 +150,10 @@ type AuthorizerAccessPoint interface {
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
 	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 }
 
 // MFAAuthenticator authenticates MFA responses.
@@ -822,6 +822,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindWebSession, services.RW()),
 				types.NewRule(types.KindWebToken, services.RW()),
 				types.NewRule(types.KindKubeServer, services.RW()),
+				types.NewRule(types.KindKubeWaitingContainer, services.RW()),
 				types.NewRule(types.KindDatabaseServer, services.RO()),
 				types.NewRule(types.KindLock, services.RO()),
 				types.NewRule(types.KindToken, []string{types.VerbRead, types.VerbDelete}),
@@ -1053,6 +1054,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindKubeServer, services.RW()),
+						types.NewRule(types.KindKubeWaitingContainer, services.RW()),
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),

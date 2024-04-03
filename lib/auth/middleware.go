@@ -210,7 +210,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 			},
 		},
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: cfg.Component,
+			teleport.ComponentKey: cfg.Component,
 		}),
 	}
 	server.cfg.TLS.GetConfigForClient = server.GetConfigForClient
@@ -538,6 +538,7 @@ func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 
 	return append(is,
 		interceptors.GRPCServerUnaryErrorInterceptor,
+		metadata.UnaryServerInterceptor,
 		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 		a.withAuthenticatedUserUnaryInterceptor,
 	)
@@ -557,6 +558,7 @@ func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
 
 	return append(is,
 		interceptors.GRPCServerStreamErrorInterceptor,
+		metadata.StreamServerInterceptor,
 		a.Limiter.StreamServerInterceptor,
 		a.withAuthenticatedUserStreamInterceptor,
 	)

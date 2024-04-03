@@ -1238,10 +1238,24 @@ func TestAuthPreferenceSettings(t *testing.T) {
 	clt, err := testSrv.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	suite := &suite.ServicesTestSuite{
-		ConfigS: clt,
-	}
-	suite.AuthPreference(t)
+	ctx := context.Background()
+	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+		Type:                  "local",
+		SecondFactor:          "otp",
+		DisconnectExpiredCert: types.NewBoolOption(true),
+	})
+	require.NoError(t, err)
+
+	upsertedAP, err := clt.UpsertAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	gotAP, err := clt.GetAuthPreference(ctx)
+	require.NoError(t, err)
+
+	require.Equal(t, "local", gotAP.GetType())
+	require.Equal(t, constants.SecondFactorOTP, gotAP.GetSecondFactor())
+	require.True(t, gotAP.GetDisconnectExpiredCert())
+	require.Empty(t, cmp.Diff(upsertedAP, gotAP, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 }
 
 func TestTunnelConnectionsCRUD(t *testing.T) {
@@ -2336,7 +2350,8 @@ func TestGenerateCerts(t *testing.T) {
 		authPref, err := srv.Auth().GetAuthPreference(ctx)
 		require.NoError(t, err)
 		authPref.SetDefaultSessionTTL(types.Duration(maxSessionTTL))
-		srv.Auth().SetAuthPreference(ctx, authPref)
+		_, err = srv.Auth().UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err)
 		superImpersonatorRole, err := types.NewRole("superimpersonator", types.RoleSpecV6{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.Duration(maxSessionTTL),
@@ -2773,7 +2788,7 @@ func TestClusterConfigContext(t *testing.T) {
 		Mode: types.RecordAtProxy,
 	})
 	require.NoError(t, err)
-	err = testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
+	_, err = testSrv.Auth().UpsertSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	// try and generate a host cert
@@ -2822,7 +2837,7 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	require.NoError(t, err)
-	err = testSrv.Auth().SetAuthPreference(ctx, authPreference)
+	_, err = testSrv.Auth().UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
 	// authentication attempt fails with wrong password
@@ -2928,7 +2943,7 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = testSrv.Auth().SetAuthPreference(ctx, authPref)
+	_, err = testSrv.Auth().UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2940,7 +2955,7 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = testSrv.Auth().SetAuthPreference(ctx, authPreference)
+	_, err = testSrv.Auth().UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
 	username := "user1"
@@ -3037,7 +3052,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 		AllowLocalAuth: types.NewBoolOption(false),
 	})
 	require.NoError(t, err)
-	err = testSrv.Auth().SetAuthPreference(ctx, authPref)
+	_, err = testSrv.Auth().UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Make sure access is denied for web login.
@@ -4703,6 +4718,7 @@ func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.
 
 type testTLSServerOptions struct {
 	cacheEnabled bool
+	accessGraph  *AccessGraphConfig
 }
 
 type testTLSServerOption func(*testTLSServerOptions)
@@ -4710,6 +4726,12 @@ type testTLSServerOption func(*testTLSServerOptions)
 func withCacheEnabled(enabled bool) testTLSServerOption {
 	return func(options *testTLSServerOptions) {
 		options.cacheEnabled = enabled
+	}
+}
+
+func withAccessGraphConfig(cfg AccessGraphConfig) testTLSServerOption {
+	return func(options *testTLSServerOptions) {
+		options.accessGraph = &cfg
 	}
 }
 
@@ -4729,8 +4751,11 @@ func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *TestTLSServer 
 		CacheEnabled: options.cacheEnabled,
 	})
 	require.NoError(t, err)
-
-	srv, err := as.NewTestTLSServer()
+	var tlsServerOpts []TestTLSServerOption
+	if options.accessGraph != nil {
+		tlsServerOpts = append(tlsServerOpts, WithAccessGraphConfig(*options.accessGraph))
+	}
+	srv, err := as.NewTestTLSServer(tlsServerOpts...)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

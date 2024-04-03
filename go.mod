@@ -29,6 +29,7 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161
 	github.com/ClickHouse/ch-go v0.61.0
 	github.com/ClickHouse/clickhouse-go/v2 v2.17.1
+	github.com/DanielTitkov/go-adaptive-cards v0.2.2
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/Microsoft/go-winio v0.6.1
@@ -39,7 +40,7 @@ require (
 	github.com/aquasecurity/libbpfgo v0.5.1-libbpf-1.2
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.49.16
-	github.com/aws/aws-sdk-go-v2 v1.24.1
+	github.com/aws/aws-sdk-go-v2 v1.26.1
 	github.com/aws/aws-sdk-go-v2/config v1.26.3
 	github.com/aws/aws-sdk-go-v2/credentials v1.16.14
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.12.14
@@ -55,11 +56,12 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/iam v1.28.7
 	github.com/aws/aws-sdk-go-v2/service/rds v1.66.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.48.0
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.28.6
 	github.com/aws/aws-sdk-go-v2/service/sns v1.26.7
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.29.7
 	github.com/aws/aws-sdk-go-v2/service/sts v1.26.7
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
-	github.com/aws/smithy-go v1.19.0
+	github.com/aws/smithy-go v1.20.2
 	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20231024185945-8841054dbdb8
 	github.com/beevik/etree v1.3.0
 	github.com/buildkite/bintest/v3 v3.2.0
@@ -101,6 +103,7 @@ require (
 	github.com/google/go-querystring v1.1.0
 	github.com/google/go-tpm-tools v0.4.2
 	github.com/google/renameio/v2 v2.0.0
+	github.com/google/safetext v0.0.0-20240104143208-7a7d9b3d812f
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/google/uuid v1.5.0
 	github.com/googleapis/gax-go/v2 v2.12.0
@@ -167,7 +170,7 @@ require (
 	github.com/snowflakedb/gosnowflake v1.7.1
 	github.com/spf13/cobra v1.8.0
 	github.com/spiffe/go-spiffe/v2 v2.1.7
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	github.com/tiktoken-go/tokenizer v0.1.0
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
 	github.com/vulcand/predicate v1.2.0 // replaced
@@ -253,8 +256,8 @@ require (
 	github.com/apache/thrift v0.16.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.5.4 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.2.10 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.5.10 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.5 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.5 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.7.2 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.2.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.18.7 // indirect
@@ -294,13 +297,12 @@ require (
 	github.com/digitorus/timestamp v0.0.0-20230902153158-687734543647 // indirect
 	github.com/dlclark/regexp2 v1.9.0 // indirect
 	github.com/dmarkham/enumer v1.5.9 // indirect
-	github.com/docker/cli v24.0.7+incompatible // indirect
+	github.com/docker/cli v25.0.1+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
-	github.com/docker/docker v24.0.7+incompatible // indirect
+	github.com/docker/docker v25.0.5+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.0 // indirect
-	github.com/docker/go-connections v0.4.0 // indirect
+	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-metrics v0.0.1 // indirect
-	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dvsekhvalnov/jose2go v1.6.0 // indirect
 	github.com/elastic/elastic-transport-go/v8 v8.3.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
@@ -421,7 +423,6 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
 	github.com/montanaflynn/stats v0.7.0 // indirect
-	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/mtibben/percent v0.2.1 // indirect
 	github.com/muesli/ansi v0.0.0-20211018074035-2e021307bc4b // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
@@ -433,7 +434,7 @@ require (
 	github.com/nsf/termbox-go v1.1.1 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
-	github.com/opencontainers/image-spec v1.1.0-rc5 // indirect
+	github.com/opencontainers/image-spec v1.1.0-rc6 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pascaldekloe/name v1.0.1 // indirect
 	github.com/patrickmn/go-cache v0.0.0-20180815053127-5633e0862627 // indirect
@@ -474,7 +475,7 @@ require (
 	github.com/spf13/cast v1.5.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.17.0 // indirect
-	github.com/stretchr/objx v0.5.0 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6d // indirect
 	github.com/thales-e-security/pool v0.0.2 // indirect
@@ -517,7 +518,8 @@ require (
 	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00 // indirect
 	k8s.io/metrics v0.29.0 // indirect
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b // indirect
-	oras.land/oras-go v1.2.4 // indirect
+	mvdan.cc/sh/v3 v3.7.0 // indirect
+	oras.land/oras-go v1.2.5 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/kustomize/api v0.13.5-0.20230601165947-6ce0bf390ce3 // indirect
 	sigs.k8s.io/kustomize/kustomize/v5 v5.0.4-0.20230601165947-6ce0bf390ce3 // indirect

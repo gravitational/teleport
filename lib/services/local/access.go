@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -44,7 +45,7 @@ type AccessService struct {
 func NewAccessService(backend backend.Backend) *AccessService {
 	return &AccessService{
 		Backend: backend,
-		log:     logrus.WithFields(logrus.Fields{trace.Component: "AccessService"}),
+		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "AccessService"}),
 	}
 }
 
@@ -125,6 +126,11 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 			)
 			if err != nil {
 				s.log.Warnf("Failed to unmarshal role at %q: %v", item.Key, err)
+				continue
+			}
+
+			// if a filter was provided, skip roles that fail to match.
+			if req.Filter != nil && !req.Filter.Match(role) {
 				continue
 			}
 
