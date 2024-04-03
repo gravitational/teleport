@@ -43,10 +43,10 @@ Inspiration drawn from https://go.dev/doc/toolchain.
 
 ##### Automatic updates
 
-When `tsh login` is executed, client tools will check `/v1/webapi/ping` to
-determine if automatic updates are enabled. If the cluster's required version
-differs from the current binary, client tools will download and re-execute
-using the version required by the cluster.
+When `tsh login` is executed, client tools will check
+`/v1/webapi/automaticupdates` to determine if automatic updates are enabled. If
+the cluster's required version differs from the current binary, client tools
+will download and re-execute using the version required by the cluster.
 
 The original client tools binaries won't be overwritten. Instead, additional
 binaries will be downloaded and stored in `~/.tsh/versions` with `0755`
@@ -110,7 +110,7 @@ variable can be used as a emergency workaround for a known issue, pinning to a
 specific version in CI/CD, or for debugging.
 
 During re-execution, child process will inherit all environment variables and
-flags.  `TELEPORT_TOOLS_VERSION=off` will be added during re-execution to
+flags. `TELEPORT_TOOLS_VERSION=off` will be added during re-execution to
 prevent infinite loops.
 
 Automatic updates will not be used if `tctl` is connecting to the Auth Service
@@ -263,10 +263,10 @@ available to self-hosted customers by default, without any extra effort from
 the cluster administrator.
 
 The above configuration will then be available from the unauthenticated
-endpoint `/v1/webapi/ping` which clients will consult.
+endpoint `/v1/webapi/automaticupdates` which clients will consult.
 
 ```
-curl https://proxy.example.com/v1/webapi/ping | jq .
+curl https://proxy.example.com/v1/webapi/automaticupdates | jq .
 {
     "tools_auto_update": true,
     "tools_version": "X.Y.Z",
