@@ -431,6 +431,10 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 		return trace.Wrap(err)
 	}
 
+	if err := a.bot.NotifyUser(ctx, reqID, reqData); err != nil {
+		return trace.Wrap(err)
+	}
+
 	log.Infof("Successfully marked request as %s in all messages", tag)
 
 	return nil
