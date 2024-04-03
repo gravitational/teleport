@@ -7,7 +7,7 @@ state: draft
 
 ## Required Approvers
 
-* Engineering: @rjones && @bernardjkim
+* Engineering: @russjones && @bernardjkim
 * Security: @reed
 
 ## What
