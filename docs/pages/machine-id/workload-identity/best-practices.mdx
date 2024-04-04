@@ -115,4 +115,23 @@ yourself.
 
 One such proxy is [Ghostunnel](https://github.com/ghostunnel/ghostunnel).
 
+## X509 SVID Subject
 
+When the X509 SVIDs are issued by Teleport Workload Identity, the subject
+distinguished name of the certificate is determined by the following criteria:
+
+- If no DNS SANs have been requested, the subject is unset.
+- If DNS SANs have been requested, the first DNS SAN is set as the subject
+  common name.
+
+This behavior exists to support interoperability with legacy systems which are
+not able to parse DNS SANs or which are not SPIFFE aware.
+
+An example of one such legacy system is Postgres. Postgres supports client
+authentication using certificates, but only allows the common name to be used
+to determine which database user access should be granted to. To integrate
+Teleport Workload Identity with Postgres, you can issue X509 SVIDs with a DNS
+SAN which can then be mapped to database user. For example, you could issue
+a certificate with a DNS SAN of `myuser.mydb.db-access.example.com`. The
+behavior described above will then set the common name to this DNS SAN, and you
+can then configure Postgres to map this common name to `myuser`.

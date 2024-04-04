@@ -183,13 +183,6 @@ func (p *mockProvider) Config() *BotConfig {
 // getTestIdent.
 type identRequest func(id *tlsca.Identity)
 
-// kubernetesRequest requests a Kubernetes cluster.
-func kubernetesRequest(k8sCluster string) identRequest {
-	return func(id *tlsca.Identity) {
-		id.KubernetesCluster = k8sCluster
-	}
-}
-
 // getTestIdent returns a mostly-valid bot Identity without starting up an
 // entire Teleport server instance.
 func getTestIdent(t *testing.T, username string, reqs ...identRequest) *identity.Identity {

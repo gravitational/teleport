@@ -134,6 +134,7 @@
     "NOFILE",
     "NOKEY",
     "NOPASSWD",
+    "nonprod",
     "NVGJ",
     "Näme",
     "ODBC",
@@ -912,7 +913,8 @@
     "SVIDs",
     "Ghostunnel",
     "Linkerd",
-    "Istio"
+    "Istio",
+    "mydb"
   ],
   "flagWords": [
     "hte"

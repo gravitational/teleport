@@ -170,6 +170,15 @@ func signx509SVID(
 		IPAddresses: ipSANS,
 	}
 
+	// For legacy compatibility, we set the subject common name to the first
+	// DNS SAN. This allows interoperability with non-SPIFFE aware clients that
+	// trust the CA, or interoperability with servers like Postgres which can
+	// only inspect the common name when making authz/authn decisions.
+	// Eventually, we may wish to make this behavior more configurable.
+	if len(dnsSANs) > 0 {
+		template.Subject.CommonName = dnsSANs[0]
+	}
+
 	certBytes, err := x509.CreateCertificate(
 		rand.Reader, template, ca.Cert, pubKey, ca.Signer,
 	)

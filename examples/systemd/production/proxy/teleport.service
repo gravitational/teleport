@@ -5,6 +5,7 @@ After=network.target
 [Service]
 Type=simple
 Restart=on-failure
+RestartSec=5
 # Set the nodes roles with the `--roles`
 # In most production environments you will not
 # want to run all three roles on a single host
