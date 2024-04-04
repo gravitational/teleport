@@ -130,8 +130,8 @@ jobs:
     name: Build OCI container images
     needs: configure
     permissions:
-      id-token: write  # required for aws-actions/configure-aws-credentials
-      security-events: write  # required for trivy scan
+      id-token: write # required for aws-actions/configure-aws-credentials
+      security-events: write # required for trivy scan
       contents: read
       actions: read
     uses: ./.github/workflows/oci-image-build.yml
