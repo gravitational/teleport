@@ -1,25 +1,15 @@
 name: Build Buildboxes
 on:
-  schedule:
-    # Run daily at 6am UTC which is about 23:00 PST (plus/minus DST).
-    # The minute offset of 33 is a "random" offset to not run at the top of the hour.
-    - cron: '33 6 * * *'
-
+  workflow_call:
+    inputs:
+      branch:
+        description: Branch to build the buildboxes for.
+        type: string
+        required: true
   workflow_dispatch:
     inputs:
-      amd64:
-        description: |
-          Build amd64 buildboxes. Normally we only build arm64 buildboxes as
-          they require our self-hosted arm64 runners which are not available
-          from the OSS Teleport repo. We build the amd64 buildboxes from there.
-          If this input is true, we'll also build amd64 buildboxes here.
-        type: boolean
-        default: false
       branch:
-        description: |
-          Branch to build the buildboxes for. Should only be used for dev/testing
-          this workflow when on a non-main branch. Normally the branch the workflow
-          is on is used to checkout the equivalent branch in OSS Teleport.
+        # Not required on workflow_dispatch as github.ref_name is valid.
         type: string
 
 env:
@@ -32,9 +22,6 @@ jobs:
         hostarch: [amd64, arm64]
         target: [buildbox, buildbox-node, buildbox-arm, buildbox-centos7, buildbox-centos7-fips]
         exclude:
-          # Exclude amd64 on dispatched builds if inputs.arm64 is not set
-          - hostarch: ${{ (github.event_name == 'workflow_dispatch' && ! inputs.amd64) && 'amd64' }}
-
           # Exclude buildbox, buildbox-node and buildbox-arm on arm64. They are amd64 only
           - hostarch: arm64
             target: buildbox
