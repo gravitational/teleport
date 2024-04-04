@@ -405,7 +405,7 @@ func TestRoleCRUD(t *testing.T) {
 	_, err = pack.clt.Delete(ctx, pack.clt.Endpoint("webapi", "roles", expected.GetName()))
 	require.NoError(t, err, "unexpected error deleting role")
 
-	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "roles"), nil)
+	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "roles"), url.Values{"limit": []string{"15"}})
 	assert.NoError(t, err, "unexpected error listing role")
 
 	var getResponse listResourcesWithoutCountGetResponse
@@ -612,6 +612,7 @@ func TestListResources(t *testing.T) {
 
 type mockedResourceAPIGetter struct {
 	mockGetRole               func(ctx context.Context, name string) (types.Role, error)
+	mockGetRoles              func(ctx context.Context) ([]types.Role, error)
 	mockListRoles             func(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
 	mockUpsertRole            func(ctx context.Context, role types.Role) (types.Role, error)
 	mockGetGithubConnectors   func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
@@ -629,6 +630,13 @@ func (m *mockedResourceAPIGetter) GetRole(ctx context.Context, name string) (typ
 		return m.mockGetRole(ctx, name)
 	}
 	return nil, trace.NotImplemented("mockGetRole not implemented")
+}
+
+func (m *mockedResourceAPIGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
+	if m.mockGetRoles != nil {
+		return m.mockGetRoles(ctx)
+	}
+	return nil, trace.NotImplemented("mockGetRoles not implemented")
 }
 
 func (m *mockedResourceAPIGetter) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {

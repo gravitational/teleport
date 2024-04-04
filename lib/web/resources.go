@@ -85,7 +85,22 @@ func (h *Handler) listRolesHandle(w http.ResponseWriter, r *http.Request, params
 	}
 
 	values := r.URL.Query()
-	return listRoles(clt, values)
+	// If limit exists as a query parameter, this means its coming from a "new" webui
+	// and can return the new paginated response.
+	// TODO(gzdunek): DELETE IN 17.0.0: remove "getRoles".
+	if values.Has("limit") {
+		return listRoles(clt, values)
+	}
+	return getRoles(clt)
+}
+
+func getRoles(clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
+	roles, err := clt.GetRoles(context.TODO())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.NewRoles(roles)
 }
 
 func listRoles(clt resourcesAPIGetter, values url.Values) (*listResourcesWithoutCountGetResponse, error) {
@@ -546,6 +561,8 @@ type checkAccessToRegisteredResourceResponse struct {
 type resourcesAPIGetter interface {
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
+	// GetRoles returns a list of roles
+	GetRoles(ctx context.Context) ([]types.Role, error)
 	// ListRoles returns a paginated list of roles.
 	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
 	// UpsertRole creates or updates role
