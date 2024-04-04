@@ -23,13 +23,12 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -45,12 +44,18 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// ComponentKey is the Teleport component key for this handler.
+const ComponentKey = "azure:fwd"
+
 // HandlerConfig is the configuration for an Azure app-access handler.
 type HandlerConfig struct {
 	// RoundTripper is the underlying transport given to an oxy Forwarder.
 	RoundTripper http.RoundTripper
 	// Log is the Logger.
+	// TODO(greedy52) replace with slog.
 	Log logrus.FieldLogger
+	// Logger is the slog.Logger.
+	Logger *slog.Logger
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 
@@ -71,10 +76,13 @@ func (s *HandlerConfig) CheckAndSetDefaults(ctx context.Context) error {
 		s.Clock = clockwork.NewRealClock()
 	}
 	if s.Log == nil {
-		s.Log = logrus.WithField(teleport.ComponentKey, "azure:fwd")
+		s.Log = logrus.WithField(teleport.ComponentKey, ComponentKey)
+	}
+	if s.Logger == nil {
+		s.Logger = slog.Default().With(teleport.ComponentKey, ComponentKey)
 	}
 	if s.getAccessToken == nil {
-		credProvider, err := findDefaultCredentialProvider(ctx)
+		credProvider, err := findDefaultCredentialProvider(ctx, s.Logger)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -265,20 +273,6 @@ func (s *handler) parseAuthHeader(token string, pubKey crypto.PublicKey) (*jwt.A
 }
 
 type getAccessTokenFunc func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error)
-
-func getAccessTokenManagedIdentity(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
-	identityCredential, err := azidentity.NewManagedIdentityCredential(&azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ResourceID(managedIdentity)})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	opts := policy.TokenRequestOptions{Scopes: []string{scope}}
-	token, err := identityCredential.GetToken(ctx, opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &token, nil
-}
 
 type cacheKey struct {
 	managedIdentity string

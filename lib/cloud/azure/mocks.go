@@ -679,7 +679,7 @@ func NewARMUserAssignedIdentitiesMock(identities ...armmsi.Identity) *ARMUserAss
 		if err == nil {
 			identitiesMap[id.ResourceGroupName+"+"+id.Name] = identity
 		} else {
-			slog.With("error", err).Warn("Failed to add identity to mock.")
+			slog.With("error", err).WarnContext(context.Background(), "Failed to add identity to mock.")
 		}
 	}
 	return &ARMUserAssignedIdentitiesMock{

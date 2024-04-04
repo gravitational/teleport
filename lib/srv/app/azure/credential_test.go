@@ -26,9 +26,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	cloudazure "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	cloudazure "github.com/gravitational/teleport/lib/cloud/azure"
 )
 
 type fakeTokenCredential struct {

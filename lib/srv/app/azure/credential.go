@@ -60,20 +60,22 @@ func getAccessTokenFromCredentialProvider(credProvider credentialProvider) getAc
 	}
 }
 
-func findDefaultCredentialProvider(ctx context.Context) (credentialProvider, error) {
+func findDefaultCredentialProvider(ctx context.Context, logger *slog.Logger) (credentialProvider, error) {
 	// Check if default workload identity is available: the clientID/tenantID
 	// for the default workload identity and the token file path are required
 	// from environment variables.
-	defaultAgentIdentity, err := azidentity.NewWorkloadIdentityCredential(nil)
+	defaultWorkloadIdentity, err := azidentity.NewWorkloadIdentityCredential(nil)
 	if err == nil {
-		slog.InfoContext(ctx, "Using workload identity.")
-		credProvider, err := newWorloadIdentityCredentialProvider(ctx, defaultAgentIdentity)
+		logger.InfoContext(ctx, "Using workload identity.")
+		credProvider, err := newWorloadIdentityCredentialProvider(ctx, defaultWorkloadIdentity)
 		return credProvider, trace.Wrap(err)
 	} else {
-		slog.With("error", err).DebugContext(ctx, "Failed to load worload identity.")
+		logger.With("error", err).DebugContext(ctx, "Failed to load worload identity.")
+
 	}
 
-	slog.InfoContext(ctx, "Using managed identity.")
+	// If no worload identity is found, fall back to regular managed identity.
+	logger.InfoContext(ctx, "Using managed identity.")
 	return managedIdentityCredentialProvider{}, nil
 
 }
@@ -102,12 +104,12 @@ func (m managedIdentityCredentialProvider) MapScope(scope string) string {
 // https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview
 //
 // When running on AKS, multiple workload identities can be associated to the
-// same service account attached to the pod. Assuming a oorkload identity
-// requires a Client ID of that identity but only the default Client ID is
+// same service account attached to the pod. Assuming a workload identity
+// requires a client ID of that identity but only the default Client ID is
 // provided through environment variable. We assume that the default workload
-// identity (mapped by the default Client ID) is the app-service identity with
-// msi permissions so the client IDs for other user-requested identity can be
-// retrieved using the default idenitty.
+// identity (mapped by the default client ID) is the "app-service" identity
+// with msi permissions so the client IDs for other "user-requested" identity
+// can be retrieved using the default idenitty.
 type workloadIdentityCredentialProvider struct {
 	cache                *utils.FnCache
 	defaultAgentIdentity azcore.TokenCredential
@@ -158,7 +160,7 @@ func (w *workloadIdentityCredentialProvider) MapScope(scope string) string {
 	// This scope ("https://management.core.windows.net/") from `az` CLI tool
 	// will fail for worload identity as worload identity is only expected to
 	// be used with compatible SDKs, whereas the SDK adds ".default" to the
-	// scope:
+	// audience:
 	//
 	// https://github.com/Azure/azure-sdk-for-go/blob/9e78ee2b86f0f4989098dd7e545b73841fc8df47/sdk/azcore/arm/runtime/pipeline.go#L35
 	if scope == "https://management.core.windows.net/" {
