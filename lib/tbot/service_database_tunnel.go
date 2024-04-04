@@ -176,21 +176,24 @@ func (s *DatabaseTunnelService) Run(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "DatabaseTunnelService/Run")
 	defer span.End()
 
-	listenUrl, err := url.Parse(s.cfg.Listen)
-	if err != nil {
-		return trace.Wrap(err, "parsing listen url")
-	}
-
-	s.log.WithField("address", listenUrl.String()).Debug("Opening listener for database tunnel.")
-	l, err := net.Listen("tcp", listenUrl.Host)
-	if err != nil {
-		return trace.Wrap(err, "opening listener")
-	}
-	defer func() {
-		if err := l.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
-			s.log.WithError(err).Error("Failed to close listener")
+	l := s.cfg.Listener
+	if l == nil {
+		listenUrl, err := url.Parse(s.cfg.Listen)
+		if err != nil {
+			return trace.Wrap(err, "parsing listen url")
 		}
-	}()
+
+		s.log.WithField("address", listenUrl.String()).Debug("Opening listener for database tunnel.")
+		l, err = net.Listen("tcp", listenUrl.Host)
+		if err != nil {
+			return trace.Wrap(err, "opening listener")
+		}
+		defer func() {
+			if err := l.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+				s.log.WithError(err).Error("Failed to close listener")
+			}
+		}()
+	}
 
 	lpCfg, err := s.buildLocalProxyConfig(ctx)
 	if err != nil {

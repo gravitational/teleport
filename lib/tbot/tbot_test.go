@@ -760,6 +760,12 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	role, err = rootClient.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
+	botListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		botListener.Close()
+	})
+
 	// Prepare the bot config
 	onboarding, _ := testhelpers.MakeBot(t, rootClient, "test", role.GetName())
 	botConfig := testhelpers.DefaultBotConfig(
@@ -771,8 +777,7 @@ func TestBotDatabaseTunnel(t *testing.T) {
 			Insecure: true,
 			ServiceConfigs: []config.ServiceConfig{
 				&config.DatabaseTunnelService{
-					// TODO: Perhaps allow FD or listener to be injected
-					Listen:   "tcp://127.0.0.1:39933",
+					Listener: botListener,
 					Service:  "test-database",
 					Database: "mydb",
 					Username: "llama",
@@ -797,7 +802,7 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	// We can't predict exactly when the tunnel will be ready so we use
 	// EventuallyWithT to retry.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		conn, err := pgconn.Connect(ctx, "postgres://127.0.0.1:39933/mydb?user=llama")
+		conn, err := pgconn.Connect(ctx, fmt.Sprintf("postgres://%s/mydb?user=llama", botListener.Addr().String()))
 		if !assert.NoError(t, err) {
 			return
 		}
