@@ -68,11 +68,13 @@ function filterItems<T>(
   items: T[],
   filterBy: keyof T
 ): T[] {
-  const trimmed = searchValue?.trim();
+  const trimmed = searchValue?.trim().toLocaleLowerCase();
   if (!trimmed) {
     return items;
   }
-  return items.filter(item => item[filterBy].toString().includes(trimmed));
+  return items.filter(item =>
+    item[filterBy].toString().toLocaleLowerCase().includes(trimmed)
+  );
 }
 
 const UnorderedList = styled.ul`
