@@ -493,6 +493,13 @@ type Config struct {
 
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
+
+	// AWSRole is Amazon Role ARN or role name that will be used for AWS CLI access.
+	AWSRole string
+	// AzureIdentity is Azure identity that will be used for Azure CLI access.
+	AzureIdentity string
+	// GCPServiceAccount is GCP service account name that will be used for GCP CLI access.
+	GCPServiceAccount string
 }
 
 // CachePolicy defines cache policy for local clients

@@ -207,7 +207,7 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	appCerts, err := loadAppCertificateWithAppLogin(a.cf, tc, a.app.Name)
+	appCerts, err := loadAppCertificateWithAppLogin(a.cf.Context, tc, a.app.Name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -238,7 +238,7 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 	}
 
 	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
-		makeBasicLocalProxyConfig(a.cf, tc, listener),
+		makeBasicLocalProxyConfig(a.cf.Context, tc, listener, a.cf.InsecureSkipVerify),
 		alpnproxy.WithClientCerts(appCerts),
 		alpnproxy.WithClusterCAsIfConnUpgrade(a.cf.Context, tc.RootClusterCACertPool),
 		alpnproxy.WithHTTPMiddleware(&alpnproxy.AzureMSIMiddleware{
@@ -333,13 +333,13 @@ func formatAzureIdentities(identities []string) string {
 	return t.AsBuffer().String()
 }
 
-func getAzureIdentityFromFlags(cf *CLIConf, profile *client.ProfileStatus) (string, error) {
+func getAzureIdentityFromProfile(azureIdentity string, profile *client.ProfileStatus) (string, error) {
 	identities := profile.AzureIdentities
 	if len(identities) == 0 {
 		return "", trace.BadParameter("no Azure identities available, check your permissions")
 	}
 
-	reqIdentity := strings.ToLower(cf.AzureIdentity)
+	reqIdentity := strings.ToLower(azureIdentity)
 
 	// if flag is missing, try to find singleton identity; failing that, print available options.
 	if reqIdentity == "" {
@@ -374,10 +374,10 @@ func getAzureIdentityFromFlags(cf *CLIConf, profile *client.ProfileStatus) (stri
 		return matches[0], nil
 	case 0:
 		printAzureIdentities(identities)
-		return "", trace.NotFound("failed to find the identity matching %q", cf.AzureIdentity)
+		return "", trace.NotFound("failed to find the identity matching %q", azureIdentity)
 	default:
 		printAzureIdentities(matches)
-		return "", trace.BadParameter("provided identity %q is ambiguous, please specify full identity name", cf.AzureIdentity)
+		return "", trace.BadParameter("provided identity %q is ambiguous, please specify full identity name", azureIdentity)
 	}
 }
 

@@ -302,7 +302,7 @@ func (a *gcpApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	appCerts, err := loadAppCertificateWithAppLogin(a.cf, tc, a.app.Name)
+	appCerts, err := loadAppCertificateWithAppLogin(a.cf.Context, tc, a.app.Name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -328,7 +328,7 @@ func (a *gcpApp) startLocalALPNProxy(port string) error {
 	}
 
 	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
-		makeBasicLocalProxyConfig(a.cf, tc, listener),
+		makeBasicLocalProxyConfig(a.cf.Context, tc, listener, a.cf.InsecureSkipVerify),
 		alpnproxy.WithClientCerts(appCerts),
 		alpnproxy.WithClusterCAsIfConnUpgrade(a.cf.Context, tc.RootClusterCACertPool),
 		alpnproxy.WithHTTPMiddleware(&alpnproxy.AuthorizationCheckerMiddleware{
@@ -420,7 +420,7 @@ func formatGCPServiceAccounts(accounts []string) string {
 	return t.AsBuffer().String()
 }
 
-func getGCPServiceAccountFromFlags(cf *CLIConf, profile *client.ProfileStatus) (string, error) {
+func getGCPServiceAccountFromProfile(gcpServiceAccount string, profile *client.ProfileStatus) (string, error) {
 	// helper function to validate correctness of matched service account
 	validate := func(account string) (string, error) {
 		err := gcp.ValidateGCPServiceAccountName(account)
@@ -435,7 +435,7 @@ func getGCPServiceAccountFromFlags(cf *CLIConf, profile *client.ProfileStatus) (
 		return "", trace.BadParameter("no GCP service accounts available, check your permissions")
 	}
 
-	reqAccount := cf.GCPServiceAccount
+	reqAccount := gcpServiceAccount
 
 	// if flag is missing, try to find singleton service account; failing that, print available options.
 	if reqAccount == "" {
@@ -470,10 +470,10 @@ func getGCPServiceAccountFromFlags(cf *CLIConf, profile *client.ProfileStatus) (
 		return validate(matches[0])
 	case 0:
 		printGCPServiceAccounts(accounts)
-		return "", trace.NotFound("failed to find the service account matching %q", cf.GCPServiceAccount)
+		return "", trace.NotFound("failed to find the service account matching %q", gcpServiceAccount)
 	default:
 		printGCPServiceAccounts(matches)
-		return "", trace.BadParameter("provided service account %q is ambiguous, please specify full service account name", cf.GCPServiceAccount)
+		return "", trace.BadParameter("provided service account %q is ambiguous, please specify full service account name", gcpServiceAccount)
 	}
 }
 

@@ -338,7 +338,7 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 	})
 
 	localProxy, err := alpnproxy.NewLocalProxy(
-		makeBasicLocalProxyConfig(cf, tc, lpListener),
+		makeBasicLocalProxyConfig(cf.Context, tc, lpListener, cf.InsecureSkipVerify),
 		alpnproxy.WithHTTPMiddleware(kubeMiddleware),
 		alpnproxy.WithSNI(client.GetKubeTLSServerName(tc.WebProxyHost())),
 		alpnproxy.WithClusterCAs(cf.Context, tc.RootClusterCACertPool),

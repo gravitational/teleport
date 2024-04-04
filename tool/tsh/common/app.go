@@ -58,12 +58,12 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	app, err := getRegisteredApp(cf, tc)
+	app, err := getRegisteredApp(cf.Context, tc, cf.AppName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	routeToApp, err := getRouteToApp(cf, tc, profile, app)
+	routeToApp, err := getRouteToApp(tc, profile, app)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -83,11 +83,11 @@ func onAppLogin(cf *CLIConf) error {
 	return nil
 }
 
-func getRouteToApp(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, app types.Application) (proto.RouteToApp, error) {
+func getRouteToApp(tc *client.TeleportClient, profile *client.ProfileStatus, app types.Application) (proto.RouteToApp, error) {
 	var awsRoleARN string
 	if app.IsAWSConsole() {
 		var err error
-		awsRoleARN, err = getARNFromFlags(cf, profile, app)
+		awsRoleARN, err = getARNFromProfile(tc.AWSRole, profile, app)
 		if err != nil {
 			return proto.RouteToApp{}, trace.Wrap(err)
 		}
@@ -96,7 +96,7 @@ func getRouteToApp(cf *CLIConf, tc *client.TeleportClient, profile *client.Profi
 	var azureIdentity string
 	if app.IsAzureCloud() {
 		var err error
-		azureIdentity, err = getAzureIdentityFromFlags(cf, profile)
+		azureIdentity, err = getAzureIdentityFromProfile(tc.AzureIdentity, profile)
 		if err != nil {
 			return proto.RouteToApp{}, trace.Wrap(err)
 		}
@@ -106,7 +106,7 @@ func getRouteToApp(cf *CLIConf, tc *client.TeleportClient, profile *client.Profi
 	var gcpServiceAccount string
 	if app.IsGCP() {
 		var err error
-		gcpServiceAccount, err = getGCPServiceAccountFromFlags(cf, profile)
+		gcpServiceAccount, err = getGCPServiceAccountFromProfile(tc.GCPServiceAccount, profile)
 		if err != nil {
 			return proto.RouteToApp{}, trace.Wrap(err)
 		}
@@ -305,13 +305,13 @@ Example command: tsh gcloud compute instances list
 `))
 
 // getRegisteredApp returns the registered application with the specified name.
-func getRegisteredApp(cf *CLIConf, tc *client.TeleportClient) (app types.Application, err error) {
+func getRegisteredApp(ctx context.Context, tc *client.TeleportClient, appName string) (app types.Application, err error) {
 	var apps []types.Application
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		apps, err = tc.ListApps(cf.Context, &proto.ListResourcesRequest{
+	err = client.RetryWithRelogin(ctx, tc, func() error {
+		apps, err = tc.ListApps(ctx, &proto.ListResourcesRequest{
 			Namespace:           tc.Namespace,
 			ResourceType:        types.KindAppServer,
-			PredicateExpression: fmt.Sprintf(`name == "%s"`, cf.AppName),
+			PredicateExpression: fmt.Sprintf(`name == "%s"`, appName),
 		})
 		return trace.Wrap(err)
 	})
@@ -319,7 +319,7 @@ func getRegisteredApp(cf *CLIConf, tc *client.TeleportClient) (app types.Applica
 		return nil, trace.Wrap(err)
 	}
 	if len(apps) == 0 {
-		return nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", cf.AppName)
+		return nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", appName)
 	}
 	return apps[0], nil
 }

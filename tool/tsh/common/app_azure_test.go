@@ -378,7 +378,7 @@ func Test_getAzureIdentityFromFlags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := getAzureIdentityFromFlags(&CLIConf{AzureIdentity: tt.requestedIdentity}, &client.ProfileStatus{AzureIdentities: tt.profileIdentities})
+			result, err := getAzureIdentityFromProfile(tt.requestedIdentity, &client.ProfileStatus{AzureIdentities: tt.profileIdentities})
 			require.Equal(t, tt.want, result)
 			tt.wantErr(t, err)
 		})

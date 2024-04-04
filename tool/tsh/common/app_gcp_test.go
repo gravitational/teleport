@@ -137,7 +137,7 @@ func Test_getGCPServiceAccountFromFlags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := getGCPServiceAccountFromFlags(&CLIConf{GCPServiceAccount: tt.requestedServiceAccount}, &client.ProfileStatus{GCPServiceAccounts: tt.profileAccounts})
+			result, err := getGCPServiceAccountFromProfile(tt.requestedServiceAccount, &client.ProfileStatus{GCPServiceAccounts: tt.profileAccounts})
 			tt.wantErr(t, err)
 			require.Equal(t, tt.want, result)
 		})

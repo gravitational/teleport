@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
@@ -190,7 +189,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf, tc, listener), proxyOpts...)
+	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf.Context, tc, listener, cf.InsecureSkipVerify), proxyOpts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -320,64 +319,28 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	app, err := getRegisteredApp(cf, tc)
+	proxyApp, err := newLocalProxyApp(tc, cf.AppName, cf.LocalProxyPort, cf.InsecureSkipVerify)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	profile, err := tc.ProfileStatus()
+	app, err := getRegisteredApp(cf.Context, tc, cf.AppName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	routeToApp, err := getRouteToApp(cf, tc, profile, app)
-	if err != nil {
+	if err := proxyApp.startLocalALPNProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocolForApp(app))); err != nil {
 		return trace.Wrap(err)
 	}
 
-	appCerts, err := loadAppCertificateWithAppLogin(cf, tc, routeToApp)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	addr := "localhost:0"
-	if cf.LocalProxyPort != "" {
-		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
-	}
-
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	lp, err := alpnproxy.NewLocalProxy(
-		makeBasicLocalProxyConfig(cf, tc, listener),
-		alpnproxy.WithALPNProtocol(alpnProtocolForApp(app)),
-		alpnproxy.WithClientCerts(appCerts),
-		alpnproxy.WithClusterCAsIfConnUpgrade(cf.Context, tc.RootClusterCACertPool),
-	)
-	if err != nil {
-		if cerr := listener.Close(); cerr != nil {
-			return trace.NewAggregate(err, cerr)
+	defer func() {
+		if err := proxyApp.Close(); err != nil {
+			log.WithError(err).Error("Failed to close app proxy.")
 		}
-		return trace.Wrap(err)
-	}
-
-	fmt.Printf("Proxying connections to %s on %v\n", cf.AppName, lp.GetAddr())
-	if cf.LocalProxyPort == "" {
-		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
-	}
-
-	go func() {
-		<-cf.Context.Done()
-		lp.Close()
 	}()
 
-	defer lp.Close()
-	if err = lp.Start(cf.Context); err != nil {
-		log.WithError(err).Errorf("Failed to start local proxy.")
-	}
-
+	// Proxy connections until the client terminates the command.
+	<-cf.Context.Done()
 	return nil
 }
 
@@ -542,19 +505,29 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 // loadAppCertificateWithAppLogin is a wrapper around loadAppCertificate that will attempt to login the user to
 // the app of choice at most once, if the return value from loadAppCertificate call indicates that app login
 // should fix the problem.
-func loadAppCertificateWithAppLogin(ctx context.Context, tc *libclient.TeleportClient, routeToApp proto.RouteToApp) (tls.Certificate, error) {
-	cert, needLogin, err := loadAppCertificate(tc, routeToApp.Name)
+func loadAppCertificateWithAppLogin(ctx context.Context, tc *libclient.TeleportClient, appName string) (tls.Certificate, error) {
+	cert, needLogin, err := loadAppCertificate(tc, appName)
 	if err != nil {
 		if !needLogin {
 			return tls.Certificate{}, trace.Wrap(err)
 		}
 
-		log.WithError(err).Debugf("Loading app certificate failed, attempting to issue certs for app %q", routeToApp.Name)
+		app, err := getRegisteredApp(ctx, tc, appName)
+		if err != nil {
+			return tls.Certificate{}, trace.Wrap(err)
+		}
 
 		profile, err := tc.ProfileStatus()
 		if err != nil {
 			return tls.Certificate{}, trace.Wrap(err)
 		}
+
+		routeToApp, err := getRouteToApp(tc, profile, app)
+		if err != nil {
+			return tls.Certificate{}, trace.Wrap(err)
+		}
+
+		log.WithError(err).Debugf("Loading app certificate failed, attempting to issue certs for app %q", appName)
 
 		cert, err = issueAppCert(ctx, tc, client.ReissueParams{
 			RouteToCluster: profile.Cluster,
@@ -629,11 +602,11 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
-func makeBasicLocalProxyConfig(cf *CLIConf, tc *libclient.TeleportClient, listener net.Listener) alpnproxy.LocalProxyConfig {
+func makeBasicLocalProxyConfig(ctx context.Context, tc *libclient.TeleportClient, listener net.Listener, insecure bool) alpnproxy.LocalProxyConfig {
 	return alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:         tc.WebProxyAddr,
-		InsecureSkipVerify:      cf.InsecureSkipVerify,
-		ParentContext:           cf.Context,
+		InsecureSkipVerify:      insecure,
+		ParentContext:           ctx,
 		Listener:                listener,
 		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 	}

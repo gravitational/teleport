@@ -305,7 +305,7 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	appCerts, err := loadAppCertificateWithAppLogin(a.cf, tc, a.appName)
+	appCerts, err := loadAppCertificateWithAppLogin(a.cf.Context, tc, a.appName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -336,7 +336,7 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 	}
 
 	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
-		makeBasicLocalProxyConfig(a.cf, tc, listener),
+		makeBasicLocalProxyConfig(a.cf.Context, tc, listener, a.cf.InsecureSkipVerify),
 		alpnproxy.WithClientCerts(appCerts),
 		alpnproxy.WithClusterCAsIfConnUpgrade(a.cf.Context, tc.RootClusterCACertPool),
 		alpnproxy.WithHTTPMiddleware(&alpnproxy.AWSAccessMiddleware{
@@ -422,12 +422,12 @@ func printAWSRoles(roles awsutils.Roles) {
 	fmt.Println(t.AsBuffer().String())
 }
 
-func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus, app types.Application) (string, error) {
+func getARNFromProfile(awsRole string, profile *client.ProfileStatus, app types.Application) (string, error) {
 	// Filter AWS roles by AWS account ID. If AWS account ID is empty, all
 	// roles are returned.
 	roles := awsutils.FilterAWSRoles(profile.AWSRolesARNs, app.GetAWSAccountID())
 
-	if cf.AWSRole == "" {
+	if awsRole == "" {
 		if len(roles) == 1 {
 			log.Infof("AWS Role %v is selected by default as it is the only role configured for this AWS app.", roles[0].Display)
 			return roles[0].ARN, nil
@@ -438,27 +438,27 @@ func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus, app types.Appli
 	}
 
 	// Match by role ARN.
-	if awsarn.IsARN(cf.AWSRole) {
-		if role, found := roles.FindRoleByARN(cf.AWSRole); found {
+	if awsarn.IsARN(awsRole) {
+		if role, found := roles.FindRoleByARN(awsRole); found {
 			return role.ARN, nil
 		}
 
 		printAWSRoles(roles)
-		return "", trace.NotFound("failed to find the %q role ARN", cf.AWSRole)
+		return "", trace.NotFound("failed to find the %q role ARN", awsRole)
 	}
 
 	// Match by role name.
-	rolesMatched := roles.FindRolesByName(cf.AWSRole)
+	rolesMatched := roles.FindRolesByName(awsRole)
 	switch len(rolesMatched) {
 	case 1:
 		return rolesMatched[0].ARN, nil
 	case 0:
 		printAWSRoles(roles)
-		return "", trace.NotFound("failed to find the %q role name", cf.AWSRole)
+		return "", trace.NotFound("failed to find the %q role name", awsRole)
 	default:
 		// Print roles matched the provided role name.
 		printAWSRoles(rolesMatched)
-		return "", trace.BadParameter("provided role name %q is ambiguous, please specify full role ARN", cf.AWSRole)
+		return "", trace.BadParameter("provided role name %q is ambiguous, please specify full role ARN", awsRole)
 	}
 }
 
