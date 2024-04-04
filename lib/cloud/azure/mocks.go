@@ -668,10 +668,12 @@ func (m *ARMPostgresFlexServerMock) NewListByResourceGroupPager(group string, _ 
 	})
 }
 
+// ARMUserAssignedIdentitiesMock implements ARMUserAssignedIdentities.
 type ARMUserAssignedIdentitiesMock struct {
 	identitiesMap map[string]armmsi.Identity
 }
 
+// NewARMUserAssignedIdentitiesMock creates a new ARMUserAssignedIdentitiesMock.
 func NewARMUserAssignedIdentitiesMock(identities ...armmsi.Identity) *ARMUserAssignedIdentitiesMock {
 	identitiesMap := make(map[string]armmsi.Identity)
 	for _, identity := range identities {
@@ -688,7 +690,7 @@ func NewARMUserAssignedIdentitiesMock(identities ...armmsi.Identity) *ARMUserAss
 }
 
 func (m *ARMUserAssignedIdentitiesMock) Get(ctx context.Context, resourceGroupName, resourceName string, options *armmsi.UserAssignedIdentitiesClientGetOptions) (armmsi.UserAssignedIdentitiesClientGetResponse, error) {
-	if m.identitiesMap == nil {
+	if m == nil || m.identitiesMap == nil {
 		return armmsi.UserAssignedIdentitiesClientGetResponse{}, trace.AccessDenied("access denied")
 	}
 

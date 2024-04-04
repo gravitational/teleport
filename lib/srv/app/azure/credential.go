@@ -70,11 +70,11 @@ func findDefaultCredentialProvider(ctx context.Context, logger *slog.Logger) (cr
 		credProvider, err := newWorloadIdentityCredentialProvider(ctx, defaultWorkloadIdentity)
 		return credProvider, trace.Wrap(err)
 	} else {
-		logger.With("error", err).DebugContext(ctx, "Failed to load worload identity.")
+		logger.With("error", err).DebugContext(ctx, "Failed to load workload identity.")
 
 	}
 
-	// If no worload identity is found, fall back to regular managed identity.
+	// If no workload identity is found, fall back to regular managed identity.
 	logger.InfoContext(ctx, "Using managed identity.")
 	return managedIdentityCredentialProvider{}, nil
 
@@ -82,7 +82,7 @@ func findDefaultCredentialProvider(ctx context.Context, logger *slog.Logger) (cr
 
 // managedIdentityCredentialProvider implements credentialProvider for using
 // managed identities assigned to the host machine. Identities are usually
-// checked against the IMDS service available in local network.
+// checked against the IMDS service available in the local network.
 type managedIdentityCredentialProvider struct {
 }
 
@@ -99,7 +99,7 @@ func (m managedIdentityCredentialProvider) MapScope(scope string) string {
 }
 
 // workloadIdentityCredentialProvider implements credentialProvider for using
-// workload identities assigned to host machine.
+// workload identities assigned to the host machine.
 //
 // https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview
 //
@@ -109,7 +109,7 @@ func (m managedIdentityCredentialProvider) MapScope(scope string) string {
 // provided through environment variable. We assume that the default workload
 // identity (mapped by the default client ID) is the "app-service" identity
 // with msi permissions so the client IDs for other "user-requested" identity
-// can be retrieved using the default idenitty.
+// can be retrieved using the default identity.
 type workloadIdentityCredentialProvider struct {
 	cache                *utils.FnCache
 	defaultAgentIdentity azcore.TokenCredential
@@ -123,6 +123,9 @@ type workloadIdentityCredentialProvider struct {
 }
 
 func newWorloadIdentityCredentialProvider(ctx context.Context, defaultAgentIdentity azcore.TokenCredential) (*workloadIdentityCredentialProvider, error) {
+	if defaultAgentIdentity == nil {
+		return nil, trace.BadParameter("missing defaultAgentIdentity")
+	}
 	cache, err := utils.NewFnCache(utils.FnCacheConfig{
 		Context:     ctx,
 		TTL:         clientIDCacheTTL,
@@ -187,6 +190,6 @@ func (w *workloadIdentityCredentialProvider) getClientID(ctx context.Context, id
 	return clientID, trace.Wrap(err)
 }
 
-// clientIDCacheTTL defines how long client IDs should be cached. ClientID
+// clientIDCacheTTL defines how long client IDs should be cached. Client IDs
 // should never change for an identity so use a longer cache TTL.
 var clientIDCacheTTL = 30 * time.Minute

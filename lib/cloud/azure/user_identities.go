@@ -27,7 +27,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// ARMUserAssignedIdentities provides an interface for armmsi.UserAssignedIdentitiesClient
+// ARMUserAssignedIdentities provides an interface for
+// armmsi.UserAssignedIdentitiesClient.
 type ARMUserAssignedIdentities interface {
 	Get(ctx context.Context, resourceGroupName, resourceName string, options *armmsi.UserAssignedIdentitiesClientGetOptions) (armmsi.UserAssignedIdentitiesClientGetResponse, error)
 }
