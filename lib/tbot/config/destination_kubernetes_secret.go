@@ -42,7 +42,8 @@ const kubernetesNamespaceEnv = "POD_NAMESPACE"
 type DestinationKubernetesSecret struct {
 	// Name is the name the Kubernetes Secret that should be created and written
 	// to.
-	Name string `yaml:"name"`
+	Name   string            `yaml:"name"`
+	Labels map[string]string `yaml:"labels"`
 
 	mu          sync.Mutex
 	namespace   string
