@@ -39,10 +39,11 @@ const (
 	// tokens.
 	DeviceEnrollTokenExpireDuration = 1 * time.Hour
 
-	// deviceWebTokenExpireDuration is the default expiration for newly created
-	// DeviceWebToken instances.
-	// Used tokens are deleted on the spot, regardless of the operation's outcome.
-	deviceWebTokenExpireDuration = 5 * time.Minute
+	// deviceWebAuthnAttemptExpireDuration is the default expiration for newly
+	// created device web authentication attempts.
+	// Failed attempts are deleted on the spot, regardless of the operation's
+	// outcome.
+	deviceWebAuthnAttemptExpireDuration = 5 * time.Minute
 )
 
 // ErrEnrolledDeviceLimit is returned when device enrollment is restricted due to license limit.
@@ -1613,7 +1614,8 @@ func (s *S) VerifyEnrolledDevicesLimit(ctx context.Context) error {
 	return nil
 }
 
-// CreateDeviceWebToken writes webToken to storage.
+// CreateDeviceWebToken writes webToken to storage, as part of a new device
+// authentication attempt.
 //
 // Requires all non system-generated fields to be set, including User and
 // ExpectedDeviceIDs.
@@ -1624,19 +1626,14 @@ func (s *S) CreateDeviceWebToken(ctx context.Context, webToken *devicepb.DeviceW
 		return nil, trace.Wrap(err, "device web token validation")
 	}
 
-	const deviceWebTokenLen = 32
-	plainToken := make([]byte, deviceWebTokenLen)
-	if _, err := rand.Read(plainToken); err != nil {
-		return nil, trace.Wrap(err, "generating device web token")
-	}
-
-	hashedToken, err := bcrypt.GenerateFromPassword(plainToken, bcrypt.DefaultCost)
+	token, err := createDeviceToken()
 	if err != nil {
-		return nil, trace.Wrap(err, "hashing device web token as a password")
+		return nil, trace.Wrap(err)
 	}
 
-	stored := &storedDeviceWebToken{
-		HashedToken:       string(hashedToken),
+	stored := &storedWebAuthenticationAttempt{
+		State:             webAuthenticationAttemptCreated,
+		HashedWebToken:    token.HashedToken,
 		WebSessionID:      webToken.WebSessionId,
 		User:              webToken.User,
 		BrowserUserAgent:  webToken.BrowserUserAgent,
@@ -1645,29 +1642,32 @@ func (s *S) CreateDeviceWebToken(ctx context.Context, webToken *devicepb.DeviceW
 	}
 	val, err := json.Marshal(stored)
 	if err != nil {
-		return nil, trace.Wrap(err, "marshal device web token")
+		return nil, trace.Wrap(err, "marshal device authentication attempt")
 	}
 
 	id := uuid.NewString()
 	if _, err := s.backend.Create(ctx, backend.Item{
-		Key:     deviceWebTokenKey(id),
+		Key:     deviceWebAuthenticationAttemptKey(id),
 		Value:   val,
-		Expires: s.nowUTC().Add(deviceWebTokenExpireDuration),
+		Expires: s.nowUTC().Add(deviceWebAuthnAttemptExpireDuration),
 	}); err != nil {
-		return nil, trace.Wrap(err, "writing device web token")
+		return nil, trace.Wrap(err, "writing device authentication attempt")
 	}
 
-	safePlainToken := base64.RawURLEncoding.EncodeToString(plainToken)
 	return &devicepb.DeviceWebToken{
 		Id:    id,
-		Token: safePlainToken,
+		Token: token.SafePlainToken,
 	}, nil
 }
 
 // SpendDeviceWebToken spends a device web token, returning the spent token on
 // success.
 //
-// It expects a token returned by [CreateDeviceWebToken] as input.
+// It expects a token returned by [CreateDeviceWebToken] as input. This method
+// optimistically transitions the underlying authentication attempt to the
+// Confirm state and issues a DeviceConfirmationToken.
+//
+// On failures the underlying authentication attempt is deleted.
 //
 // Returns the stored token, minus the plaintext token itself.
 func (s *S) SpendDeviceWebToken(ctx context.Context, webToken *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
@@ -1676,47 +1676,109 @@ func (s *S) SpendDeviceWebToken(ctx context.Context, webToken *devicepb.DeviceWe
 		return nil, trace.BadParameter("web token ID required")
 	}
 
-	// Read the token...
-	key := deviceWebTokenKey(id)
-	item, err := s.backend.Get(ctx, key)
+	// Optimistically prepare the confirmation token.
+	confirmToken, err := createDeviceToken()
+	if err != nil {
+		s.logger.
+			WithError(err).
+			Warn("Failed to issue DeviceConfirmationToken, deleting authentication attempt")
+		return nil, trace.Wrap(err)
+	}
+
+	attempt, err := s.transitionAuthnAttempt(ctx, id, webAuthenticationAttemptCreated, func(attempt *storedWebAuthenticationAttempt) error {
+		// Verify DeviceWebToken.
+		if err := matchDeviceToken(webToken.Token, attempt.HashedWebToken); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Transition the authentication attempt.
+		attempt.State = webAuthenticationAttemptConfirm
+		attempt.HashedWebToken = nil
+		attempt.HashedConfirmToken = confirmToken.HashedToken
+		// TODO(codingllama): Record authenticated device ID.
+		attempt.AuthenticatedDeviceID = ""
+
+		return nil
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// ...and then immediately spend it. Caller only gets one chance, regardless
-	// of the outcome.
-	if err := s.backend.Delete(ctx, key); err != nil {
-		s.logger.
-			WithError(err).
-			WithField("WebTokenID", id).
-			Warn("Failed to delete device web token")
-		// err swallowed on purpose.
-	}
-
-	plainToken, err := base64.RawURLEncoding.DecodeString(webToken.Token)
-	if err != nil {
-		// Re-wrap as a BadParameter.
-		return nil, trace.BadParameter(err.Error())
-	}
-
-	var stored storedDeviceWebToken
-	if err := json.Unmarshal(item.Value, &stored); err != nil {
-		return nil, trace.Wrap(err, "unmarshal web token")
-	}
-	if err := bcrypt.CompareHashAndPassword([]byte(stored.HashedToken), plainToken); err != nil {
-		// err swallowed on purpose.
-		return nil, trace.BadParameter("invalid web token")
-	}
-
-	// Return everything but the plainToken.
-	return &devicepb.DeviceWebToken{
+	storedWebToken := &devicepb.DeviceWebToken{
 		Id:                id,
-		WebSessionId:      stored.WebSessionID,
-		BrowserUserAgent:  stored.BrowserUserAgent,
-		BrowserIp:         stored.BrowserIP,
-		User:              stored.User,
-		ExpectedDeviceIds: stored.ExpectedDeviceIDs,
-	}, nil
+		WebSessionId:      attempt.WebSessionID,
+		BrowserUserAgent:  attempt.BrowserUserAgent,
+		BrowserIp:         attempt.BrowserIP,
+		User:              attempt.User,
+		ExpectedDeviceIds: attempt.ExpectedDeviceIDs,
+	}
+
+	// TODO(codingllama): Return both Web and DeviceConfirmationToken.
+	return storedWebToken, nil
+}
+
+func (s *S) transitionAuthnAttempt(
+	ctx context.Context,
+	attemptID string,
+	expectedState webAuthenticationAttemptState,
+	fn func(*storedWebAuthenticationAttempt) error,
+) (*storedWebAuthenticationAttempt, error) {
+	if attemptID == "" {
+		return nil, trace.BadParameter("attempt ID required")
+	}
+
+	// Read and unmarshal the attempt.
+	key := deviceWebAuthenticationAttemptKey(attemptID)
+	item, err := s.backend.Get(ctx, key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var attempt storedWebAuthenticationAttempt
+	if err := json.Unmarshal(item.Value, &attempt); err != nil {
+		return nil, trace.Wrap(err, "unmarshal device authentication attempt")
+	}
+
+	deleteAttempt := func() {
+		if err := s.backend.Delete(ctx, key); err != nil {
+			s.logger.
+				WithError(err).
+				WithField("AttemptID", attemptID).
+				Warn("Failed to delete device authentication attempt")
+			// err swallowed on purpose.
+		}
+	}
+
+	// Verify the attempt state.
+	if attempt.State != expectedState {
+		// A state mismatch here is likely a double-spend attempt.
+		deleteAttempt()
+		return nil, trace.BadParameter("device authentication attempt state mismatch")
+	}
+
+	// Validate/modify the attempt.
+	if err := fn(&attempt); err != nil {
+		deleteAttempt()
+		return nil, trace.Wrap(err)
+	}
+
+	// Apply the transition to storage.
+	updated, err := json.Marshal(attempt)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshal device authentication attempt")
+	}
+
+	// We don't loop this update as there should not be concurrency in-between all
+	// of this.
+	if _, err := s.backend.ConditionalUpdate(ctx, backend.Item{
+		Key:      key,
+		Value:    updated,
+		Expires:  item.Expires, // Retain original expiration.
+		Revision: item.Revision,
+	}); err != nil {
+		return nil, trace.Wrap(err, "update device authentication attempt")
+	}
+
+	return &attempt, nil
 }
 
 func deviceIDFromKey(key []byte) string {
@@ -1928,8 +1990,8 @@ func deviceTokenKey(deviceID string) []byte {
 	return backend.Key("devices", "enroll_token", deviceID)
 }
 
-func deviceWebTokenKey(tokenID string) []byte {
-	return backend.Key("devices", "web_token", tokenID)
+func deviceWebAuthenticationAttemptKey(attemptID string) []byte {
+	return backend.Key("devices", "web_authn_attempt", attemptID)
 }
 
 func devicesByAssetTagKey(assetTag string) []byte {

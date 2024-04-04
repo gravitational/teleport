@@ -115,11 +115,28 @@ type tpmPCR struct {
 	DigestAlg uint64 `json:"digest_alg"` // Required.
 }
 
-type storedDeviceWebToken struct {
-	HashedToken       string   `json:"hashed_token"`        // Required.
-	WebSessionID      string   `json:"web_session_id"`      // Required.
-	User              string   `json:"user"`                // Required.
-	BrowserUserAgent  string   `json:"browser_user_agent"`  // Required.
-	BrowserIP         string   `json:"browser_ip"`          // Required.
-	ExpectedDeviceIDs []string `json:"expected_device_ids"` // Required.
+type webAuthenticationAttemptState int
+
+const (
+	_                               webAuthenticationAttemptState = iota // Unspecified.
+	webAuthenticationAttemptCreated                                      // DeviceWebToken issued
+	webAuthenticationAttemptConfirm                                      // DeviceWebToken spent, DeviceConfirmationToken issued
+)
+
+// storedWebAuthenticationAttempt tracks the lifecycle of a device web
+// authentication attempt, including both DeviceWebToken and
+// DeviceConfirmationToken.
+//
+// See
+// https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-authentication-attempt.
+type storedWebAuthenticationAttempt struct {
+	State                 webAuthenticationAttemptState `json:"state"`                             // Required.
+	HashedWebToken        []byte                        `json:"hashed_web_token,omitempty"`        // bcrypt-encoded, present on Created state.
+	HashedConfirmToken    []byte                        `json:"hashed_confirm_token,omitempty"`    // bcrypt-encoded, present on Confirm state.
+	WebSessionID          string                        `json:"web_session_id"`                    // Required.
+	User                  string                        `json:"user"`                              // Required.
+	BrowserUserAgent      string                        `json:"browser_user_agent"`                // Required.
+	BrowserIP             string                        `json:"browser_ip"`                        // Required.
+	ExpectedDeviceIDs     []string                      `json:"expected_device_ids"`               // Required.
+	AuthenticatedDeviceID string                        `json:"authenticated_device_id,omitempty"` // present on Confirm state.
 }

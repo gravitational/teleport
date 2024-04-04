@@ -3929,12 +3929,12 @@ func TestS_CreateDeviceWebToken(t *testing.T) {
 
 func TestS_SpendDeviceWebToken(t *testing.T) {
 	env := mustNewEnv()
-	defer env.Close()
+	t.Cleanup(func() { env.Close() })
 
 	s := env.S
 	ctx := context.Background()
 
-	initialToken := &devicepb.DeviceWebToken{
+	sampleToken := &devicepb.DeviceWebToken{
 		WebSessionId:      "llama-session-id-1234",
 		BrowserUserAgent:  sampleUserAgent,
 		BrowserIp:         sampleIP,
@@ -3942,93 +3942,111 @@ func TestS_SpendDeviceWebToken(t *testing.T) {
 		ExpectedDeviceIds: []string{"device-id-1"},
 	}
 
-	validToken, err := s.CreateDeviceWebToken(ctx, initialToken)
-	if err != nil {
-		t.Fatalf("CreateDeviceWebToken failed: %v", err)
+	createWebToken := func(t *testing.T) *devicepb.DeviceWebToken {
+		token, err := s.CreateDeviceWebToken(ctx, sampleToken)
+		if err != nil {
+			t.Fatalf("CreateDeviceWebToken failed: %v", err)
+		}
+		return token
 	}
 
 	// Success scenario.
 	t.Run("success", func(t *testing.T) {
-		got, err := s.SpendDeviceWebToken(ctx, validToken)
+		t.Parallel()
+
+		token := createWebToken(t)
+
+		got, err := s.SpendDeviceWebToken(ctx, token)
 		if err != nil {
 			t.Fatalf("SpendDeviceWebToken failed: %v", err)
 		}
 
-		want := proto.Clone(initialToken).(*devicepb.DeviceWebToken)
-		want.Id = validToken.Id
+		want := proto.Clone(sampleToken).(*devicepb.DeviceWebToken)
+		want.Id = token.Id
 		want.Token = ""
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 			t.Errorf("SpendDeviceWebToken mismatch (-want +got)\n%s", diff)
 		}
+
+		t.Run("previously spent token", func(t *testing.T) {
+			_, err := s.SpendDeviceWebToken(ctx, token)
+			if !trace.IsBadParameter(err) {
+				t.Errorf("SpendDeviceWebToken error mismatch, err=%v (%T), want BadParameter", err, trace.Unwrap(err))
+			}
+			assert.ErrorContains(t, err, "attempt state", "SpendDeviceWebToken error mismatch")
+		})
 	})
 
-	createToken := func(t *testing.T, fn func(*devicepb.DeviceWebToken)) *devicepb.DeviceWebToken {
-		token, err := s.CreateDeviceWebToken(ctx, initialToken)
-		if err != nil {
-			t.Fatalf("CreateDeviceWebToken failed: %v", err)
-		}
-		fn(token)
-		return token
-	}
-
 	const invalidToken = "ceci n'est pas a valid token"
+	invalidTokenB64 := base64.RawURLEncoding.EncodeToString([]byte(invalidToken))
 
 	// Failure scenarios.
 	tests := []struct {
 		name            string
-		token           *devicepb.DeviceWebToken
-		assertErrorType func(err error) bool // defaults to trace.IsBadParameter
+		createToken     func(t *testing.T) *devicepb.DeviceWebToken // modified test token
+		assertErrorType func(err error) bool                        // defaults to trace.IsBadParameter
 		wantErr         string
 		wantDeleted     bool // Verifies if a subsequent Spend returns NotFound.
 	}{
 		{
-			name:            "previously spent token",
-			token:           validToken,
-			assertErrorType: trace.IsNotFound,
-		},
-		{
 			name: "unknown token",
-			token: &devicepb.DeviceWebToken{
-				Id:    "unknown-token-ID",
-				Token: validToken.Token,
+			createToken: func(_ *testing.T) *devicepb.DeviceWebToken {
+				return &devicepb.DeviceWebToken{
+					Id:    "unknown-token-ID",
+					Token: invalidTokenB64,
+				}
 			},
 			assertErrorType: trace.IsNotFound,
 		},
 		{
 			name: "ID empty",
-			token: &devicepb.DeviceWebToken{
-				Token: validToken.Token,
+			createToken: func(_ *testing.T) *devicepb.DeviceWebToken {
+				return &devicepb.DeviceWebToken{
+					Token: invalidTokenB64,
+				}
 			},
 			wantErr: "token ID required",
 		},
 		{
 			name: "Token empty",
-			token: createToken(t, func(token *devicepb.DeviceWebToken) {
+			createToken: func(t *testing.T) *devicepb.DeviceWebToken {
+				token := createWebToken(t)
 				token.Token = "" // Same as an invalid token.
-			}),
-			wantErr:     "invalid web token",
+				return token
+			},
+			wantErr:     "invalid device token",
 			wantDeleted: true,
 		},
 		{
 			name: "Token invalid",
-			token: createToken(t, func(token *devicepb.DeviceWebToken) {
-				token.Token = base64.RawStdEncoding.EncodeToString([]byte(invalidToken))
-			}),
-			wantErr:     "invalid web token",
+			createToken: func(t *testing.T) *devicepb.DeviceWebToken {
+				token := createWebToken(t)
+				token.Token = invalidTokenB64
+				return token
+			},
+			wantErr:     "invalid device token",
 			wantDeleted: true,
 		},
 		{
 			name: "Token not base64",
-			token: createToken(t, func(token *devicepb.DeviceWebToken) {
-				token.Token = invalidToken
-			}),
+			createToken: func(t *testing.T) *devicepb.DeviceWebToken {
+				token := createWebToken(t)
+				token.Token = invalidToken // bad encoding
+				return token
+			},
 			wantErr:     "base64",
 			wantDeleted: true,
 		},
 	}
 	for _, test := range tests {
+		test := test
+
 		t.Run(test.name, func(t *testing.T) {
-			_, err := s.SpendDeviceWebToken(ctx, test.token)
+			t.Parallel()
+
+			token := test.createToken(t)
+
+			_, err := s.SpendDeviceWebToken(ctx, token)
 			if err == nil {
 				t.Fatal("SpendDeviceWebToken returned err=nil, want non-nil")
 			}
@@ -4050,7 +4068,7 @@ func TestS_SpendDeviceWebToken(t *testing.T) {
 			if !test.wantDeleted {
 				return
 			}
-			if _, err := s.SpendDeviceWebToken(ctx, test.token); !trace.IsNotFound(err) {
+			if _, err := s.SpendDeviceWebToken(ctx, token); !trace.IsNotFound(err) {
 				t.Errorf("SpendDeviceEnrollToken returned err=%q (%T), wanted NotFound (signifying a spent token)", err, trace.Unwrap(err))
 			}
 		})
