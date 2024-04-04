@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 )
 
@@ -1378,6 +1379,10 @@ func TestCreateResources(t *testing.T) {
 			create: testCreateDatabaseObjectImportRule,
 		},
 		{
+			kind:   types.KindDatabaseObject,
+			create: testCreateDatabaseObject,
+		},
+		{
 			kind:   types.KindClusterNetworkingConfig,
 			create: testCreateClusterNetworkingConfig,
 		},
@@ -1877,6 +1882,62 @@ version: v2
 
 	_, err = runResourceCommand(t, fc, []string{"create", "-f", srcYAMLPath})
 	require.NoError(t, err)
+}
+
+func testCreateDatabaseObject(t *testing.T, fc *config.FileConfig) {
+	const resourceYAML = `kind: db_object
+metadata:
+  expires: "2034-03-22T18:06:35.161162Z"
+  id: 1711129895244889000
+  labels:
+    database: foo
+    kind: table
+    name: page_views
+    protocol: postgres
+    schema: web_metrics
+    service_name: pg-docker
+  name: test_table
+  revision: 066f87d9-02cf-4062-9419-96523664c082
+spec:
+  database: foo
+  database_service_name: pg-docker
+  name: page_views
+  object_kind: table
+  protocol: postgres
+  schema: web_metrics
+version: v1
+`
+
+	// Verify there are no pre-existing objects
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindDatabaseObject, "--format=json"})
+	require.NoError(t, err)
+
+	resources := mustDecodeJSON[[]databaseobject.Resource](t, buf)
+	require.Empty(t, resources)
+
+	// Create the resource
+	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", resourceYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the resource
+	buf, err = runResourceCommand(t, fc, []string{"get", types.KindDatabaseObject, "--format=json"})
+	require.NoError(t, err)
+	resources = mustDecodeJSON[[]databaseobject.Resource](t, buf)
+	require.Len(t, resources, 1)
+
+	// Compare with baseline
+	cmpOpts := []cmp.Option{
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+		protocmp.Transform(),
+	}
+
+	var expected databaseobject.Resource
+	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
+
+	require.Equal(t, "", cmp.Diff(expected, resources[0], cmpOpts...))
+	require.Equal(t, "", cmp.Diff(databaseobject.ResourceToProto(&expected), databaseobject.ResourceToProto(&resources[0]), cmpOpts...))
 }
 
 // TestCreateEnterpriseResources asserts that tctl create
