@@ -1004,7 +1004,7 @@ func waitForMariaDBAutoUserDeactivate(t *testing.T, conn *mySQLConn, user string
 		}
 		result.Close()
 
-		result, err = conn.Execute("SELECT 1 FROM mysql.roles_mapping AS u WHERE u.user = ? AND u.role != 'teleport-auto-user'", user)
+		result, err = conn.Execute("SELECT 1 FROM mysql.roles_mapping AS u WHERE u.user = ? AND u.role != 'teleport-auto-user' AND u.ADMIN_OPTION='N'", user)
 		if !assert.NoError(c, err) {
 			return
 		}
