@@ -628,7 +628,7 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 		return nil, trace.Wrap(err)
 	}
 
-	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf, tc, listener), opts...)
+	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf.Context, tc, listener, cf.InsecureSkipVerify), opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

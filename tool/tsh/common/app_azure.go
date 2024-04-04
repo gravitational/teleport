@@ -238,7 +238,7 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 	}
 
 	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
-		makeBasicLocalProxyConfig(a.cf, tc, listener),
+		makeBasicLocalProxyConfig(a.cf.Context, tc, listener, a.cf.InsecureSkipVerify),
 		alpnproxy.WithClientCert(appCert),
 		alpnproxy.WithClusterCAsIfConnUpgrade(a.cf.Context, tc.RootClusterCACertPool),
 		alpnproxy.WithHTTPMiddleware(&alpnproxy.AzureMSIMiddleware{

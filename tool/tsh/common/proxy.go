@@ -211,7 +211,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf, tc, listener), proxyOpts...)
+	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf.Context, tc, listener, cf.InsecureSkipVerify), proxyOpts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -397,45 +397,19 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	opts := []alpnproxy.LocalProxyConfigOpt{
-		alpnproxy.WithALPNProtocol(alpnProtocolForApp(app)),
-		alpnproxy.WithClusterCAsIfConnUpgrade(cf.Context, tc.RootClusterCACertPool),
-		alpnproxy.WithMiddleware(libclient.NewAppCertChecker(tc, routeToApp, nil)),
-	}
-
-	addr := "localhost:0"
-	if cf.LocalProxyPort != "" {
-		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
-	}
-
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
+	proxyApp := newLocalProxyApp(tc, routeToApp, cf.LocalProxyPort, cf.InsecureSkipVerify)
+	if err := proxyApp.startLocalALPNProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocolForApp(app))); err != nil {
 		return trace.Wrap(err)
 	}
 
-	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf, tc, listener), opts...)
-	if err != nil {
-		if cerr := listener.Close(); cerr != nil {
-			return trace.NewAggregate(err, cerr)
+	defer func() {
+		if err := proxyApp.Close(); err != nil {
+			log.WithError(err).Error("Failed to close app proxy.")
 		}
-		return trace.Wrap(err)
-	}
-
-	fmt.Printf("Proxying connections to %s on %v\n", cf.AppName, lp.GetAddr())
-	if cf.LocalProxyPort == "" {
-		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
-	}
-
-	go func() {
-		<-cf.Context.Done()
-		lp.Close()
 	}()
 
-	defer lp.Close()
-	if err = lp.Start(cf.Context); err != nil {
-		return trace.Wrap(err)
-	}
-
+	// Proxy connections until the client terminates the command.
+	<-cf.Context.Done()
 	return nil
 }
 
@@ -684,11 +658,11 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
-func makeBasicLocalProxyConfig(cf *CLIConf, tc *libclient.TeleportClient, listener net.Listener) alpnproxy.LocalProxyConfig {
+func makeBasicLocalProxyConfig(ctx context.Context, tc *libclient.TeleportClient, listener net.Listener, insecure bool) alpnproxy.LocalProxyConfig {
 	return alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:         tc.WebProxyAddr,
-		InsecureSkipVerify:      cf.InsecureSkipVerify,
-		ParentContext:           cf.Context,
+		InsecureSkipVerify:      insecure,
+		ParentContext:           ctx,
 		Listener:                listener,
 		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 	}
