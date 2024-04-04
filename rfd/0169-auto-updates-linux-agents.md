@@ -70,7 +70,7 @@ $ systemctl enable teleport
   "agent_version": "15.1.1",
   "agent_auto_update": true,
   "agent_update_after": "2024-04-23T18:00:00.000Z",
-  "agent_update_jitter": 10,
+  "agent_update_jitter_seconds": 10,
 }
 ```
 Notes:
@@ -90,9 +90,9 @@ spec:
   # agent_update_hour sets the hour in UTC at which clients should update their agents.
   # The value -1 will set the upgrade time to the current time, resulting in immediate upgrades.
   agent_update_hour: -1-23
-  # agent_update_jitter sets a duration in which the upgrade will occur after the hour.
+  # agent_update_jitter_seconds sets a duration in which the upgrade will occur after the hour.
   # The agent upgrader will pick a random time within this duration in which to upgrade.
-  agent_update_jitter: 0-MAXINT64
+  agent_update_jitter_seconds: 0-MAXINT64
   
   [...]
 ```
@@ -101,7 +101,7 @@ $ tctl autoupdate update --set-agent-auto-update=off
 Automatic updates configuration has been updated.
 $ tctl autoupdate update --set-agent-update-hour=3
 Automatic updates configuration has been updated.
-$ tctl autoupdate update --set-agent-update-jitterr=600
+$ tctl autoupdate update --set-agent-update-jitter-seconds=600
 Automatic updates configuration has been updated.
 ```
 
@@ -210,7 +210,7 @@ When `update` subcommand is otherwise executed, it will:
 2. Query the `/v1/webapi/ping` endpoint.
 3. Check if the current time is after the time advertised in `agent_update_after`, and that `agent_auto_updates` is true.
 4. If the current version of Teleport is the latest, quit.
-5. Wait `random(0, agent_update_jitter)` seconds.
+5. Wait `random(0, agent_update_jitter_seconds)` seconds.
 6. Download the desired Teleport tarball specified by `agent_version`.
 7. Verify the checksum.
 8. Extract the tarball to `/var/lib/teleport/versions/VERSION`.
