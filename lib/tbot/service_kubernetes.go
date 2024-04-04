@@ -21,7 +21,7 @@ import (
 // not intended to be used and exists to demonstrate how a user configurable
 // service integrates with the tbot service manager.
 type KubernetesService struct {
-	cfg *config.KubernetesService
+	cfg *config.UnstableKubernetesService
 
 	botCfg         *config.BotConfig
 	proxyPingCache *proxyPingCache
@@ -129,18 +129,6 @@ func (s *KubernetesService) OneShot(ctx context.Context) error {
 	switch s.cfg.Format {
 	case config.KubernetesServiceFormatKubeconfig:
 		// Write all clusters to one kubeconfig:
-	case config.KubernetesServiceFormatArgoCD:
-		// Write all clusters to seperate secrets
-		for _, clusterIdentity := range clusterIdentities {
-			d := config.DestinationKubernetesSecret{
-				Name: fmt.Sprintf("tbot-argocd-%s", clusterIdentity.cluster.GetName()),
-				Labels: map[string]string{
-					// Magic label which argocd searches for
-					"argocd.argoproj.io/secret-type": "cluster",
-				},
-			}
-			d.Write(ctx, "foo", nil)
-		}
 	}
 
 	return nil
