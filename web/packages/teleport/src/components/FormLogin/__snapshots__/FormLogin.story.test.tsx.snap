@@ -3806,7 +3806,7 @@ exports[`sso providers rendering 1`] = `
               class="c20"
               kind="secondary"
             >
-              Sign in with Username and Password
+              Sign in with username and password
             </button>
           </div>
         </div>
