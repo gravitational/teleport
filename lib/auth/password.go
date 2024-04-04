@@ -101,9 +101,13 @@ func (a *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 }
 
 // ResetPassword deletes the user's password. This method is used to invalidate
-// existing user password during password reset process.
+// existing user password during password reset process. This function doesn't
+// fail if the user doesn't have a password or the user doesn't exist at all.
 func (a *Server) ResetPassword(ctx context.Context, username string) error {
-	return trace.Wrap(a.DeletePassword(ctx, username))
+	if err := a.DeletePassword(ctx, username); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // ChangePassword updates users password based on the old password.

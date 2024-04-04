@@ -580,8 +580,7 @@ func (s *IdentityService) getUserWithSecrets(ctx context.Context, user string) (
 
 func (s *IdentityService) upsertLocalAuthSecrets(ctx context.Context, user string, auth types.LocalAuthSecrets) error {
 	if len(auth.PasswordHash) > 0 {
-		err := s.upsertPasswordHash(user, auth.PasswordHash)
-		if err != nil {
+		if err := s.upsertPasswordHash(user, auth.PasswordHash); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -808,8 +807,7 @@ func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 		return trace.Wrap(err)
 	}
 
-	err = s.upsertPasswordHash(user, hash)
-	if err != nil {
+	if err := s.upsertPasswordHash(user, hash); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -830,31 +828,30 @@ func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 }
 
 // DeletePassword deletes user's password and sets the `PasswordState` status
-// flag accordingly. Does NOT return an error if the password didn't exist.
+// flag accordingly.
 func (s *IdentityService) DeletePassword(ctx context.Context, user string) error {
 	if user == "" {
 		return trace.BadParameter("missing username")
 	}
 
-	err := s.Delete(ctx, backend.Key(webPrefix, usersPrefix, user, pwdPrefix))
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
+	delErr := s.Delete(ctx, backend.Key(webPrefix, usersPrefix, user, pwdPrefix))
+
+	if delErr == nil || trace.IsNotFound(delErr) {
+		_, err := s.UpdateAndSwapUser(
+			context.TODO(),
+			user,
+			false, /*withSecrets*/
+			func(u types.User) (bool, error) {
+				u.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSET)
+				return true, nil
+			})
+		if err != nil {
+			// Don't let the password state flag change fail the entire operation.
+			s.log.WithError(err).Info("Failed to set password state")
+		}
 	}
 
-	_, err = s.UpdateAndSwapUser(
-		context.TODO(),
-		user,
-		false, /*withSecrets*/
-		func(u types.User) (bool, error) {
-			u.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSET)
-			return true, nil
-		})
-	if err != nil {
-		// Don't let the password state flag change fail the entire operation.
-		s.log.WithError(err).Info("Failed to set password state")
-	}
-
-	return nil
+	return trace.Wrap(delErr)
 }
 
 func (s *IdentityService) UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error {

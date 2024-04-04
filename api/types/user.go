@@ -150,8 +150,6 @@ type User interface {
 	// who were created before this property was introduced and didn't perform any
 	// password-related activity since then. See RFD 0159 for details.
 	SetPasswordState(PasswordState)
-	// DeepCopy creates a clone of this User value.
-	DeepCopy() User
 }
 
 // NewUser creates new empty user

@@ -114,7 +114,7 @@ type Identity interface {
 	UpsertPassword(user string, password []byte) error
 
 	// DeletePassword deletes user's password and sets the `PasswordState` status
-	// flag accordingly. Does NOT return an error if the password didn't exist.
+	// flag accordingly.
 	DeletePassword(ctx context.Context, username string) error
 
 	// UpsertWebauthnLocalAuth creates or updates the local auth configuration for

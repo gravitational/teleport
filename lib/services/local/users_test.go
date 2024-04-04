@@ -1261,10 +1261,10 @@ func TestIdentityService_UpsertAndDeletePassword(t *testing.T) {
 	assert.Nil(t, user.GetLocalAuth(), "secrets are not empty")
 	assert.Equal(t, types.PasswordState_PASSWORD_STATE_UNSET, user.GetPasswordState(), "password state is not UNSET")
 
-	// Attempt to delete the password again. This should be idempotent and not
-	// return an error.
+	// Attempt to delete the password again. This should return an error.
 	err = identity.DeletePassword(ctx, "capybara")
-	assert.NoError(t, err)
+	assert.Error(t, err)
+	assert.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
 	user, err = identity.GetUser(ctx, "capybara", true /* withSecrets */)
 	require.NoError(t, err, "failed to get the user")
 	assert.Nil(t, user.GetLocalAuth(), "secrets are not empty")
