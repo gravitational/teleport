@@ -141,6 +141,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/tunnelconnections", srv.WithAuth(srv.deleteAllTunnelConnections))
 
 	// Remote clusters
+	// TODO(noah): DELETE IN 17.0.0 - all these methods are now gRPC.
 	srv.GET("/:version/remoteclusters/:cluster", srv.WithAuth(srv.getRemoteCluster))
 	srv.GET("/:version/remoteclusters", srv.WithAuth(srv.getRemoteClusters))
 	srv.DELETE("/:version/remoteclusters/:cluster", srv.WithAuth(srv.deleteRemoteCluster))

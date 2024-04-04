@@ -15,7 +15,16 @@ spec:
     singular: teleportuser
   scope: Namespaced
   versions:
-  - name: v2
+  - additionalPrinterColumns:
+    - description: List of Teleport roles granted to the user.
+      jsonPath: .spec.roles
+      name: Roles
+      type: string
+    - description: The age of this resource
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v2
     schema:
       openAPIV3Schema:
         description: User is the Schema for the users API

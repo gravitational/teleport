@@ -5998,19 +5998,19 @@ message OktaUserSync {
 
   // NumUsersCreated is the number of Teleport users created in this
   // synchronization pass.
-  int32 num_users_created = 5;
+  int32 num_users_created = 5 [(gogoproto.jsontag) = "num_users_created"];
 
   // NumUsersDeleted is the number of Teleport users deleted in this
   // synchronization pass.
-  int32 num_users_deleted = 6;
+  int32 num_users_deleted = 6 [(gogoproto.jsontag) = "num_users_deleted"];
 
   // NumUserModified is the number of Teleport users modified in this
   // synchronization pass.
-  int32 num_users_modified = 7;
+  int32 num_users_modified = 7 [(gogoproto.jsontag) = "num_users_modified"];
 
   // NumUsersTotal is the total number of Teleport users managed by the Okta
   // integration at the end of the synchronzaton pass.
-  int32 num_users_total = 8;
+  int32 num_users_total = 8 [(gogoproto.jsontag) = "num_users_total"];
 }
 
 // SPIFFESVIDIssued is an event recorded when a SPIFFE SVID is issued.

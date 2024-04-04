@@ -31,6 +31,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -40,12 +41,14 @@ import (
 	"google.golang.org/grpc/credentials"
 	ggzip "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
+	gmetadata "google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/accesslist"
+	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
@@ -58,8 +61,10 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
@@ -71,6 +76,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
@@ -846,6 +852,11 @@ func (c *Client) BotServiceClient() machineidv1pb.BotServiceClient {
 	return machineidv1pb.NewBotServiceClient(c.conn)
 }
 
+// PresenceServiceClient returns an unadorned client for the presence service.
+func (c *Client) PresenceServiceClient() presencepb.PresenceServiceClient {
+	return presencepb.NewPresenceServiceClient(c.conn)
+}
+
 // WorkloadIdentityServiceClient returns an unadorned client for the workload
 // identity service.
 func (c *Client) WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient {
@@ -860,17 +871,6 @@ func (c *Client) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}
 
 	return *rsp, nil
-}
-
-// UpdateRemoteCluster updates remote cluster from the specified value.
-func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error {
-	rcV3, ok := rc.(*types.RemoteClusterV3)
-	if !ok {
-		return trace.BadParameter("unsupported remote cluster type %T", rcV3)
-	}
-
-	_, err := c.grpc.UpdateRemoteCluster(ctx, rcV3)
-	return trace.Wrap(err)
 }
 
 // CreateUser creates a new user from the specified descriptor.
@@ -1051,8 +1051,33 @@ func (c *Client) getUsersCompat(ctx context.Context, withSecrets bool) ([]types.
 
 // ListUsers returns a page of users.
 func (c *Client) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
-	resp, err := userspb.NewUsersServiceClient(c.conn).ListUsers(ctx, req)
-	return resp, trace.Wrap(err)
+	var header gmetadata.MD
+
+	rsp, err := userspb.NewUsersServiceClient(c.conn).ListUsers(ctx, req, grpc.Header(&header))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.Filter == nil {
+		// remaining logic is all filter compat that we can skip
+		return rsp, nil
+	}
+
+	vs, _ := metadata.VersionFromMetadata(header)
+	ver, _ := semver.NewVersion(vs)
+	if ver != nil && ver.Major >= 16 {
+		// auth implements all expected filtering features
+		return rsp, nil
+	}
+
+	filtered := rsp.Users[:0]
+	for _, user := range rsp.Users {
+		if req.Filter.Match(user) {
+			filtered = append(filtered, user)
+		}
+	}
+	rsp.Users = filtered
+	return rsp, nil
 }
 
 // DeleteUser deletes a user by name.
@@ -1795,10 +1820,31 @@ func (c *Client) getRoles(ctx context.Context) ([]types.Role, error) {
 
 // ListRoles is a paginated role getter.
 func (c *Client) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
-	rsp, err := c.grpc.ListRoles(ctx, req)
+	var header gmetadata.MD
+	rsp, err := c.grpc.ListRoles(ctx, req, grpc.Header(&header))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if req.Filter == nil {
+		// remaining logic is all filter compat that we can skip
+		return rsp, nil
+	}
+
+	vs, _ := metadata.VersionFromMetadata(header)
+	ver, _ := semver.NewVersion(vs)
+	if ver != nil && ver.Major >= 16 {
+		// auth implements all expected filtering features
+		return rsp, nil
+	}
+
+	filtered := rsp.Roles[:0]
+	for _, role := range rsp.Roles {
+		if req.Filter.Match(role) {
+			filtered = append(filtered, role)
+		}
+	}
+	rsp.Roles = filtered
 
 	return rsp, nil
 }
@@ -3423,6 +3469,27 @@ func (c *Client) GetDatabaseObjectImportRules(ctx context.Context) ([]*dbobjecti
 	return out, nil
 }
 
+// GetDatabaseObjects retrieves all database objects.
+func (c *Client) GetDatabaseObjects(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
+	var out []*dbobjectv1.DatabaseObject
+	req := &dbobjectv1.ListDatabaseObjectsRequest{}
+	client := c.DatabaseObjectClient()
+	for {
+		resp, err := client.ListDatabaseObjects(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, resp.Objects...)
+
+		if resp.NextPageToken == "" {
+			break
+		}
+		req.PageToken = resp.NextPageToken
+	}
+
+	return out, nil
+}
+
 // GetWindowsDesktopServices returns all registered windows desktop services.
 func (c *Client) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
 	resp, err := c.grpc.GetWindowsDesktopServices(ctx, &emptypb.Empty{})
@@ -3734,51 +3801,39 @@ type ResourcePage[T types.ResourceWithLabels] struct {
 	NextKey string
 }
 
-// getResourceFromProtoPage extracts the resource from the PaginatedResource returned
-// from the rpc ListUnifiedResources
-func getResourceFromProtoPage(resource *proto.PaginatedResource) (types.ResourceWithLabels, error) {
-	var out types.ResourceWithLabels
+// convertEnrichedResource extracts the resource and any enriched information from the
+// PaginatedResource returned from the rpc ListUnifiedResources.
+func convertEnrichedResource(resource *proto.PaginatedResource) (*types.EnrichedResource, error) {
 	if r := resource.GetNode(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins}, nil
 	} else if r := resource.GetDatabaseServer(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetDatabaseService(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetAppServerOrSAMLIdPServiceProvider(); r != nil { //nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetWindowsDesktop(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetWindowsDesktopService(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetKubeCluster(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetKubernetesServer(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetUserGroup(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetAppServer(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else if r := resource.GetSAMLIdPServiceProvider(); r != nil {
-		out = r
-		return out, nil
+		return &types.EnrichedResource{ResourceWithLabels: r}, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
 	}
 }
 
-// ListUnifiedResourcePage is a helper for getting a single page of unified resources that match the provided request.
-func ListUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (ResourcePage[types.ResourceWithLabels], error) {
-	var out ResourcePage[types.ResourceWithLabels]
+// GetUnifiedResourcePage is a helper for getting a single page of unified resources that match the provided request.
+func GetUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) ([]*types.EnrichedResource, string, error) {
+	var out []*types.EnrichedResource
 
 	// Set the limit to the default size if one was not provided within
 	// an acceptable range.
@@ -3794,26 +3849,24 @@ func ListUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient
 				req.Limit /= 2
 				// This is an extremely unlikely scenario, but better to cover it anyways.
 				if req.Limit == 0 {
-					return out, trace.Wrap(err, "resource is too large to retrieve")
+					return nil, "", trace.Wrap(err, "resource is too large to retrieve")
 				}
 
 				continue
 			}
 
-			return out, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
 
 		for _, respResource := range resp.Resources {
-			resource, err := getResourceFromProtoPage(respResource)
+			resource, err := convertEnrichedResource(respResource)
 			if err != nil {
-				return out, trace.Wrap(err)
+				return nil, "", trace.Wrap(err)
 			}
-			out.Resources = append(out.Resources, resource)
+			out = append(out, resource)
 		}
 
-		out.NextKey = resp.NextKey
-
-		return out, nil
+		return out, resp.NextKey, nil
 	}
 }
 
@@ -4705,9 +4758,22 @@ func (c *Client) AccessListClient() *accesslist.Client {
 	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(c.conn))
 }
 
+// AccessMonitoringRulesClient returns an Access Monitoring Rules client.
+// Clients connecting to  older Teleport versions, still get an access list client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+func (c *Client) AccessMonitoringRulesClient() *accessmonitoringrules.Client {
+	return accessmonitoringrules.NewClient(accessmonitoringrulev1.NewAccessMonitoringRulesServiceClient(c.conn))
+}
+
 // DatabaseObjectImportRuleClient returns a client for managing database object import rules.
 func (c *Client) DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient {
 	return dbobjectimportrulev1.NewDatabaseObjectImportRuleServiceClient(c.conn)
+}
+
+// DatabaseObjectClient returns a client for managing database objects.
+func (c *Client) DatabaseObjectClient() dbobjectv1.DatabaseObjectServiceClient {
+	return dbobjectv1.NewDatabaseObjectServiceClient(c.conn)
 }
 
 // DiscoveryConfigClient returns a DiscoveryConfig client.
@@ -4956,4 +5022,49 @@ func (c *Client) UpsertUserPreferences(ctx context.Context, in *userpreferencesp
 // "not implemented" errors (as per the default gRPC behavior).
 func (c *Client) ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient {
 	return resourceusagepb.NewResourceUsageServiceClient(c.conn)
+}
+
+// UpdateRemoteCluster updates remote cluster from the specified value.
+// TODO(noah): In v17.0.0 this method should switch to call UpdateRemoteCluster
+// on the presence service client.
+func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error {
+	rcV3, ok := rc.(*types.RemoteClusterV3)
+	if !ok {
+		return trace.BadParameter("unsupported remote cluster type %T", rcV3)
+	}
+
+	_, err := c.grpc.UpdateRemoteCluster(ctx, rcV3)
+	return trace.Wrap(err)
+}
+
+// ListRemoteClusters returns a page of remote clusters.
+func (c *Client) ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error) {
+	res, err := c.PresenceServiceClient().ListRemoteClusters(ctx, &presencepb.ListRemoteClustersRequest{
+		PageSize:  int32(pageSize),
+		PageToken: nextToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	rcs := make([]types.RemoteCluster, 0, len(res.RemoteClusters))
+	for _, rc := range res.RemoteClusters {
+		rcs = append(rcs, rc)
+	}
+	return rcs, res.NextPageToken, nil
+}
+
+// DeleteRemoteCluster creates remote cluster resource
+func (c *Client) DeleteRemoteCluster(ctx context.Context, name string) error {
+	_, err := c.PresenceServiceClient().DeleteRemoteCluster(ctx, &presencepb.DeleteRemoteClusterRequest{
+		Name: name,
+	})
+	return trace.Wrap(err)
+}
+
+// GetRemoteCluster returns remote cluster by name
+func (c *Client) GetRemoteCluster(ctx context.Context, name string) (types.RemoteCluster, error) {
+	rc, err := c.PresenceServiceClient().GetRemoteCluster(ctx, &presencepb.GetRemoteClusterRequest{
+		Name: name,
+	})
+	return rc, trace.Wrap(err)
 }

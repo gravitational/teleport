@@ -51,6 +51,8 @@ type DefaultBotConfigOpts struct {
 	ServiceConfigs botconfig.ServiceConfigs
 }
 
+const AgentJoinToken = "i-am-a-join-token"
+
 // DefaultConfig returns a FileConfig to be used in tests, with random listen
 // addresses that are tied to the listeners returned in the FileDescriptor
 // slice, which should be passed as exported file descriptors to NewTeleport;
@@ -79,6 +81,9 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []*servicecfg.FileDescript
 				EnabledFlag:   "true",
 				ListenAddress: testenv.NewTCPListener(t, service.ListenerAuth, &fds),
 			},
+			StaticTokens: config.StaticTokens{
+				config.StaticToken("db:" + AgentJoinToken),
+			},
 		},
 	}
 
@@ -102,7 +107,7 @@ func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileCon
 	require.NoError(t, auth.Start())
 
 	t.Cleanup(func() {
-		cfg.Log.Info("Cleaning up Auth Server.")
+		cfg.Logger.InfoContext(context.Background(), "Cleaning up Auth Server.")
 		auth.Close()
 	})
 

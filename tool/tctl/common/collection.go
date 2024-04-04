@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -45,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/oktaassignment"
@@ -1186,6 +1188,32 @@ func (c *databaseObjectImportRuleCollection) writeText(w io.Writer, verbose bool
 			fmt.Sprintf("%v", b.GetSpec().GetPriority()),
 			fmt.Sprintf("%v", len(b.GetSpec().GetMappings())),
 			fmt.Sprintf("%v", len(b.GetSpec().GetDatabaseLabels())),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type databaseObjectCollection struct {
+	objects []*dbobjectv1.DatabaseObject
+}
+
+func (c *databaseObjectCollection) resources() []types.Resource {
+	resources := make([]types.Resource, len(c.objects))
+	for i, b := range c.objects {
+		resources[i] = databaseobject.ProtoToResource(b)
+	}
+	return resources
+}
+
+func (c *databaseObjectCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name", "Kind", "DB Service", "Protocol"})
+	for _, b := range c.objects {
+		t.AddRow([]string{
+			b.GetMetadata().GetName(),
+			fmt.Sprintf("%v", b.GetSpec().GetObjectKind()),
+			fmt.Sprintf("%v", b.GetSpec().GetDatabaseServiceName()),
+			fmt.Sprintf("%v", b.GetSpec().GetProtocol()),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)

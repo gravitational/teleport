@@ -83,19 +83,15 @@ exports[`list of all events 1`] = `
 
 .c13:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c13:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c13:hover:enabled,
-.c13:focus:enabled {
+.c13:not(:disabled):hover,
+.c13:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c13:active:enabled {
+.c13:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -122,19 +118,15 @@ exports[`list of all events 1`] = `
 
 .c16:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c16:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c16:hover:enabled,
-.c16:focus:enabled {
+.c16:not(:disabled):hover,
+.c16:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c16:active:enabled {
+.c16:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -9253,7 +9245,7 @@ exports[`list of all events 1`] = `
                 />
               </svg>
             </span>
-            GITHUB Auth Connector Updated
+            GitHub Auth Connector Updated
           </div>
         </td>
         <td
@@ -9307,7 +9299,7 @@ exports[`list of all events 1`] = `
                 />
               </svg>
             </span>
-            GITHUB Auth Connector Deleted
+            GitHub Auth Connector Deleted
           </div>
         </td>
         <td
@@ -9361,7 +9353,7 @@ exports[`list of all events 1`] = `
                 />
               </svg>
             </span>
-            GITHUB Auth Connector Created
+            GitHub Auth Connector Created
           </div>
         </td>
         <td

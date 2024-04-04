@@ -33,6 +33,7 @@ import type { IBinaryReader } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+import { DeviceConfirmationToken } from "../../../devicetrust/v1/device_confirmation_token_pb";
 import { DeviceWebToken } from "../../../devicetrust/v1/device_web_token_pb";
 import { UnifiedResourcePreferences } from "../../../userpreferences/v1/unified_resource_preferences_pb";
 import { ClusterUserPreferences } from "../../../userpreferences/v1/cluster_preferences_pb";
@@ -1214,6 +1215,10 @@ export interface AuthenticateWebDeviceRequest {
      * @generated from protobuf field: teleport.devicetrust.v1.DeviceWebToken device_web_token = 1;
      */
     deviceWebToken?: DeviceWebToken;
+    /**
+     * @generated from protobuf field: string root_cluster_uri = 2;
+     */
+    rootClusterUri: string;
 }
 /**
  * Response for AuthenticateWebDevice.
@@ -1221,6 +1226,13 @@ export interface AuthenticateWebDeviceRequest {
  * @generated from protobuf message teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse
  */
 export interface AuthenticateWebDeviceResponse {
+    /**
+     * Device confirmation token to be sent to the browser that originated the
+     * authentication attempt.
+     *
+     * @generated from protobuf field: teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 1;
+     */
+    confirmationToken?: DeviceConfirmationToken;
 }
 /**
  * PasswordlessPrompt describes different prompts we need from users
@@ -5410,11 +5422,13 @@ export const UserPreferences = new UserPreferences$Type();
 class AuthenticateWebDeviceRequest$Type extends MessageType<AuthenticateWebDeviceRequest> {
     constructor() {
         super("teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest", [
-            { no: 1, name: "device_web_token", kind: "message", T: () => DeviceWebToken }
+            { no: 1, name: "device_web_token", kind: "message", T: () => DeviceWebToken },
+            { no: 2, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AuthenticateWebDeviceRequest>): AuthenticateWebDeviceRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
+        message.rootClusterUri = "";
         if (value !== undefined)
             reflectionMergePartial<AuthenticateWebDeviceRequest>(this, message, value);
         return message;
@@ -5426,6 +5440,9 @@ class AuthenticateWebDeviceRequest$Type extends MessageType<AuthenticateWebDevic
             switch (fieldNo) {
                 case /* teleport.devicetrust.v1.DeviceWebToken device_web_token */ 1:
                     message.deviceWebToken = DeviceWebToken.internalBinaryRead(reader, reader.uint32(), options, message.deviceWebToken);
+                    break;
+                case /* string root_cluster_uri */ 2:
+                    message.rootClusterUri = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -5442,6 +5459,9 @@ class AuthenticateWebDeviceRequest$Type extends MessageType<AuthenticateWebDevic
         /* teleport.devicetrust.v1.DeviceWebToken device_web_token = 1; */
         if (message.deviceWebToken)
             DeviceWebToken.internalBinaryWrite(message.deviceWebToken, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* string root_cluster_uri = 2; */
+        if (message.rootClusterUri !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.rootClusterUri);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -5455,7 +5475,9 @@ export const AuthenticateWebDeviceRequest = new AuthenticateWebDeviceRequest$Typ
 // @generated message type with reflection information, may provide speed optimized methods
 class AuthenticateWebDeviceResponse$Type extends MessageType<AuthenticateWebDeviceResponse> {
     constructor() {
-        super("teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse", []);
+        super("teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse", [
+            { no: 1, name: "confirmation_token", kind: "message", T: () => DeviceConfirmationToken }
+        ]);
     }
     create(value?: PartialMessage<AuthenticateWebDeviceResponse>): AuthenticateWebDeviceResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -5464,9 +5486,28 @@ class AuthenticateWebDeviceResponse$Type extends MessageType<AuthenticateWebDevi
         return message;
     }
     internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AuthenticateWebDeviceResponse): AuthenticateWebDeviceResponse {
-        return target ?? this.create();
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token */ 1:
+                    message.confirmationToken = DeviceConfirmationToken.internalBinaryRead(reader, reader.uint32(), options, message.confirmationToken);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
     }
     internalBinaryWrite(message: AuthenticateWebDeviceResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 1; */
+        if (message.confirmationToken)
+            DeviceConfirmationToken.internalBinaryWrite(message.confirmationToken, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

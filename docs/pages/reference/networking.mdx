@@ -61,7 +61,11 @@ specified hosts/netmasks/ports.
 
 By default, Teleport installations based on package managers (such as `apt` and
 `yum`) configure The `teleport` systemd unit to read environment variables from
-the file `/etc/default/teleport`. 
+the file `/etc/default/teleport` by using the `EnvironmentFile` field:
+
+```ini
+(!/examples/systemd/teleport.service!)
+```
 
 To configure HTTP CONNECT tunneling, you can assign these environment variables
 within `/etc/default/teleport` on machines that run Teleport binaries. Use the
