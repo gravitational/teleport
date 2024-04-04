@@ -16,25 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import grpc from '@grpc/grpc-js';
 import { GrpcTransport } from '@protobuf-ts/grpc-transport';
-import { TerminalServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
+import {
+  ITerminalServiceClient,
+  TerminalServiceClient,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
 
-import Logger from 'teleterm/logger';
+import { CloneableClient, cloneClient } from './cloneableClient';
 
-import { cloneClient } from './cloneableClient';
-import * as types from './types';
-import { loggingInterceptor } from './interceptors';
+// Creating the client type based on the interface (ITerminalServiceClient) and not the class
+// (TerminalServiceClient) lets us omit a bunch of properties when mocking a client.
+export type TshdClient = CloneableClient<ITerminalServiceClient>;
 
-export function createTshdClient(
-  addr: string,
-  credentials: grpc.ChannelCredentials
-): types.TshdClient {
-  const logger = new Logger('tshd');
-  const transport = new GrpcTransport({
-    host: addr,
-    channelCredentials: credentials,
-    interceptors: [loggingInterceptor(logger)],
-  });
+export function createTshdClient(transport: GrpcTransport): TshdClient {
   return cloneClient(new TerminalServiceClient(transport));
 }

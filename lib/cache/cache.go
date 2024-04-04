@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -2173,20 +2174,39 @@ func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, e
 
 // ListUsers returns a page of users.
 func (c *Cache) ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
-	_, span := c.Tracer.Start(ctx, "cache/ListUsers")
-	defer span.End()
-
-	if withSecrets { // cache never tracks user secrets
-		users, token, err := c.Users.ListUsers(ctx, pageSize, nextToken, withSecrets)
-		return users, token, trace.Wrap(err)
-	}
-	rg, err := readCollectionCache(c, c.collections.users)
+	resp, err := c.ListUsersExt(ctx, &userspb.ListUsersRequest{
+		PageSize:    int32(pageSize),
+		PageToken:   nextToken,
+		WithSecrets: withSecrets,
+	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+
+	out := make([]types.User, 0, len(resp.Users))
+	for _, u := range resp.Users {
+		out = append(out, u)
+	}
+
+	return out, resp.NextPageToken, nil
+}
+
+// ListUsersExt is equivalent to ListUsers but supports additional parameters.
+func (c *Cache) ListUsersExt(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
+	_, span := c.Tracer.Start(ctx, "cache/ListUsers")
+	defer span.End()
+
+	if req.WithSecrets { // cache never tracks user secrets
+		rsp, err := c.Users.ListUsersExt(ctx, req)
+		return rsp, trace.Wrap(err)
+	}
+	rg, err := readCollectionCache(c, c.collections.users)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	defer rg.Release()
-	users, token, err := rg.reader.ListUsers(ctx, pageSize, nextToken, withSecrets)
-	return users, token, trace.Wrap(err)
+	rsp, err := rg.reader.ListUsersExt(ctx, req)
+	return rsp, trace.Wrap(err)
 }
 
 // GetTunnelConnections is a part of auth.Cache implementation

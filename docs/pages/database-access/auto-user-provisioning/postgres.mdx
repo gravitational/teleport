@@ -1,5 +1,5 @@
 ---
-title: PostgreSQL Automatic User Provisioning 
+title: PostgreSQL Automatic User Provisioning
 description: Configure automatic user provisioning for PostgreSQL.
 ---
 
@@ -23,7 +23,7 @@ Automatic user provisioning is not compatible with RDS Aurora reader endpoints.
 Teleport will use the same authentication mechanism when connecting as an admin
 user as for regular user connections: X.509 for self-hosted databases and AWS
 IAM for RDS. The admin user must have privileges within the database to create
-users and grant them privileges.
+users and grant them privileges, either for roles or concrete database objects.
 
 <Tabs>
 <TabItem label="RDS PostgreSQL">
@@ -60,6 +60,14 @@ to ensure that your configuration is correct.
 </TabItem>
 </Tabs>
 
+<Admonition type="note" title="Database Access Controls for `teleport-admin`">
+When [Database Access Controls](./database-access-controls.mdx) feature is in use, the `teleport-admin` should have permissions to relevant database objects. For example:
+
+```sql
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA schema1, schema2, schema3 TO "teleport-admin";
+```
+</Admonition>
+
 Users created by Teleport will be placed in the `teleport-auto-user` group in
 the database, which will be created automatically if it doesn't exist.
 
@@ -71,16 +79,85 @@ the database, which will be created automatically if it doesn't exist.
 
 ## Step 2/3. Configure a Teleport role
 
-(!docs/pages/includes/database-access/auto-user-provisioning/common-teleport-role.mdx!)
+Database permissions are associated with a Teleport role, which can either allocate predefined database roles (configured in each database) or define specific database object permissions directly. Teleport grants these permissions for the duration of the connection.
+
+(!docs/pages/includes/database-access/auto-user-provisioning/db_users_ignored.mdx!)
+
+(!docs/pages/includes/database-access/auto-user-provisioning/modes.mdx!)
+
+<Tabs>
+<TabItem label="Database roles">
+To specify the database roles a user should be assigned within the database,
+use the `db_roles` role option:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: auto-db-users
+spec:
+  options:
+    # create_db_user_mode enables automatic user provisioning for matching databases
+    create_db_user_mode: keep
+  allow:
+    db_labels:
+      "*": "*"
+    db_names:
+    - "*"
+    # db_roles is a list of roles the database user will be assigned
+    db_roles:
+    - reader
+    - "{{internal.db_roles}}"
+    - "{{external.db_roles}}"
+```
+
+The provisioned database user will be assigned all roles from the Teleport user's role set that match the database.
+The role names must be valid and exist in the database.
+See PostgreSQL [CREATE ROLE](https://www.postgresql.org/docs/current/sql-createrole.html) for information on how to create database roles.
+
+</TabItem>
+<TabItem label="Database Access Controls">
+
+Required Teleport version: v15.2 or above.
+
+Use `spec.allow.db_permissions` section in a user role to specify object permissions given user should have.
+
+```yaml
+kind: role
+metadata:
+  name: read_all_tables
+spec:
+  options:
+    # create_db_user_mode enables automatic user provisioning for matching databases
+    create_db_user_mode: keep
+  allow:
+    db_labels:
+      '*': '*'
+    db_names:
+    - '*'
+    db_permissions:
+    # grant `SELECT` on all tables in `public` schema.
+    - match:
+        # object labels to match
+        object_kind: table
+        schema: public
+      permissions:
+      - SELECT
+version: v7
+```
+
+You can define your own labels for database objects, applying them based on customizable import rules. These custom labels, such as `owner` or `environment`, can then be utilized when granting permissions.
+
+For additional information, refer to the [Database Access Controls](./database-access-controls.mdx) page.
+
+</TabItem>
+</Tabs>
+
 
 Users created within the database will:
-
 - Have the same username as the authenticated Teleport user.
 - Be a part of the `teleport-auto-user` role.
-- Be assigned all roles from the Teleport user's role set that match the database.
-  The role names must be valid and exist in the database. See PostgreSQL
-  [CREATE ROLE](https://www.postgresql.org/docs/current/sql-createrole.html)
-  for information on how to create database roles.
+- Will be assigned permissions according to the chosen mechanism.
 
 (!docs/pages/includes/database-access/auto-user-provisioning/username-conflict.mdx!)
 
@@ -176,8 +253,8 @@ GRANT rds_iam TO "teleport-admin" WITH ADMIN OPTION;
   client](../../connect-your-client/gui-clients.mdx).
 - Learn about [role
   templating](../../access-controls/guides/role-templates.mdx#interpolation-rules).
-- Read automatic user provisioning
-  [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).
+- Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).
+- Read database permission management [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0151-database-permission-management.md).
 - The `internal.db_roles` traits we illustrated in this guide
   are replaced with values from the Teleport local user database. For full
   details on how variable expansion works in Teleport roles, see the [Teleport

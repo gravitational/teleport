@@ -344,6 +344,7 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 
 	ctx := context.Background()
 	env := newWebPack(t, 1)
+	proxyPublicURL := env.proxies[0].webURL
 
 	// Unauthenticated client for script downloading.
 	publicClt := env.proxies[0].newClient(t)
@@ -384,6 +385,20 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 				"--role=myRole " +
 				`--s3-bucket-uri=s3://my-bucket/prefix ` +
 				"--s3-jwks-base64=" + jwksBase64,
+		},
+		{
+			name: "valid with proxy endpoint",
+			reqQuery: url.Values{
+				"awsRegion":       []string{"us-east-1"},
+				"role":            []string{"myRole"},
+				"integrationName": []string{"myintegration"},
+			},
+			errCheck: require.NoError,
+			expectedTeleportArgs: "integration configure awsoidc-idp " +
+				"--cluster=localhost " +
+				"--name=myintegration " +
+				"--role=myRole " +
+				"--proxy-public-url=" + proxyPublicURL.String(),
 		},
 		{
 			name: "valid with symbols in role",

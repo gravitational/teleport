@@ -62,6 +62,7 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
@@ -1004,46 +1005,58 @@ func (c *Client) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) 
 // GetUsers returns all currently registered users.
 // withSecrets controls whether authentication details are returned.
 func (c *Client) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	users, next, err := c.ListUsers(ctx, defaults.DefaultChunkSize, "", withSecrets)
-	if err != nil {
-		// TODO(tross): DELETE IN 16.0.0
-		if trace.IsNotImplemented(err) {
-			//nolint:staticcheck // SA1019. Kept for backward compatibility.
-			stream, err := c.grpc.GetUsers(ctx, &proto.GetUsersRequest{
-				WithSecrets: withSecrets,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			var users []types.User
-			for user, err := stream.Recv(); err != io.EOF; user, err = stream.Recv() {
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				users = append(users, user)
-			}
-			return users, nil
-		}
-
-		return nil, trace.Wrap(err)
+	req := userspb.ListUsersRequest{
+		WithSecrets: withSecrets,
 	}
 
-	out := users
-	for next != "" {
-		users, next, err = c.ListUsers(ctx, defaults.DefaultChunkSize, next, withSecrets)
+	var out []types.User
+	for {
+		rsp, err := c.ListUsersExt(ctx, &req)
 		if err != nil {
+			// TODO(tross): DELETE IN 16.0.0
+			if trace.IsNotImplemented(err) {
+				return c.getUsersCompat(ctx, withSecrets)
+			}
+
 			return nil, trace.Wrap(err)
 		}
 
-		out = append(out, users...)
+		for _, user := range rsp.Users {
+			out = append(out, user)
+		}
+
+		req.PageToken = rsp.NextPageToken
+		if req.PageToken == "" {
+			break
+		}
 	}
 
 	return out, nil
 }
 
+// getUsersCompat is a fallback used to load users when talking to older auth servers that
+// don't implement the newer ListUsers method.
+func (c *Client) getUsersCompat(ctx context.Context, withSecrets bool) ([]types.User, error) {
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
+	stream, err := c.grpc.GetUsers(ctx, &proto.GetUsersRequest{
+		WithSecrets: withSecrets,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var users []types.User
+	for user, err := stream.Recv(); !errors.Is(err, io.EOF); user, err = stream.Recv() {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		users = append(users, user)
+	}
+	return users, nil
+}
+
 // ListUsers returns a page of users.
 func (c *Client) ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
-	resp, err := userspb.NewUsersServiceClient(c.conn).ListUsers(ctx, &userspb.ListUsersRequest{
+	resp, err := c.ListUsersExt(ctx, &userspb.ListUsersRequest{
 		PageSize:    int32(pageSize),
 		PageToken:   nextToken,
 		WithSecrets: withSecrets,
@@ -1058,6 +1071,37 @@ func (c *Client) ListUsers(ctx context.Context, pageSize int, nextToken string, 
 	}
 
 	return out, resp.NextPageToken, nil
+}
+
+// ListUsersExt is equivalent to ListUsers, but supports additional parameters.
+func (c *Client) ListUsersExt(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
+	var header gmetadata.MD
+
+	rsp, err := userspb.NewUsersServiceClient(c.conn).ListUsers(ctx, req, grpc.Header(&header))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.Filter == nil {
+		// remaining logic is all filter compat that we can skip
+		return rsp, nil
+	}
+
+	vs, _ := metadata.VersionFromMetadata(header)
+	ver, _ := semver.NewVersion(vs)
+	if ver != nil && ver.Major >= 16 {
+		// auth implements all expected filtering features
+		return rsp, nil
+	}
+
+	filtered := rsp.Users[:0]
+	for _, user := range rsp.Users {
+		if req.Filter.Match(user) {
+			filtered = append(filtered, user)
+		}
+	}
+	rsp.Users = filtered
+	return rsp, nil
 }
 
 // DeleteUser deletes a user by name.
@@ -3531,6 +3575,27 @@ func (c *Client) GetDatabaseObjectImportRules(ctx context.Context) ([]*dbobjecti
 	return out, nil
 }
 
+// GetDatabaseObjects retrieves all database objects.
+func (c *Client) GetDatabaseObjects(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
+	var out []*dbobjectv1.DatabaseObject
+	req := &dbobjectv1.ListDatabaseObjectsRequest{}
+	client := c.DatabaseObjectClient()
+	for {
+		resp, err := client.ListDatabaseObjects(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, resp.Objects...)
+
+		if resp.NextPageToken == "" {
+			break
+		}
+		req.PageToken = resp.NextPageToken
+	}
+
+	return out, nil
+}
+
 // GetWindowsDesktopServices returns all registered windows desktop services.
 func (c *Client) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
 	resp, err := c.grpc.GetWindowsDesktopServices(ctx, &emptypb.Empty{})
@@ -4791,6 +4856,11 @@ func (c *Client) AccessListClient() *accesslist.Client {
 // DatabaseObjectImportRuleClient returns a client for managing database object import rules.
 func (c *Client) DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient {
 	return dbobjectimportrulev1.NewDatabaseObjectImportRuleServiceClient(c.conn)
+}
+
+// DatabaseObjectClient returns a client for managing database objects.
+func (c *Client) DatabaseObjectClient() dbobjectv1.DatabaseObjectServiceClient {
+	return dbobjectv1.NewDatabaseObjectServiceClient(c.conn)
 }
 
 // DiscoveryConfigClient returns a DiscoveryConfig client.
