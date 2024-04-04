@@ -88,6 +88,16 @@ export function FieldSelect({
 /** @deprecated Use the named export `{ FieldSelect }`. */
 export default FieldSelect;
 
+/**
+ * A select field that asynchronously loads options.
+ * The prop `loadOptions` accepts a callback that provides
+ * an `input` value used for filtering options on the call site.
+ *
+ * If `loadOptions` returns an error, the user can retry loading options by
+ * changing the input.
+ * Note: It is not possible to re-fetch the initial call for options.
+ * ReactSelect fetches them when the component mounts and then keeps in memory.
+ */
 export function FieldSelectAsync({
   components,
   label,
