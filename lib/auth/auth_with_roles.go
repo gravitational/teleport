@@ -752,6 +752,11 @@ func (a *ServerWithRoles) RegisterUsingIAMMethod(ctx context.Context, challengeR
 	return certs, trace.Wrap(err)
 }
 
+func (a *ServerWithRoles) RegisterUsingTPMMethod(ctx context.Context, initReq *proto.RegisterUsingTPMMethodInitialRequest, solveChallenge client.RegisterTPMChallengeResponseFunc) (*proto.Certs, error) {
+	certs, err := a.authServer.RegisterUsingTPMMethod(ctx, initReq, solveChallenge)
+	return certs, trace.Wrap(err)
+}
+
 // RegisterUsingAzureMethod registers the caller using the Azure join method and
 // returns signed certs to join the cluster.
 //
