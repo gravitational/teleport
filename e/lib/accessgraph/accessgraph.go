@@ -43,6 +43,7 @@ import (
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -117,14 +118,28 @@ func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config
 				}
 			}()
 
-			eventWatcher := newTagEventWatcher(newCtx, stream)
-
+			eventWatcherSender := newTagEventWatcher(newCtx, stream)
+			watcher, err := authServer.Cache.NewWatcher(
+				eventWatcherSender.Context(),
+				types.Watch{
+					Kinds: supportedKindsToWatcherKinds(supportedKinds),
+				},
+			)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer watcher.Close()
+			cacheSupportedResources, err := waitForInit(watcher)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			missingWatchKinds(ctx, log, supportedKinds, cacheSupportedResources)
 			errc := make(chan error)
 			go func() {
 				// Start watching the auth server for events.
 				// Subscribe for new events before sending all resources.
 				// Otherwise, we might miss some events.
-				errc <- startWatching(eventWatcher, authServer, supportedKinds)
+				errc <- forwardEventsWatch(watcher, eventWatcherSender)
 			}()
 
 			log.DebugContext(ctx, "Sending teleport resources to access graph service")
@@ -136,8 +151,8 @@ func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config
 
 			log.DebugContext(ctx, "Done sending teleport resources to access graph service")
 
-			// Marks as ready and send cached resources to TAG
-			if err := eventWatcher.MarkReady(); err != nil {
+			// Marks as ready and send delayed events.
+			if err := eventWatcherSender.markReady(); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -155,6 +170,54 @@ func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config
 	return trace.Wrap(err)
 }
 
+func supportedKindsToWatcherKinds(supportedKinds []string) []types.WatchKind {
+	var observedKinds []types.WatchKind
+	for _, kind := range supportedKinds {
+		observedKinds = append(observedKinds, types.WatchKind{Kind: kind})
+	}
+	return observedKinds
+}
+
+func missingWatchKinds(ctx context.Context, logger *slog.Logger, expected, actual []string) {
+	var missingKinds []string
+	actualKinds := make(map[string]struct{})
+	for _, kind := range actual {
+		actualKinds[kind] = struct{}{}
+	}
+	for _, expectedKind := range expected {
+		if _, found := actualKinds[expectedKind]; !found {
+			missingKinds = append(missingKinds, expectedKind)
+		}
+	}
+	if len(missingKinds) > 0 {
+		logger.WarnContext(ctx, "Missing kinds in the access graph service", "missing_kinds", missingKinds)
+	}
+}
+
+// waitForInit waits for the watcher to receive an init event.
+func waitForInit(watcher types.Watcher) ([]string, error) {
+	for {
+		select {
+		case event := <-watcher.Events():
+			if event.Type != types.OpInit {
+				continue
+			}
+			evt, ok := event.Resource.(types.WatchStatus)
+			if !ok {
+
+				return nil, nil
+			}
+			var kinds []string
+			for _, kind := range evt.GetKinds() {
+				kinds = append(kinds, kind.Kind)
+			}
+			return kinds, nil
+		case <-watcher.Done():
+			return nil, trace.Wrap(watcher.Error())
+		}
+	}
+}
+
 // newTagEventWatcher returns a new tagEventWatcher.
 func newTagEventWatcher(ctx context.Context, stream accessGraphSender) *tagEventWatcher {
 	return &tagEventWatcher{
@@ -167,13 +230,13 @@ func newTagEventWatcher(ctx context.Context, stream accessGraphSender) *tagEvent
 // sendTeleportResources sends all teleport resources to the access graph service.
 func sendTeleportResources(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamClient, authServer *auth.Server, serverSupportedKinds []string) error {
 	if slices.Contains(serverSupportedKinds, types.KindRole) {
-		if err := sendRoles(ctx, authServer, stream); err != nil {
+		if err := sendRoles(ctx, authServer.Cache, stream); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	if slices.Contains(serverSupportedKinds, types.KindUser) {
-		if err := sendUsers(ctx, authServer, stream); err != nil {
+		if err := sendUsers(ctx, authServer.Cache, stream); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -209,7 +272,7 @@ func sendTeleportResources(ctx context.Context, stream accessgraphv1.AccessGraph
 	}
 
 	if slices.Contains(serverSupportedKinds, types.KindAccessList) {
-		if err := sendAccessLists(ctx, authServer, stream); err != nil {
+		if err := sendAccessLists(ctx, authServer.Cache, stream); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -224,23 +287,8 @@ func sendTeleportResources(ctx context.Context, stream accessgraphv1.AccessGraph
 	return trace.Wrap(err)
 }
 
-// startWatching starts watching the auth server for events and sends them to the access graph service.
-func startWatching(eventWatcher *tagEventWatcher, authServer *auth.Server, serverSupportedKinds []string) error {
-	var observedKinds []types.WatchKind
-	for _, kind := range serverSupportedKinds {
-		observedKinds = append(observedKinds, types.WatchKind{Kind: kind})
-	}
-
-	watcher, err := authServer.Services.NewWatcher(
-		eventWatcher.Context(),
-		types.Watch{
-			Kinds: observedKinds,
-		},
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer watcher.Close()
+// forwardEventsWatch starts watching the auth server for events and sends them to the access graph service.
+func forwardEventsWatch(watcher types.Watcher, eventWatcher *tagEventWatcher) error {
 
 	for {
 		select {
@@ -259,7 +307,9 @@ func startWatching(eventWatcher *tagEventWatcher, authServer *auth.Server, serve
 }
 
 // sendUsers sends all users to the access graph service.
-func sendUsers(ctx context.Context, authServer *auth.Server, stream accessgraphv1.AccessGraphService_EventsStreamClient) error {
+func sendUsers(ctx context.Context, authServer interface {
+	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
+}, stream accessgraphv1.AccessGraphService_EventsStreamClient) error {
 	req := userspb.ListUsersRequest{
 		PageSize: apidefaults.DefaultChunkSize,
 	}
@@ -303,7 +353,9 @@ func pushUsersToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService
 }
 
 // sendRoles sends all roles to the access graph service.
-func sendRoles(ctx context.Context, authServer *auth.Server, stream accessgraphv1.AccessGraphService_EventsStreamClient) error {
+func sendRoles(ctx context.Context, authServer interface {
+	GetRoles(context.Context) ([]types.Role, error)
+}, stream accessgraphv1.AccessGraphService_EventsStreamClient) error {
 	// Get all roles.
 	// Auth server does not support pagination for roles, so we have to get all roles at once
 	// and we chunk them after.
@@ -350,7 +402,10 @@ func pushRolesToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService
 }
 
 // sendUsers sends all users to the access graph service.
-func sendAccessLists(ctx context.Context, authServer *auth.Server, stream accessgraphv1.AccessGraphService_EventsStreamClient) error {
+func sendAccessLists(ctx context.Context, authServer interface {
+	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
+	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+}, stream accessgraphv1.AccessGraphService_EventsStreamClient) error {
 	startToken := ""
 	limit := 0 // use default limit
 
@@ -398,7 +453,9 @@ func pushAccessListsToTAG(ctx context.Context, stream accessgraphv1.AccessGraphS
 	}))
 }
 
-func sendAccessListMembers(ctx context.Context, authServer *auth.Server, stream accessgraphv1.AccessGraphService_EventsStreamClient, accessList *accesslist.AccessList) error {
+func sendAccessListMembers(ctx context.Context, authServer interface {
+	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+}, stream accessgraphv1.AccessGraphService_EventsStreamClient, accessList *accesslist.AccessList) error {
 	startToken := ""
 	limit := 0 // use default limit
 
@@ -440,7 +497,7 @@ func pushAccessListMembersToTAG(ctx context.Context, stream accessgraphv1.Access
 }
 
 // sendAccessRequests sends all access requests to the access graph service.
-func sendAccessRequests(ctx context.Context, authServer *auth.Server, stream accessgraphv1.AccessGraphService_EventsStreamClient) error {
+func sendAccessRequests(ctx context.Context, authServer services.AccessRequestGetter, stream accessgraphv1.AccessGraphService_EventsStreamClient) error {
 	requests, err := authServer.GetAccessRequests(ctx, types.AccessRequestFilter{})
 	if err != nil {
 		return trace.Wrap(err)
@@ -541,8 +598,8 @@ func (t *tagEventWatcher) send(event *proto.Event) error {
 	}
 }
 
-// MarkReady marks the watcher as ready to send events.
-func (t *tagEventWatcher) MarkReady() error {
+// markReady marks the watcher as ready to send events.
+func (t *tagEventWatcher) markReady() error {
 	// Send all cached events.
 	for {
 		t.cacheMtx.Lock()

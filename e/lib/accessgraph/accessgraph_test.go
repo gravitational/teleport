@@ -78,7 +78,7 @@ func Test_tagEventWatcher_Send(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = eventWatcher.MarkReady()
+	err = eventWatcher.markReady()
 	require.NoError(t, err)
 
 	err = eventWatcher.Send(&proto.Event{Type: proto.Operation_PUT,
@@ -127,7 +127,7 @@ func Test_tagEventWatcher_Send_Concurrent(t *testing.T) {
 	}()
 
 	// Mark ready. This should flush the cache and send all events
-	err = eventWatcher.MarkReady()
+	err = eventWatcher.markReady()
 	require.NoError(t, err)
 
 	// wait for all events to be sent
