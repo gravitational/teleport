@@ -7,7 +7,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
-const ServiceKubernetesType = "kubernetes-unstable"
+const ServiceKubernetesType = "unstable-kubernetes"
 
 // UnstableKubernetesService
 //
@@ -19,6 +19,10 @@ const ServiceKubernetesType = "kubernetes-unstable"
 //     necessary to handle reloading the credentials mid-lifetime. We could also
 //     magically resolve this with the tunnel functionality down the line rather
 //     than relying on the exec plugin.
+//
+// Benefits:
+//
+//   - Supports multiple clusters.
 type UnstableKubernetesService struct {
 	Destination bot.Destination `yaml:"destination"`
 
