@@ -629,6 +629,10 @@ const (
 	// created from the Okta service.
 	OriginOkta = common.OriginOkta
 
+	// OriginEntraID is an origin value indicating that the resource was
+	// created from the Entra ID service.
+	OriginEntraID = common.OriginEntraID
+
 	// OriginIntegrationAWSOIDC is an origin value indicating that the resource was
 	// created from the AWS OIDC Integration.
 	OriginIntegrationAWSOIDC = common.OriginIntegrationAWSOIDC
