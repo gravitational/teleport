@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
@@ -433,7 +434,9 @@ func (process *TeleportProcess) getCertAuthority(conn *Connector, id types.CertA
 	if conn.ClientIdentity.ID.Role == types.RoleAdmin || conn.ClientIdentity.ID.Role == types.RoleAuth {
 		return process.localAuth.GetCertAuthority(process.ExitContext(), id, loadPrivateKeys)
 	}
-	return conn.Client.GetCertAuthority(process.ExitContext(), id, loadPrivateKeys)
+	ctx, cancel := context.WithTimeout(process.ExitContext(), apidefaults.DefaultIOTimeout)
+	defer cancel()
+	return conn.Client.GetCertAuthority(ctx, id, loadPrivateKeys)
 }
 
 // reRegister receives new identity credentials for proxy, node and auth.
@@ -456,7 +459,9 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 	if id.Role == types.RoleInstance {
 		systemRoles = process.getInstanceRoles()
 	}
-	identity, err := auth.ReRegister(auth.ReRegisterParams{
+	ctx, cancel := context.WithTimeout(process.ExitContext(), apidefaults.DefaultIOTimeout)
+	defer cancel()
+	identity, err := auth.ReRegister(ctx, auth.ReRegisterParams{
 		Client:               conn.Client,
 		ID:                   id,
 		AdditionalPrincipals: additionalPrincipals,
@@ -502,7 +507,9 @@ func (process *TeleportProcess) firstTimeConnectWithAssertions(role types.System
 		return nil, trace.Wrap(err)
 	}
 
-	identity, err := auth.ReRegister(auth.ReRegisterParams{
+	ctx, cancel := context.WithTimeout(process.ExitContext(), apidefaults.DefaultIOTimeout)
+	defer cancel()
+	identity, err := auth.ReRegister(ctx, auth.ReRegisterParams{
 		Client:                        conn.Client,
 		ID:                            id,
 		AdditionalPrincipals:          additionalPrincipals,
@@ -1290,7 +1297,9 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 
 	// Check connectivity to cluster. If the request fails, unwrap the error to
 	// get the underlying error.
-	_, err = clt.GetDomainName(process.ExitContext())
+	ctx, cancel := context.WithTimeout(process.ExitContext(), apidefaults.DefaultIOTimeout)
+	defer cancel()
+	_, err = clt.GetDomainName(ctx)
 	if err != nil {
 		if err2 := clt.Close(); err2 != nil {
 			process.log.WithError(err2).Warn("Failed to close Auth Server tunnel client.")
@@ -1336,7 +1345,9 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err := clt.GetDomainName(process.ExitContext()); err != nil {
+	ctx, cancel := context.WithTimeout(process.ExitContext(), apidefaults.DefaultIOTimeout)
+	defer cancel()
+	if _, err := clt.GetDomainName(ctx); err != nil {
 		if err2 := clt.Close(); err2 != nil {
 			process.log.WithError(err2).Warn("Failed to close direct Auth Server client.")
 		}
