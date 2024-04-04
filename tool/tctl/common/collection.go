@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/oktaassignment"
 )
@@ -1172,7 +1173,7 @@ type databaseObjectImportRuleCollection struct {
 func (c *databaseObjectImportRuleCollection) resources() []types.Resource {
 	resources := make([]types.Resource, len(c.rules))
 	for i, b := range c.rules {
-		resources[i] = types.Resource153ToLegacy(b)
+		resources[i] = databaseobjectimportrule.ProtoToResource(b)
 	}
 	return resources
 }

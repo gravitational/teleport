@@ -35,11 +35,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
@@ -51,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 )
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
@@ -1644,10 +1646,10 @@ spec:
 }
 
 func testCreateDatabaseObjectImportRule(t *testing.T, fc *config.FileConfig) {
-	const resourceName = "import_all_staging_tables"
-	const resourcePath = types.KindDatabaseObjectImportRule + "/" + resourceName
 	const resourceYAML = `kind: db_object_import_rule
 metadata:
+  expires: "2034-03-22T18:06:35.161162Z"
+  id: 1711129895244889000
   name: import_all_staging_tables
   namespace: default
 spec:
@@ -1685,45 +1687,34 @@ spec:
 version: v1
 `
 
-	// Ensure that our test user does not exist
-	_, err := runResourceCommand(t, fc, []string{"get", resourcePath, "--format=json"})
-	require.True(t, trace.IsNotFound(err), "expected llama user to not exist prior to being created")
+	// Verify there is no matching resource
+	const resourceKey = "db_object_import_rule/import_all_staging_tables"
+	_, err := runResourceCommand(t, fc, []string{"get", resourceKey, "--format=json"})
+	require.Error(t, err)
 
-	// Create the user
+	// Create the resource
 	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
 	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
 	_, err = runResourceCommand(t, fc, []string{"create", resourceYAMLPath})
 	require.NoError(t, err)
 
-	// Fetch the user
-	buf, err := runResourceCommand(t, fc, []string{"get", resourcePath, "--format=json"})
+	// Fetch the resource
+	buf, err := runResourceCommand(t, fc, []string{"get", resourceKey, "--format=json"})
 	require.NoError(t, err)
-	resources := mustDecodeJSON[[]*dbobjectimportrulev1.DatabaseObjectImportRule](t, buf)
+	resources := mustDecodeJSON[[]databaseobjectimportrule.Resource](t, buf)
 	require.Len(t, resources, 1)
 
-	var expected dbobjectimportrulev1.DatabaseObjectImportRule
+	// Compare with baseline
+	cmpOpts := []cmp.Option{
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+		protocmp.Transform(),
+	}
+
+	var expected databaseobjectimportrule.Resource
 	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
-	// verify a few expected properties
-	require.Equal(t, 30, int(expected.Spec.Priority))
-	require.Equal(t, "import_all_staging_tables", expected.Metadata.Name)
 
-	resources[0].Metadata.Revision = expected.Metadata.Revision
-	//nolint:staticcheck // SA1019. Added for backward compatibility.
-	resources[0].Metadata.Id = expected.Metadata.Id
-	require.Equal(t, []*dbobjectimportrulev1.DatabaseObjectImportRule{&expected}, resources)
-
-	// Explicitly change the revision and try creating the user with and without
-	// the force flag.
-	expected.Metadata.Revision = uuid.NewString()
-	data, err := services.MarshalDatabaseObjectImportRule(&expected, services.PreserveResourceID())
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(resourceYAMLPath, data, 0644))
-
-	_, err = runResourceCommand(t, fc, []string{"create", resourceYAMLPath})
-	require.True(t, trace.IsAlreadyExists(err))
-
-	_, err = runResourceCommand(t, fc, []string{"create", "-f", resourceYAMLPath})
-	require.NoError(t, err)
+	require.Equal(t, "", cmp.Diff(expected, resources[0], cmpOpts...))
+	require.Equal(t, "", cmp.Diff(databaseobjectimportrule.ResourceToProto(&expected), databaseobjectimportrule.ResourceToProto(&resources[0]), cmpOpts...))
 }
 
 func testCreateClusterNetworkingConfig(t *testing.T, fc *config.FileConfig) {
