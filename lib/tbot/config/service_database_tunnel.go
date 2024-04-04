@@ -19,6 +19,7 @@
 package config
 
 import (
+	"net"
 	"net/url"
 
 	"github.com/gravitational/trace"
@@ -44,6 +45,10 @@ type DatabaseTunnelService struct {
 	Database string `yaml:"database"`
 	// Username is the database username to proxy as.
 	Username string `yaml:"username"`
+
+	// Listener overrides "listen" and directly provides an opened listener to
+	// use.
+	Listener net.Listener `yaml:"-"`
 }
 
 func (s *DatabaseTunnelService) Type() string {
@@ -66,7 +71,7 @@ func (s *DatabaseTunnelService) UnmarshalYAML(node *yaml.Node) error {
 
 func (s *DatabaseTunnelService) CheckAndSetDefaults() error {
 	switch {
-	case s.Listen == "":
+	case s.Listen == "" && s.Listener == nil:
 		return trace.BadParameter("listen: should not be empty")
 	case s.Service == "":
 		return trace.BadParameter("service: should not be empty")
