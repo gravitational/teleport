@@ -19,7 +19,6 @@
 import { Auth2faType, PreferredMfaType } from 'shared/services/types';
 
 export default function createMfaOptions(opts: Options) {
-  console.log('CREATING MFA OPTIONS', opts);
   const { auth2faType, required = false } = opts;
   const mfaOptions: MfaOption[] = [];
 
@@ -41,7 +40,6 @@ export default function createMfaOptions(opts: Options) {
     mfaOptions.push({ value: 'optional', label: 'None' });
   }
 
-  console.log(mfaOptions);
   return mfaOptions;
 }
 

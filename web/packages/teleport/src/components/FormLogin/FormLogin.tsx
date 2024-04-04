@@ -68,7 +68,7 @@ export default function LoginForm(props: Props) {
 
   // If local auth was not enabled, disregard any primary auth type config
   // and display sso providers if any.
-  const actuallyPrimaryType = isLocalAuthEnabled ? primaryAuthType : 'sso';
+  const actualPrimaryType = isLocalAuthEnabled ? primaryAuthType : 'sso';
 
   const allowedAuthTypes = allAuthTypes.filter(t => {
     if (!isLocalAuthEnabled) return ssoEnabled && t === 'sso';
@@ -76,9 +76,7 @@ export default function LoginForm(props: Props) {
     if (!ssoEnabled && t === 'sso') return false;
     return true;
   });
-  const otherAuthTypes = allowedAuthTypes.filter(
-    t => t !== actuallyPrimaryType
-  );
+  const otherAuthTypes = allowedAuthTypes.filter(t => t !== actualPrimaryType);
 
   let errorMessage = '';
   if (allowedAuthTypes.length === 0) {
@@ -100,7 +98,7 @@ export default function LoginForm(props: Props) {
           currFlow={'default'}
           otherAuthTypes={otherAuthTypes}
           {...props}
-          primaryAuthType={actuallyPrimaryType}
+          primaryAuthType={actualPrimaryType}
         />
       ) : (
         <Text mx={4} typography="paragraph2">
@@ -396,7 +394,7 @@ function AuthMethod({
       ) : (
         <Box py={2}>
           <ButtonSecondary size="large" block onClick={next}>
-            Sign in with Username and Password
+            Sign in with username and password
           </ButtonSecondary>
         </Box>
       );
