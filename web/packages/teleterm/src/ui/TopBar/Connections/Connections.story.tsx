@@ -177,6 +177,14 @@ const prepareAppContext = (appContext: MockAppContext) => {
 
 const useOpenConnections = () => {
   useLayoutEffect(() => {
+    const areConnectionsOpen = !!document.querySelector(
+      'input[role=searchbox]'
+    );
+
+    if (areConnectionsOpen) {
+      return;
+    }
+
     const button = document.querySelector(
       'button[title~="connections"i]'
     ) as HTMLButtonElement;
