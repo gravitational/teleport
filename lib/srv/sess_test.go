@@ -231,7 +231,7 @@ func TestSession_newRecorder(t *testing.T) {
 	require.NoError(t, err)
 
 	logger := logrus.WithFields(logrus.Fields{
-		trace.Component: teleport.ComponentAuth,
+		teleport.ComponentKey: teleport.ComponentAuth,
 	})
 
 	isNotSessionWriter := func(t require.TestingT, i interface{}, i2 ...interface{}) {
@@ -412,7 +412,7 @@ func TestSession_emitAuditEvent(t *testing.T) {
 	t.Parallel()
 
 	logger := logrus.WithFields(logrus.Fields{
-		trace.Component: teleport.ComponentAuth,
+		teleport.ComponentKey: teleport.ComponentAuth,
 	})
 
 	t.Run("FallbackConcurrency", func(t *testing.T) {
@@ -869,7 +869,7 @@ func TestTrackingSession(t *testing.T) {
 
 			sess := &session{
 				id:  rsession.NewID(),
-				log: utils.NewLoggerForTests().WithField(trace.Component, "test-session"),
+				log: utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test-session"),
 				registry: &SessionRegistry{
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv:                   srv,

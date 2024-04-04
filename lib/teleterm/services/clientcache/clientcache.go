@@ -25,6 +25,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/singleflight"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -54,7 +55,7 @@ type Config struct {
 
 func (c *Config) checkAndSetDefaults() {
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "clientcache")
+		c.Log = logrus.WithField(teleport.ComponentKey, "clientcache")
 	}
 }
 

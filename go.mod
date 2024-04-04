@@ -2,7 +2,7 @@ module github.com/gravitational/teleport
 
 go 1.21
 
-toolchain go1.21.8
+toolchain go1.21.9
 
 require (
 	cloud.google.com/go/compute v1.23.3
@@ -40,7 +40,7 @@ require (
 	github.com/aquasecurity/libbpfgo v0.5.1-libbpf-1.2
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.49.16
-	github.com/aws/aws-sdk-go-v2 v1.24.1
+	github.com/aws/aws-sdk-go-v2 v1.26.1
 	github.com/aws/aws-sdk-go-v2/config v1.26.3
 	github.com/aws/aws-sdk-go-v2/credentials v1.16.14
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.12.14
@@ -56,11 +56,12 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/iam v1.28.7
 	github.com/aws/aws-sdk-go-v2/service/rds v1.66.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.48.0
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.28.6
 	github.com/aws/aws-sdk-go-v2/service/sns v1.26.7
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.29.7
 	github.com/aws/aws-sdk-go-v2/service/sts v1.26.7
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
-	github.com/aws/smithy-go v1.19.0
+	github.com/aws/smithy-go v1.20.2
 	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20231024185945-8841054dbdb8
 	github.com/beevik/etree v1.3.0
 	github.com/buildkite/bintest/v3 v3.2.0
@@ -102,6 +103,7 @@ require (
 	github.com/google/go-querystring v1.1.0
 	github.com/google/go-tpm-tools v0.4.2
 	github.com/google/renameio/v2 v2.0.0
+	github.com/google/safetext v0.0.0-20240104143208-7a7d9b3d812f
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/google/uuid v1.5.0
 	github.com/googleapis/gax-go/v2 v2.12.0
@@ -254,8 +256,8 @@ require (
 	github.com/apache/thrift v0.16.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.5.4 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.2.10 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.5.10 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.5 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.5 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.7.2 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.2.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.18.7 // indirect
@@ -516,6 +518,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00 // indirect
 	k8s.io/metrics v0.29.0 // indirect
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b // indirect
+	mvdan.cc/sh/v3 v3.7.0 // indirect
 	oras.land/oras-go v1.2.5 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/kustomize/api v0.13.5-0.20230601165947-6ce0bf390ce3 // indirect

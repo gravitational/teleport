@@ -26,6 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -115,7 +116,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.NewEntry(logrus.StandardLogger()).WithField(trace.Component, "daemon")
+		c.Log = logrus.NewEntry(logrus.StandardLogger()).WithField(teleport.ComponentKey, "daemon")
 	}
 
 	if c.ConnectMyComputerRoleSetup == nil {

@@ -88,24 +88,35 @@ func (LoggedInUser_UserType) EnumDescriptor() ([]byte, []int) {
 	return file_teleport_lib_teleterm_v1_cluster_proto_rawDescGZIP(), []int{1, 0}
 }
 
-// Cluster describes cluster fields
+// Cluster describes cluster fields.
 type Cluster struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// uri is the cluster resource URI
+	// uri is the cluster resource URI.
+	// For root clusters, it has the form of /clusters/:rootClusterId where rootClusterId is the
+	// name of the profile, that is the hostname of the proxy used to connect to the root cluster.
+	// rootClusterId is not equal to the name of the root cluster.
+	//
+	// For leaf clusters, it has the form of /clusters/:rootClusterId/leaves/:leafClusterId where
+	// leafClusterId is equal to the name property of the cluster.
 	Uri string `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
 	// name is used throughout the Teleport Connect codebase as the cluster name.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	// proxy address (only for root clusters)
+	// proxy_host is address of the proxy used to connect to this cluster.
+	// Always includes port number. Present only for root clusters.
+	//
+	// Example: "teleport-14-ent.example.com:3090"
 	ProxyHost string `protobuf:"bytes,3,opt,name=proxy_host,json=proxyHost,proto3" json:"proxy_host,omitempty"`
 	// connected indicates if connection to the cluster can be established, that is if we have a
 	// cert for the cluster that hasn't expired
 	Connected bool `protobuf:"varint,4,opt,name=connected,proto3" json:"connected,omitempty"`
 	// leaf indicates if this is a leaf cluster
 	Leaf bool `protobuf:"varint,5,opt,name=leaf,proto3" json:"leaf,omitempty"`
-	// User is the cluster access control list of the logged-in user
+	// logged_in_user is present if the user has logged in to the cluster at least once, even
+	// if the cert has since expired. If the cluster was added to the app but the
+	// user is yet to log in, logged_in_user is not present.
 	LoggedInUser *LoggedInUser `protobuf:"bytes,7,opt,name=logged_in_user,json=loggedInUser,proto3" json:"logged_in_user,omitempty"`
 	// features describes the auth servers features.
 	// Only present when detailed information is queried from the auth server.
@@ -226,7 +237,8 @@ type LoggedInUser struct {
 	Roles []string `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
 	// ssh_logins is the user ssh logins
 	SshLogins []string `protobuf:"bytes,3,rep,name=ssh_logins,json=sshLogins,proto3" json:"ssh_logins,omitempty"`
-	// acl is the user acl
+	// acl is a user access control list.
+	// It is available only after the cluster details are fetched, as it is not stored on disk.
 	Acl *ACL `protobuf:"bytes,4,opt,name=acl,proto3" json:"acl,omitempty"`
 	// active_requests is an array of request-id strings of active requests
 	ActiveRequests []string `protobuf:"bytes,5,rep,name=active_requests,json=activeRequests,proto3" json:"active_requests,omitempty"`

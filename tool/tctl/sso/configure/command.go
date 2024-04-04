@@ -49,7 +49,7 @@ type AuthKindCommand struct {
 // argument parsing
 func (cmd *SSOConfigureCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
 	cmd.Config = cfg
-	cmd.Logger = cfg.Log.WithField(trace.Component, teleport.ComponentClient)
+	cmd.Logger = cfg.Log.WithField(teleport.ComponentKey, teleport.ComponentClient)
 
 	sso := app.Command("sso", "A family of commands for configuring and testing auth connectors (SSO).")
 	cmd.ConfigureCmd = sso.Command("configure", "Create auth connector configuration.")

@@ -279,7 +279,7 @@ export const events = [
     user: 'unimplemented',
   },
   {
-    code: 'T8002I',
+    code: 'T80002I',
     event: 'github.updated',
     name: 'new_github_connector',
     time: '2020-06-05T19:28:28Z',

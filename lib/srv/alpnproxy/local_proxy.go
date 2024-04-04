@@ -36,6 +36,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -119,7 +120,7 @@ func (cfg *LocalProxyConfig) CheckAndSetDefaults() error {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 	if cfg.Log == nil {
-		cfg.Log = logrus.WithField(trace.Component, "localproxy")
+		cfg.Log = logrus.WithField(teleport.ComponentKey, "localproxy")
 	}
 	// copy the cert slice to avoid races when the proxy is running.
 	cfg.Certs = slices.Clone(cfg.Certs)

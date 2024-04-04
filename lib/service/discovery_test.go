@@ -20,10 +20,10 @@ package service
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -157,7 +157,7 @@ func TestTeleportProcess_initDiscoveryService(t *testing.T) {
 					rsp: tt.rsp,
 					err: tt.err,
 				},
-				logrus.StandardLogger(),
+				slog.Default(),
 			)
 			tt.assertErr(t, err)
 			require.Equal(t, tt.want, accessGraphCfg)

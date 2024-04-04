@@ -2426,6 +2426,20 @@ message AccessRequestSpecV3 {
   ];
 }
 
+enum AccessRequestScope {
+  // DEFAULT allows all requests to be viewed
+  DEFAULT = 0;
+  // MY_REQUESTS will return only requests created by the requester
+  MY_REQUESTS = 1;
+  // NEEDS_REVIEW will return only requests that were not created by
+  // the requester and do not include a review made by the requester
+  NEEDS_REVIEW = 2;
+  // REVIEWED will return only requests that were not created by
+  // the requester and have a review submitted by the requester. This
+  // can include requests that have no yet been completely approved/denied.
+  REVIEWED = 3;
+}
+
 // AccessRequestFilter encodes filter params for access requests.
 message AccessRequestFilter {
   // ID specifies a request ID if set.
@@ -2434,6 +2448,17 @@ message AccessRequestFilter {
   string User = 2 [(gogoproto.jsontag) = "user,omitempty"];
   // RequestState filters for requests in a specific state.
   RequestState State = 3 [(gogoproto.jsontag) = "state,omitempty"];
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  // The matcher goes through select field values from a resource
+  // and tries to match against the list of search values, ignoring case and order.
+  // Returns true if all search vals were matched (or if nil search vals).
+  // Returns false if no or partial match (or nil field values).
+  repeated string SearchKeywords = 4 [(gogoproto.jsontag) = "search,omitempty"];
+  // Scope is an aditional filter to view requests based on needs review, reviewed, my requests
+  AccessRequestScope Scope = 5 [(gogoproto.jsontag) = "scope,omitempty"];
+  // Requester is the requester of the api call. This is set by the auth server
+  // Use User for the requester of the request.
+  string Requester = 6 [(gogoproto.jsontag) = "requester,omitempty"];
 }
 
 // AccessCapabilities is a summary of capabilities that a user
@@ -3269,6 +3294,12 @@ message ImpersonateConditions {
 // whenever bool value can have different default value when missing
 message BoolValue {
   bool Value = 1;
+}
+
+// UserFilter matches user resources.
+message UserFilter {
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
 }
 
 // UserV2 is version 2 resource spec of the user

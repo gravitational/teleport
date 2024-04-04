@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"cmp"
 	"compress/gzip"
 	"context"
 	"crypto/tls"
@@ -24,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -60,6 +62,7 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
@@ -1002,46 +1005,58 @@ func (c *Client) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) 
 // GetUsers returns all currently registered users.
 // withSecrets controls whether authentication details are returned.
 func (c *Client) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	users, next, err := c.ListUsers(ctx, defaults.DefaultChunkSize, "", withSecrets)
-	if err != nil {
-		// TODO(tross): DELETE IN 16.0.0
-		if trace.IsNotImplemented(err) {
-			//nolint:staticcheck // SA1019. Kept for backward compatibility.
-			stream, err := c.grpc.GetUsers(ctx, &proto.GetUsersRequest{
-				WithSecrets: withSecrets,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			var users []types.User
-			for user, err := stream.Recv(); err != io.EOF; user, err = stream.Recv() {
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				users = append(users, user)
-			}
-			return users, nil
-		}
-
-		return nil, trace.Wrap(err)
+	req := userspb.ListUsersRequest{
+		WithSecrets: withSecrets,
 	}
 
-	out := users
-	for next != "" {
-		users, next, err = c.ListUsers(ctx, defaults.DefaultChunkSize, next, withSecrets)
+	var out []types.User
+	for {
+		rsp, err := c.ListUsersExt(ctx, &req)
 		if err != nil {
+			// TODO(tross): DELETE IN 16.0.0
+			if trace.IsNotImplemented(err) {
+				return c.getUsersCompat(ctx, withSecrets)
+			}
+
 			return nil, trace.Wrap(err)
 		}
 
-		out = append(out, users...)
+		for _, user := range rsp.Users {
+			out = append(out, user)
+		}
+
+		req.PageToken = rsp.NextPageToken
+		if req.PageToken == "" {
+			break
+		}
 	}
 
 	return out, nil
 }
 
+// getUsersCompat is a fallback used to load users when talking to older auth servers that
+// don't implement the newer ListUsers method.
+func (c *Client) getUsersCompat(ctx context.Context, withSecrets bool) ([]types.User, error) {
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
+	stream, err := c.grpc.GetUsers(ctx, &proto.GetUsersRequest{
+		WithSecrets: withSecrets,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var users []types.User
+	for user, err := stream.Recv(); !errors.Is(err, io.EOF); user, err = stream.Recv() {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		users = append(users, user)
+	}
+	return users, nil
+}
+
 // ListUsers returns a page of users.
 func (c *Client) ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
-	resp, err := userspb.NewUsersServiceClient(c.conn).ListUsers(ctx, &userspb.ListUsersRequest{
+	resp, err := c.ListUsersExt(ctx, &userspb.ListUsersRequest{
 		PageSize:    int32(pageSize),
 		PageToken:   nextToken,
 		WithSecrets: withSecrets,
@@ -1056,6 +1071,37 @@ func (c *Client) ListUsers(ctx context.Context, pageSize int, nextToken string, 
 	}
 
 	return out, resp.NextPageToken, nil
+}
+
+// ListUsersExt is equivalent to ListUsers, but supports additional parameters.
+func (c *Client) ListUsersExt(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
+	var header gmetadata.MD
+
+	rsp, err := userspb.NewUsersServiceClient(c.conn).ListUsers(ctx, req, grpc.Header(&header))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.Filter == nil {
+		// remaining logic is all filter compat that we can skip
+		return rsp, nil
+	}
+
+	vs, _ := metadata.VersionFromMetadata(header)
+	ver, _ := semver.NewVersion(vs)
+	if ver != nil && ver.Major >= 16 {
+		// auth implements all expected filtering features
+		return rsp, nil
+	}
+
+	filtered := rsp.Users[:0]
+	for _, user := range rsp.Users {
+		if req.Filter.Match(user) {
+			filtered = append(filtered, user)
+		}
+	}
+	rsp.Users = filtered
+	return rsp, nil
 }
 
 // DeleteUser deletes a user by name.
@@ -1187,12 +1233,96 @@ func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
 
 // GetAccessRequests retrieves a list of all access requests matching the provided filter.
 func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
+	requests, err := c.ListAllAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+		Filter: &filter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ireqs := make([]types.AccessRequest, 0, len(requests))
+	for _, r := range requests {
+		ireqs = append(ireqs, r)
+	}
+
+	return ireqs, nil
+}
+
+// ListAccessRequests is an access request getter with pagination and sorting options.
+func (c *Client) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+	rsp, err := c.grpc.ListAccessRequests(ctx, req)
+	return rsp, trace.Wrap(err)
+}
+
+// ListAllAccessRequests aggregates all access requests via the ListAccessRequests api. This is equivalent to calling GetAccessRequests
+// except that it supports custom sort order/indexes. Calling this method rather than ListAccessRequests also provides the advantage
+// that it can fallback to calling the old GetAccessRequests grpc method if it encounters and outdated control plane. For that reason,
+// implementations that don't actually *need* pagination are better served by calling this method.
+func (c *Client) ListAllAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) ([]*types.AccessRequestV3, error) {
+	var requests []*types.AccessRequestV3
+	for {
+		rsp, err := c.ListAccessRequests(ctx, req)
+		if err != nil {
+			if trace.IsNotImplemented(err) {
+				return c.listAllAccessRequestsCompat(ctx, req)
+			}
+
+			return nil, trace.Wrap(err)
+		}
+
+		requests = append(requests, rsp.AccessRequests...)
+
+		req.StartKey = rsp.NextKey
+		if req.StartKey == "" {
+			break
+		}
+	}
+
+	return requests, nil
+}
+
+// listAllAccessRequestsCompat is a helper that simulates ListAllAccessRequests behavior via the old GetAccessRequests method.
+func (c *Client) listAllAccessRequestsCompat(ctx context.Context, req *proto.ListAccessRequestsRequest) ([]*types.AccessRequestV3, error) {
+	var filter types.AccessRequestFilter
+	if req.Filter != nil {
+		filter = *req.Filter
+	}
+	requests, err := c.getAccessRequests(ctx, filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch req.Sort {
+	case proto.AccessRequestSort_DEFAULT:
+		// no custom sort order needed
+	case proto.AccessRequestSort_CREATED:
+		slices.SortFunc(requests, func(a, b *types.AccessRequestV3) int {
+			return a.GetCreationTime().Compare(b.GetCreationTime())
+		})
+	case proto.AccessRequestSort_STATE:
+		slices.SortFunc(requests, func(a, b *types.AccessRequestV3) int {
+			return cmp.Compare(a.GetState().String(), b.GetState().String())
+		})
+	default:
+		return nil, trace.BadParameter("list access request compat fallback does not support sort order %q", req.Sort)
+	}
+
+	if req.Descending {
+		slices.Reverse(requests)
+	}
+
+	return requests, nil
+}
+
+// getAccessRequests calls the old GetAccessRequests method. used by back-compat logic when interacting with
+// an outdated control-plane that doesn't support ListAccessRequests.
+func (c *Client) getAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]*types.AccessRequestV3, error) {
 	stream, err := c.grpc.GetAccessRequestsV2(ctx, &filter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var reqs []types.AccessRequest
+	var reqs []*types.AccessRequestV3
 	for {
 		req, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
@@ -3445,6 +3575,27 @@ func (c *Client) GetDatabaseObjectImportRules(ctx context.Context) ([]*dbobjecti
 	return out, nil
 }
 
+// GetDatabaseObjects retrieves all database objects.
+func (c *Client) GetDatabaseObjects(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
+	var out []*dbobjectv1.DatabaseObject
+	req := &dbobjectv1.ListDatabaseObjectsRequest{}
+	client := c.DatabaseObjectClient()
+	for {
+		resp, err := client.ListDatabaseObjects(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, resp.Objects...)
+
+		if resp.NextPageToken == "" {
+			break
+		}
+		req.PageToken = resp.NextPageToken
+	}
+
+	return out, nil
+}
+
 // GetWindowsDesktopServices returns all registered windows desktop services.
 func (c *Client) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
 	resp, err := c.grpc.GetWindowsDesktopServices(ctx, &emptypb.Empty{})
@@ -4705,6 +4856,11 @@ func (c *Client) AccessListClient() *accesslist.Client {
 // DatabaseObjectImportRuleClient returns a client for managing database object import rules.
 func (c *Client) DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient {
 	return dbobjectimportrulev1.NewDatabaseObjectImportRuleServiceClient(c.conn)
+}
+
+// DatabaseObjectClient returns a client for managing database objects.
+func (c *Client) DatabaseObjectClient() dbobjectv1.DatabaseObjectServiceClient {
+	return dbobjectv1.NewDatabaseObjectServiceClient(c.conn)
 }
 
 // DiscoveryConfigClient returns a DiscoveryConfig client.

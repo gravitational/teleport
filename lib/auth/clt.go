@@ -35,6 +35,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -43,6 +44,7 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -666,6 +668,9 @@ type IdentityService interface {
 	// ListUsers returns a page of users.
 	ListUsers(ctx context.Context, pageSize int, pageToken string, withSecrets bool) ([]types.User, string, error)
 
+	// ListUsersExt is equivalent to ListUsers except it supports additional parameters.
+	ListUsersExt(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
+
 	// ChangePassword changes user password
 	ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error
 
@@ -974,8 +979,11 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	AccessListClient() services.AccessLists
 
-	// DatabaseObjectImportRuleClient returns a database import rule client.
+	// DatabaseObjectImportRuleClient returns a database object import rule client.
 	DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient
+
+	// DatabaseObjectClient returns a database object client.
+	DatabaseObjectClient() dbobjectv1.DatabaseObjectServiceClient
 
 	// SecReportsClient returns a client for security reports.
 	// Clients connecting to  older Teleport versions, still get an access list client
@@ -1036,6 +1044,11 @@ type ClientI interface {
 
 	// UpsertUserPreferences creates or updates user preferences for a given username.
 	UpsertUserPreferences(ctx context.Context, req *userpreferencesv1.UpsertUserPreferencesRequest) error
+
+	// ListAllAccessRequests is a helper for using the ListAccessRequests API's additional sort order/index features without
+	// mucking about with pagination. It also implements backwards-comatibility with older control planes that only
+	// support GetAccessRequests.
+	ListAllAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) ([]*types.AccessRequestV3, error)
 
 	// ListUnifiedResources returns a paginated list of unified resources.
 	ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error)

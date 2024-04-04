@@ -56,7 +56,7 @@ type sftpSubsys struct {
 func newSFTPSubsys(fileTransferReq *srv.FileTransferRequest) (*sftpSubsys, error) {
 	return &sftpSubsys{
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentSubsystemSFTP,
+			teleport.ComponentKey: teleport.ComponentSubsystemSFTP,
 		}),
 		fileTransferReq: fileTransferReq,
 	}, nil

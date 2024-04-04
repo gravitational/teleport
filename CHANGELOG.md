@@ -1,5 +1,128 @@
 # Changelog
 
+## 15.2.0 (03/29/24)
+
+### Improved Access Requests UI
+
+The access requests page of the web UI will be backed by a paginated API,
+ensuring fast load times even on clusters with many access requests.
+
+Additionally, the UI allows you to search for access requests, sort them based
+on various attributes, and includes several new filtering options.
+
+### Zero-downtime web asset rollout
+
+Teleport 15.2 changes the way that web assets are served and cached, which will
+allow multiple compatible versions of the Teleport Proxy to run behind the same
+load balancer.
+
+### Workload Identity MVP
+
+With Teleport 15.2, Machine ID can bootstrap and issue identity to services
+across multiple computing environments and organizational boundaries. Workload
+Identity issues SPIFFE-compatible x509 certificates that can be used for mTLS
+between services.
+
+### Support for Kubernetes 1.29+
+
+The Kubernetes project is deprecating the SPDY protocol for streaming commands
+(kubectl exec, kubectl port-forward, etc) and replacing it with a new
+websocket-based subprotocol. Teleport 15.2.0 will support the new protocol to
+ensure compatibility with newer Kubernetes clusters.
+
+### Automatic database access requests
+
+Both tsh db connect and tsh proxy db will offer the option to submit an access
+request if the user attempts to connect to a database that they don't already
+have access to.
+
+### GCP console access via Workforce Identity Federation
+
+Teleport administrators will be able to setup access to GCP web console through
+Workforce Identity Federation using Teleport as a SAML identity provider.
+
+### IaC support for OpenSSH nodes
+
+Users will be able to register OpenSSH nodes in the cluster using Terraform and
+Kubernetes Operator.
+
+### Access requests start time
+
+Users submitting access requests via web UI will be able to request specific
+access start time up to a week in advance.
+
+### Terraform and Operator support for agentless SSH nodes
+
+The Teleport Terraform provider and Kubernetes operator now support declaring
+agentless OpenSSH and OpenSSH EC2 ICE servers. You can follow [this
+guide](docs/pages/management/dynamic-resources/agentless-ssh-servers.mdx)
+to register OpenSSH agents with infrastructure as code.
+
+Setting up EC2 ICE automatic discovery with IaC will come in a future update.
+
+### Operator and CRDs can be deployed separately
+
+The `teleport-operator` and `teleport-cluster` charts now support deploying only
+the CRD, the CRD and the operator, or only the operator.
+
+From the `teleport-cluster` Helm chart:
+
+```yaml
+operator:
+  enabled: true|false
+  installCRDs: always|never|dynamic
+```
+
+From the `teleport-operator` Helm chart:
+
+```yaml
+enabled: true|false
+installCRDs: always|never|dynamic
+```
+
+In dynamic mode (by default), the chart will install CRDs if the operator is
+enabled, but will not remove the CRDs if you temporarily disable the operator.
+
+### Operator now propagates labels
+
+Kubernetes CR labels are now copied to the Teleport resource when applicable.
+This allows you to configure RBAC for operator-created resources, and to filter
+Teleport resources more easily.
+
+### Terraform provider no longer forces resource re-creation on version change
+
+Teleport v15 introduced two Terraform provider changes:
+- setting the resource version is now mandatory
+- a resource version change triggers the resource re-creation to ensure defaults
+  were correctly set
+
+The second change was too disruptive, especially for roles, as they cannot be
+deleted if a user or an access list references them. Teleport 15.2 lifts this
+restriction and allows version change without forcing the resource deletion.
+
+Another change to ensure resource defaults are correctly set during version
+upgrades will happen in v16.
+
+### Other improvements and fixes
+
+* Fixed "Invalid URI" error in Teleport Connect when starting mongosh from database connection tab. [#40033](https://github.com/gravitational/teleport/pull/40033)
+* Adds support for easily exporting the SPIFFE CA using `tls auth export --type tls-spiffe` and the `/webapi/auth/export` endpoint. [#40007](https://github.com/gravitational/teleport/pull/40007)
+* Update Rust to 1.77.0, enable RDP font smoothing. [#39995](https://github.com/gravitational/teleport/pull/39995)
+* The role, server and token Teleport operator CRs now display additional information when listed with `kubectl get`. [#39993](https://github.com/gravitational/teleport/pull/39993)
+* Improve performance of filtering resources via predicate expressions. [#39972](https://github.com/gravitational/teleport/pull/39972)
+* Fixes a bug that prevented CA import when a SPIFFE CA was present. [#39958](https://github.com/gravitational/teleport/pull/39958)
+* Fix a verbosity issue that caused the `teleport-kube-agent-updater` to output debug logs by default. [#39953](https://github.com/gravitational/teleport/pull/39953)
+* Reduce default Jamf inventory page size, allow custom values to be provided. [#39933](https://github.com/gravitational/teleport/pull/39933)
+* AWS IAM Roles are now filterable in the web UI when launching a console app. [#39911](https://github.com/gravitational/teleport/pull/39911)
+* The `teleport-cluster` Helm chart now supports using the Amazon Athena event backend. [#39907](https://github.com/gravitational/teleport/pull/39907)
+* Correctly show the users allowed logins when accessing leaf resources via the root cluster web UI. [#39887](https://github.com/gravitational/teleport/pull/39887)
+* Improve performance of resource filtering via labels and fuzzy search. [#39791](https://github.com/gravitational/teleport/pull/39791)
+* Enforce optimistic locking for AuthPreferences, ClusterNetworkingConfig, SessionRecordingConfig. [#39785](https://github.com/gravitational/teleport/pull/39785)
+* Fix potential issue with some resources expiry being set to 01/01/1970 instead of never. [#39773](https://github.com/gravitational/teleport/pull/39773)
+* Update default access request TTLs to 1 week. [#39509](https://github.com/gravitational/teleport/pull/39509)
+* Fixed an issue where creating or updating an access list with Admin MFA would fail in the WebUI. [#3827](https://github.com/gravitational/teleport.e/pull/3827)
+
+
 ## 15.1.10 (03/27/24)
 
 * Fixed possible phishing links which could result in code execution with install and join scripts. [#39837](https://github.com/gravitational/teleport/pull/39837)

@@ -26,7 +26,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -185,7 +184,7 @@ func TestDirectTCPIP(t *testing.T) {
 			t.Parallel()
 
 			s := Server{
-				log:             utils.NewLoggerForTests().WithField(trace.Component, "test"),
+				log:             utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 				identityContext: srv.IdentityContext{Login: tt.login},
 			}
 
@@ -221,7 +220,7 @@ func TestCheckTCPIPForward(t *testing.T) {
 			t.Parallel()
 
 			s := Server{
-				log:             utils.NewLoggerForTests().WithField(trace.Component, "test"),
+				log:             utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 				identityContext: srv.IdentityContext{Login: tt.login},
 			}
 			err := s.checkTCPIPForwardRequest(&ssh.Request{

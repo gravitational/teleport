@@ -139,6 +139,7 @@
     "NOFILE",
     "NOKEY",
     "NOPASSWD",
+    "nonprod",
     "NVGJ",
     "Näme",
     "ODBC",
@@ -325,7 +326,9 @@
     "certutil",
     "cfhunter",
     "cfsdf",
+    "cgroups",
     "cgroupv",
+    "cgroupv2",
     "chacha",
     "chartmode",
     "cicd",
@@ -820,6 +823,7 @@
     "teleportdevprotocol",
     "teleporters",
     "teleportinfra",
+    "teleportopensshserverv",
     "teleportproxy",
     "teleportrolev",
     "teleportrolesv",
@@ -914,7 +918,15 @@
     "yubishm",
     "znmqk",
     "zxvf",
-    "zztop"
+    "zztop",
+    "spiffe",
+    "SPIFFE",
+    "svid",
+    "SVID",
+    "SVIDs",
+    "Ghostunnel",
+    "Linkerd",
+    "Istio"
   ],
   "flagWords": [
     "hte"

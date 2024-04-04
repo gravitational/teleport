@@ -98,7 +98,7 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 	}
 	logger := opts.Logger
 	if logger == nil {
-		logger = logrus.WithFields(logrus.Fields{trace.Component: "authorizer"})
+		logger = logrus.WithFields(logrus.Fields{teleport.ComponentKey: "authorizer"})
 	}
 
 	return &authorizer{
@@ -990,6 +990,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 						types.NewRule(types.KindDatabaseObjectImportRule, services.RO()),
+						types.NewRule(types.KindDatabaseObject, services.RW()),
 					},
 				},
 			})

@@ -90,7 +90,7 @@ func NewUnifiedResourceCache(ctx context.Context, cfg UnifiedResourceCacheConfig
 
 	m := &UnifiedResourceCache{
 		log: log.WithFields(log.Fields{
-			trace.Component: cfg.Component,
+			teleport.ComponentKey: cfg.Component,
 		}),
 		cfg: cfg,
 		nameTree: btree.NewG(cfg.BTreeDegree, func(a, b *item) bool {

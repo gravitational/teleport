@@ -37,6 +37,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
@@ -131,8 +132,8 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 		return nil, trace.Wrap(err)
 	}
 	log := logrus.WithFields(logrus.Fields{
-		trace.Component: defaults.ProtocolMongoDB,
-		"name":          config.Name,
+		teleport.ComponentKey: defaults.ProtocolMongoDB,
+		"name":                config.Name,
 	})
 	server := &TestServer{
 		cfg: config,

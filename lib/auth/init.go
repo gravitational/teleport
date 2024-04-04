@@ -70,7 +70,7 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentAuth,
+	teleport.ComponentKey: teleport.ComponentAuth,
 })
 
 // InitConfig is auth server init config
@@ -254,6 +254,9 @@ type InitConfig struct {
 
 	// DatabaseObjectImportRule is a service that manages database object import rules.
 	DatabaseObjectImportRules services.DatabaseObjectImportRules
+
+	// DatabaseObject is a service that manages database objects.
+	DatabaseObjects services.DatabaseObjects
 
 	// UserLoginStates is a service that manages user login states.
 	UserLoginState services.UserLoginStates
@@ -1061,7 +1064,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			switch r.GetType() {
 			case types.HostCA, types.UserCA, types.OpenSSHCA:
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
-			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA:
+			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
 			case types.JWTSigner, types.OIDCIdPCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)

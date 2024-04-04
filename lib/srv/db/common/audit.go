@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -105,7 +106,7 @@ func NewAudit(config AuditConfig) (Audit, error) {
 	}
 	return &audit{
 		cfg: config,
-		log: logrus.WithField(trace.Component, config.Component),
+		log: logrus.WithField(teleport.ComponentKey, config.Component),
 	}, nil
 }
 

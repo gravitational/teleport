@@ -294,6 +294,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			},
 		},
 		EmbeddingRetriever: ai.NewSimpleRetriever(),
+		HostUUID:           uuid.New().String(),
 	},
 		WithClock(cfg.Clock),
 		WithEmbedder(cfg.Embedder),
@@ -411,6 +412,16 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	srv.AuthServer.SetUnifiedResourcesCache(unifiedResourcesCache)
+
+	accessRequestCache, err := services.NewAccessRequestCache(services.AccessRequestCacheConfig{
+		Events: srv.AuthServer.Services,
+		Getter: srv.AuthServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	srv.AuthServer.SetAccessRequestCache(accessRequestCache)
 
 	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(srv.AuthServer.CloseContext(), local.HeadlessAuthenticationWatcherConfig{
 		Backend: b,
