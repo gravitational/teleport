@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
@@ -160,8 +161,10 @@ func (process *TeleportProcess) connectToAuthService(role types.SystemRole, opts
 	return connector, nil
 }
 
-type certOption func(*certOptions)
-type certOptions struct{}
+type (
+	certOption  func(*certOptions)
+	certOptions struct{}
+)
 
 func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOption) (conn *Connector, err error) {
 	var options certOptions
@@ -339,7 +342,9 @@ func (process *TeleportProcess) getCertAuthority(conn *Connector, id types.CertA
 	if conn.ClientIdentity.ID.Role == types.RoleAdmin || conn.ClientIdentity.ID.Role == types.RoleAuth {
 		return process.localAuth.GetCertAuthority(process.ExitContext(), id, loadPrivateKeys)
 	}
-	return conn.Client.GetCertAuthority(process.ExitContext(), id, loadPrivateKeys)
+	ctx, cancel := context.WithTimeout(process.ExitContext(), apidefaults.DefaultIOTimeout)
+	defer cancel()
+	return conn.Client.GetCertAuthority(ctx, id, loadPrivateKeys)
 }
 
 // reRegister receives new identity credentials for proxy, node and auth.
@@ -362,7 +367,9 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 	if id.Role == types.RoleInstance {
 		systemRoles = process.getInstanceRoles()
 	}
-	identity, err := auth.ReRegister(auth.ReRegisterParams{
+	ctx, cancel := context.WithTimeout(process.ExitContext(), apidefaults.DefaultIOTimeout)
+	defer cancel()
+	identity, err := auth.ReRegister(ctx, auth.ReRegisterParams{
 		Client:               conn.Client,
 		ID:                   id,
 		AdditionalPrincipals: additionalPrincipals,
@@ -1157,7 +1164,9 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 
 	// If connected, make sure the connector's client works by using
 	// a call that should succeed at all times (Ping).
-	resp, err := clt.Ping(process.ExitContext())
+	ctx, cancel := context.WithTimeout(process.ExitContext(), apidefaults.DefaultIOTimeout)
+	defer cancel()
+	resp, err := clt.Ping(ctx)
 	if err != nil {
 		return nil, nil, trace.NewAggregate(err, clt.Close())
 	}
@@ -1202,7 +1211,9 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 
 	// If connected, make sure the connector's client works by using
 	// a call that should succeed at all times (Ping).
-	resp, err := clt.Ping(process.ExitContext())
+	ctx, cancel := context.WithTimeout(process.ExitContext(), apidefaults.DefaultIOTimeout)
+	defer cancel()
+	resp, err := clt.Ping(ctx)
 	if err != nil {
 		return nil, nil, trace.NewAggregate(err, clt.Close())
 	}
