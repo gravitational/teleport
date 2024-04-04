@@ -123,10 +123,6 @@ Automatic updates configuration has been updated.
 Notes:
 - These two resources are separate so that Cloud customers can be restricted from updating `autoupdate_version`, while maintaining control over the rollout.
 
-Questions:
-- Should we use a time-only format for specifying the update hour? E.g., `agent_update_time: "18:00:00.000+01`
-  This would allow users to set an exact time via the CLI, instead of restricting to hours.
-
 ### Filesystem
 
 ```
