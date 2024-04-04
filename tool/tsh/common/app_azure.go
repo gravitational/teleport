@@ -207,7 +207,7 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	appCerts, err := loadAppCertificateWithAppLogin(a.cf, tc, a.app.Name)
+	appCert, _, err := loadAppCertificate(tc, a.app.Name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -232,14 +232,14 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	signer, ok := appCerts.PrivateKey.(crypto.Signer)
+	signer, ok := appCert.PrivateKey.(crypto.Signer)
 	if !ok {
-		return trace.BadParameter("private key type %T does not implement crypto.Signer (this is a bug)", appCerts.PrivateKey)
+		return trace.BadParameter("private key type %T does not implement crypto.Signer (this is a bug)", appCert.PrivateKey)
 	}
 
 	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
 		makeBasicLocalProxyConfig(a.cf, tc, listener),
-		alpnproxy.WithClientCerts(appCerts),
+		alpnproxy.WithClientCerts(appCert),
 		alpnproxy.WithClusterCAsIfConnUpgrade(a.cf.Context, tc.RootClusterCACertPool),
 		alpnproxy.WithHTTPMiddleware(&alpnproxy.AzureMSIMiddleware{
 			Key:    signer,

@@ -19,6 +19,7 @@
 package common
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"fmt"
@@ -36,8 +37,10 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -317,14 +320,39 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	appCerts, err := loadAppCertificateWithAppLogin(cf, tc, cf.AppName)
+	app, err := getRegisteredApp(cf, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	app, err := getRegisteredApp(cf, tc)
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	routeToApp, err := getRouteToApp(cf, tc, profile, app)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	opts := []alpnproxy.LocalProxyConfigOpt{
+		alpnproxy.WithALPNProtocol(alpnProtocolForApp(app)),
+		alpnproxy.WithClusterCAsIfConnUpgrade(cf.Context, tc.RootClusterCACertPool),
+		alpnproxy.WithMiddleware(client.NewAppCertChecker(tc, routeToApp, nil)),
+	}
+
+	// If MFA is not required, try to load existing certs. If MFA is required,
+	// or loading an existing cert fails, let the cert checker reissue the
+	// certs on proxy startup.
+	required, err := isMFAAppAccessRequired(cf.Context, tc, routeToApp)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !required {
+		cert, _, err := loadAppCertificate(tc, routeToApp.Name)
+		if err == nil {
+			opts = append(opts, alpnproxy.WithClientCerts(cert))
+		}
 	}
 
 	addr := "localhost:0"
@@ -337,12 +365,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	lp, err := alpnproxy.NewLocalProxy(
-		makeBasicLocalProxyConfig(cf, tc, listener),
-		alpnproxy.WithALPNProtocol(alpnProtocolForApp(app)),
-		alpnproxy.WithClientCerts(appCerts),
-		alpnproxy.WithClusterCAsIfConnUpgrade(cf.Context, tc.RootClusterCACertPool),
-	)
+	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf, tc, listener), opts...)
 	if err != nil {
 		if cerr := listener.Close(); cerr != nil {
 			return trace.NewAggregate(err, cerr)
@@ -366,6 +389,24 @@ func onProxyCommandApp(cf *CLIConf) error {
 	}
 
 	return nil
+}
+
+func isMFAAppAccessRequired(ctx context.Context, tc *client.TeleportClient, app proto.RouteToApp) (bool, error) {
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	mfaResp, err := clusterClient.AuthClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+		Target: &proto.IsMFARequiredRequest_App{
+			App: &app,
+		},
+	})
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return mfaResp.GetRequired(), nil
 }
 
 // onProxyCommandAWS creates local proxes for AWS apps.
@@ -529,25 +570,29 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 // loadAppCertificateWithAppLogin is a wrapper around loadAppCertificate that will attempt to login the user to
 // the app of choice at most once, if the return value from loadAppCertificate call indicates that app login
 // should fix the problem.
-func loadAppCertificateWithAppLogin(cf *CLIConf, tc *libclient.TeleportClient, appName string) (tls.Certificate, error) {
-	cert, needLogin, err := loadAppCertificate(tc, appName)
+func loadAppCertificateWithAppLogin(cf *CLIConf, tc *libclient.TeleportClient, routeToApp proto.RouteToApp) (tls.Certificate, error) {
+	cert, needLogin, err := loadAppCertificate(tc, routeToApp.Name)
 	if err != nil {
 		if !needLogin {
 			return tls.Certificate{}, trace.Wrap(err)
 		}
-		log.WithError(err).Debugf("Loading app certificate failed, attempting to login into app %q", appName)
-		quiet := cf.Quiet
-		cf.Quiet = true
-		errLogin := onAppLogin(cf)
-		cf.Quiet = quiet
-		if errLogin != nil {
-			log.WithError(errLogin).Debugf("Login attempt failed")
-			// combine errors
-			return tls.Certificate{}, trace.NewAggregate(err, errLogin)
+
+		log.WithError(err).Debugf("Loading app certificate failed, attempting to issue certs for app %q", routeToApp.Name)
+
+		profile, err := tc.ProfileStatus()
+		if err != nil {
+			return tls.Certificate{}, trace.Wrap(err)
 		}
-		// another attempt
-		cert, _, err = loadAppCertificate(tc, appName)
-		return cert, trace.Wrap(err)
+
+		cert, err = issueAppCert(cf.Context, tc, client.ReissueParams{
+			RouteToCluster: profile.Cluster,
+			RouteToApp:     routeToApp,
+			AccessRequests: profile.ActiveRequests.AccessRequests,
+			RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
+		})
+		if err != nil {
+			return tls.Certificate{}, trace.Wrap(err)
+		}
 	}
 	return cert, nil
 }
