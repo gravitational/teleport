@@ -48,6 +48,8 @@ type RegisterIAMChallengeResponseFunc func(challenge string) (*proto.RegisterUsi
 // *proto.RegisterUsingAzureMethodRequest for a given challenge, or an error.
 type RegisterAzureChallengeResponseFunc func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error)
 
+type RegisterTPMChallengeResponseFunc func(challenge *proto.RegisterUsingTPMMethodEnrollChallengeRequest) (*proto.RegisterUsingTPMMethodEnrollChallengeResponse, error)
+
 // RegisterUsingIAMMethod registers the caller using the IAM join method and
 // returns signed certs to join the cluster.
 //
