@@ -761,6 +761,11 @@ func getRDSAdminInfo(t *testing.T, ctx context.Context, instanceID string) rdsAd
 	require.NoError(t, err)
 	require.Len(t, result.DBInstances, 1)
 	dbInstance := result.DBInstances[0]
+	require.NotNil(t, dbInstance.MasterUsername)
+	require.NotNil(t, dbInstance.MasterUserSecret)
+	require.NotNil(t, dbInstance.MasterUserSecret.SecretArn)
+	require.NotEmpty(t, *dbInstance.MasterUsername)
+	require.NotEmpty(t, *dbInstance.MasterUserSecret.SecretArn)
 	return rdsAdminInfo{
 		address:  *dbInstance.Endpoint.Address,
 		port:     int(*dbInstance.Endpoint.Port),
@@ -781,6 +786,9 @@ func getRDSMasterUserPassword(t *testing.T, ctx context.Context, secretID string
 		// being paranoid. I don't want to leak the secret string in test error
 		// logs.
 		require.FailNow(t, "error unmarshaling secret string")
+	}
+	if len(secret.Pass) == 0 {
+		require.FailNow(t, "empty master user secret string")
 	}
 	return secret.Pass
 }
