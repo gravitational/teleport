@@ -117,6 +117,7 @@ type testPack struct {
 	accessLists             services.AccessLists
 	kubeWaitingContainers   services.KubeWaitingContainer
 	notifications           services.Notifications
+	accessMonitoringRules   services.AccessMonitoringRules
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -302,6 +303,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 	p.accessLists = accessListsSvc
+	accessMonitoringRuleService, err := local.NewAccessMonitoringRulesService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.accessMonitoringRules = accessMonitoringRuleService
 
 	kubeWaitingContSvc, err := local.NewKubeWaitingContainerService(p.backend)
 	if err != nil {
@@ -357,6 +363,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		Notifications:           p.notifications,
+		AccessMonitoringRules:   p.accessMonitoringRules,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -757,6 +764,7 @@ func TestCompletenessInit(t *testing.T) {
 			AccessLists:             p.accessLists,
 			KubeWaitingContainers:   p.kubeWaitingContainers,
 			Notifications:           p.notifications,
+			AccessMonitoringRules:   p.accessMonitoringRules,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -831,6 +839,7 @@ func TestCompletenessReset(t *testing.T) {
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		Notifications:           p.notifications,
+		AccessMonitoringRules:   p.accessMonitoringRules,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1017,6 +1026,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		Notifications:           p.notifications,
+		AccessMonitoringRules:   p.accessMonitoringRules,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1102,6 +1112,7 @@ func initStrategy(t *testing.T) {
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		Notifications:           p.notifications,
+		AccessMonitoringRules:   p.accessMonitoringRules,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -3097,6 +3108,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindKubeWaitingContainer:    newKubeWaitingContainer(t),
 		types.KindNotification:            types.Resource153ToLegacy(newUserNotification(t, "test")),
 		types.KindGlobalNotification:      types.Resource153ToLegacy(newGlobalNotification(t, "test")),
+		types.KindAccessMonitoringRule:    &types.AccessMonitoringRuleV1{},
 	}
 
 	for name, cfg := range cases {

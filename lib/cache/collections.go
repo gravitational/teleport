@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -237,6 +238,7 @@ type cacheCollections struct {
 	windowsDesktopServices   collectionReader[windowsDesktopServiceGetter]
 	userNotifications        collectionReader[notificationGetter]
 	globalNotifications      collectionReader[notificationGetter]
+	accessMonitoringRules    collectionReader[accessMonitoringRuleGetter]
 }
 
 // setupCollections returns a registry of collections.
@@ -696,6 +698,12 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.globalNotifications
+		case types.KindAccessMonitoringRule:
+			if c.AccessMonitoringRules == nil {
+				return nil, trace.BadParameter("missing parameter AccessMonitoringRule")
+			}
+			collections.accessMonitoringRules = &genericCollection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleGetter, accessMonitoringRulesExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.accessMonitoringRules
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -2905,7 +2913,6 @@ func (userNotificationExecutor) getAll(ctx context.Context, cache *Cache, loadSe
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		notifications = append(notifications, notifs...)
 
 		if nextKey == "" {
@@ -3021,3 +3028,63 @@ func (globalNotificationExecutor) getReader(cache *Cache, cacheOK bool) notifica
 }
 
 var _ executor[*notificationsv1.GlobalNotification, notificationGetter] = globalNotificationExecutor{}
+
+type accessMonitoringRulesExecutor struct{}
+
+func (accessMonitoringRulesExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
+	var resources []*accessmonitoringrulesv1.AccessMonitoringRule
+	var nextToken string
+	for {
+		var page []*accessmonitoringrulesv1.AccessMonitoringRule
+		var err error
+		page, nextToken, err = cache.AccessMonitoringRules.ListAccessMonitoringRules(ctx, 0 /* page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = append(resources, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+	return resources, nil
+}
+
+func (accessMonitoringRulesExecutor) upsert(ctx context.Context, cache *Cache, resource *accessmonitoringrulesv1.AccessMonitoringRule) error {
+	if _, err := cache.accessMontoringRuleCache.CreateAccessMonitoringRule(ctx, resource); err != nil {
+		if !trace.IsAlreadyExists(err) {
+			return trace.Wrap(err)
+		}
+
+		if err := cache.accessMontoringRuleCache.DeleteAccessMonitoringRule(ctx, resource.Metadata.Name); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if _, err := cache.accessMontoringRuleCache.CreateAccessMonitoringRule(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (accessMonitoringRulesExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.accessMontoringRuleCache.DeleteAllAccessMonitoringRules(ctx)
+}
+
+func (accessMonitoringRulesExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.accessMontoringRuleCache.DeleteAccessMonitoringRule(ctx, resource.GetName())
+}
+
+func (accessMonitoringRulesExecutor) isSingleton() bool { return false }
+
+func (accessMonitoringRulesExecutor) getReader(cache *Cache, cacheOK bool) accessMonitoringRuleGetter {
+	if cacheOK {
+		return cache.accessMontoringRuleCache
+	}
+	return cache.Config.AccessMonitoringRules
+}
+
+type accessMonitoringRuleGetter interface {
+	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error)
+	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+}
