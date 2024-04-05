@@ -151,7 +151,7 @@ $ tree /var/lib/teleport
    └── updates.yaml
 $ ls -l /usr/local/bin/teleport
 /usr/local/bin/teleport -> /var/lib/teleport/versions/15.0.0/bin/teleport
-$ ls -l /usr/local/bin/teleport
+$ ls -l /usr/local/bin/teleport-updater
 /usr/local/bin/teleport-updater -> /var/lib/teleport/versions/15.0.0/bin/teleport-updater
 $ ls -l /usr/local/lib/systemd/system/teleport.service
 /usr/local/lib/systemd/system/teleport.service -> /var/lib/teleport/versions/15.0.0/etc/systemd/teleport.service
