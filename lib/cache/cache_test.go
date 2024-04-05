@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
@@ -3108,7 +3109,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindKubeWaitingContainer:    newKubeWaitingContainer(t),
 		types.KindNotification:            types.Resource153ToLegacy(newUserNotification(t, "test")),
 		types.KindGlobalNotification:      types.Resource153ToLegacy(newGlobalNotification(t, "test")),
-		types.KindAccessMonitoringRule:    &types.AccessMonitoringRuleV1{},
+		types.KindAccessMonitoringRule:    types.Resource153ToLegacy(newAccessMonitoringRule(t)),
 	}
 
 	for name, cfg := range cases {
@@ -3593,6 +3594,16 @@ func newGlobalNotification(t *testing.T, description string) *notificationsv1.Gl
 		},
 	}
 
+	return notification
+}
+
+func newAccessMonitoringRule(t *testing.T) *accessmonitoringrulesv1.AccessMonitoringRule {
+	t.Helper()
+	notification := &accessmonitoringrulesv1.AccessMonitoringRule{
+		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+			Notification: &accessmonitoringrulesv1.Notification{},
+		},
+	}
 	return notification
 }
 
