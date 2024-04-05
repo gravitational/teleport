@@ -248,7 +248,7 @@ func TestRBAC(t *testing.T) {
 				Authorizer:               authorizer,
 				ClusterAuditConfigGetter: &staticAuditConfigGetter{clusterAuditConfig},
 				IntegrationSvc:           p.integrationsSvc,
-				OIDCTokenFn:              func(context.Context) (string, error) { return "token", nil },
+				OIDCTokenFn:              func(context.Context, string) (string, error) { return "token", nil },
 				Emitter:                  emitter,
 			}
 
@@ -335,7 +335,7 @@ func TestClusterAuditConfigCheck(t *testing.T) {
 				Authorizer:               authorizer,
 				ClusterAuditConfigGetter: &staticAuditConfigGetter{clusterAuditConfig},
 				IntegrationSvc:           p.integrationsSvc,
-				OIDCTokenFn:              func(context.Context) (string, error) { return "token", nil },
+				OIDCTokenFn:              func(context.Context, string) (string, error) { return "token", nil },
 				Emitter:                  &fakeEmitter{},
 			}
 			service, err := NewService(cfg)
