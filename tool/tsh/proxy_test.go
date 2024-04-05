@@ -417,6 +417,7 @@ func TestProxySSHJumpHost(t *testing.T) {
 				// Connect through the leaf proxy jumphost.
 				err = Run(ctx, []string{
 					"--debug",
+					"--insecure",
 					"proxy",
 					"ssh",
 					"-J", leafProxyAddr.String(),
