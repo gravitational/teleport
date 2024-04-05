@@ -20,7 +20,7 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
 import { makeBot, toApiGitHubTokenSpec } from 'teleport/services/bot/consts';
-import { RoleResource } from 'teleport/services/resources';
+import ResourceService, { RoleResource } from 'teleport/services/resources';
 import { FeatureFlags } from 'teleport/types';
 
 import {
@@ -79,13 +79,8 @@ export async function fetchRoles(
     return { startKey: '', items: [] };
   }
 
-  return api.get(
-    cfg.getListRolesUrl({
-      search: search || undefined,
-      limit: 50,
-      startKey: undefined,
-    })
-  );
+  const resourceSvc = new ResourceService();
+  return resourceSvc.fetchRoles({ limit: 50, search });
 }
 
 export function editBot(
