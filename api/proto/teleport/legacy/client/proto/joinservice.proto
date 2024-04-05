@@ -69,10 +69,10 @@ message RegisterUsingAzureMethodResponse {
 
 // The enrollment challenge response containing the solution returned by
 // calling the TPM2.0 `ActivateCredential` command on the client with the
-// parameters provided in `RegisterUsingTPMMethodEnrollChallengeRequest`.
+// parameters provided in `TPMEncryptedCredential`.
 message RegisterUsingTPMMethodEnrollChallengeResponse {
   // The client's solution to `TPMEncryptedCredential` included in
-  // `RegisterUsingTPMMethodEnrollChallengeRequest` using ActivateCredential.
+  // `TPMEncryptedCredential` using ActivateCredential.
   bytes solution = 1;
 }
 
@@ -132,7 +132,7 @@ message RegisterUsingTPMMethodRequest {
 // - https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part3_Commands_code_pub.pdf (Heading 12.5.1 "TPM2_ActivateCredential" "General Description")
 // - https://github.com/google/go-attestation/blob/v0.4.3/attest/activation.go#L199
 // - https://github.com/google/go-tpm/blob/v0.3.3/tpm2/credactivation/credential_activation.go#L61
-message RegisterUsingTPMMethodEnrollChallengeRequest {
+message TPMEncryptedCredential {
   // The `credential_blob` parameter to be used with the `ActivateCredential`
   // command. This is used with the decrypted value of `secret` in a
   // cryptographic process to decrypt the solution.
@@ -148,7 +148,7 @@ message RegisterUsingTPMMethodResponse {
   oneof payload {
     // The challenge required to complete the TPM join process. This is sent to
     // the client in response to the initial request.
-    RegisterUsingTPMMethodEnrollChallengeRequest challenge_request = 1;
+    TPMEncryptedCredential challenge_request = 1;
     // The signed certificates resulting from the join process.
     Certs certs = 2;
   }
