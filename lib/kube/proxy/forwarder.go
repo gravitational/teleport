@@ -2088,18 +2088,15 @@ func isRelevantWebsocketError(err error) bool {
 }
 
 func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
-	spdyExec, err := f.getSPDYExecutor(sess, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if wsstream.IsWebSocketRequestWithStreamCloseProtocol(req) {
+	if details, ok := f.clusterDetails[sess.kubeClusterName]; ok &&
+		kubernetesSupportsExecSubprotocolV5(details.kubeClusterVersion) && f.allServersSupportExecSubprotocolV5(sess) {
+
 		wsExec, err := f.getWebsocketExecutor(sess, req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return remotecommand.NewFallbackExecutor(wsExec, spdyExec, isRelevantWebsocketError)
+		return wsExec, trace.Wrap(err)
 	}
-	return spdyExec, nil
+
+	spdyExec, err := f.getSPDYExecutor(sess, req)
+	return spdyExec, trace.Wrap(err)
 }
 
 func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {

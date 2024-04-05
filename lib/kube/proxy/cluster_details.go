@@ -34,6 +34,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -53,6 +54,8 @@ type kubeDetails struct {
 	dynamicLabels *labels.Dynamic
 	// kubeCluster is the dynamic kube_cluster or a static generated from kubeconfig and that only has the name populated.
 	kubeCluster types.KubeCluster
+	// kubeClusterVersion is the version of the kube_cluster's related Kubernetes server.
+	kubeClusterVersion *version.Info
 
 	// rwMu is the mutex to protect the kubeCodecs, gvkSupportedResources, and rbacSupportedTypes.
 	rwMu sync.RWMutex
@@ -124,9 +127,12 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 		dynLabels.Sync()
 		go dynLabels.Start()
 	}
+
+	kubeClient := creds.getKubeClient()
+
 	var isClusterOffline bool
 	// Create the codec factory and the list of supported types for RBAC.
-	codecFactory, rbacSupportedTypes, gvkSupportedRes, err := newClusterSchemaBuilder(cfg.log, creds.getKubeClient())
+	codecFactory, rbacSupportedTypes, gvkSupportedRes, err := newClusterSchemaBuilder(cfg.log, kubeClient)
 	if err != nil {
 		cfg.log.WithError(err).Warn("Failed to create cluster schema. Possibly the cluster is offline.")
 		// If the cluster is offline, we will not be able to create the codec factory
@@ -136,11 +142,17 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 		isClusterOffline = true
 	}
 
+	kubeVersion, err := kubeClient.Discovery().ServerVersion()
+	if err != nil {
+		cfg.log.WithError(err).Warn("Failed to get Kubernetes cluster version. Possibly the cluster is offline.")
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	k := &kubeDetails{
 		kubeCreds:             creds,
 		dynamicLabels:         dynLabels,
 		kubeCluster:           cfg.cluster,
+		kubeClusterVersion:    kubeVersion,
 		kubeCodecs:            codecFactory,
 		rbacSupportedTypes:    rbacSupportedTypes,
 		cancelFunc:            cancel,
