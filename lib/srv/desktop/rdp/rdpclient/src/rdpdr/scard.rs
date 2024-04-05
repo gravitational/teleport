@@ -206,13 +206,18 @@ impl ScardBackend {
             );
         }
 
-        let get_status_change_ret = Self::create_get_status_change_return(call);
+        let reader_states = Self::create_get_status_change_reader_states(call);
 
-        // We have no status change to report, cache a response
-        // for later in case we get an SCARD_IOCTL_CANCEL.
-        if Self::has_no_change(&get_status_change_ret) {
+        // We have no status change to report.
+        if Self::has_no_change(&reader_states) {
             if timeout != TIMEOUT_INFINITE {
-                return Err(other_err!("got no change for non-infinite timeout",));
+                // Since our status never changes, we just return immediately here
+                // as if the call timed out.
+                debug!("got no change for non-infinite timeout");
+                return self.send_device_control_response(
+                    req,
+                    GetStatusChangeReturn::new(ReturnCode::Timeout, reader_states),
+                );
             }
 
             // Received a GetStatusChangeCall with an infinite timeout, so we're adding
@@ -226,7 +231,7 @@ impl ScardBackend {
                     NtStatus::SUCCESS,
                     Some(Box::new(GetStatusChangeReturn::new(
                         ReturnCode::Cancelled,
-                        get_status_change_ret.into_inner().reader_states,
+                        reader_states,
                     ))),
                 ),
             )?;
@@ -237,12 +242,15 @@ impl ScardBackend {
         }
 
         // We have some status change to report, send it to the server.
-        self.send_device_control_response(req, get_status_change_ret)
+        self.send_device_control_response(
+            req,
+            GetStatusChangeReturn::new(ReturnCode::Success, reader_states),
+        )
     }
 
-    fn create_get_status_change_return(
+    fn create_get_status_change_reader_states(
         call: GetStatusChangeCall,
-    ) -> rpce::Pdu<GetStatusChangeReturn> {
+    ) -> Vec<ReaderStateCommonCall> {
         let mut reader_states = vec![];
         for state in call.states {
             match state.reader.as_str() {
@@ -285,13 +293,11 @@ impl ScardBackend {
                 }
             }
         }
-
-        GetStatusChangeReturn::new(ReturnCode::Success, reader_states)
+        reader_states
     }
 
-    fn has_no_change(pdu: &rpce::Pdu<GetStatusChangeReturn>) -> bool {
-        pdu.into_inner_ref()
-            .reader_states
+    fn has_no_change(reader_states: &[ReaderStateCommonCall]) -> bool {
+        reader_states
             .iter()
             .all(|state| state.current_state == state.event_state)
     }
