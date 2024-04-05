@@ -98,7 +98,7 @@ func (w *WebsocketRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 
 	wsConn, wsResp, err := wsDialer.DialContext(w.ctx, clone.URL.String(), clone.Header)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, &httpstream.UpgradeFailureError{Cause: err}
 	}
 	w.conn = wsConn
 	if w.onConnected != nil {
