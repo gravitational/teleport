@@ -47,7 +47,8 @@ export const VnetConnectionItem = (props: {
   return (
     <ListItem
       css={`
-        padding: 6px 8px;
+        padding: ${props => props.theme.space[1]}px
+          ${props => props.theme.space[2]}px;
         height: unset;
       `}
       onClick={props.onClick}
