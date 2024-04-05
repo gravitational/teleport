@@ -3,206 +3,44 @@ title: Database Access AWS IAM Reference
 description: AWS IAM policies for Teleport database access.
 ---
 
-## Auto-discovery
-With the appropriate IAM permissions, Teleport automatically discovers and
-configures IAM policies for Amazon RDS and Redshift. Teleport also requires
-permission to update database configurations, for example, to enable IAM
-authentication on RDS databases.
+Teleport Database Services require IAM permissions for various tasks,
+including discovering endpoints and instance metadata, generating IAM
+authentication tokens, and assuming IAM roles.
 
-For Amazon ElastiCache and MemoryDB, Teleport requires permission to
-automatically discover the Redis clusters. Teleport also requires permission to
-automatically discover and modify any Teleport-managed ElastiCache or MemoryDB
-users and permission to manage the passwords in AWS Secrets Manager.
-
-You can generate and manage the permissions with the [`teleport db configure
-bootstrap`](../../database-access/reference/cli.mdx#teleport-db-configure-bootstrap)
+You can generate the permissions with the [`teleport db configure
+aws print-iam`](../../database-access/reference/cli.mdx#teleport-db-configure--awsprint-iam)
 command. For example, the following command would generate and print the IAM
 policies:
 
 ```code
-$ teleport db configure bootstrap --manual
+$ teleport db configure aws print-iam --types rds,redshift --role db-service-role
 ```
 
-Or if you prefer, you can manage the IAM permissions yourself. Examples of
-policies for each discovery type are shown below.
+For further details on each database type, please refer to the sections below.
 
-### Aurora/RDS
+## RDS
 
-<Tabs>
-  <TabItem label="RDS / IAM user">
-  Use this policy if you're connecting to RDS instances and your Teleport
-  Database Service instance runs as an IAM user (for example, uses an AWS
-  credentials file).
+In this section, you will find information about the necessary IAM permissions
+that are required for RDS instances, Aurora clusters, and RDS Proxies.
 
-  Replace `{account-id}` with your AWS Account ID:
-  ```json
-  {
-      "Version": "2012-10-17",
-      "Statement": [
-          {
-              "Effect": "Allow",
-              "Action": [
-                  "rds:DescribeDBInstances",
-                  "rds:ModifyDBInstance"
-              ],
-              "Resource": "*"
-          },
-          {
-              "Effect": "Allow",
-              "Action": [
-                  "iam:GetUserPolicy",
-                  "iam:PutUserPolicy",
-                  "iam:DeleteUserPolicy"
-              ],
-              "Resource": "arn:aws:iam::{account-id}:user/sample-user"
-          }
-      ]
-  }
-  ```
-  </TabItem>
-  <TabItem label="RDS / IAM role">
-  Use this policy if you're connecting to RDS instances and your Teleport
-  Database Service runs as an IAM role (for example, on an EC2 instance with
-  an attached IAM role).
+Teleport Database Service can automatically manage IAM policies for RDS access.
+To use this feature, Teleport requires `iam:PutRolePolicy` or
+`iam:PutUserPolicy` permissions to grant itself permissions to generate IAM
+Authentication tokens for registered databases.
 
-  Replace `{account-id}` with your AWS Account ID:
-  ```json
-  {
-      "Version": "2012-10-17",
-      "Statement": [
-          {
-              "Effect": "Allow",
-              "Action": [
-                  "rds:DescribeDBInstances",
-                  "rds:ModifyDBInstance"
-              ],
-              "Resource": "*"
-          },
-          {
-              "Effect": "Allow",
-              "Action": [
-                  "iam:GetRolePolicy",
-                  "iam:PutRolePolicy",
-                  "iam:DeleteRolePolicy"
-              ],
-              "Resource": "arn:aws:iam::{account-id}:role/sample-role"
-          }
-      ]
-  }
-  ```
-  </TabItem>
-  <TabItem label="Aurora / IAM user">
-  Use this policy if you're connecting to Aurora clusters and your Teleport
-  Database Service runs as an IAM user (for example, uses an AWS credentials file).
+If you prefer to manage IAM identities on your own, please refer to [this sub
+section](#manage-iam-identities-yourself-for-rds) which outlines the required
+IAM permissions.
 
-  Replace `{account-id}` with your AWS Account ID:
-  ```json
-  {
-      "Version": "2012-10-17",
-      "Statement": [
-          {
-              "Effect": "Allow",
-              "Action": [
-                  "rds:DescribeDBClusters",
-                  "rds:ModifyDBCluster"
-              ],
-              "Resource": "*"
-          },
-          {
-              "Effect": "Allow",
-              "Action": [
-                  "iam:GetUserPolicy",
-                  "iam:PutUserPolicy",
-                  "iam:DeleteUserPolicy"
-              ],
-              "Resource": "arn:aws:iam::{account-id}:user/sample-user"
-          }
-      ]
-  }
-  ```
-  </TabItem>
-  <TabItem label="Aurora / IAM role">
-  Use this policy if you're connecting to Aurora clusters and your Teleport
-  Database Service runs as an IAM role (for example, on an EC2 instance with
-  an attached IAM role).
+### Teleport-managed IAM identities for RDS
 
-  Replace `{account-id}` with your AWS Account ID:
-  ```json
-  {
-      "Version": "2012-10-17",
-      "Statement": [
-          {
-              "Effect": "Allow",
-              "Action": [
-                  "rds:DescribeDBClusters",
-                  "rds:ModifyDBCluster"
-              ],
-              "Resource": "*"
-          },
-          {
-              "Effect": "Allow",
-              "Action": [
-                  "iam:GetRolePolicy",
-                  "iam:PutRolePolicy",
-                  "iam:DeleteRolePolicy"
-              ],
-              "Resource": "arn:aws:iam::{account-id}:role/sample-role"
-          }
-      ]
-  }
-  ```
-  </TabItem>
-</Tabs>
-
-<Admonition type="note">
-Teleport uses `rds:ModifyDBInstance` and `rds:ModifyDBCluster` to
-automatically enable [IAM
-authentication](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html)
-on the RDS instance and the Aurora cluster, respectively. You can omit these
-permissions if IAM authentication is already enabled.
-</Admonition>
-
-### RDS Proxy
+The required IAM permissions are slightly different depending on the IAM
+identity Teleport is managing:
 
 <Tabs>
-  <TabItem label="IAM user">
-  Use this policy if you're connecting to RDS Proxy instances and your Teleport
-  Database Service instance runs as an IAM user (for example, uses an AWS
-  credentials file).
-
-  Replace `{account-id}` with your AWS Account ID:
-  ```json
-  {
-      "Version": "2012-10-17",
-      "Statement": [
-          {
-              "Effect": "Allow",
-              "Action": [
-                  "rds:DescribeDBProxies",
-                  "rds:DescribeDBProxyEndpoints",
-                  "rds:ListTagsForResource",
-              ],
-              "Resource": "*"
-          },
-          {
-              "Effect": "Allow",
-              "Action": [
-                  "iam:GetUserPolicy",
-                  "iam:PutUserPolicy",
-                  "iam:DeleteUserPolicy"
-              ],
-              "Resource": "arn:aws:iam::{account-id}:user/sample-user"
-          }
-      ]
-  }
-  ```
-  </TabItem>
   <TabItem label="IAM role">
-  Use this policy if you're connecting to RDS Proxy instances and your Teleport
-  Database Service runs as an IAM role (for example, on an EC2 instance with an
-  attached IAM role).
-
-  Replace `{account-id}` with your AWS Account ID:
+  Use this policy if your Teleport Database Service runs as an IAM role (for
+  example, on an EC2 instance with an attached IAM role):
   ```json
   {
       "Version": "2012-10-17",
@@ -210,6 +48,10 @@ permissions if IAM authentication is already enabled.
           {
               "Effect": "Allow",
               "Action": [
+                  "rds:DescribeDBInstances",
+                  "rds:DescribeDBClusters",
+                  "rds:ModifyDBInstance",
+                  "rds:ModifyDBCluster",
                   "rds:DescribeDBProxies",
                   "rds:DescribeDBProxyEndpoints",
                   "rds:ListTagsForResource",
@@ -223,7 +65,112 @@ permissions if IAM authentication is already enabled.
                   "iam:PutRolePolicy",
                   "iam:DeleteRolePolicy"
               ],
-              "Resource": "arn:aws:iam::{account-id}:role/sample-role"
+              "Resource": "arn:aws:iam::<Var name="aws-account-id"/>:role/<Var name="sample-role"/>"
+          }
+      ]
+  }
+  ```
+
+  (!docs/pages/includes/database-access/reference/rds-action-details.mdx!)
+
+  To improve security, use the following boundary policy that limits Teleport's
+  self-granting capability on the IAM role:
+  ```json
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "rds:DescribeDBInstances",
+                  "rds:DescribeDBClusters",
+                  "rds:ModifyDBInstance",
+                  "rds:ModifyDBCluster",
+                  "rds:DescribeDBProxies",
+                  "rds:DescribeDBProxyEndpoints",
+                  "rds:ListTagsForResource",
+                  "rds-db:connect"
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "iam:GetRolePolicy",
+                  "iam:PutRolePolicy",
+                  "iam:DeleteRolePolicy"
+              ],
+              "Resource": "arn:aws:iam::<Var name="aws-account-id"/>:role/<Var name="sample-role"/>"
+          }
+      ]
+  }
+  ```
+  </TabItem>
+
+  <TabItem label="IAM user">
+  Use this policy if you're connecting to RDS instances and Aurora clusters,
+  and your Teleport Database Service instance runs as an IAM user (for example,
+  uses an AWS credentials file):
+  ```json
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "rds:DescribeDBInstances",
+                  "rds:DescribeDBClusters",
+                  "rds:ModifyDBInstance",
+                  "rds:ModifyDBCluster",
+                  "rds:DescribeDBProxies",
+                  "rds:DescribeDBProxyEndpoints",
+                  "rds:ListTagsForResource",
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "iam:GetUserPolicy",
+                  "iam:PutUserPolicy",
+                  "iam:DeleteUserPolicy"
+              ],
+              "Resource": "arn:aws:iam::<Var name="aws-account-id"/>:user/<Var name="sample-user"/>"
+          }
+      ]
+  }
+  ```
+
+  (!docs/pages/includes/database-access/reference/rds-action-details.mdx!)
+
+  To improve security, use the following boundary policy that limits Teleport's
+  self-granting capability on the IAM user:
+  ```json
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "rds:DescribeDBInstances",
+                  "rds:DescribeDBClusters",
+                  "rds:ModifyDBInstance",
+                  "rds:ModifyDBCluster",
+                  "rds:DescribeDBProxies",
+                  "rds:DescribeDBProxyEndpoints",
+                  "rds:ListTagsForResource",
+                  "rds-db:connect"
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "iam:GetUserPolicy",
+                  "iam:PutUserPolicy",
+                  "iam:DeleteUserPolicy"
+              ],
+              "Resource": "arn:aws:iam::<Var name="aws-account-id"/>:user/<Var name="sample-user"/>"
           }
       ]
   }
@@ -231,14 +178,100 @@ permissions if IAM authentication is already enabled.
   </TabItem>
 </Tabs>
 
-### Redshift
+
+### Manage IAM identities yourself for RDS
+
+To connect to an RDS database, the Database Service instance's IAM identity
+needs to have `rds-db:connect` permissions for it. Here is a sample policy:
+```json
+{
+   "Version": "2012-10-17",
+   "Statement": [
+      {
+         "Effect": "Allow",
+         "Action": [
+             "rds-db:connect"
+         ],
+         "Resource": [
+             "arn:aws:rds-db:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:dbuser:db-ABCDEFGHIJKL01234/*",
+             "arn:aws:rds-db:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:dbuser:cluster-ABCDEFGHIJKL01234/*",
+             "arn:aws:rds-db:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:dbuser:prx-ABCDEFGHIJKL01234/*"
+         ]
+      }
+   ]
+}
+```
+
+The resource ARN in the policy has the following format:
+
+```
+arn:aws:rds-db:<region>:<account-id>:dbuser:<resource-id>/<db-user>
+```
+
+| Parameter     | Description |
+| ------------- | ----------- |
+| `region`      | AWS region where the database cluster is deployed. |
+| `account-id`  | AWS account ID the database cluster is deployed under. |
+| `resource-id` | Database AWS resource identifier: <br/>- `db-XXX` for RDS instances.<br/>- `cluster-XXX` for Aurora clusters.<br/>- `prx-XXX` for RDS Proxy.<br/>Can be found under Configuration section in the RDS control panel. |
+| `db-user`     | Database user to associate with IAM authentication. Can be a wildcard. |
+
+See [Creating and using an IAM policy for IAM database access](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.IAMPolicy.html)
+for more information.
+
+If auto-discovery is used to register the databases, please also ensure the IAM
+identity has the following permissions:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "rds:DescribeDBInstances",
+                "rds:DescribeDBClusters",
+                "rds:ModifyDBInstance",
+                "rds:ModifyDBCluster",
+                "rds:DescribeDBProxies",
+                "rds:DescribeDBProxyEndpoints",
+                "rds:ListTagsForResource",
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+(!docs/pages/includes/database-access/reference/rds-action-details.mdx!)
+
+(!docs/pages/includes/database-access/reference/boundary-policy-note.mdx!)
+
+## Redshift
+
+As mentioned in the [Redshift
+guide](../guides/postgres-redshift.mdx#step-36-create-an-iam-role-for-user-access-optional),
+Teleport supports IAM authentication as either an existing database user or an IAM
+role for Redshift.
+
+When authenticating as an existing database user, Teleport Database Service can
+automatically manage IAM policies for Redshift access. To use this feature, Teleport
+requires `iam:PutRolePolicy` or `iam:PutUserPolicy` permissions to grant itself
+permissions to generate IAM Authentication tokens for registered databases. If
+you prefer to manage IAM identities on your own, please refer to [this sub
+section](#manage-iam-identities-yourself-for-redshift) which outlines the
+required IAM permissions.
+
+When authenticating as an IAM role, please use the IAM permissions outlined in
+[this sub section](#iam-authentication-as-iam-role-for-redshift).
+
+### Teleport-managed IAM identities for Redshift
+
+The required IAM permissions are slightly different depending on the IAM
+identity Teleport is managing:
 
 <Tabs>
-  <TabItem label="IAM user">
-  Use this permission boundary if your Teleport Database Service runs as an IAM
-  user (for example, it uses an AWS credentials file).
-
-  Replace `{account-id}` with your AWS Account ID:
+  <TabItem label="IAM role">
+  Use this permission boundary if your Teleport Database Service instance runs
+  as an IAM role (for example, on an EC2 instance with an attached IAM role):
   ```json
   {
       "Version": "2012-10-17",
@@ -247,28 +280,24 @@ permissions if IAM authentication is already enabled.
               "Effect": "Allow",
               "Action": [
                   "redshift:DescribeClusters",
-                  "redshift:GetClusterCredentials"
               ],
               "Resource": "*"
           },
           {
               "Effect": "Allow",
               "Action": [
-                  "iam:GetUserPolicy",
-                  "iam:PutUserPolicy",
-                  "iam:DeleteUserPolicy"
+                  "iam:GetRolePolicy",
+                  "iam:PutRolePolicy",
+                  "iam:DeleteRolePolicy"
               ],
-              "Resource": "arn:aws:iam::{account-id}:user/sample-user"
+              "Resource": "arn:aws:iam::<Var name="aws-account-id"/>:role/<Var name="sample-role"/>"
           }
       ]
   }
   ```
-  </TabItem>
-  <TabItem label="IAM role">
-  Use this permission boundary if your Teleport Database Service instance runs
-  as an IAM role (for example, on an EC2 instance with an attached IAM role).
 
-  Replace `{account-id}` with your AWS Account ID:
+  To improve security, use the following boundary policy that limits Teleport's
+  self-granting capability on the IAM role:
   ```json
   {
       "Version": "2012-10-17",
@@ -288,25 +317,16 @@ permissions if IAM authentication is already enabled.
                   "iam:PutRolePolicy",
                   "iam:DeleteRolePolicy"
               ],
-              "Resource": "arn:aws:iam::{account-id}:role/sample-role"
+              "Resource": "arn:aws:iam::<Var name="aws-account-id"/>:role/<Var name="sample-role"/>"
           }
       ]
   }
   ```
+
   </TabItem>
-</Tabs>
-
-### ElastiCache/MemoryDB
-
-In addition to database discovery, Teleport requires permissions to modify user
-passwords, and save passwords in AWS Secrets Manager, if any ElastiCache or
-MemoryDB users are tagged to be managed by Teleport.
-
-<Tabs>
-  <TabItem label="ElastiCache">
-  Use this policy if you are connecting to ElastiCache clusters.
-
-  Replace `{account-id}` with your AWS Account ID:
+  <TabItem label="IAM user">
+  Use this permission boundary if your Teleport Database Service runs as an IAM
+  user (for example, it uses an AWS credentials file):
   ```json
   {
       "Version": "2012-10-17",
@@ -314,40 +334,25 @@ MemoryDB users are tagged to be managed by Teleport.
           {
               "Effect": "Allow",
               "Action": [
-                  "elasticache:ListTagsForResource",
-                  "elasticache:DescribeReplicationGroups",
-                  "elasticache:DescribeCacheClusters",
-                  "elasticache:DescribeCacheSubnetGroups",
-                  "elasticache:DescribeUsers",
-                  "elasticache:ModifyUser"
+                  "redshift:DescribeClusters",
               ],
-              "Resource": [
-                  "*"
-              ]
+              "Resource": "*"
           },
           {
               "Effect": "Allow",
               "Action": [
-                  "secretsmanager:DescribeSecret",
-                  "secretsmanager:CreateSecret",
-                  "secretsmanager:UpdateSecret",
-                  "secretsmanager:DeleteSecret",
-                  "secretsmanager:GetSecretValue",
-                  "secretsmanager:PutSecretValue",
-                  "secretsmanager:TagResource"
+                  "iam:GetUserPolicy",
+                  "iam:PutUserPolicy",
+                  "iam:DeleteUserPolicy"
               ],
-              "Resource": [
-                  "arn:aws:secretsmanager:*:{account-id}:secret:teleport/*"
-              ]
+              "Resource": "arn:aws:iam::<Var name="aws-account-id"/>:user/<Var name="sample-user"/>"
           }
       ]
   }
   ```
-  </TabItem>
-  <TabItem label="MemoryDB">
-  Use this policy if you are connecting to MemoryDB clusters.
 
-  Replace `{account-id}` with your AWS Account ID:
+  To improve security, use the following boundary policy that limits Teleport's
+  self-granting capability on the IAM user:
   ```json
   {
       "Version": "2012-10-17",
@@ -355,30 +360,19 @@ MemoryDB users are tagged to be managed by Teleport.
           {
               "Effect": "Allow",
               "Action": [
-                  "memorydb:ListTags",
-                  "memorydb:DescribeClusters",
-                  "memorydb:DescribeSubnetGroups",
-                  "memorydb:DescribeUsers",
-                  "memorydb:UpdateUser"
+                  "redshift:DescribeClusters",
+                  "redshift:GetClusterCredentials"
               ],
-              "Resource": [
-                  "*"
-              ]
+              "Resource": "*"
           },
           {
               "Effect": "Allow",
               "Action": [
-                  "secretsmanager:DescribeSecret",
-                  "secretsmanager:CreateSecret",
-                  "secretsmanager:UpdateSecret",
-                  "secretsmanager:DeleteSecret",
-                  "secretsmanager:GetSecretValue",
-                  "secretsmanager:PutSecretValue",
-                  "secretsmanager:TagResource"
+                  "iam:GetUserPolicy",
+                  "iam:PutUserPolicy",
+                  "iam:DeleteUserPolicy"
               ],
-              "Resource": [
-                  "arn:aws:secretsmanager:*:{account-id}:secret:teleport/*"
-              ]
+              "Resource": "arn:aws:iam::<Var name="aws-account-id"/>:user/<Var name="sample-user"/>"
           }
       ]
   }
@@ -386,65 +380,10 @@ MemoryDB users are tagged to be managed by Teleport.
   </TabItem>
 </Tabs>
 
-## Manual registration
-If you prefer to register RDS, Redshift, ElastiCache or MemoryDB databases
-manually using a [static configuration](./configuration.mdx) or
-[`tctl`](../guides/dynamic-registration.mdx) and manage IAM yourself, example
-IAM policies with the required permissions are shown below.
-
-### RDS, Aurora, or RDS Proxy policy
-
-To connect to an RDS database, the Database Service instance's IAM identity
-needs to have `rds-db:connect` permissions for it:
-
-<Details title="Example IAM policy document">
-```json
-{
-   "Version": "2012-10-17",
-   "Statement": [
-      {
-         "Effect": "Allow",
-         "Action": [
-             "rds-db:connect"
-         ],
-         "Resource": [
-             // Use db-XXX as a resource identifier for RDS instances.
-             "arn:aws:rds-db:us-east-2:1234567890:dbuser:db-ABCDEFGHIJKL01234/*",
-             // Use cluster-XXX as a resource identifier for Aurora clusters.
-             "arn:aws:rds-db:us-east-2:1234567890:dbuser:cluster-ABCDEFGHIJKL01234/*"
-             // Use prx-XXX as a resource identifier for RDS proxies.
-             "arn:aws:rds-db:us-east-2:1234567890:dbuser:prx-ABCDEFGHIJKL01234/*"
-         ]
-      }
-   ]
-}
-```
-</Details>
-
-The resource ARN in the policy has the following format:
-
-```
-arn:aws:rds-db:<region>:<account-id>:dbuser:<resource-id>/<db-user>
-```
-
-| Parameter     | Description |
-| ------------- | ----------- |
-| `region`      | AWS region where the database cluster is deployed. |
-| `account-id`  | AWS account ID the database cluster is deployed under. |
-| `resource-id` | Database AWS resource identifier: `db-XXX` for RDS instances, `cluster-XXX` for Aurora clusters, "prx-XXX` for RDS Proxy. Can be found under Configuration section in the RDS control panel. |
-| `db-user`     | Database user to associate with IAM authentication. Can be a wildcard. |
-
-See [Creating and using an IAM policy for IAM database access](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.IAMPolicy.html)
-for more information.
-
-### Redshift policy
-Teleport uses temporary credentials generated by AWS to authenticate with
-Redshift databases.
+### Manage IAM identities yourself for Redshift
 
 In order to authorize Teleport to generate temporary IAM tokens, create an IAM
-role with the `GetClusterCredentials` permission:
-
-<Details title="Example IAM policy document">
+role with the `GetClusterCredentials` permission. Here is a sample policy:
 ```json
 {
     "Version": "2012-10-17",
@@ -453,15 +392,14 @@ role with the `GetClusterCredentials` permission:
             "Effect": "Allow",
             "Action": "redshift:GetClusterCredentials",
             "Resource": [
-                "arn:aws:redshift:*:1234567890:dbuser:*/*",
-                "arn:aws:redshift:*:1234567890:dbname:*/*",
-                "arn:aws:redshift:*:1234567890:dbgroup:*/*"
+                "arn:aws:redshift:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:dbuser:<Var name="cluster_id"/>/*",
+                "arn:aws:redshift:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:dbname:<Var name="cluster_id"/>/*",
+                "arn:aws:redshift:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:dbgroup:<Var name="cluster_id"/>/*"
             ]
         }
     ]
 }
 ```
-</Details>
 
 The resource ARN string has the following format:
 
@@ -482,17 +420,71 @@ See [Create an IAM role or user with permissions to call
 GetClusterCredentials](https://docs.aws.amazon.com/redshift/latest/mgmt/generating-iam-credentials-role-permissions.html)
 for more information.
 
-### ElastiCache/MemoryDB policy
+If auto-discovery is used to register the databases, please also ensure the IAM
+identity has the following permissions:
+```
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "redshift:DescribeClusters",
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
 
-If any ElastiCache or MemoryDB users are tagged to be managed by Teleport,
-below are the IAM permissions required for managing the ElastiCache or MemoryDB
-users. Otherwise, no additional IAM permissions are required.
+(!docs/pages/includes/database-access/reference/boundary-policy-note.mdx!)
+
+### IAM authentication as IAM role for Redshift
+
+When authenticating Redshift as an IAM role, Teleport Database Service must be
+able to assume this IAM role.
+
+(!docs/pages/includes/database-access/iam_role_trust_relationship.mdx role1="db-service-role" role2="redshift-access-role"!)
+
+The Redshift access IAM role requires the following permissions:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "redshift:GetClusterCredentialsWithIAM",
+            "Resource": "arn:aws:redshift:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:dbname:<Var name="cluster-id"/>/*"
+        }
+    ]
+}
+```
+
+## ElastiCache/MemoryDB
+
+ElastiCache and MemoryDB supports IAM authentication for Redis engine version
+7.0 or above. Teleport Database Service can automatically manage IAM policies
+for ElastiCache and MemoryDB that use IAM authentication. To use this feature,
+Teleport requires `iam:PutRolePolicy` or `iam:PutUserPolicy` permissions to
+grant itself permissions to generate IAM Authentication tokens for registered
+databases. If you prefer to manage IAM identities on your own, please refer to
+[this sub section](#manage-iam-identities-yourself-for-elasticachememorydb)
+which outlines the required IAM permissions.
+
+Teleport also supports automatic password rotations for ElastiCache and
+MemoryDB users using secrets manager, when IAM authentication is not available.
+Please use the IAM permissions outlined in [this sub
+section](#auto-password-rotation-for-elasticachememorydb).
+
+### Teleport-managed IAM identities for ElastiCache/MemoryDB
+
+The required IAM permissions are slightly different depending on the IAM
+identity Teleport is managing:
 
 <Tabs>
-  <TabItem label="ElastiCache">
-  Use this policy for managing ElastiCache users.
-
-  Replace `{account-id}` with your AWS Account ID:
+  <TabItem label="IAM role">
+  Use this permission boundary if your Teleport Database Service instance runs
+  as an IAM role (for example, on an EC2 instance with an attached IAM role):
   ```json
   {
       "Version": "2012-10-17",
@@ -502,36 +494,37 @@ users. Otherwise, no additional IAM permissions are required.
               "Action": [
                   "elasticache:ListTagsForResource",
                   "elasticache:DescribeReplicationGroups",
-                  "elasticache:DescribeUsers",
-                  "elasticache:ModifyUser"
+                  "elasticache:DescribeCacheClusters",
+                  "elasticache:DescribeCacheSubnetGroups",
+                  "elasticache:DescribeUsers"
               ],
-              "Resource": [
-                  "*"
-              ]
+              "Resource": "*"
           },
           {
               "Effect": "Allow",
               "Action": [
-                  "secretsmanager:DescribeSecret",
-                  "secretsmanager:CreateSecret",
-                  "secretsmanager:UpdateSecret",
-                  "secretsmanager:DeleteSecret",
-                  "secretsmanager:GetSecretValue",
-                  "secretsmanager:PutSecretValue",
-                  "secretsmanager:TagResource"
+                  "memorydb:ListTags",
+                  "memorydb:DescribeClusters",
+                  "memorydb:DescribeSubnetGroups",
+                  "memorydb:DescribeUsers",
               ],
-              "Resource": [
-                  "arn:aws:secretsmanager:*:{account-id}:secret:teleport/*"
-              ]
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "iam:GetRolePolicy",
+                  "iam:PutRolePolicy",
+                  "iam:DeleteRolePolicy"
+              ],
+              "Resource": "arn:aws:iam::<Var name="aws-account-id"/>:role/<Var name="sample-role"/>"
           }
       ]
   }
   ```
-  </TabItem>
-  <TabItem label="MemoryDB">
-  Use this policy for managing MemoryDB users.
 
-  Replace `{account-id}` with your AWS Account ID:
+  To improve security, use the following boundary policy that limits Teleport's
+  self-granting capability on the IAM role:
   ```json
   {
       "Version": "2012-10-17",
@@ -539,29 +532,118 @@ users. Otherwise, no additional IAM permissions are required.
           {
               "Effect": "Allow",
               "Action": [
-                "memorydb:ListTags",
-                "memorydb:DescribeClusters",
-                "memorydb:DescribeUsers",
-                "memorydb:UpdateUser"
+                  "elasticache:ListTagsForResource",
+                  "elasticache:DescribeReplicationGroups",
+                  "elasticache:DescribeCacheClusters",
+                  "elasticache:DescribeCacheSubnetGroups",
+                  "elasticache:DescribeUsers",
+                  "elasticache:Connect",
               ],
-              "Resource": [
-                  "*"
-              ]
+              "Resource": "*"
           },
           {
               "Effect": "Allow",
               "Action": [
-                  "secretsmanager:DescribeSecret",
-                  "secretsmanager:CreateSecret",
-                  "secretsmanager:UpdateSecret",
-                  "secretsmanager:DeleteSecret",
-                  "secretsmanager:GetSecretValue",
-                  "secretsmanager:PutSecretValue",
-                  "secretsmanager:TagResource"
+                  "memorydb:ListTags",
+                  "memorydb:DescribeClusters",
+                  "memorydb:DescribeSubnetGroups",
+                  "memorydb:DescribeUsers",
+                  "memorydb:Connect"
               ],
-              "Resource": [
-                  "arn:aws:secretsmanager:*:{account-id}:secret:teleport/*"
-              ]
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "iam:GetRolePolicy",
+                  "iam:PutRolePolicy",
+                  "iam:DeleteRolePolicy"
+              ],
+              "Resource": "arn:aws:iam::<Var name="aws-account-id"/>:role/<Var name="sample-role"/>"
+          }
+      ]
+  }
+  ```
+
+  </TabItem>
+  <TabItem label="IAM user">
+  Use this permission boundary if your Teleport Database Service runs as an IAM
+  user (for example, it uses an AWS credentials file):
+  ```json
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "elasticache:ListTagsForResource",
+                  "elasticache:DescribeReplicationGroups",
+                  "elasticache:DescribeCacheClusters",
+                  "elasticache:DescribeCacheSubnetGroups",
+                  "elasticache:DescribeUsers"
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "memorydb:ListTags",
+                  "memorydb:DescribeClusters",
+                  "memorydb:DescribeSubnetGroups",
+                  "memorydb:DescribeUsers"
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "iam:GetUserPolicy",
+                  "iam:PutUserPolicy",
+                  "iam:DeleteUserPolicy"
+              ],
+              "Resource": "arn:aws:iam::<Var name="aws-account-id"/>:user/<Var name="sample-user"/>"
+          }
+      ]
+  }
+  ```
+
+  To improve security, use the following boundary policy that limits Teleport's
+  self-granting capability on the IAM user:
+  ```json
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "elasticache:ListTagsForResource",
+                  "elasticache:DescribeReplicationGroups",
+                  "elasticache:DescribeCacheClusters",
+                  "elasticache:DescribeCacheSubnetGroups",
+                  "elasticache:DescribeUsers",
+                  "elasticache:Connect",
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "memorydb:ListTags",
+                  "memorydb:DescribeClusters",
+                  "memorydb:DescribeSubnetGroups",
+                  "memorydb:DescribeUsers",
+                  "memorydb:Connect"
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "iam:GetUserPolicy",
+                  "iam:PutUserPolicy",
+                  "iam:DeleteUserPolicy"
+              ],
+              "Resource": "arn:aws:iam::<Var name="aws-account-id"/>:user/<Var name="sample-user"/>"
           }
       ]
   }
@@ -569,12 +651,164 @@ users. Otherwise, no additional IAM permissions are required.
   </TabItem>
 </Tabs>
 
-If any custom key prefix or KMS key ID is used in the static configuration, add
-the following to the IAM policy.
+### Manage IAM identities yourself for ElastiCache/MemoryDB
 
-Replace `{account-id}`, `{my-prefix}` and `{my-kms-id}` accordingly:
-
+In order to authorize Teleport to generate temporary IAM tokens, create an IAM
+role with the `Connect` permission. Here is a sample policy:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "elasticache:DescribeUsers",
+                "memorydb:DescribeUsers"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": "elasticache:Connect",
+            "Resource": [
+                "arn:aws:elasticache:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:replicationgroup:<Var name="replication-group"/>",
+                "arn:aws:elasticache:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:user:*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": "memorydb:Connect",
+            "Resource": [
+                "arn:aws:memorydb:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:cluster/<Var name="cluster-name"/>",
+                "arn:aws:memorydb:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:user/*"
+            ],
+        }
+    ]
+}
 ```
+
+See [Authenticating with IAM for
+ElastiCache](https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html)
+and [Authenticating with IAM for
+MemoryDB](https://docs.aws.amazon.com/memorydb/latest/devguide/auth-iam.html)
+for more information.
+
+If auto-discovery is used to register the databases, please also ensure the IAM
+identity has the following permissions:
+```
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "elasticache:ListTagsForResource",
+                "elasticache:DescribeReplicationGroups",
+                "elasticache:DescribeCacheClusters",
+                "elasticache:DescribeCacheSubnetGroups",
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "memorydb:ListTags",
+                "memorydb:DescribeClusters",
+                "memorydb:DescribeSubnetGroups",
+            ],
+            "Resource": "*"
+        },
+    ]
+}
+```
+
+(!docs/pages/includes/database-access/reference/boundary-policy-note.mdx!)
+
+### Auto-password rotation for ElastiCache/MemoryDB
+
+If any ElastiCache or MemoryDB users are tagged to be managed by Teleport,
+below are the IAM permissions required for managing the ElastiCache or MemoryDB
+users:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "elasticache:DescribeUsers",
+                "elasticache:ModifyUser"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "memorydb:DescribeUsers",
+                "memorydb:UpdateUser"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:CreateSecret",
+                "secretsmanager:UpdateSecret",
+                "secretsmanager:DeleteSecret",
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:PutSecretValue",
+                "secretsmanager:TagResource"
+            ],
+            "Resource": [
+                "arn:aws:secretsmanager:*:<Var name="aws-account-id"/>:secret:teleport/*"
+            ]
+        }
+    ]
+}
+```
+
+If auto-discovery is used to register the databases, please also ensure the IAM
+identity has the following permissions:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "elasticache:ListTagsForResource",
+                "elasticache:DescribeReplicationGroups",
+                "elasticache:DescribeCacheClusters",
+                "elasticache:DescribeCacheSubnetGroups",
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "memorydb:ListTags",
+                "memorydb:DescribeClusters",
+                "memorydb:DescribeSubnetGroups",
+            ],
+            "Resource": [
+                "*"
+            ]
+        }
+    ]
+}
+```
+
+If any custom key prefix or KMS key ID is used in the static configuration, add
+the following to the IAM policy:
+```json
 {
     "Version": "2012-10-17",
     "Statement": [
@@ -590,7 +824,7 @@ Replace `{account-id}`, `{my-prefix}` and `{my-kms-id}` accordingly:
                 "secretsmanager:TagResource"
             ],
             "Resource": [
-                "arn:aws:secretsmanager:*:{account-id}:secret:{my-prefix}/*"
+                "arn:aws:secretsmanager:*:<Var name="aws-account-id"/>:secret:<Var name="my-prefix"/>/*"
             ]
         },
         {
@@ -600,10 +834,11 @@ Replace `{account-id}`, `{my-prefix}` and `{my-kms-id}` accordingly:
                 "kms:Decrypt"
             ],
             "Resource": [
-                "arn:aws:kms:*:{account-id}:key/{my-kms-id}",
+                "arn:aws:kms:*:<Var name="aws-account-id"/>:key/<Var name="my-kms-id"/>",
             ]
         }
     ]
 }
 ```
 
+(!docs/pages/includes/database-access/reference/boundary-policy-note.mdx!)
