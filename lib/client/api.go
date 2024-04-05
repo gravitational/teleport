@@ -2630,35 +2630,6 @@ func (tc *TeleportClient) ListDatabaseServersWithFilters(ctx context.Context, cu
 	return servers, trace.Wrap(err)
 }
 
-// listDatabaseServersWithFilters returns all registered database proxy servers across all clusters.
-func (tc *TeleportClient) listDatabaseServersWithFiltersAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.DatabaseServer, error) {
-	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-
-	filter := customFilter
-	if customFilter == nil {
-		filter = tc.ResourceFilter(types.KindDatabaseServer)
-	}
-
-	clusters, err := proxyClient.GetSites(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers := make(map[string][]types.DatabaseServer, len(clusters))
-	for _, cluster := range clusters {
-		s, err := proxyClient.FindDatabaseServersByFiltersForCluster(ctx, *filter, cluster.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		servers[cluster.Name] = s
-	}
-	return servers, nil
-}
-
 // ListDatabases returns all registered databases.
 func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.Database, error) {
 	ctx, span := tc.Tracer.Start(
@@ -2677,30 +2648,6 @@ func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto
 		databases = append(databases, server.GetDatabase())
 	}
 	return types.DeduplicateDatabases(databases), nil
-}
-
-// ListDatabasesAllClusters returns all registered databases across all clusters.
-func (tc *TeleportClient) ListDatabasesAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.Database, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/ListDatabasesAllClusters",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	serversByCluster, err := tc.listDatabaseServersWithFiltersAllClusters(ctx, customFilter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	clusters := make(map[string][]types.Database, len(serversByCluster))
-	for cluster, servers := range serversByCluster {
-		var databases []types.Database
-		for _, server := range servers {
-			databases = append(databases, server.GetDatabase())
-		}
-		clusters[cluster] = types.DeduplicateDatabases(databases)
-	}
-	return clusters, nil
 }
 
 // ListKubernetesClustersWithFiltersAllClusters returns a map of all kube clusters in all clusters connected to a proxy.
