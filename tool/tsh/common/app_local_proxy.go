@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 
 	"github.com/gravitational/trace"
 
@@ -31,29 +32,51 @@ import (
 
 // localProxyApp is a generic app that can start local proxies.
 type localProxyApp struct {
-	tc                 *client.TeleportClient
-	appName            string
-	insecure           bool
-	localALPNProxyPort string
+	tc       *client.TeleportClient
+	appName  string
+	insecure bool
+	port     string
 
-	// localALPNProxy created with StartLocalProxies and closed with Close.
-	localALPNProxy *alpnproxy.LocalProxy
+	localALPNProxy    *alpnproxy.LocalProxy
+	localForwardProxy *alpnproxy.ForwardProxy
 }
+
+type requestMatcher func(req *http.Request) bool
 
 // newLocalProxyApp creates a new generic app.
 func newLocalProxyApp(tc *client.TeleportClient, appName string, localALPNProxyPort string, insecure bool) (*localProxyApp, error) {
 	return &localProxyApp{
-		tc:                 tc,
-		appName:            appName,
-		localALPNProxyPort: localALPNProxyPort,
-		insecure:           insecure,
+		tc:       tc,
+		appName:  appName,
+		port:     localALPNProxyPort,
+		insecure: insecure,
 	}, nil
 }
 
-// StartLocalProxies sets up local proxies for serving app clients.
-func (a *localProxyApp) StartLocalProxies(ctx context.Context, opts ...alpnproxy.LocalProxyConfigOpt) error {
+// StartLocalProxy sets up local proxies for serving app clients.
+func (a *localProxyApp) StartLocalProxy(ctx context.Context, opts ...alpnproxy.LocalProxyConfigOpt) error {
 	if err := a.startLocalALPNProxy(ctx, opts...); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if a.port == "" {
+		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
+	}
+	return nil
+}
+
+// StartLocalProxy sets up local proxies for serving app clients.
+func (a *localProxyApp) StartLocalProxyWithForwarder(ctx context.Context, forwardMatcher requestMatcher, opts ...alpnproxy.LocalProxyConfigOpt) error {
+	if err := a.startLocalALPNProxyForForwarder(ctx, opts...); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.startLocalForwardProxy(ctx, forwardMatcher); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if a.port == "" {
+		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
 	}
 	return nil
 }
@@ -74,11 +97,7 @@ func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, opts ...alpnpro
 		return trace.Wrap(err)
 	}
 
-	listenAddr := "localhost:0"
-	if a.localALPNProxyPort != "" {
-		listenAddr = fmt.Sprintf("127.0.0.1:%s", a.localALPNProxyPort)
-	}
-
+	listenAddr := fmt.Sprintf("localhost:%s", a.port)
 	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		return trace.Wrap(err)
@@ -99,13 +118,97 @@ func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, opts ...alpnpro
 	}
 
 	fmt.Printf("Proxying connections to %s on %v\n", a.appName, a.localALPNProxy.GetAddr())
-	if a.localALPNProxyPort == "" {
-		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
-	}
 
 	go func() {
 		if err = a.localALPNProxy.Start(ctx); err != nil {
 			log.WithError(err).Errorf("Failed to start local ALPN proxy.")
+		}
+	}()
+	return nil
+}
+
+// startLocalALPNProxy starts the local ALPN proxy.
+func (a *localProxyApp) startLocalALPNProxyForForwarder(ctx context.Context, opts ...alpnproxy.LocalProxyConfigOpt) error {
+	appCert, err := loadAppCertificateWithAppLogin(ctx, a.tc, a.appName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	localCA, err := loadAppSelfSignedCA(a.tc, a.appName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	listener, err := alpnproxy.NewCertGenListener(alpnproxy.CertGenListenerConfig{
+		ListenAddr: fmt.Sprintf("localhost:%s", a.port),
+		CA:         localCA,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
+		makeBasicLocalProxyConfig(ctx, a.tc, listener, a.insecure),
+		append(opts,
+			alpnproxy.WithClientCerts(appCert),
+			alpnproxy.WithClusterCAsIfConnUpgrade(ctx, a.tc.RootClusterCACertPool),
+		)...,
+	)
+	if err != nil {
+		if cerr := listener.Close(); cerr != nil {
+			return trace.NewAggregate(err, cerr)
+		}
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("Proxying connections to %s on %v\n", a.appName, a.localALPNProxy.GetAddr())
+
+	go func() {
+		if err = a.localALPNProxy.Start(ctx); err != nil {
+			log.WithError(err).Errorf("Failed to start local ALPN proxy.")
+		}
+	}()
+	return nil
+}
+
+// startLocalForwardProxy starts a local forward proxy that forwards matching requests
+// to the local ALPN proxy and unmatched requests to their original hosts.
+func (a *localProxyApp) startLocalForwardProxy(ctx context.Context, forwardMatcher requestMatcher) error {
+	listenAddr := fmt.Sprintf("localhost:%s", a.port)
+	listener, err := net.Listen("tcp", listenAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.localForwardProxy, err = alpnproxy.NewForwardProxy(alpnproxy.ForwardProxyConfig{
+		Listener:     listener,
+		CloseContext: ctx,
+		Handlers: []alpnproxy.ConnectRequestHandler{
+			// Forward matched requests to ALPN proxy.
+			alpnproxy.NewForwardToHostHandler(alpnproxy.ForwardToHostHandlerConfig{
+				MatchFunc: forwardMatcher,
+				Host:      a.localALPNProxy.GetAddr(),
+			}),
+
+			// Forward unmatched requests to user's system proxy, if configured.
+			alpnproxy.NewForwardToSystemProxyHandler(alpnproxy.ForwardToSystemProxyHandlerConfig{
+				InsecureSystemProxy: a.insecure,
+			}),
+
+			// Forward unmatched requests to their original hosts.
+			alpnproxy.NewForwardToOriginalHostHandler(),
+		},
+	})
+	if err != nil {
+		if cerr := listener.Close(); cerr != nil {
+			return trace.NewAggregate(err, cerr)
+		}
+		return trace.Wrap(err)
+	}
+
+	go func() {
+		if err := a.localForwardProxy.Start(); err != nil {
+			log.WithError(err).Errorf("Failed to start local forward proxy.")
 		}
 	}()
 	return nil
