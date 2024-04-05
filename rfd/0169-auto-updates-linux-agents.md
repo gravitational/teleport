@@ -227,7 +227,8 @@ The `/usr/local/bin/teleport-upgrader` symlink will take precedence to avoid ree
 
 ### Manual Workflow
 
-For use cases that fall outside of the functionality provided by `teleport-updater`, such as JamF or ansible-controlled updates, we provide an alternative manual workflow using the `/v1/webapi/ping` endpoint.
+For use cases that fall outside of the functionality provided by `teleport-updater`, we provide an alternative manual workflow using the `/v1/webapi/ping` endpoint.
+This workflow supports customers that cannot use the auto-update mechanism provided by `teleport-updater` because they use their own automation for updates (e.g., JamF or ansible).
 
 Cluster administrators that want to self-manage agent updates will be
 able to get and watch for changes to agent versions which can then be
@@ -235,15 +236,15 @@ used to trigger other integrations to update the installed version of agents.
 
 ```shell
 $ tctl autoupdate watch
-{"agent_version": "1.0.0"}
-{"agent_version": "1.0.1"}
-{"agent_version": "2.0.0"}
+{"agent_version": "1.0.0", ... }
+{"agent_version": "1.0.1, ... }
+{"agent_version": "2.0.0", ... }
 [...]
 ```
 
 ```shell
 $ tctl autoupdate get
-{"agent_version": "2.0.0"}
+{"agent_version": "2.0.0", ... }
 ```
 
 ### Scripts
