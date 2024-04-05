@@ -3279,7 +3279,7 @@ func (process *TeleportProcess) initDebugService() error {
 	}
 
 	server := &http.Server{
-		Handler:           debug.NewServeMux(process.ExitContext(), logger, process.Config),
+		Handler:           debug.NewServeMux(logger, process.Config),
 		ReadTimeout:       apidefaults.DefaultIOTimeout,
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 		WriteTimeout:      apidefaults.DefaultIOTimeout,

@@ -786,3 +786,8 @@ func (c *Config) SetLogLevel(level slog.Level) {
 	c.Log.SetLevel(logutils.SlogLevelToLogrusLevel(level))
 	c.LoggerLevel.Set(level)
 }
+
+// GetLogLevel returns the current log level.
+func (c *Config) GetLogLevel() slog.Level {
+	return c.LoggerLevel.Level()
+}

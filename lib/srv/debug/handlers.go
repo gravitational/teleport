@@ -17,7 +17,6 @@
 package debug
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -25,77 +24,72 @@ import (
 	"net/http/pprof"
 	"strings"
 
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
+// LogLeveler defines a struct that can retrieve and set log levels.
+type LogLeveler interface {
+	// GetLogLevel returns the current log level.
+	GetLogLevel() slog.Level
+	// SetLogLevel sets the log level.
+	SetLogLevel(slog.Level)
+}
+
 // NewServeMux returns a http mux that handles all the debug service endpoints.
-func NewServeMux(ctx context.Context, logger *slog.Logger, config *servicecfg.Config) *http.ServeMux {
+func NewServeMux(logger *slog.Logger, leveler LogLeveler) *http.ServeMux {
 	mux := http.NewServeMux()
-	mux.HandleFunc(PProfEndpointsPrefix, pprofMiddleware(ctx, logger, pprof.Index))
-	mux.HandleFunc(PProfEndpointsPrefix+"cmdline", pprofMiddleware(ctx, logger, pprof.Cmdline))
-	mux.HandleFunc(PProfEndpointsPrefix+"profile", pprofMiddleware(ctx, logger, pprof.Profile))
-	mux.HandleFunc(PProfEndpointsPrefix+"symbol", pprofMiddleware(ctx, logger, pprof.Symbol))
-	mux.HandleFunc(PProfEndpointsPrefix+"trace", pprofMiddleware(ctx, logger, pprof.Trace))
-	mux.Handle(LogLevelEndpoint, newLogLevelHandler(ctx, logger, config))
+	mux.HandleFunc(PProfEndpointsPrefix, pprofMiddleware(logger, pprof.Index))
+	mux.HandleFunc(PProfEndpointsPrefix+"cmdline", pprofMiddleware(logger, pprof.Cmdline))
+	mux.HandleFunc(PProfEndpointsPrefix+"profile", pprofMiddleware(logger, pprof.Profile))
+	mux.HandleFunc(PProfEndpointsPrefix+"symbol", pprofMiddleware(logger, pprof.Symbol))
+	mux.HandleFunc(PProfEndpointsPrefix+"trace", pprofMiddleware(logger, pprof.Trace))
+	mux.Handle(LogLevelEndpoint, handleLog(logger, leveler))
 	return mux
 }
 
-// logLevelHandler http handler of the set/get log level endpoints.
-type logLevelHandler struct {
-	ctx           context.Context
-	logger        *slog.Logger
-	processConfig *servicecfg.Config
-}
+// handleLog returns the http set/get log level handler.
+func handleLog(logger *slog.Logger, leveler LogLeveler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == GetLogLevelMethod {
+			w.Write([]byte(logutils.MarshalText(leveler.GetLogLevel())))
+			return
+		}
 
-func newLogLevelHandler(ctx context.Context, logger *slog.Logger, config *servicecfg.Config) *logLevelHandler {
-	return &logLevelHandler{
-		ctx:           ctx,
-		logger:        logger,
-		processConfig: config,
+		if r.Method != SetLogLevelMethod {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		rawLevel, err := io.ReadAll(io.LimitReader(r.Body, 1024))
+		defer r.Body.Close()
+		if err != nil {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			w.Write([]byte("Unable to read request body."))
+			return
+		}
+
+		level, err := logutils.UnmarshalText(rawLevel)
+		if err != nil {
+			logger.WarnContext(r.Context(), "Failed to parse log level", "error", err)
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			w.Write([]byte("Invalid log level."))
+			return
+		}
+
+		currLevel := leveler.GetLogLevel()
+		message := fmt.Sprintf("Log level already set to %q.", level)
+		if level != currLevel {
+			message = fmt.Sprintf("Changed log level from %q to %q.", currLevel, level)
+			leveler.SetLogLevel(level)
+			logger.InfoContext(r.Context(), "Changed log level.", "old", currLevel, "new", string(rawLevel))
+		}
+
+		w.Write([]byte(message))
 	}
-}
-
-func (h *logLevelHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method == GetLogLevelMethod {
-		w.Write([]byte(logutils.MarshalText(h.processConfig.LoggerLevel.Level())))
-		return
-	}
-
-	if r.Method != SetLogLevelMethod {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
-	rawLevel, err := io.ReadAll(io.LimitReader(r.Body, 1024))
-	defer r.Body.Close()
-	if err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		w.Write([]byte("Unable to read request body."))
-		return
-	}
-
-	level, err := logutils.UnmarshalText(rawLevel)
-	if err != nil {
-		h.logger.WarnContext(h.ctx, "Failed to parse log level", "error", err)
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		w.Write([]byte("Invalid log level."))
-		return
-	}
-
-	currLevel := h.processConfig.LoggerLevel.Level()
-	message := fmt.Sprintf("Log level already set to %q.", level)
-	if level != currLevel {
-		message = fmt.Sprintf("Changed log level from %q to %q.", currLevel, level)
-		h.processConfig.SetLogLevel(level)
-		h.logger.InfoContext(h.ctx, "Changed log level.", "old", currLevel, "new", string(rawLevel))
-	}
-
-	w.Write([]byte(message))
 }
 
 // pprofMiddleware logs pprof HTTP requests.
-func pprofMiddleware(ctx context.Context, logger *slog.Logger, next http.HandlerFunc) http.HandlerFunc {
+func pprofMiddleware(logger *slog.Logger, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		seconds := r.URL.Query().Get("seconds")
 		if seconds == "" {
@@ -103,7 +97,7 @@ func pprofMiddleware(ctx context.Context, logger *slog.Logger, next http.Handler
 		}
 
 		logger.InfoContext(
-			ctx,
+			r.Context(),
 			"Collecting pprof profile.",
 			"profile", strings.TrimSuffix(r.URL.Path, PProfEndpointsPrefix),
 			"seconds", seconds,

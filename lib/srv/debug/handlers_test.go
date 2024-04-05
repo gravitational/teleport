@@ -18,11 +18,11 @@ package debug
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -53,6 +53,15 @@ func TestLogLevel(t *testing.T) {
 			require.Equal(t, http.StatusOK, statusCode)
 			require.Equal(t, logLevel, retrievedLogLevel)
 		})
+
+		t.Run("SetLower"+logLevel, func(t *testing.T) {
+			statusCode, _ := makeRequest(t, ts, http.MethodPut, LogLevelEndpoint, strings.ToLower(logLevel))
+			require.Equal(t, http.StatusOK, statusCode)
+
+			statusCode, retrievedLogLevel := makeRequest(t, ts, GetLogLevelMethod, LogLevelEndpoint, "")
+			require.Equal(t, http.StatusOK, statusCode)
+			require.Equal(t, logLevel, retrievedLogLevel)
+		})
 	}
 }
 
@@ -73,7 +82,7 @@ func makeServer() (*servicecfg.Config, *httptest.Server) {
 	cfg.Log = logrus.New()
 	cfg.Logger = slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{}))
 
-	return cfg, httptest.NewServer(NewServeMux(context.Background(), cfg.Logger, cfg))
+	return cfg, httptest.NewServer(NewServeMux(cfg.Logger, cfg))
 }
 
 func makeRequest(t *testing.T, ts *httptest.Server, method, path, body string) (int, string) {

@@ -25,6 +25,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -33,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/debug"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -49,11 +51,18 @@ func newDebugServiceClient(configPath string) (*debugServiceClient, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// ReadConfigFile returns nil configuration if the file doesn't exists.
+	// In that case, fallback to default data dir path.
+	dataDir := defaults.DataDir
+	if cfg != nil {
+		dataDir = cfg.DataDir
+	}
+
 	return &debugServiceClient{
 		clt: &http.Client{
 			Transport: &http.Transport{
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial("unix", filepath.Join(cfg.DataDir, debug.ServiceSocketName))
+					return net.Dial("unix", filepath.Join(dataDir, debug.ServiceSocketName))
 				},
 			},
 		},
@@ -62,7 +71,7 @@ func newDebugServiceClient(configPath string) (*debugServiceClient, error) {
 
 // SetLogLevel changes the application's log level and a change status message.
 func (c *debugServiceClient) SetLogLevel(ctx context.Context, level string) (string, error) {
-	resp, err := c.do(ctx, debug.SetLogLevelMethod, debug.LogLevelEndpoint, []byte(level))
+	resp, err := c.do(ctx, debug.SetLogLevelMethod, url.URL{Path: debug.LogLevelEndpoint}, []byte(level))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -82,7 +91,7 @@ func (c *debugServiceClient) SetLogLevel(ctx context.Context, level string) (str
 
 // GetLogLevel fetches the current log level.
 func (c *debugServiceClient) GetLogLevel(ctx context.Context) (string, error) {
-	resp, err := c.do(ctx, debug.GetLogLevelMethod, debug.LogLevelEndpoint, []byte{})
+	resp, err := c.do(ctx, debug.GetLogLevelMethod, url.URL{Path: debug.LogLevelEndpoint}, nil)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -102,12 +111,17 @@ func (c *debugServiceClient) GetLogLevel(ctx context.Context) (string, error) {
 
 // CollectProfile collects a pprof profile.
 func (c *debugServiceClient) CollectProfile(ctx context.Context, profileName string, seconds int) ([]byte, error) {
-	path := debug.PProfEndpointsPrefix + profileName
-	if seconds > 0 {
-		path += fmt.Sprintf("?seconds=%d", seconds)
+	u := url.URL{
+		Path: debug.PProfEndpointsPrefix + profileName,
 	}
 
-	resp, err := c.do(ctx, http.MethodGet, path, nil)
+	if seconds > 0 {
+		qs := url.Values{}
+		qs.Add("seconds", fmt.Sprintf("%d", seconds))
+		u.RawQuery = qs.Encode()
+	}
+
+	resp, err := c.do(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -125,8 +139,16 @@ func (c *debugServiceClient) CollectProfile(ctx context.Context, profileName str
 	return result, nil
 }
 
-func (c *debugServiceClient) do(ctx context.Context, method, path string, body []byte) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, method, "http://debug"+path, bytes.NewBuffer(body))
+func (c *debugServiceClient) do(ctx context.Context, method string, u url.URL, body []byte) (*http.Response, error) {
+	u.Scheme = "http"
+	u.Host = "debug"
+
+	var bodyReader io.Reader
+	if body != nil {
+		bodyReader = bytes.NewBuffer(body)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), bodyReader)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
