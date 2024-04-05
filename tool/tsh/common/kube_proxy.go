@@ -59,6 +59,7 @@ type proxyKubeCommand struct {
 
 	labels              string
 	predicateExpression string
+	exec                bool
 }
 
 func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
@@ -81,6 +82,7 @@ func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
 		// This works as an hint to the user that the context name can be customized.
 		Default(kubeconfig.ContextName("{{.ClusterName}}", "{{.KubeName}}")).
 		StringVar(&c.overrideContextName)
+	c.Flag("exec", "Run the proxy in the background and reexec into a new shell with $KUBECONFIG already pointed to our config file.").BoolVar(&c.exec)
 	return c
 }
 
@@ -100,7 +102,8 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if cf.Headless {
+	rexecIntoShell := cf.Headless || c.exec
+	if rexecIntoShell {
 		tc.AllowHeadless = true
 	}
 
@@ -132,7 +135,7 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 		return trace.Wrap(cf.RunCommand(cmd))
 	}
 
-	if cf.Headless {
+	if rexecIntoShell {
 		// If headless, run proxy in the background and reexec into a new shell with $KUBECONFIG already pointed to
 		// our config file
 		return trace.Wrap(runHeadlessKubeProxy(cf, localProxy))
