@@ -178,4 +178,5 @@ export type ServersideTableProps<T> = BasicTableProps<T> & {
   prevPage: () => void;
   pagination: State<T>['state']['pagination'];
   serversideProps: State<T>['serversideProps'];
+  fetchStatus?: FetchStatus;
 };
