@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
@@ -22,6 +23,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/idp/saml"
 	"github.com/gravitational/teleport/e/lib/okta"
@@ -69,12 +71,19 @@ type Config struct {
 
 	// AccessGraph is the configuration for AccessGraph if it's enabled in the proxy.
 	AccessGraph *AccessGraphConfig
+
+	// Clock is the clock used by the plugin.
+	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults checks and sets the defaults
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Log == nil {
 		c.Log = logrus.WithField(teleport.ComponentKey, pluginName)
+	}
+
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
 	}
 
 	return nil
@@ -559,10 +568,21 @@ func (p *Plugin) checkAndBuildAccessGraphHTTPTransport() error {
 		// If it does, build the forwarder and replace the existing one.
 		// Otherwise we will keep sending gRPC requests.
 		go func() {
-			t := time.NewTicker(5 * time.Second)
-			defer t.Stop()
+			retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+				First:  defaults.HighResPollingPeriod,
+				Driver: retryutils.NewExponentialDriver(defaults.HighResPollingPeriod),
+				Max:    defaults.LowResPollingPeriod,
+				Jitter: retryutils.NewHalfJitter(),
+				Clock:  p.Config.Clock,
+			})
+			if err != nil {
+				p.Log.WithError(err).Debugf("Failed to create retry")
+				return
+			}
+
 			// Periodically check if the access graph supports HTTP.
-			for range t.C {
+			for range retry.After() {
+				retry.Inc()
 				if p.accessGraphSupportsHTTP() {
 					accessGraphForwarder, err := buildAccessGraphForwarder(tlsConfig)
 					if err != nil {
