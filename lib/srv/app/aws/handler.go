@@ -228,7 +228,7 @@ func rewriteRequest(ctx context.Context, r *http.Request, re *endpoints.Resolved
 	}
 	outReq.Body = http.NoBody
 	if r.Body != nil {
-		outReq.Body = io.NopCloser(io.LimitReader(r.Body, teleport.MaxHTTPRequestSize))
+		outReq.Body = r.Body
 	}
 	// need to rewrite the host header as well. The oxy forwarder will do this for us,
 	// since we use the PassHostHeader(false) option, but if host is a signed header

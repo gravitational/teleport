@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,6 +37,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/google/go-cmp/cmp"
@@ -97,6 +99,27 @@ func dynamoRequestWithTransport(url string, provider client.ConfigProvider, tran
 	})
 	_, err := dynamoClient.Scan(&dynamodb.ScanInput{
 		TableName: aws.String("test-table"),
+	})
+	return err
+}
+
+func lambdaRequest(url string, provider client.ConfigProvider, awsHost string) error {
+	return lambdaRequestWithTransport(url, provider, nil)
+}
+
+func lambdaRequestWithTransport(url string, provider client.ConfigProvider, transport http.RoundTripper) error {
+	lambdaClient := lambda.New(provider, &aws.Config{
+		Endpoint:   &url,
+		MaxRetries: aws.Int(0),
+		HTTPClient: &http.Client{
+			Transport: transport,
+			Timeout:   5 * time.Second,
+		},
+	})
+	payload := strings.Repeat("x", 50<<20) // a large 50MiB zip file should work
+	_, err := lambdaClient.UpdateFunctionCode(&lambda.UpdateFunctionCodeInput{
+		FunctionName: aws.String("fakeFunc"),
+		ZipFile:      []byte(payload),
 	})
 	return err
 }
@@ -292,6 +315,23 @@ func TestAWSSignerHandler(t *testing.T) {
 			wantEventType:       &events.AppSessionDynamoDBRequest{},
 			wantAssumedRole:     fakeAssumedRoleARN, // verifies assumed role is recorded in audit
 			skipVerifySignature: true,               // not re-signing
+			errAssertionFns: []require.ErrorAssertionFunc{
+				require.NoError,
+			},
+		},
+		{
+			name: "Lambda access",
+			app:  consoleApp,
+			awsClientSession: session.Must(session.NewSession(&aws.Config{
+				Credentials: staticAWSCredentialsForClient,
+				Region:      aws.String("us-east-1"),
+			})),
+			request:             lambdaRequest,
+			wantHost:            "lambda.us-east-1.amazonaws.com",
+			wantAuthCredKeyID:   "AKIDl",
+			wantAuthCredService: "lambda",
+			wantAuthCredRegion:  "us-east-1",
+			wantEventType:       &events.AppSessionRequest{},
 			errAssertionFns: []require.ErrorAssertionFunc{
 				require.NoError,
 			},
