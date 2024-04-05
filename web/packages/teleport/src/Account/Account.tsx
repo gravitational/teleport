@@ -36,7 +36,7 @@ import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import cfg from 'teleport/config';
 
-import { DeviceUsage } from 'teleport/services/mfa';
+import { DeviceUsage } from 'teleport/services/auth';
 
 import { AuthDeviceList } from './ManageDevices/AuthDeviceList/AuthDeviceList';
 import useManageDevices, {
