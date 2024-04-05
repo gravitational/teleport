@@ -3109,3 +3109,61 @@ func TestInstallerCRUD(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 }
+
+func TestAccessRequestAuditLog(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+
+	requester, _, _ := createSessionTestUsers(t, p.a)
+
+	paymentsRole, err := types.NewRole("paymentsRole", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{"requestRole"},
+				Annotations: map[string][]string{
+					"pagerduty_services": {"payments"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	requestRole, err := types.NewRole("requestRole", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	p.a.CreateRole(ctx, requestRole)
+	p.a.CreateRole(ctx, paymentsRole)
+
+	user, err := p.a.GetUser(requester, true)
+	require.NoError(t, err)
+	user.AddRole(paymentsRole.GetName())
+	err = p.a.UpsertUser(user)
+	require.NoError(t, err)
+
+	accessRequest, err := types.NewAccessRequest(uuid.NewString(), requester, "requestRole")
+	require.NoError(t, err)
+	req, err := p.a.CreateAccessRequestV2(ctx, accessRequest, TestUser(requester).I.GetIdentity())
+	require.NoError(t, err)
+
+	expectedAnnotations, err := apievents.EncodeMapStrings(paymentsRole.GetAccessRequestConditions(types.Allow).Annotations)
+	require.NoError(t, err)
+
+	arc, ok := p.mockEmitter.LastEvent().(*apievents.AccessRequestCreate)
+	require.True(t, ok)
+	require.Equal(t, expectedAnnotations, arc.Annotations)
+	require.Equal(t, "PENDING", arc.RequestState)
+
+	err = p.a.SetAccessRequestState(ctx, types.AccessRequestUpdate{
+		RequestID: req.GetName(),
+		State:     types.RequestState_APPROVED,
+	})
+	require.NoError(t, err)
+
+	arc, ok = p.mockEmitter.LastEvent().(*apievents.AccessRequestCreate)
+	require.True(t, ok)
+	require.Equal(t, expectedAnnotations, arc.Annotations)
+	require.Equal(t, "APPROVED", arc.RequestState)
+}
