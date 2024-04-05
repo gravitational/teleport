@@ -42,8 +42,7 @@ export function RoleList({
     <Table
       data={serversidePagination.fetchedData.agents}
       fetching={{
-        fetchStatus:
-          serversidePagination.attempt.status === 'processing' ? 'loading' : '',
+        fetchStatus: serversidePagination.fetchStatus,
         onFetchNext: serversidePagination.fetchNext,
         onFetchPrev: serversidePagination.fetchPrev,
       }}
