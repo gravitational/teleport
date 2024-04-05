@@ -68,6 +68,7 @@ $ systemctl enable teleport
 `/v1/webapi/ping`
 ```json
 {
+  "server_edition": "enterprise",
   "agent_version": "15.1.1",
   "agent_auto_update": true,
   "agent_update_after": "2024-04-23T18:00:00.000Z",
@@ -78,6 +79,7 @@ Notes:
 - Critical updates are achieved by serving `agent_update_after` with the current time.
 - The Teleport proxy translates upgrade hours (below) into a specific time after which all agents should be upgraded.
 - If an agent misses an upgrade window, it will always update immediately.
+- The edition served is the cluster edition (enterprise, enterprise-fips, or oss), and cannot be configured.
 
 #### Teleport Resources
 
@@ -193,7 +195,7 @@ The `enable` subcommand will:
 2. Query the `/v1/webapi/ping` endpoint.
 3. If the current updater-managed version of Teleport is the latest, and teleport package is not installed, quit.
 4. If the current updater-managed version of Teleport is the latest, but the teleport package is installed, jump to (12).
-5. Download the desired Teleport tarball specified by `agent_version`.
+5. Download the desired Teleport tarball specified by `agent_version` and `server_edition`.
 6. Verify the checksum.
 7. Extract the tarball to `/var/lib/teleport/versions/VERSION`.
 8. Replace any existing binaries or symlinks with symlinks to the current version.
@@ -213,7 +215,7 @@ When `update` subcommand is otherwise executed, it will:
 3. Check if the current time is after the time advertised in `agent_update_after`, and that `agent_auto_updates` is true.
 4. If the current version of Teleport is the latest, quit.
 5. Wait `random(0, agent_update_jitter_seconds)` seconds.
-6. Download the desired Teleport tarball specified by `agent_version`.
+6. Download the desired Teleport tarball specified by `agent_version` and `server_edition`.
 7. Verify the checksum.
 8. Extract the tarball to `/var/lib/teleport/versions/VERSION`.
 9. Update symlinks to point at the new version.
@@ -231,10 +233,13 @@ To retrieve known information about agent upgrades, the `status` subcommand will
   "agent_version_installed": "15.1.1",
   "agent_version_desired": "15.1.2",
   "agent_version_previous": "15.1.0",
-  "update_time_next": "2020-12-09T16:09:53+00:00",
-  "update_time_last": "2020-12-10T16:00:00+00:00",
-  "update_time_jitter": 600,
-  "updates_enabled": true
+  "agent_edition_installed": "enterprise",
+  "agent_edition_desired": "enterprise",
+  "agent_edition_previous": "enterprise",
+  "agent_update_time_next": "2020-12-09T16:09:53+00:00",
+  "agent_update_time_last": "2020-12-10T16:00:00+00:00",
+  "agent_update_time_jitter": 600,
+  "agent_updates_enabled": true
 }
 ```
 
@@ -249,15 +254,15 @@ used to trigger other integrations to update the installed version of agents.
 
 ```shell
 $ tctl autoupdate watch
-{"agent_version": "1.0.0", ... }
-{"agent_version": "1.0.1, ... }
-{"agent_version": "2.0.0", ... }
+{"agent_version": "1.0.0", "agent_edition": "enterprise", ... }
+{"agent_version": "1.0.1, "agent_edition": "enterprise", ... }
+{"agent_version": "2.0.0", "agent_edition": "enterprise", ... }
 [...]
 ```
 
 ```shell
 $ tctl autoupdate get
-{"agent_version": "2.0.0", ... }
+{"agent_version": "2.0.0", "agent_edition": "enterprise", ... }
 ```
 
 ### Scripts
