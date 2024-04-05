@@ -234,15 +234,27 @@ type IntegrationFetcher interface {
 func (s *Server) getKubeFetchers(integration bool) []common.Fetcher {
 	var kubeFetchers []common.Fetcher
 
-	filter := func(fetcher common.Fetcher) bool {
+	filterIntegrationFetchers := func(fetcher common.Fetcher) bool {
 		f, ok := fetcher.(IntegrationFetcher)
 		if !ok {
-			// If fetcher doesn't provide integration field, return true if non-integration fetchers were requested.
-			return !integration
+			return false
 		}
-		// If fetcher provides integration field, return true if integration fetchers were requested and integration
-		// field actually has a value.
-		return integration == (len(f.GetIntegration()) > 0)
+
+		return f.GetIntegration() != ""
+	}
+
+	filterNonIntegrationFetchers := func(fetcher common.Fetcher) bool {
+		f, ok := fetcher.(IntegrationFetcher)
+		if !ok {
+			return true
+		}
+
+		return f.GetIntegration() == ""
+	}
+
+	filter := filterIntegrationFetchers
+	if !integration {
+		filter = filterNonIntegrationFetchers
 	}
 
 	s.muDynamicKubeFetchers.RLock()
