@@ -30,6 +30,8 @@ import split2 from 'split2';
 import { Logger, LoggerService, NodeLoggerService } from './types';
 import { KeepLastChunks } from './keepLastChunks';
 
+import type { Logform } from 'winston';
+
 import type { ChildProcess } from 'node:child_process';
 
 /**
@@ -95,7 +97,12 @@ export function createFileLoggerService(
   });
 
   if (opts.dev) {
-    instance.add(getRegularConsoleTransport(opts));
+    // Browser environment.
+    if (typeof window !== 'undefined') {
+      instance.add(getBrowserConsoleTransport(opts));
+    } else {
+      instance.add(getRegularConsoleTransport(opts));
+    }
   }
 
   return {
@@ -203,6 +210,24 @@ type FileLoggerOptions = {
   omitTimestamp?: boolean;
 };
 
+/** Does not stringify messages and logs directly using `console.x` functions. */
+function getBrowserConsoleTransport(opts: FileLoggerOptions) {
+  return new transports.Console({
+    log({ level, message, context }: Logform.TransformableInfo, next) {
+      const loggerName = getLoggerName(opts);
+
+      const logMessage = opts.passThroughMode
+        ? message
+        : [`[${context}] ${level}:`, ...message];
+
+      const toLog = [loggerName, logMessage].filter(Boolean).flat();
+      // We allow level to be only info, warn and error (createLoggerFromWinston).
+      console[level](...toLog);
+      next();
+    },
+  });
+}
+
 /** Stringifies log messages and logs with winston's console transport. */
 function getRegularConsoleTransport(opts: FileLoggerOptions) {
   return new transports.Console({
@@ -219,4 +244,13 @@ function getRegularConsoleTransport(opts: FileLoggerOptions) {
       return [loggerName, logMessage].filter(Boolean).join(' ');
     }),
   });
+}
+
+function getLoggerName(
+  opts: Pick<FileLoggerOptions, 'loggerNameColor' | 'name'>
+) {
+  return (
+    opts.loggerNameColor &&
+    `\x1b[${opts.loggerNameColor}m${opts.name.toUpperCase()}\x1b[0m`
+  );
 }
