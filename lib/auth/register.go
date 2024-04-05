@@ -26,6 +26,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/net/http2"
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	devicetrustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/aws"
@@ -46,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
+	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
@@ -320,7 +323,7 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 	var certs *proto.Certs
 
 	switch params.JoinMethod {
-	case types.JoinMethodIAM, types.JoinMethodAzure:
+	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM:
 		// IAM and Azure join methods require gRPC client
 		conn, err := proxyJoinServiceConn(params, params.Insecure)
 		if err != nil {
@@ -329,10 +332,15 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 		defer conn.Close()
 
 		joinServiceClient := client.NewJoinServiceClient(proto.NewJoinServiceClient(conn))
-		if params.JoinMethod == types.JoinMethodIAM {
+		switch params.JoinMethod {
+		case types.JoinMethodIAM:
 			certs, err = registerUsingIAMMethod(joinServiceClient, token, params)
-		} else {
+		case types.JoinMethodAzure:
 			certs, err = registerUsingAzureMethod(joinServiceClient, token, params)
+		case types.JoinMethodTPM:
+			certs, err = registerUsingTPMMethod(joinServiceClient, token, params)
+		default:
+			return nil, trace.BadParameter("unhandled join method %q", params.JoinMethod)
 		}
 
 		if err != nil {
@@ -408,6 +416,8 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 		certs, err = registerUsingIAMMethod(client, token, params)
 	case types.JoinMethodAzure:
 		certs, err = registerUsingAzureMethod(client, token, params)
+	case types.JoinMethodTPM:
+		certs, err = registerUsingTPMMethod(client, token, params)
 	default:
 		// non-IAM join methods use HTTP endpoint
 		// Get the SSH and X509 certificates for a node.
@@ -656,6 +666,21 @@ func caPathRegisterClient(params RegisterParams) (*Client, error) {
 type joinServiceClient interface {
 	RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc) (*proto.Certs, error)
 	RegisterUsingAzureMethod(ctx context.Context, challengeResponse client.RegisterAzureChallengeResponseFunc) (*proto.Certs, error)
+	RegisterUsingTPMMethod(ctx context.Context, initReq *proto.RegisterUsingTPMMethodInitialRequest, solveChallenge client.RegisterTPMChallengeResponseFunc) (*proto.Certs, error)
+}
+
+func registerUsingTokenRequestForParams(token string, params RegisterParams) *types.RegisterUsingTokenRequest {
+	return &types.RegisterUsingTokenRequest{
+		Token:                token,
+		HostID:               params.ID.HostUUID,
+		NodeName:             params.ID.NodeName,
+		Role:                 params.ID.Role,
+		AdditionalPrincipals: params.AdditionalPrincipals,
+		DNSNames:             params.DNSNames,
+		PublicTLSKey:         params.PublicTLSKey,
+		PublicSSHKey:         params.PublicSSHKey,
+		Expires:              params.Expires,
+	}
 }
 
 // registerUsingIAMMethod is used to register using the IAM join method. It is
@@ -677,18 +702,8 @@ func registerUsingIAMMethod(joinServiceClient joinServiceClient, token string, p
 
 		// send the register request including the challenge response
 		return &proto.RegisterUsingIAMMethodRequest{
-			RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
-				Token:                token,
-				HostID:               params.ID.HostUUID,
-				NodeName:             params.ID.NodeName,
-				Role:                 params.ID.Role,
-				AdditionalPrincipals: params.AdditionalPrincipals,
-				DNSNames:             params.DNSNames,
-				PublicTLSKey:         params.PublicTLSKey,
-				PublicSSHKey:         params.PublicSSHKey,
-				Expires:              params.Expires,
-			},
-			StsIdentityRequest: signedRequest,
+			RegisterUsingTokenRequest: registerUsingTokenRequestForParams(token, params),
+			StsIdentityRequest:        signedRequest,
 		}, nil
 	})
 	if err != nil {
@@ -719,20 +734,115 @@ func registerUsingAzureMethod(client joinServiceClient, token string, params Reg
 		}
 
 		return &proto.RegisterUsingAzureMethodRequest{
-			RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
-				Token:                token,
-				HostID:               params.ID.HostUUID,
-				NodeName:             params.ID.NodeName,
-				Role:                 params.ID.Role,
-				AdditionalPrincipals: params.AdditionalPrincipals,
-				DNSNames:             params.DNSNames,
-				PublicTLSKey:         params.PublicTLSKey,
-				PublicSSHKey:         params.PublicSSHKey,
-			},
-			AttestedData: ad,
-			AccessToken:  accessToken,
+			RegisterUsingTokenRequest: registerUsingTokenRequestForParams(token, params),
+			AttestedData:              ad,
+			AccessToken:               accessToken,
 		}, nil
 	})
+	return certs, trace.Wrap(err)
+}
+
+// getMarshaledEK returns the EK public key in PKIX, ASN.1 DER format.
+func getMarshaledEK(tpm *attest.TPM) (ekKey []byte, ekCert []byte, err error) {
+	eks, err := tpm.EKs()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	if len(eks) == 0 {
+		// This is a pretty unusual case, `go-attestation` will attempt to
+		// create an EK if no EK Certs are present in the NVRAM of the TPM.
+		// Either way, it lets us catch this early in case `go-attestation`
+		// misbehaves.
+		return nil, nil, trace.BadParameter("no endorsement keys found in tpm")
+	}
+	// The first EK returned by `go-attestation` will be an RSA based EK key or
+	// EK cert. On Windows, ECC certs may also be returned following this. At
+	// this time, we are only interested in RSA certs, so we just consider the
+	// first thing returned.
+	encodedEKKey, err := x509.MarshalPKIXPublicKey(eks[0].Public)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	if eks[0].Certificate == nil {
+		return encodedEKKey, nil, nil
+	}
+	return encodedEKKey, eks[0].Certificate.Raw, nil
+}
+
+// registerUsingTPMMethod is used to register using the TPM join method. It
+// is able to register through a proxy or through the auth server directly.
+func registerUsingTPMMethod(
+	client joinServiceClient, token string, params RegisterParams,
+) (*proto.Certs, error) {
+	ctx := context.Background()
+
+	initReq := &proto.RegisterUsingTPMMethodInitialRequest{
+		JoinRequest: registerUsingTokenRequestForParams(token, params),
+	}
+
+	// Open TPM
+	tpm, err := attest.OpenTPM(&attest.OpenConfig{
+		TPMVersion: attest.TPMVersion20,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "opening tpm")
+	}
+	defer func() {
+		if err := tpm.Close(); err != nil {
+			log.WithError(err).Debug("TPM: Failed to close TPM.")
+		}
+	}()
+
+	// Create AK and calculate attestation parameters.
+	ak, err := tpm.NewAK(&attest.AKConfig{})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating ak")
+	}
+	initReq.AttestationParams = dtoss.AttestationParametersToProto(
+		ak.AttestationParameters(),
+	)
+
+	// Get the EKKey or EKCert. We want to prefer the EKCert if it is available
+	// as this is signed by the manufacturer.
+	ekKey, ekCert, err := getMarshaledEK(tpm)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting EK")
+	}
+	switch {
+	case ekCert != nil:
+		initReq.Ek = &proto.RegisterUsingTPMMethodInitialRequest_EkCert{
+			EkCert: ekCert,
+		}
+	case ekKey != nil:
+		initReq.Ek = &proto.RegisterUsingTPMMethodInitialRequest_EkKey{
+			EkKey: ekKey,
+		}
+	default:
+		return nil, trace.BadParameter("tpm has neither ek_key or ek_cert")
+	}
+
+	// Submit initial request to the Auth Server.
+	certs, err := client.RegisterUsingTPMMethod(
+		ctx,
+		initReq,
+		func(
+			challenge *devicetrustv1.TPMEncryptedCredential,
+		) (*proto.RegisterUsingTPMMethodChallengeResponse, error) {
+			// Solve the encrypted credential with our AK to prove possession
+			// and obtain the solution we need to complete the ceremony.
+			encryptedCredential := dtoss.EncryptedCredentialFromProto(
+				challenge,
+			)
+			solution, err := ak.ActivateCredential(tpm, *encryptedCredential)
+			if err != nil {
+				return nil, trace.Wrap(err, "activating credential")
+			}
+			return &proto.RegisterUsingTPMMethodChallengeResponse{
+				Solution: solution,
+			}, nil
+		},
+	)
 	return certs, trace.Wrap(err)
 }
 
