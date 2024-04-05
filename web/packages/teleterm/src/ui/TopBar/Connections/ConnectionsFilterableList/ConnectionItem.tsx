@@ -28,18 +28,13 @@ import { isAppUri, isDatabaseUri } from 'teleterm/ui/uri';
 
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 
-interface ConnectionItemProps {
+export function ConnectionItem(props: {
   index: number;
   item: ExtendedTrackedConnection;
-
   onActivate(): void;
-
   onRemove(): void;
-
   onDisconnect(): void;
-}
-
-export function ConnectionItem(props: ConnectionItemProps) {
+}) {
   const offline = !props.item.connected;
   const { isActive, scrollIntoViewIfActive } = useKeyboardArrowsNavigation({
     index: props.index,
