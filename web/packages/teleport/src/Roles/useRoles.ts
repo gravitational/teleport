@@ -18,6 +18,8 @@
 
 import TeleportContext from 'teleport/teleportContext';
 
+import type { UrlListRolesParams } from 'teleport/config';
+
 export function useRoles(ctx: TeleportContext) {
   function save(name: string, yaml: string, isNew: boolean) {
     if (isNew) {
@@ -31,11 +33,7 @@ export function useRoles(ctx: TeleportContext) {
     return ctx.resourceService.deleteRole(name);
   }
 
-  function fetch(params?: {
-    search?: string;
-    startKey?: string;
-    limit?: number;
-  }) {
+  function fetch(params?: UrlListRolesParams) {
     return ctx.resourceService.fetchRoles(params);
   }
 

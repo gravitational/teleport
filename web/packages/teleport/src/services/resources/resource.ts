@@ -17,7 +17,7 @@
  */
 
 import api from 'teleport/services/api';
-import cfg, { UrlResourcesParams } from 'teleport/config';
+import cfg, { UrlResourcesParams, UrlListRolesParams } from 'teleport/config';
 
 import { UnifiedResource, ResourcesResponse } from '../agents';
 
@@ -56,21 +56,11 @@ class ResourceService {
       .then(res => makeResourceList<'github'>(res));
   }
 
-  async fetchRoles(params?: {
-    search?: string;
-    startKey?: string;
-    limit?: number;
-  }): Promise<{
+  async fetchRoles(params?: UrlListRolesParams): Promise<{
     items: RoleResource[];
     startKey: string;
   }> {
-    const response = await api.get(
-      cfg.getListRolesUrl({
-        search: params?.search || undefined,
-        startKey: params?.startKey || undefined,
-        limit: params?.limit || undefined,
-      })
-    );
+    const response = await api.get(cfg.getListRolesUrl(params));
 
     // This will handle backward compatibility with roles.
     // The old roles API returns only an array of resources while
@@ -146,7 +136,7 @@ export default ResourceService;
 // TODO (gzdunek): DELETE in 17.0.0.
 // See the comment where this function is used.
 function makeRolesPageLocally(
-  params: UrlSimpleSearchParams,
+  params: UrlListRolesParams,
   response: RoleResource[]
 ): {
   items: RoleResource[];

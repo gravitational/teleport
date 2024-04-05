@@ -774,12 +774,12 @@ const cfg = {
     return generatePath(cfg.api.trustedClustersPath, { name });
   },
 
-  getListRolesUrl(params?: {
-    search: string;
-    startKey: string;
-    limit: number;
-  }) {
-    return generatePath(cfg.api.listRolesPath, params);
+  getListRolesUrl(params?: UrlListRolesParams) {
+    return generatePath(cfg.api.listRolesPath, {
+      search: params?.search || undefined,
+      startKey: params?.startKey || undefined,
+      limit: params?.limit || undefined,
+    });
   },
 
   getRoleUrl(name?: string) {
@@ -1141,6 +1141,12 @@ export interface UrlDesktopParams {
   username?: string;
   desktopName?: string;
   clusterId: string;
+}
+
+export interface UrlListRolesParams {
+  search?: string;
+  limit?: number;
+  startKey?: string;
 }
 
 export interface UrlResourcesParams {
