@@ -1421,14 +1421,13 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	)
 	defer span.End()
 
-	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	key, err := proxyClient.IssueUserCertsWithMFA(ctx, params, tc.NewMFAPrompt(mfaPromptOpts...))
+	key, _, err := clusterClient.IssueUserCertsWithMFA(ctx, params, tc.NewMFAPrompt(mfaPromptOpts...))
 	return key, trace.Wrap(err)
 }
 
@@ -1540,6 +1539,8 @@ func (tc *TeleportClient) NewWatcher(ctx context.Context, watch types.Watch) (ty
 
 // WithRootClusterClient provides a functional interface for making calls
 // against the root cluster's auth server.
+// Deprecated: Prefer reusing auth clients instead of creating at worst two
+// clients for a single function.
 func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt auth.ClientI) error) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
@@ -1548,14 +1549,13 @@ func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt
 	)
 	defer span.End()
 
-	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	clt, err := proxyClient.ConnectToRootCluster(ctx)
+	clt, err := clusterClient.ConnectToRootCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

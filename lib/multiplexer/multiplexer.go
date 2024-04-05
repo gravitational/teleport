@@ -97,6 +97,9 @@ type Config struct {
 	Clock clockwork.Clock
 	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 	PROXYProtocolMode PROXYProtocolMode
+	// SuppressUnexpectedPROXYWarning makes multiplexer not issue warnings if it receives PROXY
+	// line when running in PROXYProtocolMode=PROXYProtocolUnspecified
+	SuppressUnexpectedPROXYWarning bool
 	// ID is an identifier used for debugging purposes
 	ID string
 	// CertAuthorityGetter is used to get CA to verify singed PROXY headers sent internally by teleport
@@ -171,13 +174,14 @@ type Mux struct {
 	sync.RWMutex
 	*log.Entry
 	Config
-	sshListener *Listener
-	tlsListener *Listener
-	dbListener  *Listener
-	context     context.Context
-	cancel      context.CancelFunc
-	waitContext context.Context
-	waitCancel  context.CancelFunc
+	sshListener  *Listener
+	tlsListener  *Listener
+	dbListener   *Listener
+	httpListener *Listener
+	context      context.Context
+	cancel       context.CancelFunc
+	waitContext  context.Context
+	waitCancel   context.CancelFunc
 	// logLimiter is a goroutine responsible for deduplicating multiplexer errors
 	// (over a 1min window) that occur when detecting the types of new connections.
 	// This ensures that health checkers / malicious actors cannot overpower /
@@ -214,6 +218,16 @@ func (m *Mux) DB() net.Listener {
 		m.dbListener = newListener(m.context, m.Config.Listener.Addr())
 	}
 	return m.dbListener
+}
+
+// HTTP returns listener that receives plain HTTP connections
+func (m *Mux) HTTP() net.Listener {
+	m.Lock()
+	defer m.Unlock()
+	if m.httpListener == nil {
+		m.httpListener = newListener(m.context, m.Config.Listener.Addr())
+	}
+	return m.httpListener
 }
 
 func (m *Mux) closeListener() {
@@ -287,6 +301,9 @@ func (m *Mux) protocolListener(proto Protocol) *Listener {
 		return m.sshListener
 	case ProtoPostgres:
 		return m.dbListener
+	case ProtoHTTP:
+		return m.httpListener
+
 	}
 	return nil
 }
@@ -511,7 +528,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			}
 			unsignedPROXYLineReceived = true
 
-			if m.PROXYProtocolMode == PROXYProtocolUnspecified {
+			if m.PROXYProtocolMode == PROXYProtocolUnspecified && !m.SuppressUnexpectedPROXYWarning {
 				m.logLimiter.Log(m.WithFields(log.Fields{
 					"direct_src_addr": conn.RemoteAddr(),
 					"direct_dst_addr": conn.LocalAddr(),
@@ -589,7 +606,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			}
 			unsignedPROXYLineReceived = true
 
-			if m.PROXYProtocolMode == PROXYProtocolUnspecified {
+			if m.PROXYProtocolMode == PROXYProtocolUnspecified && !m.SuppressUnexpectedPROXYWarning {
 				m.logLimiter.Log(m.WithFields(log.Fields{
 					"direct_src_addr": conn.RemoteAddr(),
 					"direct_dst_addr": conn.LocalAddr(),
