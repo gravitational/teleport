@@ -29,7 +29,6 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - jentfoo
       - rosstimothy
       - zmb3
     labels:
@@ -51,7 +50,6 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - jentfoo
       - rosstimothy
       - zmb3
     labels:
@@ -76,7 +74,6 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - jentfoo
       - rosstimothy
       - tcsc
       - zmb3
@@ -99,7 +96,6 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - jentfoo
       - rosstimothy
       - zmb3
     labels:
@@ -125,7 +121,6 @@ updates:
     reviewers:
       - codingllama
       - fheinecke
-      - jentfoo
       - rosstimothy
       - zmb3
     labels:
@@ -148,7 +143,6 @@ updates:
     reviewers:
       - codingllama
       - ibeckermayer
-      - jentfoo
       - rosstimothy
       - zmb3
     labels:
@@ -171,7 +165,6 @@ updates:
     reviewers:
       - codingllama
       - ibeckermayer
-      - jentfoo
       - rosstimothy
       - zmb3
     labels:
@@ -187,8 +180,6 @@ updates:
       time: "09:00"
       timezone: "America/Los_Angeles"
     reviewers:
-      - wadells
-      - jentfoo
       - fheinecke
       - camscale
     labels:
@@ -204,8 +195,6 @@ updates:
       time: "09:00"
       timezone: "America/Los_Angeles"
     reviewers:
-      - wadells
-      - jentfoo
       - fheinecke
       - camscale
     labels:
