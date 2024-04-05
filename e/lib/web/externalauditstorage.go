@@ -1,12 +1,12 @@
 package web
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 
+	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
@@ -125,7 +125,11 @@ func readExternalAuditStorageBootstrapArgsFromQuery(query url.Values) ([]string,
 		if err := arg.validate(value); err != nil {
 			return nil, trace.Wrap(err, "validating %s param", arg.queryParam)
 		}
-		cliArgs = append(cliArgs, fmt.Sprintf(`--%s=%s`, arg.cliFlag, value))
+		formattedArg, err := shsprintf.Sprintf(`--%s=%s`, arg.cliFlag, value)
+		if err != nil {
+			return nil, trace.Wrap(err, "formatting %s argument", arg.cliFlag)
+		}
+		cliArgs = append(cliArgs, formattedArg)
 	}
 	return cliArgs, nil
 }

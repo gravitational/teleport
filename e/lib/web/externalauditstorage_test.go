@@ -175,6 +175,24 @@ func TestBuildExternalAuditStorageBootstrapScript(t *testing.T) {
 				`glue resource name "teleport-events-test" is invalid`,
 			},
 		},
+		{
+			desc: "injection attempt",
+			params: url.Values{
+				"role":       {"test-iam-role"},
+				"region":     {"us-east-2"},
+				"policy":     {"test-policy"},
+				"recordings": {"s3://test#'cat /etc/passwd;'"},
+				"events":     {"s3://teleport-longterm-test/events"},
+				"results":    {"s3://teleport-transient-test/results"},
+				"workgroup":  {"teleport_events_test"},
+				"db":         {"teleport_events_test"},
+				"table":      {"teleport_events_test"},
+			},
+			errContains: []string{
+				`formatting session-recordings argument`,
+				`Shell Injection Detected`,
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			resp, err := publicClt.Get(ctx, scriptEndpoint, tc.params)
