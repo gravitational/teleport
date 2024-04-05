@@ -224,7 +224,7 @@ The `/usr/local/bin/teleport-upgrader` symlink will take precedence to avoid ree
 
 For use cases that fall outside of the functionality provided by `teleport-updater`, such as JamF or ansible-controlled updates, we provide an alternative manual workflow using the `/v1/webapi/ping` endpoint.
 
-Cluster administrators that want to self-manage client tools updates will be
+Cluster administrators that want to self-manage agent updates will be
 able to get and watch for changes to agent versions which can then be
 used to trigger other integrations to update the installed version of agents.
 
