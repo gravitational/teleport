@@ -329,7 +329,7 @@ func initSvc(t *testing.T) (map[string]context.Context, *assistv1.Service) {
 	require.NoError(t, err)
 	trustSvc := local.NewCAService(backend)
 	roleSvc := local.NewAccessService(backend)
-	userSvc := local.NewIdentityService(backend)
+	userSvc := local.NewTestIdentityService(backend)
 	presenceSvc := local.NewPresenceService(backend)
 
 	_, err = clusterConfigSvc.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
