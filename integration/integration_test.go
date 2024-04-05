@@ -1661,7 +1661,8 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		// The above dialer does not work clt.AuthClient as it requires a
 		// custom transport from ProxyClient when TLS routing is disabled.
 		// Recreating the authClient without the above dialer.
-		authClientCfg := clt.ProxyClient.ClientConfig(ctx, clusterName)
+		authClientCfg, err := clt.ProxyClient.ClientConfig(ctx, clusterName)
+		require.NoError(t, err)
 		authClientCfg.DialOpts = nil
 		authClient, err := auth.NewClient(authClientCfg)
 		require.NoError(t, err)
