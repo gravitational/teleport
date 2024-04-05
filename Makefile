@@ -680,7 +680,7 @@ tooling: ensure-gotestsum $(DIFF_TEST)
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-helm test-sh test-api test-go test-rust test-operator
+test: test-helm test-sh test-api test-go test-rust test-operator test-terraform-provider
 
 $(TEST_LOG_DIR):
 	mkdir $(TEST_LOG_DIR)
@@ -820,6 +820,12 @@ test-api:
 .PHONY: test-operator
 test-operator:
 	make -C integrations/operator test
+#
+# Runs Teleport Terraform provider tests.
+#
+.PHONY: test-terraform-provider
+test-terraform-provider:
+	make -C integrations/terraform test
 #
 # Runs Go tests on the integrations/kube-agent-updater module. These have to be run separately as the package name is different.
 #
