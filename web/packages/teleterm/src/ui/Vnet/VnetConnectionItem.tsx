@@ -82,6 +82,9 @@ const VnetConnectionItemBase = forwardRef(
     ref
   ) => {
     const { status, start, stop, startAttempt, stopAttempt } = useVnetContext();
+    const isProcessing =
+      startAttempt.status === 'processing' ||
+      stopAttempt.status === 'processing';
     const indicatorStatus =
       startAttempt.status === 'error' || stopAttempt.status === 'error'
         ? 'error'
@@ -169,41 +172,57 @@ const VnetConnectionItemBase = forwardRef(
               </ButtonIcon>
             )}
 
-            {startAttempt.status === 'processing' ||
-            stopAttempt.status === 'processing' ? (
-              <icons.Spinner
-                css={`
-                  width: 32px;
-                  height: 32px;
-                  animation: ${rotate360} 1.5s infinite linear;
-                `}
-                size={18}
-              />
-            ) : (
-              <>
-                {status === 'running' && (
-                  <ButtonIcon
-                    title="Stop VNet"
-                    onClick={e => {
-                      e.stopPropagation();
-                      stop();
-                    }}
-                  >
-                    <icons.BroadcastSlash size={18} />
-                  </ButtonIcon>
-                )}
-                {status === 'stopped' && (
-                  <ButtonIcon
-                    title="Start VNet"
-                    onClick={e => {
-                      e.stopPropagation();
-                      start();
-                    }}
-                  >
-                    <icons.Broadcast size={18} />
-                  </ButtonIcon>
-                )}
-              </>
+            {/* The conditions for the buttons below could be written in a more concise way.
+                However, what's important for us here is that React keeps focus on the same
+                "logical" button when this component transitions between different states.
+                As a result, we cannot e.g. use a fragment to group two different states together.
+
+                There's a test which checks whether the focus is kept between state transitions.
+            */}
+
+            {isProcessing && (
+              // This button cannot be disabled, otherwise the focus will be lost between
+              // transitions and the test won't be able to catch this.
+              <ButtonIcon
+                key="vnet-toggle"
+                title={status === 'stopped' ? 'Starting VNet' : 'Stopping VNet'}
+                onClick={e => {
+                  e.stopPropagation();
+                }}
+              >
+                <icons.Spinner
+                  css={`
+                    width: 32px;
+                    height: 32px;
+                    animation: ${rotate360} 1.5s infinite linear;
+                  `}
+                  size={18}
+                />
+              </ButtonIcon>
+            )}
+            {!isProcessing && status === 'running' && (
+              <ButtonIcon
+                key="vnet-toggle"
+                title="Stop VNet"
+                onClick={e => {
+                  e.stopPropagation();
+                  stop();
+                }}
+              >
+                <icons.BroadcastSlash size={18} />
+              </ButtonIcon>
+            )}
+            {!isProcessing && status === 'stopped' && (
+              <ButtonIcon
+                key="vnet-toggle"
+                title="Start VNet"
+                onClick={e => {
+                  e.stopPropagation();
+                  start();
+                }}
+              >
+                <icons.Broadcast size={18} />
+              </ButtonIcon>
             )}
           </Flex>
         </Flex>
