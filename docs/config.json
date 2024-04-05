@@ -1401,6 +1401,10 @@
             {
               "title": "PostgreSQL",
               "slug": "/database-access/auto-user-provisioning/postgres/"
+            },
+            {
+              "title": "Database Access Controls",
+              "slug": "/database-access/auto-user-provisioning/database-access-controls/"
             }
           ]
         },

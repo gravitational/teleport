@@ -29,8 +29,12 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/defaults"
 	databaseobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/label"
+	apilabels "github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 )
@@ -169,4 +173,43 @@ func TestDatabaseObjectImportRuleCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, out)
+}
+
+func TestMarshalDatabaseObjectImportRuleRoundTrip(t *testing.T) {
+	spec := &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+		Priority:       30,
+		DatabaseLabels: apilabels.FromMap(map[string][]string{"env": {"staging", "prod"}, "owner_org": {"trading"}}),
+		Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
+			{
+				Scope: &databaseobjectimportrulev1.DatabaseObjectImportScope{
+					SchemaNames:   []string{"public"},
+					DatabaseNames: []string{"foo", "bar", "baz"},
+				},
+				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+					TableNames:     []string{"*"},
+					ViewNames:      []string{"1", "2", "3"},
+					ProcedureNames: []string{"aaa", "bbb", "ccc"},
+				},
+				AddLabels: map[string]string{
+					"env":          "staging",
+					"custom_label": "my_custom_value",
+				},
+			},
+		},
+	}
+	obj := &databaseobjectimportrulev1.DatabaseObjectImportRule{
+		Kind:    types.KindDatabaseObjectImportRule,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name:      "import_all_staging_tables",
+			Namespace: defaults.Namespace,
+		},
+		Spec: spec,
+	}
+
+	out, err := marshalDatabaseObjectImportRule(obj)
+	require.NoError(t, err)
+	newObj, err := unmarshalDatabaseObjectImportRule(out)
+	require.NoError(t, err)
+	require.True(t, proto.Equal(obj, newObj), "messages are not equal")
 }

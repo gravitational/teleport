@@ -528,6 +528,15 @@ func TestFriendlyName(t *testing.T) {
 		return group
 	}
 
+	newRole := func(t *testing.T, name string, labels map[string]string) Role {
+		role, err := NewRole(name, RoleSpecV6{})
+		require.NoError(t, err)
+		metadata := role.GetMetadata()
+		metadata.Labels = labels
+		role.SetMetadata(metadata)
+		return role
+	}
+
 	node, err := NewServer("node", KindNode, ServerSpecV2{
 		Hostname: "friendly hostname",
 	})
@@ -570,6 +579,14 @@ func TestFriendlyName(t *testing.T) {
 			resource: newGroup(t, "friendly", "friendly name", map[string]string{
 				OriginLabel:        OriginOkta,
 				OktaGroupNameLabel: "label friendly name",
+			}),
+			expected: "label friendly name",
+		},
+		{
+			name: "friendly role name (uses label)",
+			resource: newRole(t, "friendly", map[string]string{
+				OriginLabel:       OriginOkta,
+				OktaRoleNameLabel: "label friendly name",
 			}),
 			expected: "label friendly name",
 		},

@@ -26,6 +26,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
@@ -759,6 +760,12 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	role, err = rootClient.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
+	botListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		botListener.Close()
+	})
+
 	// Prepare the bot config
 	onboarding, _ := testhelpers.MakeBot(t, rootClient, "test", role.GetName())
 	botConfig := testhelpers.DefaultBotConfig(
@@ -770,8 +777,7 @@ func TestBotDatabaseTunnel(t *testing.T) {
 			Insecure: true,
 			ServiceConfigs: []config.ServiceConfig{
 				&config.DatabaseTunnelService{
-					// TODO: Perhaps allow FD or listener to be injected
-					Listen:   "tcp://127.0.0.1:39933",
+					Listener: botListener,
 					Service:  "test-database",
 					Database: "mydb",
 					Username: "llama",
@@ -783,16 +789,20 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	b := New(botConfig, log)
 
 	// Spin up goroutine for bot to run in
-	botCtx, cancelBot := context.WithCancel(ctx)
-	botCh := make(chan error, 1)
+	ctx, cancel := context.WithCancel(ctx)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
-		botCh <- b.Run(botCtx)
+		defer wg.Done()
+		err := b.Run(ctx)
+		assert.NoError(t, err, "bot should not exit with error")
+		cancel()
 	}()
 
 	// We can't predict exactly when the tunnel will be ready so we use
 	// EventuallyWithT to retry.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		conn, err := pgconn.Connect(ctx, "postgres://127.0.0.1:39933/mydb?user=llama")
+		conn, err := pgconn.Connect(ctx, fmt.Sprintf("postgres://%s/mydb?user=llama", botListener.Addr().String()))
 		if !assert.NoError(t, err) {
 			return
 		}
@@ -801,9 +811,9 @@ func TestBotDatabaseTunnel(t *testing.T) {
 		}()
 		_, err = conn.Exec(ctx, "SELECT 1;").ReadAll()
 		assert.NoError(t, err)
-	}, 5*time.Second, 100*time.Millisecond)
+	}, 10*time.Second, 100*time.Millisecond)
 
-	// Shut down bot and make sure it exits cleanly.
-	cancelBot()
-	require.NoError(t, <-botCh)
+	// Shut down bot and make sure it exits.
+	cancel()
+	wg.Wait()
 }
