@@ -2050,6 +2050,7 @@ func TestSSHAccessRequest(t *testing.T) {
 			err = Run(ctx, []string{
 				"login",
 				"--insecure",
+				"--auth", connector.GetName(),
 				"--proxy", proxyAddr.String(),
 				"--user", "alice",
 			}, setHomePath(tmpHomePath), CliOption(func(cf *CLIConf) error {
