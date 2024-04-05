@@ -104,17 +104,6 @@ func onListDatabases(cf *CLIConf) error {
 	return trace.Wrap(showDatabases(cf, databases, activeDatabases, accessChecker))
 }
 
-func accessCheckerForRemoteCluster(ctx context.Context, profile *client.ProfileStatus, proxy *client.ProxyClient, clusterName string) (services.AccessChecker, error) {
-	cluster, err := proxy.ConnectToCluster(ctx, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer cluster.Close()
-
-	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, profile.AccessInfo(), clusterName, cluster)
-	return accessChecker, trace.Wrap(err)
-}
-
 type databaseListing struct {
 	Proxy         string                 `json:"proxy"`
 	Cluster       string                 `json:"cluster"`
@@ -183,7 +172,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 			defer span.End()
 
 			logger := log.WithField("cluster", cluster.name)
-			databases, err := cluster.proxy.FindDatabasesByFiltersForCluster(ctx, cluster.req, cluster.name)
+			databases, err := apiclient.GetAllResources[types.Database](ctx, cluster.auth, &cluster.req)
 			if err != nil {
 				logger.Errorf("Failed to get databases: %v.", err)
 
@@ -193,7 +182,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 				return nil
 			}
 
-			accessChecker, err := accessCheckerForRemoteCluster(ctx, cluster.profile, cluster.proxy, cluster.name)
+			accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, cluster.profile.AccessInfo(), cluster.name, cluster.auth)
 			if err != nil {
 				log.Debugf("Failed to fetch user roles: %v.", err)
 			}

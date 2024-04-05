@@ -56,6 +56,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -2214,7 +2215,8 @@ func onListNodes(cf *CLIConf) error {
 type clusterClient struct {
 	name            string
 	connectionError error
-	proxy           *client.ProxyClient
+	cluster         *client.ClusterClient
+	auth            auth.ClientI
 	profile         *client.ProfileStatus
 	req             proto.ListResourcesRequest
 }
@@ -2224,7 +2226,7 @@ func (c *clusterClient) Close() error {
 		return nil
 	}
 
-	return c.proxy.Close()
+	return trace.NewAggregate(c.auth.Close(), c.cluster.Close())
 }
 
 // getClusterClients establishes a ProxyClient to every cluster
@@ -2249,8 +2251,7 @@ func getClusterClients(cf *CLIConf, resource string) ([]*clusterClient, error) {
 		logger := log.WithField("cluster", profile.Cluster)
 
 		logger.Debug("Creating client...")
-		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-		proxy, err := tc.ConnectToProxy(ctx)
+		clt, err := tc.ConnectToCluster(ctx)
 		if err != nil {
 			// log error and return nil so that results may still be retrieved
 			// for other clusters.
@@ -2265,20 +2266,43 @@ func getClusterClients(cf *CLIConf, resource string) ([]*clusterClient, error) {
 			return nil
 		}
 
-		sites, err := proxy.GetSites(ctx)
+		// Add the local cluster to the output
+		mu.Lock()
+		clusters = append(clusters, &clusterClient{
+			name:    tc.SiteName,
+			cluster: clt,
+			auth:    clt.AuthClient,
+			profile: profile,
+			req:     *tc.ResourceFilter(resource),
+		})
+		mu.Unlock()
+
+		// Check if the user has access to any attached remote clusters.
+		remoteClusters, err := clt.AuthClient.GetRemoteClusters(ctx)
 		if err != nil {
-			// log error and create a site for the proxy we were able to
-			// connect to so that results are still retrieved.
+			// Log that an error happened but do not return an error to
+			// prevent results from other clusters from being retrieved.
 			logger.Errorf("Failed to lookup leaf clusters: %v", err)
-			sites = []types.Site{{Name: profile.Cluster}}
+			return nil
 		}
 
-		localClusters := make([]*clusterClient, 0, len(sites))
-		for _, site := range sites {
+		localClusters := make([]*clusterClient, 0, len(remoteClusters))
+		for _, cluster := range remoteClusters {
+			clusterName := cluster.GetName()
+			auth, err := clt.ConnectToCluster(ctx, clusterName)
+			if err != nil {
+				localClusters = append(localClusters, &clusterClient{
+					name:            clusterName,
+					connectionError: trace.ConnectionProblem(err, "failed to connect to cluster %s: %v", clusterName, err),
+				})
+				continue
+			}
+
 			localClusters = append(localClusters, &clusterClient{
-				proxy:   proxy,
+				cluster: clt,
+				auth:    auth,
 				profile: profile,
-				name:    site.Name,
+				name:    clusterName,
 				req:     *tc.ResourceFilter(resource),
 			})
 		}
@@ -2360,7 +2384,7 @@ func listNodesAllClusters(cf *CLIConf) error {
 			defer span.End()
 
 			logger := log.WithField("cluster", cluster.name)
-			nodes, err := cluster.proxy.FindNodesByFiltersForCluster(ctx, &cluster.req, cluster.name)
+			nodes, err := apiclient.GetAllResources[types.Server](ctx, cluster.auth, &cluster.req)
 			if err != nil {
 				logger.Errorf("Failed to get nodes: %v.", err)
 
