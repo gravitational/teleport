@@ -3051,20 +3051,8 @@ func (accessMonitoringRulesExecutor) getAll(ctx context.Context, cache *Cache, l
 }
 
 func (accessMonitoringRulesExecutor) upsert(ctx context.Context, cache *Cache, resource *accessmonitoringrulesv1.AccessMonitoringRule) error {
-	if _, err := cache.accessMontoringRuleCache.CreateAccessMonitoringRule(ctx, resource); err != nil {
-		if !trace.IsAlreadyExists(err) {
-			return trace.Wrap(err)
-		}
-
-		if err := cache.accessMontoringRuleCache.DeleteAccessMonitoringRule(ctx, resource.Metadata.Name); err != nil {
-			return trace.Wrap(err)
-		}
-
-		if _, err := cache.accessMontoringRuleCache.CreateAccessMonitoringRule(ctx, resource); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
+	_, err := cache.accessMontoringRuleCache.UpsertAccessMonitoringRule(ctx, resource)
+	return trace.Wrap(err)
 }
 
 func (accessMonitoringRulesExecutor) deleteAll(ctx context.Context, cache *Cache) error {
