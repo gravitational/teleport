@@ -76,7 +76,6 @@ export function RoleList({
         },
       ]}
       emptyText="No Roles Found"
-      pagination={{ pagerPosition: 'top' }}
       isSearchable
     />
   );
