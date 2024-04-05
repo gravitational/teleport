@@ -150,6 +150,10 @@ db_service:
         # by default.
         kms_key_id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 
+      # Optional session tags used when assuming IAM roles for DynamoDB access.
+      session_tags:
+        dynamodb_table_name: "table-a"
+
     # GCP specific configuration for Cloud SQL databases.
     gcp:
       # GCP project ID.
