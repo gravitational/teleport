@@ -46,6 +46,8 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -89,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
+	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 const (
@@ -5504,4 +5507,208 @@ func TestFlatten(t *testing.T) {
 	// Test execution: validate that flattening succeeds if a profile already exists.
 	conf.IdentityFileIn = identityPath
 	require.NoError(t, flattenIdentity(&conf), "unexpected error when overwriting a tsh profile")
+}
+
+// TestListingResourcesAcrossClusters validates that tsh ls -R
+// returns expected results for root and leaf clusters.
+func TestListingResourcesAcrossClusters(t *testing.T) {
+	type recursiveServer struct {
+		Proxy   string          `json:"proxy"`
+		Cluster string          `json:"cluster"`
+		Node    *types.ServerV2 `json:"node"`
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
+
+	createAgent(t)
+
+	accessUser, err := types.NewUser("access")
+	require.NoError(t, err)
+	accessUser.SetRoles([]string{"access"})
+
+	user, err := user.Current()
+	require.NoError(t, err)
+	accessUser.SetLogins([]string{user.Name})
+
+	connector := mockConnector(t)
+	rootServerOpts := []testserver.TestServerOptFunc{
+		testserver.WithBootstrap(connector, accessUser),
+		testserver.WithHostname("node01"),
+		testserver.WithClusterName(t, "root"),
+		testserver.WithAuthConfig(
+			func(cfg *servicecfg.AuthConfig) {
+				// Disable session recording to prevent writing to disk after the test concludes.
+				cfg.SessionRecordingConfig.SetMode(types.RecordOff)
+			},
+		),
+	}
+	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
+
+	leafServerOpts := []testserver.TestServerOptFunc{
+		testserver.WithBootstrap(connector, accessUser),
+		testserver.WithHostname("node02"),
+		testserver.WithClusterName(t, "leaf"),
+		testserver.WithAuthConfig(
+			func(cfg *servicecfg.AuthConfig) {
+				// Disable session recording to prevent writing to disk after the test concludes.
+				cfg.SessionRecordingConfig.SetMode(types.RecordOff)
+			},
+		),
+	}
+	leafServer := testserver.MakeTestServer(t, leafServerOpts...)
+	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer)
+
+	rootProxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+	leafProxyAddr, err := leafServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	var rootNode, leafNode *types.ServerV2
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rootNodes, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, rootNodes, 1) {
+			return
+		}
+
+		leafNodes, err := leafServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, leafNodes, 1) {
+			return
+		}
+
+		rootNode = rootNodes[0].(*types.ServerV2)
+		leafNode = leafNodes[0].(*types.ServerV2)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	tests := []struct {
+		name      string
+		proxyAddr *utils.NetAddr
+		cluster   string
+		auth      *auth.Server
+		args      []string
+		recursive bool
+		expected  []*types.ServerV2
+	}{
+		{
+			name:      "root ls",
+			proxyAddr: rootProxyAddr,
+			cluster:   "root",
+			auth:      rootServer.GetAuthServer(),
+			expected:  []*types.ServerV2{rootNode},
+		},
+		{
+			name:      "leaf ls",
+			proxyAddr: leafProxyAddr,
+			cluster:   "leaf",
+			auth:      leafServer.GetAuthServer(),
+			expected:  []*types.ServerV2{leafNode},
+		},
+		{
+			name:      "leaf ls via root",
+			proxyAddr: rootProxyAddr,
+			cluster:   "leaf",
+			auth:      rootServer.GetAuthServer(),
+			expected:  []*types.ServerV2{leafNode},
+		},
+		{
+			name:      "root ls -R",
+			proxyAddr: rootProxyAddr,
+			cluster:   "root",
+			auth:      rootServer.GetAuthServer(),
+			recursive: true,
+			expected:  []*types.ServerV2{rootNode, leafNode},
+		},
+		{
+			name:      "leaf ls -R",
+			proxyAddr: leafProxyAddr,
+			cluster:   "leaf",
+			auth:      leafServer.GetAuthServer(),
+			recursive: true,
+			expected:  []*types.ServerV2{leafNode},
+		},
+		{
+			name:      "leaf via root ls -R",
+			proxyAddr: rootProxyAddr,
+			cluster:   "leaf",
+			auth:      rootServer.GetAuthServer(),
+			recursive: true,
+			expected:  []*types.ServerV2{leafNode},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tmpHomePath := t.TempDir()
+			err = Run(
+				ctx,
+				[]string{
+					"--insecure",
+					"login",
+					"--proxy", test.proxyAddr.String(),
+					test.cluster,
+				},
+				setHomePath(tmpHomePath),
+				setMockSSOLogin(test.auth, accessUser, connector.GetName()),
+			)
+			require.NoError(t, err)
+
+			stdout := &output{buf: bytes.Buffer{}}
+			stderr := &output{buf: bytes.Buffer{}}
+
+			args := []string{"ls", "--format", "json"}
+			if test.recursive {
+				args = append(args, "-R")
+			}
+			err = Run(ctx,
+				args,
+				setHomePath(tmpHomePath),
+				func(conf *CLIConf) error {
+					conf.overrideStdin = &bytes.Buffer{}
+					conf.OverrideStdout = stdout
+					conf.overrideStderr = stderr
+					return nil
+				},
+			)
+			require.NoError(t, err)
+
+			var nodes []*types.ServerV2
+			if test.recursive {
+				var servers []recursiveServer
+				assert.NoError(t, json.Unmarshal(stdout.buf.Bytes(), &servers))
+				require.NotEmpty(t, servers, stderr.String())
+
+				nodes = make([]*types.ServerV2, 0, len(servers))
+				for _, s := range servers {
+					if s.Node.GetHostname() == "node01" {
+						assert.Equal(t, "root", s.Cluster)
+					} else {
+						assert.Equal(t, "leaf", s.Cluster)
+					}
+
+					assert.Equal(t, test.proxyAddr.String(), s.Proxy)
+					require.NoError(t, s.Node.CheckAndSetDefaults())
+					nodes = append(nodes, s.Node)
+				}
+			} else {
+				servers, err := services.UnmarshalServers(stdout.buf.Bytes())
+				assert.NoError(t, err)
+				require.NotEmpty(t, servers, stderr.String())
+
+				nodes = make([]*types.ServerV2, 0, len(servers))
+				for _, s := range servers {
+					require.IsType(t, s, &types.ServerV2{})
+					srv, _ := s.(*types.ServerV2)
+					require.NoError(t, srv.CheckAndSetDefaults())
+					nodes = append(nodes, srv)
+				}
+			}
+
+			require.Empty(t, cmp.Diff(test.expected, nodes,
+				cmpopts.SortSlices(func(a, b types.Server) bool { return strings.Compare(a.GetName(), b.GetName()) < 0 })))
+
+		})
+	}
 }
