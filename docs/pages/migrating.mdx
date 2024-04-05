@@ -34,16 +34,19 @@ Note: Teleport support cannot assist with resetting passwords or recovering lost
 
 - Subscribe to the [Teleport Cloud status website](https://status.teleport.sh/) to stay current on any issues impacting Teleport Cloud performance.
 
-- Verify tsh and tctl access to the newly created Teleport Cloud tenant by using the tsh command-line tool to log in to your new Teleport Cloud cluster:
+2.  ### Validate connectivity  
 
+To check that you can connect to your Teleport cloud tenant, using the tsh command-line tool sign in with tsh login, then verify that you can run tctl commands using your current credentials. tctl is supported on macOS and Linux machines. 
+For example:
 
-Login to your Teleport Cloud cluster.
-$ tsh login --proxy=<example.teleport.sh> --user=<your-admin-user>
-
-Run "tsh status" and "tctl status" to verify you've logged into your cluster.
+```code
+$ tsh login --proxy=example.teleport.sh --user=admin@example.com
 $ tsh status && tctl status
+```
 
-2. ### Migrate Teleport Configurations.
+If you can connect to the cluster and run the tctl status command, you can use your current credentials to run subsequent tctl commands from your workstation.
+
+3. ### Migrate Teleport Configurations.
 
 Migrating Teleport configurations involves transferring essential resource configurations from your self-hosted cluster to Teleport Cloud. Teleport uses YAML configuration for these resources, hence, it is required to grab a backup of the dynamic resource configurations from the existing self-hosted cluster and restore the resource on the Teleport cloud. These resources include:  
 
@@ -89,7 +92,7 @@ Machine ID Bots
 Access Request Plugins
 
 
-The actionable steps required to perform the migration are listed below:
+The steps required to perform the migration are listed below:
 
 
 - Take an inventory of resources to migrate
@@ -97,7 +100,7 @@ The actionable steps required to perform the migration are listed below:
 - Stop the Teleport service on the agent (if applicable)
 - Change the `proxy_server` or `auth_server` field in the agent configuration file to point to the address of your Teleport cloud proxy. By default, the configuration is located in the `/etc/teleport.yaml` directory
 
-```
+```code
 proxy_server:
 - example.teleport.sh:443
 ```
@@ -134,6 +137,6 @@ These tctl commands will show you the resources registered within your Teleport 
 
 Additionally, establish break glass access procedures to ensure access to infrastructure in case of Teleport Cloud unavailability.
 
-###Conclusion
+### Conclusion
 
 Migrating from a self-hosted Teleport deployment to Teleport Cloud offers scalability, reliability, and ease of management. By following the steps outlined in this guide, you can seamlessly transition your Teleport self-hosted deployment to the cloud while ensuring minimal disruption to your operations.
