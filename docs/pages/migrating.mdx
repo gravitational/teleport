@@ -30,7 +30,18 @@ The migration process involves transferring configurations, migrating Teleport a
 
 - Ensure recovery codes are saved securely in order not to lose access.
 
-Note: Teleport support cannot assist with resetting passwords or recovering lost credentials.
+</Details>
+
+<Admonition
+  type="tip"
+  title="Note"
+>
+
+  Teleport support cannot assist with resetting passwords or recovering lost credentials.
+
+</Admonition>
+
+
 
 - Subscribe to the [Teleport Cloud status website](https://status.teleport.sh/) to stay current on any issues impacting Teleport Cloud performance.
 
@@ -58,27 +69,35 @@ Review the [dynamic resources](https://goteleport.com/docs/reference/resources/)
 - windows_desktop
 - apps
 - dbs
-- Login_rule
+- login_rule
 
+</Details>
 
-Note: Trusted Clusters are no longer supported in Teleport Cloud.  You will not be able to migrate trusted cluster resources.
+<Admonition
+  type="tip"
+  title="Note"
+>
+
+  Trusted Clusters are no longer supported in Teleport Cloud.  You will not be able to migrate trusted cluster resources.
+
+</Admonition>
 
 
 To achieve this:
 - Log in to your existing self-hosted Teleport cluster and export a collection of the above-mentioned dynamic resource configuration using the tctl administrative tool.  An example is shown below:
 
 ```code
-tsh login --proxy=<teleport.example.com> --user=<your-admin-user>
-tctl get roles > roles.yaml 
-tctl get users > users.yaml 
+$ tsh login --proxy=teleport.example.com --user=admin@example.com
+$ tctl get roles > roles.yaml 
+$ tctl get users > users.yaml 
 ```
 
-- Once you have the resource configuration file from the above, Log in to your Teleport Cloud tenant with an admin user and create the resources from the exported files
+- Once you have the resource configuration file from the above, proceed to log in to your Teleport Cloud tenant with an admin user and create the resources from the exported files
 
 ```code
-tsh login --proxy=<example.teleport.sh> --user=<your-admin-user>
-tctl create -f  roles.yaml
-tctl create -f  user.yaml
+$ tsh login --proxy=example.teleport.sh --user=admin@example.com
+$ tctl create -f  roles.yaml
+$ tctl create -f  user.yaml
 ```
 
 For your SSO auth connector, most SSO integrations only work for a single configured endpoint. It is recommended to create a separate SSO connector in your Identity Provider specifically for the Teleport Cloud endpoint, and configure a new Auth Connector in the Teleport Cloud tenant.
@@ -112,10 +131,10 @@ proxy_server:
 - Start the Teleport process on each agent or recycle the pod to apply the new configuration. This will cause the agents to re-register with the Teleport cloud cluster and obtain new certificates signed by the cloud cluster's certificate authority.
 
 
-Note: ​​Migration of agents can be done all at once or gradually, depending on your business requirements. If running teleport at scale, you'll generally want to leverage the use of a configuration management tool to automate and streamline the process of carrying out the actions in `Step 3` above on the agent configurations. 
+Note: ​​Migration of agents can be done all at once or gradually, depending on your business requirements. If running teleport at scale, you'll generally want to leverage the use of a configuration management tool to automate and streamline the process of carrying out the actions involved in migrating agent configurations. 
 
 
-4. ### Verify End User Access and Performance.
+### Verify end User Access and performance.
 
 Once the migration is complete, validate that the resources are present in the Teleport cluster and verify their status and connectivity to ensure they are properly registered and available for connections. You can either check via the Web UI or use tctl to get a list of all resources and verify their registration and status. 
 
