@@ -407,7 +407,11 @@ func TestProxySSHJumpHost(t *testing.T) {
 					"--insecure",
 					"login",
 					"--proxy", rootProxyAddr.String(),
-				}, setHomePath(tshHome), setMockSSOLogin(rootServer.GetAuthServer(), accessUser, connector.GetName()))
+				}, setHomePath(tshHome), func(cf *CLIConf) error {
+					cf.mockSSOLogin = mockSSOLogin(t, rootServer.GetAuthServer(), accessUser)
+					cf.AuthConnector = connector.GetName()
+					return nil
+				})
 				require.NoError(t, err)
 
 				// Connect through the leaf proxy jumphost.
