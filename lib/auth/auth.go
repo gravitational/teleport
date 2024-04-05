@@ -4972,10 +4972,15 @@ func (a *Server) submitAccessReview(
 }
 
 func (a *Server) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
-	caps, err := services.CalculateAccessCapabilities(ctx, a.clock, a, req)
+	user, err := authz.UserFromContext(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	caps, err := services.CalculateAccessCapabilities(ctx, a.clock, a, user.GetIdentity(), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return caps, nil
 }
 
