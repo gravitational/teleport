@@ -716,7 +716,6 @@ func TestProxySSHJumpHost(t *testing.T) {
 					"--debug",
 					"proxy",
 					"ssh",
-					"--no-resume",
 					"-J", leafProxyAddr.String(),
 					"node02",
 				}, setHomePath(tshHome))
@@ -732,7 +731,6 @@ func TestProxySSHJumpHost(t *testing.T) {
 					"--insecure",
 					"proxy",
 					"ssh",
-					"--no-resume",
 					"-J", leafProxyAddr.String(),
 					"node02",
 				}, setHomePath(tshHome))
