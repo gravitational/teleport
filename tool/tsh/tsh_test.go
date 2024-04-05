@@ -3317,6 +3317,7 @@ func withSSHLabel(key, value string) testServerOptFunc {
 	})
 }
 
+// deprecated: Use `tools/teleport/testenv.MakeTestServer` instead.
 func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOptFunc) *service.TeleportProcess {
 	var options testServersOpts
 	for _, opt := range opts {
@@ -3346,6 +3347,7 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	return runTeleport(t, cfg)
 }
 
+// deprecated: Use `tools/teleport/testenv.MakeTestServer` instead.
 func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.TeleportProcess, proxy *service.TeleportProcess) {
 	t.Helper()
 
