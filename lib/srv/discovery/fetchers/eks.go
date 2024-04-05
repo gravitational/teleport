@@ -165,6 +165,7 @@ func (a *eksFetcher) getClient(ctx context.Context) (eksiface.EKSAPI, error) {
 	return a.client, nil
 }
 
+// GetIntegration returns the integration name that is used for getting credentials of the fetcher.
 func (a *eksFetcher) GetIntegration() string {
 	return a.Integration
 }
