@@ -2212,17 +2212,17 @@
     "teleport": {
       "git": "api/14.0.0-gd1e081e",
       "major_version": "15",
-      "version": "15.2.0",
+      "version": "15.2.1",
       "url": "teleport.example.com",
       "golang": "1.21",
       "plugin": {
-        "version": "15.2.0"
+        "version": "15.2.1"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:15.2.0",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:15.2.0",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:15.2.0",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:15.2.0"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:15.2.1",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:15.2.1",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:15.2.1",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:15.2.1"
     },
     "terraform": {
       "version": "1.0.0"
