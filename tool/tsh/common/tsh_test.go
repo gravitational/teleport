@@ -5512,12 +5512,6 @@ func TestFlatten(t *testing.T) {
 // TestListingResourcesAcrossClusters validates that tsh ls -R
 // returns expected results for root and leaf clusters.
 func TestListingResourcesAcrossClusters(t *testing.T) {
-	type recursiveServer struct {
-		Proxy   string          `json:"proxy"`
-		Cluster string          `json:"cluster"`
-		Node    *types.ServerV2 `json:"node"`
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -5539,12 +5533,23 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithHostname("node01"),
 		testserver.WithClusterName(t, "root"),
-		testserver.WithAuthConfig(
-			func(cfg *servicecfg.AuthConfig) {
-				// Disable session recording to prevent writing to disk after the test concludes.
-				cfg.SessionRecordingConfig.SetMode(types.RecordOff)
-			},
-		),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			// Disable session recording to prevent writing to disk after the test concludes.
+			cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
+
+			// Enable DB
+			cfg.Databases.Enabled = true
+			cfg.Databases.Databases = []servicecfg.Database{
+				{
+					Name:     "db01",
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "localhost:5432",
+				},
+			}
+
+			cfg.Apps.Enabled = true
+			cfg.Apps.DebugApp = true
+		}),
 	}
 	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
 
@@ -5552,22 +5557,32 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithHostname("node02"),
 		testserver.WithClusterName(t, "leaf"),
-		testserver.WithAuthConfig(
-			func(cfg *servicecfg.AuthConfig) {
-				// Disable session recording to prevent writing to disk after the test concludes.
-				cfg.SessionRecordingConfig.SetMode(types.RecordOff)
-			},
-		),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			// Disable session recording to prevent writing to disk after the test concludes.
+			cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
+
+			// Enable DB
+			cfg.Databases.Enabled = true
+			cfg.Databases.Databases = []servicecfg.Database{
+				{
+					Name:     "db02",
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "localhost:5432",
+				},
+			}
+
+			cfg.Apps.Enabled = true
+			cfg.Apps.DebugApp = true
+		}),
 	}
 	leafServer := testserver.MakeTestServer(t, leafServerOpts...)
 	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer)
 
-	rootProxyAddr, err := rootServer.ProxyWebAddr()
-	require.NoError(t, err)
-	leafProxyAddr, err := leafServer.ProxyWebAddr()
-	require.NoError(t, err)
-
-	var rootNode, leafNode *types.ServerV2
+	var (
+		rootNode, leafNode *types.ServerV2
+		rootDB, leafDB     *types.DatabaseV3
+		rootApp, leafApp   *types.AppV3
+	)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		rootNodes, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
 		if !assert.NoError(t, err) || !assert.Len(t, rootNodes, 1) {
@@ -5579,63 +5594,273 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 			return
 		}
 
+		rootDatabases, err := rootServer.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, rootDatabases, 1) {
+			return
+		}
+
+		leafDatabases, err := leafServer.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, leafDatabases, 1) {
+			return
+		}
+
+		rootApps, err := rootServer.GetAuthServer().GetApplicationServers(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, rootApps, 1) {
+			return
+		}
+
+		leafApps, err := leafServer.GetAuthServer().GetApplicationServers(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, leafApps, 1) {
+			return
+		}
+
 		rootNode = rootNodes[0].(*types.ServerV2)
 		leafNode = leafNodes[0].(*types.ServerV2)
+		rootDB = rootDatabases[0].GetDatabase().(*types.DatabaseV3)
+		leafDB = leafDatabases[0].GetDatabase().(*types.DatabaseV3)
+		rootApp = rootApps[0].GetApp().(*types.AppV3)
+		leafApp = leafApps[0].GetApp().(*types.AppV3)
 	}, 10*time.Second, 100*time.Millisecond)
+
+	t.Run("nodes", func(t *testing.T) {
+		t.Parallel()
+
+		testListingResources(t,
+			listPack[*types.ServerV2]{
+				rootProcess:   rootServer,
+				leafProcess:   leafServer,
+				rootResource:  rootNode,
+				leafResource:  leafNode,
+				user:          accessUser,
+				connectorName: connector.GetName(),
+				args:          []string{"ls"},
+			},
+			func(t *testing.T, proxyAddr string, recursive bool, raw []byte) []*types.ServerV2 {
+				type recursiveServer struct {
+					Proxy   string          `json:"proxy"`
+					Cluster string          `json:"cluster"`
+					Node    *types.ServerV2 `json:"node"`
+				}
+
+				var nodes []*types.ServerV2
+				if recursive {
+					var servers []recursiveServer
+					require.NoError(t, json.Unmarshal(raw, &servers))
+					require.NotEmpty(t, servers)
+
+					nodes = make([]*types.ServerV2, 0, len(servers))
+					for _, s := range servers {
+						if s.Node.GetHostname() == "node01" {
+							assert.Equal(t, "root", s.Cluster)
+						} else {
+							assert.Equal(t, "leaf", s.Cluster)
+						}
+
+						assert.Equal(t, proxyAddr, s.Proxy)
+						require.NoError(t, s.Node.CheckAndSetDefaults())
+						nodes = append(nodes, s.Node)
+					}
+				} else {
+					err := json.Unmarshal(raw, &nodes)
+					assert.NoError(t, err)
+					require.NotEmpty(t, nodes)
+
+					for _, s := range nodes {
+						require.NoError(t, s.CheckAndSetDefaults())
+					}
+				}
+
+				return nodes
+			},
+			func(a, b *types.ServerV2) bool {
+				return strings.Compare(a.GetName(), b.GetName()) < 0
+			},
+		)
+	})
+
+	t.Run("databases", func(t *testing.T) {
+		t.Parallel()
+
+		testListingResources(t,
+			listPack[*types.DatabaseV3]{
+				rootProcess:   rootServer,
+				leafProcess:   leafServer,
+				rootResource:  rootDB,
+				leafResource:  leafDB,
+				user:          accessUser,
+				connectorName: connector.GetName(),
+				args:          []string{"db", "ls"},
+			},
+			func(t *testing.T, proxyAddr string, recursive bool, raw []byte) []*types.DatabaseV3 {
+				type recursiveServer struct {
+					Proxy    string            `json:"proxy"`
+					Cluster  string            `json:"cluster"`
+					Database *types.DatabaseV3 `json:"database"`
+				}
+
+				var databases []*types.DatabaseV3
+				if recursive {
+					var servers []recursiveServer
+					assert.NoError(t, json.Unmarshal(raw, &servers))
+					require.NotEmpty(t, servers)
+
+					databases = make([]*types.DatabaseV3, 0, len(servers))
+					for _, s := range servers {
+						if s.Database.GetName() == "db01" {
+							assert.Equal(t, "root", s.Cluster)
+						} else {
+							assert.Equal(t, "leaf", s.Cluster)
+						}
+
+						assert.Equal(t, proxyAddr, s.Proxy)
+						require.NoError(t, s.Database.CheckAndSetDefaults())
+						databases = append(databases, s.Database)
+					}
+				} else {
+					var servers []*types.DatabaseV3
+					assert.NoError(t, json.Unmarshal(raw, &servers))
+					require.NotEmpty(t, servers)
+
+					for _, s := range servers {
+						require.NoError(t, s.CheckAndSetDefaults())
+						databases = append(databases, s)
+					}
+				}
+
+				return databases
+			},
+			func(a, b *types.DatabaseV3) bool {
+				return strings.Compare(a.GetName(), b.GetName()) < 0
+			},
+		)
+	})
+
+	t.Run("applications", func(t *testing.T) {
+		t.Parallel()
+
+		testListingResources(t,
+			listPack[*types.AppV3]{
+				rootProcess:   rootServer,
+				leafProcess:   leafServer,
+				rootResource:  rootApp,
+				leafResource:  leafApp,
+				user:          accessUser,
+				connectorName: connector.GetName(),
+				args:          []string{"apps", "ls"},
+			},
+			func(t *testing.T, proxyAddr string, recursive bool, raw []byte) []*types.AppV3 {
+				type recursiveServer struct {
+					Proxy   string       `json:"proxy"`
+					Cluster string       `json:"cluster"`
+					App     *types.AppV3 `json:"app"`
+				}
+
+				var apps []*types.AppV3
+				if recursive {
+					var servers []recursiveServer
+					assert.NoError(t, json.Unmarshal(raw, &servers))
+					require.NotEmpty(t, servers)
+
+					apps = make([]*types.AppV3, 0, len(servers))
+					for _, s := range servers {
+						if s.App.GetPublicAddr() == "dumper.root" {
+							assert.Equal(t, "root", s.Cluster)
+						} else {
+							assert.Equal(t, "leaf", s.Cluster)
+						}
+
+						assert.Equal(t, proxyAddr, s.Proxy)
+						require.NoError(t, s.App.CheckAndSetDefaults())
+						apps = append(apps, s.App)
+					}
+				} else {
+					assert.NoError(t, json.Unmarshal(raw, &apps))
+					require.NotEmpty(t, apps)
+
+					for _, s := range apps {
+						require.NoError(t, s.CheckAndSetDefaults())
+					}
+				}
+
+				return apps
+			},
+			func(a, b *types.AppV3) bool {
+				return strings.Compare(a.GetPublicAddr(), b.GetPublicAddr()) < 0
+			},
+		)
+	})
+}
+
+type listPack[T any] struct {
+	rootProcess   *service.TeleportProcess
+	leafProcess   *service.TeleportProcess
+	rootResource  T
+	leafResource  T
+	user          types.User
+	connectorName string
+	args          []string
+}
+
+func testListingResources[T any](t *testing.T, pack listPack[T], unmarshalFunc func(*testing.T, string, bool, []byte) []T, lessFunc func(a, b T) bool) {
+	ctx := context.Background()
+
+	rootProxyAddr, err := pack.rootProcess.ProxyWebAddr()
+	require.NoError(t, err)
+	leafProxyAddr, err := pack.leafProcess.ProxyWebAddr()
+	require.NoError(t, err)
 
 	tests := []struct {
 		name      string
 		proxyAddr *utils.NetAddr
 		cluster   string
 		auth      *auth.Server
-		args      []string
 		recursive bool
-		expected  []*types.ServerV2
+		expected  []T
 	}{
 		{
-			name:      "root ls",
+			name:      "root",
 			proxyAddr: rootProxyAddr,
 			cluster:   "root",
-			auth:      rootServer.GetAuthServer(),
-			expected:  []*types.ServerV2{rootNode},
+			auth:      pack.rootProcess.GetAuthServer(),
+			expected:  []T{pack.rootResource},
 		},
 		{
-			name:      "leaf ls",
+			name:      "leaf",
 			proxyAddr: leafProxyAddr,
 			cluster:   "leaf",
-			auth:      leafServer.GetAuthServer(),
-			expected:  []*types.ServerV2{leafNode},
+			auth:      pack.leafProcess.GetAuthServer(),
+			expected:  []T{pack.leafResource},
 		},
 		{
-			name:      "leaf ls via root",
+			name:      "leaf via root",
 			proxyAddr: rootProxyAddr,
 			cluster:   "leaf",
-			auth:      rootServer.GetAuthServer(),
-			expected:  []*types.ServerV2{leafNode},
+			auth:      pack.rootProcess.GetAuthServer(),
+			expected:  []T{pack.leafResource},
 		},
 		{
-			name:      "root ls -R",
+			name:      "root recursive",
 			proxyAddr: rootProxyAddr,
 			cluster:   "root",
-			auth:      rootServer.GetAuthServer(),
+			auth:      pack.rootProcess.GetAuthServer(),
 			recursive: true,
-			expected:  []*types.ServerV2{rootNode, leafNode},
+			expected:  []T{pack.rootResource, pack.leafResource},
 		},
 		{
-			name:      "leaf ls -R",
+			name:      "leaf recursive",
 			proxyAddr: leafProxyAddr,
 			cluster:   "leaf",
-			auth:      leafServer.GetAuthServer(),
+			auth:      pack.leafProcess.GetAuthServer(),
 			recursive: true,
-			expected:  []*types.ServerV2{leafNode},
+			expected:  []T{pack.leafResource},
 		},
 		{
-			name:      "leaf via root ls -R",
+			name:      "leaf via root recursive",
 			proxyAddr: rootProxyAddr,
 			cluster:   "leaf",
-			auth:      rootServer.GetAuthServer(),
+			auth:      pack.rootProcess.GetAuthServer(),
 			recursive: true,
-			expected:  []*types.ServerV2{leafNode},
+			expected:  []T{pack.leafResource},
 		},
 	}
 
@@ -5651,14 +5876,14 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 					test.cluster,
 				},
 				setHomePath(tmpHomePath),
-				setMockSSOLogin(test.auth, accessUser, connector.GetName()),
+				setMockSSOLogin(test.auth, pack.user, pack.connectorName),
 			)
 			require.NoError(t, err)
 
 			stdout := &output{buf: bytes.Buffer{}}
-			stderr := &output{buf: bytes.Buffer{}}
 
-			args := []string{"ls", "--format", "json"}
+			args := slices.Clone(pack.args)
+			args = append(args, "--format", "json")
 			if test.recursive {
 				args = append(args, "-R")
 			}
@@ -5668,47 +5893,13 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 				func(conf *CLIConf) error {
 					conf.overrideStdin = &bytes.Buffer{}
 					conf.OverrideStdout = stdout
-					conf.overrideStderr = stderr
 					return nil
 				},
 			)
 			require.NoError(t, err)
 
-			var nodes []*types.ServerV2
-			if test.recursive {
-				var servers []recursiveServer
-				assert.NoError(t, json.Unmarshal(stdout.buf.Bytes(), &servers))
-				require.NotEmpty(t, servers, stderr.String())
-
-				nodes = make([]*types.ServerV2, 0, len(servers))
-				for _, s := range servers {
-					if s.Node.GetHostname() == "node01" {
-						assert.Equal(t, "root", s.Cluster)
-					} else {
-						assert.Equal(t, "leaf", s.Cluster)
-					}
-
-					assert.Equal(t, test.proxyAddr.String(), s.Proxy)
-					require.NoError(t, s.Node.CheckAndSetDefaults())
-					nodes = append(nodes, s.Node)
-				}
-			} else {
-				servers, err := services.UnmarshalServers(stdout.buf.Bytes())
-				assert.NoError(t, err)
-				require.NotEmpty(t, servers, stderr.String())
-
-				nodes = make([]*types.ServerV2, 0, len(servers))
-				for _, s := range servers {
-					require.IsType(t, s, &types.ServerV2{})
-					srv, _ := s.(*types.ServerV2)
-					require.NoError(t, srv.CheckAndSetDefaults())
-					nodes = append(nodes, srv)
-				}
-			}
-
-			require.Empty(t, cmp.Diff(test.expected, nodes,
-				cmpopts.SortSlices(func(a, b types.Server) bool { return strings.Compare(a.GetName(), b.GetName()) < 0 })))
-
+			out := unmarshalFunc(t, test.proxyAddr.String(), test.recursive, stdout.buf.Bytes())
+			require.Empty(t, cmp.Diff(test.expected, out, cmpopts.SortSlices(lessFunc)))
 		})
 	}
 }

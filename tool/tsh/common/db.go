@@ -172,7 +172,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 			defer span.End()
 
 			logger := log.WithField("cluster", cluster.name)
-			databases, err := apiclient.GetAllResources[types.Database](ctx, cluster.auth, &cluster.req)
+			databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, cluster.auth, &cluster.req)
 			if err != nil {
 				logger.Errorf("Failed to get databases: %v.", err)
 
@@ -193,7 +193,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 					Proxy:         cluster.profile.ProxyURL.Host,
 					Cluster:       cluster.name,
 					accessChecker: accessChecker,
-					Database:      database,
+					Database:      database.GetDatabase(),
 				})
 			}
 			mu.Lock()
@@ -232,7 +232,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprintln(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
