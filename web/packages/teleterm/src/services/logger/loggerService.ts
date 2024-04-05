@@ -95,22 +95,7 @@ export function createFileLoggerService(
   });
 
   if (opts.dev) {
-    instance.add(
-      new transports.Console({
-        format: format.printf(({ level, message, context }) => {
-          const loggerName =
-            opts.loggerNameColor &&
-            `\x1b[${opts.loggerNameColor}m${opts.name.toUpperCase()}\x1b[0m`;
-
-          const text = stringifier(message as unknown as unknown[]);
-          const logMessage = opts.passThroughMode
-            ? text
-            : `[${context}] ${level}: ${text}`;
-
-          return [loggerName, logMessage].filter(Boolean).join(' ');
-        }),
-      })
-    );
+    instance.add(getRegularConsoleTransport(opts));
   }
 
   return {
@@ -217,3 +202,21 @@ type FileLoggerOptions = {
    * */
   omitTimestamp?: boolean;
 };
+
+/** Stringifies log messages and logs with winston's console transport. */
+function getRegularConsoleTransport(opts: FileLoggerOptions) {
+  return new transports.Console({
+    format: format.printf(({ level, message, context }) => {
+      const loggerName =
+        opts.loggerNameColor &&
+        `\x1b[${opts.loggerNameColor}m${opts.name.toUpperCase()}\x1b[0m`;
+
+      const text = stringifier(message as unknown as unknown[]);
+      const logMessage = opts.passThroughMode
+        ? text
+        : `[${context}] ${level}: ${text}`;
+
+      return [loggerName, logMessage].filter(Boolean).join(' ');
+    }),
+  });
+}
