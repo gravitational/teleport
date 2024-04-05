@@ -316,7 +316,7 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 
 	l.cfg.Log.Info("Starting HTTP access proxy")
 	defer l.cfg.Log.Info("HTTP access proxy stopped")
-	defaultProxy := l.makeHTTPReverseProxy(l.getCert())
+	defaultProxy := l.makeHTTPReverseProxy(l.GetCert())
 
 	server := &http.Server{
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
@@ -372,33 +372,10 @@ func (l *LocalProxy) getHTTPReverseProxyForReq(req *http.Request, defaultProxy *
 // getCerts returns the local proxy's configured TLS certificates.
 // For thread-safety, it is important that the returned slice and its contents
 // are not be mutated by callers, therefore this method is not exported.
-func (l *LocalProxy) getCert() tls.Certificate {
+func (l *LocalProxy) GetCert() tls.Certificate {
 	l.certMu.RLock()
 	defer l.certMu.RUnlock()
 	return l.cfg.Cert
-}
-
-// CheckCertExpiry checks the proxy certificates for expiration and runs given checking function.
-func (l *LocalProxy) CheckCert(checkCert func(cert *x509.Certificate) error) error {
-	l.cfg.Log.Debug("checking local proxy certs")
-	l.certMu.RLock()
-	defer l.certMu.RUnlock()
-
-	if len(l.cfg.Cert.Certificate) == 0 {
-		return trace.NotFound("local proxy has no TLS certificates configured")
-	}
-
-	cert, err := utils.TLSCertLeaf(l.cfg.Cert)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Check for cert expiration.
-	if err := utils.VerifyCertificateExpiry(cert, l.cfg.Clock); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(checkCert(cert))
 }
 
 // CheckDBCert checks the proxy certificates for expiration and that the cert subject matches a database route.
@@ -474,7 +451,7 @@ func (l *LocalProxy) SetCert(cert tls.Certificate) {
 // net.Conn should be used for further operation.
 func (l *LocalProxy) getCertForConn(downstreamConn net.Conn) (tls.Certificate, net.Conn, error) {
 	if !l.cfg.CheckCertNeeded {
-		return l.getCert(), downstreamConn, nil
+		return l.GetCert(), downstreamConn, nil
 	}
 	if l.isPostgresProxy() {
 		// `psql` cli doesn't send cancel requests with SSL, unfortunately.
@@ -492,7 +469,7 @@ func (l *LocalProxy) getCertForConn(downstreamConn net.Conn) (tls.Certificate, n
 		if !isCancelReq {
 			return tls.Certificate{}, conn, nil
 		}
-		cert := l.getCert()
+		cert := l.GetCert()
 		if len(cert.Certificate) == 0 {
 			return tls.Certificate{}, nil, trace.NotFound("local proxy has no TLS certificates configured")
 		}

@@ -398,7 +398,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 	}
 
 	proxyApp := newLocalProxyApp(tc, routeToApp, cf.LocalProxyPort, cf.InsecureSkipVerify)
-	if err := proxyApp.startLocalALPNProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocolForApp(app))); err != nil {
+	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocolForApp(app))); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -438,6 +438,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 	if err := printProxyAWSTemplate(cf, awsApp); err != nil {
 		return trace.Wrap(err)
 	}
+
 	<-cf.Context.Done()
 	return nil
 }

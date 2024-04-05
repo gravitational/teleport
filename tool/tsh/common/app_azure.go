@@ -212,7 +212,7 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	localCA, err := loadAppSelfSignedCA(a.profile, tc, a.app.Name)
+	localCA, err := loadAppSelfSignedCA(tc, a.app.Name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
