@@ -56,7 +56,7 @@ class ResourceService {
       .then(res => makeResourceList<'github'>(res));
   }
 
-  fetchRoles(params?: {
+  async fetchRoles(params?: {
     search?: string;
     startKey?: string;
     limit?: number;
@@ -64,13 +64,26 @@ class ResourceService {
     items: RoleResource[];
     startKey: string;
   }> {
-    return api.get(
+    const response = await api.get(
       cfg.getListRolesUrl({
         search: params?.search || undefined,
         startKey: params?.startKey || undefined,
         limit: params?.limit || undefined,
       })
     );
+
+    // This will handle backward compatibility with roles.
+    // The old roles API returns only an array of resources while
+    // the new one sends the paginated object with startKey/requests
+    // If this webclient requests an older proxy
+    // (this may happen in multi proxy deployments),
+    //  this should allow the old request to not break the Web UI.
+    // TODO (gzdunek): DELETE in 17.0.0
+    if (Array.isArray(response)) {
+      return makeRolesPageLocally(params, response);
+    }
+
+    return response;
   }
 
   fetchPresetRoles() {
@@ -129,3 +142,31 @@ class ResourceService {
 }
 
 export default ResourceService;
+
+// TODO (gzdunek): DELETE in 17.0.0.
+// See the comment where this function is used.
+function makeRolesPageLocally(
+  params: UrlSimpleSearchParams,
+  response: RoleResource[]
+): {
+  items: RoleResource[];
+  startKey: string;
+} {
+  if (params.search) {
+    // A serverside search would also match labels, here we only check the name.
+    response = response.filter(p =>
+      p.name.toLowerCase().includes(params.search.toLowerCase())
+    );
+  }
+
+  if (params.startKey) {
+    const startIndex = response.findIndex(p => p.name === params.startKey);
+    response = response.slice(startIndex);
+  }
+
+  const limit = params.limit || 200;
+  const nextKey = response.at(limit)?.name;
+  response = response.slice(0, limit);
+
+  return { items: response, startKey: nextKey };
+}
