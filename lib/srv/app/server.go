@@ -26,6 +26,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -62,6 +63,9 @@ type appServerContextKey string
 
 const (
 	connContextKey appServerContextKey = "teleport-connContextKey"
+	// Limit HTTP request body size to 70MB, which matches AWS Lambda function
+	// zip file upload limit (50MB) while accounting for base64 encoding bloat.
+	maxHTTPRequestBodySize int64 = 70 << 20
 )
 
 // ConnMonitor monitors authorized connections and terminates them when
@@ -322,9 +326,6 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	// Make copy of server's TLS configuration and update it with the specific
 	// functionality this server needs, like requiring client certificates.
 	s.tlsConfig = CopyAndConfigureTLS(s.log, s.c.AccessPoint, s.c.TLSConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	clustername, err := s.c.AccessPoint.GetClusterName()
 	if err != nil {
@@ -827,6 +828,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn, ok := r.Context().Value(connContextKey).(net.Conn)
 	if !ok {
 		s.log.Errorf("unable to extract connection from context")
+	}
+	if r.Body != nil {
+		// no need to worry about closing the body, [http.Server] does that
+		// for us even if the body is reassigned in a handler like this.
+		r.Body = io.NopCloser(io.LimitReader(r.Body, maxHTTPRequestBodySize))
 	}
 	err := s.getAndDeleteConnAuth(conn)
 	if err == nil {
