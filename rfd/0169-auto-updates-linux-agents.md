@@ -225,6 +225,19 @@ When `update` subcommand is otherwise executed, it will:
 To enable auto-updates of the updater itself, all commands will first check for an `active_version`, and reexec using the `teleport-updater` at that version if present and different.
 The `/usr/local/bin/teleport-upgrader` symlink will take precedence to avoid reexec in most scenarios.
 
+To retrieve known information about agent upgrades, the `status` subcommand will return the following:
+```json
+{
+  "agent_version_installed": "15.1.1",
+  "agent_version_desired": "15.1.2",
+  "agent_version_previous": "15.1.0",
+  "update_time_next": "2020-12-09T16:09:53+00:00",
+  "update_time_last": "2020-12-10T16:00:00+00:00",
+  "update_time_jitter": 600,
+  "updates_enabled": true
+}
+```
+
 ### Manual Workflow
 
 For use cases that fall outside of the functionality provided by `teleport-updater`, we provide an alternative manual workflow using the `/v1/webapi/ping` endpoint.
