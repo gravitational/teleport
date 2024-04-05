@@ -1661,7 +1661,8 @@ func (s *S) CreateDeviceWebToken(ctx context.Context, webToken *devicepb.DeviceW
 }
 
 // SpendDeviceWebToken spends a device web token, returning the spent token on
-// success.
+// success. Only the token itself is verified, further validations are the
+// responsibility of the caller.
 //
 // It expects a token returned by [CreateDeviceWebToken] as input. This method
 // optimistically transitions the underlying authentication attempt to the
@@ -1669,43 +1670,55 @@ func (s *S) CreateDeviceWebToken(ctx context.Context, webToken *devicepb.DeviceW
 //
 // On failures the underlying authentication attempt is deleted.
 //
-// Returns the stored token, minus the plaintext token itself.
-func (s *S) SpendDeviceWebToken(ctx context.Context, webToken *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
-	id := webToken.GetId()
-	if id == "" {
-		return nil, trace.BadParameter("web token ID required")
+// Returns the stored web token, minus the plaintext token itself, and the
+// confirmation token.
+func (s *S) SpendDeviceWebToken(
+	ctx context.Context,
+	webToken *devicepb.DeviceWebToken,
+	authenticatedDeviceID string,
+) (*devicepb.DeviceWebToken, *devicepb.DeviceConfirmationToken, error) {
+	attemptID := webToken.GetId()
+	if attemptID == "" {
+		return nil, nil, trace.BadParameter("web token ID required")
 	}
 
-	// Optimistically prepare the confirmation token.
+	item, attempt, err := s.getWebAuthnAttempt(ctx, attemptID, webAuthenticationAttemptCreated, func(attempt *storedWebAuthenticationAttempt) error {
+		err := matchDeviceToken(webToken.Token, attempt.HashedWebToken)
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Prepare the confirmation token.
 	confirmToken, err := createDeviceToken()
 	if err != nil {
 		s.logger.
 			WithError(err).
 			Warn("Failed to issue DeviceConfirmationToken, deleting authentication attempt")
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	attempt, err := s.transitionAuthnAttempt(ctx, id, webAuthenticationAttemptCreated, func(attempt *storedWebAuthenticationAttempt) error {
-		// Verify DeviceWebToken.
-		if err := matchDeviceToken(webToken.Token, attempt.HashedWebToken); err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Transition the authentication attempt.
-		attempt.State = webAuthenticationAttemptConfirm
-		attempt.HashedWebToken = nil
-		attempt.HashedConfirmToken = confirmToken.HashedToken
-		// TODO(codingllama): Record authenticated device ID.
-		attempt.AuthenticatedDeviceID = ""
-
-		return nil
-	})
+	// Transition authentication attempt.
+	attempt.State = webAuthenticationAttemptConfirm
+	attempt.HashedWebToken = nil
+	attempt.HashedConfirmToken = confirmToken.HashedToken
+	attempt.AuthenticatedDeviceID = authenticatedDeviceID
+	val, err := json.Marshal(attempt)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err, "marshal device authentication attempt")
+	}
+	if _, err := s.backend.ConditionalUpdate(ctx, backend.Item{
+		Key:      item.Key,
+		Value:    val,
+		Expires:  item.Expires, // Keep original expiration.
+		Revision: item.Revision,
+	}); err != nil {
+		return nil, nil, trace.Wrap(err, "update device authentication attempt")
 	}
 
 	storedWebToken := &devicepb.DeviceWebToken{
-		Id:                id,
+		Id:                attemptID,
 		WebSessionId:      attempt.WebSessionID,
 		BrowserUserAgent:  attempt.BrowserUserAgent,
 		BrowserIp:         attempt.BrowserIP,
@@ -1713,32 +1726,45 @@ func (s *S) SpendDeviceWebToken(ctx context.Context, webToken *devicepb.DeviceWe
 		ExpectedDeviceIds: attempt.ExpectedDeviceIDs,
 	}
 
-	// TODO(codingllama): Return both Web and DeviceConfirmationToken.
-	return storedWebToken, nil
+	storedConfirmToken := &devicepb.DeviceConfirmationToken{
+		Id:    attemptID,
+		Token: confirmToken.SafePlainToken,
+	}
+
+	return storedWebToken, storedConfirmToken, nil
 }
 
-func (s *S) transitionAuthnAttempt(
+// DeleteDeviceWebAuthenticationAttempt deletes the device web authentication
+// attempt that underlies a DeviceWebToken or DeviceConfirmationToken.
+//
+// The deletion is unconditional.
+func (s *S) DeleteDeviceWebAuthenticationAttempt(ctx context.Context, attemptID string) error {
+	if attemptID == "" {
+		return trace.BadParameter("attempt ID required")
+	}
+
+	err := s.backend.Delete(ctx, deviceWebAuthenticationAttemptKey(attemptID))
+	return trace.Wrap(err)
+}
+
+func (s *S) getWebAuthnAttempt(
 	ctx context.Context,
 	attemptID string,
 	expectedState webAuthenticationAttemptState,
-	fn func(*storedWebAuthenticationAttempt) error,
-) (*storedWebAuthenticationAttempt, error) {
-	if attemptID == "" {
-		return nil, trace.BadParameter("attempt ID required")
-	}
-
+	validate func(*storedWebAuthenticationAttempt) error,
+) (*backend.Item, *storedWebAuthenticationAttempt, error) {
 	// Read and unmarshal the attempt.
 	key := deviceWebAuthenticationAttemptKey(attemptID)
 	item, err := s.backend.Get(ctx, key)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	var attempt storedWebAuthenticationAttempt
 	if err := json.Unmarshal(item.Value, &attempt); err != nil {
-		return nil, trace.Wrap(err, "unmarshal device authentication attempt")
+		return nil, nil, trace.Wrap(err, "unmarshal device authentication attempt")
 	}
 
-	deleteAttempt := func() {
+	silentDeleteAttempt := func() {
 		if err := s.backend.Delete(ctx, key); err != nil {
 			s.logger.
 				WithError(err).
@@ -1751,34 +1777,17 @@ func (s *S) transitionAuthnAttempt(
 	// Verify the attempt state.
 	if attempt.State != expectedState {
 		// A state mismatch here is likely a double-spend attempt.
-		deleteAttempt()
-		return nil, trace.BadParameter("device authentication attempt state mismatch")
+		silentDeleteAttempt()
+		return nil, nil, trace.BadParameter("device authentication attempt state mismatch")
 	}
 
-	// Validate/modify the attempt.
-	if err := fn(&attempt); err != nil {
-		deleteAttempt()
-		return nil, trace.Wrap(err)
+	// Validate the attempt.
+	if err := validate(&attempt); err != nil {
+		silentDeleteAttempt()
+		return nil, nil, trace.Wrap(err)
 	}
 
-	// Apply the transition to storage.
-	updated, err := json.Marshal(attempt)
-	if err != nil {
-		return nil, trace.Wrap(err, "marshal device authentication attempt")
-	}
-
-	// We don't loop this update as there should not be concurrency in-between all
-	// of this.
-	if _, err := s.backend.ConditionalUpdate(ctx, backend.Item{
-		Key:      key,
-		Value:    updated,
-		Expires:  item.Expires, // Retain original expiration.
-		Revision: item.Revision,
-	}); err != nil {
-		return nil, trace.Wrap(err, "update device authentication attempt")
-	}
-
-	return &attempt, nil
+	return item, &attempt, nil
 }
 
 func deviceIDFromKey(key []byte) string {

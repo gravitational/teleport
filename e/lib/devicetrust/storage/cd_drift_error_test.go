@@ -8,6 +8,8 @@ import (
 )
 
 func TestCollectedDataDriftError_Is(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error

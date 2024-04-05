@@ -49,7 +49,7 @@ type authnCeremony struct {
 // after the first error or before the last Send of the stream.
 // The outcome of the last Send is not considered for audit purposes.
 func (c *authnCeremony) AuthenticateDevice(stream devicepb.DeviceTrustService_AuthenticateDeviceServer, user string) (*devicepb.Device, error) {
-	dev, userCerts, err := c.authenticateDevice(stream, user)
+	dev, successResp, err := c.authenticateDevice(stream, user)
 	c.auditCallback(dev, err)
 	if err != nil {
 		return dev, trace.Wrap(err)
@@ -86,15 +86,10 @@ func (c *authnCeremony) AuthenticateDevice(stream devicepb.DeviceTrustService_Au
 	}
 
 	// Success (only send after audit).
-	err = stream.Send(&devicepb.AuthenticateDeviceResponse{
-		Payload: &devicepb.AuthenticateDeviceResponse_UserCertificates{
-			UserCertificates: userCerts,
-		},
-	})
-	return dev, trace.Wrap(err)
+	return dev, trace.Wrap(stream.Send(successResp))
 }
 
-func (c *authnCeremony) authenticateDevice(stream devicepb.DeviceTrustService_AuthenticateDeviceServer, user string) (*devicepb.Device, *devicepb.UserCertificates, error) {
+func (c *authnCeremony) authenticateDevice(stream devicepb.DeviceTrustService_AuthenticateDeviceServer, user string) (*devicepb.Device, *devicepb.AuthenticateDeviceResponse, error) {
 	// 1. Init.
 	resp, err := stream.Recv()
 	if err != nil {
@@ -136,8 +131,8 @@ func (c *authnCeremony) authenticateDevice(stream devicepb.DeviceTrustService_Au
 	}
 
 	// ...and always return it, so callers can write audit logs against it.
-	userCerts, err := c.authenticate(stream, initReq, dev, user)
-	return dev, userCerts, trace.Wrap(err)
+	successResp, err := c.authenticate(stream, initReq, dev, user)
+	return dev, successResp, trace.Wrap(err)
 }
 
 func (c *authnCeremony) authenticate(
@@ -145,7 +140,7 @@ func (c *authnCeremony) authenticate(
 	initReq *devicepb.AuthenticateDeviceInit,
 	dev *devicepb.Device,
 	user string,
-) (*devicepb.UserCertificates, error) {
+) (*devicepb.AuthenticateDeviceResponse, error) {
 	// Perform the remaining init validation.
 	// Note that we let auth validate the user certificates.
 	// Additionally, we don't require UserCertificates.SshAuthorizedKey to be
@@ -199,7 +194,7 @@ func (c *authnCeremony) authenticate(
 
 	// Device Web Authentication related logic.
 	ctx := stream.Context()
-	webData, err := c.processDeviceWebToken(ctx, initReq.DeviceWebToken, dev, user)
+	confirmToken, err := c.processDeviceWebToken(ctx, initReq.DeviceWebToken, dev, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -214,18 +209,28 @@ func (c *authnCeremony) authenticate(
 		// Persist platform attestation record in collected data.
 		initReq.DeviceData.TpmPlatformAttestation = platformAttestation
 	default:
+		c.deleteConfirmToken(ctx, confirmToken)
 		return nil, trace.BadParameter("unsupported OS type: %v", dtoss.FriendlyOSType(dev.OsType))
 	}
 	if err != nil {
+		c.deleteConfirmToken(ctx, confirmToken)
 		return nil, trace.Wrap(err)
 	}
-	// From this point, the device has been authenticated by the platform
-	// dependent implementations. We can now hand return to the general task
-	// of generating their augmented certificates.
 
-	resp, err := c.augmentCerts(ctx, initReq, webData, dev)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Augment end-user certificates?
+	var resp *devicepb.AuthenticateDeviceResponse
+	if confirmToken == nil {
+		var err error
+		resp, err = c.augmentEndUserCerts(ctx, initReq, dev)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		resp = &devicepb.AuthenticateDeviceResponse{
+			Payload: &devicepb.AuthenticateDeviceResponse_ConfirmationToken{
+				ConfirmationToken: confirmToken,
+			},
+		}
 	}
 
 	// Record collected data.
@@ -237,10 +242,6 @@ func (c *authnCeremony) authenticate(
 	return resp, nil
 }
 
-type webSessionData struct {
-	webSessionID string
-}
-
 // processDeviceWebToken validates the webToken, spends it and returns the
 // associated web session data.
 //
@@ -250,7 +251,7 @@ func (c *authnCeremony) processDeviceWebToken(
 	webToken *devicepb.DeviceWebToken,
 	dev *devicepb.Device,
 	user string,
-) (*webSessionData, error) {
+) (*devicepb.DeviceConfirmationToken, error) {
 	if webToken == nil {
 		return nil, nil
 	}
@@ -270,7 +271,7 @@ func (c *authnCeremony) processDeviceWebToken(
 	}
 
 	// Spend the token immediately, regardless of outcome.
-	storedToken, err := c.storage.SpendDeviceWebToken(ctx, webToken)
+	storedToken, confirmToken, err := c.storage.SpendDeviceWebToken(ctx, webToken, dev.Id)
 	if err != nil {
 		c.logger.
 			WithError(err).
@@ -282,16 +283,30 @@ func (c *authnCeremony) processDeviceWebToken(
 		}
 	}
 
+	if err := c.validateDeviceWebToken(ctx, storedToken, dev, user); err != nil {
+		c.deleteConfirmToken(ctx, confirmToken)
+		return nil, trace.Wrap(err)
+	}
+
+	return confirmToken, nil
+}
+
+func (c *authnCeremony) validateDeviceWebToken(
+	ctx context.Context,
+	storedToken *devicepb.DeviceWebToken,
+	dev *devicepb.Device,
+	user string,
+) error {
 	switch {
 	// User must match token.
 	case storedToken.User != user:
-		return nil, auditStatusError{
+		return auditStatusError{
 			Err:         trace.Wrap(errInvalidDeviceWebToken),
 			UserMessage: "device web token user mismatch",
 		}
 	// User must match device owner.
 	case dev.Owner != user:
-		return nil, auditStatusError{
+		return auditStatusError{
 			Err:         trace.Wrap(errInvalidDeviceWebToken),
 			UserMessage: "device web authentication owner mismatch",
 		}
@@ -306,7 +321,7 @@ func (c *authnCeremony) processDeviceWebToken(
 		}
 	}
 	if !deviceFound {
-		return nil, auditStatusError{
+		return auditStatusError{
 			Err:         trace.Wrap(errInvalidDeviceWebToken),
 			UserMessage: "device web authentication expected device mismatch",
 		}
@@ -319,7 +334,7 @@ func (c *authnCeremony) processDeviceWebToken(
 			WithError(err).
 			Debug("AuthenticateDevice: failed to parse client src address")
 		// err swallowed on purpose.
-		return nil, trace.Wrap(errInvalidDeviceWebToken)
+		return trace.Wrap(errInvalidDeviceWebToken)
 	}
 	clientIP, _, err := utils.SplitHostPort(sourceAddr.String())
 	if err != nil {
@@ -327,79 +342,67 @@ func (c *authnCeremony) processDeviceWebToken(
 			WithError(err).
 			Debug("AuthenticateDevice: failed to split client src address")
 		// err swallowed on purpose.
-		return nil, trace.Wrap(errInvalidDeviceWebToken)
+		return trace.Wrap(errInvalidDeviceWebToken)
 	}
 	if clientIP != storedToken.BrowserIp {
-		return nil, auditStatusError{
+		return auditStatusError{
 			Err:         trace.Wrap(errInvalidDeviceWebToken),
 			UserMessage: "device web authentication IP mismatch",
 		}
 	}
 
-	return &webSessionData{
-		webSessionID: storedToken.WebSessionId,
-	}, nil
+	return nil
 }
 
-// augmentCerts augments the supplied certificates and returns the appropriate
-// RPC response.
-//
-//   - If webData is nil, the end user certs are augmented and replied.
-//   - If webData is not nil, the WebSession is updated with the augmented
-//     certificates and no user certificates are returned.
-func (c *authnCeremony) augmentCerts(
+func (c *authnCeremony) deleteConfirmToken(ctx context.Context, confirmToken *devicepb.DeviceConfirmationToken) {
+	if confirmToken.GetId() == "" {
+		return
+	}
+
+	ctx = context.WithoutCancel(ctx) // Delete always happens
+	if err := c.storage.DeleteDeviceWebAuthenticationAttempt(ctx, confirmToken.Id); err != nil {
+		c.logger.
+			WithError(err).
+			Debug("Failed to delete device authentication attempt on error")
+	}
+}
+
+func (c *authnCeremony) augmentEndUserCerts(
 	ctx context.Context,
 	initReq *devicepb.AuthenticateDeviceInit,
-	webData *webSessionData,
 	dev *devicepb.Device,
-) (*devicepb.UserCertificates, error) {
+) (*devicepb.AuthenticateDeviceResponse, error) {
 	exts := &auth.DeviceExtensions{
 		DeviceID:     dev.Id,
 		AssetTag:     dev.AssetTag,
 		CredentialID: dev.Credential.Id,
 	}
 
-	// Augment end-user certificates?
-	if webData == nil {
-		newCerts, err := c.augmentCertsFunc(ctx, &auth.AugmentUserCertificateOpts{
-			SSHAuthorizedKey: initReq.UserCertificates.GetSshAuthorizedKey(),
-			DeviceExtensions: exts,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Decode TLS PEM to DER.
-		// The SSH certificate is already in the authorized_key format, despite what
-		// other comments might say.
-		block, _ := pem.Decode(newCerts.TLS)
-		if block == nil {
-			return nil, trace.BadParameter("failed to decode X.509 PEM from Teleport CA")
-		}
-		x509DER := block.Bytes
-
-		return &devicepb.UserCertificates{
-			X509Der:          x509DER,
-			SshAuthorizedKey: newCerts.SSH,
-		}, nil
-	}
-
-	// Augment WebSession certificates.
-	if err := c.augmentWebFunc(ctx, &auth.AugmentWebSessionCertificatesOpts{
-		WebSessionID:     webData.webSessionID,
+	newCerts, err := c.augmentCertsFunc(ctx, &auth.AugmentUserCertificateOpts{
+		SSHAuthorizedKey: initReq.UserCertificates.GetSshAuthorizedKey(),
 		DeviceExtensions: exts,
-	}); err != nil {
-		c.logger.
-			WithError(err).
-			Debug("AuthenticateDevice: failed to augment web session certificates")
-		// err swallowed on purpose
-		return nil, auditStatusError{
-			Err:         trace.Wrap(errInvalidDeviceWebToken),
-			UserMessage: "failed to issue device web certificates",
-		}
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return &devicepb.UserCertificates{}, nil
+	// Decode TLS PEM to DER.
+	// The SSH certificate is already in the authorized_key format, despite what
+	// other comments might say.
+	block, _ := pem.Decode(newCerts.TLS)
+	if block == nil {
+		return nil, trace.BadParameter("failed to decode X.509 PEM from Teleport CA")
+	}
+	x509DER := block.Bytes
+
+	return &devicepb.AuthenticateDeviceResponse{
+		Payload: &devicepb.AuthenticateDeviceResponse_UserCertificates{
+			UserCertificates: &devicepb.UserCertificates{
+				X509Der:          x509DER,
+				SshAuthorizedKey: newCerts.SSH,
+			},
+		},
+	}, nil
 }
 
 func (c *authnCeremony) authenticateDeviceMacOS(

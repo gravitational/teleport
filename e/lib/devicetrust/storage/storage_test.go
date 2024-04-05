@@ -44,6 +44,8 @@ const (
 )
 
 func TestS_BulkCreateDevices(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -264,6 +266,8 @@ func TestS_BulkCreateDevices(t *testing.T) {
 }
 
 func TestS_CreateDevice(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -486,6 +490,8 @@ func newKeyPair(t *testing.T) (priv *ecdsa.PrivateKey, pubKeyDER []byte) {
 }
 
 func TestS_CreateDevice_reusedAssetTags(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 	s := env.S
@@ -530,6 +536,7 @@ func TestS_CreateDevice_concurrentAssetTags(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping potential long-running test")
 	}
+	t.Parallel()
 
 	timeout := time.After(1 * time.Second)
 
@@ -579,6 +586,8 @@ func TestS_CreateDevice_concurrentAssetTags(t *testing.T) {
 }
 
 func TestS_CreateDevice_errors(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 	s := env.S
@@ -863,6 +872,8 @@ func TestS_CreateDevice_errors(t *testing.T) {
 }
 
 func TestS_UpdateDevice(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -1068,6 +1079,8 @@ func TestS_UpdateDevice(t *testing.T) {
 }
 
 func TestS_UpdateDevice_errors(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -1243,6 +1256,8 @@ func TestS_UpdateDevice_errors(t *testing.T) {
 }
 
 func TestS_DeleteDevicePredicate(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -1303,6 +1318,8 @@ func TestS_DeleteDevicePredicate(t *testing.T) {
 }
 
 func TestS_DeleteDevice(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -1385,6 +1402,8 @@ func TestS_DeleteDevice(t *testing.T) {
 // TestS_DeleteDevice_assetTagMappings verifies that device deletion doesn't
 // have undesired side effects in devices with similar asset tags.
 func TestS_DeleteDevice_assetTagMappings(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -1452,6 +1471,8 @@ func TestS_DeleteDevice_assetTagMappings(t *testing.T) {
 }
 
 func TestS_GetDeviceByID_errors(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -1485,6 +1506,8 @@ func TestS_GetDeviceByID_errors(t *testing.T) {
 }
 
 func TestS_GetDeviceIDsByOSTag(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -1619,6 +1642,8 @@ func TestS_GetDeviceIDsByOSTag(t *testing.T) {
 }
 
 func TestS_GetDevicesByAssetTag_errors(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -1652,6 +1677,8 @@ func TestS_GetDevicesByAssetTag_errors(t *testing.T) {
 }
 
 func TestS_ListDevices(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -1804,6 +1831,8 @@ func TestS_ListDevices(t *testing.T) {
 }
 
 func TestS_ListDevices_errors(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -1840,6 +1869,8 @@ func TestS_ListDevices_errors(t *testing.T) {
 }
 
 func TestS_EnrollDevice(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -1945,6 +1976,8 @@ func TestS_EnrollDevice(t *testing.T) {
 }
 
 func TestS_EnrollDevice_reEnroll(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -1998,6 +2031,8 @@ func TestS_EnrollDevice_reEnroll(t *testing.T) {
 }
 
 func TestS_EnrollDevice_errors(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -2204,6 +2239,8 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 }
 
 func TestS_DeviceCollectedData_crud(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -2411,6 +2448,8 @@ func TestS_DeviceCollectedData_crud(t *testing.T) {
 }
 
 func TestS_RecordDeviceAuthnData(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -2568,6 +2607,8 @@ MDM server: https://example.com/mdm/ServerURL`,
 }
 
 func TestS_RecordDeviceAuthnData_errors(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -2903,6 +2944,8 @@ func collectedDataForDevice(dev *devicepb.Device) *devicepb.DeviceCollectedData 
 }
 
 func TestS_CreateDeviceEnrollTokenUsingData(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -3031,6 +3074,8 @@ func TestS_CreateDeviceEnrollTokenUsingData(t *testing.T) {
 }
 
 func TestS_CreateDeviceEnrollTokenUsingData_errors(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -3195,6 +3240,8 @@ func TestS_CreateDeviceEnrollTokenUsingData_errors(t *testing.T) {
 }
 
 func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 	clock := env.Clock
@@ -3393,6 +3440,8 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 }
 
 func TestS_DevicesUsageLimit(t *testing.T) {
+	// Don't t.Parallel! Uses modules.SetTestModules.
+
 	const devicesLimit = 3
 	features := modules.GetModules().Features()
 	features.IsUsageBasedBilling = true
@@ -3533,6 +3582,8 @@ func TestS_DevicesUsageLimit(t *testing.T) {
 }
 
 func TestS_AssignDeviceOwner(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -3644,6 +3695,8 @@ func TestS_AssignDeviceOwner(t *testing.T) {
 // trusted device IDs as part of their side-effects.
 // See [TestS_AssignDeviceOwner] for [storage.S.AssignDeviceOwner] tests.
 func TestS_UserTrustedDeviceIDs(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -3810,6 +3863,8 @@ func TestS_UserTrustedDeviceIDs(t *testing.T) {
 }
 
 func TestS_CreateDeviceWebToken(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -3928,18 +3983,23 @@ func TestS_CreateDeviceWebToken(t *testing.T) {
 }
 
 func TestS_SpendDeviceWebToken(t *testing.T) {
+	t.Parallel()
+
 	env := mustNewEnv()
 	t.Cleanup(func() { env.Close() })
 
 	s := env.S
 	ctx := context.Background()
 
+	// Not exercised by this test.
+	const authenticatedDeviceID = "llama-dev-1"
+
 	sampleToken := &devicepb.DeviceWebToken{
 		WebSessionId:      "llama-session-id-1234",
 		BrowserUserAgent:  sampleUserAgent,
 		BrowserIp:         sampleIP,
 		User:              "llama",
-		ExpectedDeviceIds: []string{"device-id-1"},
+		ExpectedDeviceIds: []string{authenticatedDeviceID, "llama-dev-2"},
 	}
 
 	createWebToken := func(t *testing.T) *devicepb.DeviceWebToken {
@@ -3956,20 +4016,33 @@ func TestS_SpendDeviceWebToken(t *testing.T) {
 
 		token := createWebToken(t)
 
-		got, err := s.SpendDeviceWebToken(ctx, token)
+		gotWeb, gotConfirm, err := s.SpendDeviceWebToken(ctx, token, authenticatedDeviceID)
 		if err != nil {
 			t.Fatalf("SpendDeviceWebToken failed: %v", err)
 		}
 
-		want := proto.Clone(sampleToken).(*devicepb.DeviceWebToken)
-		want.Id = token.Id
-		want.Token = ""
-		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
-			t.Errorf("SpendDeviceWebToken mismatch (-want +got)\n%s", diff)
+		// Verify DeviceWebToken.
+		wantWeb := proto.Clone(sampleToken).(*devicepb.DeviceWebToken)
+		wantWeb.Id = token.Id
+		wantWeb.Token = ""
+		if diff := cmp.Diff(wantWeb, gotWeb, protocmp.Transform()); diff != "" {
+			t.Errorf("SpendDeviceWebToken webToken mismatch (-want +got)\n%s", diff)
+		}
+
+		// Verify DeviceConfirmationToken.
+		if gotConfirm.GetToken() == "" {
+			t.Errorf("SpendDeviceWebToken returned a nil or empty confirm token: %#v", gotConfirm)
+		}
+		wantConfirm := &devicepb.DeviceConfirmationToken{
+			Id:    token.Id, // same underlying attempt ID
+			Token: gotConfirm.Token,
+		}
+		if diff := cmp.Diff(wantConfirm, gotConfirm, protocmp.Transform()); diff != "" {
+			t.Errorf("SpendDeviceWebToken confirmToken mismatch (-want +got)\n%s", diff)
 		}
 
 		t.Run("previously spent token", func(t *testing.T) {
-			_, err := s.SpendDeviceWebToken(ctx, token)
+			_, _, err := s.SpendDeviceWebToken(ctx, token, authenticatedDeviceID)
 			if !trace.IsBadParameter(err) {
 				t.Errorf("SpendDeviceWebToken error mismatch, err=%v (%T), want BadParameter", err, trace.Unwrap(err))
 			}
@@ -4046,7 +4119,7 @@ func TestS_SpendDeviceWebToken(t *testing.T) {
 
 			token := test.createToken(t)
 
-			_, err := s.SpendDeviceWebToken(ctx, token)
+			_, _, err := s.SpendDeviceWebToken(ctx, token, authenticatedDeviceID)
 			if err == nil {
 				t.Fatal("SpendDeviceWebToken returned err=nil, want non-nil")
 			}
@@ -4068,11 +4141,83 @@ func TestS_SpendDeviceWebToken(t *testing.T) {
 			if !test.wantDeleted {
 				return
 			}
-			if _, err := s.SpendDeviceWebToken(ctx, token); !trace.IsNotFound(err) {
+			if _, _, err := s.SpendDeviceWebToken(ctx, token, authenticatedDeviceID); !trace.IsNotFound(err) {
 				t.Errorf("SpendDeviceEnrollToken returned err=%q (%T), wanted NotFound (signifying a spent token)", err, trace.Unwrap(err))
 			}
 		})
 	}
+}
+
+func TestS_DeleteDeviceWebAuthenticationAttempt(t *testing.T) {
+	t.Parallel()
+
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	const authenticatedDeviceID = "llama1"
+	sampleToken := &devicepb.DeviceWebToken{
+		WebSessionId:      "llama-session-id",
+		BrowserUserAgent:  sampleUserAgent,
+		BrowserIp:         sampleIP,
+		User:              "llama",
+		ExpectedDeviceIds: []string{authenticatedDeviceID, "llama2"},
+	}
+
+	createWebToken := func(t *testing.T) *devicepb.DeviceWebToken {
+		webToken, err := s.CreateDeviceWebToken(ctx, sampleToken)
+		if err != nil {
+			t.Fatalf("CreateDeviceWebToken failed: %v", err)
+		}
+		return webToken
+	}
+
+	safeToken := base64.RawStdEncoding.EncodeToString([]byte(`value does not matter`))
+
+	assertDeleted := func(t *testing.T, attemptID string) {
+		if _, _, err := s.SpendDeviceWebToken(ctx, &devicepb.DeviceWebToken{
+			Id:    attemptID,
+			Token: safeToken,
+		}, authenticatedDeviceID); !trace.IsNotFound(err) {
+			t.Errorf("SpendDeviceWebToken returned err=%v (%T), want NotFound", err, trace.Unwrap(err))
+		}
+	}
+
+	t.Run("delete web token", func(t *testing.T) {
+		t.Parallel()
+
+		webToken := createWebToken(t)
+		if err := s.DeleteDeviceWebAuthenticationAttempt(ctx, webToken.Id); err != nil {
+			t.Fatalf("DeleteDeviceWebAuthenticationAttempt failed: %v", err)
+		}
+
+		assertDeleted(t, webToken.Id)
+	})
+
+	t.Run("delete confirmation token", func(t *testing.T) {
+		t.Parallel()
+
+		// Create the DeviceConfirmationToken.
+		webToken := createWebToken(t)
+		_, confirmToken, err := s.SpendDeviceWebToken(ctx, webToken, authenticatedDeviceID)
+		if err != nil {
+			t.Fatalf("SpendDeviceWebToken failed: %v", err)
+		}
+
+		if err := s.DeleteDeviceWebAuthenticationAttempt(ctx, confirmToken.Id); err != nil {
+			t.Fatalf("DeleteDeviceWebAuthenticationAttempt failed: %v", err)
+		}
+
+		assertDeleted(t, confirmToken.Id)
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		if err := s.DeleteDeviceWebAuthenticationAttempt(ctx, "unknown token ID"); !trace.IsNotFound(err) {
+			t.Errorf("DeleteDeviceWebAuthenticationAttempt returned err=%v (%T), want NotFound", err, trace.Unwrap(err))
+		}
+	})
 }
 
 // diffDevices diffs two slices of devices, sorting both by ID first.

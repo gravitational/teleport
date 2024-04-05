@@ -740,10 +740,8 @@ func TestService_AuthenticateDevice_webAuthn(t *testing.T) {
 	const userLlama = "llama"
 	const userAlpaca = "alpaca"
 	allUsers := []string{userLlama, userAlpaca}
-	augmentWebFunc := &fakeAugmentWebFunc{}
 	emitter := &keyedEmitter{}
 	env := testenv.NewUsingT(t,
-		testenv.WithAugmentWebFunc(augmentWebFunc.function),
 		testenv.WithAuthorizer(&userAwareAuthorizer{
 			knownUsers:      allUsers,
 			authorizedUsers: allUsers,
@@ -856,10 +854,8 @@ func TestService_AuthenticateDevice_webAuthn(t *testing.T) {
 		token       createTokenData
 		modifyToken func(*devicepb.DeviceWebToken) // may be nil
 
-		ctx contextData // used for the AuthenticateDevice ctx
-
-		authn              deviceAuthnData
-		failAugmentWebFunc bool // fails AugmentWebSessionCertificates on Auth
+		ctx   contextData // used for the AuthenticateDevice ctx
+		authn deviceAuthnData
 
 		wantErr              string           // err returned to client
 		wantAuditUserMessage string           // Status.UserMessage written to audit
@@ -966,17 +962,6 @@ func TestService_AuthenticateDevice_webAuthn(t *testing.T) {
 			wantErr:              invalidTokenMessage,
 			wantAuditUserMessage: "owner mismatch",
 		},
-
-		// System error: failure to issue device certificates.
-		{
-			name:                 "WebSession augment fails",
-			token:                validTokenOpts,
-			ctx:                  validCtxData,
-			authn:                validAuthnOpts,
-			failAugmentWebFunc:   true,
-			wantErr:              invalidTokenMessage,
-			wantAuditUserMessage: "failed to issue",
-		},
 	}
 	for _, test := range tests {
 		test := test
@@ -1019,12 +1004,9 @@ func TestService_AuthenticateDevice_webAuthn(t *testing.T) {
 			if test.modifyToken != nil {
 				test.modifyToken(webToken)
 			}
-			if test.failAugmentWebFunc {
-				augmentWebFunc.setFailNext(webSessionID)
-			}
 
 			// Authenticate.
-			userCerts, err := authenticateDeviceWeb(
+			confirmToken, err := authenticateDeviceWeb(
 				outCtx,
 				devicesClient,
 				test.authn.dev, test.authn.sim,
@@ -1063,14 +1045,9 @@ func TestService_AuthenticateDevice_webAuthn(t *testing.T) {
 				return
 			}
 
-			// Assert empty response.
-			if diff := cmp.Diff(&devicepb.UserCertificates{}, userCerts, protocmp.Transform()); diff != "" {
-				t.Errorf("AuthenticateDevice mismatch (-want +got)\n%s", diff)
-			}
-
-			// Assert that it actually called Auth.
-			if got := augmentWebFunc.getNumCalls(webSessionID); got != 1 {
-				t.Errorf("AuthenticateDevice: augmentWebFunc called %d times, want %d", got, 1)
+			// Assert non-empty token.
+			if confirmToken.GetId() == "" || confirmToken.GetToken() == "" {
+				t.Errorf("AuthenticateDevice returned invalid DeviceConfirmationToken: %v", confirmToken)
 			}
 
 			// Assert audit success.
@@ -1084,14 +1061,19 @@ func TestService_AuthenticateDevice_webAuthn(t *testing.T) {
 	}
 }
 
+// TODO(codingllama): Address fakeAugmentWebFunc "unused" nolints.
+
+//nolint:unused // To be used by ConfirmDeviceWebAuthentication tests.
 var errFakeAugmentWebFuncFailed = errors.New("failed to augment web session certificates")
 
+//nolint:unused // To be used by ConfirmDeviceWebAuthentication tests.
 type fakeAugmentWebFunc struct {
 	mu       sync.Mutex
 	failNext map[string]bool // key is the sessionID
 	numCalls map[string]int  // key is the sessionID
 }
 
+//nolint:unused // To be used by ConfirmDeviceWebAuthentication tests.
 func (f *fakeAugmentWebFunc) setFailNext(sessionID string) {
 	f.mu.Lock()
 	if f.failNext == nil {
@@ -1101,6 +1083,7 @@ func (f *fakeAugmentWebFunc) setFailNext(sessionID string) {
 	f.mu.Unlock()
 }
 
+//nolint:unused // To be used by ConfirmDeviceWebAuthentication tests.
 func (f *fakeAugmentWebFunc) getNumCalls(sessionID string) int {
 	f.mu.Lock()
 	val := f.numCalls[sessionID]
@@ -1109,6 +1092,8 @@ func (f *fakeAugmentWebFunc) getNumCalls(sessionID string) int {
 }
 
 // function runs the actual AugmentWebSessionCertificates function.
+//
+//nolint:unused // To be used by ConfirmDeviceWebAuthentication tests.
 func (f *fakeAugmentWebFunc) function(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentWebSessionCertificatesOpts) error {
 	// Run a few basic checks.
 	switch {
@@ -1232,7 +1217,7 @@ func authenticateDeviceWeb(
 	sim simulator,
 	webToken *devicepb.DeviceWebToken,
 	simOpts ...fakeEnclaveKeySimOpt,
-) (*devicepb.UserCertificates, error) {
+) (*devicepb.DeviceConfirmationToken, error) {
 	stream, err := devicesClient.AuthenticateDevice(ctx)
 	if err != nil {
 		return nil, nil
@@ -1250,14 +1235,13 @@ func authenticateDeviceWeb(
 		return nil, err
 	}
 
-	// Assert payload type. We want a UserCertificates payload as reply.
-	switch resp.GetPayload().(type) {
-	case *devicepb.AuthenticateDeviceResponse_UserCertificates: // OK
-	default:
-		return nil, fmt.Errorf("unexpected AuthenticateDevice response payload: %T", resp.GetPayload())
+	// Assert payload type. We want a DeviceConfirmationToken payload as reply.
+	confirmToken := resp.GetConfirmationToken()
+	if confirmToken == nil {
+		return nil, fmt.Errorf("unexpected AuthenticateDevice response payload, got=%T, want DeviceConfirmationToken", resp.GetPayload())
 	}
 
-	return resp.GetUserCertificates(), nil
+	return resp.GetConfirmationToken(), nil
 }
 
 func fakeAugmentFunc(_ context.Context, authCtx *authz.Context, opts *auth.AugmentUserCertificateOpts) (*clientpb.Certs, error) {

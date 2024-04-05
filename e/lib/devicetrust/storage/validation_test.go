@@ -19,6 +19,8 @@ import (
 var validAKPublic = "AAEACwAFBHIAIJ3/y/NsODrmmfuYaNxty4nXFTiEvigDkiwSQVi/rSKuABAAFAAECAAAAAAAAQDCG4IIRdibXgZp5Jv6JMAv1uQD6ttEony9mtJpC/vp2bHvk2QPMlO8F87CS7BFjCxQVr+fpcMtCL/UGs956p5L27SCV5iAioM3Ny37XZkUK2QpPXJUxmK4CE2A3M0VHtvmxn20flgsYuhA04dJh5iszJVWL+7hMTFz5pNqM8xOcqdW5KPC4GyHGQDV8zvZ99/ar96jnErYPF+l2+3ipEkfIY2KyNcqL7/CBg0OwpeXXM/WEjs2oe++aADjCVW/IKEo52wd82ol4j7z0ZkEBjRFULyuUUgamN/MinP7+YODfLuQr2w+UtabkjvMAQpc9lLNdXoineEYnR/isdl6vsvr"
 
 func TestValidateDeviceCredential(t *testing.T) {
+	t.Parallel()
+
 	validAKPublic, err := base64.StdEncoding.DecodeString(validAKPublic)
 	require.NoError(t, err)
 	tests := []struct {
@@ -78,6 +80,8 @@ func TestValidateDeviceCredential(t *testing.T) {
 }
 
 func TestValidateCollectedData(t *testing.T) {
+	t.Parallel()
+
 	modifyValid := func(modify func(*devicepb.DeviceCollectedData)) *devicepb.DeviceCollectedData {
 		cd := &devicepb.DeviceCollectedData{
 			CollectTime:  timestamppb.Now(),
@@ -203,6 +207,8 @@ func TestValidateCollectedData(t *testing.T) {
 // covered by TestS_CreateDeviceEnrollTokenUsingData or
 // TestS_CreateDeviceEnrollTokenUsingData_errors.
 func TestValidateCollectedDataAgainstDeviceStrict(t *testing.T) {
+	t.Parallel()
+
 	nowPB := timestamppb.Now()
 	dev := &devicepb.Device{
 		ApiVersion:   "v1",
