@@ -46,6 +46,11 @@ const SemaphoreKindHostUserModification = "host_user_modification"
 // the Access Monitoring feature during handling user queries.
 const SemaphoreKindAccessMonitoringLimiter = "access_monitoring_limiter"
 
+// SemaphoreKindDiscoveryServiceGroup is the semaphore kind used by
+// the DiscoveryService to ensure that only one DiscoveryService with
+// discovery group DG1 can run at the same time.
+const SemaphoreKindDiscoveryServiceGroup = "discovery_service_group"
+
 // Semaphore represents distributed semaphore concept
 type Semaphore interface {
 	// Resource contains common resource values

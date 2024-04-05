@@ -141,6 +141,22 @@ func NewNode(name, subKind string, spec ServerSpecV2, labels map[string]string) 
 	return server, nil
 }
 
+// NewNode is a convenience method to create an EICE Node.
+func NewEICENode(spec ServerSpecV2, labels map[string]string) (Server, error) {
+	server := &ServerV2{
+		Kind:    KindNode,
+		SubKind: SubKindOpenSSHEICENode,
+		Metadata: Metadata{
+			Labels: labels,
+		},
+		Spec: spec,
+	}
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return server, nil
+}
+
 // GetVersion returns resource version
 func (s *ServerV2) GetVersion() string {
 	return s.Version
@@ -485,16 +501,34 @@ func (s *ServerV2) openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults() er
 	return nil
 }
 
+// serverNameForEICE returns the deterministic Server's name for an EICE instance.
+func serverNameForEICE(s *ServerV2) string {
+	awsAccountID := s.GetAWSAccountID()
+	awsInstanceID := s.GetAWSInstanceID()
+
+	if awsAccountID != "" && awsInstanceID != "" {
+		return fmt.Sprintf("%s-%s", awsAccountID, awsInstanceID)
+	}
+
+	return uuid.NewString()
+}
+
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (s *ServerV2) CheckAndSetDefaults() error {
 	// TODO(awly): default s.Metadata.Expiry if not set (use
 	// defaults.ServerAnnounceTTL).
 	s.setStaticFields()
 
-	// if the server is a registered OpenSSH node, allow the name to be
-	// randomly generated
-	if s.Metadata.Name == "" && s.IsOpenSSHNode() {
-		s.Metadata.Name = uuid.New().String()
+	if s.Metadata.Name == "" {
+		switch s.SubKind {
+		case SubKindOpenSSHEICENode:
+			// For EICE nodes, use a deterministic name.
+			s.Metadata.Name = serverNameForEICE(s)
+		case SubKindOpenSSHNode:
+			// if the server is a registered OpenSSH node, allow the name to be
+			// randomly generated
+			s.Metadata.Name = uuid.NewString()
+		}
 	}
 
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {

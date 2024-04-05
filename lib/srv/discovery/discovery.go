@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -261,6 +262,17 @@ type Server struct {
 	ctx context.Context
 	// cancelfn is used with ctx when stopping the discovery server
 	cancelfn context.CancelFunc
+
+	// stopServerOnce stops the server
+	// The server can be stopped in multiple ways:
+	// - when the server starts the shutdown process
+	// - when the discovery group lock is lost
+	// This method ensures we only stop the server once.
+	stopServerOnce sync.Once
+
+	// releaseGroupLockFn is used to release the lock of the current DiscoveryGroup.
+	releaseGroupLockFn func()
+
 	// nodeWatcher is a node watcher.
 	nodeWatcher *services.NodeWatcher
 
@@ -849,21 +861,6 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 		Integration: instances.Integration,
 	}
 
-	existingEICEServersList := s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
-		return n.IsEICE()
-	})
-
-	existingEICEServersMap := make(map[string]types.Server, len(existingEICEServersList))
-	for _, eiceServer := range existingEICEServersList {
-		si, err := types.ServerInfoForServer(eiceServer)
-		if err != nil {
-			s.Log.Debugf("Failed to convert Server %q to ServerInfo: %v", eiceServer.GetName(), err)
-			continue
-		}
-
-		existingEICEServersMap[si.GetName()] = eiceServer
-	}
-
 	nodesToUpsert := make([]types.Server, 0, len(instances.Instances))
 	// Add EC2 Instances using EICE method
 	for _, ec2Instance := range instances.Instances {
@@ -873,16 +870,14 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 			continue
 		}
 
-		serverInfo, err := types.ServerInfoForServer(eiceNode)
-		if err != nil {
-			s.Log.WithField("instance_id", ec2Instance.InstanceID).Warnf("Error converting to Teleport ServerInfo: %v", err)
+		existingNode, err := s.nodeWatcher.GetNode(s.ctx, eiceNode.GetName())
+		if err != nil && !trace.IsNotFound(err) {
+			s.Log.Warnf("Error finding the existing node with name %q: %v", eiceNode.GetName(), err)
 			continue
 		}
 
-		if existingNode, found := existingEICEServersMap[serverInfo.GetName()]; found {
-			// Re-use the same Name so that `UpsertNode` replaces the node.
-			eiceNode.SetName(existingNode.GetName())
-
+		// EICE Node's Name are deterministic (based on the Account and Instance ID).
+		if existingNode != nil {
 			// To reduce load, nodes are skipped if
 			// - they didn't change and
 			// - their expiration is far away in the future (at least 2 Poll iterations before the Node expires)
@@ -1330,8 +1325,78 @@ func (s *Server) getAllGCPServerFetchers() []server.Fetcher {
 	return allFetchers
 }
 
+// acquireDiscoveryGroup tries to acquire a lock if the Service has a DiscoveryGroup
+// It will retry using an exponential backoff algorithm.
+func (s *Server) acquireDiscoveryGroup() error {
+	if s.DiscoveryGroup == "" {
+		return nil
+	}
+
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		First:  0,
+		Driver: retryutils.NewExponentialDriver(defaults.HighResPollingPeriod),
+		Max:    defaults.LowResPollingPeriod,
+		Jitter: retryutils.NewHalfJitter(),
+		Clock:  s.clock,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var lease *services.SemaphoreLock
+	for range retry.After() {
+		retry.Inc()
+		s.Log.Debugf("Discovery service is trying to acquire lock for DiscoveryGroup %q", s.DiscoveryGroup)
+		lease, err = services.AcquireSemaphoreLock(s.ctx, services.SemaphoreLockConfig{
+			Service: s.Config.AccessPoint,
+			Expiry:  time.Minute,
+			Params: types.AcquireSemaphoreRequest{
+				SemaphoreKind: types.SemaphoreKindDiscoveryServiceGroup,
+				SemaphoreName: s.DiscoveryGroup,
+				MaxLeases:     1,
+				Holder:        s.ServerID,
+			},
+			Clock: s.clock,
+		})
+		if err == nil {
+			break
+		}
+
+		if !strings.Contains(err.Error(), teleport.MaxLeases) {
+			return trace.Wrap(err)
+		}
+		s.Log.Debugf("Discovery service is waiting on DiscoveryGroup %q lock: %v", s.DiscoveryGroup, err)
+	}
+
+	go func() {
+		for {
+			select {
+			case <-lease.Renewed():
+				continue
+			case <-lease.Done():
+				s.Log.WithError(lease.Wait()).Warnf("DiscoveryGroup %q lock was lost, stopping discovery service", s.DiscoveryGroup)
+				s.Stop()
+				return
+			}
+		}
+	}()
+
+	s.releaseGroupLockFn = func() {
+		lease.Stop()
+		if err := lease.Wait(); err != nil {
+			s.Log.WithError(err).Warn("DiscoveryGroup semaphore cleanup")
+		}
+	}
+
+	return nil
+}
+
 // Start starts the discovery service.
 func (s *Server) Start() error {
+	if err := s.acquireDiscoveryGroup(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if s.ec2Watcher != nil {
 		go s.handleEC2Discovery()
 		go s.reconciler.run(s.ctx)
@@ -1605,21 +1670,27 @@ func (s *Server) discardUnsupportedMatchers(m *Matchers) {
 
 // Stop stops the discovery service.
 func (s *Server) Stop() {
-	s.cancelfn()
-	if s.ec2Watcher != nil {
-		s.ec2Watcher.Stop()
-	}
-	if s.azureWatcher != nil {
-		s.azureWatcher.Stop()
-	}
-	if s.gcpWatcher != nil {
-		s.gcpWatcher.Stop()
-	}
-	if s.dynamicMatcherWatcher != nil {
-		if err := s.dynamicMatcherWatcher.Close(); err != nil {
-			s.Log.Warnf("dynamic matcher watcher closing error: ", trace.Wrap(err))
+	s.stopServerOnce.Do(func() {
+		s.cancelfn()
+		if s.ec2Watcher != nil {
+			s.ec2Watcher.Stop()
 		}
-	}
+		if s.azureWatcher != nil {
+			s.azureWatcher.Stop()
+		}
+		if s.gcpWatcher != nil {
+			s.gcpWatcher.Stop()
+		}
+		if s.dynamicMatcherWatcher != nil {
+			if err := s.dynamicMatcherWatcher.Close(); err != nil {
+				s.Log.Warnf("dynamic matcher watcher closing error: ", trace.Wrap(err))
+			}
+		}
+
+		if s.releaseGroupLockFn != nil {
+			s.releaseGroupLockFn()
+		}
+	})
 }
 
 // Wait will block while the server is running.
