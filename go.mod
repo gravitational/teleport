@@ -217,6 +217,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/distribution/reference v0.5.0
 	github.com/google/go-containerregistry v0.16.1
+	github.com/google/safetext v0.0.0-20240104143208-7a7d9b3d812f
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/sigstore/cosign/v2 v2.2.1
 	github.com/sigstore/sigstore v1.7.5
@@ -484,6 +485,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00 // indirect
 	k8s.io/metrics v0.29.0 // indirect
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b // indirect
+	mvdan.cc/sh/v3 v3.7.0 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/kustomize/api v0.13.5-0.20230601165947-6ce0bf390ce3 // indirect
 	sigs.k8s.io/kustomize/kustomize/v5 v5.0.4-0.20230601165947-6ce0bf390ce3 // indirect
