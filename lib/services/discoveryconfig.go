@@ -43,6 +43,8 @@ type DiscoveryConfigs interface {
 	DeleteDiscoveryConfig(ctx context.Context, name string) error
 	// DeleteAllDiscoveryConfigs removes all DiscoveryConfigs.
 	DeleteAllDiscoveryConfigs(context.Context) error
+	// UpdateDiscoveryConfigStatus updates the status of the specified DiscoveryConfig resource.
+	UpdateDiscoveryConfigStatus(context.Context, string, discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error)
 }
 
 // DiscoveryConfigsGetter defines methods for List/Read operations on DiscoveryConfig Resources.
