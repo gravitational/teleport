@@ -184,11 +184,11 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 	}
 
 	// Set the status to the existing status to ensure it is not cleared.
-	oldAccessList, err := s.backend.GetDiscoveryConfig(ctx, dc.GetName())
+	oldDiscoveryConfig, err := s.backend.GetDiscoveryConfig(ctx, dc.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	dc.Status = oldAccessList.Status
+	dc.Status = oldDiscoveryConfig.Status
 
 	resp, err := s.backend.UpdateDiscoveryConfig(ctx, dc)
 	if err != nil {
