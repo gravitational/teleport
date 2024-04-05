@@ -31,7 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/config"
-	"github.com/gravitational/teleport/lib/debug"
+	"github.com/gravitational/teleport/lib/srv/debug"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
