@@ -7,6 +7,7 @@ import (
 	context "context"
 	fmt "fmt"
 	proto "github.com/gogo/protobuf/proto"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	types "github.com/gravitational/teleport/api/types"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
@@ -282,32 +283,30 @@ func (m *RegisterUsingAzureMethodResponse) GetCerts() *Certs {
 
 // The enrollment challenge response containing the solution returned by
 // calling the TPM2.0 `ActivateCredential` command on the client with the
-// parameters provided in `RegisterUsingTPMMethodEnrollChallengeRequest`.
-type RegisterUsingTPMMethodEnrollChallengeResponse struct {
+// parameters provided in `TPMEncryptedCredential`.
+type RegisterUsingTPMMethodChallengeResponse struct {
 	// The client's solution to `TPMEncryptedCredential` included in
-	// `RegisterUsingTPMMethodEnrollChallengeRequest` using ActivateCredential.
+	// `TPMEncryptedCredential` using ActivateCredential.
 	Solution             []byte   `protobuf:"bytes,1,opt,name=solution,proto3" json:"solution,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *RegisterUsingTPMMethodEnrollChallengeResponse) Reset() {
-	*m = RegisterUsingTPMMethodEnrollChallengeResponse{}
+func (m *RegisterUsingTPMMethodChallengeResponse) Reset() {
+	*m = RegisterUsingTPMMethodChallengeResponse{}
 }
-func (m *RegisterUsingTPMMethodEnrollChallengeResponse) String() string {
-	return proto.CompactTextString(m)
-}
-func (*RegisterUsingTPMMethodEnrollChallengeResponse) ProtoMessage() {}
-func (*RegisterUsingTPMMethodEnrollChallengeResponse) Descriptor() ([]byte, []int) {
+func (m *RegisterUsingTPMMethodChallengeResponse) String() string { return proto.CompactTextString(m) }
+func (*RegisterUsingTPMMethodChallengeResponse) ProtoMessage()    {}
+func (*RegisterUsingTPMMethodChallengeResponse) Descriptor() ([]byte, []int) {
 	return fileDescriptor_d7e760ce923b836e, []int{4}
 }
-func (m *RegisterUsingTPMMethodEnrollChallengeResponse) XXX_Unmarshal(b []byte) error {
+func (m *RegisterUsingTPMMethodChallengeResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *RegisterUsingTPMMethodEnrollChallengeResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *RegisterUsingTPMMethodChallengeResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_RegisterUsingTPMMethodEnrollChallengeResponse.Marshal(b, m, deterministic)
+		return xxx_messageInfo_RegisterUsingTPMMethodChallengeResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -317,104 +316,21 @@ func (m *RegisterUsingTPMMethodEnrollChallengeResponse) XXX_Marshal(b []byte, de
 		return b[:n], nil
 	}
 }
-func (m *RegisterUsingTPMMethodEnrollChallengeResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_RegisterUsingTPMMethodEnrollChallengeResponse.Merge(m, src)
+func (m *RegisterUsingTPMMethodChallengeResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RegisterUsingTPMMethodChallengeResponse.Merge(m, src)
 }
-func (m *RegisterUsingTPMMethodEnrollChallengeResponse) XXX_Size() int {
+func (m *RegisterUsingTPMMethodChallengeResponse) XXX_Size() int {
 	return m.Size()
 }
-func (m *RegisterUsingTPMMethodEnrollChallengeResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_RegisterUsingTPMMethodEnrollChallengeResponse.DiscardUnknown(m)
+func (m *RegisterUsingTPMMethodChallengeResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_RegisterUsingTPMMethodChallengeResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_RegisterUsingTPMMethodEnrollChallengeResponse proto.InternalMessageInfo
+var xxx_messageInfo_RegisterUsingTPMMethodChallengeResponse proto.InternalMessageInfo
 
-func (m *RegisterUsingTPMMethodEnrollChallengeResponse) GetSolution() []byte {
+func (m *RegisterUsingTPMMethodChallengeResponse) GetSolution() []byte {
 	if m != nil {
 		return m.Solution
-	}
-	return nil
-}
-
-// The attestation key and the parameters necessary to remotely verify it as
-// related to the endorsement key.
-// See https://pkg.go.dev/github.com/google/go-attestation/attest#AttestationParameters.
-// This message excludes the `UseTCSDActivationFormat` field from the link above
-// as it is TMP 1.x specific and always false.
-type TPMAttestationParameters struct {
-	// The encoded TPMT_PUBLIC structure containing the attestation public key
-	// and signing parameters.
-	Public []byte `protobuf:"bytes,1,opt,name=public,proto3" json:"public,omitempty"`
-	// The properties of the attestation key, encoded as a TPMS_CREATION_DATA
-	// structure.
-	CreateData []byte `protobuf:"bytes,2,opt,name=create_data,json=createData,proto3" json:"create_data,omitempty"`
-	// An assertion as to the details of the key, encoded as a TPMS_ATTEST
-	// structure.
-	CreateAttestation []byte `protobuf:"bytes,3,opt,name=create_attestation,json=createAttestation,proto3" json:"create_attestation,omitempty"`
-	// A signature of create_attestation, encoded as a TPMT_SIGNATURE structure.
-	CreateSignature      []byte   `protobuf:"bytes,4,opt,name=create_signature,json=createSignature,proto3" json:"create_signature,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *TPMAttestationParameters) Reset()         { *m = TPMAttestationParameters{} }
-func (m *TPMAttestationParameters) String() string { return proto.CompactTextString(m) }
-func (*TPMAttestationParameters) ProtoMessage()    {}
-func (*TPMAttestationParameters) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d7e760ce923b836e, []int{5}
-}
-func (m *TPMAttestationParameters) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *TPMAttestationParameters) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_TPMAttestationParameters.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *TPMAttestationParameters) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_TPMAttestationParameters.Merge(m, src)
-}
-func (m *TPMAttestationParameters) XXX_Size() int {
-	return m.Size()
-}
-func (m *TPMAttestationParameters) XXX_DiscardUnknown() {
-	xxx_messageInfo_TPMAttestationParameters.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_TPMAttestationParameters proto.InternalMessageInfo
-
-func (m *TPMAttestationParameters) GetPublic() []byte {
-	if m != nil {
-		return m.Public
-	}
-	return nil
-}
-
-func (m *TPMAttestationParameters) GetCreateData() []byte {
-	if m != nil {
-		return m.CreateData
-	}
-	return nil
-}
-
-func (m *TPMAttestationParameters) GetCreateAttestation() []byte {
-	if m != nil {
-		return m.CreateAttestation
-	}
-	return nil
-}
-
-func (m *TPMAttestationParameters) GetCreateSignature() []byte {
-	if m != nil {
-		return m.CreateSignature
 	}
 	return nil
 }
@@ -429,17 +345,17 @@ type RegisterUsingTPMMethodInitialRequest struct {
 	Ek isRegisterUsingTPMMethodInitialRequest_Ek `protobuf_oneof:"ek"`
 	// The attestation key and the parameters necessary to remotely verify it as
 	// related to the endorsement key.
-	AttestationParams    *TPMAttestationParameters `protobuf:"bytes,4,opt,name=attestation_params,json=attestationParams,proto3" json:"attestation_params,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                  `json:"-"`
-	XXX_unrecognized     []byte                    `json:"-"`
-	XXX_sizecache        int32                     `json:"-"`
+	AttestationParams    *v1.TPMAttestationParameters `protobuf:"bytes,4,opt,name=attestation_params,json=attestationParams,proto3" json:"attestation_params,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                     `json:"-"`
+	XXX_unrecognized     []byte                       `json:"-"`
+	XXX_sizecache        int32                        `json:"-"`
 }
 
 func (m *RegisterUsingTPMMethodInitialRequest) Reset()         { *m = RegisterUsingTPMMethodInitialRequest{} }
 func (m *RegisterUsingTPMMethodInitialRequest) String() string { return proto.CompactTextString(m) }
 func (*RegisterUsingTPMMethodInitialRequest) ProtoMessage()    {}
 func (*RegisterUsingTPMMethodInitialRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d7e760ce923b836e, []int{6}
+	return fileDescriptor_d7e760ce923b836e, []int{5}
 }
 func (m *RegisterUsingTPMMethodInitialRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -512,7 +428,7 @@ func (m *RegisterUsingTPMMethodInitialRequest) GetEkKey() []byte {
 	return nil
 }
 
-func (m *RegisterUsingTPMMethodInitialRequest) GetAttestationParams() *TPMAttestationParameters {
+func (m *RegisterUsingTPMMethodInitialRequest) GetAttestationParams() *v1.TPMAttestationParameters {
 	if m != nil {
 		return m.AttestationParams
 	}
@@ -542,7 +458,7 @@ func (m *RegisterUsingTPMMethodRequest) Reset()         { *m = RegisterUsingTPMM
 func (m *RegisterUsingTPMMethodRequest) String() string { return proto.CompactTextString(m) }
 func (*RegisterUsingTPMMethodRequest) ProtoMessage()    {}
 func (*RegisterUsingTPMMethodRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d7e760ce923b836e, []int{7}
+	return fileDescriptor_d7e760ce923b836e, []int{6}
 }
 func (m *RegisterUsingTPMMethodRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -581,7 +497,7 @@ type RegisterUsingTPMMethodRequest_Init struct {
 	Init *RegisterUsingTPMMethodInitialRequest `protobuf:"bytes,1,opt,name=init,proto3,oneof" json:"init,omitempty"`
 }
 type RegisterUsingTPMMethodRequest_ChallengeResponse struct {
-	ChallengeResponse *RegisterUsingTPMMethodEnrollChallengeResponse `protobuf:"bytes,2,opt,name=challenge_response,json=challengeResponse,proto3,oneof" json:"challenge_response,omitempty"`
+	ChallengeResponse *RegisterUsingTPMMethodChallengeResponse `protobuf:"bytes,2,opt,name=challenge_response,json=challengeResponse,proto3,oneof" json:"challenge_response,omitempty"`
 }
 
 func (*RegisterUsingTPMMethodRequest_Init) isRegisterUsingTPMMethodRequest_Payload()              {}
@@ -601,7 +517,7 @@ func (m *RegisterUsingTPMMethodRequest) GetInit() *RegisterUsingTPMMethodInitial
 	return nil
 }
 
-func (m *RegisterUsingTPMMethodRequest) GetChallengeResponse() *RegisterUsingTPMMethodEnrollChallengeResponse {
+func (m *RegisterUsingTPMMethodRequest) GetChallengeResponse() *RegisterUsingTPMMethodChallengeResponse {
 	if x, ok := m.GetPayload().(*RegisterUsingTPMMethodRequest_ChallengeResponse); ok {
 		return x.ChallengeResponse
 	}
@@ -614,75 +530,6 @@ func (*RegisterUsingTPMMethodRequest) XXX_OneofWrappers() []interface{} {
 		(*RegisterUsingTPMMethodRequest_Init)(nil),
 		(*RegisterUsingTPMMethodRequest_ChallengeResponse)(nil),
 	}
-}
-
-// These values are used by the TPM2.0 `ActivateCredential` command to produce
-// the solution which proves possession of the EK and AK.
-//
-// For a more in-depth description see:
-// - https://pkg.go.dev/github.com/google/go-attestation/attest#EncryptedCredential
-// - https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part3_Commands_code_pub.pdf (Heading 12.5.1 "TPM2_ActivateCredential" "General Description")
-// - https://github.com/google/go-attestation/blob/v0.4.3/attest/activation.go#L199
-// - https://github.com/google/go-tpm/blob/v0.3.3/tpm2/credactivation/credential_activation.go#L61
-type TPMEncryptedCredential struct {
-	// The `credential_blob` parameter to be used with the `ActivateCredential`
-	// command. This is used with the decrypted value of `secret` in a
-	// cryptographic process to decrypt the solution.
-	CredentialBlob []byte `protobuf:"bytes,1,opt,name=credential_blob,json=credentialBlob,proto3" json:"credential_blob,omitempty"`
-	// The `secret` parameter to be used with `ActivateCredential`. This is a
-	// seed which can be decrypted with the EK. The decrypted seed is then used
-	// when decrypting `credential_blob`.
-	Secret               []byte   `protobuf:"bytes,2,opt,name=secret,proto3" json:"secret,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *TPMEncryptedCredential) Reset()         { *m = TPMEncryptedCredential{} }
-func (m *TPMEncryptedCredential) String() string { return proto.CompactTextString(m) }
-func (*TPMEncryptedCredential) ProtoMessage()    {}
-func (*TPMEncryptedCredential) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d7e760ce923b836e, []int{8}
-}
-func (m *TPMEncryptedCredential) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *TPMEncryptedCredential) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_TPMEncryptedCredential.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *TPMEncryptedCredential) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_TPMEncryptedCredential.Merge(m, src)
-}
-func (m *TPMEncryptedCredential) XXX_Size() int {
-	return m.Size()
-}
-func (m *TPMEncryptedCredential) XXX_DiscardUnknown() {
-	xxx_messageInfo_TPMEncryptedCredential.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_TPMEncryptedCredential proto.InternalMessageInfo
-
-func (m *TPMEncryptedCredential) GetCredentialBlob() []byte {
-	if m != nil {
-		return m.CredentialBlob
-	}
-	return nil
-}
-
-func (m *TPMEncryptedCredential) GetSecret() []byte {
-	if m != nil {
-		return m.Secret
-	}
-	return nil
 }
 
 // RegisterUsingTPMMethodResponse
@@ -700,7 +547,7 @@ func (m *RegisterUsingTPMMethodResponse) Reset()         { *m = RegisterUsingTPM
 func (m *RegisterUsingTPMMethodResponse) String() string { return proto.CompactTextString(m) }
 func (*RegisterUsingTPMMethodResponse) ProtoMessage()    {}
 func (*RegisterUsingTPMMethodResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d7e760ce923b836e, []int{9}
+	return fileDescriptor_d7e760ce923b836e, []int{7}
 }
 func (m *RegisterUsingTPMMethodResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -736,7 +583,7 @@ type isRegisterUsingTPMMethodResponse_Payload interface {
 }
 
 type RegisterUsingTPMMethodResponse_ChallengeRequest struct {
-	ChallengeRequest *TPMEncryptedCredential `protobuf:"bytes,1,opt,name=challenge_request,json=challengeRequest,proto3,oneof" json:"challenge_request,omitempty"`
+	ChallengeRequest *v1.TPMEncryptedCredential `protobuf:"bytes,1,opt,name=challenge_request,json=challengeRequest,proto3,oneof" json:"challenge_request,omitempty"`
 }
 type RegisterUsingTPMMethodResponse_Certs struct {
 	Certs *Certs `protobuf:"bytes,2,opt,name=certs,proto3,oneof" json:"certs,omitempty"`
@@ -752,7 +599,7 @@ func (m *RegisterUsingTPMMethodResponse) GetPayload() isRegisterUsingTPMMethodRe
 	return nil
 }
 
-func (m *RegisterUsingTPMMethodResponse) GetChallengeRequest() *TPMEncryptedCredential {
+func (m *RegisterUsingTPMMethodResponse) GetChallengeRequest() *v1.TPMEncryptedCredential {
 	if x, ok := m.GetPayload().(*RegisterUsingTPMMethodResponse_ChallengeRequest); ok {
 		return x.ChallengeRequest
 	}
@@ -779,11 +626,9 @@ func init() {
 	proto.RegisterType((*RegisterUsingIAMMethodResponse)(nil), "proto.RegisterUsingIAMMethodResponse")
 	proto.RegisterType((*RegisterUsingAzureMethodRequest)(nil), "proto.RegisterUsingAzureMethodRequest")
 	proto.RegisterType((*RegisterUsingAzureMethodResponse)(nil), "proto.RegisterUsingAzureMethodResponse")
-	proto.RegisterType((*RegisterUsingTPMMethodEnrollChallengeResponse)(nil), "proto.RegisterUsingTPMMethodEnrollChallengeResponse")
-	proto.RegisterType((*TPMAttestationParameters)(nil), "proto.TPMAttestationParameters")
+	proto.RegisterType((*RegisterUsingTPMMethodChallengeResponse)(nil), "proto.RegisterUsingTPMMethodChallengeResponse")
 	proto.RegisterType((*RegisterUsingTPMMethodInitialRequest)(nil), "proto.RegisterUsingTPMMethodInitialRequest")
 	proto.RegisterType((*RegisterUsingTPMMethodRequest)(nil), "proto.RegisterUsingTPMMethodRequest")
-	proto.RegisterType((*TPMEncryptedCredential)(nil), "proto.TPMEncryptedCredential")
 	proto.RegisterType((*RegisterUsingTPMMethodResponse)(nil), "proto.RegisterUsingTPMMethodResponse")
 }
 
@@ -792,57 +637,51 @@ func init() {
 }
 
 var fileDescriptor_d7e760ce923b836e = []byte{
-	// 790 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x55, 0xcd, 0x6e, 0x2b, 0x35,
-	0x14, 0xce, 0x94, 0x36, 0x97, 0x9e, 0x04, 0xb8, 0xb1, 0x50, 0xc9, 0x8d, 0xee, 0x4d, 0xd3, 0xa1,
-	0xd0, 0x20, 0xd4, 0xa4, 0x0a, 0x3c, 0x00, 0x49, 0xa8, 0x94, 0x52, 0x82, 0xa2, 0x69, 0x59, 0xc0,
-	0x66, 0xe4, 0x4c, 0x8e, 0x52, 0x93, 0xe9, 0x78, 0xb0, 0x9d, 0x4a, 0xe1, 0x65, 0x78, 0x02, 0x76,
-	0x3c, 0x04, 0x0b, 0x16, 0x2c, 0xfa, 0x00, 0xa8, 0xef, 0xc0, 0x1e, 0x8d, 0xed, 0x49, 0x26, 0xd3,
-	0xa4, 0x05, 0x09, 0xb1, 0x99, 0x91, 0x3f, 0x9f, 0x1f, 0x7f, 0xdf, 0x39, 0x3e, 0x86, 0x96, 0xc2,
-	0x10, 0x63, 0x2e, 0x54, 0x3b, 0xc4, 0x29, 0x0d, 0x16, 0xed, 0x20, 0x64, 0x18, 0xa9, 0x76, 0x2c,
-	0xb8, 0xe2, 0xed, 0x1f, 0x38, 0x8b, 0x24, 0x8a, 0x3b, 0x16, 0x60, 0x4b, 0x23, 0x64, 0x4f, 0xff,
-	0x6a, 0xcd, 0x27, 0xdd, 0x02, 0x14, 0x4a, 0x1a, 0x87, 0xda, 0x51, 0xde, 0x52, 0x2d, 0x62, 0x94,
-	0xe6, 0x6b, 0x4c, 0xdc, 0x5f, 0x1d, 0x78, 0xe3, 0xe1, 0x94, 0x49, 0x85, 0xe2, 0x5b, 0xc9, 0xa2,
-	0xe9, 0x45, 0x77, 0x38, 0x44, 0x75, 0xc3, 0x27, 0x1e, 0xfe, 0x38, 0x47, 0xa9, 0x08, 0x85, 0xd7,
-	0xc2, 0x1a, 0xf8, 0xf3, 0xc4, 0xc2, 0x57, 0x7c, 0x86, 0x91, 0x2f, 0xcc, 0x7e, 0xd5, 0x69, 0x38,
-	0xcd, 0x52, 0xa7, 0xd1, 0x32, 0x51, 0xd7, 0x62, 0x5d, 0x27, 0x86, 0x36, 0x8e, 0xf7, 0x4a, 0x6c,
-	0xdb, 0x22, 0x67, 0xf0, 0xbe, 0x54, 0xd2, 0x67, 0x13, 0x8c, 0x14, 0x53, 0x8b, 0x65, 0xe8, 0x9d,
-	0x86, 0xd3, 0x2c, 0x7b, 0x44, 0x2a, 0x79, 0x61, 0xb7, 0xac, 0x87, 0x3b, 0x86, 0xfa, 0xb6, 0x53,
-	0xcb, 0x98, 0x47, 0x12, 0xc9, 0x6b, 0xd8, 0x0f, 0x6e, 0x68, 0x18, 0x62, 0x34, 0x45, 0x7d, 0xc6,
-	0x7d, 0x6f, 0x05, 0x10, 0x17, 0xf6, 0xb4, 0x50, 0x3a, 0x45, 0xa9, 0x53, 0x36, 0x6a, 0xb4, 0xfa,
-	0x09, 0xe6, 0x99, 0x2d, 0xf7, 0x77, 0x07, 0x0e, 0xd7, 0x92, 0x74, 0x7f, 0x9a, 0x0b, 0xfc, 0xdf,
-	0xc5, 0xf9, 0x10, 0xde, 0xa1, 0x4a, 0xa1, 0x54, 0x38, 0xf1, 0x27, 0x54, 0x51, 0xab, 0x4a, 0x39,
-	0x05, 0xbf, 0xa4, 0x8a, 0x92, 0x23, 0x28, 0xd3, 0x20, 0x40, 0x29, 0x4d, 0xfe, 0xea, 0x5b, 0x9a,
-	0x70, 0xc9, 0x60, 0x3a, 0x9c, 0x3b, 0x81, 0xc6, 0x76, 0x36, 0xff, 0x99, 0x68, 0x97, 0x70, 0xba,
-	0xce, 0x72, 0x64, 0x0b, 0x73, 0x1e, 0x09, 0x1e, 0x86, 0xfd, 0x34, 0xd8, 0x32, 0x65, 0x0d, 0xde,
-	0x96, 0x3c, 0x9c, 0x2b, 0xc6, 0x23, 0x9d, 0xb1, 0xec, 0x2d, 0xd7, 0xee, 0x2f, 0x0e, 0x54, 0xaf,
-	0x47, 0xc3, 0xae, 0x66, 0x4a, 0x13, 0x68, 0x44, 0x05, 0xbd, 0x45, 0x85, 0x42, 0x92, 0x03, 0x28,
-	0xc6, 0xf3, 0x71, 0xc8, 0x02, 0xeb, 0x66, 0x57, 0xe4, 0x10, 0x4a, 0x81, 0x40, 0xaa, 0x30, 0xab,
-	0x16, 0x18, 0x48, 0x6b, 0x75, 0x0a, 0xc4, 0x1a, 0xd0, 0x55, 0x60, 0xad, 0x58, 0xd9, 0xab, 0x98,
-	0x9d, 0x4c, 0x46, 0xf2, 0x09, 0xbc, 0xb4, 0xe6, 0x92, 0x4d, 0x23, 0xaa, 0xe6, 0x02, 0xab, 0xbb,
-	0xda, 0xf8, 0x3d, 0x83, 0x5f, 0xa5, 0xb0, 0xfb, 0x97, 0x03, 0xc7, 0x9b, 0xd9, 0x5f, 0x44, 0x4c,
-	0x31, 0x1a, 0xa6, 0x35, 0xed, 0x43, 0x39, 0xb9, 0xde, 0xff, 0xba, 0x4d, 0x4a, 0x89, 0x57, 0x1a,
-	0xe4, 0x15, 0xbc, 0xc0, 0x99, 0x9f, 0xc8, 0x6e, 0x48, 0x0e, 0x0a, 0x5e, 0x11, 0x67, 0x49, 0x35,
-	0xc8, 0x07, 0x50, 0xc4, 0x99, 0x3f, 0xc3, 0x85, 0xa1, 0x35, 0x28, 0x78, 0x7b, 0x38, 0xbb, 0xc4,
-	0x05, 0xf9, 0x06, 0x48, 0x86, 0xb4, 0x1f, 0x27, 0x72, 0x4a, 0x4d, 0xa7, 0xd4, 0x39, 0xb4, 0xf5,
-	0xdc, 0xa6, 0xb8, 0x57, 0xa1, 0x39, 0x58, 0xf6, 0x76, 0x61, 0x07, 0x67, 0xee, 0x7d, 0x7e, 0x88,
-	0x2c, 0x79, 0xa7, 0x67, 0xed, 0xc2, 0x2e, 0x8b, 0x58, 0x4a, 0xf4, 0x53, 0x9b, 0xe9, 0x9f, 0x68,
-	0x35, 0x28, 0x78, 0xda, 0x95, 0x20, 0x90, 0x65, 0x2b, 0xfa, 0xc2, 0xb6, 0x8f, 0x6d, 0xc5, 0xcf,
-	0x9f, 0x0c, 0xb8, 0xa5, 0xf5, 0x06, 0x05, 0xaf, 0x12, 0xe4, 0xc1, 0xde, 0x3e, 0xbc, 0x88, 0xe9,
-	0x22, 0xe4, 0x74, 0xe2, 0x7e, 0x07, 0x07, 0xd7, 0xa3, 0xe1, 0x79, 0x14, 0x88, 0x45, 0xac, 0x70,
-	0xd2, 0x17, 0xa8, 0xa7, 0x10, 0x0d, 0xc9, 0x09, 0x24, 0xb5, 0xb7, 0x2b, 0x7f, 0x1c, 0xf2, 0xb1,
-	0x6d, 0xc2, 0x77, 0x57, 0x70, 0x2f, 0xe4, 0xe3, 0xa4, 0x49, 0x25, 0x06, 0x02, 0xd3, 0x59, 0x66,
-	0x57, 0xee, 0xcf, 0x4e, 0x6e, 0x80, 0x65, 0x14, 0xb3, 0x17, 0xe3, 0x6b, 0xa8, 0x64, 0xf9, 0x66,
-	0x1b, 0xe5, 0xcd, 0xaa, 0x52, 0x1b, 0x4e, 0x37, 0x28, 0x78, 0x2f, 0x33, 0xbc, 0x4c, 0x01, 0x8e,
-	0x9f, 0xb8, 0xbb, 0x49, 0x7b, 0xe8, 0xcd, 0x0c, 0xf9, 0xce, 0xfd, 0x0e, 0x94, 0xbe, 0xe2, 0x2c,
-	0xba, 0x32, 0x4f, 0x10, 0x61, 0x70, 0xb0, 0x79, 0xe2, 0x92, 0xe3, 0x4d, 0xe2, 0xe7, 0x9f, 0x91,
-	0xda, 0x47, 0xcf, 0x58, 0x19, 0xd6, 0x4d, 0xe7, 0xcc, 0x21, 0x1c, 0xaa, 0xdb, 0x26, 0x15, 0xf9,
-	0x78, 0x53, 0x98, 0xc7, 0x83, 0xb9, 0x76, 0xf2, 0xac, 0x5d, 0x26, 0x61, 0x9e, 0xdb, 0xb2, 0x18,
-	0x9b, 0xb9, 0xe5, 0xbb, 0x7b, 0x33, 0xb7, 0x47, 0x15, 0x4d, 0x52, 0xf5, 0xbe, 0xf8, 0xed, 0xa1,
-	0xee, 0xfc, 0xf1, 0x50, 0x77, 0xfe, 0x7c, 0xa8, 0x3b, 0xdf, 0x77, 0xa6, 0x4c, 0xdd, 0xcc, 0xc7,
-	0xad, 0x80, 0xdf, 0xb6, 0xa7, 0x82, 0xde, 0x31, 0x73, 0xb9, 0x68, 0xd8, 0x5e, 0xbe, 0xdc, 0x34,
-	0x66, 0x6b, 0x0f, 0xfc, 0xb8, 0xa8, 0x7f, 0x9f, 0xfd, 0x1d, 0x00, 0x00, 0xff, 0xff, 0xf1, 0xea,
-	0xa8, 0xde, 0x3e, 0x08, 0x00, 0x00,
+	// 700 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x55, 0x5d, 0x6e, 0xd3, 0x40,
+	0x10, 0x8e, 0x43, 0x7f, 0xe8, 0x26, 0x48, 0x74, 0x85, 0x20, 0x8d, 0x4a, 0x48, 0x4d, 0xa1, 0x91,
+	0x90, 0xec, 0x36, 0x5c, 0x80, 0x34, 0x54, 0x4a, 0x41, 0x95, 0x2a, 0x53, 0x5e, 0x78, 0xc0, 0x6c,
+	0xed, 0x51, 0xba, 0xc4, 0xb5, 0xcd, 0xee, 0x24, 0x52, 0xb8, 0x00, 0xe7, 0x41, 0xe2, 0x10, 0x3c,
+	0x20, 0xc4, 0x03, 0x07, 0x40, 0x3d, 0x09, 0xf2, 0xae, 0xe3, 0x3a, 0x6e, 0x92, 0x82, 0x84, 0x78,
+	0x89, 0x95, 0xf9, 0xf9, 0x66, 0xe6, 0xfb, 0x3c, 0x63, 0x62, 0x21, 0x04, 0x10, 0x47, 0x02, 0xed,
+	0x00, 0xfa, 0xcc, 0x1b, 0xdb, 0x5e, 0xc0, 0x21, 0x44, 0x3b, 0x16, 0x11, 0x46, 0xf6, 0xfb, 0x88,
+	0x87, 0x12, 0xc4, 0x88, 0x7b, 0x60, 0x29, 0x0b, 0x5d, 0x56, 0x8f, 0xfa, 0x56, 0x96, 0xe6, 0x43,
+	0xe2, 0x45, 0x31, 0x94, 0x68, 0x8f, 0xf6, 0x6c, 0x8c, 0xcf, 0x75, 0x64, 0xbd, 0xb5, 0x10, 0xd9,
+	0x03, 0x81, 0xd2, 0x2a, 0x82, 0xa5, 0x91, 0x38, 0x8e, 0x41, 0xea, 0x5f, 0x1d, 0x62, 0x7e, 0x31,
+	0xc8, 0x7d, 0x07, 0xfa, 0x5c, 0x22, 0x88, 0xd7, 0x92, 0x87, 0xfd, 0xc3, 0xce, 0xd1, 0x11, 0xe0,
+	0x59, 0xe4, 0x3b, 0xf0, 0x61, 0x08, 0x12, 0x29, 0x23, 0x9b, 0x22, 0x0d, 0x70, 0x87, 0x49, 0x84,
+	0x8b, 0xd1, 0x00, 0x42, 0x57, 0x68, 0x7f, 0xcd, 0x68, 0x1a, 0xad, 0x4a, 0xbb, 0x69, 0x69, 0xd4,
+	0x29, 0xac, 0x93, 0x24, 0x30, 0xc5, 0x71, 0x36, 0xc4, 0x3c, 0x17, 0xdd, 0x25, 0x77, 0x24, 0x4a,
+	0x97, 0xfb, 0x10, 0x22, 0xc7, 0x71, 0x06, 0x5d, 0x6e, 0x1a, 0xad, 0xaa, 0x43, 0x25, 0xca, 0xc3,
+	0xd4, 0x95, 0x66, 0x98, 0xa7, 0xa4, 0x31, 0xaf, 0x6b, 0x19, 0x47, 0xa1, 0x04, 0xba, 0x49, 0xd6,
+	0xbc, 0x33, 0x16, 0x04, 0x10, 0xf6, 0x41, 0xf5, 0xb8, 0xe6, 0x5c, 0x1a, 0xa8, 0x49, 0x96, 0x15,
+	0x51, 0xaa, 0x44, 0xa5, 0x5d, 0xd5, 0x6c, 0x58, 0xdd, 0xc4, 0xe6, 0x68, 0x97, 0xf9, 0xcd, 0x20,
+	0x0f, 0xa6, 0x8a, 0x74, 0x3e, 0x0e, 0x05, 0xfc, 0x77, 0x72, 0x1e, 0x92, 0x5b, 0x0c, 0x11, 0x24,
+	0x82, 0xef, 0xfa, 0x0c, 0x59, 0xca, 0x4a, 0x75, 0x62, 0x7c, 0xce, 0x90, 0xd1, 0x2d, 0x52, 0x65,
+	0x9e, 0x07, 0x52, 0xea, 0xfa, 0xb5, 0x1b, 0x6a, 0xe0, 0x8a, 0xb6, 0x29, 0x38, 0xd3, 0x27, 0xcd,
+	0xf9, 0xd3, 0xfc, 0x33, 0xd2, 0x0e, 0xc8, 0xce, 0xf4, 0x94, 0xc7, 0xa9, 0x30, 0xdd, 0x09, 0x4c,
+	0x56, 0xac, 0x4e, 0x6e, 0xca, 0x28, 0x18, 0x22, 0x8f, 0x42, 0x55, 0xab, 0xea, 0x64, 0xff, 0xcd,
+	0x4f, 0x65, 0xb2, 0x3d, 0x1b, 0xe7, 0x30, 0xe4, 0xc8, 0x59, 0x30, 0x61, 0xa7, 0x4b, 0xaa, 0xc9,
+	0x2e, 0xfd, 0x35, 0xe1, 0x95, 0x24, 0x6b, 0x02, 0xb2, 0x41, 0x56, 0x61, 0xe0, 0x26, 0x03, 0x68,
+	0x72, 0x7b, 0x25, 0x67, 0x05, 0x06, 0xc9, 0x5c, 0xf4, 0x1e, 0x59, 0x81, 0x81, 0x3b, 0x80, 0xb1,
+	0xa2, 0x34, 0xf1, 0x2c, 0xc3, 0xe0, 0x25, 0x8c, 0xe9, 0x3b, 0x42, 0xb5, 0x02, 0x2c, 0x69, 0xd8,
+	0x8d, 0x99, 0x60, 0xe7, 0xb2, 0xb6, 0xa4, 0xca, 0xef, 0x65, 0xcb, 0x6f, 0xe5, 0xb6, 0xd8, 0x1a,
+	0xed, 0x59, 0x27, 0xc7, 0x47, 0x9d, 0xcb, 0xac, 0xe3, 0x24, 0x09, 0x10, 0x84, 0x74, 0xd6, 0x59,
+	0xc1, 0x2c, 0xf7, 0x97, 0x48, 0x19, 0x06, 0xe6, 0xf7, 0xe2, 0x82, 0x66, 0x4c, 0x4c, 0xba, 0xef,
+	0x90, 0x25, 0x1e, 0xf2, 0xc9, 0xe8, 0x4f, 0x52, 0x55, 0xfe, 0x84, 0xbd, 0x5e, 0xc9, 0x51, 0xa9,
+	0xd4, 0x25, 0x34, 0x93, 0xd9, 0x15, 0xa9, 0x40, 0xa9, 0xcc, 0xd6, 0x42, 0xc0, 0x2b, 0xb2, 0xf6,
+	0x4a, 0xce, 0xba, 0x57, 0x34, 0xee, 0xaf, 0x91, 0xd5, 0x98, 0x8d, 0x83, 0x88, 0xf9, 0xe6, 0x67,
+	0xa3, 0xb0, 0xbb, 0xb9, 0x81, 0xd2, 0x37, 0xe3, 0x2d, 0x59, 0xcf, 0xb7, 0x93, 0x57, 0xd6, 0x5e,
+	0x44, 0xed, 0x41, 0xe8, 0x89, 0x71, 0x8c, 0xe0, 0x77, 0x05, 0xa8, 0x83, 0xc1, 0x82, 0x5e, 0xc9,
+	0xb9, 0x9d, 0x6b, 0x47, 0x33, 0xb6, 0xbd, 0xe0, 0x45, 0x4e, 0x14, 0x56, 0xce, 0x5c, 0xcf, 0xed,
+	0x9f, 0x65, 0x52, 0x79, 0x11, 0xf1, 0xf0, 0x95, 0x3e, 0xd9, 0x94, 0x93, 0xbb, 0xb3, 0xcf, 0x0f,
+	0xdd, 0x9e, 0xc5, 0x56, 0xf1, 0xa6, 0xd6, 0x1f, 0x5d, 0x13, 0xa5, 0x79, 0x68, 0x19, 0xbb, 0x06,
+	0x8d, 0x48, 0x6d, 0xde, 0xda, 0xd2, 0xc7, 0xb3, 0x60, 0xae, 0x5e, 0xa9, 0xfa, 0xce, 0xb5, 0x71,
+	0xb9, 0x82, 0xc5, 0xd9, 0x32, 0x79, 0x66, 0xcf, 0x56, 0x7c, 0x1d, 0x67, 0xcf, 0x76, 0x45, 0xe3,
+	0xa4, 0xd4, 0xfe, 0xb3, 0xaf, 0x17, 0x0d, 0xe3, 0xc7, 0x45, 0xc3, 0xf8, 0x75, 0xd1, 0x30, 0xde,
+	0xb4, 0xfb, 0x1c, 0xcf, 0x86, 0xa7, 0x96, 0x17, 0x9d, 0xdb, 0x7d, 0xc1, 0x46, 0x5c, 0x6f, 0x03,
+	0x0b, 0xec, 0xec, 0x33, 0xc6, 0x62, 0x3e, 0xf5, 0xb5, 0x3b, 0x5d, 0x51, 0x8f, 0xa7, 0xbf, 0x03,
+	0x00, 0x00, 0xff, 0xff, 0x40, 0x73, 0xc7, 0x64, 0x6e, 0x07, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1294,7 +1133,7 @@ func (m *RegisterUsingAzureMethodResponse) MarshalToSizedBuffer(dAtA []byte) (in
 	return len(dAtA) - i, nil
 }
 
-func (m *RegisterUsingTPMMethodEnrollChallengeResponse) Marshal() (dAtA []byte, err error) {
+func (m *RegisterUsingTPMMethodChallengeResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -1304,12 +1143,12 @@ func (m *RegisterUsingTPMMethodEnrollChallengeResponse) Marshal() (dAtA []byte, 
 	return dAtA[:n], nil
 }
 
-func (m *RegisterUsingTPMMethodEnrollChallengeResponse) MarshalTo(dAtA []byte) (int, error) {
+func (m *RegisterUsingTPMMethodChallengeResponse) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *RegisterUsingTPMMethodEnrollChallengeResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *RegisterUsingTPMMethodChallengeResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -1322,61 +1161,6 @@ func (m *RegisterUsingTPMMethodEnrollChallengeResponse) MarshalToSizedBuffer(dAt
 		i -= len(m.Solution)
 		copy(dAtA[i:], m.Solution)
 		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.Solution)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *TPMAttestationParameters) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *TPMAttestationParameters) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *TPMAttestationParameters) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.CreateSignature) > 0 {
-		i -= len(m.CreateSignature)
-		copy(dAtA[i:], m.CreateSignature)
-		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.CreateSignature)))
-		i--
-		dAtA[i] = 0x22
-	}
-	if len(m.CreateAttestation) > 0 {
-		i -= len(m.CreateAttestation)
-		copy(dAtA[i:], m.CreateAttestation)
-		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.CreateAttestation)))
-		i--
-		dAtA[i] = 0x1a
-	}
-	if len(m.CreateData) > 0 {
-		i -= len(m.CreateData)
-		copy(dAtA[i:], m.CreateData)
-		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.CreateData)))
-		i--
-		dAtA[i] = 0x12
-	}
-	if len(m.Public) > 0 {
-		i -= len(m.Public)
-		copy(dAtA[i:], m.Public)
-		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.Public)))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -1553,47 +1337,6 @@ func (m *RegisterUsingTPMMethodRequest_ChallengeResponse) MarshalToSizedBuffer(d
 	}
 	return len(dAtA) - i, nil
 }
-func (m *TPMEncryptedCredential) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *TPMEncryptedCredential) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *TPMEncryptedCredential) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Secret) > 0 {
-		i -= len(m.Secret)
-		copy(dAtA[i:], m.Secret)
-		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.Secret)))
-		i--
-		dAtA[i] = 0x12
-	}
-	if len(m.CredentialBlob) > 0 {
-		i -= len(m.CredentialBlob)
-		copy(dAtA[i:], m.CredentialBlob)
-		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.CredentialBlob)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
 func (m *RegisterUsingTPMMethodResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -1767,41 +1510,13 @@ func (m *RegisterUsingAzureMethodResponse) Size() (n int) {
 	return n
 }
 
-func (m *RegisterUsingTPMMethodEnrollChallengeResponse) Size() (n int) {
+func (m *RegisterUsingTPMMethodChallengeResponse) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
 	l = len(m.Solution)
-	if l > 0 {
-		n += 1 + l + sovJoinservice(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *TPMAttestationParameters) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.Public)
-	if l > 0 {
-		n += 1 + l + sovJoinservice(uint64(l))
-	}
-	l = len(m.CreateData)
-	if l > 0 {
-		n += 1 + l + sovJoinservice(uint64(l))
-	}
-	l = len(m.CreateAttestation)
-	if l > 0 {
-		n += 1 + l + sovJoinservice(uint64(l))
-	}
-	l = len(m.CreateSignature)
 	if l > 0 {
 		n += 1 + l + sovJoinservice(uint64(l))
 	}
@@ -1897,26 +1612,6 @@ func (m *RegisterUsingTPMMethodRequest_ChallengeResponse) Size() (n int) {
 	}
 	return n
 }
-func (m *TPMEncryptedCredential) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.CredentialBlob)
-	if l > 0 {
-		n += 1 + l + sovJoinservice(uint64(l))
-	}
-	l = len(m.Secret)
-	if l > 0 {
-		n += 1 + l + sovJoinservice(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
 func (m *RegisterUsingTPMMethodResponse) Size() (n int) {
 	if m == nil {
 		return 0
@@ -2475,7 +2170,7 @@ func (m *RegisterUsingAzureMethodResponse) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *RegisterUsingTPMMethodEnrollChallengeResponse) Unmarshal(dAtA []byte) error {
+func (m *RegisterUsingTPMMethodChallengeResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -2498,10 +2193,10 @@ func (m *RegisterUsingTPMMethodEnrollChallengeResponse) Unmarshal(dAtA []byte) e
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: RegisterUsingTPMMethodEnrollChallengeResponse: wiretype end group for non-group")
+			return fmt.Errorf("proto: RegisterUsingTPMMethodChallengeResponse: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: RegisterUsingTPMMethodEnrollChallengeResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: RegisterUsingTPMMethodChallengeResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -2536,193 +2231,6 @@ func (m *RegisterUsingTPMMethodEnrollChallengeResponse) Unmarshal(dAtA []byte) e
 			m.Solution = append(m.Solution[:0], dAtA[iNdEx:postIndex]...)
 			if m.Solution == nil {
 				m.Solution = []byte{}
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipJoinservice(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthJoinservice
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *TPMAttestationParameters) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowJoinservice
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: TPMAttestationParameters: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: TPMAttestationParameters: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Public", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowJoinservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthJoinservice
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthJoinservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Public = append(m.Public[:0], dAtA[iNdEx:postIndex]...)
-			if m.Public == nil {
-				m.Public = []byte{}
-			}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CreateData", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowJoinservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthJoinservice
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthJoinservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.CreateData = append(m.CreateData[:0], dAtA[iNdEx:postIndex]...)
-			if m.CreateData == nil {
-				m.CreateData = []byte{}
-			}
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CreateAttestation", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowJoinservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthJoinservice
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthJoinservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.CreateAttestation = append(m.CreateAttestation[:0], dAtA[iNdEx:postIndex]...)
-			if m.CreateAttestation == nil {
-				m.CreateAttestation = []byte{}
-			}
-			iNdEx = postIndex
-		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CreateSignature", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowJoinservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthJoinservice
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthJoinservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.CreateSignature = append(m.CreateSignature[:0], dAtA[iNdEx:postIndex]...)
-			if m.CreateSignature == nil {
-				m.CreateSignature = []byte{}
 			}
 			iNdEx = postIndex
 		default:
@@ -2908,7 +2416,7 @@ func (m *RegisterUsingTPMMethodInitialRequest) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.AttestationParams == nil {
-				m.AttestationParams = &TPMAttestationParameters{}
+				m.AttestationParams = &v1.TPMAttestationParameters{}
 			}
 			if err := m.AttestationParams.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -3029,130 +2537,11 @@ func (m *RegisterUsingTPMMethodRequest) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			v := &RegisterUsingTPMMethodEnrollChallengeResponse{}
+			v := &RegisterUsingTPMMethodChallengeResponse{}
 			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			m.Payload = &RegisterUsingTPMMethodRequest_ChallengeResponse{v}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipJoinservice(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthJoinservice
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *TPMEncryptedCredential) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowJoinservice
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: TPMEncryptedCredential: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: TPMEncryptedCredential: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CredentialBlob", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowJoinservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthJoinservice
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthJoinservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.CredentialBlob = append(m.CredentialBlob[:0], dAtA[iNdEx:postIndex]...)
-			if m.CredentialBlob == nil {
-				m.CredentialBlob = []byte{}
-			}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Secret", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowJoinservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthJoinservice
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthJoinservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Secret = append(m.Secret[:0], dAtA[iNdEx:postIndex]...)
-			if m.Secret == nil {
-				m.Secret = []byte{}
-			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -3234,7 +2623,7 @@ func (m *RegisterUsingTPMMethodResponse) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			v := &TPMEncryptedCredential{}
+			v := &v1.TPMEncryptedCredential{}
 			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}

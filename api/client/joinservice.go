@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	devicetrustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
 
 // JoinServiceClient is a client for the JoinService, which runs on both the
@@ -48,7 +49,7 @@ type RegisterIAMChallengeResponseFunc func(challenge string) (*proto.RegisterUsi
 // *proto.RegisterUsingAzureMethodRequest for a given challenge, or an error.
 type RegisterAzureChallengeResponseFunc func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error)
 
-type RegisterTPMChallengeResponseFunc func(challenge *proto.TPMEncryptedCredential) (*proto.RegisterUsingTPMMethodEnrollChallengeResponse, error)
+type RegisterTPMChallengeResponseFunc func(challenge *devicetrustv1.TPMEncryptedCredential) (*proto.RegisterUsingTPMMethodChallengeResponse, error)
 
 // RegisterUsingIAMMethod registers the caller using the IAM join method and
 // returns signed certs to join the cluster.

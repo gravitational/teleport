@@ -14,7 +14,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/tpmjoin"
+	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 )
 
 func (a *Server) RegisterUsingTPMMethod(
@@ -49,13 +49,13 @@ func (a *Server) RegisterUsingTPMMethod(
 	// client, and then validate their solution.
 	challenge, checkSolution, err := credentialActivationChallenge(
 		ek.publicKey,
-		tpmjoin.AttestationParametersFromProto(initReq.AttestationParams),
+		dtoss.AttestationParametersFromProto(initReq.AttestationParams),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 
 	}
-	challengeResp, err := solveChallenge(tpmjoin.EncryptedCredentialToProto(challenge))
+	challengeResp, err := solveChallenge(dtoss.EncryptedCredentialToProto(challenge))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

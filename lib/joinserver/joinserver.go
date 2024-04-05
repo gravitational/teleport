@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	devicetrustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -257,7 +258,9 @@ func (s *JoinServiceGRPCServer) RegisterUsingTPMMethod(srv proto.JoinService_Reg
 	}
 }
 
-func (s *JoinServiceGRPCServer) registerUsingTPMMethod(ctx context.Context, srv proto.JoinService_RegisterUsingTPMMethodServer) error {
+func (s *JoinServiceGRPCServer) registerUsingTPMMethod(
+	ctx context.Context, srv proto.JoinService_RegisterUsingTPMMethodServer,
+) error {
 	// Get initial payload from the client
 	req, err := srv.Recv()
 	if err != nil {
@@ -265,31 +268,43 @@ func (s *JoinServiceGRPCServer) registerUsingTPMMethod(ctx context.Context, srv 
 	}
 	initReq, ok := req.Payload.(*proto.RegisterUsingTPMMethodRequest_Init)
 	if !ok {
-		return trace.BadParameter("expected RegisterUsingTPMMethodRequest_Init payload, got %T", req.Payload)
+		return trace.BadParameter(
+			"expected RegisterUsingTPMMethodRequest_Init payload, got %T",
+			req.Payload,
+		)
 	}
 	if err := setClientRemoteAddr(ctx, initReq.Init.JoinRequest); err != nil {
 		return trace.Wrap(err)
 	}
 
-	certs, err := s.joinServiceClient.RegisterUsingTPMMethod(ctx, initReq.Init, func(challenge *proto.RegisterUsingTPMMethodEnrollChallengeRequest) (*proto.RegisterUsingTPMMethodEnrollChallengeResponse, error) {
-		// First, forward the challenge from Auth to the client.
-		err := srv.Send(&proto.RegisterUsingTPMMethodResponse{
-			Payload: &proto.RegisterUsingTPMMethodResponse_ChallengeRequest{ChallengeRequest: challenge},
+	certs, err := s.joinServiceClient.RegisterUsingTPMMethod(
+		ctx,
+		initReq.Init,
+		func(challenge *devicetrustv1.TPMEncryptedCredential,
+		) (*proto.RegisterUsingTPMMethodChallengeResponse, error) {
+			// First, forward the challenge from Auth to the client.
+			err := srv.Send(&proto.RegisterUsingTPMMethodResponse{
+				Payload: &proto.RegisterUsingTPMMethodResponse_ChallengeRequest{
+					ChallengeRequest: challenge,
+				},
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			// Get response from Client
+			req, err := srv.Recv()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			challengeResponse, ok := req.Payload.(*proto.RegisterUsingTPMMethodRequest_ChallengeResponse)
+			if !ok {
+				return nil, trace.BadParameter(
+					"expected RegisterUsingTPMMethodRequest_ChallengeResponse payload, got %T",
+					req.Payload,
+				)
+			}
+			return challengeResponse.ChallengeResponse, nil
 		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// Get response from Client
-		req, err := srv.Recv()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		challengeResponse, ok := req.Payload.(*proto.RegisterUsingTPMMethodRequest_ChallengeResponse)
-		if !ok {
-			return nil, trace.BadParameter("expected RegisterUsingTPMMethodRequest_ChallengeResponse payload, got %T", req.Payload)
-		}
-		return challengeResponse.ChallengeResponse, nil
-	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

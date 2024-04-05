@@ -36,6 +36,8 @@ import { DeviceWebToken } from "./device_web_token_pb";
 import { DeviceConfirmationToken } from "./device_confirmation_token_pb";
 import { UserCertificates } from "./user_certificates_pb";
 import { TPMPlatformParameters } from "./tpm_pb";
+import { TPMEncryptedCredential } from "./tpm_pb";
+import { TPMAttestationParameters } from "./tpm_pb";
 import { DeviceCollectedData } from "./device_collected_data_pb";
 import { Status } from "../../../google/rpc/status_pb";
 import { FieldMask } from "../../../google/protobuf/field_mask_pb";
@@ -513,44 +515,6 @@ export interface TPMEnrollPayload {
     attestationParameters?: TPMAttestationParameters;
 }
 /**
- * The attestation key and the parameters necessary to remotely verify it as
- * related to the endorsement key.
- * See https://pkg.go.dev/github.com/google/go-attestation/attest#AttestationParameters.
- * This message excludes the `UseTCSDActivationFormat` field from the link above
- * as it is TMP 1.x specific and always false.
- *
- * @generated from protobuf message teleport.devicetrust.v1.TPMAttestationParameters
- */
-export interface TPMAttestationParameters {
-    /**
-     * The encoded TPMT_PUBLIC structure containing the attestation public key
-     * and signing parameters.
-     *
-     * @generated from protobuf field: bytes public = 1;
-     */
-    public: Uint8Array;
-    /**
-     * The properties of the attestation key, encoded as a TPMS_CREATION_DATA
-     * structure.
-     *
-     * @generated from protobuf field: bytes create_data = 2;
-     */
-    createData: Uint8Array;
-    /**
-     * An assertion as to the details of the key, encoded as a TPMS_ATTEST
-     * structure.
-     *
-     * @generated from protobuf field: bytes create_attestation = 3;
-     */
-    createAttestation: Uint8Array;
-    /**
-     * A signature of create_attestation, encoded as a TPMT_SIGNATURE structure.
-     *
-     * @generated from protobuf field: bytes create_signature = 4;
-     */
-    createSignature: Uint8Array;
-}
-/**
  * The challenge sent to the client by the server during enrollment.
  * The challenge involves two parts:
  * - Solving an encrypted credential with `ActivateCredential`.
@@ -573,36 +537,6 @@ export interface TPMEnrollChallenge {
      * @generated from protobuf field: bytes attestation_nonce = 2;
      */
     attestationNonce: Uint8Array;
-}
-/**
- * These values are used by the TPM2.0 `ActivateCredential` command to produce
- * the solution which proves possession of the EK and AK.
- *
- * For a more in-depth description see:
- * - https://pkg.go.dev/github.com/google/go-attestation/attest#EncryptedCredential
- * - https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part3_Commands_code_pub.pdf (Heading 12.5.1 "TPM2_ActivateCredential" "General Description")
- * - https://github.com/google/go-attestation/blob/v0.4.3/attest/activation.go#L199
- * - https://github.com/google/go-tpm/blob/v0.3.3/tpm2/credactivation/credential_activation.go#L61
- *
- * @generated from protobuf message teleport.devicetrust.v1.TPMEncryptedCredential
- */
-export interface TPMEncryptedCredential {
-    /**
-     * The `credential_blob` parameter to be used with the `ActivateCredential`
-     * command. This is used with the decrypted value of `secret` in a
-     * cryptographic process to decrypt the solution.
-     *
-     * @generated from protobuf field: bytes credential_blob = 1;
-     */
-    credentialBlob: Uint8Array;
-    /**
-     * The `secret` parameter to be used with `ActivateCredential`. This is a
-     * seed which can be decrypted with the EK. The decrypted seed is then used
-     * when decrypting `credential_blob`.
-     *
-     * @generated from protobuf field: bytes secret = 2;
-     */
-    secret: Uint8Array;
 }
 /**
  * The enrollment challenge response containing the solution returned by
@@ -2226,77 +2160,6 @@ class TPMEnrollPayload$Type extends MessageType<TPMEnrollPayload> {
  */
 export const TPMEnrollPayload = new TPMEnrollPayload$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class TPMAttestationParameters$Type extends MessageType<TPMAttestationParameters> {
-    constructor() {
-        super("teleport.devicetrust.v1.TPMAttestationParameters", [
-            { no: 1, name: "public", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
-            { no: 2, name: "create_data", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
-            { no: 3, name: "create_attestation", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
-            { no: 4, name: "create_signature", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
-        ]);
-    }
-    create(value?: PartialMessage<TPMAttestationParameters>): TPMAttestationParameters {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.public = new Uint8Array(0);
-        message.createData = new Uint8Array(0);
-        message.createAttestation = new Uint8Array(0);
-        message.createSignature = new Uint8Array(0);
-        if (value !== undefined)
-            reflectionMergePartial<TPMAttestationParameters>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: TPMAttestationParameters): TPMAttestationParameters {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* bytes public */ 1:
-                    message.public = reader.bytes();
-                    break;
-                case /* bytes create_data */ 2:
-                    message.createData = reader.bytes();
-                    break;
-                case /* bytes create_attestation */ 3:
-                    message.createAttestation = reader.bytes();
-                    break;
-                case /* bytes create_signature */ 4:
-                    message.createSignature = reader.bytes();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: TPMAttestationParameters, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* bytes public = 1; */
-        if (message.public.length)
-            writer.tag(1, WireType.LengthDelimited).bytes(message.public);
-        /* bytes create_data = 2; */
-        if (message.createData.length)
-            writer.tag(2, WireType.LengthDelimited).bytes(message.createData);
-        /* bytes create_attestation = 3; */
-        if (message.createAttestation.length)
-            writer.tag(3, WireType.LengthDelimited).bytes(message.createAttestation);
-        /* bytes create_signature = 4; */
-        if (message.createSignature.length)
-            writer.tag(4, WireType.LengthDelimited).bytes(message.createSignature);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.devicetrust.v1.TPMAttestationParameters
- */
-export const TPMAttestationParameters = new TPMAttestationParameters$Type();
-// @generated message type with reflection information, may provide speed optimized methods
 class TPMEnrollChallenge$Type extends MessageType<TPMEnrollChallenge> {
     constructor() {
         super("teleport.devicetrust.v1.TPMEnrollChallenge", [
@@ -2350,61 +2213,6 @@ class TPMEnrollChallenge$Type extends MessageType<TPMEnrollChallenge> {
  * @generated MessageType for protobuf message teleport.devicetrust.v1.TPMEnrollChallenge
  */
 export const TPMEnrollChallenge = new TPMEnrollChallenge$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class TPMEncryptedCredential$Type extends MessageType<TPMEncryptedCredential> {
-    constructor() {
-        super("teleport.devicetrust.v1.TPMEncryptedCredential", [
-            { no: 1, name: "credential_blob", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
-            { no: 2, name: "secret", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
-        ]);
-    }
-    create(value?: PartialMessage<TPMEncryptedCredential>): TPMEncryptedCredential {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.credentialBlob = new Uint8Array(0);
-        message.secret = new Uint8Array(0);
-        if (value !== undefined)
-            reflectionMergePartial<TPMEncryptedCredential>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: TPMEncryptedCredential): TPMEncryptedCredential {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* bytes credential_blob */ 1:
-                    message.credentialBlob = reader.bytes();
-                    break;
-                case /* bytes secret */ 2:
-                    message.secret = reader.bytes();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: TPMEncryptedCredential, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* bytes credential_blob = 1; */
-        if (message.credentialBlob.length)
-            writer.tag(1, WireType.LengthDelimited).bytes(message.credentialBlob);
-        /* bytes secret = 2; */
-        if (message.secret.length)
-            writer.tag(2, WireType.LengthDelimited).bytes(message.secret);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.devicetrust.v1.TPMEncryptedCredential
- */
-export const TPMEncryptedCredential = new TPMEncryptedCredential$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class TPMEnrollChallengeResponse$Type extends MessageType<TPMEnrollChallengeResponse> {
     constructor() {
