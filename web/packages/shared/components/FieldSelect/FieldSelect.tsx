@@ -155,7 +155,7 @@ export function FieldSelectAsync({
         }}
         noOptionsMessage={() => {
           if (attempt.status === 'error') {
-            return `Could not load options: ${attempt.error}`;
+            return `Could not load options: ${attempt.statusText}`;
           }
           return noOptionsMessage();
         }}
