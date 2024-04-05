@@ -160,9 +160,14 @@ $ ls -l /usr/local/lib/systemd/system/teleport.service
 updates.yaml:
 ```
 version: v1
-proxy: mytenant.teleport.sh
-enabled: true
-active_version: 15.1.1
+kind: agent_versions
+spec:
+  # proxy specifies the Teleport proxy address to retrieve the agent version and update configuration from.
+  proxy: mytenant.teleport.sh
+  # enabled specifies whether auto-updates are enabled, i.e., whether teleport-updater update is allowed to update the agent.
+  enabled: true
+  # active_version specifies the active (symlinked) deployment of the telepport agent.
+  active_version: 15.1.1
 ```
 
 ### Runtime
