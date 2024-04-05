@@ -34,13 +34,14 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	DiscoveryConfigService_ListDiscoveryConfigs_FullMethodName      = "/teleport.discoveryconfig.v1.DiscoveryConfigService/ListDiscoveryConfigs"
-	DiscoveryConfigService_GetDiscoveryConfig_FullMethodName        = "/teleport.discoveryconfig.v1.DiscoveryConfigService/GetDiscoveryConfig"
-	DiscoveryConfigService_CreateDiscoveryConfig_FullMethodName     = "/teleport.discoveryconfig.v1.DiscoveryConfigService/CreateDiscoveryConfig"
-	DiscoveryConfigService_UpdateDiscoveryConfig_FullMethodName     = "/teleport.discoveryconfig.v1.DiscoveryConfigService/UpdateDiscoveryConfig"
-	DiscoveryConfigService_UpsertDiscoveryConfig_FullMethodName     = "/teleport.discoveryconfig.v1.DiscoveryConfigService/UpsertDiscoveryConfig"
-	DiscoveryConfigService_DeleteDiscoveryConfig_FullMethodName     = "/teleport.discoveryconfig.v1.DiscoveryConfigService/DeleteDiscoveryConfig"
-	DiscoveryConfigService_DeleteAllDiscoveryConfigs_FullMethodName = "/teleport.discoveryconfig.v1.DiscoveryConfigService/DeleteAllDiscoveryConfigs"
+	DiscoveryConfigService_ListDiscoveryConfigs_FullMethodName        = "/teleport.discoveryconfig.v1.DiscoveryConfigService/ListDiscoveryConfigs"
+	DiscoveryConfigService_GetDiscoveryConfig_FullMethodName          = "/teleport.discoveryconfig.v1.DiscoveryConfigService/GetDiscoveryConfig"
+	DiscoveryConfigService_CreateDiscoveryConfig_FullMethodName       = "/teleport.discoveryconfig.v1.DiscoveryConfigService/CreateDiscoveryConfig"
+	DiscoveryConfigService_UpdateDiscoveryConfig_FullMethodName       = "/teleport.discoveryconfig.v1.DiscoveryConfigService/UpdateDiscoveryConfig"
+	DiscoveryConfigService_UpsertDiscoveryConfig_FullMethodName       = "/teleport.discoveryconfig.v1.DiscoveryConfigService/UpsertDiscoveryConfig"
+	DiscoveryConfigService_DeleteDiscoveryConfig_FullMethodName       = "/teleport.discoveryconfig.v1.DiscoveryConfigService/DeleteDiscoveryConfig"
+	DiscoveryConfigService_DeleteAllDiscoveryConfigs_FullMethodName   = "/teleport.discoveryconfig.v1.DiscoveryConfigService/DeleteAllDiscoveryConfigs"
+	DiscoveryConfigService_UpdateDiscoveryConfigStatus_FullMethodName = "/teleport.discoveryconfig.v1.DiscoveryConfigService/UpdateDiscoveryConfigStatus"
 )
 
 // DiscoveryConfigServiceClient is the client API for DiscoveryConfigService service.
@@ -61,6 +62,8 @@ type DiscoveryConfigServiceClient interface {
 	DeleteDiscoveryConfig(ctx context.Context, in *DeleteDiscoveryConfigRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllDiscoveryConfigs removes all DiscoveryConfigs.
 	DeleteAllDiscoveryConfigs(ctx context.Context, in *DeleteAllDiscoveryConfigsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// UpdateDiscoveryConfigStatus updates an existing DiscoveryConfig resource status object.
+	UpdateDiscoveryConfigStatus(ctx context.Context, in *UpdateDiscoveryConfigStatusRequest, opts ...grpc.CallOption) (*DiscoveryConfig, error)
 }
 
 type discoveryConfigServiceClient struct {
@@ -134,6 +137,15 @@ func (c *discoveryConfigServiceClient) DeleteAllDiscoveryConfigs(ctx context.Con
 	return out, nil
 }
 
+func (c *discoveryConfigServiceClient) UpdateDiscoveryConfigStatus(ctx context.Context, in *UpdateDiscoveryConfigStatusRequest, opts ...grpc.CallOption) (*DiscoveryConfig, error) {
+	out := new(DiscoveryConfig)
+	err := c.cc.Invoke(ctx, DiscoveryConfigService_UpdateDiscoveryConfigStatus_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DiscoveryConfigServiceServer is the server API for DiscoveryConfigService service.
 // All implementations must embed UnimplementedDiscoveryConfigServiceServer
 // for forward compatibility
@@ -152,6 +164,8 @@ type DiscoveryConfigServiceServer interface {
 	DeleteDiscoveryConfig(context.Context, *DeleteDiscoveryConfigRequest) (*emptypb.Empty, error)
 	// DeleteAllDiscoveryConfigs removes all DiscoveryConfigs.
 	DeleteAllDiscoveryConfigs(context.Context, *DeleteAllDiscoveryConfigsRequest) (*emptypb.Empty, error)
+	// UpdateDiscoveryConfigStatus updates an existing DiscoveryConfig resource status object.
+	UpdateDiscoveryConfigStatus(context.Context, *UpdateDiscoveryConfigStatusRequest) (*DiscoveryConfig, error)
 	mustEmbedUnimplementedDiscoveryConfigServiceServer()
 }
 
@@ -179,6 +193,9 @@ func (UnimplementedDiscoveryConfigServiceServer) DeleteDiscoveryConfig(context.C
 }
 func (UnimplementedDiscoveryConfigServiceServer) DeleteAllDiscoveryConfigs(context.Context, *DeleteAllDiscoveryConfigsRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllDiscoveryConfigs not implemented")
+}
+func (UnimplementedDiscoveryConfigServiceServer) UpdateDiscoveryConfigStatus(context.Context, *UpdateDiscoveryConfigStatusRequest) (*DiscoveryConfig, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateDiscoveryConfigStatus not implemented")
 }
 func (UnimplementedDiscoveryConfigServiceServer) mustEmbedUnimplementedDiscoveryConfigServiceServer() {
 }
@@ -320,6 +337,24 @@ func _DiscoveryConfigService_DeleteAllDiscoveryConfigs_Handler(srv interface{}, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DiscoveryConfigService_UpdateDiscoveryConfigStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateDiscoveryConfigStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DiscoveryConfigServiceServer).UpdateDiscoveryConfigStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DiscoveryConfigService_UpdateDiscoveryConfigStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DiscoveryConfigServiceServer).UpdateDiscoveryConfigStatus(ctx, req.(*UpdateDiscoveryConfigStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DiscoveryConfigService_ServiceDesc is the grpc.ServiceDesc for DiscoveryConfigService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -354,6 +389,10 @@ var DiscoveryConfigService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAllDiscoveryConfigs",
 			Handler:    _DiscoveryConfigService_DeleteAllDiscoveryConfigs_Handler,
+		},
+		{
+			MethodName: "UpdateDiscoveryConfigStatus",
+			Handler:    _DiscoveryConfigService_UpdateDiscoveryConfigStatus_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
