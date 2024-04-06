@@ -378,6 +378,27 @@ func (l *LocalProxy) getCerts() []tls.Certificate {
 	return l.cfg.Certs
 }
 
+// CheckCertExpiry checks the proxy certificates for expiration and runs given checking function.
+func (l *LocalProxy) CheckCert(checkCert func(cert *x509.Certificate) error) error {
+	l.cfg.Log.Debug("checking local proxy certs")
+	l.certsMu.RLock()
+	defer l.certsMu.RUnlock()
+	if len(l.cfg.Certs) == 0 {
+		return trace.NotFound("local proxy has no TLS certificates configured")
+	}
+	cert, err := utils.TLSCertLeaf(l.cfg.Certs[0])
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Check for cert expiration.
+	if err := utils.VerifyCertificateExpiry(cert, l.cfg.Clock); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(checkCert(cert))
+}
+
 // CheckDBCerts checks the proxy certificates for expiration and that the cert subject matches a database route.
 func (l *LocalProxy) CheckDBCerts(dbRoute tlsca.RouteToDatabase) error {
 	l.cfg.Log.Debug("checking local proxy database certs")
@@ -396,7 +417,7 @@ func (l *LocalProxy) CheckDBCerts(dbRoute tlsca.RouteToDatabase) error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(CheckCertSubject(cert, dbRoute))
+	return trace.Wrap(CheckDBCertSubject(cert, dbRoute))
 }
 
 // CheckCertExpiry checks the proxy certificates for expiration.
@@ -415,9 +436,9 @@ func (l *LocalProxy) CheckCertExpiry() error {
 	return trace.Wrap(utils.VerifyCertificateExpiry(cert, l.cfg.Clock))
 }
 
-// CheckCertSubject checks if the route to the database from the cert matches the provided route in
+// CheckDBCertSubject checks if the route to the database from the cert matches the provided route in
 // terms of username and database (if present).
-func CheckCertSubject(cert *x509.Certificate, dbRoute tlsca.RouteToDatabase) error {
+func CheckDBCertSubject(cert *x509.Certificate, dbRoute tlsca.RouteToDatabase) error {
 	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 	if err != nil {
 		return trace.Wrap(err)
