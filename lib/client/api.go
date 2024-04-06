@@ -91,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
+	"github.com/gravitational/teleport/tool/common/update"
 )
 
 const (
@@ -654,6 +655,30 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	if err := tc.SaveProfile(opt.makeCurrentProfile); err != nil {
 		log.Warningf("Failed to save profile: %v", err)
 		return trace.Wrap(err)
+	}
+
+	// The user has typed a command like `tsh ssh ...` without being logged in,
+	// if the running binary needs to be updated, update and re-exec.
+	//
+	// If needed, download the new version of {tsh, tctl} and re-exec. Make
+	// sure to exit this process with the same exit code as the child process.
+	//
+	// TODO(russjones): Consolidate this with updateAndRun.
+	fmt.Printf("--> Will check remote and if needed, will update binary and re-exec.\n")
+
+	toolsVersion, reexec := update.CheckRemote()
+	if reexec {
+		// Download the version of client tools required by the cluster.
+		if err := update.Download(toolsVersion); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Re-execute client tools with the correct version of client tools.
+		code, err := update.Exec()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		os.Exit(code)
 	}
 
 	if opt.afterLoginHook != nil {

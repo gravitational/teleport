@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/teleport/tool/common/update"
 )
 
 const (
@@ -103,6 +104,27 @@ type CLICommand interface {
 //
 // distribution: name of the Teleport distribution
 func Run(commands []CLICommand) {
+	// At process startup, check if a version has already been downloaded to
+	// $TELEPORT_HOME/bin or if the user has set the TELEPORT_TOOLS_VERSION
+	// environment variable. If so, re-exec that version of {tsh, tctl}.
+	toolsVersion, reexec := update.CheckLocal()
+	if reexec {
+		// Download the version of client tools required by the cluster. This
+		// is required if the user passed in the TELEPORT_TOOLS_VERSION
+		// explicitly.
+		if err := update.Download(toolsVersion); err != nil {
+			utils.FatalError(err)
+		}
+
+		// Re-execute client tools with the correct version of client tools.
+		code, err := update.Exec()
+		if err != nil {
+			utils.FatalError(err)
+		} else {
+			os.Exit(code)
+		}
+	}
+
 	err := TryRun(commands, os.Args[1:])
 	if err != nil {
 		var exitError *common.ExitCodeError

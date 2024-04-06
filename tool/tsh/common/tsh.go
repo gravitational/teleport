@@ -95,6 +95,7 @@ import (
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/common/fido2"
 	"github.com/gravitational/teleport/tool/common/touchid"
+	"github.com/gravitational/teleport/tool/common/update"
 	"github.com/gravitational/teleport/tool/common/webauthnwin"
 )
 
@@ -646,6 +647,7 @@ const (
 	proxyKubeConfigEnvVar    = "TELEPORT_KUBECONFIG"
 	noResumeEnvVar           = "TELEPORT_NO_RESUME"
 	requestModeEnvVar        = "TELEPORT_REQUEST_MODE"
+	toolsVersionEnvVar       = "TELEPORT_TOOLS_VERSION"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -689,6 +691,29 @@ func initLogger(cf *CLIConf) {
 //
 // DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
+	// At process startup, check if a version has already been downloaded to
+	// $TELEPORT_HOME/bin or if the user has set the TELEPORT_TOOLS_VERSION
+	// environment variable. If so, re-exec that version of {tsh, tctl}.
+	toolsVersion, reexec := update.CheckLocal()
+	if reexec {
+		// Download the version of client tools required by the cluster. This
+		// is required if the user passed in the TELEPORT_TOOLS_VERSION
+		// explicitly.
+		if err := update.Download(toolsVersion); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Re-execute client tools with the correct version of client tools.
+		code, err := update.Exec()
+		if err != nil {
+			log.Debugf("Failed to re-exec client tool: %v.", err)
+			// TODO(russjones): Is 255 the correct error code here?
+			os.Exit(255)
+		} else {
+			os.Exit(code)
+		}
+	}
+
 	cf := CLIConf{
 		Context:            ctx,
 		TracingProvider:    tracing.NoopProvider(),
@@ -1824,7 +1849,15 @@ func onLogin(cf *CLIConf) error {
 	}
 	tc.HomePath = cf.HomePath
 
-	// client is already logged in and profile is not expired
+	// The user is not logged in and has typed in `tsh --proxy=... login`, if
+	// the running binary needs to be updated, update and re-exec.
+	if profile == nil {
+		if err := updateAndRun(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// The user is already logged in and the profile is not expired.
 	if profile != nil && !profile.IsExpired(time.Now()) {
 		switch {
 		// in case if nothing is specified, re-fetch kube clusters and print
@@ -1834,6 +1867,13 @@ func onLogin(cf *CLIConf) error {
 		// current status
 		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "" ||
 			host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
+
+			// The user has typed `tsh login`, if the running binary needs to
+			// be updated, update and re-exec.
+			if err := updateAndRun(); err != nil {
+				return trace.Wrap(err)
+			}
+
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1847,6 +1887,13 @@ func onLogin(cf *CLIConf) error {
 		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) &&
 			cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
+
+			// The user has typed `tsh login`, if the running binary needs to
+			// be updated, update and re-exec.
+			if err := updateAndRun(); err != nil {
+				return trace.Wrap(err)
+			}
+
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1872,6 +1919,7 @@ func onLogin(cf *CLIConf) error {
 		// but cluster is specified, treat this as selecting a new cluster
 		// for the same proxy
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.SiteName != "":
+
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1902,6 +1950,7 @@ func onLogin(cf *CLIConf) error {
 		// but desired roles or request ID is specified, treat this as a
 		// privilege escalation request for the same login session.
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && (cf.DesiredRoles != "" || cf.RequestID != "") && cf.IdentityFileOut == "":
+
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1917,7 +1966,11 @@ func onLogin(cf *CLIConf) error {
 
 		// otherwise just pass through to standard login
 		default:
-
+			// The user is logged in and has typed in `tsh --proxy=... login`, if
+			// the running binary needs to be updated, update and re-exec.
+			if err := updateAndRun(); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
@@ -3573,13 +3626,13 @@ func onSSH(cf *CLIConf) error {
 	tc.Stdin = os.Stdin
 	err = retryWithAccessRequest(cf, tc, func() error {
 		err = client.RetryWithRelogin(cf.Context, tc, func() error {
-
 			var opts []func(*client.SSHOptions)
 			if cf.LocalExec {
 				opts = append(opts, client.WithLocalCommandExecutor(runLocalCommand))
 			}
 
 			return tc.SSH(cf.Context, cf.RemoteCommand, opts...)
+
 		})
 		if err != nil {
 			if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
@@ -5332,6 +5385,29 @@ const (
 		"environments on shared systems where a memory swap attack is possible.\n" +
 		"https://goteleport.com/docs/access-controls/guides/headless/#troubleshooting"
 )
+
+func updateAndRun() error {
+	fmt.Printf("--> Will check remote and if needed, will update binary and re-exec.\n")
+
+	// If needed, download the new version of {tsh, tctl} and re-exec. Make
+	// sure to exit this process with the same exit code as the child process.
+	toolsVersion, reexec := update.CheckRemote()
+	if reexec {
+		// Download the version of client tools required by the cluster.
+		if err := update.Download(toolsVersion); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Re-execute client tools with the correct version of client tools.
+		code, err := update.Exec()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		os.Exit(code)
+	}
+
+	return nil
+}
 
 // Lock the process memory to prevent rsa keys and certificates in memory from being exposed in a swap.
 func tryLockMemory(cf *CLIConf) error {
