@@ -21,6 +21,7 @@ package client
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"net"
 	"time"
 
@@ -34,54 +35,96 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// DBCertChecker is a middleware that ensures that the local proxy has valid TLS database certs.
-type DBCertChecker struct {
-	// tc is a TeleportClient used to reissue certificates when necessary.
-	tc *TeleportClient
-	// dbRoute contains database routing information.
-	dbRoute tlsca.RouteToDatabase
-	// Clock specifies the time provider. Will be used to override the time anchor
-	// for TLS certificate verification.
-	// Defaults to real clock if unspecified
+type CertChecker struct {
+	CertReissuer
+	// clock specifies the time provider. Will be used to override the time anchor
+	// for TLS certificate verification. Defaults to real clock if unspecified
 	clock clockwork.Clock
 }
 
-func NewDBCertChecker(tc *TeleportClient, dbRoute tlsca.RouteToDatabase, clock clockwork.Clock) *DBCertChecker {
+var _ alpnproxy.LocalProxyMiddleware = (*CertChecker)(nil)
+
+func newCertChecker(certIssuer CertReissuer, clock clockwork.Clock) *CertChecker {
 	if clock == nil {
 		clock = clockwork.NewRealClock()
 	}
-	return &DBCertChecker{
-		tc:      tc,
-		dbRoute: dbRoute,
-		clock:   clock,
+	return &CertChecker{
+		CertReissuer: certIssuer,
+		clock:        clock,
 	}
 }
 
-var _ alpnproxy.LocalProxyMiddleware = (*DBCertChecker)(nil)
+func NewDBCertChecker(tc *TeleportClient, dbRoute tlsca.RouteToDatabase, clock clockwork.Clock) *CertChecker {
+	return newCertChecker(&dbCertReissuer{
+		tc:      tc,
+		dbRoute: dbRoute,
+	}, clock)
+}
+
+func NewAppCertChecker(tc *TeleportClient, appRoute proto.RouteToApp, clock clockwork.Clock) *CertChecker {
+	return newCertChecker(&appCertReissuer{
+		tc:       tc,
+		appRoute: appRoute,
+	}, clock)
+}
 
 // OnNewConnection is a callback triggered when a new downstream connection is
 // accepted by the local proxy.
-func (c *DBCertChecker) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy, conn net.Conn) error {
+func (c *CertChecker) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy, conn net.Conn) error {
 	return trace.Wrap(c.ensureValidCerts(ctx, lp))
 }
 
 // OnStart is a callback triggered when the local proxy starts.
-func (c *DBCertChecker) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
+func (c *CertChecker) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 	return trace.Wrap(c.ensureValidCerts(ctx, lp))
 }
 
 // ensureValidCerts ensures that the local proxy is configured with valid certs.
-func (c *DBCertChecker) ensureValidCerts(ctx context.Context, lp *alpnproxy.LocalProxy) error {
-	if err := lp.CheckDBCerts(c.dbRoute); err != nil {
+func (c *CertChecker) ensureValidCerts(ctx context.Context, lp *alpnproxy.LocalProxy) error {
+	if err := lp.CheckCert(c.CheckCert); err != nil {
 		log.WithError(err).Debug("local proxy tunnel certificates need to be reissued")
 	} else {
 		return nil
 	}
-	return trace.Wrap(c.renewCerts(ctx, lp))
+
+	cert, err := c.ReissueCert(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// reduce per-handshake processing by setting the parsed leaf.
+	leaf, err := utils.TLSCertLeaf(cert)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	certTTL := leaf.NotAfter.Sub(c.clock.Now()).Round(time.Minute)
+	log.Debugf("Certificate renewed: valid until %s [valid for %v]", leaf.NotAfter.Format(time.RFC3339), certTTL)
+	cert.Leaf = leaf
+
+	lp.SetCerts([]tls.Certificate{cert})
+	return nil
 }
 
-// renewCerts attempts to renew the database certs for the local proxy.
-func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy) error {
+// CertIssue checks and reissues certs.
+type CertReissuer interface {
+	// CheckCert checks that an existing certificate is valid.
+	CheckCert(cert *x509.Certificate) error
+	// ReissueCert reissues a tls certificate.
+	ReissueCert(ctx context.Context) (tls.Certificate, error)
+}
+
+type dbCertReissuer struct {
+	// tc is a TeleportClient used to issue certificates when necessary.
+	tc *TeleportClient
+	// dbRoute contains database routing information.
+	dbRoute tlsca.RouteToDatabase
+}
+
+func (c *dbCertReissuer) CheckCert(cert *x509.Certificate) error {
+	return alpnproxy.CheckDBCertSubject(cert, c.dbRoute)
+}
+
+func (c *dbCertReissuer) ReissueCert(ctx context.Context) (tls.Certificate, error) {
 	var accessRequests []string
 	if profile, err := c.tc.ProfileStatus(); err != nil {
 		log.WithError(err).Warn("unable to load profile, requesting database certs without access requests")
@@ -105,22 +148,53 @@ func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy
 		key = newKey
 		return trace.Wrap(err)
 	}); err != nil {
-		return trace.Wrap(err)
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 
 	dbCert, err := key.DBTLSCert(c.dbRoute.ServiceName)
 	if err != nil {
-		return trace.Wrap(err)
+		return tls.Certificate{}, trace.Wrap(err)
 	}
-	leaf, err := utils.TLSCertLeaf(dbCert)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	certTTL := leaf.NotAfter.Sub(c.clock.Now()).Round(time.Minute)
-	log.Debugf("Database certificate renewed: valid until %s [valid for %v]",
-		leaf.NotAfter.Format(time.RFC3339), certTTL)
-	// reduce per-handshake processing by setting the parsed leaf.
-	dbCert.Leaf = leaf
-	lp.SetCerts([]tls.Certificate{dbCert})
+	return dbCert, nil
+}
+
+type appCertReissuer struct {
+	// tc is a TeleportClient used to issue certificates when necessary.
+	tc *TeleportClient
+	// appRoute contains app routing information.
+	appRoute proto.RouteToApp
+}
+
+func (c *appCertReissuer) CheckCert(cert *x509.Certificate) error {
+	// appCertIssuer does not perform any additional certificate checks.
 	return nil
+}
+
+func (c *appCertReissuer) ReissueCert(ctx context.Context) (tls.Certificate, error) {
+	var accessRequests []string
+	if profile, err := c.tc.ProfileStatus(); err != nil {
+		log.WithError(err).Warn("unable to load profile, requesting app certs without access requests")
+	} else {
+		accessRequests = profile.ActiveRequests.AccessRequests
+	}
+
+	var key *Key
+	if err := RetryWithRelogin(ctx, c.tc, func() error {
+		newKey, err := c.tc.IssueUserCertsWithMFA(ctx, ReissueParams{
+			RouteToCluster: c.tc.SiteName,
+			RouteToApp:     c.appRoute,
+			AccessRequests: accessRequests,
+			RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
+		}, mfa.WithPromptReasonSessionMFA("application", c.appRoute.Name))
+		key = newKey
+		return trace.Wrap(err)
+	}); err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	appCert, err := key.AppTLSCert(c.appRoute.Name)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	return appCert, nil
 }
