@@ -1,0 +1,6 @@
+1. Windows support. File locking.
+2. tbot support.
+3. Errors and warnings for self-managed updates.
+4. Different editions of Teleport. OSS should download OSS, Enterprise should download Enterprise.
+5. Test migration path.
+6. Testing.
