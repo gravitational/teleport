@@ -1621,7 +1621,7 @@ To start with, cluster identifiers will be the only data the user is actually op
 will know the version of the client calling it, and whether it is an open source or enterprise request. The optional
 cluster identifier will be what transforms this information from being just useful per-request debug into,
 into a meaningful metric about the state of the teleport ecosystem. By using the cluster ID to deduplicate requests,
-will will start to be able to make more informed guesses about the scope of the teleport ecosystem and the distribution
+will start to be able to make more informed guesses about the scope of the teleport ecosystem and the distribution
 of teleport versions across it.
 
 We will therefore end up collecting datapoints of the following format:
