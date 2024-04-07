@@ -48,38 +48,40 @@ type MessageType byte
 // For descriptions of each message type see:
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#message-types
 const (
-	TypeClientScreenSpec              = MessageType(1)
-	TypePNGFrame                      = MessageType(2)
-	TypeMouseMove                     = MessageType(3)
-	TypeMouseButton                   = MessageType(4)
-	TypeKeyboardButton                = MessageType(5)
-	TypeClipboardData                 = MessageType(6)
-	TypeClientUsername                = MessageType(7)
-	TypeMouseWheel                    = MessageType(8)
-	TypeError                         = MessageType(9)
-	TypeMFA                           = MessageType(10)
-	TypeSharedDirectoryAnnounce       = MessageType(11)
-	TypeSharedDirectoryAcknowledge    = MessageType(12)
-	TypeSharedDirectoryInfoRequest    = MessageType(13)
-	TypeSharedDirectoryInfoResponse   = MessageType(14)
-	TypeSharedDirectoryCreateRequest  = MessageType(15)
-	TypeSharedDirectoryCreateResponse = MessageType(16)
-	TypeSharedDirectoryDeleteRequest  = MessageType(17)
-	TypeSharedDirectoryDeleteResponse = MessageType(18)
-	TypeSharedDirectoryReadRequest    = MessageType(19)
-	TypeSharedDirectoryReadResponse   = MessageType(20)
-	TypeSharedDirectoryWriteRequest   = MessageType(21)
-	TypeSharedDirectoryWriteResponse  = MessageType(22)
-	TypeSharedDirectoryMoveRequest    = MessageType(23)
-	TypeSharedDirectoryMoveResponse   = MessageType(24)
-	TypeSharedDirectoryListRequest    = MessageType(25)
-	TypeSharedDirectoryListResponse   = MessageType(26)
-	TypePNG2Frame                     = MessageType(27)
-	TypeNotification                  = MessageType(28)
-	TypeRDPFastPathPDU                = MessageType(29)
-	TypeRDPResponsePDU                = MessageType(30)
-	TypeRDPConnectionInitialized      = MessageType(31)
-	TypeSyncKeys                      = MessageType(32)
+	TypeClientScreenSpec                = MessageType(1)
+	TypePNGFrame                        = MessageType(2)
+	TypeMouseMove                       = MessageType(3)
+	TypeMouseButton                     = MessageType(4)
+	TypeKeyboardButton                  = MessageType(5)
+	TypeClipboardData                   = MessageType(6)
+	TypeClientUsername                  = MessageType(7)
+	TypeMouseWheel                      = MessageType(8)
+	TypeError                           = MessageType(9)
+	TypeMFA                             = MessageType(10)
+	TypeSharedDirectoryAnnounce         = MessageType(11)
+	TypeSharedDirectoryAcknowledge      = MessageType(12)
+	TypeSharedDirectoryInfoRequest      = MessageType(13)
+	TypeSharedDirectoryInfoResponse     = MessageType(14)
+	TypeSharedDirectoryCreateRequest    = MessageType(15)
+	TypeSharedDirectoryCreateResponse   = MessageType(16)
+	TypeSharedDirectoryDeleteRequest    = MessageType(17)
+	TypeSharedDirectoryDeleteResponse   = MessageType(18)
+	TypeSharedDirectoryReadRequest      = MessageType(19)
+	TypeSharedDirectoryReadResponse     = MessageType(20)
+	TypeSharedDirectoryWriteRequest     = MessageType(21)
+	TypeSharedDirectoryWriteResponse    = MessageType(22)
+	TypeSharedDirectoryMoveRequest      = MessageType(23)
+	TypeSharedDirectoryMoveResponse     = MessageType(24)
+	TypeSharedDirectoryListRequest      = MessageType(25)
+	TypeSharedDirectoryListResponse     = MessageType(26)
+	TypePNG2Frame                       = MessageType(27)
+	TypeNotification                    = MessageType(28)
+	TypeRDPFastPathPDU                  = MessageType(29)
+	TypeRDPResponsePDU                  = MessageType(30)
+	TypeRDPConnectionInitialized        = MessageType(31)
+	TypeSyncKeys                        = MessageType(32)
+	TypeSharedDirectoryTruncateRequest  = MessageType(33)
+	TypeSharedDirectoryTruncateResponse = MessageType(34)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -176,6 +178,10 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodeSharedDirectoryMoveRequest(in)
 	case TypeSharedDirectoryMoveResponse:
 		return decodeSharedDirectoryMoveResponse(in)
+	case TypeSharedDirectoryTruncateRequest:
+		return decodeSharedDirectoryTruncateRequest(in)
+	case TypeSharedDirectoryTruncateResponse:
+		return decodeSharedDirectoryTruncateResponse(in)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", firstByte)
 	}
@@ -1545,6 +1551,74 @@ func (s SharedDirectoryMoveResponse) Encode() ([]byte, error) {
 
 func decodeSharedDirectoryMoveResponse(in io.Reader) (SharedDirectoryMoveResponse, error) {
 	var res SharedDirectoryMoveResponse
+	err := binary.Read(in, binary.BigEndian, &res)
+	return res, err
+}
+
+// | message type (33) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte | end_of_file uint32 |
+type SharedDirectoryTruncateRequest struct {
+	CompletionID uint32
+	DirectoryID  uint32
+	Path         string
+	EndOfFile    uint32
+}
+
+func (s SharedDirectoryTruncateRequest) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryTruncateRequest))
+	writeUint32(buf, s.CompletionID)
+	writeUint32(buf, s.DirectoryID)
+	if err := encodeString(buf, s.Path); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	writeUint32(buf, s.EndOfFile)
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryTruncateRequest(in io.Reader) (SharedDirectoryTruncateRequest, error) {
+	var completionID, directoryID, endOfFile uint32
+	err := binary.Read(in, binary.BigEndian, &completionID)
+	if err != nil {
+		return SharedDirectoryTruncateRequest{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &directoryID)
+	if err != nil {
+		return SharedDirectoryTruncateRequest{}, trace.Wrap(err)
+	}
+	path, err := decodeString(in, tdpMaxPathLength)
+	if err != nil {
+		return SharedDirectoryTruncateRequest{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &endOfFile)
+	if err != nil {
+		return SharedDirectoryTruncateRequest{}, trace.Wrap(err)
+	}
+	return SharedDirectoryTruncateRequest{
+		CompletionID: completionID,
+		DirectoryID:  directoryID,
+		Path:         path,
+		EndOfFile:    endOfFile,
+	}, nil
+}
+
+// SharedDirectoryTruncateResponse is sent from the TDP client to the server
+// to acknowledge a SharedDirectoryTruncateRequest was executed.
+// | message type (34) | completion_id uint32 | err_code uint32 |
+type SharedDirectoryTruncateResponse struct {
+	CompletionID uint32
+	ErrCode      uint32
+}
+
+func (s SharedDirectoryTruncateResponse) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryTruncateResponse))
+	writeUint32(buf, s.CompletionID)
+	writeUint32(buf, s.ErrCode)
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryTruncateResponse(in io.Reader) (SharedDirectoryTruncateResponse, error) {
+	var res SharedDirectoryTruncateResponse
 	err := binary.Read(in, binary.BigEndian, &res)
 	return res, err
 }
