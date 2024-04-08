@@ -56,10 +56,7 @@ export function useConnections() {
   }, [setSortedIds, serializedItems]);
 
   return {
-    isAnyConnectionActive: items.some(c => c.connected),
     removeItem: (id: string) => connectionTracker.removeItem(id),
-    activateItem: (id: string) =>
-      connectionTracker.activateItem(id, { origin: 'connection_list' }),
     disconnectItem: (id: string) => connectionTracker.disconnectItem(id),
     updateSorting,
     items: getSortedItems(),

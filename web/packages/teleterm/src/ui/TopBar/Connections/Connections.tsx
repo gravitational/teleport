@@ -22,19 +22,23 @@ import { Box, StepSlider } from 'design';
 
 import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
 import { VnetSliderStep, useVnetContext } from 'teleterm/ui/Vnet';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import { useConnections } from './useConnections';
 import { ConnectionsIcon } from './ConnectionsIcon/ConnectionsIcon';
 import { ConnectionsSliderStep } from './ConnectionsSliderStep';
 
 export function Connections() {
+  const { connectionTracker } = useAppContext();
+  connectionTracker.useState();
   const iconRef = useRef();
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
   const connections = useConnections();
   const { updateSorting } = connections;
   const { status: vnetStatus } = useVnetContext();
   const isAnyConnectionActive =
-    connections.isAnyConnectionActive || vnetStatus === 'running';
+    connectionTracker.getConnections().some(c => c.connected) ||
+    vnetStatus === 'running';
 
   const togglePopover = useCallback(() => {
     setIsPopoverOpened(wasOpened => {
@@ -57,7 +61,8 @@ export function Connections() {
 
   function activateItem(id: string): void {
     setIsPopoverOpened(false);
-    connections.activateItem(id);
+
+    connectionTracker.activateItem(id, { origin: 'connection_list' });
   }
 
   // TODO(ravicious): Investigate the problem with height getting temporarily reduced when switching
