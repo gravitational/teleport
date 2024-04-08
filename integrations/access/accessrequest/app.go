@@ -431,7 +431,7 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 		return trace.Wrap(err)
 	}
 
-	if err := a.bot.NotifyUser(ctx, reqID, reqData); err != nil {
+	if err := a.bot.NotifyUser(ctx, reqID, reqData); err != nil && !trace.IsNotImplemented(err) {
 		return trace.Wrap(err)
 	}
 
