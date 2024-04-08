@@ -48,6 +48,7 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/accesslist"
+	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
@@ -60,8 +61,10 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
@@ -73,6 +76,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
@@ -848,6 +852,11 @@ func (c *Client) BotServiceClient() machineidv1pb.BotServiceClient {
 	return machineidv1pb.NewBotServiceClient(c.conn)
 }
 
+// PresenceServiceClient returns an unadorned client for the presence service.
+func (c *Client) PresenceServiceClient() presencepb.PresenceServiceClient {
+	return presencepb.NewPresenceServiceClient(c.conn)
+}
+
 // WorkloadIdentityServiceClient returns an unadorned client for the workload
 // identity service.
 func (c *Client) WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient {
@@ -862,17 +871,6 @@ func (c *Client) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}
 
 	return *rsp, nil
-}
-
-// UpdateRemoteCluster updates remote cluster from the specified value.
-func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error {
-	rcV3, ok := rc.(*types.RemoteClusterV3)
-	if !ok {
-		return trace.BadParameter("unsupported remote cluster type %T", rcV3)
-	}
-
-	_, err := c.grpc.UpdateRemoteCluster(ctx, rcV3)
-	return trace.Wrap(err)
 }
 
 // CreateUser creates a new user from the specified descriptor.
@@ -3471,6 +3469,27 @@ func (c *Client) GetDatabaseObjectImportRules(ctx context.Context) ([]*dbobjecti
 	return out, nil
 }
 
+// GetDatabaseObjects retrieves all database objects.
+func (c *Client) GetDatabaseObjects(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
+	var out []*dbobjectv1.DatabaseObject
+	req := &dbobjectv1.ListDatabaseObjectsRequest{}
+	client := c.DatabaseObjectClient()
+	for {
+		resp, err := client.ListDatabaseObjects(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, resp.Objects...)
+
+		if resp.NextPageToken == "" {
+			break
+		}
+		req.PageToken = resp.NextPageToken
+	}
+
+	return out, nil
+}
+
 // GetWindowsDesktopServices returns all registered windows desktop services.
 func (c *Client) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
 	resp, err := c.grpc.GetWindowsDesktopServices(ctx, &emptypb.Empty{})
@@ -4739,9 +4758,22 @@ func (c *Client) AccessListClient() *accesslist.Client {
 	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(c.conn))
 }
 
+// AccessMonitoringRulesClient returns an Access Monitoring Rules client.
+// Clients connecting to  older Teleport versions, still get an access list client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+func (c *Client) AccessMonitoringRulesClient() *accessmonitoringrules.Client {
+	return accessmonitoringrules.NewClient(accessmonitoringrulev1.NewAccessMonitoringRulesServiceClient(c.conn))
+}
+
 // DatabaseObjectImportRuleClient returns a client for managing database object import rules.
 func (c *Client) DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient {
 	return dbobjectimportrulev1.NewDatabaseObjectImportRuleServiceClient(c.conn)
+}
+
+// DatabaseObjectClient returns a client for managing database objects.
+func (c *Client) DatabaseObjectClient() dbobjectv1.DatabaseObjectServiceClient {
+	return dbobjectv1.NewDatabaseObjectServiceClient(c.conn)
 }
 
 // DiscoveryConfigClient returns a DiscoveryConfig client.
@@ -4990,4 +5022,49 @@ func (c *Client) UpsertUserPreferences(ctx context.Context, in *userpreferencesp
 // "not implemented" errors (as per the default gRPC behavior).
 func (c *Client) ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient {
 	return resourceusagepb.NewResourceUsageServiceClient(c.conn)
+}
+
+// UpdateRemoteCluster updates remote cluster from the specified value.
+// TODO(noah): In v17.0.0 this method should switch to call UpdateRemoteCluster
+// on the presence service client.
+func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error {
+	rcV3, ok := rc.(*types.RemoteClusterV3)
+	if !ok {
+		return trace.BadParameter("unsupported remote cluster type %T", rcV3)
+	}
+
+	_, err := c.grpc.UpdateRemoteCluster(ctx, rcV3)
+	return trace.Wrap(err)
+}
+
+// ListRemoteClusters returns a page of remote clusters.
+func (c *Client) ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error) {
+	res, err := c.PresenceServiceClient().ListRemoteClusters(ctx, &presencepb.ListRemoteClustersRequest{
+		PageSize:  int32(pageSize),
+		PageToken: nextToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	rcs := make([]types.RemoteCluster, 0, len(res.RemoteClusters))
+	for _, rc := range res.RemoteClusters {
+		rcs = append(rcs, rc)
+	}
+	return rcs, res.NextPageToken, nil
+}
+
+// DeleteRemoteCluster creates remote cluster resource
+func (c *Client) DeleteRemoteCluster(ctx context.Context, name string) error {
+	_, err := c.PresenceServiceClient().DeleteRemoteCluster(ctx, &presencepb.DeleteRemoteClusterRequest{
+		Name: name,
+	})
+	return trace.Wrap(err)
+}
+
+// GetRemoteCluster returns remote cluster by name
+func (c *Client) GetRemoteCluster(ctx context.Context, name string) (types.RemoteCluster, error) {
+	rc, err := c.PresenceServiceClient().GetRemoteCluster(ctx, &presencepb.GetRemoteClusterRequest{
+		Name: name,
+	})
+	return rc, trace.Wrap(err)
 }

@@ -659,7 +659,7 @@
               "slug": "/management/dynamic-resources/teleport-operator-standalone/"
             },
             {
-              "title": "Terraform Provider",
+              "title": "Set up the Terraform Provider",
               "slug": "/management/dynamic-resources/terraform-provider/"
             }
           ]
@@ -1401,6 +1401,10 @@
             {
               "title": "PostgreSQL",
               "slug": "/database-access/auto-user-provisioning/postgres/"
+            },
+            {
+              "title": "Database Access Controls",
+              "slug": "/database-access/auto-user-provisioning/database-access-controls/"
             }
           ]
         },
@@ -1623,6 +1627,24 @@
             {
               "title": "Upgrading to v14",
               "slug": "/machine-id/reference/v14-upgrade-guide/"
+            }
+          ]
+        },
+        {
+          "title": "Workload Identity (SPIFFE)",
+          "slug": "/machine-id/workload-identity/",
+          "entries": [
+            {
+              "title": "Getting Started",
+              "slug": "/machine-id/workload-identity/getting-started/"
+            },
+            {
+              "title": "Best Practices",
+              "slug": "/machine-id/workload-identity/best-practices/"
+            },
+            {
+              "title": "Tsh Support",
+              "slug": "/machine-id/workload-identity/tsh/"
             }
           ]
         },
@@ -1863,7 +1885,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "15.1.10",
+      "version": "15.2.0",
       "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",

@@ -255,6 +255,9 @@ type InitConfig struct {
 	// DatabaseObjectImportRule is a service that manages database object import rules.
 	DatabaseObjectImportRules services.DatabaseObjectImportRules
 
+	// DatabaseObject is a service that manages database objects.
+	DatabaseObjects services.DatabaseObjects
+
 	// UserLoginStates is a service that manages user login states.
 	UserLoginState services.UserLoginStates
 
@@ -283,6 +286,9 @@ type InitConfig struct {
 
 	// AccessMonitoringEnabled is true if access monitoring is enabled.
 	AccessMonitoringEnabled bool
+
+	// AccessMonitoringRules is a service that manages access monitoring rules.
+	AccessMonitoringRules services.AccessMonitoringRules
 
 	// CloudClients provides clients for various cloud providers.
 	CloudClients cloud.Clients

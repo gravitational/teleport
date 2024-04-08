@@ -196,6 +196,7 @@ func makeUserWithAWSRole(t *testing.T) (types.User, types.Role) {
 	return alice, awsRole
 }
 
+// deprecated: Use `tools/teleport/testenv.MakeTestServer` instead.
 func makeTestApplicationServer(t *testing.T, proxy *service.TeleportProcess, apps ...servicecfg.App) *service.TeleportProcess {
 	// Proxy uses self-signed certificates in tests.
 	lib.SetInsecureDevMode(true)

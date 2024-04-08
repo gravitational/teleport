@@ -30,8 +30,6 @@ interface FilterableListProps<T> {
   onFilterChange?(filter: string): void;
 }
 
-const maxItemsToShow = 10;
-
 export function FilterableList<T>(
   props: React.PropsWithChildren<FilterableListProps<T>>
 ) {
@@ -39,8 +37,7 @@ export function FilterableList<T>(
   const [searchValue, setSearchValue] = useState<string>();
 
   const filteredItems = useMemo(
-    () =>
-      filterItems(searchValue, items, props.filterBy).slice(0, maxItemsToShow),
+    () => filterItems(searchValue, items, props.filterBy),
     [items, searchValue]
   );
 
@@ -84,7 +81,7 @@ const UnorderedList = styled.ul`
 `;
 
 const StyledInput = styled(Input)`
-  background: inherit;
+  background-color: inherit;
   border-radius: 51px;
   margin-bottom: 8px;
   font-size: 14px;
