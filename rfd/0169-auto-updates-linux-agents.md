@@ -267,8 +267,7 @@ $ tctl autoupdate get
 
 ### Installers
 
-The following install scripts will install the latest updater and run `teleport-updater enable` with the proxy address:
-
+The following install scripts will be updated to install the latest updater and run `teleport-updater enable` with the proxy address:
 - https://github.com/gravitational/teleport/blob/d0a68fd82412b48cb54f664ae8500f625fb91e48/api/types/installers/agentless-installer.sh.tmpl
 - https://github.com/gravitational/teleport/blob/d0a68fd82412b48cb54f664ae8500f625fb91e48/api/types/installers/installer.sh.tmpl
 - https://github.com/gravitational/teleport/blob/d0a68fd82412b48cb54f664ae8500f625fb91e48/lib/web/scripts/oneoff/oneoff.sh
