@@ -2735,11 +2735,18 @@ type fakeAccessPoint struct {
 	kube                types.KubeCluster
 	database            types.Database
 	upsertedServerInfos chan types.ServerInfo
+	reports             map[string][]discoveryconfig.Status
+}
+
+func (f *fakeAccessPoint) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
+	f.reports[name] = append(f.reports[name], status)
+	return nil, nil
 }
 
 func newFakeAccessPoint() *fakeAccessPoint {
 	return &fakeAccessPoint{
 		upsertedServerInfos: make(chan types.ServerInfo),
+		reports:             make(map[string][]discoveryconfig.Status),
 	}
 }
 

@@ -131,10 +131,11 @@ func (r *Resources) count() int {
 	elem := reflect.ValueOf(r).Elem()
 	sum := 0
 	for i := 0; i < elem.NumField(); i++ {
-		if elem.Field(i).IsValid() {
-			switch elem.Field(i).Kind() {
+		field := elem.Field(i)
+		if field.IsValid() {
+			switch field.Kind() {
 			case reflect.Slice:
-				sum += elem.Field(i).Len()
+				sum += field.Len()
 			}
 		}
 	}
