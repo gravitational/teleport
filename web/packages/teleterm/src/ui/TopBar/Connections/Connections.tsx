@@ -70,19 +70,22 @@ export function Connections() {
   // We aim to replace the sliding animation with an expanding animation before the release, so it
   // might not be worth the effort.
   const sliderSteps = [
-    (props: StepComponentProps) => (
-      <Box p={2} ref={props.refCallback}>
-        <KeyboardArrowsNavigation>
-          <ConnectionsFilterableList
-            items={connections.items}
-            onActivateItem={activateItem}
-            onRemoveItem={connections.removeItem}
-            onDisconnectItem={connections.disconnectItem}
-            slideToVnet={props.next}
-          />
-        </KeyboardArrowsNavigation>
-      </Box>
-    ),
+    (props: StepComponentProps) => {
+      console.log('rendering slider step');
+      return (
+        <Box p={2} ref={props.refCallback}>
+          <KeyboardArrowsNavigation>
+            <ConnectionsFilterableList
+              items={connections.items}
+              onActivateItem={activateItem}
+              onRemoveItem={connections.removeItem}
+              onDisconnectItem={connections.disconnectItem}
+              slideToVnet={props.next}
+            />
+          </KeyboardArrowsNavigation>
+        </Box>
+      );
+    },
     VnetSliderStep,
   ];
 

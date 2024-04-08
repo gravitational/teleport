@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useRef, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Flex, Label, Text } from 'design';
 
 import styled from 'styled-components';
@@ -33,16 +33,17 @@ interface ClusterItemProps {
 }
 
 export function ClusterItem(props: ClusterItemProps) {
-  const { isActive, scrollIntoViewIfActive } = useKeyboardArrowsNavigation({
-    index: props.index,
-    onRun: props.onSelect,
-  });
-  const ref = useRef<HTMLElement>();
+  const { isActive, scrollIntoViewIfActive, ref } = useKeyboardArrowsNavigation(
+    {
+      index: props.index,
+      onRun: props.onSelect,
+    }
+  );
 
   const clusterName = props.item.name;
 
   useEffect(() => {
-    scrollIntoViewIfActive(ref.current);
+    scrollIntoViewIfActive();
   }, [scrollIntoViewIfActive]);
 
   return (

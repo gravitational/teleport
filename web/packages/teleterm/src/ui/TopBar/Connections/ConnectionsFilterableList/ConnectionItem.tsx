@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { ButtonIcon, Flex, Text } from 'design';
 import { Trash, Unlink } from 'design/Icon';
 
@@ -41,10 +41,12 @@ interface ConnectionItemProps {
 
 export function ConnectionItem(props: ConnectionItemProps) {
   const offline = !props.item.connected;
-  const { isActive, scrollIntoViewIfActive } = useKeyboardArrowsNavigation({
-    index: props.index,
-    onRun: props.onActivate,
-  });
+  const { isActive, scrollIntoViewIfActive, ref } = useKeyboardArrowsNavigation(
+    {
+      index: props.index,
+      onRun: props.onActivate,
+    }
+  );
 
   const actionIcons = {
     disconnect: {
@@ -60,10 +62,9 @@ export function ConnectionItem(props: ConnectionItemProps) {
   };
 
   const actionIcon = offline ? actionIcons.remove : actionIcons.disconnect;
-  const ref = useRef<HTMLElement>();
 
   useEffect(() => {
-    scrollIntoViewIfActive(ref.current);
+    scrollIntoViewIfActive();
   }, [scrollIntoViewIfActive]);
 
   return (

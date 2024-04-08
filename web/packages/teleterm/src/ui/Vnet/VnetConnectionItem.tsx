@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { forwardRef, useEffect, useRef } from 'react';
+import React, { forwardRef, useEffect } from 'react';
 import styled from 'styled-components';
 import { Text, ButtonIcon, Flex, rotate360 } from 'design';
 import * as icons from 'design/Icon';
@@ -37,15 +37,15 @@ export const VnetConnectionItem = (props: {
   index: number;
   title: string;
 }) => {
-  const { isActive, scrollIntoViewIfActive } = useKeyboardArrowsNavigation({
-    index: props.index,
-    onRun: props.openVnetPanel,
-  });
-
-  const ref = useRef<HTMLElement>();
+  const { isActive, scrollIntoViewIfActive, ref } = useKeyboardArrowsNavigation(
+    {
+      index: props.index,
+      onRun: props.openVnetPanel,
+    }
+  );
 
   useEffect(() => {
-    scrollIntoViewIfActive(ref.current);
+    scrollIntoViewIfActive();
   }, [scrollIntoViewIfActive]);
 
   return (

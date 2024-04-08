@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useContext, useEffect } from 'react';
+import { useCallback, useContext, useEffect, useRef } from 'react';
 
 import {
   KeyboardArrowsNavigationContext,
@@ -42,41 +42,44 @@ export function useKeyboardArrowsNavigation({
     );
   }
 
-  useEffect(() => {
-    navigationContext.addItem(index, onRun);
+  const { addItem, removeItem } = navigationContext;
 
-    return () => navigationContext.removeItem(index);
-  }, [index, onRun, navigationContext.addItem, navigationContext.removeItem]);
+  const ref = useRef<HTMLElement>();
+
+  useEffect(() => {
+    addItem(index, ref.current, onRun);
+
+    return () => removeItem(index);
+  }, [index, onRun, addItem, removeItem]);
 
   const isActive = index === navigationContext.activeIndex;
 
-  const scrollIntoViewIfActive = useCallback(
-    (el: HTMLElement | undefined) => {
-      if (!isActive || !el) {
-        return;
-      }
+  const scrollIntoViewIfActive = useCallback(() => {
+    if (!isActive || !ref.current) {
+      return;
+    }
 
-      // By default, scrollIntoView uses 'start'. This is a problem in two cases:
-      //
-      // 1. When scrolling from the last to the first element, the top of the scrollable area gets
-      // aligned to the top of the first active element, not to the top of the parent container.
-      // 2. When scrolling from any other element to the next one, the scrollable area gets aligned
-      // to the top of the active element, meaning that the previous element immediately disappears.
-      //
-      // 'center' fixes both problems, while being closer than 'nearest' to how the browser adjusts
-      // the scrollable area when tabbing through focusable elements. It ensures that you see what's
-      // after and before the active element.
-      //
-      // Compared to 'nearest', it also makes sure that the scrollable area is aligned to its bottom
-      // when scrolling to the last element – 'nearest' aligns it to the bottom of the active item.
-      el.scrollIntoView({ block: 'center' });
-    },
-    [isActive]
-  );
+    // By default, scrollIntoView uses 'start'. This is a problem in two cases:
+    //
+    // 1. When scrolling from the last to the first element, the top of the scrollable area gets
+    // aligned to the top of the first active element, not to the top of the parent container.
+    // 2. When scrolling from any other element to the next one, the scrollable area gets aligned
+    // to the top of the active element, meaning that the previous element immediately disappears.
+    //
+    // 'center' fixes both problems, while being closer than 'nearest' to how the browser adjusts
+    // the scrollable area when tabbing through focusable elements. It ensures that you see what's
+    // after and before the active element.
+    //
+    // Compared to 'nearest', it also makes sure that the scrollable area is aligned to its bottom
+    // when scrolling to the last element – 'nearest' aligns it to the bottom of the active item.
+    ref.current.scrollIntoView({ block: 'center' });
+  }, [isActive]);
 
   return {
     isActive,
     scrollIntoViewIfActive,
+    // TODO: Add JSDoc.
+    ref,
   };
 }
 

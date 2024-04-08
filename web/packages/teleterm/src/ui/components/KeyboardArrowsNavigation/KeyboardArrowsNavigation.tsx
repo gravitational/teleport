@@ -30,30 +30,34 @@ export type RunActiveItemHandler = () => void;
 export const KeyboardArrowsNavigationContext = createContext<{
   activeIndex: number;
   setActiveIndex(index: number): void;
-  addItem(index: number, onRunActiveItem: RunActiveItemHandler): void;
+  addItem(
+    index: number,
+    el: HTMLElement,
+    onRunActiveItem: RunActiveItemHandler
+  ): void;
   removeItem(index: number): void;
 }>(null);
 
-enum KeyboardArrowNavigationKeys {
-  ArrowDown = 'ArrowDown',
-  ArrowUp = 'ArrowUp',
-  Enter = 'Enter',
-}
+type NavigationItem = {
+  handler: RunActiveItemHandler;
+  el: HTMLElement;
+};
 
 export const KeyboardArrowsNavigation: FC<PropsWithChildren> = props => {
-  const [items, setItems] = useState<RunActiveItemHandler[]>([]);
+  const [items, setItems] = useState<NavigationItem[]>([]);
   const [activeIndex, setActiveIndex] = useState<number>(-1);
 
   const addItem = useCallback(
-    (index: number, onRun: RunActiveItemHandler): void => {
+    (index: number, el: HTMLElement, onRun: RunActiveItemHandler): void => {
       setItems(prevItems => {
         const newItems = [...prevItems];
-        if (newItems[index] === onRun) {
+
+        if (newItems[index]?.handler === onRun) {
           throw new Error(
             'Tried to override an index with the same `onRun()` callback.'
           );
         }
-        newItems[index] = onRun;
+        newItems[index] = { handler: onRun, el };
         return newItems;
       });
     },
@@ -72,20 +76,59 @@ export const KeyboardArrowsNavigation: FC<PropsWithChildren> = props => {
   );
 
   function handleKeyDown(event: React.KeyboardEvent): void {
-    if (Object.keys(KeyboardArrowNavigationKeys).includes(event.key)) {
-      event.stopPropagation();
-      event.preventDefault();
-    }
-
     switch (event.key) {
       case 'ArrowDown':
+        event.stopPropagation();
+        event.preventDefault();
+
         setActiveIndex(getNextIndex(items, activeIndex));
         break;
       case 'ArrowUp':
+        event.stopPropagation();
+        event.preventDefault();
+
         setActiveIndex(getPreviousIndex(items, activeIndex));
         break;
-      case 'Enter':
-        items[activeIndex]?.();
+      case 'Enter': {
+        const activeEl = items[activeIndex]?.el;
+
+        if (!activeEl) {
+          return;
+        }
+
+        // TODO: Add comment.
+        // Some navigation items might include additional buttons which can be navigated to with
+        // Tab. In that case, we want to trigger the handler of the active item only if the element
+        // on which Enter was pressed matches the el that represents the active item.
+
+        // The search input is focused at all times when using arrows and pressing enters. However,
+        // when the focus is switched with tab, then the focused element is actually the button
+        // inside a ListItem. Hence we check if activeEl (ListItem) contains event.target (the
+        // button inside ListItem). This returns false if the focused element is the search input.
+        if (activeEl.contains(event.target as Node)) {
+          console.log('returning because active el contains event.target', {
+            target: event.target,
+            activeEl,
+          });
+          return;
+        }
+
+        // TODO: The biggest problem is that with how the filterable list + keyboard navigation is
+        // currently written, the HTML focus stays on the search input.
+        //
+        // This means that if you press a down arrow twice and then press tab, the focus changes
+        // from the search input to a button next to the first list item. We could fix that by
+        // moving the HTML focus to the active item when pressing arrows. But then after you press
+        // an arrow you'd no longer be able to type.
+        //
+        // Ideally, all key down inputs besides up/down arrow and enter should reset the focus back
+        // to the search input and forward that keypress to the input.
+
+        event.stopPropagation();
+        event.preventDefault();
+
+        items[activeIndex]?.handler();
+      }
     }
   }
 
@@ -106,10 +149,7 @@ export const KeyboardArrowsNavigation: FC<PropsWithChildren> = props => {
   );
 };
 
-function getNextIndex(
-  items: RunActiveItemHandler[],
-  currentIndex: number
-): number {
+function getNextIndex<Item>(items: Item[], currentIndex: number): number {
   for (let i = currentIndex + 1; i < items.length; ++i) {
     if (items[i]) {
       return i;
@@ -126,10 +166,7 @@ function getNextIndex(
   return currentIndex;
 }
 
-function getPreviousIndex(
-  items: RunActiveItemHandler[],
-  currentIndex: number
-): number {
+function getPreviousIndex<Item>(items: Item[], currentIndex: number): number {
   for (let i = currentIndex - 1; i >= 0; --i) {
     if (items[i]) {
       return i;
