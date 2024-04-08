@@ -63,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
+	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 )
 
@@ -596,7 +597,7 @@ func (rc *ResourceCommand) createBot(ctx context.Context, client *auth.Client, r
 }
 
 func (rc *ResourceCommand) createDatabaseObjectImportRule(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
-	rule, err := services.UnmarshalDatabaseObjectImportRule(raw.Raw)
+	rule, err := databaseobjectimportrule.UnmarshalJSON(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}

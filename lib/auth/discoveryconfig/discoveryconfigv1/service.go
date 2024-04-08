@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	conv "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
@@ -157,6 +158,10 @@ func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
+	// Set the status to an empty struct to clear any status that may have been set
+	// in the request.
+	dc.Status = discoveryconfig.Status{}
+
 	resp, err := s.backend.CreateDiscoveryConfig(ctx, dc)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -181,6 +186,13 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
+	// Set the status to the existing status to ensure it is not cleared.
+	oldDiscoveryConfig, err := s.backend.GetDiscoveryConfig(ctx, dc.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dc.Status = oldDiscoveryConfig.Status
+
 	resp, err := s.backend.UpdateDiscoveryConfig(ctx, dc)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -204,6 +216,10 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Set the status to an empty struct to clear any status that may have been set
+	// in the request.
+	dc.Status = discoveryconfig.Status{}
 
 	resp, err := s.backend.UpsertDiscoveryConfig(ctx, dc)
 	if err != nil {
@@ -247,4 +263,37 @@ func (s *Service) DeleteAllDiscoveryConfigs(ctx context.Context, _ *discoverycon
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// UpdateDiscoveryConfigStatus updates the status of a DiscoveryConfig.
+func (s *Service) UpdateDiscoveryConfigStatus(ctx context.Context, req *discoveryconfigv1.UpdateDiscoveryConfigStatusRequest) (*discoveryconfigv1.DiscoveryConfig, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleDiscovery)) {
+		return nil, trace.AccessDenied("UpdateDiscoveryConfigStatus request can be only executed by a Discovery Service")
+	}
+
+	for {
+		dc, err := s.backend.GetDiscoveryConfig(ctx, req.GetName())
+		switch {
+		case trace.IsNotFound(err):
+			return nil, trace.NotFound("discovery config %q not found", req.GetName())
+		case err != nil:
+			return nil, trace.Wrap(err)
+		}
+
+		dc.Status = conv.StatusFromProto(req.GetStatus())
+		resp, err := s.backend.UpdateDiscoveryConfig(ctx, dc)
+		if err != nil {
+			if trace.IsCompareFailed(err) {
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		return conv.ToProto(resp), nil
+	}
 }
