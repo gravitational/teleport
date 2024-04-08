@@ -726,5 +726,6 @@ func getAccessGraphTLSConfig(cfg *AccessGraphConfig, tlsConfig *tls.Config) (*tl
 	tlsConfig.NextProtos = []string{accessGraphStaticFileServerALPN, string(alpncommon.ProtocolHTTP2), string(alpncommon.ProtocolHTTP)}
 	tlsConfig.InsecureSkipVerify = cfg.Insecure
 	tlsConfig.RootCAs = caPool
+	tlsConfig.ServerName = "" /* empty server name to avoid SNI */
 	return tlsConfig, nil
 }
