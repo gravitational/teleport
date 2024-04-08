@@ -210,7 +210,7 @@ type FileLoggerOptions = {
   omitTimestamp?: boolean;
 };
 
-/** Does not stringify messages and logs directly using `console.x` functions. */
+/** Does not stringify messages and logs directly using `console.*` functions. */
 function getBrowserConsoleTransport(opts: FileLoggerOptions) {
   return new transports.Console({
     log({ level, message, context }: Logform.TransformableInfo, next) {
