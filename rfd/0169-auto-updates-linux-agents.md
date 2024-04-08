@@ -265,13 +265,29 @@ $ tctl autoupdate get
 {"agent_version": "2.0.0", "agent_edition": "enterprise", ... }
 ```
 
-### Scripts
+### Installers
 
-All scripts will install the latest updater and run `teleport-updater enable` with the proxy address.
+The following install scripts will install the latest updater and run `teleport-updater enable` with the proxy address:
+
+- https://github.com/gravitational/teleport/blob/d0a68fd82412b48cb54f664ae8500f625fb91e48/api/types/installers/agentless-installer.sh.tmpl
+- https://github.com/gravitational/teleport/blob/d0a68fd82412b48cb54f664ae8500f625fb91e48/api/types/installers/installer.sh.tmpl
+- https://github.com/gravitational/teleport/blob/d0a68fd82412b48cb54f664ae8500f625fb91e48/lib/web/scripts/oneoff/oneoff.sh
+- https://github.com/gravitational/teleport/blob/d0a68fd82412b48cb54f664ae8500f625fb91e48/lib/web/scripts/node-join/install.sh
+- https://github.com/gravitational/teleport/blob/d0a68fd82412b48cb54f664ae8500f625fb91e48/assets/aws/files/install-hardened.sh
 
 Eventually, additional logic from the scripts could be added to `teleport-updater`, such that `teleport-updater` can configure teleport.
 
-This is out-of-scope for this proposal.
+Moving additional logic into the upgrader is out-of-scope for this proposal.
+
+### Documentation
+
+The following documentation will need to be updated to cover the new upgrader workflow:
+- https://goteleport.com/docs/choose-an-edition/teleport-cloud/downloads
+- https://goteleport.com/docs/installation
+- https://goteleport.com/docs/upgrading/self-hosted-linux
+- https://goteleport.com/docs/upgrading/self-hosted-automatic-agent-updates
+
+Additionally, the Cloud dashboard tenants downloads tab will need to be updated to reference the new instructions.
 
 ## Security
 
