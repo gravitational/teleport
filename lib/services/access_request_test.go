@@ -1869,7 +1869,7 @@ func TestCalculatePendingRequesTTL(t *testing.T) {
 			request.SetExpiry(tt.requestPendingExpiryTTL)
 			request.SetAccessExpiry(now.Add(tt.accessExpiryTTL))
 
-			ttl, err := validator.calculatePendingRequestTTL(request)
+			ttl, err := validator.calculatePendingRequestTTL(request, now)
 			tt.assertion(t, err)
 			if err == nil {
 				require.Equal(t, tt.expectedDuration, ttl)
@@ -1943,7 +1943,7 @@ func TestSessionTTL(t *testing.T) {
 			request.SetAccessExpiry(tt.accessExpiry)
 			require.NoError(t, err)
 
-			ttl, err := validator.sessionTTL(context.Background(), tt.identity, request)
+			ttl, err := validator.sessionTTL(context.Background(), tt.identity, request, now)
 			tt.assertion(t, err)
 			if err == nil {
 				require.Equal(t, tt.expectedTTL, ttl)
