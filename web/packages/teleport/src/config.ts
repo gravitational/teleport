@@ -211,7 +211,7 @@ const cfg = {
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
 
-    // TODO(zmb3): remove this for v15
+    // TODO(zmb3): remove this when Assist is no longer using it
     sshPlaybackPrefix: '/v1/webapi/sites/:clusterId/sessions/:sid', // prefix because this is eventually concatenated with "/stream" or "/events"
     kubernetesPath:
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
@@ -638,7 +638,7 @@ const cfg = {
   },
 
   getSshPlaybackPrefixUrl({ clusterId, sid }: UrlParams) {
-    // TODO(zmb3): remove
+    // TODO(zmb3): remove this when Assist is no longer using it
     return generatePath(cfg.api.sshPlaybackPrefix, { clusterId, sid });
   },
 

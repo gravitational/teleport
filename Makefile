@@ -974,13 +974,13 @@ lint: lint-api lint-go lint-kube-agent-updater lint-tools lint-protos lint-no-ac
 # Similar to lint.
 #
 .PHONY: lint-no-actions
-lint-no-actions: lint-sh lint-helm lint-license lint-rust
+lint-no-actions: lint-sh lint-helm lint-license
 
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-backport
 
 #
-# Runs the clippy linter on our rust modules
+# Runs the clippy linter and rustfmt on our rust modules
 # (a no-op if cargo and rustc are not installed)
 #
 ifneq ($(CHECK_RUST),)
@@ -1327,10 +1327,14 @@ buf/installed:
 		exit 1; \
 	fi
 
+GODERIVE := $(TOOLINGDIR)/bin/goderive
 # derive will generate derived functions for our API.
+# we need to build goderive first otherwise it will not be able to resolve dependencies
+# in the api/types/discoveryconfig package
 .PHONY: derive
 derive:
-	cd $(TOOLINGDIR) && go run ./cmd/goderive/main.go ../../api/types
+	cd $(TOOLINGDIR) && go build  -o $(GODERIVE) ./cmd/goderive/main.go
+	$(GODERIVE) ./api/types ./api/types/discoveryconfig
 
 # derive-up-to-date checks if the generated derived functions are up to date.
 .PHONY: derive-up-to-date
