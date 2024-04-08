@@ -41,8 +41,6 @@ The migration process involves transferring configurations, migrating Teleport a
 
 </Admonition>
 
-
-
 - Subscribe to the [Teleport Cloud status website](https://status.teleport.sh/) to stay current on any issues impacting Teleport Cloud performance.
 
 2.  ### Validate connectivity  
@@ -55,7 +53,7 @@ $ tsh login --proxy=example.teleport.sh --user=admin@example.com
 $ tsh status && tctl status
 ```
 
-If you can connect to the cluster and run the tctl status command, you can use your current credentials to run subsequent tctl commands from your workstation.
+If you can connect to the cluster and run the `tctl status` command, you can use your current credentials to run subsequent tctl commands from your workstation.
 
 3. ### Migrate Teleport Configurations.
 
@@ -134,7 +132,7 @@ proxy_server:
 Note: ​​Migration of agents can be done all at once or gradually, depending on your business requirements. If running teleport at scale, you'll generally want to leverage the use of a configuration management tool to automate and streamline the process of carrying out the actions involved in migrating agent configurations. 
 
 
-### Verify end User Access and performance.
+4. ### Verify end User Access and performance.
 
 Once the migration is complete, validate that the resources are present in the Teleport cluster and verify their status and connectivity to ensure they are properly registered and available for connections. You can either check via the Web UI or use tctl to get a list of all resources and verify their registration and status. 
 
