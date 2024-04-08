@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { render, screen } from 'design/utils/testing';
+import { render, screen, fireEvent, waitFor } from 'design/utils/testing';
 import userEvent from '@testing-library/user-event';
 
 import {
@@ -54,17 +54,21 @@ test('user acknowledging script was ran when s3 bucket fields are edited', async
   expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
 
   // Fill in the s3 prefix field.
-  await userEvent.type(screen.getByPlaceholderText(/prefix/i), 'test-value');
-
+  fireEvent.change(screen.getByPlaceholderText(/prefix/i), {
+    target: { value: 'test-value' },
+  });
+  await waitFor(() =>
+    expect(
+      screen.getByRole('button', { name: /generate command/i })
+    ).toBeEnabled()
+  );
   // When clicking on generate command:
   //  - script rendered
   //  - checkbox to confirm user has ran command
   //  - edit button replaces generate command button
   //  - save button still disabled
-  await userEvent.click(
-    screen.getByRole('button', { name: /generate command/i })
-  );
-  screen.getByRole('button', { name: /edit/i });
+  userEvent.click(screen.getByRole('button', { name: /generate command/i }));
+  await screen.findByRole('button', { name: /edit/i });
   expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
   expect(
     screen.queryByRole('button', { name: /generate command/i })
@@ -73,19 +77,25 @@ test('user acknowledging script was ran when s3 bucket fields are edited', async
   expect(screen.getByTestId('scriptbox')).toBeInTheDocument();
 
   // Click on checkbox should enable save button and disable edit button.
-  await userEvent.click(screen.getByRole('checkbox'));
-  expect(screen.getByRole('button', { name: /save/i })).toBeEnabled();
+  userEvent.click(screen.getByRole('checkbox'));
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /save/i })).toBeEnabled()
+  );
   expect(screen.getByRole('button', { name: /edit/i })).toBeDisabled();
 
   // Unchecking the checkbox should disable save button.
-  await userEvent.click(screen.getByRole('checkbox'));
-  expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+  userEvent.click(screen.getByRole('checkbox'));
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /save/i })).toBeDisabled()
+  );
 
   // Click on edit, should replace it with generate command
-  await userEvent.click(screen.getByRole('button', { name: /edit/i }));
-  expect(
-    screen.getByRole('button', { name: /generate command/i })
-  ).toBeEnabled();
+  userEvent.click(screen.getByRole('button', { name: /edit/i }));
+  await waitFor(() =>
+    expect(
+      screen.getByRole('button', { name: /generate command/i })
+    ).toBeEnabled()
+  );
 });
 
 test('render warning on save when leaving s3 fields empty', async () => {
@@ -116,26 +126,43 @@ test('render warning on save when leaving s3 fields empty', async () => {
     screen.queryByRole('button', { name: /generate command/i })
   ).not.toBeInTheDocument();
 
-  // Enable the save button by changing a field.
-  await userEvent.type(
-    screen.getByPlaceholderText(/arn:aws:iam:/i),
-    'arn:aws:iam::123456789012:role/someonelse'
+  // Enable the generate command button by changing a field.
+  fireEvent.change(screen.getByPlaceholderText(/arn:aws:iam:/i), {
+    target: { value: 'arn:aws:iam::123456789012:role/someonelse' },
+  });
+  await waitFor(() =>
+    expect(
+      screen.getByRole('button', { name: /generate command/i })
+    ).toBeEnabled()
+  );
+
+  expect(screen.queryByTestId('checkbox')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+
+  userEvent.click(screen.getByRole('button', { name: /generate command/i }));
+  await screen.findByRole('button', { name: /edit/i });
+  expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+
+  userEvent.click(screen.getByTestId('checkbox'));
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /save/i })).toBeEnabled()
   );
 
   // Clicking on save without defining s3 fields, should render
   // a warning.
-  await userEvent.click(screen.getByRole('button', { name: /save/i }));
+  userEvent.click(screen.getByRole('button', { name: /save/i }));
+  await screen.findByText(/recommended to use an S3 bucket/i);
   expect(edit).not.toHaveBeenCalled();
-  expect(
-    screen.getByText(/recommended to use an S3 bucket/i)
-  ).toBeInTheDocument();
 
   // Canceling and saving should re-render the warning.
-  await userEvent.click(screen.getByRole('button', { name: /cancel/i }));
-  await userEvent.click(screen.getByRole('button', { name: /save/i }));
+  userEvent.click(screen.getByRole('button', { name: /cancel/i }));
+  await screen.findByRole('button', { name: /save/i });
 
-  await userEvent.click(screen.getByRole('button', { name: /continue/i }));
-  expect(edit).toHaveBeenCalledTimes(1);
+  userEvent.click(screen.getByRole('button', { name: /save/i }));
+  await screen.findByText(/recommended to use an S3 bucket/i);
+
+  userEvent.click(screen.getByRole('button', { name: /continue/i }));
+  await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
 });
 
 test('render warning on save when deleting existing s3 fields', async () => {
@@ -163,22 +190,40 @@ test('render warning on save when deleting existing s3 fields', async () => {
   ).not.toBeInTheDocument();
 
   // Delete the s3 fields.
-  await userEvent.clear(screen.getByPlaceholderText(/bucket/i));
-  await userEvent.clear(screen.getByPlaceholderText(/prefix/i));
+  fireEvent.change(screen.getByPlaceholderText(/bucket/i), {
+    target: { value: '' },
+  });
+  fireEvent.change(screen.getByPlaceholderText(/prefix/i), {
+    target: { value: '' },
+  });
+  await waitFor(() =>
+    expect(
+      screen.getByRole('button', { name: /generate command/i })
+    ).toBeEnabled()
+  );
 
-  expect(
-    screen.queryByRole('button', { name: /generate command/i })
-  ).not.toBeInTheDocument();
+  expect(screen.queryByTestId('checkbox')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+
+  userEvent.click(screen.getByRole('button', { name: /generate command/i }));
+  await screen.findByRole('button', { name: /edit/i });
+  expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+
+  userEvent.click(screen.getByTestId('checkbox'));
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /save/i })).toBeEnabled()
+  );
 
   // Test for warning render.
-  await userEvent.click(screen.getByRole('button', { name: /save/i }));
+  userEvent.click(screen.getByRole('button', { name: /save/i }));
+  await screen.findByText(/recommended to use an S3 bucket/i);
   expect(edit).not.toHaveBeenCalled();
   expect(
     screen.getByText(/recommended to use an S3 bucket/i)
   ).toBeInTheDocument();
 
-  await userEvent.click(screen.getByRole('button', { name: /continue/i }));
-  expect(edit).toHaveBeenCalledTimes(1);
+  userEvent.click(screen.getByRole('button', { name: /continue/i }));
+  await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
 });
 
 test('edit invalid fields', async () => {
@@ -193,13 +238,18 @@ test('edit invalid fields', async () => {
   expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
 
   // invalid role arn
-  await userEvent.type(
-    screen.getByPlaceholderText(/arn:aws:iam:/i),
-    'role something else'
+  fireEvent.change(screen.getByPlaceholderText(/arn:aws:iam:/i), {
+    target: { value: 'role something else' },
+  });
+
+  await waitFor(() =>
+    expect(
+      screen.getByRole('button', { name: /generate command/i })
+    ).toBeEnabled()
   );
 
-  await userEvent.click(screen.getByRole('button', { name: /save/i }));
-  expect(screen.getByText(/invalid role ARN format/i)).toBeInTheDocument();
+  userEvent.click(screen.getByRole('button', { name: /generate command/i }));
+  await screen.findByText(/invalid role ARN format/i);
 });
 
 test('edit submit called with proper fields', async () => {
@@ -215,23 +265,33 @@ test('edit submit called with proper fields', async () => {
   expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
 
   // change role arn
-  await userEvent.clear(screen.getByPlaceholderText(/arn:aws:iam:/i));
-  await userEvent.type(
-    screen.getByPlaceholderText(/arn:aws:iam:/i),
-    'arn:aws:iam::123456789011:role/other'
-  );
+  fireEvent.change(screen.getByPlaceholderText(/arn:aws:iam:/i), {
+    target: { value: 'arn:aws:iam::123456789011:role/other' },
+  });
 
   // change s3 fields
-  await userEvent.clear(screen.getByPlaceholderText(/bucket/i));
-  await userEvent.type(screen.getByPlaceholderText(/bucket/i), 'other-bucket');
-  await userEvent.clear(screen.getByPlaceholderText(/prefix/i));
-  await userEvent.type(screen.getByPlaceholderText(/prefix/i), 'other-prefix');
+  fireEvent.change(screen.getByPlaceholderText(/bucket/i), {
+    target: { value: 'other-bucket' },
+  });
+  fireEvent.change(screen.getByPlaceholderText(/prefix/i), {
+    target: { value: 'other-prefix' },
+  });
 
-  await userEvent.click(
-    screen.getByRole('button', { name: /generate command/i })
+  await waitFor(() =>
+    expect(
+      screen.getByRole('button', { name: /generate command/i })
+    ).toBeEnabled()
   );
-  await userEvent.click(screen.getByRole('checkbox'));
-  await userEvent.click(screen.getByRole('button', { name: /save/i }));
+
+  userEvent.click(screen.getByRole('button', { name: /generate command/i }));
+  await screen.findByRole('button', { name: /edit/i });
+
+  userEvent.click(screen.getByTestId('checkbox'));
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /save/i })).toBeEnabled()
+  );
+  userEvent.click(screen.getByRole('button', { name: /save/i }));
+  await waitFor(() => expect(mockEditFn).toHaveBeenCalledTimes(1));
 
   expect(mockEditFn).toHaveBeenCalledWith({
     roleArn: 'arn:aws:iam::123456789011:role/other',

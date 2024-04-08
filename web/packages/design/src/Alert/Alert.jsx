@@ -49,7 +49,7 @@ const kind = props => {
     case 'outline-danger':
       return {
         background: fade(theme.colors.error.main, 0.1),
-        border: `${theme.radii[1]}px solid ${theme.colors.error.main}`,
+        border: `${theme.borders[2]} ${theme.colors.error.main}`,
         borderRadius: `${theme.radii[3]}px`,
         boxShadow: 'none',
         justifyContent: 'normal',
@@ -57,7 +57,7 @@ const kind = props => {
     case 'outline-info':
       return {
         background: fade(theme.colors.accent.main, 0.1),
-        border: `${theme.radii[1]}px solid ${theme.colors.accent.main}`,
+        border: `${theme.borders[2]} ${theme.colors.accent.main}`,
         borderRadius: `${theme.radii[3]}px`,
         boxShadow: 'none',
         justifyContent: 'normal',
@@ -65,7 +65,7 @@ const kind = props => {
     case 'outline-warn':
       return {
         background: fade(theme.colors.warning.main, 0.1),
-        border: `${theme.radii[1]}px solid ${theme.colors.warning.main}`,
+        border: `${theme.borders[2]} ${theme.colors.warning.main}`,
         borderRadius: `${theme.radii[3]}px`,
         boxShadow: 'none',
         justifyContent: 'normal',

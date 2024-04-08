@@ -29,8 +29,8 @@ import {
   Integration,
   integrationService,
 } from 'teleport/services/integrations';
-
-const AWS_IDENTIFIER = 'arn:aws:iam::';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
+import cfg from 'teleport/config';
 
 export function UpdateAwsOidcThumbprint({
   integration,
@@ -45,11 +45,13 @@ export function UpdateAwsOidcThumbprint({
     run(() => integrationService.fetchThumbprint().then(setThumbprint));
   }
 
-  const awsAccountId = integration.spec.roleArn
-    .split(AWS_IDENTIFIER)[1]
-    ?.substring(0, 12);
+  const { awsAccountId, arnStartingPart } = splitAwsIamArn(
+    integration.spec.roleArn
+  );
 
-  const identityProvider = `${AWS_IDENTIFIER}${awsAccountId}/oidc-provider/${integration.name}`;
+  const encodedOidcProviderArn = encodeURIComponent(
+    `${arnStartingPart}${awsAccountId}:oidc-provider/${cfg.proxyCluster}`
+  );
 
   return (
     <ToolTipInfo sticky={true}>
@@ -97,7 +99,7 @@ export function UpdateAwsOidcThumbprint({
             - Go to your{' '}
             <ExternalLink
               target="_blank"
-              href={`https://console.aws.amazon.com/iam/home#/identity_providers/details/OPENID/${identityProvider}`}
+              href={`https://console.aws.amazon.com/iam/home#/identity_providers/details/OPENID/${encodedOidcProviderArn}`}
             >
               IAM Identity Provider
             </ExternalLink>{' '}
