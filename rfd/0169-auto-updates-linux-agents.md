@@ -255,7 +255,7 @@ used to trigger other integrations to update the installed version of agents.
 ```shell
 $ tctl autoupdate watch
 {"agent_version": "1.0.0", "agent_edition": "enterprise", ... }
-{"agent_version": "1.0.1, "agent_edition": "enterprise", ... }
+{"agent_version": "1.0.1", "agent_edition": "enterprise", ... }
 {"agent_version": "2.0.0", "agent_edition": "enterprise", ... }
 [...]
 ```
