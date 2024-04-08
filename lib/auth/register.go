@@ -22,11 +22,11 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"log/slog"
 	"os"
 	"slices"
 	"time"
 
-	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/net/http2"
@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/tpmjoin"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
@@ -742,81 +743,41 @@ func registerUsingAzureMethod(client joinServiceClient, token string, params Reg
 	return certs, trace.Wrap(err)
 }
 
-// getMarshaledEK returns the EK public key in PKIX, ASN.1 DER format.
-func getMarshaledEK(tpm *attest.TPM) (ekKey []byte, ekCert []byte, err error) {
-	eks, err := tpm.EKs()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	if len(eks) == 0 {
-		// This is a pretty unusual case, `go-attestation` will attempt to
-		// create an EK if no EK Certs are present in the NVRAM of the TPM.
-		// Either way, it lets us catch this early in case `go-attestation`
-		// misbehaves.
-		return nil, nil, trace.BadParameter("no endorsement keys found in tpm")
-	}
-	// The first EK returned by `go-attestation` will be an RSA based EK key or
-	// EK cert. On Windows, ECC certs may also be returned following this. At
-	// this time, we are only interested in RSA certs, so we just consider the
-	// first thing returned.
-	encodedEKKey, err := x509.MarshalPKIXPublicKey(eks[0].Public)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	if eks[0].Certificate == nil {
-		return encodedEKKey, nil, nil
-	}
-	return encodedEKKey, eks[0].Certificate.Raw, nil
-}
-
 // registerUsingTPMMethod is used to register using the TPM join method. It
 // is able to register through a proxy or through the auth server directly.
 func registerUsingTPMMethod(
 	client joinServiceClient, token string, params RegisterParams,
 ) (*proto.Certs, error) {
 	ctx := context.Background()
+	log := slog.Default()
 
 	initReq := &proto.RegisterUsingTPMMethodInitialRequest{
 		JoinRequest: registerUsingTokenRequestForParams(token, params),
 	}
 
-	// Open TPM
-	tpm, err := attest.OpenTPM(&attest.OpenConfig{
-		TPMVersion: attest.TPMVersion20,
-	})
+	query, attParams, solve, close, err := tpmjoin.Attest(ctx, log)
 	if err != nil {
-		return nil, trace.Wrap(err, "opening tpm")
+		return nil, trace.Wrap(err)
 	}
 	defer func() {
-		if err := tpm.Close(); err != nil {
-			log.WithError(err).Debug("TPM: Failed to close TPM.")
+		if err := close(); err != nil {
+			log.WarnContext(ctx, "Failed to close TPM", "error", err)
 		}
 	}()
 
-	// Create AK and calculate attestation parameters.
-	ak, err := tpm.NewAK(&attest.AKConfig{})
-	if err != nil {
-		return nil, trace.Wrap(err, "creating ak")
-	}
-	initReq.AttestationParams = dtoss.AttestationParametersToProto(
-		ak.AttestationParameters(),
+	initReq.AttestationParams = tpmjoin.AttestationParametersToProto(
+		*attParams,
 	)
-
 	// Get the EKKey or EKCert. We want to prefer the EKCert if it is available
 	// as this is signed by the manufacturer.
-	ekKey, ekCert, err := getMarshaledEK(tpm)
-	if err != nil {
-		return nil, trace.Wrap(err, "getting EK")
-	}
 	switch {
-	case ekCert != nil:
+	case query.EKCert != nil:
 		initReq.Ek = &proto.RegisterUsingTPMMethodInitialRequest_EkCert{
-			EkCert: ekCert,
+			EkCert: query.EKCert,
 		}
-	case ekKey != nil:
+	case query.EKPub != nil:
 		initReq.Ek = &proto.RegisterUsingTPMMethodInitialRequest_EkKey{
-			EkKey: ekKey,
+			EkKey: query.EKPub,
 		}
 	default:
 		return nil, trace.BadParameter("tpm has neither ek_key or ek_cert")
@@ -831,10 +792,9 @@ func registerUsingTPMMethod(
 		) (*proto.RegisterUsingTPMMethodChallengeResponse, error) {
 			// Solve the encrypted credential with our AK to prove possession
 			// and obtain the solution we need to complete the ceremony.
-			encryptedCredential := dtoss.EncryptedCredentialFromProto(
+			solution, err := solve(dtoss.EncryptedCredentialFromProto(
 				challenge,
-			)
-			solution, err := ak.ActivateCredential(tpm, *encryptedCredential)
+			))
 			if err != nil {
 				return nil, trace.Wrap(err, "activating credential")
 			}
