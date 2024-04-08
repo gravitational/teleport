@@ -212,7 +212,7 @@ func newConfigurator(ctx context.Context, spec *externalauditstorage.ExternalAud
 		return nil, trace.Wrap(err)
 	}
 
-	credentialsCache, err := newCredentialsCache(ctx, spec.Region, awsRoleARN, options)
+	credentialsCache, err := newCredentialsCache(oidcIntegrationName, awsRoleARN, options)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -247,7 +247,7 @@ func (c *Configurator) GetSpec() *externalauditstorage.ExternalAuditStorageSpec 
 
 // GenerateOIDCTokenFn is a function that should return a valid, signed JWT for
 // authenticating to AWS via OIDC.
-type GenerateOIDCTokenFn func(ctx context.Context) (string, error)
+type GenerateOIDCTokenFn func(ctx context.Context, integration string) (string, error)
 
 // SetGenerateOIDCTokenFn sets the source of OIDC tokens for this Configurator.
 func (c *Configurator) SetGenerateOIDCTokenFn(fn GenerateOIDCTokenFn) {
@@ -292,7 +292,8 @@ func (p *Configurator) WaitForFirstCredentials(ctx context.Context) {
 type credentialsCache struct {
 	log *logrus.Entry
 
-	roleARN string
+	roleARN     string
+	integration string
 
 	// generateOIDCTokenFn is dynamically set after auth is initialized.
 	generateOIDCTokenFn GenerateOIDCTokenFn
@@ -318,11 +319,12 @@ type credsOrErr struct {
 	err   error
 }
 
-func newCredentialsCache(ctx context.Context, region, roleARN string, options *Options) (*credentialsCache, error) {
+func newCredentialsCache(integration, roleARN string, options *Options) (*credentialsCache, error) {
 	initialized := make(chan struct{})
 	gotFirstCredsOrErr := make(chan struct{})
 	return &credentialsCache{
 		roleARN:                 roleARN,
+		integration:             integration,
 		log:                     logrus.WithField(teleport.ComponentKey, "ExternalAuditStorage.CredentialsCache"),
 		initialized:             initialized,
 		closeInitialized:        sync.OnceFunc(func() { close(initialized) }),
@@ -411,7 +413,7 @@ func (cc *credentialsCache) setCredsOrErr(coe credsOrErr) {
 }
 
 func (cc *credentialsCache) refresh(ctx context.Context) (aws.Credentials, error) {
-	oidcToken, err := cc.generateOIDCTokenFn(ctx)
+	oidcToken, err := cc.generateOIDCTokenFn(ctx, cc.integration)
 	if err != nil {
 		return aws.Credentials{}, trace.Wrap(err)
 	}
