@@ -841,25 +841,29 @@ func (s *IdentityService) DeletePassword(ctx context.Context, user string) error
 	}
 
 	delErr := s.Delete(ctx, backend.Key(webPrefix, usersPrefix, user, pwdPrefix))
-
-	if delErr == nil || trace.IsNotFound(delErr) {
-		_, err := s.UpdateAndSwapUser(
-			context.TODO(),
-			user,
-			false, /*withSecrets*/
-			func(u types.User) (bool, error) {
-				u.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSET)
-				return true, nil
-			})
-		if err != nil {
-			// Don't let the password state flag change fail the entire operation.
-			s.log.
-				WithError(err).
-				WithField("user", user).
-				Warn("Failed to set password state")
-		}
+	// Don't bail out just yet if the error is "not found"; the password state
+	// flag may still be unspecified, and we want to make it UNSET.
+	if delErr != nil && !trace.IsNotFound(delErr) {
+		return trace.Wrap(delErr)
 	}
 
+	if _, err := s.UpdateAndSwapUser(
+		context.TODO(),
+		user,
+		false, /*withSecrets*/
+		func(u types.User) (bool, error) {
+			u.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSET)
+			return true, nil
+		},
+	); err != nil {
+		// Don't let the password state flag change fail the entire operation.
+		s.log.
+			WithError(err).
+			WithField("user", user).
+			Warn("Failed to set password state")
+	}
+
+	// Now is the time to return the delete operation, if any.
 	return trace.Wrap(delErr)
 }
 
