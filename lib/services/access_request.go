@@ -1217,9 +1217,12 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 			req.SetSuggestedReviewers(apiutils.Deduplicate(m.SuggestedReviewers))
 		}
 
+		// Pin the time to the current time to prevent time drift.
+		now := m.clock.Now().UTC()
+
 		// Calculate the expiration time of the elevated certificate that will
 		// be issued if the Access Request is approved.
-		sessionTTL, err := m.sessionTTL(ctx, identity, req)
+		sessionTTL, err := m.sessionTTL(ctx, identity, req, now)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1231,7 +1234,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 
 		// If the maxDuration flag is set, consider it instead of only using the session TTL.
 		var maxAccessDuration time.Duration
-		now := m.clock.Now().UTC()
+
 		if maxDuration > 0 {
 			req.SetSessionTLL(now.Add(min(sessionTTL, maxDuration)))
 			maxAccessDuration = maxDuration
@@ -1252,7 +1255,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 
 		// Calculate the expiration time of the Access Request (how long it
 		// will await approval).
-		requestTTL, err := m.calculatePendingRequestTTL(req)
+		requestTTL, err := m.calculatePendingRequestTTL(req, now)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1326,28 +1329,28 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest, s
 // calculatePendingRequestTTL calculates the TTL of the Access Request (how long it will await
 // approval). request TTL is capped to the smaller value between the const requsetTTL and the
 // access request access expiry.
-func (m *RequestValidator) calculatePendingRequestTTL(r types.AccessRequest) (time.Duration, error) {
-	accessExpiryTTL := r.GetAccessExpiry().Sub(m.clock.Now().UTC())
+func (m *RequestValidator) calculatePendingRequestTTL(r types.AccessRequest, now time.Time) (time.Duration, error) {
+	accessExpiryTTL := r.GetAccessExpiry().Sub(now)
 
 	// If no expiration provided, use default.
 	expiry := r.Expiry()
 	if expiry.IsZero() {
 		// Guard against the default expiry being greater than access expiry.
 		if requestTTL < accessExpiryTTL {
-			expiry = m.clock.Now().UTC().Add(requestTTL)
+			expiry = now.Add(requestTTL)
 		} else {
-			expiry = m.clock.Now().UTC().Add(accessExpiryTTL)
+			expiry = now.Add(accessExpiryTTL)
 		}
 	}
 
-	if expiry.Before(m.clock.Now().UTC()) {
+	if expiry.Before(now) {
 		return 0, trace.BadParameter("invalid request TTL: Access Request can not be created in the past")
 	}
 
 	// Before returning the TTL, validate that the value requested was smaller
 	// than the maximum value allowed. Used to return a sensible error to the
 	// user.
-	requestedTTL := expiry.Sub(m.clock.Now().UTC())
+	requestedTTL := expiry.Sub(now)
 	if !r.Expiry().IsZero() {
 		if requestedTTL > requestTTL {
 			return 0, trace.BadParameter("invalid request TTL: %v greater than maximum allowed (%v)", requestedTTL.Round(time.Minute), requestTTL.Round(time.Minute))
@@ -1362,8 +1365,8 @@ func (m *RequestValidator) calculatePendingRequestTTL(r types.AccessRequest) (ti
 
 // sessionTTL calculates the TTL of the elevated certificate that will be issued
 // if the Access Request is approved.
-func (m *RequestValidator) sessionTTL(ctx context.Context, identity tlsca.Identity, r types.AccessRequest) (time.Duration, error) {
-	ttl, err := m.truncateTTL(ctx, identity, r.GetAccessExpiry(), r.GetRoles())
+func (m *RequestValidator) sessionTTL(ctx context.Context, identity tlsca.Identity, r types.AccessRequest, now time.Time) (time.Duration, error) {
+	ttl, err := m.truncateTTL(ctx, identity, r.GetAccessExpiry(), r.GetRoles(), now)
 	if err != nil {
 		return 0, trace.BadParameter("invalid session TTL: %v", err)
 	}
@@ -1371,7 +1374,7 @@ func (m *RequestValidator) sessionTTL(ctx context.Context, identity tlsca.Identi
 	// Before returning the TTL, validate that the value requested was smaller
 	// than the maximum value allowed. Used to return a sensible error to the
 	// user.
-	requestedTTL := r.GetAccessExpiry().Sub(m.clock.Now().UTC())
+	requestedTTL := r.GetAccessExpiry().Sub(now)
 	if !r.GetAccessExpiry().IsZero() && requestedTTL > ttl {
 		return 0, trace.BadParameter("invalid session TTL: %v greater than maximum allowed (%v)", requestedTTL.Round(time.Minute), ttl.Round(time.Minute))
 	}
@@ -1381,18 +1384,18 @@ func (m *RequestValidator) sessionTTL(ctx context.Context, identity tlsca.Identi
 
 // truncateTTL will truncate given expiration by identity expiration and
 // shortest session TTL of any role.
-func (m *RequestValidator) truncateTTL(ctx context.Context, identity tlsca.Identity, expiry time.Time, roles []string) (time.Duration, error) {
+func (m *RequestValidator) truncateTTL(ctx context.Context, identity tlsca.Identity, expiry time.Time, roles []string, now time.Time) (time.Duration, error) {
 	ttl := apidefaults.MaxCertDuration
 
 	// Reduce by remaining TTL on requesting certificate (identity).
-	identityTTL := identity.Expires.Sub(m.clock.Now())
+	identityTTL := identity.Expires.Sub(now)
 	if identityTTL > 0 && identityTTL < ttl {
 		ttl = identityTTL
 	}
 
 	// Reduce TTL further if expiration time requested is shorter than that
 	// identity.
-	expiryTTL := expiry.Sub(m.clock.Now())
+	expiryTTL := expiry.Sub(now)
 	if expiryTTL > 0 && expiryTTL < ttl {
 		ttl = expiryTTL
 	}
