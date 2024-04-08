@@ -282,6 +282,21 @@ Eventually, additional logic from the scripts could be added to `teleport-update
 
 Moving additional logic into the upgrader is out-of-scope for this proposal.
 
+To create pre-baked VM or container images that reduce the complexity of the cluster joining operation, two workflows are permitted:
+- Install the `teleport-updater` package and defer `teleport-updater enable`, Teleport configuration, and `systemctl enable teleport` to cloud-init scripts.
+  This allows both the proxy address and token to be injected at VM initialization. The VM image may be used with any Teleport cluster.
+  Installers scripts will continue to function, as the package install operation will no-op.
+- Install the `teleport-updater` package and run `teleport-updater enable` before the image is baked, but defer final Teleport configuration and `systemctl enable teleport` to cloud-init scripts.
+  This allows the proxy address to be pre-set in the image. `teleport.yaml` can be partially configured during image creation. At minimum, the token must be injected via cloud-init scripts.
+  Installers scripts would be skipped in favor of the `teleport configure` command.
+
+It is possible for a VM or container image to be created with a baked-in join token.
+We should recommend against this workflow for security reasons, since a long-lived token improperly stored in an image could be leaked.
+
+Alternatively, users may prefer to skip pre-baked agent configuration, and run one of the script-based installers to join VMs to the cluster after the VM is started.
+
+Documentation should be created covering the above workflows.
+
 ### Documentation
 
 The following documentation will need to be updated to cover the new upgrader workflow:
