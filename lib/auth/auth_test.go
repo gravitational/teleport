@@ -3454,7 +3454,7 @@ func newTestServices(t *testing.T) Services {
 		Trust:                   local.NewCAService(bk),
 		PresenceInternal:        local.NewPresenceService(bk),
 		Provisioner:             local.NewProvisioningService(bk),
-		Identity:                local.NewIdentityService(bk),
+		Identity:                local.NewTestIdentityService(bk),
 		Access:                  local.NewAccessService(bk),
 		DynamicAccessExt:        local.NewDynamicAccessService(bk),
 		ClusterConfiguration:    configService,
