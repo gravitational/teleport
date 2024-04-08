@@ -1774,9 +1774,9 @@ func TestGetRequestableRoles(t *testing.T) {
 	}
 }
 
-// TestCalculatePendingRequesTTL verifies that the TTL for the Access Request is capped to the
+// TestCalculatePendingRequestTTL verifies that the TTL for the Access Request is capped to the
 // request's access expiry or capped to the default const requestTTL, whichever is smaller.
-func TestCalculatePendingRequesTTL(t *testing.T) {
+func TestCalculatePendingRequestTTL(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	now := clock.Now().UTC()
 
@@ -1869,7 +1869,7 @@ func TestCalculatePendingRequesTTL(t *testing.T) {
 			request.SetExpiry(tt.requestPendingExpiryTTL)
 			request.SetAccessExpiry(now.Add(tt.accessExpiryTTL))
 
-			ttl, err := validator.calculatePendingRequestTTL(request)
+			ttl, err := validator.calculatePendingRequestTTL(request, now)
 			tt.assertion(t, err)
 			if err == nil {
 				require.Equal(t, tt.expectedDuration, ttl)
@@ -1943,7 +1943,7 @@ func TestSessionTTL(t *testing.T) {
 			request.SetAccessExpiry(tt.accessExpiry)
 			require.NoError(t, err)
 
-			ttl, err := validator.sessionTTL(context.Background(), tt.identity, request)
+			ttl, err := validator.sessionTTL(context.Background(), tt.identity, request, now)
 			tt.assertion(t, err)
 			if err == nil {
 				require.Equal(t, tt.expectedTTL, ttl)
