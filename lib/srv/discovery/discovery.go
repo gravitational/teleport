@@ -1344,6 +1344,16 @@ func (s *Server) acquireDiscoveryGroup() error {
 	}
 
 	var lease *services.SemaphoreLock
+
+	s.releaseGroupLockFn = func() {
+		if lease != nil {
+			lease.Stop()
+			if err := lease.Wait(); err != nil {
+				s.Log.WithError(err).Warn("DiscoveryGroup semaphore cleanup")
+			}
+		}
+	}
+
 	for range retry.After() {
 		retry.Inc()
 		s.Log.Debugf("Discovery service is trying to acquire lock for DiscoveryGroup %q", s.DiscoveryGroup)
@@ -1380,13 +1390,6 @@ func (s *Server) acquireDiscoveryGroup() error {
 			}
 		}
 	}()
-
-	s.releaseGroupLockFn = func() {
-		lease.Stop()
-		if err := lease.Wait(); err != nil {
-			s.Log.WithError(err).Warn("DiscoveryGroup semaphore cleanup")
-		}
-	}
 
 	return nil
 }
