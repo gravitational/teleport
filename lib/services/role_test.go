@@ -7154,6 +7154,13 @@ func TestSessionRecordingMode(t *testing.T) {
 				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeOff}},
 			},
 		},
+		"off default": {
+			expectedMode: constants.SessionRecordingModeOff,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeOff}},
+			},
+		},
 	}
 
 	for name, test := range tests {

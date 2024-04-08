@@ -1772,15 +1772,15 @@ func (set RoleSet) CertificateExtensions() []*types.CertExtension {
 
 // SessionRecordingMode returns the recording mode for a specific service.
 func (set RoleSet) SessionRecordingMode(service constants.SessionRecordingService) constants.SessionRecordingMode {
-	defaultValue := constants.SessionRecordingModeBestEffort
+	defaultValue := constants.SessionRecordingModeUnspecified
 	serviceValue := constants.SessionRecordingModeUnspecified
 
 	for _, role := range set {
 		recordSession := role.GetOptions().RecordSession
 
-		// If one of the default values is "strict", set it as the value.
-		if recordSession.Default == constants.SessionRecordingModeStrict {
-			defaultValue = constants.SessionRecordingModeStrict
+		// If one of the default values is stricter, set it as the value.
+		if isSessionRecordingModeStricter(defaultValue, recordSession.Default) {
+			defaultValue = recordSession.Default
 		}
 
 		var roleMode constants.SessionRecordingMode
@@ -1789,27 +1789,49 @@ func (set RoleSet) SessionRecordingMode(service constants.SessionRecordingServic
 			roleMode = recordSession.SSH
 		}
 
-		switch roleMode {
-		case constants.SessionRecordingModeStrict:
-			// Early return as "strict" since it is the strictest value.
+		// Early return as "strict" since it is the strictest value (cannot be
+		// overwritten).
+		if roleMode == constants.SessionRecordingModeStrict {
 			return constants.SessionRecordingModeStrict
-		case constants.SessionRecordingModeBestEffort:
+		}
+
+		if isSessionRecordingModeStricter(serviceValue, roleMode) {
 			serviceValue = roleMode
-		case constants.SessionRecordingModeOff:
-			// "off" will only take place if the service value is unspecified.
-			// This avoids it to overwrite stricter modes.
-			if serviceValue == constants.SessionRecordingModeUnspecified {
-				serviceValue = roleMode
-			}
 		}
 	}
 
-	// If service value it set, return it.
+	// If service value is set, return it.
 	if serviceValue != constants.SessionRecordingModeUnspecified {
 		return serviceValue
 	}
 
+	// If neither default or protocol mode are defined, defaults to best effort.
+	if defaultValue == constants.SessionRecordingModeUnspecified {
+		return constants.SessionRecordingModeBestEffort
+	}
+
 	return defaultValue
+}
+
+// isSessionRecordingModeStricter checks if the new session recording mode is
+// stricter than the base.
+//
+// Strictness order: unspecified > off > best effort > strict
+func isSessionRecordingModeStricter(base, new constants.SessionRecordingMode) bool {
+	if base == new {
+		return false
+	}
+
+	switch new {
+	case constants.SessionRecordingModeUnspecified:
+		return false
+	case constants.SessionRecordingModeStrict:
+		return true
+	case constants.SessionRecordingModeBestEffort:
+		return base != constants.SessionRecordingModeStrict
+	default: // SessionRecordingModeOff
+		return base == constants.SessionRecordingModeUnspecified
+	}
 }
 
 func contains[S ~[]E, E any](s S, f func(E) (bool, error)) (bool, error) {
