@@ -642,7 +642,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             value={apiEndpoint}
             onChange={e => setApiEndpoint(e.target.value)}
             autoFocus
-            placeholder="yourserver.jamfcloud.com"
+            placeholder="https://yourserver.jamfcloud.com"
             toolTipContent="URL of Jamf API. (e.g. https://yourtenant.jamfcloud.com)"
           />
           <StyledFieldInput
@@ -786,7 +786,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             value={apiEndpoint}
             onChange={e => setApiEndpoint(e.target.value)}
             autoFocus
-            placeholder="yourserver.servicenowcloud.com"
+            placeholder="https://yourserver.servicenowcloud.com"
             toolTipContent="URL of ServiceNow API. (e.g. https://example-servicenow-instance.com)"
           />
           <StyledFieldInput
