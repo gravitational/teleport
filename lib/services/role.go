@@ -1778,21 +1778,14 @@ func (set RoleSet) SessionRecordingMode(service constants.SessionRecordingServic
 	for _, role := range set {
 		recordSession := role.GetOptions().RecordSession
 
-		// If one of the default values is stricter, set it as the value.
-		if isSessionRecordingModeStricter(defaultValue, recordSession.Default) {
-			defaultValue = recordSession.Default
-		}
-
-		var roleMode constants.SessionRecordingMode
+		roleMode := constants.SessionRecordingModeUnspecified
 		switch service {
 		case constants.SessionRecordingServiceSSH:
 			roleMode = recordSession.SSH
 		}
 
-		// Early return as "strict" since it is the strictest value (cannot be
-		// overwritten).
-		if roleMode == constants.SessionRecordingModeStrict {
-			return constants.SessionRecordingModeStrict
+		if isSessionRecordingModeStricter(defaultValue, recordSession.Default) {
+			defaultValue = recordSession.Default
 		}
 
 		if isSessionRecordingModeStricter(serviceValue, roleMode) {
@@ -1800,12 +1793,11 @@ func (set RoleSet) SessionRecordingMode(service constants.SessionRecordingServic
 		}
 	}
 
-	// If service value is set, return it.
 	if serviceValue != constants.SessionRecordingModeUnspecified {
 		return serviceValue
 	}
 
-	// If neither default or protocol mode are defined, defaults to best effort.
+	// If neither default or service mode are defined, defaults to best effort.
 	if defaultValue == constants.SessionRecordingModeUnspecified {
 		return constants.SessionRecordingModeBestEffort
 	}
@@ -1816,7 +1808,7 @@ func (set RoleSet) SessionRecordingMode(service constants.SessionRecordingServic
 // isSessionRecordingModeStricter checks if the new session recording mode is
 // stricter than the base.
 //
-// Strictness order: unspecified > off > best effort > strict
+// Strictness order: strict > best effort > off > unspecified
 func isSessionRecordingModeStricter(base, new constants.SessionRecordingMode) bool {
 	if base == new {
 		return false
