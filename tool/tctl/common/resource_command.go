@@ -2947,10 +2947,5 @@ func (rc *ResourceCommand) updateAccessMonitoringRule(ctx context.Context, clien
 		return trace.Wrap(err)
 	}
 
-	if _, err = client.AccessMonitoringRuleClient().UpdateAccessMonitoringRule(ctx, in); err != nil {
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
+	return trace.Wrap(client.AccessMonitoringRuleClient().UpdateAccessMonitoringRule(ctx, in))
 }
