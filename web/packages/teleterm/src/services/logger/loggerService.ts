@@ -232,9 +232,7 @@ function getBrowserConsoleTransport(opts: FileLoggerOptions) {
 function getRegularConsoleTransport(opts: FileLoggerOptions) {
   return new transports.Console({
     format: format.printf(({ level, message, context }) => {
-      const loggerName =
-        opts.loggerNameColor &&
-        `\x1b[${opts.loggerNameColor}m${opts.name.toUpperCase()}\x1b[0m`;
+      const loggerName = getLoggerName(opts);
 
       const text = stringifier(message as unknown as unknown[]);
       const logMessage = opts.passThroughMode
