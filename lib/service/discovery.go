@@ -71,6 +71,10 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		return trace.Wrap(err)
 	}
 
+	if tlsConfig != nil {
+		tlsConfig.ServerName = "" /* empty the server name to avoid SNI collisions with access graph addr */
+	}
+
 	accessGraphCfg, err := buildAccessGraphFromTAGOrFallbackToAuth(
 		process.ExitContext(),
 		process.Config,
