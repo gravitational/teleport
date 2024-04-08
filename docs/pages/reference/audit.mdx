@@ -206,21 +206,26 @@ $ tsh play 4c146ec8-eab6-11e6-b1b3-40167e68e931 --format=json
 ### Modes
 
 <Notice type="note">
-Available only for SSH sessions and when Teleport is configured with
-`auth_service.session_recording: node`.
+Modes only take effect if session recording is enabled at the cluster-level.
 </Notice>
 
-Modes define how Teleport deals with recording failures, such as a full disk
-error. They are configured per-service at the role level, where the strictest
-value takes precedence. The available modes are:
+Modes specify whether the session is recorded and how Teleport handles recording
+failures, such as a full disk error. They are configured per service at the role
+level, where the strictest value takes precedence. The available modes are:
+
+To turn off the recordings *all* user's roles must set the value to `off`.
+Otherwise, the strictest value will be used.
+
+When enabling the recording, there are two available modes, which determine how
+Teleport will proceed in case of recording failures:
 
 |Mode|After a recording failure|
 |----|-------------------------|
 |Best effort (`best_effort`)|Disables recording without terminating the session.|
 |Strict (`strict`)|Immediately terminates the session.|
 
-If the user role doesn’t specify a recording mode, `best_effort` will be used. Here
-is an example of a role configured to use strict mode for SSH sessions:
+If the user role doesn't specify a recording mode, `best_effort` will be used.
+Here is an example of a role configured to use strict mode for SSH sessions:
 
 ```yaml
 kind: role
@@ -231,4 +236,36 @@ spec:
   options:
     record_session:
       ssh: strict
+```
+
+<Notice type="note">
+When using a `sync` recording (for example, `node-sync`), the recording mode
+will always be set to `strict` when enabled.
+</Notice>
+
+In addition to specifying the record option per service, you can also set a
+default value, which is used when the service doesn’t have a value. For example,
+given the two roles below, the value used will be `strict`, which is the
+strictest among all user roles.
+
+```yaml
+# Role A:
+kind: role
+version: v5
+metadata:
+  name: ssh-strict
+spec:
+  options:
+    record_session:
+      default: strict
+---
+# Role B:
+kind: role
+version: v5
+metadata:
+  name: ssh-strict
+spec:
+  options:
+    record_session:
+      ssh: off
 ```

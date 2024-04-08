@@ -161,19 +161,25 @@ spec:
     # cluster. This setting slows down Teleport performance because it has to track
     # connections cluster-wide.
     max_connections: 2
-    # Define how Teleport deals with session recording failures, such as a full
-    # disk error. The value can be set to either `best_effort` or `strict`. If
-    # set to `strict`, the session will terminate immediately. If set to
-    # `best_effort`, the session won’t be terminated, and the recording will be
-    # disabled. The configuration is done per service (currently, only `ssh` is
-    # supported).
+    # Specify whether or not to record the user's SSH sessions and how to deal
+    # with session recording failures, such as a full disk error.
+    #
+    # Session recording is enabled if any of the user's roles specify
+    # `best_effort` or `strict`, where, in case of recording failures, the
+    # session will be immediately terminated only if the mode is set to `strict`.
+    #
+    # The configuration is done per service. The `default` will be used if the
+    # service doesn’t specify a value. When set in multiple roles, the value
+    # used will always be the strictest, following the rule: `strict` > `best_effort` > `off`.
+    # To turn off the session recording, all user’s roles must set the value to
+    # `off`; otherwise, the strictest value will be used.
     record_session:
       # Optional: the default session recording mode to use when a
-      # protocol-specific mode is not set.
-      default: best_effort|strict
+      # protocol-specific mode is not set. Defaults to `best_effort`
+      default: off|best_effort|strict
       # Optional: Session recording mode for SSH sessions.
       # If not set, the value set on default will be used.
-      ssh: best_effort|strict
+      ssh: off|best_effort|strict
     # Require an additional MFA tap to start new sessions.
     # Optional: the default is false.
     require_session_mfa: true
