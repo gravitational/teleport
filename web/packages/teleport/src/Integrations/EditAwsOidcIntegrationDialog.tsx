@@ -42,6 +42,7 @@ import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 
 import { Integration } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 import { EditableIntegrationFields } from './Operations/useIntegrationOperation';
 import { S3BucketConfiguration } from './Enroll/AwsOidc/S3BucketConfiguration';
@@ -84,10 +85,12 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
 
     validator.reset();
 
-    const roleName = roleArn.split(':role/')[1];
+    const { arnResourceName } = splitAwsIamArn(
+      roleArn || props.integration.spec.roleArn
+    );
     const newScriptUrl = cfg.getAwsOidcConfigureIdpScriptUrl({
       integrationName: integration.name,
-      roleName,
+      roleName: arnResourceName,
       s3Bucket: s3Bucket,
       s3Prefix: s3Prefix,
     });
@@ -98,9 +101,9 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
   const isProcessing = attempt.status === 'processing';
   const requiresS3BucketWarning = !s3Bucket && !s3Prefix;
   const showGenerateCommand =
-    !requiresS3BucketWarning &&
-    (integration.spec.issuerS3Bucket !== s3Bucket ||
-      integration.spec.issuerS3Prefix !== s3Prefix);
+    integration.spec.issuerS3Bucket !== s3Bucket ||
+    integration.spec.issuerS3Prefix !== s3Prefix ||
+    integration.spec.roleArn !== roleArn;
 
   const changeDetected =
     integration.spec.issuerS3Bucket !== s3Bucket ||
@@ -131,22 +134,22 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
               value={integration.name}
               readonly={true}
             />
-            <FieldInput
-              autoFocus
-              label="Role ARN"
-              rule={requiredRoleArn}
-              value={roleArn}
-              onChange={e => setRoleArn(e.target.value)}
-              placeholder="arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>"
-              toolTipContent={
-                <Text>
-                  Role ARN can be found in the format: <br />
-                  {`arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>`}
-                </Text>
-              }
-              disabled={scriptUrl}
-            />
-            <S3BucketBox px={3} pt={2}>
+            <EditableBox px={3} pt={2}>
+              <FieldInput
+                autoFocus
+                label="Role ARN"
+                rule={requiredRoleArn}
+                value={roleArn}
+                onChange={e => setRoleArn(e.target.value)}
+                placeholder="arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>"
+                toolTipContent={
+                  <Text>
+                    Role ARN can be found in the format: <br />
+                    {`arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>`}
+                  </Text>
+                }
+                disabled={scriptUrl}
+              />
               <S3BucketConfiguration
                 s3Bucket={s3Bucket}
                 setS3Bucket={setS3Bucket}
@@ -192,12 +195,15 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                 <ButtonBorder
                   mb={3}
                   onClick={() => generateAwsOidcConfigIdpScript(validator)}
-                  disabled={!s3Bucket || !s3Prefix || !roleArn}
+                  disabled={
+                    (!requiresS3BucketWarning && (!s3Bucket || !s3Prefix)) ||
+                    !roleArn
+                  }
                 >
                   Generate Command
                 </ButtonBorder>
               )}
-            </S3BucketBox>
+            </EditableBox>
           </DialogContent>
           <DialogFooter>
             {showGenerateCommand && scriptUrl && (
@@ -256,7 +262,7 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
   );
 }
 
-const S3BucketBox = styled(Box)`
+const EditableBox = styled(Box)`
   border-radius: ${p => p.theme.space[1]}px;
   border: 2px solid ${p => p.theme.colors.spotBackground[1]};
   background-color: ${p => p.theme.colors.spotBackground[0]};

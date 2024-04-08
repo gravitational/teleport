@@ -44,6 +44,7 @@ import {
   createDiscoveryConfig,
 } from 'teleport/services/discovery';
 import useTeleport from 'teleport/useTeleport';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 import {
   AutoEnrollDialog,
@@ -221,13 +222,11 @@ export function EnrollRdsDatabase() {
     if (!requiredVpcsAndSubnets) {
       try {
         const { spec, name: integrationName } = agentMeta.awsIntegration;
-        const accountId = spec.roleArn
-          .split('arn:aws:iam::')[1]
-          .substring(0, 12);
+        const { awsAccountId } = splitAwsIamArn(spec.roleArn);
         requiredVpcsAndSubnets =
           await integrationService.fetchAwsRdsRequiredVpcs(integrationName, {
             region: tableData.currRegion,
-            accountId,
+            accountId: awsAccountId,
           });
 
         setRequiredVpcs(requiredVpcsAndSubnets);
