@@ -195,7 +195,7 @@ func (b Bot) NotifyUser(ctx context.Context, reqID string, reqData pd.AccessRequ
 		return trace.Wrap(err)
 	}
 
-	if recipient.Kind != "Email" {
+	if recipient.Kind != RecipientKindEmail {
 		return trace.BadParameter("user was not found, cant directly notify")
 	}
 
@@ -239,6 +239,11 @@ func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.Access
 	return nil
 }
 
+const (
+	RecipientKindEmail   = "Email"
+	RecipientKindChannel = "Channel"
+)
+
 func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient, error) {
 	if lib.IsEmail(name) {
 		channel, err := b.lookupDirectChannelByEmail(ctx, name)
@@ -251,7 +256,7 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient
 		return &common.Recipient{
 			Name: name,
 			ID:   channel,
-			Kind: "Email",
+			Kind: RecipientKindEmail,
 			Data: nil,
 		}, nil
 	}
@@ -259,7 +264,7 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient
 	return &common.Recipient{
 		Name: name,
 		ID:   name,
-		Kind: "Channel",
+		Kind: RecipientKindChannel,
 		Data: nil,
 	}, nil
 }
