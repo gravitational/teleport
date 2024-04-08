@@ -622,6 +622,15 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 					return trace.Errorf("SharedDirectoryMoveResponse failed: %v", errCode)
 				}
 			}
+		case tdp.SharedDirectoryTruncateResponse:
+			if c.cfg.AllowDirectorySharing {
+				if errCode := C.client_handle_tdp_sd_truncate_response(C.ulong(c.handle), C.CGOSharedDirectoryTruncateResponse{
+					completion_id: C.uint32_t(m.CompletionID),
+					err_code:      m.ErrCode,
+				}); errCode != C.ErrCodeSuccess {
+					return trace.Errorf("SharedDirectoryTruncateResponse failed: %v", errCode)
+				}
+			}
 		case tdp.RDPResponsePDU:
 			pduLen := uint32(len(m))
 			if pduLen == 0 {
@@ -957,6 +966,33 @@ func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) 
 
 	if err := c.cfg.Conn.WriteMessage(req); err != nil {
 		c.cfg.Log.Errorf("failed to send SharedDirectoryMoveRequest: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+
+}
+
+//export cgo_tdp_sd_truncate_request
+func cgo_tdp_sd_truncate_request(handle C.uintptr_t, req *C.CGOSharedDirectoryTruncateRequest) C.CGOErrCode {
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	return client.sharedDirectoryTruncateRequest(tdp.SharedDirectoryTruncateRequest{
+		CompletionID: uint32(req.completion_id),
+		DirectoryID:  uint32(req.directory_id),
+		Path:         C.GoString(req.path),
+		EndOfFile:    uint32(req.end_of_file),
+	})
+}
+
+func (c *Client) sharedDirectoryTruncateRequest(req tdp.SharedDirectoryTruncateRequest) C.CGOErrCode {
+	if !c.cfg.AllowDirectorySharing {
+		return C.ErrCodeFailure
+	}
+
+	if err := c.cfg.Conn.WriteMessage(req); err != nil {
+		c.cfg.Log.Errorf("failed to send SharedDirectoryTruncateRequest: %v", err)
 		return C.ErrCodeFailure
 	}
 	return C.ErrCodeSuccess
