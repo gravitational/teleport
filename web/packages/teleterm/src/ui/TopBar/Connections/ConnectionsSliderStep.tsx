@@ -16,25 +16,45 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useEffect } from 'react';
 import { Box } from 'design';
 import { StepComponentProps } from 'design/StepSlider';
 
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 
 import { ConnectionsFilterableList } from './ConnectionsFilterableList/ConnectionsFilterableList';
 import { useConnections } from './useConnections';
 
 export const ConnectionsSliderStep = (
-  props: StepComponentProps & { activateItem: (id: string) => void }
+  props: StepComponentProps & { closeConnectionList: () => void }
 ) => {
+  const { connectionTracker } = useAppContext();
   const connections = useConnections();
+  const { updateSorting } = connections;
+
+  const activateItem = (id: string) => {
+    props.closeConnectionList();
+    connectionTracker.activateItem(id, { origin: 'connection_list' });
+  };
+
+  useEffect(() => {
+    updateSorting();
+    // Sorting needs to be updated only once when the component gets rendered. This is so that when
+    // new connections are added while the list is open, the sorting is _not_ updated and new items
+    // end up at the top of the list.
+    //
+    // This also keeps the list stable when you e.g. disconnect the first connection in the list.
+    // Instead of the item jumping around, it stays as the first until the user closes and then
+    // opens the list again.
+  }, []);
 
   return (
     <Box p={2} ref={props.refCallback}>
       <KeyboardArrowsNavigation>
         <ConnectionsFilterableList
           items={connections.items}
-          onActivateItem={props.activateItem}
+          onActivateItem={activateItem}
           onRemoveItem={connections.removeItem}
           onDisconnectItem={connections.disconnectItem}
           slideToVnet={props.next}
