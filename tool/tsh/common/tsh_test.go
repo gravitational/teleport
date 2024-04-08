@@ -1869,6 +1869,7 @@ func TestSSHAccessRequest(t *testing.T) {
 
 	rootAuth, rootProxy := makeTestServers(t,
 		withBootstrap(requester, searchOnlyRequester, nodeAccessRole, emptyRole, connector, alice),
+		// Do not use a fake clock to better imitate real-world behavior.
 	)
 
 	authAddr, err := rootAuth.AuthAddr()
