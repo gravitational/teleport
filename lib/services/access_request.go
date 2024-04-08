@@ -270,9 +270,9 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 }
 
 // applicableSearchAsRoles prunes the search_as_roles and only returns those
-// application for the given list of resourceIDs.
+// applications for the given list of resourceIDs.
 func (m *RequestValidator) applicableSearchAsRoles(ctx context.Context, resourceIDs []types.ResourceID, loginHint string) ([]string, error) {
-	// First collect all possible search_as_roles.
+	// First, collect all possible search_as_roles.
 	var rolesToRequest []string
 	for _, roleName := range m.Roles.AllowSearch {
 		if !m.CanSearchAsRole(roleName) {
@@ -349,9 +349,9 @@ type thresholdFilterContext struct {
 }
 
 // reviewPermissionContext is the top-level context used to evaluate
-// a user's review permissions.  It is functionally identical to the
+// a user's review permissions. It is functionally identical to the
 // thresholdFilterContext except that it does not expose review parameters.
-// this is because review permissions are used to determine which requests
+// This is because review permissions are used to determine which requests
 // a user is allowed to see, and therefore needs to be calculable prior
 // to construction of review parameters.
 type reviewPermissionContext struct {
@@ -363,7 +363,7 @@ type reviewPermissionContext struct {
 // syntax errors.  Used to help prevent users from accidentally writing incorrect
 // predicates.  This function should only be called by the auth server prior to
 // storing new/updated roles.  Normal role validation deliberately omits these
-// checks in order to allow us to extend the available namespaces without breaking
+// checks to allow us to extend the available namespaces without breaking
 // backwards compatibility with older nodes/proxies (which never need to evaluate
 // these predicates).
 func ValidateAccessPredicates(role types.Role) error {
@@ -462,7 +462,7 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 		req.SetAssumeStartTime(*rev.AssumeStartTime)
 	}
 
-	// request is still pending, so check to see if this
+	// the request is still pending, so check to see if this
 	// review introduces a state-transition.
 	res, err := calculateReviewBasedResolution(req)
 	if err != nil || res == nil {
@@ -487,7 +487,7 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 // checkReviewCompat performs basic checks to ensure that the specified review can be
 // applied to the specified request (part of review application logic).
 func checkReviewCompat(req types.AccessRequest, rev types.AccessReview) error {
-	// Proposal cannot be already resolved.
+	// The Proposal cannot be yet resolved.
 	if !rev.ProposedState.IsResolved() {
 		// Skip the promoted state in the error message. It's not a state that most people
 		// should be concerned with.
@@ -621,7 +621,7 @@ func calculateReviewBasedResolution(req types.AccessRequest) (*requestResolution
 	// of their approval thresholds.
 	approved := make(map[string]struct{})
 
-	// denied keeps track of whether or not we've seen *any* role get denied
+	// denied keeps track of whether we've seen *any* role get denied
 	// (which role does not currently matter since we short-circuit on the
 	// first denial to be triggered).
 	denied := false
@@ -668,11 +668,11 @@ ProcessReviews:
 	CheckRoleApprovals:
 		for role, thresholdSets := range req.GetRoleThresholdMapping() {
 			if _, ok := approved[role]; ok {
-				// role was marked approved during a previous iteration
+				// the role was marked approved during a previous iteration
 				continue CheckRoleApprovals
 			}
 
-			// iterate through all threshold sets.  All sets must have at least
+			// iterate through all threshold sets. All sets must have at least
 			// one threshold which has hit its approval count in order for the
 			// role to be considered approved.
 		CheckThresholdSets:
@@ -693,7 +693,7 @@ ProcessReviews:
 				}
 
 				// no thresholds met for this set. there may be additional roles/thresholds
-				// which did meet their requirements this iteration, but there is no point
+				// that did meet their requirements this iteration, but there is no point in
 				// processing them unless this set has also hit its requirements.  we therefore
 				// move immediately to processing the next review.
 				continue ProcessReviews
@@ -765,7 +765,7 @@ func GetTraitMappings(cms []types.ClaimMapping) types.TraitMappingSet {
 }
 
 // RequestValidatorGetter is the interface required by the request validation
-// functions used to get necessary resources.
+// functions used to get the necessary resources.
 type RequestValidatorGetter interface {
 	UserLoginStatesGetter
 	UserGetter
@@ -844,7 +844,7 @@ func (c *ReviewPermissionChecker) HasAllowDirectives() bool {
 }
 
 // CanReviewRequest checks if the user is allowed to review the specified request.
-// note that the ability to review a request does not necessarily imply that any specific
+// Note that the ability to review a request does not necessarily imply that any specific
 // approval/denial thresholds will actually match the user's review.  Matching one or more
 // thresholds is not a pre-requisite for review submission.
 func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (bool, error) {
@@ -856,7 +856,7 @@ func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (boo
 		return false, nil
 	}
 
-	// method allocates new array if an override has already been
+	// method allocates a new array if an override has already been
 	// called, so get the role list once in advance.
 	requestedRoles := req.GetOriginalRoles()
 
@@ -1187,7 +1187,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 			return trace.Wrap(err)
 		}
 
-		// build the thresholds array and role-threshold-mapping.  the rtm encodes the
+		// build the threshold array and role-threshold-mapping.  the rtm encodes the
 		// relationship between a role, and the thresholds which must pass in order
 		// for that role to be considered approved.  when building the validator we
 		// recorded the relationship between the various allow matchers and their associated
@@ -1211,7 +1211,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		// RBAC system propagates sideband information to plugins.
 		req.SetSystemAnnotations(m.SystemAnnotations())
 
-		// if no suggested reviewers were provided by the user then
+		// if no suggested reviewers were provided by the user, then
 		// use the defaults suggested by the user's static roles.
 		if len(req.GetSuggestedReviewers()) == 0 {
 			req.SetSuggestedReviewers(apiutils.Deduplicate(m.SuggestedReviewers))
@@ -1249,7 +1249,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		// Adjusted max access duration is equal to the access expiry time.
 		req.SetMaxDuration(accessExpiry)
 
-		// Setting access expiry before calling `calculatePendingRequesetTTL`
+		// Setting access expiry before calling `calculatePendingRequestTTL`
 		// matters since the func relies on this adjusted expiry.
 		req.SetAccessExpiry(accessExpiry)
 
@@ -1327,7 +1327,7 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest, s
 }
 
 // calculatePendingRequestTTL calculates the TTL of the Access Request (how long it will await
-// approval). request TTL is capped to the smaller value between the const requsetTTL and the
+// approval). request TTL is capped to the smaller value between the const requestTTL and the
 // access request access expiry.
 func (m *RequestValidator) calculatePendingRequestTTL(r types.AccessRequest, now time.Time) (time.Duration, error) {
 	accessExpiryTTL := r.GetAccessExpiry().Sub(now)
@@ -1418,7 +1418,7 @@ func (m *RequestValidator) truncateTTL(ctx context.Context, identity tlsca.Ident
 }
 
 // getResourceViewingRoles gets the subset of the user's roles that could be used
-// to view resources (i.e. base roles + search as roles).
+// to view resources (i.e., base roles + search as roles).
 func (m *RequestValidator) getResourceViewingRoles() []string {
 	roles := slices.Clone(m.userState.GetRoles())
 	for _, role := range m.Roles.AllowSearch {
@@ -1431,8 +1431,8 @@ func (m *RequestValidator) getResourceViewingRoles() []string {
 
 // GetRequestableRoles gets the list of all existent roles which the user is
 // able to request.  This operation is expensive since it loads all existent
-// roles in order to determine the role list.  Prefer calling CanRequestRole
-// when checking against a known role list. If resource IDs or a login hint
+// roles to determine the role list.  Prefer calling CanRequestRole
+// when checking against a known role list. If resource IDs or a login hints
 // are provided, roles will be filtered to only include those that would
 // allow access to the given resource with the given login.
 func (m *RequestValidator) GetRequestableRoles(ctx context.Context, identity tlsca.Identity, resourceIDs []types.ResourceID, loginHint string) ([]string, error) {
@@ -1565,7 +1565,7 @@ func (m *RequestValidator) push(role types.Role) error {
 }
 
 // setRolesForResourceRequest determines if the given access request is
-// resource-based, and if so it determines which underlying roles are necessary
+// resource-based, and if so, it determines which underlying roles are necessary
 // and adds them to the request.
 func (m *RequestValidator) setRolesForResourceRequest(ctx context.Context, req types.AccessRequest) error {
 	if !m.opts.expandVars {
@@ -1591,7 +1591,7 @@ func (m *RequestValidator) setRolesForResourceRequest(ctx context.Context, req t
 	return nil
 }
 
-// thresholdCollector is a helper which assembles the Thresholds array for a request.
+// thresholdCollector is a helper that assembles the Thresholds array for a request.
 // the push() method is used to insert groups of related thresholds and calculate their
 // corresponding index set.
 type thresholdCollector struct {
