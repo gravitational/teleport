@@ -91,8 +91,10 @@ spec:
   # agent updates are in place.
   agent_auto_update: on|off
   # agent_update_hour sets the hour in UTC at which clients should update their agents.
-  # The value -1 will set the upgrade time to the current time, resulting in immediate upgrades.
-  agent_update_hour: -1-23
+  agent_update_hour: 0-23
+  # agent_update_now overrides agent_update_hour and sets agent update time to the current time.
+  # This is useful for rolling out critical security updates and bug fixes.
+  agent_update_now: on|off
   # agent_update_jitter_seconds sets a duration in which the upgrade will occur after the hour.
   # The agent upgrader will pick a random time within this duration in which to upgrade.
   agent_update_jitter_seconds: 0-MAXINT64
@@ -103,6 +105,8 @@ spec:
 $ tctl autoupdate update --set-agent-auto-update=off
 Automatic updates configuration has been updated.
 $ tctl autoupdate update --set-agent-update-hour=3
+Automatic updates configuration has been updated.
+$ tctl autoupdate update --set-agent-update-now=true
 Automatic updates configuration has been updated.
 $ tctl autoupdate update --set-agent-update-jitter-seconds=600
 Automatic updates configuration has been updated.
