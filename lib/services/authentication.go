@@ -31,22 +31,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// This is bcrypt hash for password "barbaz".
-var fakePasswordHash = []byte(`$2a$10$Yy.e6BmS2SrGbBDsyDLVkOANZmvjjMR890nUGSXFJHBXWzxe7T44m`)
-
 // ValidateLocalAuthSecrets validates local auth secret members.
 func ValidateLocalAuthSecrets(l *types.LocalAuthSecrets) error {
-	var hash []byte
 	if len(l.PasswordHash) > 0 {
-		hash = l.PasswordHash
-	} else {
-		// Prevent timing attacks by using a fake hash.
-		hash = fakePasswordHash
+		if _, err := bcrypt.Cost(l.PasswordHash); err != nil {
+			return trace.BadParameter("invalid password hash")
+		}
 	}
-	if _, err := bcrypt.Cost(hash); err != nil {
-		return trace.BadParameter("invalid password hash")
-	}
-
 	mfaNames := make(map[string]struct{}, len(l.MFA))
 	for _, d := range l.MFA {
 		if err := validateMFADevice(d); err != nil {

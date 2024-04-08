@@ -79,5 +79,6 @@ func TestValidateLocalAuthSecrets_passwordHash(t *testing.T) {
 		PasswordHash: []byte("$hashimpo$tor"),
 	})
 	assert.Error(t, err)
-	assert.True(t, trace.IsBadParameter(err))
+	assert.True(t, trace.IsBadParameter(err),
+		"ValidateLocalAuthSecrets returned err=%v (%T), want BadParameter", err, trace.Unwrap(err))
 }

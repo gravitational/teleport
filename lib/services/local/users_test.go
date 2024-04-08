@@ -99,8 +99,9 @@ func TestIdentityService_CreateUser(t *testing.T) {
 			assert.Equal(t, []string{tt.role}, user.GetRoles(), "roles are not set")
 			assert.Equal(t, tt.passwordState, user.GetPasswordState(), "password state is not set")
 			if tt.password != "" {
-				bcrypt.CompareHashAndPassword(user.GetLocalAuth().PasswordHash, []byte(tt.password))
-				assert.NoError(t, err, "password hash does not match")
+				assert.NoError(t,
+					bcrypt.CompareHashAndPassword(user.GetLocalAuth().PasswordHash, []byte(tt.password)),
+					"password hash does not match")
 			}
 		})
 	}
@@ -1247,8 +1248,9 @@ func TestIdentityService_UpsertAndDeletePassword(t *testing.T) {
 	// Validate that the password is set.
 	user, err = identity.GetUser(ctx, "capybara", true /* withSecrets */)
 	require.NoError(t, err, "failed to get the user")
-	bcrypt.CompareHashAndPassword(user.GetLocalAuth().PasswordHash, []byte("gimme12chars"))
-	assert.NoError(t, err, "password hash does not match")
+	assert.NoError(t,
+		bcrypt.CompareHashAndPassword(user.GetLocalAuth().PasswordHash, []byte("gimme12chars")),
+		"password hash does not match")
 	assert.Equal(t, types.PasswordState_PASSWORD_STATE_SET, user.GetPasswordState(), "password state is not SET")
 
 	// Delete the password.

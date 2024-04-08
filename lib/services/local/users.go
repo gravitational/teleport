@@ -287,6 +287,9 @@ func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (type
 		return nil, trace.AlreadyExists("user %q already registered", user.GetName())
 	}
 
+	// In a typical case, we create users without passwords. However, it is
+	// technically possible to create a user along with a password using a direct
+	// RPC call or `tctl create`, so we need to support this case, too.
 	auth := user.GetLocalAuth()
 	if auth != nil && len(auth.PasswordHash) > 0 {
 		user.SetPasswordState(types.PasswordState_PASSWORD_STATE_SET)
@@ -821,7 +824,10 @@ func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 		})
 	if err != nil {
 		// Don't let the password state flag change fail the entire operation.
-		s.log.WithError(err).Info("Failed to set password state")
+		s.log.
+			WithError(err).
+			WithField("user", user).
+			Warn("Failed to set password state")
 	}
 
 	return nil
@@ -847,7 +853,10 @@ func (s *IdentityService) DeletePassword(ctx context.Context, user string) error
 			})
 		if err != nil {
 			// Don't let the password state flag change fail the entire operation.
-			s.log.WithError(err).Info("Failed to set password state")
+			s.log.
+				WithError(err).
+				WithField("user", user).
+				Warn("Failed to set password state")
 		}
 	}
 

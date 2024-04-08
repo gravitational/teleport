@@ -148,8 +148,8 @@ func (a *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 		return nil, trace.BadParameter("invalid reset password token request type")
 	}
 
-	// Since ResetPassword ignores doesn't report errors for non-existent users,
-	// first check if the user exists.
+	// ResetPassword doesn't error for non-existent users, so first check if the
+	// user exists.
 	if _, err = a.GetUser(ctx, req.Name, false /* withSecrets */); err != nil {
 		return nil, trace.Wrap(err)
 	}
