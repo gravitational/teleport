@@ -288,158 +288,6 @@ func (x *TPMPlatformAttestation) GetPlatformParameters() *TPMPlatformParameters 
 	return nil
 }
 
-// The attestation key and the parameters necessary to remotely verify it as
-// related to the endorsement key.
-// See https://pkg.go.dev/github.com/google/go-attestation/attest#AttestationParameters.
-// This message excludes the `UseTCSDActivationFormat` field from the link above
-// as it is TMP 1.x specific and always false.
-type TPMAttestationParameters struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	// The encoded TPMT_PUBLIC structure containing the attestation public key
-	// and signing parameters.
-	Public []byte `protobuf:"bytes,1,opt,name=public,proto3" json:"public,omitempty"`
-	// The properties of the attestation key, encoded as a TPMS_CREATION_DATA
-	// structure.
-	CreateData []byte `protobuf:"bytes,2,opt,name=create_data,json=createData,proto3" json:"create_data,omitempty"`
-	// An assertion as to the details of the key, encoded as a TPMS_ATTEST
-	// structure.
-	CreateAttestation []byte `protobuf:"bytes,3,opt,name=create_attestation,json=createAttestation,proto3" json:"create_attestation,omitempty"`
-	// A signature of create_attestation, encoded as a TPMT_SIGNATURE structure.
-	CreateSignature []byte `protobuf:"bytes,4,opt,name=create_signature,json=createSignature,proto3" json:"create_signature,omitempty"`
-}
-
-func (x *TPMAttestationParameters) Reset() {
-	*x = TPMAttestationParameters{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_teleport_devicetrust_v1_tpm_proto_msgTypes[4]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *TPMAttestationParameters) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*TPMAttestationParameters) ProtoMessage() {}
-
-func (x *TPMAttestationParameters) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_devicetrust_v1_tpm_proto_msgTypes[4]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TPMAttestationParameters.ProtoReflect.Descriptor instead.
-func (*TPMAttestationParameters) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_tpm_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *TPMAttestationParameters) GetPublic() []byte {
-	if x != nil {
-		return x.Public
-	}
-	return nil
-}
-
-func (x *TPMAttestationParameters) GetCreateData() []byte {
-	if x != nil {
-		return x.CreateData
-	}
-	return nil
-}
-
-func (x *TPMAttestationParameters) GetCreateAttestation() []byte {
-	if x != nil {
-		return x.CreateAttestation
-	}
-	return nil
-}
-
-func (x *TPMAttestationParameters) GetCreateSignature() []byte {
-	if x != nil {
-		return x.CreateSignature
-	}
-	return nil
-}
-
-// These values are used by the TPM2.0 `ActivateCredential` command to produce
-// the solution which proves possession of the EK and AK.
-//
-// For a more in-depth description see:
-// - https://pkg.go.dev/github.com/google/go-attestation/attest#EncryptedCredential
-// - https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part3_Commands_code_pub.pdf (Heading 12.5.1 "TPM2_ActivateCredential" "General Description")
-// - https://github.com/google/go-attestation/blob/v0.4.3/attest/activation.go#L199
-// - https://github.com/google/go-tpm/blob/v0.3.3/tpm2/credactivation/credential_activation.go#L61
-type TPMEncryptedCredential struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	// The `credential_blob` parameter to be used with the `ActivateCredential`
-	// command. This is used with the decrypted value of `secret` in a
-	// cryptographic process to decrypt the solution.
-	CredentialBlob []byte `protobuf:"bytes,1,opt,name=credential_blob,json=credentialBlob,proto3" json:"credential_blob,omitempty"`
-	// The `secret` parameter to be used with `ActivateCredential`. This is a
-	// seed which can be decrypted with the EK. The decrypted seed is then used
-	// when decrypting `credential_blob`.
-	Secret []byte `protobuf:"bytes,2,opt,name=secret,proto3" json:"secret,omitempty"`
-}
-
-func (x *TPMEncryptedCredential) Reset() {
-	*x = TPMEncryptedCredential{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_teleport_devicetrust_v1_tpm_proto_msgTypes[5]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *TPMEncryptedCredential) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*TPMEncryptedCredential) ProtoMessage() {}
-
-func (x *TPMEncryptedCredential) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_devicetrust_v1_tpm_proto_msgTypes[5]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TPMEncryptedCredential.ProtoReflect.Descriptor instead.
-func (*TPMEncryptedCredential) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_tpm_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *TPMEncryptedCredential) GetCredentialBlob() []byte {
-	if x != nil {
-		return x.CredentialBlob
-	}
-	return nil
-}
-
-func (x *TPMEncryptedCredential) GetSecret() []byte {
-	if x != nil {
-		return x.Secret
-	}
-	return nil
-}
-
 var File_teleport_devicetrust_v1_tpm_proto protoreflect.FileDescriptor
 
 var file_teleport_devicetrust_v1_tpm_proto_rawDesc = []byte{
@@ -475,30 +323,13 @@ var file_teleport_devicetrust_v1_tpm_proto_rawDesc = []byte{
 	0x6f, 0x72, 0x74, 0x2e, 0x64, 0x65, 0x76, 0x69, 0x63, 0x65, 0x74, 0x72, 0x75, 0x73, 0x74, 0x2e,
 	0x76, 0x31, 0x2e, 0x54, 0x50, 0x4d, 0x50, 0x6c, 0x61, 0x74, 0x66, 0x6f, 0x72, 0x6d, 0x50, 0x61,
 	0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x52, 0x12, 0x70, 0x6c, 0x61, 0x74, 0x66, 0x6f,
-	0x72, 0x6d, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x22, 0xad, 0x01, 0x0a,
-	0x18, 0x54, 0x50, 0x4d, 0x41, 0x74, 0x74, 0x65, 0x73, 0x74, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x50,
-	0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x12, 0x16, 0x0a, 0x06, 0x70, 0x75, 0x62,
-	0x6c, 0x69, 0x63, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x06, 0x70, 0x75, 0x62, 0x6c, 0x69,
-	0x63, 0x12, 0x1f, 0x0a, 0x0b, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x5f, 0x64, 0x61, 0x74, 0x61,
-	0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x0a, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x44, 0x61,
-	0x74, 0x61, 0x12, 0x2d, 0x0a, 0x12, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x5f, 0x61, 0x74, 0x74,
-	0x65, 0x73, 0x74, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x11,
-	0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x41, 0x74, 0x74, 0x65, 0x73, 0x74, 0x61, 0x74, 0x69, 0x6f,
-	0x6e, 0x12, 0x29, 0x0a, 0x10, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x5f, 0x73, 0x69, 0x67, 0x6e,
-	0x61, 0x74, 0x75, 0x72, 0x65, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x0f, 0x63, 0x72, 0x65,
-	0x61, 0x74, 0x65, 0x53, 0x69, 0x67, 0x6e, 0x61, 0x74, 0x75, 0x72, 0x65, 0x22, 0x59, 0x0a, 0x16,
-	0x54, 0x50, 0x4d, 0x45, 0x6e, 0x63, 0x72, 0x79, 0x70, 0x74, 0x65, 0x64, 0x43, 0x72, 0x65, 0x64,
-	0x65, 0x6e, 0x74, 0x69, 0x61, 0x6c, 0x12, 0x27, 0x0a, 0x0f, 0x63, 0x72, 0x65, 0x64, 0x65, 0x6e,
-	0x74, 0x69, 0x61, 0x6c, 0x5f, 0x62, 0x6c, 0x6f, 0x62, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52,
-	0x0e, 0x63, 0x72, 0x65, 0x64, 0x65, 0x6e, 0x74, 0x69, 0x61, 0x6c, 0x42, 0x6c, 0x6f, 0x62, 0x12,
-	0x16, 0x0a, 0x06, 0x73, 0x65, 0x63, 0x72, 0x65, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52,
-	0x06, 0x73, 0x65, 0x63, 0x72, 0x65, 0x74, 0x42, 0x5a, 0x5a, 0x58, 0x67, 0x69, 0x74, 0x68, 0x75,
-	0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x67, 0x72, 0x61, 0x76, 0x69, 0x74, 0x61, 0x74, 0x69, 0x6f,
-	0x6e, 0x61, 0x6c, 0x2f, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2f, 0x61, 0x70, 0x69,
-	0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x67, 0x6f, 0x2f, 0x74, 0x65,
-	0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2f, 0x64, 0x65, 0x76, 0x69, 0x63, 0x65, 0x74, 0x72, 0x75,
-	0x73, 0x74, 0x2f, 0x76, 0x31, 0x3b, 0x64, 0x65, 0x76, 0x69, 0x63, 0x65, 0x74, 0x72, 0x75, 0x73,
-	0x74, 0x76, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x72, 0x6d, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x42, 0x5a, 0x5a, 0x58,
+	0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x67, 0x72, 0x61, 0x76, 0x69,
+	0x74, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x2f, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72,
+	0x74, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f,
+	0x67, 0x6f, 0x2f, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2f, 0x64, 0x65, 0x76, 0x69,
+	0x63, 0x65, 0x74, 0x72, 0x75, 0x73, 0x74, 0x2f, 0x76, 0x31, 0x3b, 0x64, 0x65, 0x76, 0x69, 0x63,
+	0x65, 0x74, 0x72, 0x75, 0x73, 0x74, 0x76, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -513,14 +344,12 @@ func file_teleport_devicetrust_v1_tpm_proto_rawDescGZIP() []byte {
 	return file_teleport_devicetrust_v1_tpm_proto_rawDescData
 }
 
-var file_teleport_devicetrust_v1_tpm_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_teleport_devicetrust_v1_tpm_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_devicetrust_v1_tpm_proto_goTypes = []interface{}{
-	(*TPMPCR)(nil),                   // 0: teleport.devicetrust.v1.TPMPCR
-	(*TPMQuote)(nil),                 // 1: teleport.devicetrust.v1.TPMQuote
-	(*TPMPlatformParameters)(nil),    // 2: teleport.devicetrust.v1.TPMPlatformParameters
-	(*TPMPlatformAttestation)(nil),   // 3: teleport.devicetrust.v1.TPMPlatformAttestation
-	(*TPMAttestationParameters)(nil), // 4: teleport.devicetrust.v1.TPMAttestationParameters
-	(*TPMEncryptedCredential)(nil),   // 5: teleport.devicetrust.v1.TPMEncryptedCredential
+	(*TPMPCR)(nil),                 // 0: teleport.devicetrust.v1.TPMPCR
+	(*TPMQuote)(nil),               // 1: teleport.devicetrust.v1.TPMQuote
+	(*TPMPlatformParameters)(nil),  // 2: teleport.devicetrust.v1.TPMPlatformParameters
+	(*TPMPlatformAttestation)(nil), // 3: teleport.devicetrust.v1.TPMPlatformAttestation
 }
 var file_teleport_devicetrust_v1_tpm_proto_depIdxs = []int32{
 	1, // 0: teleport.devicetrust.v1.TPMPlatformParameters.quotes:type_name -> teleport.devicetrust.v1.TPMQuote
@@ -587,30 +416,6 @@ func file_teleport_devicetrust_v1_tpm_proto_init() {
 				return nil
 			}
 		}
-		file_teleport_devicetrust_v1_tpm_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TPMAttestationParameters); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_teleport_devicetrust_v1_tpm_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TPMEncryptedCredential); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -618,7 +423,7 @@ func file_teleport_devicetrust_v1_tpm_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_teleport_devicetrust_v1_tpm_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
