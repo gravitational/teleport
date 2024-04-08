@@ -1,10 +1,10 @@
 ---
 title: Database Access with Redshift on AWS
-description: How to configure Teleport database access with AWS Redshift PostgreSQL.
+description: How to configure Teleport database access with Amazon Redshift PostgreSQL.
 videoBanner: UFhT52d5bYg
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS Redshift" dbConfigure="AWS Redshift database with IAM authentication" dbName="AWS Redshift" !)
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Amazon Redshift" dbConfigure="Amazon Redshift database with IAM authentication" dbName="Amazon Redshift" !)
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -16,6 +16,11 @@ videoBanner: UFhT52d5bYg
 
 </Tabs>
 
+This guide shows how to enroll a single Amazon Redshift cluster through the
+Teleport Database Service. For a more scalable approach, learn how to [configure
+the Teleport Discovery Service](../../auto-discovery/databases.mdx) to
+automatically enroll all AWS databases in your infrastructure.
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -25,7 +30,6 @@ videoBanner: UFhT52d5bYg
 - Command-line client `psql` installed and added to your system's `PATH` environment variable.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
-- (!docs/pages/includes/database-access/aws-auto-discovery-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/6. Create a Teleport user
@@ -38,7 +42,45 @@ videoBanner: UFhT52d5bYg
 
 (!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 
-(!docs/pages/includes/database-access/aws-create-db-configuration.mdx type="Redshift" matcher="redshift" protocol="postgres" example="redshift-cluster-1.abcdefghijklm.us-west-1.redshift.amazonaws.com:5438"!)
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+On the node that is running the Database Service, create a configuration file.
+Assign `CLUSTER_URI` to the domain name and port of the cluster:
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+```code
+$ sudo teleport db configure create \
+   -o file \
+   --name="redshift-postgres" \
+   --proxy=teleport.example.com:3080 \
+   --protocol=postgres \
+   --token=/tmp/token \
+   --uri=${CLUSTER_URI?}
+```
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+
+```code
+$ sudo teleport db configure create \
+   -o file \
+   --name="redshift-postgres" \
+   --proxy=mytenant.teleport.sh:443 \
+   --protocol=postgres \
+   --token=/tmp/token \
+   --uri=${CLUSTER_URI?}
+```
+
+</TabItem>
+
+</Tabs>
+
+The command will generate a Database Service configuration to proxy your AWS
+Redshift cluster place it at the `/etc/teleport.yaml` location.
 
 ## Step 3/6. Create an IAM Role for user access (optional) 
 
@@ -95,14 +137,14 @@ Service access to AWS credentials.
 
 (!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
 
-(!docs/pages/includes/database-access/aws-bootstrap.mdx type="redshift" !)
+(!docs/pages/includes/database-access/aws-bootstrap.mdx!)
 
 ## Step 5/6. Start the Database Service
 
 (!docs/pages/includes/start-teleport.mdx service="the Database Service"!)
 
-The Database Service will also attempt to configure IAM access policies for the
-registered databases. Keep in mind that AWS IAM changes may not propagate
+The Database Service will proxy the AWs Redshift cluster with the ID you
+specified earlier. Keep in mind that AWS IAM changes may not propagate
 immediately and can take a few minutes to come into effect.
 
 ## Step 6/6. Connect
@@ -119,7 +161,7 @@ $ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
 # Name        Description                    Labels
 # ----------- ------------------------------ --------
-# my-redshift Redshift cluster in us-east-1  ...
+# my-redshift                                ...
 ```
 
 </TabItem>
@@ -134,7 +176,7 @@ $ tsh login --proxy=mytenant.teleport.sh --user=alice
 $ tsh db ls
 # Name        Description                    Labels
 # ----------- ------------------------------ --------
-# my-redshift Redshift cluster in us-east-1  ...
+# my-redshift                                ...
 ```
 
 </TabItem>
@@ -181,6 +223,9 @@ $ tsh db logout my-redshift
 
 ## Next steps
 
-(!docs/pages/includes/database-access/guides-next-steps.mdx!)
 - Learn more about [using IAM authentication to generate database user
-  credentials](https://docs.aws.amazon.com/redshift/latest/mgmt/generating-user-credentials.html) for AWS Redshift.
+  credentials](https://docs.aws.amazon.com/redshift/latest/mgmt/generating-user-credentials.html) for Amazon Redshift.
+- Learn how to [restrict access](../rbac.mdx) to certain users and databases.
+- View the [High Availability (HA)](../guides/ha.mdx) guide.
+- Take a look at the YAML configuration [reference](../reference/configuration.mdx).
+
