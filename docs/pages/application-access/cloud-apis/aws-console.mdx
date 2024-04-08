@@ -77,10 +77,11 @@ You will create the following resources:
 |`AssumeRole`|IAM policy|Allows the Application Service to assume other roles in order to proxy user requests to AWS.|
 |`TeleportAWSAccess` (for EC2 deployments) |EC2 instance profile|Associates the `TeleportAWSAccess` role with your EC2 instance.|
 
-### Configure a role to enable access to
+### Configure a role for Teleport users to request
 
-In this section, you will configure an AWS role to enable access to with the
-Teleport Application Service.
+In this section, you will create a role that Teleport users can request access
+to when making requests to AWS APIs. The Teleport Application Service assumes
+this role when proxying requests:
 
 1. Obtain AWS credentials for the account where you will run the Teleport
    Application Service and make them available to your terminal shell.
@@ -106,11 +107,11 @@ Teleport Application Service.
    }
    ```
 
-   In the configuration we show in this guide, the Teleport Application Service
-   assumes the `TeleportAWSAccess` role, then uses that role to assume the
+   In the setup we show in this guide, the Teleport Application Service assumes
+   the `TeleportAWSAccess` role, then uses that role to assume the
    `ExampleReadOnlyAccess` role. With the trust policy above, AWS authorizes
-   this operation. (We will create the `TeleportAWSAccess` role later in Step
-   1.)
+   this operation. (We will create the `TeleportAWSAccess` role later in this
+   guide.)
 
    <Details title="Cross-account access">
 
@@ -164,7 +165,7 @@ Teleport Application Service.
    $ aws iam attach-role-policy --role-name ExampleReadOnlyAccess --policy-arn $ARN
    ```
 
-### Give the Teleport Application Service permissions to assume roles
+### Give the Teleport Application Service permissions to assume other roles
 
 In this section, you will create an IAM role that allows the Teleport
 Application Service to assume other IAM roles in order to proxy user traffic to
@@ -337,7 +338,7 @@ In this step, you will define a Teleport role that confers access to the
 `ExampleReadOnlyAccess` IAM role you created in the previous step.
 
 1. Create a file called `aws-ro-access.yaml` with the following content,
-   replacing <Var name="AWS_ACCOUNT" /> with the account number where you
+   replacing <Var name="AWS_ACCOUNT" /> with the ID of the account where you
    created the `ExampleReadOnlyAccess` role:
 
    ```yaml
@@ -408,7 +409,7 @@ Application Service:
      join_params:
        token_name: "/tmp/token"
        method: token
-     proxy_server: "teleport.example.com:443"
+     proxy_server: "<Var name="PROXY_ADDR" />"
    auth_service:
      enabled: off
    proxy_service:
@@ -423,9 +424,9 @@ Application Service:
        uri: "https://console.aws.amazon.com/ec2/v2/home"
    ```
 
-1. Edit `/etc/teleport.yaml` to replace `teleport.example.com:443` with the host
+1. Edit `/etc/teleport.yaml` to replace <Var name="PROXY_ADDR" /> with the host
    and port of your Teleport Proxy Service or Teleport Cloud tenant, e.g.,
-   `mytenant.teleport.sh:443`.
+   `example.teleport.sh:443`.
 
    The `app_service` field configures the Teleport Application Service. Each
    item within `app_service.apps` is an application configuration. 
@@ -434,7 +435,7 @@ Application Service:
 <TabItem label="EKS">
 
 1. Retrieve the join token you created earlier in this guide by running the
-   following command and copying a token with the `App` type:
+   following command and copy the token with the `App` type:
 
    ```code
    $ tctl tokens ls
@@ -554,21 +555,21 @@ to AWS, users can access AWS resources through Teleport.
    into the search box if there are too many resources to view all of them at
    once.)
 
-1. Click the **Launch** button for the AWS Console application, then choose the
-   role you would like to assume when signing in to the AWS Console:
+1. Click the **Launch** button for the AWS Console application, then click on
+   the role you would like to assume when signing in to the AWS Console:
 
    ![IAM role selector](../../../img/application-access/iam-role-selector.png)
 
-1. Click on the role you want to assume and you will get redirected to the AWS
-   Management Console, signed in with the selected role. You should see your
-   Teleport user name as a federated login assigned to `ExampleReadOnlyRole` in
-   the top-right corner of the AWS Console:
+1. You will get redirected to the AWS Management Console, signed in with the
+   selected role. You should see your Teleport user name as a federated login
+   assigned to `ExampleReadOnlyRole` in the top-right corner of the AWS Console:
 
    ![Federated login](../../../img/application-access/federated-login@2x.png)
 
 ### Access the AWS CLI
 
-1. Log into the previously configured AWS console app on your desktop:
+1. On your desktop, log into the AWS Management Console app you configured while
+   following this guide:
 
    ```code
    $ tsh apps login --aws-role ExampleReadOnlyAccess awsconsole
@@ -605,15 +606,16 @@ to AWS, users can access AWS resources through Teleport.
 
 ### Access applications using AWS SDKs
 
-1. Log into the AWS Management Console app you configured earlier:
+1. On your desktop, log into the AWS Management Console app you configured while
+   following this guide:
 
    ```code
    $ tsh apps login --aws-role ExampleReadOnlyAccess awsconsole
    ```
 
-1. Use the following command to start a local HTTPS proxy server, which forwards
-   AWS API traffic to the Teleport Application Service. Leave the terminal where
-   you run the command open since it runs in the foreground:
+1. Open a new terminal and use the following command to start a local HTTPS
+   proxy server that forwards AWS API traffic to the Teleport Application
+   Service. Leave the terminal open since it runs in the foreground:
 
    ```code
    $ tsh proxy aws -p 23456
@@ -702,7 +704,7 @@ AWS API, the logs will show the error message stack trace.
 
 ### The Application Service is not authorized to assume a role
 
-In the Teleport Application Service fails to assume the `ExampleReadOnlyAccess`
+If the Teleport Application Service fails to assume the `ExampleReadOnlyAccess`
 role when a user attempts to access AWS, you will see an error message similar
 to the following in the service's logs:
 
@@ -771,7 +773,7 @@ instance and attach an IAM role to it.
 
 ## Next steps
 
-Now that you know how set up Teleport to protect access to the AWS Management
+Now that you know how to set up Teleport to protect access to the AWS Management
 Console and APIs, you can tailor your setup to the needs of your organization.
 
 ### Refine your AWS IAM role mapping
