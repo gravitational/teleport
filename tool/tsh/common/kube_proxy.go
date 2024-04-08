@@ -102,8 +102,8 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	rexecIntoShell := cf.Headless || c.exec
-	if rexecIntoShell {
+
+	if cf.Headless {
 		tc.AllowHeadless = true
 	}
 
@@ -135,7 +135,10 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 		return trace.Wrap(cf.RunCommand(cmd))
 	}
 
-	if rexecIntoShell {
+	// re-exec into a new shell with $KUBECONFIG already pointed to our config file
+	// if --exec flag is set or headless mode is enabled.
+	reexecIntoShell := cf.Headless || c.exec
+	if reexecIntoShell {
 		// If headless, run proxy in the background and reexec into a new shell with $KUBECONFIG already pointed to
 		// our config file
 		return trace.Wrap(runHeadlessKubeProxy(cf, localProxy))
