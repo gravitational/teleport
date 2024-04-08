@@ -1774,9 +1774,9 @@ func TestGetRequestableRoles(t *testing.T) {
 	}
 }
 
-// TestCalculatePendingRequesTTL verifies that the TTL for the Access Request is capped to the
+// TestCalculatePendingRequestTTL verifies that the TTL for the Access Request is capped to the
 // request's access expiry or capped to the default const requestTTL, whichever is smaller.
-func TestCalculatePendingRequesTTL(t *testing.T) {
+func TestCalculatePendingRequestTTL(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	now := clock.Now().UTC()
 
