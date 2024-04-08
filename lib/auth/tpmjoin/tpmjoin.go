@@ -31,6 +31,7 @@ import (
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
+	"github.com/mitchellh/mapstructure"
 
 	"github.com/gravitational/teleport/api/client/proto"
 )
@@ -195,8 +196,27 @@ type ValidateParams struct {
 }
 
 type ValidatedTPM struct {
-	EKPubHash    string
-	EKCertSerial string
+	EKPubHash      string `json:"ek_pub_hash"`
+	EKCertSerial   string `json:"ek_cert_serial,omitempty"`
+	EKCertVerified bool   `json:"ek_cert_verified"`
+}
+
+// JoinAuditAttributes returns a series of attributes that can be inserted into
+// audit events related to a specific join.
+func (c *ValidatedTPM) JoinAuditAttributes() (map[string]interface{}, error) {
+	res := map[string]interface{}{}
+	d, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		TagName: "json",
+		Result:  &res,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := d.Decode(c); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return res, nil
 }
 
 func parseEK(
@@ -261,11 +281,6 @@ func Validate(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(params.AllowedCAs) > 0 {
-		if err := verifyEKCert(ctx, log, params.AllowedCAs, ekCert); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
 
 	marshalledEKPub, err := x509.MarshalPKIXPublicKey(ekPub)
 	if err != nil {
@@ -278,9 +293,22 @@ func Validate(
 		validated.EKCertSerial = SerialString(ekCert.SerialNumber)
 	}
 
+	if len(params.AllowedCAs) > 0 {
+		if err := verifyEKCert(ctx, log, params.AllowedCAs, ekCert); err != nil {
+			log.ErrorContext(
+				ctx,
+				"EKCert CA verification failed",
+				"error", err,
+				"tpm", validated,
+			)
+			return validated, trace.Wrap(err)
+		}
+		validated.EKCertVerified = true
+	}
+
 	activationParameters := attest.ActivationParameters{
 		TPMVersion: attest.TPMVersion20,
-		AK:         *params.AttestParams,
+		AK:         params.AttestParams,
 		EK:         ekPub,
 	}
 	// The generate method completes initial validation that provides the
@@ -294,17 +322,23 @@ func Validate(
 	// - The attestation key resides in the same TPM as the endorsement key
 	solution, encryptedCredential, err := activationParameters.Generate()
 	if err != nil {
-		return nil, trace.Wrap(err, "generating credential activation challenge")
+		return validated, trace.Wrap(err, "generating credential activation challenge")
 	}
 	clientSolution, err := params.Solve(encryptedCredential)
 	if err != nil {
-		return nil, trace.Wrap(err, "asking client to perform credential activation")
+		return validated, trace.Wrap(err, "asking client to perform credential activation")
 	}
 	if subtle.ConstantTimeCompare(clientSolution, solution) == 0 {
-		return nil, trace.BadParameter("invalid credential activation solution")
+		log.ErrorContext(
+			ctx,
+			"TPM Credential Activation solution did not match expected solution.",
+			"error", err,
+			"tpm", validated,
+		)
+		return validated, trace.BadParameter("invalid credential activation solution")
 	}
 
-	return nil, nil
+	return validated, nil
 }
 
 // SerialString converts a serial number into a readable colon-delimited hex

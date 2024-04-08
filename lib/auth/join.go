@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -283,6 +284,26 @@ func (a *Server) generateCertsBot(
 		log.WithError(err).Warn("Failed to emit bot join event.")
 	}
 	return certs, nil
+}
+
+func (s *Server) emitFailedJoin(
+	ctx context.Context,
+	pt types.ProvisionToken,
+	attributeSrc joinAttributeSourcer,
+	err error,
+) {
+	fields := logrus.Fields{
+		"token":       pt.GetName(),
+		"join_method": pt.GetJoinMethod(),
+	}
+	if attributeSrc != nil {
+		attributes, err := attributeSrc.JoinAuditAttributes()
+		if err != nil {
+			log.WithError(err).Warn("Unable to fetch join attributes from join method.")
+		}
+		fields["attributes"] = attributes
+	}
+	log.WithError(err).WithFields(fields).Error("An attempt to join the cluster has failed")
 }
 
 func (a *Server) generateCerts(

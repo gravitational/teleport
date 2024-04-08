@@ -18,7 +18,14 @@ func (a *Server) RegisterUsingTPMMethod(
 	ctx context.Context,
 	initReq *proto.RegisterUsingTPMMethodInitialRequest,
 	solveChallenge client.RegisterTPMChallengeResponseFunc,
-) (*proto.Certs, error) {
+) (certs *proto.Certs, err error) {
+	var validated *tpmjoin.ValidatedTPM
+	defer func() {
+		if err != nil {
+			log.WithError(err).Error("An attempted join using the TPM method failed")
+		}
+	}()
+
 	// First, check the specified token exists, and is a TPM-type join token.
 	if err := initReq.JoinRequest.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -49,7 +56,26 @@ func (a *Server) RegisterUsingTPMMethod(
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO: Compare to rules!!
+	if err := checkTPMAllowRules(validatedEK, ptv2.Spec.TPM.Allow); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return nil, trace.NotImplemented("RegisterUsingTPMMethod is not implemented")
+	if initReq.JoinRequest.Role == types.RoleBot {
+		certs, err = a.generateCertsBot(
+			ctx, ptv2, initReq.JoinRequest, validatedEK,
+		)
+		return certs, trace.Wrap(err)
+	}
+	certs, err = a.generateCerts(
+		ctx, ptv2, initReq.JoinRequest, validatedEK,
+	)
+	return certs, trace.Wrap(err)
+}
+
+func checkTPMAllowRules(tpm *tpmjoin.ValidatedTPM, rules []*types.ProvisionTokenSpecV2TPM_Rule) error {
+	for _, rule := range rules {
+
+	}
+
+	return trace.AccessDenied("id token claims did not match any allow rules")
 }
