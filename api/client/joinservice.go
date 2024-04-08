@@ -128,3 +128,64 @@ func (c *JoinServiceClient) RegisterUsingAzureMethod(ctx context.Context, challe
 	}
 	return certsResp.Certs, nil
 }
+
+// RegisterUsingTPMMethod ,,,
+func (c *JoinServiceClient) RegisterUsingTPMMethod(ctx context.Context, initReq *proto.RegisterUsingTPMMethodInitialRequest, solveChallenge RegisterTPMChallengeResponseFunc) (*proto.Certs, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	tpmJoinClient, err := c.grpcClient.RegisterUsingTPMMethod(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = tpmJoinClient.Send(&proto.RegisterUsingTPMMethodRequest{
+		Payload: &proto.RegisterUsingTPMMethodRequest_Init{
+			Init: initReq,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	challengeResp, err := tpmJoinClient.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	challenge, ok := challengeResp.Payload.(*proto.RegisterUsingTPMMethodResponse_ChallengeRequest)
+	if !ok {
+		return nil, trace.BadParameter(
+			"unexpected payload type %T, expected *RegisterUsingTPMMethodResponse_ChallengeRequest",
+			challengeResp.Payload,
+		)
+	}
+
+	solution, err := solveChallenge(challenge.ChallengeRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = tpmJoinClient.Send(&proto.RegisterUsingTPMMethodRequest{
+		Payload: &proto.RegisterUsingTPMMethodRequest_ChallengeResponse{
+			ChallengeResponse: solution,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certsResp, err := tpmJoinClient.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certs, ok := certsResp.Payload.(*proto.RegisterUsingTPMMethodResponse_Certs)
+	if !ok {
+		return nil, trace.BadParameter(
+			"unexpected payload type %T, expected *RegisterUsingTPMMethodResponse_Certs",
+			certsResp.Payload,
+		)
+	}
+
+	return certs.Certs, nil
+}
