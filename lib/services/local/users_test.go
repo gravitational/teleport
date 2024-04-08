@@ -48,7 +48,7 @@ func newIdentityService(t *testing.T, clock clockwork.Clock) *local.IdentityServ
 		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
-	return local.NewIdentityService(backend)
+	return local.NewTestIdentityService(backend)
 }
 
 func TestRecoveryCodesCRUD(t *testing.T) {
