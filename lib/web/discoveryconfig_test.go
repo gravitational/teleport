@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
@@ -122,7 +123,7 @@ func TestDiscoveryConfig(t *testing.T) {
 			require.Equal(t, "dc01", discoveryConfigResp.Name)
 		})
 
-		t.Run("Get one after status update", func(t *testing.T) {
+		t.Run("Read status after an update", func(t *testing.T) {
 			client, err := env.server.NewClient(auth.TestIdentity{
 				I: authz.BuiltinRole{
 					Role:     types.RoleDiscovery,
@@ -144,9 +145,9 @@ func TestDiscoveryConfig(t *testing.T) {
 			var discoveryConfigResp ui.DiscoveryConfig
 			err = json.Unmarshal(resp.Bytes(), &discoveryConfigResp)
 			require.NoError(t, err)
-			require.Equal(t, "dg01", discoveryConfigResp.DiscoveryGroup)
-			require.Equal(t, "dc01", discoveryConfigResp.Name)
-			require.Equal(t, status, discoveryConfigResp.Status)
+			assert.Equal(t, "dg01", discoveryConfigResp.DiscoveryGroup)
+			assert.Equal(t, "dc01", discoveryConfigResp.Name)
+			assert.Equal(t, status, discoveryConfigResp.Status)
 		})
 
 		t.Run("Update discovery config", func(t *testing.T) {
