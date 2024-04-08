@@ -51,6 +51,7 @@ type KubernetesOutput struct {
 	// `tbot` may not exist on the system that will consume the outputted
 	// kubeconfig. It does mean that kubectl will not be able to automatically
 	// refresh the credentials within an individual invocation.
+	// TODO: Determine usefulness of this.
 	DisableExecPlugin bool `yaml:"disable_exec_plugin"`
 }
 
