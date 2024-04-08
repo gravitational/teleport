@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -114,6 +115,85 @@ func setRemoteAddrFromContext(ctx context.Context, req *types.RegisterUsingToken
 	return nil
 }
 
+// handleJoinFailure logs and audits the failure of a join.
+func (a *Server) handleJoinFailure(
+	origErr error,
+	pt types.ProvisionToken,
+	attributeSource joinAttributeSourcer,
+	req *types.RegisterUsingTokenRequest,
+) {
+	fields := logrus.Fields{
+		"role": req.Role,
+	}
+
+	var attributesProto *apievents.Struct
+	if attributeSource != nil {
+		var err error
+		attributes, err := attributeSource.JoinAuditAttributes()
+		if err != nil {
+			log.WithError(err).Warn("Unable to fetch join attributes from join method")
+		}
+		fields["attributes"] = attributes
+		attributesProto, err = apievents.EncodeMap(attributes)
+		if err != nil {
+			log.WithError(err).Warn("Unable to encode join attributes for audit event")
+		}
+	}
+
+	if pt != nil {
+		fields["join_method"] = string(pt.GetJoinMethod())
+		fields["token_name"] = pt.GetSafeName()
+	}
+	log.WithError(origErr).WithFields(fields).Error("Failure to join cluster occurred")
+
+	var evt apievents.AuditEvent
+	if req.Role == types.RoleBot {
+		botJoinEvent := &apievents.BotJoin{
+			Metadata: apievents.Metadata{
+				Type: events.BotJoinEvent,
+				Code: events.BotJoinFailureCode,
+			},
+			Status: apievents.Status{
+				Success: false,
+				Error:   origErr.Error(),
+			},
+			BotName:    "unknown",
+			Method:     "unknown",
+			Attributes: attributesProto,
+		}
+		if pt != nil {
+			botJoinEvent.Method = string(pt.GetJoinMethod())
+			botJoinEvent.TokenName = pt.GetSafeName()
+		}
+		evt = botJoinEvent
+	} else {
+		instanceJoinEvent := &apievents.InstanceJoin{
+			Metadata: apievents.Metadata{
+				Type: events.InstanceJoinEvent,
+				Code: events.InstanceJoinFailureCode,
+			},
+			Status: apievents.Status{
+				Success: false,
+				Error:   origErr.Error(),
+			},
+			NodeName:   req.NodeName,
+			Role:       string(req.Role),
+			Method:     "unknown",
+			TokenName:  "unknown",
+			HostID:     req.HostID,
+			Attributes: attributesProto,
+		}
+		if pt != nil {
+			instanceJoinEvent.Method = string(pt.GetJoinMethod())
+			instanceJoinEvent.TokenName = pt.GetSafeName()
+		}
+		evt = instanceJoinEvent
+	}
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, evt); err != nil {
+		log.WithError(err).Warn("Failed to emit failed join event")
+	}
+}
+
 // RegisterUsingToken returns credentials for a new node to join the Teleport
 // cluster using a previously issued token.
 //
@@ -125,13 +205,21 @@ func setRemoteAddrFromContext(ctx context.Context, req *types.RegisterUsingToken
 //
 // If the token includes a specific join method, the rules for that join method
 // will be checked.
-func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (certs *proto.Certs, err error) {
+	var joinAttributeSrc joinAttributeSourcer
+	var provisionToken types.ProvisionToken
+	defer func() {
+		// Emit a log message and audit event on join failure.
+		if err != nil {
+			a.handleJoinFailure(err, provisionToken, joinAttributeSrc, req)
+		}
+	}()
+
 	log.Infof("Node %q [%v] is trying to join with role: %v.", req.NodeName, req.HostID, req.Role)
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var joinAttributeSrc joinAttributeSourcer
 	switch method := a.tokenJoinMethod(ctx, req.Token); method {
 	case types.JoinMethodEC2:
 		if err := a.checkEC2JoinRequest(ctx, req); err != nil {
@@ -144,40 +232,52 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			"sure your node is configured to use the %s join method", method, method)
 	case types.JoinMethodGitHub:
 		claims, err := a.checkGitHubJoinRequest(ctx, req)
+		if claims != nil {
+			joinAttributeSrc = claims
+		}
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		joinAttributeSrc = claims
 	case types.JoinMethodGitLab:
 		claims, err := a.checkGitLabJoinRequest(ctx, req)
+		if claims != nil {
+			joinAttributeSrc = claims
+		}
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		joinAttributeSrc = claims
 	case types.JoinMethodCircleCI:
 		claims, err := a.checkCircleCIJoinRequest(ctx, req)
+		if claims != nil {
+			joinAttributeSrc = claims
+		}
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		joinAttributeSrc = claims
 	case types.JoinMethodKubernetes:
 		claims, err := a.checkKubernetesJoinRequest(ctx, req)
+		if claims != nil {
+			joinAttributeSrc = claims
+		}
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		joinAttributeSrc = claims
 	case types.JoinMethodGCP:
 		claims, err := a.checkGCPJoinRequest(ctx, req)
+		if claims != nil {
+			joinAttributeSrc = claims
+		}
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		joinAttributeSrc = claims
 	case types.JoinMethodSpacelift:
 		claims, err := a.checkSpaceliftJoinRequest(ctx, req)
+		if claims != nil {
+			joinAttributeSrc = claims
+		}
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		joinAttributeSrc = claims
 	case types.JoinMethodToken:
 		// carry on to common token checking logic
 	default:
@@ -188,7 +288,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	}
 
 	// perform common token checks
-	provisionToken, err := a.checkTokenJoinRequestCommon(ctx, req)
+	provisionToken, err = a.checkTokenJoinRequestCommon(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -196,10 +296,10 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	// With all elements of the token validated, we can now generate & return
 	// certificates.
 	if req.Role == types.RoleBot {
-		certs, err := a.generateCertsBot(ctx, provisionToken, req, joinAttributeSrc)
+		certs, err = a.generateCertsBot(ctx, provisionToken, req, joinAttributeSrc)
 		return certs, trace.Wrap(err)
 	}
-	certs, err := a.generateCerts(ctx, provisionToken, req, joinAttributeSrc)
+	certs, err = a.generateCerts(ctx, provisionToken, req, joinAttributeSrc)
 	return certs, trace.Wrap(err)
 }
 
