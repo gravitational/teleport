@@ -1353,10 +1353,10 @@ func (m *RequestValidator) calculatePendingRequestTTL(r types.AccessRequest, now
 	requestedTTL := expiry.Sub(now)
 	if !r.Expiry().IsZero() {
 		if requestedTTL > requestTTL {
-			return 0, trace.BadParameter("invalid request TTL: %v greater than maximum allowed (%v)", requestedTTL.Round(time.Minute), requestTTL.Round(time.Minute))
+			return 0, trace.BadParameter("invalid request TTL: %v greater than maximum allowed (%v)", requestedTTL, requestTTL)
 		}
 		if requestedTTL > accessExpiryTTL {
-			return 0, trace.BadParameter("invalid request TTL: %v greater than maximum allowed (%v)", requestedTTL.Round(time.Minute), accessExpiryTTL.Round(time.Minute))
+			return 0, trace.BadParameter("invalid request TTL: %v greater than maximum allowed (%v)", requestedTTL, accessExpiryTTL)
 		}
 	}
 
@@ -1376,7 +1376,7 @@ func (m *RequestValidator) sessionTTL(ctx context.Context, identity tlsca.Identi
 	// user.
 	requestedTTL := r.GetAccessExpiry().Sub(now)
 	if !r.GetAccessExpiry().IsZero() && requestedTTL > ttl {
-		return 0, trace.BadParameter("invalid session TTL: %v greater than maximum allowed (%v)", requestedTTL.Round(time.Minute), ttl.Round(time.Minute))
+		return 0, trace.BadParameter("invalid session TTL: %v greater than maximum allowed (%v)", requestedTTL, ttl)
 	}
 
 	return ttl, nil
