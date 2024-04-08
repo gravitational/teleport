@@ -70,8 +70,9 @@ type IdentityService struct {
 // NewIdentityService returns a new instance of IdentityService object
 func NewIdentityService(backend backend.Backend) *IdentityService {
 	return &IdentityService{
-		Backend: backend,
-		log:     logrus.WithField(teleport.ComponentKey, "identity"),
+		Backend:    backend,
+		log:        logrus.WithField(teleport.ComponentKey, "identity"),
+		bcryptCost: bcrypt.DefaultCost,
 	}
 }
 
