@@ -48,12 +48,12 @@ export function ConnectionItem(props: ConnectionItemProps) {
 
   const actionIcons = {
     disconnect: {
-      title: 'Disconnect',
+      title: `Disconnect ${props.item.title}`,
       action: props.onDisconnect,
       Icon: Unlink,
     },
     remove: {
-      title: 'Remove',
+      title: `Remove ${props.item.title}`,
       action: props.onRemove,
       Icon: Trash,
     },
