@@ -110,6 +110,21 @@ const (
 	mfaModeOTP = "otp"
 )
 
+const (
+	// accessRequestModeOff disables automatic access requests.
+	accessRequestModeOff = "off"
+	// accessRequestModeResource enables automatic resource access requests.
+	accessRequestModeResource = "resource"
+	// accessRequestModeRole enables automatic role access requests.
+	accessRequestModeRole = "role"
+)
+
+var accessRequestModes = []string{
+	accessRequestModeOff,
+	accessRequestModeResource,
+	accessRequestModeRole,
+}
+
 // CLIConf stores command line arguments and flags:
 type CLIConf struct {
 	// UserHost contains "[login]@hostname" argument to SSH command
@@ -130,6 +145,8 @@ type CLIConf struct {
 	RequestID string
 	// RequestIDs is a list of access request IDs
 	RequestIDs []string
+	// RequestMode is the type of access request to automatically make if needed.
+	RequestMode string
 	// ReviewReason indicates the reason for an access review.
 	ReviewReason string
 	// ReviewableRequests indicates that only requests which can be reviewed should
@@ -439,7 +456,7 @@ type CLIConf struct {
 	// TracingProvider is the provider to use to create tracers, from which spans can be created.
 	TracingProvider oteltrace.TracerProvider
 
-	// disableAccessRequest disables automatic resource access requests.
+	// disableAccessRequest disables automatic resource access requests. Deprecated in favor of RequestType.
 	disableAccessRequest bool
 
 	// FromUTC is the start time to use for the range of sessions listed by the session recordings listing command
@@ -613,6 +630,7 @@ const (
 	awsWorkgroupEnvVar       = "TELEPORT_AWS_WORKGROUP"
 	proxyKubeConfigEnvVar    = "TELEPORT_KUBECONFIG"
 	noResumeEnvVar           = "TELEPORT_NO_RESUME"
+	requestModeEnvVar        = "TELEPORT_REQUEST_MODE"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -753,7 +771,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("x11-untrusted-timeout", "Sets a timeout for untrusted X11 forwarding, after which the client will reject any forwarding requests from the server").Default("10m").DurationVar((&cf.X11ForwardingTimeout))
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
 	ssh.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
-	ssh.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
+	ssh.Flag("request-mode", fmt.Sprintf("Type of automatic access request to make (%s)", strings.Join(accessRequestModes, ", "))).Envar(requestModeEnvVar).Default(accessRequestModeResource).EnumVar(&cf.RequestMode, accessRequestModes...)
+	ssh.Flag("disable-access-request", "Disable automatic resource access requests (DEPRECATED: use --request-mode=off)").BoolVar(&cf.disableAccessRequest)
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 
@@ -1225,6 +1244,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	cf.ExplicitUsername = cf.Username != ""
 
 	cf.command = command
+	// Convert --disable-access-request for compatibility.
+	if cf.disableAccessRequest {
+		cf.RequestMode = accessRequestModeOff
+	}
 
 	// apply any options after parsing of arguments to ensure
 	// that defaults don't overwrite options.
@@ -3192,9 +3215,9 @@ func serializeClusters(rootCluster clusterInfo, leafClusters []clusterInfo, form
 	return string(out), trace.Wrap(err)
 }
 
-// accessRequestForSSH attempts to create a resource access request for the case
+// accessRequestForSSH attempts to create an access request for the case
 // where "tsh ssh" was attempted and access was denied
-func accessRequestForSSH(ctx context.Context, _ *CLIConf, tc *client.TeleportClient) (types.AccessRequest, error) {
+func accessRequestForSSH(ctx context.Context, cf *CLIConf, tc *client.TeleportClient) (types.AccessRequest, error) {
 	if tc.Host == "" {
 		return nil, trace.BadParameter("no host specified")
 	}
@@ -3225,14 +3248,30 @@ func accessRequestForSSH(ctx context.Context, _ *CLIConf, tc *client.TeleportCli
 
 	// At this point we have exactly 1 node.
 	node := rsp.Servers[0]
+	var req types.AccessRequest
 	requestResourceIDs := []types.ResourceID{{
 		ClusterName: tc.SiteName,
 		Kind:        types.KindNode,
 		Name:        node.GetName(),
 	}}
+	switch cf.RequestMode {
+	case accessRequestModeRole:
+		req, err = getAutoRoleRequest(ctx, clt, requestResourceIDs, tc)
+	case accessRequestModeResource:
+		req, err = getAutoResourceRequest(ctx, tc, requestResourceIDs)
+	default:
+		return nil, trace.BadParameter("unexpected request mode %q", cf.RequestMode)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
+	return req, nil
+}
+
+func getAutoResourceRequest(ctx context.Context, tc *client.TeleportClient, requestResourceIDs []types.ResourceID) (types.AccessRequest, error) {
 	// Roles to request will be automatically determined on the backend.
-	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
+	req, err := services.NewAccessRequestWithResources(tc.Username, nil, requestResourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3251,7 +3290,28 @@ func accessRequestForSSH(ctx context.Context, _ *CLIConf, tc *client.TeleportCli
 	}
 	req.SetDryRun(false)
 	req.SetRequestReason("")
+	return req, nil
+}
 
+func getAutoRoleRequest(ctx context.Context, clt *client.ClusterClient, requestResourceIDs []types.ResourceID, tc *client.TeleportClient) (types.AccessRequest, error) {
+	rootClient, err := clt.ConnectToRootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := rootClient.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
+		RequestableRoles:                 true,
+		ResourceIDs:                      requestResourceIDs,
+		Login:                            tc.HostLogin,
+		FilterRequestableRolesByResource: true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req, err := services.NewAccessRequestWithResources(tc.Username, resp.RequestableRoles, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return req, nil
 }
 
@@ -3263,8 +3323,8 @@ func retryWithAccessRequest(
 	resource string,
 ) error {
 	origErr := fn()
-	if cf.disableAccessRequest || !trace.IsAccessDenied(origErr) {
-		// Return if --disable-access-request was specified.
+	if cf.RequestMode == accessRequestModeOff || !trace.IsAccessDenied(origErr) {
+		// Return if --request-mode=off was specified.
 		// Return the original error if it's not AccessDenied.
 		// Quit now if we don't have a hostname.
 		return trace.Wrap(origErr)
@@ -3284,10 +3344,10 @@ func retryWithAccessRequest(
 	// Print and log the original AccessDenied error.
 	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(origErr))
 	fmt.Fprintf(os.Stdout, "You do not currently have access to %q, attempting to request access.\n\n", resource)
-
-	if err := setAccessRequestReason(cf, req); err != nil {
+	if err := promptUserForAccessRequestDetails(cf, req); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if err := sendAccessRequestAndWaitForApproval(cf, tc, req); err != nil {
 		return trace.Wrap(err)
 	}
@@ -3296,6 +3356,32 @@ func retryWithAccessRequest(
 	// Clear the original exit status.
 	tc.ExitStatus = 0
 	return trace.Wrap(fn())
+}
+
+func promptUserForAccessRequestDetails(cf *CLIConf, req types.AccessRequest) error {
+	if cf.RequestMode != accessRequestModeRole {
+		return nil
+	}
+	// If this is a role access request, ensure that it only has one role.
+	switch len(req.GetRoles()) {
+	case 0:
+		return trace.AccessDenied("no roles to request that would grant access")
+	case 1:
+		return nil
+	default:
+		selectedRole, err := prompt.PickOne(
+			cf.Context, os.Stdout, prompt.NewContextReader(os.Stdin),
+			"Choose role to request",
+			req.GetRoles())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		req.SetRoles([]string{selectedRole})
+	}
+	if err := setAccessRequestReason(cf, req); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func setAccessRequestReason(cf *CLIConf, req types.AccessRequest) (err error) {

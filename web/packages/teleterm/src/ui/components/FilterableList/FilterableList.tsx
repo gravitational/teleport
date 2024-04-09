@@ -30,9 +30,7 @@ interface FilterableListProps<T> {
   onFilterChange?(filter: string): void;
 }
 
-export function FilterableList<T>(
-  props: React.PropsWithChildren<FilterableListProps<T>>
-) {
+export function FilterableList<T>(props: FilterableListProps<T>) {
   const { items } = props;
   const [searchValue, setSearchValue] = useState<string>();
 
@@ -54,7 +52,6 @@ export function FilterableList<T>(
         autoFocus={true}
       />
       <UnorderedList>
-        {props.children}
         {filteredItems.map((item, index) => (
           <Fragment key={index}>{props.Node({ item, index })}</Fragment>
         ))}
@@ -68,11 +65,13 @@ function filterItems<T>(
   items: T[],
   filterBy: keyof T
 ): T[] {
-  const trimmed = searchValue?.trim();
+  const trimmed = searchValue?.trim().toLocaleLowerCase();
   if (!trimmed) {
     return items;
   }
-  return items.filter(item => item[filterBy].toString().includes(trimmed));
+  return items.filter(item =>
+    item[filterBy].toString().toLocaleLowerCase().includes(trimmed)
+  );
 }
 
 const UnorderedList = styled.ul`
