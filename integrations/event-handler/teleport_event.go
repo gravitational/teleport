@@ -20,9 +20,10 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/trace"
 )
 
 const (

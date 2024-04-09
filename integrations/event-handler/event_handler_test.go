@@ -18,18 +18,19 @@ package main
 
 import (
 	"context"
-	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/integrations/lib/logger"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/testing/integration"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/logger"
+	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 )
 
 type EventHandlerSuite struct {

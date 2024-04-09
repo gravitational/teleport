@@ -22,13 +22,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/net/context"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/net/context"
 )
 
 // mockTeleportEventWatcher is Teleport client mock

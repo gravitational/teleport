@@ -17,11 +17,12 @@ package main
 import (
 	"context"
 
-	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/trace"
 	limiter "github.com/sethvargo/go-limiter"
 	"github.com/sethvargo/go-limiter/memorystore"
+
+	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
 // EventsJob incapsulates audit log event consumption logic

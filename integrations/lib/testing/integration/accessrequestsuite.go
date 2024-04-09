@@ -20,10 +20,11 @@ package integration
 
 import (
 	"context"
+	"strings"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"strings"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"

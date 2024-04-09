@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -30,8 +29,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
 type FakeFluentd struct {

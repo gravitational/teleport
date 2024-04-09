@@ -21,14 +21,14 @@ import (
 	"encoding/hex"
 	"testing"
 
-	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
-	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/integrations/event-handler/lib"
 )
 

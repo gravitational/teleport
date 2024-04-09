@@ -25,9 +25,10 @@ import (
 	"os"
 	"time"
 
-	tlib "github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	tlib "github.com/gravitational/teleport/integrations/lib"
 )
 
 const (

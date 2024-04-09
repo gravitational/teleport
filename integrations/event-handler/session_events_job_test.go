@@ -18,10 +18,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/api/client"
-	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/peterbourgon/diskv/v3"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/client"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 )
 
 // TestConsumeSessionNoEventsFound tests that the consumeSession method returns without error
