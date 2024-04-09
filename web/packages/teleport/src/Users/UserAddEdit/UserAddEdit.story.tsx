@@ -27,7 +27,7 @@ export const Create = () => {
     ...props,
     isNew: true,
     name: '',
-    roles: [],
+    fetchRoles: async () => [],
     selectedRoles: [],
     attempt: { status: '' as const },
   };
@@ -53,7 +53,8 @@ export const Failed = () => {
 };
 
 const props = {
-  roles: ['Relupba', 'B', 'Pilhibo'],
+  fetchRoles: async (input: string) =>
+    ['Relupba', 'B', 'Pilhibo'].filter(r => r.includes(input)),
   onClose: () => null,
   selectedRoles: [
     { value: 'admin', label: 'admin' },

@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 
 import { Roles } from './Roles';
 
@@ -20,7 +20,12 @@ export default {
 };
 
 export function Processing() {
-  return <Roles {...sample} attempt={{ status: 'processing' as any }} />;
+  const promiseRef = useRef(Promise.withResolvers<never>());
+  useEffect(() => {
+    const promise = promiseRef.current;
+    return () => promise.resolve(undefined);
+  }, []);
+  return <Roles {...sample} fetch={() => promiseRef.current.promise} />;
 }
 
 export function Loaded() {
@@ -28,14 +33,18 @@ export function Loaded() {
 }
 
 export function Empty() {
-  return <Roles {...sample} items={[]} />;
+  return (
+    <Roles {...sample} fetch={async () => ({ items: [], startKey: '' })} />
+  );
 }
 
 export function Failed() {
   return (
     <Roles
       {...sample}
-      attempt={{ status: 'failed', statusText: 'some error message' }}
+      fetch={async () => {
+        throw new Error('some error message');
+      }}
     />
   );
 }
@@ -63,7 +72,7 @@ const sample = {
   attempt: {
     status: 'success' as any,
   },
-  items: roles,
+  fetch: async () => ({ items: roles, startKey: '' }),
   remove: () => null,
   save: () => null,
 };

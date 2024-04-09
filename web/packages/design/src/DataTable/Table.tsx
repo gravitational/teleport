@@ -147,7 +147,7 @@ export function Table<T>({
           prevPage={fetching.onFetchPrev}
           pagination={state.pagination}
           serversideProps={serversideProps}
-        />
+        fetchStatus={fetching.fetchStatus}/>
       </StyledTableWrapper>
     );
   }
@@ -322,6 +322,7 @@ function ServersideTable<T>({
   className,
   style,
   serversideProps,
+  fetchStatus,
 }: ServersideTableProps<T>) {
   return (
     <>
@@ -331,7 +332,11 @@ function ServersideTable<T>({
         {renderBody(data)}
       </StyledTable>
       <StyledPanel showTopBorder={true}>
-        <ServerSidePager nextPage={nextPage} prevPage={prevPage} />
+        <ServerSidePager
+            nextPage={nextPage}
+            prevPage={prevPage}
+            isLoading={fetchStatus === 'loading'}
+          />
       </StyledPanel>
     </>
   );

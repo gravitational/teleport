@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useState } from 'react';
+import { useState, Dispatch, SetStateAction } from 'react';
 import { FetchStatus, Page } from 'design/DataTable/types';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
@@ -26,7 +26,7 @@ export function useServerSidePagination<T>({
   clusterId,
   params,
   pageSize = 15,
-}: Props<T>): State<T> {
+}: Props<T>): SeversidePagination<T> {
   const { attempt, setAttempt } = useAttempt('processing');
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
   const [page, setPage] = useState<Page>({ keys: [], index: 0 });
@@ -131,6 +131,7 @@ export function useServerSidePagination<T>({
     page,
     pageSize,
     fetchedData,
+    modifyFetchedData: setFetchedData,
   };
 }
 
@@ -144,7 +145,7 @@ type Props<T> = {
   pageSize?: number;
 };
 
-type State<T> = {
+export type SeversidePagination<T> = {
   pageIndicators: PageIndicators;
   fetch: () => void;
   fetchNext: (() => void) | null;
@@ -154,6 +155,8 @@ type State<T> = {
   page: Page;
   pageSize: number;
   fetchedData: ResourcesResponse<T>;
+  /** Allows modifying the fetched data. */
+  modifyFetchedData: Dispatch<SetStateAction<ResourcesResponse<T>>>;
 };
 
 /** Contains the values needed to display 'Showing X - X of X' on the top right of the table. */
