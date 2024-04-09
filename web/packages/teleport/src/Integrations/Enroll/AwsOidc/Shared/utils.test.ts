@@ -48,6 +48,7 @@ test('getDefaultS3PrefixName', () => {
 });
 
 describe('requiredPrefixName', () => {
+  const requiredField = true;
   test.each`
     input                         | valid
     ${''}                         | ${false}
@@ -61,8 +62,13 @@ describe('requiredPrefixName', () => {
     ${'sdlfkjs/dfsd'}             | ${false}
     ${'Asd09f-_.sdfDFs1'}         | ${true}
   `('validity of input($input) should be ($valid)', ({ input, valid }) => {
-    const result = requiredPrefixName(input)();
+    const result = requiredPrefixName(requiredField)(input)();
     expect(result.valid).toEqual(valid);
+  });
+
+  test('empty prefix name is valid if not a required field', () => {
+    const requiredField = false;
+    expect(requiredPrefixName(requiredField)('')().valid).toBeTruthy();
   });
 });
 
@@ -83,7 +89,13 @@ describe('requiredBucketName', () => {
     ${'Asd09f-sdfDFs1'}           | ${false}
     ${'sdf0-dfs0'}                | ${true}
   `('validity of input($input) should be ($valid)', ({ input, valid }) => {
-    const result = requiredBucketName(input)();
+    const requiredField = true;
+    const result = requiredBucketName(requiredField)(input)();
     expect(result.valid).toEqual(valid);
+  });
+
+  test('empty bucket name is valid if not a required field', () => {
+    const requiredField = false;
+    expect(requiredBucketName(requiredField)('')().valid).toBeTruthy();
   });
 });
