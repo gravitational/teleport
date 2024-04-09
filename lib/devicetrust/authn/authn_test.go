@@ -133,10 +133,16 @@ func TestCeremony_RunWeb(t *testing.T) {
 		devID := macOSDev1.Id
 		dev := macOSFakeDev1
 
-		webToken1, err := fakeService.CreateDeviceWebTokenForTesting(devID)
+		webToken1, err := fakeService.CreateDeviceWebTokenForTesting(testenv.CreateDeviceWebTokenParams{
+			ExpectedDeviceID: devID,
+			WebSessionID:     "my-web-session-1",
+		})
 		require.NoError(t, err, "CreateDeviceWebTokenForTesting failed")
 
-		invalidDeviceToken, err := fakeService.CreateDeviceWebTokenForTesting("I'm a llama not a device ID")
+		invalidDeviceToken, err := fakeService.CreateDeviceWebTokenForTesting(testenv.CreateDeviceWebTokenParams{
+			ExpectedDeviceID: "I'm a llama not a device ID",
+			WebSessionID:     "my-web-session-2",
+		})
 		require.NoError(t, err, "CreateDeviceWebTokenForTesting failed")
 
 		const wantErr = "invalid device web token"
@@ -166,7 +172,10 @@ func TestCeremony_RunWeb(t *testing.T) {
 
 		// Create a fake DeviceWebToken. This and a previous enrollment is all the
 		// fake service requires.
-		webToken, err := fakeService.CreateDeviceWebTokenForTesting(devID)
+		webToken, err := fakeService.CreateDeviceWebTokenForTesting(testenv.CreateDeviceWebTokenParams{
+			ExpectedDeviceID: devID,
+			WebSessionID:     "my-web-session-ok",
+		})
 		require.NoError(t, err, "CreateDeviceWebTokenForTesting failed")
 
 		err = newAuthnCeremony(dev).RunWeb(ctx, devicesClient, webToken)
