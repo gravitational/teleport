@@ -39,8 +39,10 @@ type Audit interface {
 	OnSessionEnd(ctx context.Context, session *Session)
 	// OnQuery is called when a database query or command is executed.
 	OnQuery(ctx context.Context, session *Session, query Query)
-	// EmitEvent emits the provided audit event.
+	// EmitEvent emits the provided audit event to both audit log and recording.
 	EmitEvent(ctx context.Context, event events.AuditEvent)
+	// RecordEvent emits the provided audit event to recording.
+	RecordEvent(ctx context.Context, event events.AuditEvent)
 	// OnPermissionsUpdate is called when granular database-level user permissions are updated.
 	OnPermissionsUpdate(ctx context.Context, session *Session, entries []events.DatabasePermissionEntry)
 	// OnDatabaseUserCreate is called when a database user is provisioned.
@@ -244,7 +246,7 @@ func (a *audit) OnDatabaseUserDeactivate(ctx context.Context, session *Session, 
 	a.EmitEvent(ctx, event)
 }
 
-// EmitEvent emits the provided audit event using configured emitter.
+// EmitEvent emits the provided audit event to both audit log and recording.
 func (a *audit) EmitEvent(ctx context.Context, event events.AuditEvent) {
 	defer methodCallMetrics("EmitEvent", a.cfg.Component, a.cfg.Database)()
 	preparedEvent, err := a.cfg.Recorder.PrepareSessionEvent(event)
@@ -257,6 +259,19 @@ func (a *audit) EmitEvent(ctx context.Context, event events.AuditEvent) {
 	}
 	if err := a.cfg.Emitter.EmitAuditEvent(ctx, preparedEvent.GetAuditEvent()); err != nil {
 		a.log.WithError(err).Errorf("Failed to emit audit event: %s - %s.", event.GetType(), event.GetID())
+	}
+}
+
+// RecordEvent emits the provided audit event to recording.
+func (a *audit) RecordEvent(ctx context.Context, event events.AuditEvent) {
+	defer methodCallMetrics("RecordEvent", a.cfg.Component, a.cfg.Database)()
+	preparedEvent, err := a.cfg.Recorder.PrepareSessionEvent(event)
+	if err != nil {
+		a.log.WithError(err).Errorf("Failed to setup event: %s - %s.", event.GetType(), event.GetID())
+		return
+	}
+	if err := a.cfg.Recorder.RecordEvent(ctx, preparedEvent); err != nil {
+		a.log.WithError(err).Errorf("Failed to record session event: %s - %s.", event.GetType(), event.GetID())
 	}
 }
 

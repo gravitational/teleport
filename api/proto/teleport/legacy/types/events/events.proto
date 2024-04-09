@@ -4071,6 +4071,10 @@ message OneOf {
     events.ClusterNetworkingConfigUpdate ClusterNetworkingConfigUpdate = 154;
     events.DatabaseUserCreate DatabaseUserCreate = 155;
     events.DatabaseUserDeactivate DatabaseUserDeactivate = 156;
+    events.PostgresRowDescription PostgresRowDescription = 157;
+    events.PostgresDataRow PostgresDataRow = 158;
+    events.PostgresCommandComplete PostgresCommandComplete = 159;
+    events.PostgresReadyForQuery PostgresReadyForQuery = 160;
   }
 }
 
@@ -6141,4 +6145,74 @@ message SessionRecordingConfigUpdate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+}
+
+// PostgresFieldDescription defines pgproto3.FieldDescription.
+message PostgresFieldDescription {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  string Name = 2 [(gogoproto.jsontag) = "name,omitempty"];
+  uint32 TableOID = 3 [(gogoproto.jsontag) = "table_oid,omitempty"];
+  // note that real type is uint16
+  uint32 TableAttributeNumber = 4 [(gogoproto.jsontag) = "table_attribute_number,omitempty"];
+  uint32 DataTypeOID = 5 [(gogoproto.jsontag) = "data_type_oid,omitempty"];
+  // note that real type is int16
+  int32 DataTypeSize = 6 [(gogoproto.jsontag) = "data_type_size,omitempty"];
+  int32 TypeModifier = 7 [(gogoproto.jsontag) = "type_modifier,omitempty"];
+  // note that real type is int16
+  int32 Format = 8 [(gogoproto.jsontag) = "format,omitempty"];
+}
+
+// PostgresRowDescription defines pgproto3.RowDescription.
+message PostgresRowDescription {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  repeated PostgresFieldDescription Fields = 2 [(gogoproto.jsontag) = "fields,omitempty"];
+}
+
+// PostgresDataRow defiens pgproto3.DataRow.
+message PostgresDataRow {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  repeated bytes Values = 2 [(gogoproto.jsontag) = "values,omitempty"];
+}
+
+// PostgresDataRow defines pgproto3.CommandComplete.
+message PostgresCommandComplete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  repeated bytes CommandTags = 2 [(gogoproto.jsontag) = "command_tags,omitempty"];
+}
+
+// PostgresReadyForQuery defines pgproto3.ReadForQuery
+message PostgresReadyForQuery {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // note that real type is byte
+  int32 TxStatus = 2 [(gogoproto.jsontag) = "tx_status,omitempty"];
 }
