@@ -44,8 +44,8 @@ spec:
     # lock sets locking mode for user of this role,
     # valid values are "strict" or "best_effort"
     lock: strict
-    # enterprise-only request_access field is either 'always' or 'reason'. If set to always, it instructs
-    # tsh or the web UI clients to always create an Access Request on login. If it is
+    # enterprise-only request_access field is 'optional`, 'always' or 'reason'. If set to always or reason,
+    # it instructs tsh or the web UI clients to always create an Access Request. If it is
     # set to 'reason', the user will be required to indicate why they are
     # generating the Access Request.
     request_access: reason
