@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	devicetrustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/aws"
@@ -49,7 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
-	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
@@ -788,11 +786,11 @@ func registerUsingTPMMethod(
 		ctx,
 		initReq,
 		func(
-			challenge *devicetrustv1.TPMEncryptedCredential,
+			challenge *proto.TPMEncryptedCredential,
 		) (*proto.RegisterUsingTPMMethodChallengeResponse, error) {
 			// Solve the encrypted credential with our AK to prove possession
 			// and obtain the solution we need to complete the ceremony.
-			solution, err := solve(dtoss.EncryptedCredentialFromProto(
+			solution, err := solve(tpmjoin.EncryptedCredentialFromProto(
 				challenge,
 			))
 			if err != nil {

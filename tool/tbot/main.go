@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/tpmjoin"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tbot"
@@ -166,6 +167,8 @@ func Run(args []string, stdout io.Writer) error {
 	spiffeInspectCmd := app.Command("spiffe-inspect", "Inspects a SPIFFE Workload API endpoint to ensure it is working correctly.")
 	spiffeInspectCmd.Flag("path", "The path to the SPIFFE Workload API endpoint to test.").Required().StringVar(&spiffeInspectPath)
 
+	tpmIdentifyCmd := app.Command("tpm-identify", "Identify the TPM device on the system.")
+
 	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if err != nil {
@@ -239,6 +242,8 @@ func Run(args []string, stdout io.Writer) error {
 		err = onKubeCredentialsCommand(botConfig)
 	case spiffeInspectCmd.FullCommand():
 		err = onSPIFFEInspect(spiffeInspectPath)
+	case tpmIdentifyCmd.FullCommand():
+		err = onTPMIdentify()
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
@@ -460,5 +465,17 @@ func setupLogger(debug bool, format string) error {
 
 	utils.InitLogger(utils.LoggingForDaemon, level, utils.WithLogFormat(format))
 
+	return nil
+}
+
+func onTPMIdentify() error {
+	ctx := context.Background()
+	data, err := tpmjoin.Query(ctx, slog.Default())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("TPM\n")
+	fmt.Printf("EKPub Hash: %s\n", data.EKPubHash)
+	fmt.Printf("EKCert Serial: %s\n", data.EKCertSerial)
 	return nil
 }

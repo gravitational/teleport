@@ -330,6 +330,17 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "spec.spacelift: failed validation")
 		}
+	case JoinMethodTPM:
+		providerCfg := p.Spec.TPM
+		if providerCfg == nil {
+			return trace.BadParameter(
+				`spec.tpm: must be configured for the join method %q`,
+				JoinMethodTPM,
+			)
+		}
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "spec.tpm: failed validation")
+		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
 	}
@@ -683,6 +694,15 @@ func (a *ProvisionTokenSpecV2Azure) checkAndSetDefaults() error {
 				JoinMethodAzure,
 			)
 		}
+	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2TPM) checkAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter(
+			"allow: at least one rule must be set",
+		)
 	}
 	return nil
 }

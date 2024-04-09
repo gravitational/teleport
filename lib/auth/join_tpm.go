@@ -11,21 +11,13 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/tpmjoin"
-	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 )
 
 func (a *Server) RegisterUsingTPMMethod(
 	ctx context.Context,
 	initReq *proto.RegisterUsingTPMMethodInitialRequest,
 	solveChallenge client.RegisterTPMChallengeResponseFunc,
-) (certs *proto.Certs, err error) {
-	var validated *tpmjoin.ValidatedTPM
-	defer func() {
-		if err != nil {
-			log.WithError(err).Error("An attempted join using the TPM method failed")
-		}
-	}()
-
+) (*proto.Certs, error) {
 	// First, check the specified token exists, and is a TPM-type join token.
 	if err := initReq.JoinRequest.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -45,7 +37,7 @@ func (a *Server) RegisterUsingTPMMethod(
 		AttestParams: tpmjoin.AttestationParametersFromProto(initReq.AttestationParams),
 		AllowedCAs:   ptv2.Spec.TPM.EKCertAllowedCAs,
 		Solve: func(ec *attest.EncryptedCredential) ([]byte, error) {
-			solution, err := solveChallenge(dtoss.EncryptedCredentialToProto(ec))
+			solution, err := solveChallenge(tpmjoin.EncryptedCredentialToProto(ec))
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -61,21 +53,17 @@ func (a *Server) RegisterUsingTPMMethod(
 	}
 
 	if initReq.JoinRequest.Role == types.RoleBot {
-		certs, err = a.generateCertsBot(
+		certs, err := a.generateCertsBot(
 			ctx, ptv2, initReq.JoinRequest, validatedEK,
 		)
 		return certs, trace.Wrap(err)
 	}
-	certs, err = a.generateCerts(
+	certs, err := a.generateCerts(
 		ctx, ptv2, initReq.JoinRequest, validatedEK,
 	)
 	return certs, trace.Wrap(err)
 }
 
 func checkTPMAllowRules(tpm *tpmjoin.ValidatedTPM, rules []*types.ProvisionTokenSpecV2TPM_Rule) error {
-	for _, rule := range rules {
-
-	}
-
-	return trace.AccessDenied("id token claims did not match any allow rules")
+	return nil
 }

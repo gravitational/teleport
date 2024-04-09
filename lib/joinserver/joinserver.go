@@ -33,7 +33,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	devicetrustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -280,7 +279,7 @@ func (s *JoinServiceGRPCServer) registerUsingTPMMethod(
 	certs, err := s.joinServiceClient.RegisterUsingTPMMethod(
 		ctx,
 		initReq.Init,
-		func(challenge *devicetrustv1.TPMEncryptedCredential,
+		func(challenge *proto.TPMEncryptedCredential,
 		) (*proto.RegisterUsingTPMMethodChallengeResponse, error) {
 			// First, forward the challenge from Auth to the client.
 			err := srv.Send(&proto.RegisterUsingTPMMethodResponse{
