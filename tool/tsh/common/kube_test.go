@@ -37,7 +37,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -366,7 +365,7 @@ func TestKubeSelection(t *testing.T) {
 			cfg.Kube.ResourceMatchers = []services.ResourceMatcher{{
 				Labels: map[string]apiutils.Strings{"*": {"*"}},
 			}}
-			cfg.Clock = clockwork.NewFakeClock()
+			// Do not use a fake clock to better imitate real-world behavior.
 		}),
 	)
 	kubeBarEKS := "bar-eks-us-west-1-123456789012"

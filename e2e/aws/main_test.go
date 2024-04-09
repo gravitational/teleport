@@ -49,6 +49,10 @@ const (
 	// name of the RDS MySQL DB instance that will be created by the Teleport
 	// Discovery Service.
 	rdsMySQLInstanceNameEnv = "RDS_MYSQL_INSTANCE_NAME"
+	// rdsMariaDBInstanceNameEnv is the environment variable that specifies the
+	// name of the RDS MariaDB instance that will be created by the Teleport
+	// Discovery Service.
+	rdsMariaDBInstanceNameEnv = "RDS_MARIADB_INSTANCE_NAME"
 	// kubeSvcRoleARNEnv is the environment variable that specifies
 	// the IAM role that Teleport Kubernetes Service will assume to access the EKS cluster.
 	// This role needs to have the following permissions:

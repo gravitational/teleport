@@ -47,7 +47,6 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -1823,9 +1822,8 @@ func TestSSHAccessRequest(t *testing.T) {
 
 	rootAuth, rootProxy := makeTestServers(t,
 		withBootstrap(requester, searchOnlyRequester, nodeAccessRole, emptyRole, connector, alice),
-		withConfig(func(cfg *servicecfg.Config) {
-			cfg.Clock = clockwork.NewFakeClock()
-		}))
+		// Do not use a fake clock to better imitate real-world behavior.
+	)
 
 	authAddr, err := rootAuth.AuthAddr()
 	require.NoError(t, err)

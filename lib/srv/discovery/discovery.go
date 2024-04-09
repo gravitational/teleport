@@ -278,7 +278,7 @@ type Server struct {
 	// gcpInstaller is used to start the installation process on discovered GCP
 	// virtual machines
 	gcpInstaller gcpInstaller
-	// kubeFetchers holds all non-integration based kubernetes fetchers for Azure and other clouds.
+	// kubeFetchers holds all non-dynamic kubernetes fetchers for Azure and other clouds.
 	kubeFetchers []common.Fetcher
 	// kubeAppsFetchers holds all kubernetes fetchers for apps.
 	kubeAppsFetchers []common.Fetcher
@@ -318,11 +318,11 @@ type Server struct {
 	muDynamicTAGSyncFetchers sync.RWMutex
 	staticTAGSyncFetchers    []aws_sync.AWSSync
 
-	// dynamicKubeIntegrationFetchers holds the current kube fetchers that use integration as a source of credentials,
+	// dynamicKubeFetchers holds the current kube fetchers that use integration as a source of credentials,
 	// for the Dynamic Matchers (those coming from DiscoveryConfig resource).
 	// The key is the DiscoveryConfig name.
-	dynamicKubeIntegrationFetchers   map[string][]common.Fetcher
-	muDynamicKubeIntegrationFetchers sync.RWMutex
+	dynamicKubeFetchers   map[string][]common.Fetcher
+	muDynamicKubeFetchers sync.RWMutex
 
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
@@ -344,16 +344,16 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 
 	localCtx, cancelfn := context.WithCancel(ctx)
 	s := &Server{
-		Config:                         cfg,
-		ctx:                            localCtx,
-		cancelfn:                       cancelfn,
-		usageEventCache:                make(map[string]struct{}),
-		dynamicKubeIntegrationFetchers: make(map[string][]common.Fetcher),
-		dynamicDatabaseFetchers:        make(map[string][]common.Fetcher),
-		dynamicServerAWSFetchers:       make(map[string][]server.Fetcher),
-		dynamicServerAzureFetchers:     make(map[string][]server.Fetcher),
-		dynamicServerGCPFetchers:       make(map[string][]server.Fetcher),
-		dynamicTAGSyncFetchers:         make(map[string][]aws_sync.AWSSync),
+		Config:                     cfg,
+		ctx:                        localCtx,
+		cancelfn:                   cancelfn,
+		usageEventCache:            make(map[string]struct{}),
+		dynamicKubeFetchers:        make(map[string][]common.Fetcher),
+		dynamicDatabaseFetchers:    make(map[string][]common.Fetcher),
+		dynamicServerAWSFetchers:   make(map[string][]server.Fetcher),
+		dynamicServerAzureFetchers: make(map[string][]server.Fetcher),
+		dynamicServerGCPFetchers:   make(map[string][]server.Fetcher),
+		dynamicTAGSyncFetchers:     make(map[string][]aws_sync.AWSSync),
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
@@ -475,7 +475,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	_, otherMatchers = splitMatchers(otherMatchers, db.IsAWSMatcherType)
 
 	// Add non-integration kube fetchers.
-	kubeFetchers, _, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.CloudClients, otherMatchers)
+	kubeFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.CloudClients, otherMatchers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -588,7 +588,7 @@ func (s *Server) databaseFetchersFromMatchers(matchers Matchers) ([]common.Fetch
 	return fetchers, nil
 }
 
-func (s *Server) kubeIntegrationFetchersFromMatchers(matchers Matchers) ([]common.Fetcher, error) {
+func (s *Server) kubeFetchersFromMatchers(matchers Matchers) ([]common.Fetcher, error) {
 	var result []common.Fetcher
 
 	// AWS
@@ -596,14 +596,14 @@ func (s *Server) kubeIntegrationFetchersFromMatchers(matchers Matchers) ([]commo
 		return matcherType == types.AWSMatcherEKS
 	})
 	if len(awsKubeMatchers) > 0 {
-		_, kubeIntegrationFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.CloudClients, awsKubeMatchers)
+		eksFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.CloudClients, awsKubeMatchers)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		result = append(result, kubeIntegrationFetchers...)
+		result = append(result, eksFetchers...)
 	}
 
-	// There can't be kube integration fetchers for other matcher types.
+	// There can't be kube fetchers for other matcher types.
 
 	return result, nil
 }
@@ -1473,9 +1473,9 @@ func (s *Server) deleteDynamicFetchers(name string) {
 	delete(s.dynamicTAGSyncFetchers, name)
 	s.muDynamicTAGSyncFetchers.Unlock()
 
-	s.muDynamicKubeIntegrationFetchers.Lock()
-	delete(s.dynamicKubeIntegrationFetchers, name)
-	s.muDynamicKubeIntegrationFetchers.Unlock()
+	s.muDynamicKubeFetchers.Lock()
+	delete(s.dynamicKubeFetchers, name)
+	s.muDynamicKubeFetchers.Unlock()
 }
 
 // upsertDynamicMatchers upserts the internal set of dynamic matchers given a particular discovery config.
@@ -1529,14 +1529,14 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 	s.dynamicTAGSyncFetchers[dc.GetName()] = awsSyncMatchers
 	s.muDynamicTAGSyncFetchers.Unlock()
 
-	kubeIntegrationFetchers, err := s.kubeIntegrationFetchersFromMatchers(matchers)
+	kubeFetchers, err := s.kubeFetchersFromMatchers(matchers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	s.muDynamicKubeIntegrationFetchers.Lock()
-	s.dynamicKubeIntegrationFetchers[dc.GetName()] = kubeIntegrationFetchers
-	s.muDynamicKubeIntegrationFetchers.Unlock()
+	s.muDynamicKubeFetchers.Lock()
+	s.dynamicKubeFetchers[dc.GetName()] = kubeFetchers
+	s.muDynamicKubeFetchers.Unlock()
 
 	// TODO(marco): add other fetchers: Kube Clusters and Kube Resources (Apps)
 	return nil

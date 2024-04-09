@@ -57,7 +57,7 @@ func newIdentityService(t *testing.T, clock clockwork.Clock) *local.IdentityServ
 		Clock:   clock,
 	})
 	require.NoError(t, err)
-	return local.NewIdentityService(backend)
+	return local.NewTestIdentityService(backend)
 }
 
 func TestIdentityService_CreateUser(t *testing.T) {
