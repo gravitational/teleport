@@ -32,6 +32,7 @@ import (
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+		accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -1151,6 +1152,11 @@ type Cache interface {
 
 	// NotificationsGetter defines list methods for notifications.
 	services.NotificationGetter
+
+	// ListAccessMonitoringRules returns a paginated list of access monitoring rules.
+	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrules.AccessMonitoringRule, string, error)
+	// GetAccessMonitoringRule returns the specified access monitoring rule.
+	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrules.AccessMonitoringRule, error)
 }
 
 type NodeWrapper struct {

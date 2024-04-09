@@ -5450,8 +5450,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	accessMonitoringRuleServer, err := accessmonitoringrulesv1.NewService(&accessmonitoringrulesv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
-		Cache:    cfg.AuthServer.Cache,
-
+		Cache:      cfg.AuthServer.Cache,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
