@@ -110,7 +110,12 @@ const wizardFlows = {
   withoutReauthentication: [CreateDeviceStep, SaveDeviceStep],
 };
 
-interface ReauthenticateStepProps extends StepComponentProps {
+type AddAuthDeviceWizardStepProps = StepComponentProps &
+  ReauthenticateStepProps &
+  CreateDeviceStepProps &
+  SaveKeyStepProps;
+
+interface ReauthenticateStepProps {
   auth2faType: Auth2faType;
   onAuthenticated(privilegeToken: string): void;
   onClose(): void;
@@ -124,7 +129,7 @@ export function ReauthenticateStep({
   auth2faType,
   onClose,
   onAuthenticated: onAuthenticatedProp,
-}: ReauthenticateStepProps) {
+}: AddAuthDeviceWizardStepProps) {
   const challengeScope = MfaChallengeScope.MANAGE_DEVICES;
   const onAuthenticated = (privilegeToken: string) => {
     onAuthenticatedProp(privilegeToken);
@@ -222,7 +227,7 @@ export function ReauthenticateStep({
   );
 }
 
-interface CreateDeviceStepProps extends StepComponentProps {
+interface CreateDeviceStepProps {
   usage: DeviceUsage;
   auth2faType: Auth2faType;
   privilegeToken: string;
@@ -245,7 +250,7 @@ export function CreateDeviceStep({
   onNewMfaDeviceTypeChange,
   onClose,
   onDeviceCreated,
-}: CreateDeviceStepProps) {
+}: AddAuthDeviceWizardStepProps) {
   const ctx = useTeleport();
   const createPasskeyAttempt = useAttempt();
   const onCreate = () => {
@@ -390,7 +395,7 @@ function QrCodeBox({ privilegeToken }: { privilegeToken: string }) {
   );
 }
 
-interface SaveKeyStepProps extends StepComponentProps {
+interface SaveKeyStepProps {
   privilegeToken: string;
   credential: Credential;
   usage: DeviceUsage;
@@ -408,7 +413,7 @@ export function SaveDeviceStep({
   usage,
   newMfaDeviceType,
   onSuccess,
-}: SaveKeyStepProps) {
+}: AddAuthDeviceWizardStepProps) {
   const ctx = useTeleport();
   const saveAttempt = useAttempt();
   const [deviceName, setDeviceName] = useState('');
