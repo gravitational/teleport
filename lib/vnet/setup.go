@@ -23,17 +23,16 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/tun"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/profile"
 )
 
 func CreateAndSetupTUNDevice(ctx context.Context, customDNSZones []string) (tun.Device, func(), error) {
@@ -61,14 +60,33 @@ func createAndSetupTUNDeviceAsRoot(ctx context.Context, customDNSZones []string)
 		return nil, "", nil, trace.Wrap(err)
 	}
 
-	if err := setupHostIPRoutes(ctx, tunName); err != nil {
-		return nil, "", nil, trace.Wrap(err, "setting up host IP routes")
+	const (
+		// TODO(nklaassen): configurable ip range.
+		// TODO(nklaassen): IPv6
+		tunIP       = "100.64.0.1"
+		vnetNetmask = "100.64.0.0/10"
+	)
+	dnsZones, err := allDNSZones(customDNSZones)
+	if err != nil {
+		return nil, "", nil, trace.Wrap(err, "finding all DNS zones")
+	}
+	cfg := osConfig{
+		tunName:               tunName,
+		tunIP:                 tunIP,
+		vnetNetmasks:          []string{vnetNetmask},
+		vnetNameserverAddress: defaultDNSAddress.String(),
+		dnsZones:              dnsZones,
+	}
+	if err := configureOS(ctx, &cfg); err != nil {
+		return nil, "", nil, trace.Wrap(err, "configuring OS")
+	}
+	cleanup := func() {
+		if err := configureOS(ctx, &osConfig{}); err != nil {
+			slog.With("error", err).Error("Failed to deconfigure OS.")
+		}
+
 	}
 
-	cleanup, err := setupHostDNS(ctx, customDNSZones)
-	if err != nil {
-		return nil, "", nil, trace.Wrap(err, "setting up host DNS configuration")
-	}
 	return tun, tunName, cleanup, nil
 }
 
@@ -77,6 +95,11 @@ func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, customDNSZones []st
 	socket, socketPath, err := createUnixSocket()
 	if err != nil {
 		return nil, "", nil, trace.Wrap(err)
+	}
+
+	pidFilePath, err := createPIDFile()
+	if err != nil {
+		return nil, "", nil, trace.Wrap(err, "creating PID file")
 	}
 
 	// Read errors from separate goroutines. If the admin subcommand exits prematurely, this function
@@ -89,13 +112,15 @@ func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, customDNSZones []st
 	go func() {
 		// If everything goes well, this will write to the channel only after
 		// the context gets canceled.
-		errC <- trace.Wrap(runAdminSubcommand(ctx, socketPath, customDNSZones))
+		errC <- trace.Wrap(runAdminSubcommand(ctx, socketPath, pidFilePath, customDNSZones))
 	}()
 
 	cleanup := func() {
 		cancel()
 		slog.Debug("Waiting for admin subcommand to exit.")
 		slog.With("error", <-errC).Debug("Admin subcommand exited.")
+		os.Remove(socketPath)
+		os.Remove(pidFilePath)
 	}
 
 	go func() {
@@ -216,20 +241,7 @@ func recvTUNNameAndFd(ctx context.Context, socket *net.UnixListener) (string, ui
 	return tunName, fd, nil
 }
 
-func runAdminSubcommand(ctx context.Context, socketPath string, customDNSZones []string) error {
-	pid := os.Getpid()
-	pidFile, err := os.CreateTemp("", "vnet*.pid")
-	if err != nil {
-		return trace.Wrap(err, "creating PID file")
-	}
-	if _, err := pidFile.Write([]byte(strconv.Itoa(pid))); err != nil {
-		pidFile.Close()
-		return trace.Wrap(err, "writing to PID file")
-	}
-	if err := pidFile.Close(); err != nil {
-		return trace.Wrap(err, "closing PID file")
-	}
-
+func runAdminSubcommand(ctx context.Context, socketPath, pidFilePath string, customDNSZones []string) error {
 	executableName, err := os.Executable()
 	if err != nil {
 		return trace.Wrap(err, "getting executable path")
@@ -242,7 +254,7 @@ set socketPath to "%s"
 set pidFile to "%s"
 set customDNSZones to "%s"
 do shell script quoted form of executableName & " %s --socket " & quoted form of socketPath & " --pidfile " & quoted form of pidFile & " --custom-dns-zones " & quoted form of customDNSZones with prompt "%s" with administrator privileges`,
-		executableName, socketPath, pidFile.Name(), strings.Join(customDNSZones, ","), teleport.VnetAdminSetupSubCommand, prompt)
+		executableName, socketPath, pidFilePath, strings.Join(customDNSZones, ","), teleport.VnetAdminSetupSubCommand, prompt)
 
 	// The context we pass here has effect only on the password prompt being shown. Once osascript
 	// spawns the privileged process, canceling the context (and thus killing osascript) has no effect
@@ -301,61 +313,28 @@ func createTUNDevice() (tun.Device, string, error) {
 	return dev, name, nil
 }
 
-func setupHostIPRoutes(ctx context.Context, tunName string) error {
-	const (
-		ip   = "100.64.0.1"
-		mask = "100.64.0.0/10"
-	)
-	fmt.Println("Setting IP address for the TUN device:")
-	cmd := exec.CommandContext(ctx, "ifconfig", tunName, ip, ip, "up")
-	fmt.Println("\t", cmd.Path, strings.Join(cmd.Args, " "))
-	if err := cmd.Run(); err != nil {
-		return trace.Wrap(err, "running ifconfig")
+func createPIDFile() (string, error) {
+	pid := os.Getpid()
+	pidFile, err := os.CreateTemp("", "vnet*.pid")
+	if err != nil {
+		return "", trace.Wrap(err, "creating PID file")
 	}
-
-	fmt.Println("Setting an IP route for the VNet:")
-	cmd = exec.CommandContext(ctx, "route", "add", "-net", mask, "-interface", tunName)
-	fmt.Println("\t", cmd.Path, strings.Join(cmd.Args, " "))
-	if err := cmd.Run(); err != nil {
-		return trace.Wrap(err, "running route add")
+	if _, err := pidFile.Write([]byte(strconv.Itoa(pid))); err != nil {
+		pidFile.Close()
+		return "", trace.Wrap(err, "writing to PID file")
 	}
-	return nil
+	if err := pidFile.Close(); err != nil {
+		return "", trace.Wrap(err, "closing PID file")
+	}
+	return pidFile.Name(), nil
 }
 
-var (
-	resolverPath = filepath.Join("/", "etc", "resolver")
-)
-
-func setupHostDNS(ctx context.Context, customDNSZones []string) (func(), error) {
+func allDNSZones(customDNSZones []string) ([]string, error) {
 	// TODO: support multiple active profiles and react to changes.
 	profileDir := profile.FullProfilePath(os.Getenv("TELEPORT_HOME"))
 	currentProfile, err := profile.GetCurrentProfileName(profileDir)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting current profile")
 	}
-	proxyAddress := currentProfile
-
-	if err := os.MkdirAll(resolverPath, os.FileMode(0755)); err != nil {
-		return nil, trace.Wrap(err, "creating /etc/resolver/")
-	}
-
-	allZones := append(customDNSZones, proxyAddress)
-	allFiles := make([]string, 0, len(allZones))
-	cleanup := func() {
-		for _, fileName := range allFiles {
-			if err := os.Remove(fileName); err != nil {
-				slog.Error("Failed to remove DNS configuration file.", "filename", fileName, "error", err)
-			}
-		}
-	}
-	for _, zone := range allZones {
-		fileName := filepath.Join(resolverPath, zone)
-		allFiles = append(allFiles, fileName)
-		contents := "nameserver " + defaultDNSAddress.String()
-		if err := os.WriteFile(fileName, []byte(contents), 0644); err != nil {
-			cleanup()
-			return nil, trace.Wrap(err, "writing DNS configuration file %s", fileName)
-		}
-	}
-	return cleanup, nil
+	return append(customDNSZones, currentProfile), nil
 }
