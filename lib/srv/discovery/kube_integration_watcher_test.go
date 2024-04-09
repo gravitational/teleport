@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 )
 
 func TestGetAgentVersion(t *testing.T) {
@@ -118,6 +119,82 @@ func TestGetAgentVersion(t *testing.T) {
 			tt.errorAssert(t, err)
 			require.Equal(t, tt.expectedVersion, version)
 		})
+	}
+}
+
+func TestServer_getKubeFetchers(t *testing.T) {
+	eks1, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
+		EKSClientGetter: &cloud.TestCloudClients{},
+		FilterLabels:    types.Labels{"l1": []string{"v1"}},
+		Region:          "region1",
+	})
+	require.NoError(t, err)
+	eks2, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
+		EKSClientGetter: &cloud.TestCloudClients{},
+		FilterLabels:    types.Labels{"l1": []string{"v1"}},
+		Region:          "region1",
+		Integration:     "aws1"})
+	require.NoError(t, err)
+	eks3, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
+		EKSClientGetter: &cloud.TestCloudClients{},
+		FilterLabels:    types.Labels{"l1": []string{"v1"}},
+		Region:          "region1",
+		Integration:     "aws1"})
+	require.NoError(t, err)
+
+	aks1, err := fetchers.NewAKSFetcher(fetchers.AKSFetcherConfig{
+		Client:       &mockAKSAPI{},
+		FilterLabels: types.Labels{"l1": []string{"v1"}},
+		Regions:      []string{"region1"},
+	})
+	require.NoError(t, err)
+	aks2, err := fetchers.NewAKSFetcher(fetchers.AKSFetcherConfig{
+		Client:       &mockAKSAPI{},
+		FilterLabels: types.Labels{"l1": []string{"v1"}},
+		Regions:      []string{"region1"},
+	})
+	require.NoError(t, err)
+	aks3, err := fetchers.NewAKSFetcher(fetchers.AKSFetcherConfig{
+		Client:       &mockAKSAPI{},
+		FilterLabels: types.Labels{"l1": []string{"v1"}},
+		Regions:      []string{"region1"},
+	})
+	require.NoError(t, err)
+
+	testCases := []struct {
+		kubeFetchers                   []common.Fetcher
+		kubeDynamicFetchers            map[string][]common.Fetcher
+		expectedIntegrationFetchers    []common.Fetcher
+		expectedNonIntegrationFetchers []common.Fetcher
+	}{
+		{
+			kubeFetchers:                   []common.Fetcher{eks1},
+			expectedNonIntegrationFetchers: []common.Fetcher{eks1},
+		},
+		{
+			kubeFetchers:                   []common.Fetcher{eks1, eks2, eks3, aks1, aks2, aks3},
+			expectedIntegrationFetchers:    []common.Fetcher{eks2, eks3},
+			expectedNonIntegrationFetchers: []common.Fetcher{eks1, aks1, aks2, aks3},
+		},
+		{
+			kubeFetchers:                   []common.Fetcher{eks1},
+			kubeDynamicFetchers:            map[string][]common.Fetcher{"group1": {eks2}},
+			expectedIntegrationFetchers:    []common.Fetcher{eks2},
+			expectedNonIntegrationFetchers: []common.Fetcher{eks1},
+		},
+		{
+			kubeFetchers:                   []common.Fetcher{aks1, aks2},
+			kubeDynamicFetchers:            map[string][]common.Fetcher{"group1": {eks1}},
+			expectedIntegrationFetchers:    []common.Fetcher{},
+			expectedNonIntegrationFetchers: []common.Fetcher{eks1, aks1, aks2},
+		},
+	}
+
+	for _, tc := range testCases {
+		s := Server{kubeFetchers: tc.kubeFetchers, dynamicKubeFetchers: tc.kubeDynamicFetchers}
+
+		require.ElementsMatch(t, tc.expectedIntegrationFetchers, s.getKubeFetchers(true))
+		require.ElementsMatch(t, tc.expectedNonIntegrationFetchers, s.getKubeFetchers(false))
 	}
 }
 
@@ -384,9 +461,9 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 
 				// Wait for the DiscoveryConfig to be added to the dynamic fetchers
 				require.Eventually(t, func() bool {
-					discServer.muDynamicKubeIntegrationFetchers.RLock()
-					defer discServer.muDynamicKubeIntegrationFetchers.RUnlock()
-					return len(discServer.dynamicKubeIntegrationFetchers) > 0
+					discServer.muDynamicKubeFetchers.RLock()
+					defer discServer.muDynamicKubeFetchers.RUnlock()
+					return len(discServer.dynamicKubeFetchers) > 0
 				}, 1*time.Second, 100*time.Millisecond)
 			}
 
