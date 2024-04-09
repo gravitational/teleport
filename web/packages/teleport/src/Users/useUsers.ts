@@ -30,7 +30,6 @@ export default function useUsers({
   const ctx = useTeleport();
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
   const [users, setUsers] = useState([] as User[]);
-  const [roles, setRoles] = useState([] as string[]);
   const [operation, setOperation] = useState({
     type: 'none',
   } as Operation);
@@ -110,29 +109,22 @@ export default function useUsers({
     setOperation({ type: 'none' });
   }
 
+  async function fetchRoles(search: string): Promise<string[]> {
+    const { items } = await ctx.resourceService.fetchRoles({
+      search,
+      limit: 50,
+    });
+    return items.map(r => r.name);
+  }
+
   useEffect(() => {
-    function fetchRoles() {
-      if (ctx.getFeatureFlags().roles) {
-        return ctx.resourceService
-          .fetchRoles()
-          .then(resources => resources.map(role => role.name));
-      }
-
-      return Promise.resolve([]);
-    }
-
-    attemptActions.do(() =>
-      Promise.all([fetchRoles(), ctx.userService.fetchUsers()]).then(values => {
-        setRoles(values[0]);
-        setUsers(values[1]);
-      })
-    );
+    attemptActions.do(() => ctx.userService.fetchUsers().then(setUsers));
   }, []);
 
   return {
     attempt,
     users,
-    roles,
+    fetchRoles,
     operation,
     onStartCreate,
     onStartDelete,

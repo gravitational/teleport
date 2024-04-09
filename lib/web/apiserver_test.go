@@ -7354,7 +7354,7 @@ func (mock authProviderMock) GetRole(_ context.Context, _ string) (types.Role, e
 	return nil, nil
 }
 
-func waitForOutputWithDuration(r io.Reader, substr string, timeout time.Duration) error {
+func waitForOutputWithDuration(r ReaderWithDeadline, substr string, timeout time.Duration) error {
 	timeoutCh := time.After(timeout)
 
 	var prev string
@@ -7366,6 +7366,9 @@ func waitForOutputWithDuration(r io.Reader, substr string, timeout time.Duration
 		default:
 		}
 
+		if err := r.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+			return trace.Wrap(err)
+		}
 		n, err := r.Read(out)
 		outStr := removeSpace(string(out[:n]))
 
@@ -7386,7 +7389,19 @@ func waitForOutputWithDuration(r io.Reader, substr string, timeout time.Duration
 	}
 }
 
-func waitForOutput(r io.Reader, substr string) error {
+type ReaderWithDeadline interface {
+	io.Reader
+	SetReadDeadline(time.Time) error
+}
+
+type ReadWriterWithDeadline interface {
+	io.Reader
+	io.Writer
+	SetReadDeadline(time.Time) error
+	SetWriteDeadline(time.Time) error
+}
+
+func waitForOutput(r ReaderWithDeadline, substr string) error {
 	return waitForOutputWithDuration(r, substr, 10*time.Second)
 }
 
@@ -8106,7 +8121,7 @@ func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack) *websocket.
 	return ws
 }
 
-func validateTerminal(t *testing.T, term io.ReadWriter) {
+func validateTerminal(t *testing.T, term ReadWriterWithDeadline) {
 	t.Helper()
 
 	// here we intentionally run a command where the output we're looking
@@ -9315,7 +9330,7 @@ func TestModeratedSession(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, peerTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > User foo joined the session with participant mode: peer."))
+	require.NoError(t, waitForOutput(peerTerm, "Teleport > User foo joined the session with participant mode: peer."), "waiting for peer to enter session")
 
 	moderatorTerm, err := connectToHost(ctx, connectConfig{
 		pack:            s.authPack(t, "bar", moderatorRole.GetName()),
@@ -9327,21 +9342,21 @@ func TestModeratedSession(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, moderatorTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Connecting to node over SSH"))
+	require.NoError(t, waitForOutput(peerTerm, "Teleport > Connecting to node over SSH"), "waiting for peer connection to node after moderator joins")
 
 	// here we intentionally run a command where the output we're looking
 	// for is not present in the command itself
 	_, err = io.WriteString(peerTerm, "echo llxmx | sed 's/x/a/g'\r\n")
 	require.NoError(t, err)
-	require.NoError(t, waitForOutput(peerTerm, "llama"))
-	require.NoError(t, waitForOutput(moderatorTerm, "llama"))
+	require.NoError(t, waitForOutput(peerTerm, "llama"), "waiting for output on peer terminal")
+	require.NoError(t, waitForOutput(moderatorTerm, "llama"), "waiting for output on moderator terminal")
 
 	// the moderator terminates the session
 	_, err = io.WriteString(moderatorTerm, "t")
 	require.NoError(t, err)
 
-	require.NoError(t, waitForOutput(moderatorTerm, "Stopping session..."))
-	require.NoError(t, waitForOutput(peerTerm, "Process exited with status 255"))
+	require.NoError(t, waitForOutput(moderatorTerm, "Stopping session..."), "waiting for moderator to terminate session")
+	require.NoError(t, waitForOutput(peerTerm, "Process exited with status 255"), "waiting for peer session to be terminated")
 }
 
 // TestModeratedSessionWithMFA validates the same behavior as TestModeratedSession while
@@ -9433,7 +9448,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, peerTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > User foo joined the session with participant mode: peer."))
+	require.NoError(t, waitForOutput(peerTerm, "Teleport > User foo joined the session with participant mode: peer."), "waiting for peer to start session")
 
 	moderatorTerm, err := connectToHost(ctx, connectConfig{
 		pack:            moderator,
@@ -9464,20 +9479,20 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, moderatorTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Connecting to node over SSH"))
+	require.NoError(t, waitForOutput(peerTerm, "Teleport > Connecting to node over SSH"), "waiting for peer to connect after moderator joins")
 
 	// here we intentionally run a command where the output we're looking
 	// for is not present in the command itself
 	_, err = io.WriteString(peerTerm, "echo llxmx | sed 's/x/a/g'\r\n")
 	require.NoError(t, err)
-	require.NoError(t, waitForOutput(peerTerm, "llama"))
-	require.NoError(t, waitForOutput(moderatorTerm, "llama"))
+	require.NoError(t, waitForOutput(peerTerm, "llama"), "waiting for output in peer terminal")
+	require.NoError(t, waitForOutput(moderatorTerm, "llama"), "waiting for output in moderator terminal")
 
 	// run the presence check a few times
 	for i := 0; i < 3; i++ {
 		presenceClock.BlockUntil(1)
 		presenceClock.Advance(30 * time.Second)
-		require.NoError(t, waitForOutput(moderatorTerm, "Teleport > Please tap your MFA key"))
+		require.NoError(t, waitForOutput(moderatorTerm, "Teleport > Please tap your MFA key"), "waiting for moderator mfa prompt")
 
 		challenge, err := moderatorTerm.stream.readChallenge(protobufMFACodec{})
 		require.NoError(t, err)
