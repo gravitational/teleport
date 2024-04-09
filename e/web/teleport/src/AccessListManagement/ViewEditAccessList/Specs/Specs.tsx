@@ -18,7 +18,7 @@ import { EditEligibilityOrGrantRoles } from './EditEligibilityOrGrants';
 import { EditAudit } from './EditAudit';
 
 type Props = {
-  roleOptions: Option[];
+  fetchRoleOptions: (input: string) => Promise<Option[]>;
   canEditSpecs: boolean;
   updateAccessList(accessList: AccessList): void;
   accessList: AccessListModified;
@@ -28,7 +28,7 @@ const genericNoAccessMsg = 'You do not have access to edit this access_list';
 
 export function Specs({
   accessList,
-  roleOptions,
+  fetchRoleOptions,
   canEditSpecs,
   updateAccessList,
 }: Props) {
@@ -167,7 +167,7 @@ export function Specs({
         <EditEligibilityOrGrantRoles
           onClose={() => setEditPermKind(null)}
           editKind={editPermKind}
-          roleOptions={roleOptions}
+          fetchRoleOptions={fetchRoleOptions}
           updateAccessList={updateAccessList}
           accessList={accessList}
         />

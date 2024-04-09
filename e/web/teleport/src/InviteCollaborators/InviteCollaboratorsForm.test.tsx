@@ -4,6 +4,8 @@ import { fireEvent, userEvent, render, screen } from 'design/utils/testing';
 import { Option } from 'shared/components/Select';
 import Validation, { useValidation } from 'shared/components/Validation';
 
+import { waitFor } from '@testing-library/react';
+
 import { InviteCollaboratorsForm } from './InviteCollaboratorsForm';
 import { InviteCollaboratorsFormProps, RoleOption } from './types';
 
@@ -28,6 +30,8 @@ function makeUserOption(name: string): Option<string> {
   };
 }
 
+const ROLES = makeRoles('foo', 'bar', 'baz');
+
 describe('invite form', () => {
   let props: InviteCollaboratorsFormProps;
 
@@ -36,7 +40,7 @@ describe('invite form', () => {
   beforeEach(() => {
     props = {
       users: new Set(['alice@example.com']),
-      roles: makeRoles('foo', 'bar', 'baz'),
+      fetchRoles: jest.fn().mockResolvedValueOnce(ROLES),
       recipientsValue: [],
       setRecipientsValue: jest.fn(),
       selectedRoles: [],
@@ -87,7 +91,7 @@ describe('invite form', () => {
 
   test('succeeds with valid data', async () => {
     props.recipientsValue.push(makeUserOption('bob@example.com'));
-    props.selectedRoles.push(props.roles[0]);
+    props.selectedRoles.push(ROLES[0]);
 
     let validator = null;
     const Button = () => {
@@ -103,6 +107,7 @@ describe('invite form', () => {
         </>
       </Validation>
     );
+    await waitFor(() => expect(props.fetchRoles).toHaveBeenCalledTimes(1));
 
     fireEvent.click(screen.getByRole('button'));
 

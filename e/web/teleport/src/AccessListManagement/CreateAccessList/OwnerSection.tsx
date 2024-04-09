@@ -17,7 +17,7 @@ import {
 } from './Shared';
 
 type Props = {
-  roleOptions: Option[];
+  fetchRoleOptions: (input: string) => Promise<Option[]>;
   isDisabled: boolean;
   setOwners(m: Owners): void;
   owners: Owners;
@@ -33,7 +33,7 @@ export type Owners = {
 };
 
 export const OwnersSection = ({
-  roleOptions,
+  fetchRoleOptions,
   isDisabled,
   owners,
   setOwners,
@@ -62,7 +62,7 @@ export const OwnersSection = ({
       </Text>
       <EligibilityOrGrantRolesFieldSelectAndCreate
         editKind="Owner"
-        options={roleOptions}
+        loadOptions={fetchRoleOptions}
         isDisabled={isDisabled}
         onChange={(option: Option[]) =>
           setOwners({

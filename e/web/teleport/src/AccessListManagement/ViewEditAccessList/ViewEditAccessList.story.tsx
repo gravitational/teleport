@@ -106,15 +106,18 @@ export const ViewingAsAdmin = () => {
         ])
       );
     }),
-    rest.get(cfg.oss.getRolesUrl(), (req, res, ctx) => {
+    rest.get(cfg.oss.getListRolesUrl(), (req, res, ctx) => {
       return res.once(
-        ctx.json([
-          { name: 'admin' },
-          { name: 'auditor' },
-          { name: 'reviewer' },
-          { name: 'access' },
-          { name: 'editor' },
-        ])
+        ctx.json({
+          startKey: '',
+          items: [
+            { name: 'admin' },
+            { name: 'auditor' },
+            { name: 'reviewer' },
+            { name: 'access' },
+            { name: 'editor' },
+          ],
+        })
       );
     })
   );

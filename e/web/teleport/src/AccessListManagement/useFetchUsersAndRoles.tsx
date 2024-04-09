@@ -19,14 +19,11 @@ export function useFetchUserAndRoles(attempt: AttemptState) {
   const ctx = useTeleport();
 
   const [userOptions, setUserOptions] = useState<UserOption[]>([]);
-  const [roleOptions, setRoleOptions] = useState<Option[]>([]);
 
   const { setAttempt } = attempt;
 
   function fetchUsersAndRoles() {
-    const resourceSvc = new ResourceService();
     const userAccess = ctx.storeUser.getUserAccess();
-    const roleAccess = ctx.storeUser.getRoleAccess();
 
     const promises = [];
 
@@ -34,16 +31,6 @@ export function useFetchUserAndRoles(attempt: AttemptState) {
       promises.push(
         userService.fetchUsers().then(fetchedUsers => {
           setUserOptions(fetchedUsers.map(u => ({ value: u, label: u.name })));
-        })
-      );
-    }
-
-    if (roleAccess.list && roleAccess.read) {
-      promises.push(
-        resourceSvc.fetchRoles().then(fetchedRoles => {
-          setRoleOptions(
-            fetchedRoles.map(u => ({ value: u.name, label: u.name }))
-          );
         })
       );
     }
@@ -57,9 +44,21 @@ export function useFetchUserAndRoles(attempt: AttemptState) {
       );
   }
 
+  async function fetchRoleOptions(search: string): Promise<Option[]> {
+    const roleAccess = ctx.storeUser.getRoleAccess();
+
+    if (roleAccess.list && roleAccess.read) {
+      const resourceSvc = new ResourceService();
+      const roles = await resourceSvc.fetchRoles({ search, limit: 50 });
+      return roles.items.map(r => ({ value: r.name, label: r.name }));
+    }
+
+    return [];
+  }
+
   return {
     fetchUsersAndRoles,
     userOptions,
-    roleOptions,
+    fetchRoleOptions,
   };
 }

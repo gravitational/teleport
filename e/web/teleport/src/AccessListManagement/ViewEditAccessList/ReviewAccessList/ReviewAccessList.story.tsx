@@ -18,6 +18,10 @@ export default {
   title: 'Teleport/AccessLists/Review',
 };
 
+async function filterMockRoleOptions(input: string) {
+  return mockRoleOptions.filter(r => r.value.includes(input));
+}
+
 export const WithFullAccessList = () => {
   return (
     <MemoryRouter>
@@ -25,7 +29,7 @@ export const WithFullAccessList = () => {
       <ReviewAccessList
         cancelReview={() => null}
         accessList={mockAccessListFull}
-        roleOptions={mockRoleOptions}
+        fetchRoleOptions={filterMockRoleOptions}
         reviewer="llama"
         isOwner={false}
       />
@@ -40,7 +44,7 @@ export const WithSparseAccessList = () => {
       <ReviewAccessList
         cancelReview={() => null}
         accessList={mockAccessListSparse}
-        roleOptions={mockRoleOptions}
+        fetchRoleOptions={filterMockRoleOptions}
         reviewer="llama"
         isOwner={false}
       />
@@ -55,7 +59,7 @@ export const WithFullAccessListOwner = () => {
       <ReviewAccessList
         cancelReview={() => null}
         accessList={mockAccessListFull}
-        roleOptions={mockRoleOptions}
+        fetchRoleOptions={filterMockRoleOptions}
         reviewer="llama"
         isOwner={true}
       />
@@ -70,7 +74,7 @@ export const WithSparseAccessListOwner = () => {
       <ReviewAccessList
         cancelReview={() => null}
         accessList={mockAccessListSparse}
-        roleOptions={mockRoleOptions}
+        fetchRoleOptions={filterMockRoleOptions}
         reviewer="llama"
         isOwner={true}
       />

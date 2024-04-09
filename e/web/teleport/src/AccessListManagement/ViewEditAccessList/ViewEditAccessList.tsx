@@ -69,7 +69,7 @@ export function ViewEditAccessList() {
   const { setAttempt, attempt } = attemptObj;
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [accessList, setAccessList] = useState<AccessListModified>();
-  const { userOptions, roleOptions, fetchUsersAndRoles } =
+  const { userOptions, fetchRoleOptions, fetchUsersAndRoles } =
     useFetchUserAndRoles(attemptObj);
 
   const [perms, setPerms] = useState<Perms>(getPerms({}));
@@ -154,7 +154,7 @@ export function ViewEditAccessList() {
     setReviewing(false);
 
     let isInitialFetch = true;
-    if (userOptions.length || roleOptions.length) {
+    if (userOptions.length) {
       isInitialFetch = false;
     }
 
@@ -183,7 +183,7 @@ export function ViewEditAccessList() {
       <ReviewAccessList
         reviewer={ctx.storeUser.getUsername()}
         accessList={accessList}
-        roleOptions={roleOptions}
+        fetchRoleOptions={fetchRoleOptions}
         cancelReview={() => setReviewing(false)}
         isOwner={perms.isOwner}
       />
@@ -242,7 +242,7 @@ export function ViewEditAccessList() {
           )}
         <Box mb={6}>
           <Specs
-            roleOptions={roleOptions}
+            fetchRoleOptions={fetchRoleOptions}
             accessList={accessList}
             updateAccessList={updateAccessList}
             canEditSpecs={perms.adminWhoCanEdit}

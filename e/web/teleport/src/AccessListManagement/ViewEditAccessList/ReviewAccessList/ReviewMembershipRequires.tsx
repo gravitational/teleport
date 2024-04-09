@@ -11,13 +11,13 @@ export type MembershipRequires = Omit<TraitConvenience, 'traitList'> &
   Omit<AccessListRequires, 'traits'>;
 
 type Props = {
-  roleOptions: Option[];
+  fetchRoleOptions: (input: string) => Promise<Option[]>;
   editedMembershipRequires: MembershipRequires;
   setEditedMembershipRequires(g: MembershipRequires): void;
 };
 
 export function ReviewMembershipRequires({
-  roleOptions,
+  fetchRoleOptions,
   editedMembershipRequires,
   setEditedMembershipRequires,
 }: Props) {
@@ -27,7 +27,7 @@ export function ReviewMembershipRequires({
         Membership Requirements
       </Text>
       <EligibilityOrGrantRolesFieldSelectAndCreate
-        options={roleOptions}
+        loadOptions={fetchRoleOptions}
         isDisabled={false}
         onChange={(vals: Option[]) =>
           setEditedMembershipRequires({

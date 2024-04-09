@@ -10,7 +10,7 @@ type Props = {
   grant: Grant;
   setGrant(g: Grant): void;
   isDisabled: boolean;
-  roleOptions: Option[];
+  fetchRoleOptions(input: string): Promise<Option[]>;
   title: string;
   isOptional?: boolean;
 };
@@ -24,7 +24,7 @@ export const GrantSection = ({
   grant,
   setGrant,
   isDisabled,
-  roleOptions,
+  fetchRoleOptions,
   title,
   isOptional = false,
 }: Props) => {
@@ -34,7 +34,7 @@ export const GrantSection = ({
         {title}
       </Text>
       <EligibilityOrGrantRolesFieldSelectAndCreate
-        options={roleOptions}
+        loadOptions={fetchRoleOptions}
         isDisabled={isDisabled}
         onChange={(roles: Option[]) =>
           setGrant({ ...grant, rolesToGrant: roles || [] })

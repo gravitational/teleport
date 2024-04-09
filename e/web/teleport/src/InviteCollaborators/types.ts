@@ -23,13 +23,13 @@ export interface InviteCollaboratorsDialogProps {
 
 export type InviteCollaboratorsFormProps = {
   users: Set<string>;
-  roles: RoleOption[];
+  fetchRoles(search: string): Promise<RoleOption[]>;
   recipientsValue: Option[];
   setRecipientsValue: (recipientsValue: React.SetStateAction<Option[]>) => void;
   selectedRoles: RoleOption[];
   setSelectedRoles: (selectedRoles: React.SetStateAction<RoleOption[]>) => void;
   onClose?: (users?: User[]) => void;
-  hidden: boolean;
+  hidden?: boolean;
 };
 
 export type EmailPasswordResetDialogProps = {

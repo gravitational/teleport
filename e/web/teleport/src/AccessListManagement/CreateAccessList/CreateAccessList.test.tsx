@@ -35,7 +35,10 @@ describe('upsell links', () => {
       .mockResolvedValue([{} as any]);
 
     jest.spyOn(userService, 'fetchUsers').mockResolvedValue([]);
-    jest.spyOn(ResourceService.prototype, 'fetchRoles').mockResolvedValue([]);
+    jest.spyOn(ResourceService.prototype, 'fetchRoles').mockResolvedValue({
+      items: [],
+      startKey: '',
+    });
   });
 
   afterEach(() => {

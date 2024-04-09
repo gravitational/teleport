@@ -24,10 +24,9 @@ import { makeUser } from 'teleport/services/user';
 
 import useTeleport from 'e-teleport/useTeleportE';
 
-import { InviteCollaboratorsDialogProps } from './types';
+import { InviteCollaboratorsDialogProps, RoleOption } from './types';
 import { createSuccessNotification } from './common';
 import { InviteCollaboratorsForm } from './InviteCollaboratorsForm';
-import { RoleOption } from './types';
 import {
   Notifications,
   NotificationEntry,
@@ -51,7 +50,6 @@ function InviteCollaboratorsDialogInner({
 
   const clusterId = ctx.storeUser.getClusterId();
   const { attempt: loadAttempt, run: runLoad } = useAttemptNext('');
-  const [roles, setRoles] = useState<RoleOption[]>([]);
   const [users, setUsers] = useState<Set<string>>(() => new Set());
   const [recipientsValue, setRecipientsValue] = useState<Option[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<RoleOption[]>([]);
@@ -59,22 +57,6 @@ function InviteCollaboratorsDialogInner({
     useAttemptNext('');
 
   useEffect(() => {
-    function fetchRoles(): Promise<RoleOption[]> {
-      if (ctx.getFeatureFlags().roles) {
-        return ctx.resourceService.fetchRoles().then(roles =>
-          roles.map(role => ({
-            label: role.name,
-            value: {
-              name: role.name,
-              description: role.description,
-            },
-          }))
-        );
-      }
-
-      return Promise.resolve([]);
-    }
-
     function fetchUsers(): Promise<Set<string>> {
       if (ctx.getFeatureFlags().users) {
         return ctx.userService
@@ -86,12 +68,26 @@ function InviteCollaboratorsDialogInner({
     }
 
     runLoad(() =>
-      Promise.all([fetchRoles(), fetchUsers()]).then(values => {
-        setRoles(values[0]);
-        setUsers(values[1]);
+      Promise.all([fetchUsers()]).then(values => {
+        setUsers(values[0]);
       })
     );
   }, []);
+
+  async function fetchRoles(input: string): Promise<RoleOption[]> {
+    if (ctx.getFeatureFlags().roles) {
+      const roles = await ctx.resourceService.fetchRoles({
+        search: input,
+      });
+      return roles.items.map(role => ({
+        label: role.name,
+        value: {
+          name: role.name,
+          description: role.description,
+        },
+      }));
+    }
+  }
 
   const handleSendClick = async (
     e: React.MouseEvent<HTMLButtonElement>,
@@ -167,7 +163,7 @@ function InviteCollaboratorsDialogInner({
             {loadAttempt.status !== 'failed' && (
               <InviteCollaboratorsForm
                 users={users}
-                roles={roles}
+                fetchRoles={fetchRoles}
                 recipientsValue={recipientsValue}
                 setRecipientsValue={setRecipientsValue}
                 selectedRoles={selectedRoles}

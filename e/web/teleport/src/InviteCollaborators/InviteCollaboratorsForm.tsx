@@ -6,7 +6,8 @@ import React, {
 } from 'react';
 import { useTheme } from 'styled-components';
 import { Text } from 'design';
-import FieldSelect, {
+import {
+  FieldSelectAsync,
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
@@ -140,7 +141,7 @@ const rolesComponents = {
 
 export function InviteCollaboratorsForm({
   users,
-  roles,
+  fetchRoles,
   recipientsValue,
   setRecipientsValue,
   selectedRoles,
@@ -227,7 +228,7 @@ export function InviteCollaboratorsForm({
         stylesConfig={recipientStyles(users, recipientsValue, theme)}
         inputId="recipients"
       />
-      <FieldSelect
+      <FieldSelectAsync
         components={rolesComponents}
         menuPosition="fixed"
         label="User Roles"
@@ -239,7 +240,11 @@ export function InviteCollaboratorsForm({
         isClearable={false}
         value={selectedRoles}
         onChange={values => onChangeRoles(values as RoleOption[])}
-        options={roles}
+        loadOptions={async input => {
+          const roles = await fetchRoles(input);
+          return roles as unknown as Option[];
+        }}
+        noOptionsMessage={() => 'No roles found'}
         elevated={true}
         stylesConfig={roleStyles(theme)}
         inputId="roles"

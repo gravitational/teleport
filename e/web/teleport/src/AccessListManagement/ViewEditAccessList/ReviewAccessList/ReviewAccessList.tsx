@@ -58,13 +58,13 @@ export const views = [
 
 export function ReviewAccessList({
   accessList,
-  roleOptions,
+  fetchRoleOptions,
   reviewer,
   cancelReview,
   isOwner = false,
 }: {
   accessList: AccessListModified;
-  roleOptions: Option[];
+  fetchRoleOptions: (input: string) => Promise<Option[]>;
   reviewer: string;
   cancelReview(): void;
   isOwner?: boolean;
@@ -166,7 +166,7 @@ export function ReviewAccessList({
                 </>
               ) : (
                 <ReviewMembershipRequires
-                  roleOptions={roleOptions}
+                  fetchRoleOptions={fetchRoleOptions}
                   editedMembershipRequires={editedMembershipRequires}
                   setEditedMembershipRequires={setEditedMembershipRequires}
                 />

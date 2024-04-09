@@ -28,7 +28,7 @@ import { AccessListModified } from '../ViewEditAccessList';
 type Props = {
   onClose(): void;
   editKind: EditKind;
-  roleOptions: Option[];
+  fetchRoleOptions(input: string): Promise<Option[]>;
   updateAccessList(accessList: AccessList): void;
   accessList: AccessListModified;
 };
@@ -37,7 +37,7 @@ export function EditEligibilityOrGrantRoles({
   accessList,
   onClose,
   editKind,
-  roleOptions,
+  fetchRoleOptions,
   updateAccessList,
 }: Props) {
   let existingRoles: string[] = accessList.grants.roles;
@@ -136,7 +136,7 @@ export function EditEligibilityOrGrantRoles({
               <Alert kind="danger" children={attempt.statusText} />
             )}
             <EligibilityOrGrantRolesFieldSelectAndCreate
-              options={roleOptions}
+              loadOptions={fetchRoleOptions}
               isDisabled={attempt.status === 'processing'}
               onChange={(vals: Option[]) => setSelectedRoles(vals || [])}
               selected={selectedRoles}

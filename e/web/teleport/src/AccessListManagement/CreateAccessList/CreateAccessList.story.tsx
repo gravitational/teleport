@@ -51,7 +51,7 @@ export const NoAccess = () => {
     rest.get(cfg.oss.api.usersPath, (req, res, ctx) => {
       return res.once(ctx.status(200));
     }),
-    rest.get(cfg.oss.api.rolesPath, (req, res, ctx) => {
+    rest.get(cfg.oss.api.rolePath, (req, res, ctx) => {
       return res.once(ctx.status(200));
     })
   );
@@ -65,8 +65,8 @@ export const NoAccess = () => {
 export const LoadedWithIgs = () => {
   cfg.oss.isIgsEnabled = true;
   worker.use(
-    rest.get(cfg.oss.getRolesUrl(), (req, res, ctx) => {
-      return res.once(ctx.json([]));
+    rest.get(cfg.oss.getListRolesUrl(), (req, res, ctx) => {
+      return res.once(ctx.json({ items: [], startKey: '' }));
     }),
     rest.get(cfg.oss.api.usersPath, (req, res, ctx) => {
       return res.once(ctx.json([]));
@@ -85,8 +85,8 @@ export const LoadedWithIgs = () => {
 export const LoadedReachedLimit = () => {
   cfg.oss.featureLimits.accessListCreateLimit = 1;
   worker.use(
-    rest.get(cfg.oss.getRolesUrl(), (req, res, ctx) => {
-      return res.once(ctx.json([]));
+    rest.get(cfg.oss.getListRolesUrl(), (req, res, ctx) => {
+      return res.once(ctx.json({ items: [], startKey: '' }));
     }),
     rest.get(cfg.oss.api.usersPath, (req, res, ctx) => {
       return res.once(ctx.json([]));

@@ -36,15 +36,18 @@ export const Dialog = () => {
         ])
       );
     }),
-    rest.get(cfg.oss.getRolesUrl(), (req, res, ctx) => {
+    rest.get(cfg.oss.getListRolesUrl(), (req, res, ctx) => {
       return res.once(
-        ctx.json([
-          { name: 'admin', description: 'admin' },
-          { name: 'auditor', description: 'auditor' },
-          { name: 'reviewer', description: 'reviewer' },
-          { name: 'access', description: 'access' },
-          { name: 'editor' },
-        ])
+        ctx.json({
+          items: [
+            { name: 'admin', description: 'admin' },
+            { name: 'auditor', description: 'auditor' },
+            { name: 'reviewer', description: 'reviewer' },
+            { name: 'access', description: 'access' },
+            { name: 'editor' },
+          ],
+          startKey: '',
+        })
       );
     })
   );
@@ -69,10 +72,10 @@ export const DialogError = () => {
         ctx.json({ message: 'testing error for getUsers()' })
       );
     }),
-    rest.get(cfg.oss.getRolesUrl(), (req, res, ctx) => {
+    rest.get(cfg.oss.getListRolesUrl(), (req, res, ctx) => {
       return res.once(
         ctx.status(500),
-        ctx.json({ message: 'testing error for getRoles()' })
+        ctx.json({ message: 'testing error for getListRolesUrl()' })
       );
     })
   );
@@ -92,8 +95,12 @@ export const DialogError = () => {
 export const DialogSpinner = () => {
   const ctx = createTeleportContext() as any;
   ctx.cloudService = { sendTeleportInvite: () => Promise.resolve([]) };
-  ctx.userService = { fetchUsers: () => new Promise(() => {}) };
-  ctx.resourceService = { fetchRoles: () => new Promise(() => {}) };
+  ctx.userService = {
+    fetchUsers: () => new Promise(() => {}),
+  };
+  ctx.resourceService = {
+    fetchRoles: () => new Promise(() => {}),
+  };
 
   return (
     <MemoryRouter>

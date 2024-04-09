@@ -61,7 +61,7 @@ export function CreateAccessList() {
 
   const initAttemptObj = useAttempt('processing');
   const { attempt: initAttempt, setAttempt: setInitAttempt } = initAttemptObj;
-  const { userOptions, roleOptions, fetchUsersAndRoles } =
+  const { userOptions, fetchRoleOptions, fetchUsersAndRoles } =
     useFetchUserAndRoles(initAttemptObj);
   const { attempt: createAttempt, setAttempt: setCreateAttempt } =
     useAttempt('');
@@ -281,7 +281,7 @@ export function CreateAccessList() {
                 <GrantSection
                   grant={grant}
                   setGrant={setGrant}
-                  roleOptions={roleOptions}
+                  fetchRoleOptions={fetchRoleOptions}
                   isDisabled={createAttempt.status === 'processing'}
                   title="Permissions Granted to List Members"
                 />
@@ -290,7 +290,7 @@ export function CreateAccessList() {
                 <GrantSection
                   grant={ownerGrant}
                   setGrant={setOwnerGrant}
-                  roleOptions={roleOptions}
+                  fetchRoleOptions={fetchRoleOptions}
                   isDisabled={createAttempt.status === 'processing'}
                   title="Permissions Granted to List Owners"
                   isOptional={true}
@@ -300,7 +300,7 @@ export function CreateAccessList() {
                 <OwnersSection
                   owners={owners}
                   setOwners={setOwners}
-                  roleOptions={roleOptions}
+                  fetchRoleOptions={fetchRoleOptions}
                   isDisabled={createAttempt.status === 'processing'}
                   noAccess={userOptions.length === 0}
                 />
@@ -309,7 +309,7 @@ export function CreateAccessList() {
                 <MembersSection
                   members={members}
                   setMembers={setMembers}
-                  roleOptions={roleOptions}
+                  fetchRoleOptions={fetchRoleOptions}
                   isDisabled={createAttempt.status === 'processing'}
                   noAccess={userOptions.length === 0}
                 />

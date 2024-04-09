@@ -1,7 +1,8 @@
-import React from 'react';
 import ReactSelectCreatable from 'react-select/creatable';
+import ReactSelectCreatableAsync from 'react-select/async-creatable';
 import { requiredField } from 'shared/components/Validation/rules';
 import { Option } from 'shared/components/Select';
+import { useAsync } from 'shared/hooks/useAsync';
 
 import {
   EditKind,
@@ -10,7 +11,7 @@ import {
 } from '../Shared/Shared';
 
 export function EligibilityOrGrantRolesFieldSelectAndCreate({
-  options,
+  loadOptions,
   isDisabled,
   onChange,
   selected,
@@ -18,7 +19,7 @@ export function EligibilityOrGrantRolesFieldSelectAndCreate({
   editKind,
   optional = false,
 }: {
-  options: Option[];
+  loadOptions(input: string): Promise<Option[]>;
   isDisabled: boolean;
   onChange(opts: Option[]): void;
   selected: Option[];
@@ -34,24 +35,37 @@ export function EligibilityOrGrantRolesFieldSelectAndCreate({
     label = `Required Roles (Optional)`;
   }
 
+  //TODO(gzdunek): Extract FieldSelectCreatableAsync.
+  const [optionsAttempt, runOptionsAttempt] = useAsync(loadOptions);
+
   return (
     <FieldSelectAndCreatableWrapper<Option>
       label={label}
       value={selected}
       rule={optional ? undefined : requiredField(requiredErrMsg)}
     >
-      <ReactSelectCreatable
+      <ReactSelectCreatableAsync
         menuPosition="fixed"
         autoFocus={autoFocus}
         classNamePrefix="react-select"
         placeholder="Start typing a role name and press enter"
         isMulti={true}
         isClearable={true}
-        options={options}
+        loadOptions={async input => {
+          const [data, error] = await runOptionsAttempt(input);
+          if (!error) {
+            return data;
+          }
+        }}
+        defaultOptions={true}
         isDisabled={isDisabled}
         onChange={onChange}
         value={selected || []}
-        noOptionsMessage={() => 'Start typing a role name and press enter'}
+        noOptionsMessage={() =>
+          optionsAttempt.status === 'error'
+            ? `Could not load options: ${optionsAttempt.statusText}`
+            : 'Start typing a role name and press enter'
+        }
       />
     </FieldSelectAndCreatableWrapper>
   );
