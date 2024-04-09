@@ -20,14 +20,15 @@ package local
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -53,6 +55,8 @@ const (
 	// This lock is necessary to prevent a race condition between access lists and members and to ensure
 	// consistency of the one-to-many relationship between them.
 	accessListLockTTL = 5 * time.Second
+
+	createAccessListLimitLockName = "createAccessListLimitLock"
 )
 
 // AccessListService manages Access List resources in the Backend. The AccessListService's
@@ -167,37 +171,53 @@ func (a *AccessListService) UpdateAccessList(ctx context.Context, accessList *ac
 
 type opFunc func(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
 
+func validateOwnerList(acl *accesslist.AccessList) error {
+	ownerMap := make(map[string]struct{}, len(acl.Spec.Owners))
+	for _, owner := range acl.Spec.Owners {
+		if _, ok := ownerMap[owner.Name]; ok {
+			return trace.AlreadyExists("owner %s already exists in the owner list", owner.Name)
+		}
+		ownerMap[owner.Name] = struct{}{}
+	}
+	return nil
+}
+
 func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *accesslist.AccessList, op opFunc) (*accesslist.AccessList, error) {
+	if err := validateOwnerList(accessList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var upserted *accesslist.AccessList
-	upsertWithLockFn := func() error {
-		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-			ownerMap := make(map[string]struct{}, len(accessList.Spec.Owners))
-			for _, owner := range accessList.Spec.Owners {
-				if _, ok := ownerMap[owner.Name]; ok {
-					return trace.AlreadyExists("owner %s already exists in the owner list", owner.Name)
-				}
-				ownerMap[owner.Name] = struct{}{}
-			}
 
-			var err error
-			upserted, err = op(ctx, accessList)
-			return trace.Wrap(err)
-		})
-	}
-
-	var err error
-	if feature := modules.GetModules().Features(); !feature.IGSEnabled() {
-		err = a.service.RunWhileLocked(ctx, "createAccessListLimitLock", accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-			if err := a.VerifyAccessListCreateLimit(ctx, accessList.GetName()); err != nil {
+	updateAccessList := func() error {
+		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), accessListLockTTL,
+			func(ctx context.Context, _ backend.Backend) error {
+				var err error
+				upserted, err = op(ctx, accessList)
 				return trace.Wrap(err)
-			}
-			return trace.Wrap(upsertWithLockFn())
-		})
-	} else {
-		err = upsertWithLockFn()
+			})
 	}
 
-	if err != nil {
+	// If IGS is not enabled for this cluster we need to wrap the whole
+	// operation inside *another* lock so that we can accurately count the
+	// access lists in the cluster and prevent un-authorized use of the
+	// AccessList feature
+
+	action := updateAccessList
+	if !modules.GetModules().Features().IGSEnabled() {
+		action = func() error {
+			err := a.service.RunWhileLocked(ctx, createAccessListLimitLockName, accessListLockTTL,
+				func(ctx context.Context, _ backend.Backend) error {
+					if err := a.VerifyAccessListCreateLimit(ctx, accessList.GetName()); err != nil {
+						return trace.Wrap(err)
+					}
+					return trace.Wrap(updateAccessList())
+				})
+			return trace.Wrap(err)
+		}
+	}
+
+	if err := action(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -252,13 +272,24 @@ func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessLi
 func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error) {
 	var members []*accesslist.AccessListMember
 	err := a.service.RunWhileLocked(ctx, lockName(accessListName), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		_, err := a.service.GetResource(ctx, accessListName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		members, nextToken, err = a.memberService.WithPrefix(accessListName).ListResources(ctx, pageSize, nextToken)
+		var err error
+		members, nextToken, err = a.listAccessListMembersLocked(ctx, accessListName, accessListMaxPageSize, nextToken)
 		return trace.Wrap(err)
 	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return members, nextToken, nil
+}
+
+// listAccessListMembersLocked returns a paginated list of all access list
+// members. This method assumes that the caller holds the appropriate locks.
+func (a *AccessListService) listAccessListMembersLocked(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error) {
+	if _, err := a.service.GetResource(ctx, accessListName); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	members, nextToken, err := a.memberService.WithPrefix(accessListName).ListResources(ctx, pageSize, nextToken)
+
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -363,91 +394,125 @@ func (a *AccessListService) DeleteAllAccessListMembers(ctx context.Context) erro
 
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.
 func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
-	// Double the lock TTL to account for the time it takes to upsert the members.
-	upsertWithLockFn := func() error {
-		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-			// Create a map of the members from the request for easier lookup.
-			membersMap := make(map[string]*accesslist.AccessListMember)
 
-			// Convert the members slice to a map for easier lookup.
-			for _, member := range membersIn {
-				membersMap[member.GetName()] = member
-			}
-
-			var (
-				members      []*accesslist.AccessListMember
-				membersToken string
-			)
-
-			for {
-				// List all members for the access list.
-				var err error
-				members, membersToken, err = a.memberService.WithPrefix(accessList.GetName()).ListResources(ctx, 0 /* default size */, membersToken)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				for _, member := range members {
-					// If the member is not in the members map (request), delete it.
-					if existingMember, ok := membersMap[member.GetName()]; !ok {
-						err = a.memberService.WithPrefix(accessList.GetName()).DeleteResource(ctx, member.GetName())
-						if err != nil {
-							return trace.Wrap(err)
-						}
-					} else {
-						// Compare members and update if necessary.
-						if !cmp.Equal(member, existingMember) {
-							// Update the member.
-							upserted, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, existingMember)
-							if err != nil {
-								return trace.Wrap(err)
-							}
-
-							existingMember.SetRevision(upserted.GetRevision())
-						}
-					}
-
-					// Remove the member from the map.
-					delete(membersMap, member.GetName())
-				}
-
-				if membersToken == "" {
-					break
-				}
-			}
-
-			// Add any remaining members to the access list.
-			for _, member := range membersMap {
-				upserted, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, member)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				member.SetRevision(upserted.GetRevision())
-			}
-
-			var err error
-			accessList, err = a.service.UpsertResource(ctx, accessList)
-			return trace.Wrap(err)
-		})
-	}
-
-	var err error
-	if feature := modules.GetModules().Features(); !feature.IGSEnabled() {
-		err = a.service.RunWhileLocked(ctx, "createAccessListWithMembersLimitLock", accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-			if err := a.VerifyAccessListCreateLimit(ctx, accessList.GetName()); err != nil {
-				return trace.Wrap(err)
-			}
-			return trace.Wrap(upsertWithLockFn())
-		})
-	} else {
-		err = upsertWithLockFn()
-	}
-
-	if err != nil {
+	if err := validateOwnerList(accessList); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return accessList, membersIn, nil
+	var (
+		newACL     *accesslist.AccessList
+		allMembers map[string]*accesslist.AccessListMember
+	)
+
+	reconcileAccessLists := func() error {
+		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), accessListLockTTL,
+			func(ctx context.Context, _ backend.Backend) error {
+				var err error
+
+				newACL, err = a.service.UpsertResource(ctx, accessList)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				oldMembers, err := a.getAllAccessListMembersLocked(ctx, accessList)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				// Create a master list of all current members, that we will update as we
+				// get events from the reconciler
+				allMembers = utils.FromSlice(oldMembers, getName)
+				currentMembers := maps.Clone(allMembers)
+
+				reconciler, err := services.NewReconciler(services.ReconcilerConfig[*accesslist.AccessListMember]{
+					Matcher: func(*accesslist.AccessListMember) bool {
+						return true
+					},
+					GetCurrentResources: func() map[string]*accesslist.AccessListMember {
+						return currentMembers
+					},
+					GetNewResources: func() map[string]*accesslist.AccessListMember {
+						return utils.FromSlice(membersIn, getName)
+					},
+					OnCreate: func(ctx context.Context, m *accesslist.AccessListMember) error {
+						created, err := a.memberService.WithPrefix(accessList.GetName()).CreateResource(ctx, m)
+						if err != nil {
+							return trace.Wrap(err)
+						}
+						allMembers[created.GetName()] = created
+						return nil
+					},
+					OnUpdate: func(ctx context.Context, new, old *accesslist.AccessListMember) error {
+						new.SetRevision(old.GetRevision())
+						updated, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, new)
+						if err != nil {
+							return trace.Wrap(err)
+						}
+						allMembers[updated.GetName()] = updated
+						return nil
+					},
+					OnDelete: func(ctx context.Context, m *accesslist.AccessListMember) error {
+						err := a.memberService.WithPrefix(accessList.GetName()).DeleteResource(ctx, m.GetName())
+						if err != nil {
+							return trace.Wrap(err)
+						}
+						delete(allMembers, m.GetName())
+						return nil
+					},
+					Log: a.log,
+				})
+
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				if err := reconciler.Reconcile(ctx); err != nil {
+					return trace.Wrap(err)
+				}
+
+				return nil
+			})
+	}
+
+	// If IGS is not enabled for this cluster we need to wrap the whole
+	// reconciliation in *another* lock so that we can accurately count the
+	// access lists in the cluster in order to  prevent un-authorized use of the
+	// AccessList feature
+
+	action := reconcileAccessLists
+	if !modules.GetModules().Features().IGSEnabled() {
+		action = func() error {
+			// Note that we double the lack TTL to allow for the reconciliation.
+			// The actual underlying resource lock is automatically extended
+			// periodically by RunWithLocked() until the lock is explicitly
+			// released on return, but giving a bigger TTL means that the lock
+			// needs to be refreshed & extended less often.
+			return a.service.RunWhileLocked(ctx, createAccessListLimitLockName, accessListLockTTL*2,
+				func(ctx context.Context, _ backend.Backend) error {
+					if err := a.VerifyAccessListCreateLimit(ctx, accessList.GetName()); err != nil {
+						return trace.Wrap(err)
+					}
+					return reconcileAccessLists()
+				})
+		}
+	}
+
+	// Now that we know exactly what we need to do, so we can start doing it...
+	if err := action(); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// At this point `allMembers` should reflect the state of the backend user
+	// database, as we have been been updating it as the reconciler events. Sort
+	// the members by name in order to maintain a predictable output order.
+	keys := maps.Keys(allMembers)
+	sort.Strings(keys)
+	result := make([]*accesslist.AccessListMember, len(keys))
+	for i, k := range keys {
+		result[i] = allMembers[k]
+	}
+
+	return newACL, result, nil
 }
 
 func (a *AccessListService) AccessRequestPromote(_ context.Context, _ *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
@@ -655,4 +720,31 @@ func (a *AccessListService) VerifyAccessListCreateLimit(ctx context.Context, tar
 
 	const limitReachedMessage = "cluster has reached its limit for creating access lists, please contact the cluster administrator"
 	return trace.AccessDenied(limitReachedMessage)
+}
+
+func getName(m *accesslist.AccessListMember) string {
+	return m.GetName()
+}
+
+// getAllAccessListMembersLocked fetches the entire member list for a given
+// AccessList, assuming that the caller has acquired the appropriate locks.
+func (a *AccessListService) getAllAccessListMembersLocked(ctx context.Context, acl *accesslist.AccessList) ([]*accesslist.AccessListMember, error) {
+	nextPage := ""
+	var err error
+	members := []*accesslist.AccessListMember{}
+	for {
+		var page []*accesslist.AccessListMember
+
+		page, nextPage, err = a.listAccessListMembersLocked(ctx, acl.GetName(), 0, nextPage)
+		if err != nil {
+			return nil, trace.Wrap(err, "enumerating access list members")
+		}
+
+		members = append(members, page...)
+		if nextPage == "" {
+			break
+		}
+	}
+
+	return members, nil
 }
