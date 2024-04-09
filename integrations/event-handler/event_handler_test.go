@@ -96,9 +96,7 @@ func (s *EventHandlerSuite) SetupTest() {
 	err := logger.Setup(logger.Config{Severity: "debug"})
 	require.NoError(t, err)
 
-	fd, err := NewFakeFluentd()
-	require.NoError(t, err)
-	s.fakeFluentd = fd
+	s.fakeFluentd = NewFakeFluentd(t)
 	s.fakeFluentd.Start()
 	t.Cleanup(s.fakeFluentd.Close)
 
@@ -174,7 +172,7 @@ func (s *EventHandlerSuite) TestEvent() {
 			name: "new token",
 			generateEvent: func(t *testing.T, c *client.Client) nonce {
 				tokenName := uuid.New().String()
-				token, err := types.NewProvisionToken(tokenName, types.SystemRoles{}, time.Time{})
+				token, err := types.NewProvisionToken(tokenName, types.SystemRoles{types.RoleNode}, time.Time{})
 				require.NoError(t, err)
 				err = c.CreateToken(ctx, token)
 				require.NoError(t, err)

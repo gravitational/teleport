@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -26,17 +25,17 @@ import (
 )
 
 var (
-	// storagePath is a path to test storage dir
-	storagePath = "./tmp"
-
 	// osAndPort is teleport host and port
 	osAndPort = "localhost:888"
 
 	// currentTime is current time
 	currentTime = time.Now().UTC().Truncate(time.Second)
+)
 
-	// startCmd represents required config
-	startC = &StartCmdConfig{
+func newStartCmdConfig(t *testing.T) *StartCmdConfig {
+	storagePath := t.TempDir()
+
+	return &StartCmdConfig{
 		TeleportConfig: TeleportConfig{
 			TeleportAddr: osAndPort,
 		},
@@ -45,19 +44,12 @@ var (
 			StorageDir: storagePath,
 		},
 	}
-)
-
-// setup cleans up state directory
-func setup(t *testing.T) {
-	err := os.RemoveAll(storagePath)
-	require.NoError(t, err)
 }
 
 // TestStatePersist checks that state is persisted when StartTime stays constant
 func TestStatePersist(t *testing.T) {
-	setup(t)
-
-	state, err := NewState(startC)
+	config := newStartCmdConfig(t)
+	state, err := NewState(config)
 	require.NoError(t, err)
 
 	startTime, errt := state.GetStartTime()
@@ -79,7 +71,7 @@ func TestStatePersist(t *testing.T) {
 	require.NoError(t, erri)
 	require.NoError(t, errt)
 
-	state, err = NewState(startC)
+	state, err = NewState(config)
 	require.NoError(t, err)
 
 	startTime, errt = state.GetStartTime()

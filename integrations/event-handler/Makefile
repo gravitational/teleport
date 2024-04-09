@@ -81,8 +81,7 @@ install: build
 	go install
 
 .PHONY: test
-test: gen-example-mtls
-	rm -rf tmp && mkdir -p tmp
+test:
 	go test -coverprofile=cover.out
 
 .PHONY: configure

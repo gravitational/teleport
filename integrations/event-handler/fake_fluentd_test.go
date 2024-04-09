@@ -21,11 +21,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
+	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -50,26 +52,17 @@ const (
 )
 
 // NewFakeFluentd creates new unstarted fake server instance
-func NewFakeFluentd() (*FakeFluentd, error) {
-	dir, err := os.MkdirTemp("", "teleport-plugins-event-handler-*")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func NewFakeFluentd(t *testing.T) *FakeFluentd {
+	dir := t.TempDir()
 
 	f := &FakeFluentd{keyTmpDir: dir}
-	err = f.writeCerts()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	require.NoError(t, f.writeCerts())
 
-	err = f.createServer()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	require.NoError(t, f.createServer())
 
 	f.chMessages = make(chan string, concurrency)
 
-	return f, nil
+	return f
 }
 
 // writeCerts generates and writes temporary mTLS keys
