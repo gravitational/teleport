@@ -349,9 +349,8 @@ release-darwin-unsigned: full build-archive
 
 .PHONY: release-darwin
 ifneq ($(ARCH),universal)
-release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
 release-darwin: release-darwin-unsigned
-	cd .. && $(NOTARIZE_BINARIES)
+	$(NOTARIZE_BINARIES)
 	$(MAKE) build-archive
 else
 release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
@@ -490,7 +489,6 @@ endif
 # build .pkg
 .PHONY: pkg
 pkg: | $(RELEASE_DIR)
-	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	mkdir -p $(BUILDDIR)/
 	cp ../build.assets/build-package.sh ../build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
