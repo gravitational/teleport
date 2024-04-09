@@ -22,6 +22,8 @@ import { Flex, Text } from 'design';
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+
 import { Connections } from './Connections';
 
 export default {
@@ -35,9 +37,46 @@ export default {
   ],
 };
 
+const rootClusterUri = '/clusters/foo';
+
 export function Story() {
   const appContext = new MockAppContext();
   prepareAppContext(appContext);
+
+  return (
+    <AppContextProvider value={appContext}>
+      <Connections />
+    </AppContextProvider>
+  );
+}
+
+export function MultipleClusters() {
+  const appContext = new MockAppContext();
+  prepareAppContext(appContext);
+  appContext.clustersService.setState(draft => {
+    const rootCluster1 = makeRootCluster({
+      uri: rootClusterUri,
+      name: 'teleport.example.sh',
+    });
+    const rootCluster2 = makeRootCluster({
+      uri: '/clusters/bar',
+      name: 'bar.example.com',
+    });
+    draft.clusters.set(rootCluster1.uri, rootCluster1);
+    draft.clusters.set(rootCluster2.uri, rootCluster2);
+  });
+  appContext.connectionTracker.getConnections = () => [
+    ...makeConnections(),
+    {
+      connected: true,
+      kind: 'connection.server' as const,
+      title: 'runner-prod',
+      id: 'ed23ded1',
+      serverUri: '/clusters/bar/servers/ed23ded1',
+      login: 'alice',
+      clusterName: 'bar.example.com',
+    },
+  ];
 
   return (
     <AppContextProvider value={appContext}>
