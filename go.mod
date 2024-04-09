@@ -234,6 +234,13 @@ require (
 )
 
 require (
+	github.com/alecthomas/kong v0.9.0
+	github.com/manifoldco/promptui v0.9.0
+	github.com/peterbourgon/diskv/v3 v3.0.1
+	github.com/sethvargo/go-limiter v1.0.0
+)
+
+require (
 	cloud.google.com/go v0.112.1 // indirect
 	cloud.google.com/go/longrunning v0.5.6 // indirect
 	cloud.google.com/go/pubsub v1.37.0 // indirect
@@ -277,6 +284,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
+	github.com/chzyer/readline v1.5.1 // indirect
 	github.com/cloudflare/cfssl v1.6.4 // indirect
 	github.com/containerd/console v1.0.4 // indirect
 	github.com/containerd/containerd v1.7.12 // indirect
