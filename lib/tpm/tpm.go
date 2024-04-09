@@ -145,6 +145,17 @@ func Attest(ctx context.Context, log *slog.Logger) (
 	if err != nil {
 		return nil, nil, nil, nil, trace.Wrap(err)
 	}
+	return attestWithTPM(ctx, log, tpm)
+
+}
+
+func attestWithTPM(ctx context.Context, log *slog.Logger, tpm *attest.TPM) (
+	data *QueryRes,
+	attestParams *attest.AttestationParameters,
+	solve func(ec *attest.EncryptedCredential) ([]byte, error),
+	close func() error,
+	err error,
+) {
 	defer func() {
 		if err != nil {
 			if err := tpm.Close(); err != nil {
