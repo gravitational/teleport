@@ -145,8 +145,9 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 			continue
 		}
 
-		// Let "upgrades" from non-resident to resident happen, but prevent
-		// authenticator "downgrades".
+		// Let authenticator "upgrades" from non-resident (MFA) to resident
+		// (passwordless) happen, but prevent "downgrades" from resident to
+		// non-resident.
 		//
 		// Modern passkey implementations will "disobey" our MFA registrations and
 		// actually create passkeys, silently replacing the old passkey with the new
