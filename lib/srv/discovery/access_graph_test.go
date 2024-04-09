@@ -23,10 +23,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types/discoveryconfig"
-	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 )
 
 func TestServer_updateDiscoveryConfigStatus(t *testing.T) {

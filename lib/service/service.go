@@ -2470,10 +2470,22 @@ func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI,
 	return auth.NewWindowsDesktopWrapper(clt, cache), nil
 }
 
+// accessPointWrapper is a wrapper around auth.ClientI that reduces the surface area of the
+// auth.ClientI.DiscoveryConfigClient interface to services.DiscoveryConfigs.
+// Cache doesn't implement the full auth.ClientI interface, so we need to wrap auth.ClientI to
+// to make it compatible with the services.DiscoveryConfigs interface.
+type accessPointWrapper struct {
+	auth.ClientI
+}
+
+func (a accessPointWrapper) DiscoveryConfigClient() services.DiscoveryConfigs {
+	return a.ClientI.DiscoveryConfigClient()
+}
+
 // NewLocalCache returns new instance of access point
 func (process *TeleportProcess) NewLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (*cache.Cache, error) {
 	return process.newAccessCache(accesspoint.AccessCacheConfig{
-		Services:  clt,
+		Services:  &accessPointWrapper{ClientI: clt},
 		Setup:     setupConfig,
 		CacheName: cacheName,
 	})

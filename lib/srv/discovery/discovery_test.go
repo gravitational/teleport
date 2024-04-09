@@ -2710,6 +2710,9 @@ type eksClustersEnroller interface {
 type combinedDiscoveryClient struct {
 	*auth.Server
 	eksClustersEnroller
+	discoveryConfigStatusUpdater interface {
+		UpdateDiscoveryConfigStatus(context.Context, string, discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error)
+	}
 }
 
 func (d *combinedDiscoveryClient) EnrollEKSClusters(ctx context.Context, req *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
@@ -2719,8 +2722,15 @@ func (d *combinedDiscoveryClient) EnrollEKSClusters(ctx context.Context, req *in
 	return nil, trace.BadParameter("not implemented.")
 }
 
+func (d *combinedDiscoveryClient) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
+	if d.discoveryConfigStatusUpdater != nil {
+		return d.discoveryConfigStatusUpdater.UpdateDiscoveryConfigStatus(ctx, name, status)
+	}
+	return nil, trace.BadParameter("not implemented.")
+}
+
 func getDiscoveryAccessPoint(authServer *auth.Server, authClient auth.ClientI) auth.DiscoveryAccessPoint {
-	return &combinedDiscoveryClient{Server: authServer, eksClustersEnroller: authClient.IntegrationAWSOIDCClient()}
+	return &combinedDiscoveryClient{Server: authServer, eksClustersEnroller: authClient.IntegrationAWSOIDCClient(), discoveryConfigStatusUpdater: authClient.DiscoveryConfigClient()}
 
 }
 

@@ -118,8 +118,3 @@ func (s *DiscoveryConfigService) DeleteDiscoveryConfig(ctx context.Context, name
 func (s *DiscoveryConfigService) DeleteAllDiscoveryConfigs(ctx context.Context) error {
 	return trace.Wrap(s.svc.DeleteAllResources(ctx))
 }
-
-// UpdateDiscoveryConfigStatus updates the status of the specified DiscoveryConfig resource.
-func (s *DiscoveryConfigService) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
-	return nil, trace.NotImplemented("not implemented")
-}
