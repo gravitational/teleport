@@ -25,6 +25,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -111,6 +112,23 @@ func (s *FakeDeviceService) CreateDeviceWebTokenForTesting(params CreateDeviceWe
 		Id:    id,
 		Token: webToken,
 	}, nil
+}
+
+// VerifyConfirmationToken verifies that the token is valid within this
+// FakeDeviceService.
+//
+// This is a test support method, it doesn't spend the token.
+func (s *FakeDeviceService) VerifyConfirmationToken(token *devicepb.DeviceConfirmationToken) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, attempt := range s.deviceAuthnAttempts {
+		if attempt.id == token.Id && attempt.confirmToken == token.Token {
+			return nil
+		}
+	}
+
+	return errors.New("token not issued by FakeDeviceService")
 }
 
 // SetDevicesLimitReached simulates a server where the devices limit was already

@@ -122,7 +122,7 @@ func TestCeremony_RunWeb(t *testing.T) {
 	runError := func(t *testing.T, wantErr string, dev testenv.FakeDevice, webToken *devicepb.DeviceWebToken) {
 		t.Helper()
 
-		err := newAuthnCeremony(dev).RunWeb(ctx, devicesClient, webToken)
+		_, err := newAuthnCeremony(dev).RunWeb(ctx, devicesClient, webToken)
 		assert.ErrorContains(t, err, wantErr, "RunWeb expected to fail")
 	}
 
@@ -178,10 +178,9 @@ func TestCeremony_RunWeb(t *testing.T) {
 		})
 		require.NoError(t, err, "CreateDeviceWebTokenForTesting failed")
 
-		err = newAuthnCeremony(dev).RunWeb(ctx, devicesClient, webToken)
-
-		// Absence of errors is good enough here.
-		assert.NoError(t, err, "RunWeb failed")
+		confirmToken, err := newAuthnCeremony(dev).RunWeb(ctx, devicesClient, webToken)
+		require.NoError(t, err, "RunWeb failed")
+		assert.NoError(t, fakeService.VerifyConfirmationToken(confirmToken))
 	})
 }
 
