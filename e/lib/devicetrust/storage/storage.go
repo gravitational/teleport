@@ -1678,8 +1678,11 @@ func (s *S) SpendDeviceWebToken(
 	authenticatedDeviceID string,
 ) (*devicepb.DeviceWebToken, *devicepb.DeviceConfirmationToken, error) {
 	attemptID := webToken.GetId()
-	if attemptID == "" {
+	switch {
+	case attemptID == "":
 		return nil, nil, trace.BadParameter("web token ID required")
+	case authenticatedDeviceID == "":
+		return nil, nil, trace.BadParameter("authenticated device ID required")
 	}
 
 	item, attempt, err := s.getWebAuthnAttempt(ctx, attemptID, webAuthenticationAttemptCreated, func(attempt *storedWebAuthenticationAttempt) error {
@@ -1734,6 +1737,60 @@ func (s *S) SpendDeviceWebToken(
 	return storedWebToken, storedConfirmToken, nil
 }
 
+// DeviceConfirmationTokenData represents data associated to a stored
+// DeviceConfirmationToken.
+type DeviceConfirmationTokenData struct {
+	// WebSessionID is the WebSession identifier.
+	WebSessionID string
+	// User is the owner of the session and authenticated device.
+	User string
+	// BrowserIP is the IP of the browser that started device web authentication.
+	BrowserIP string
+	// AuthenticatedDeviceID is the ID of the authenticated device.
+	AuthenticatedDeviceID string
+}
+
+// SpendDeviceConfirmationToken spends a DeviceConfirmationToken issued by
+// [SpendDeviceWebToken].
+//
+// A successfully spent token is a pre-requisite for issuing augmented
+// certificates for the WebSession.
+//
+// The caller must inspect the [DeviceConfirmationTokenData] and validate it
+// against the request before issuing augmented certificates.
+func (s *S) SpendDeviceConfirmationToken(ctx context.Context, confirmToken *devicepb.DeviceConfirmationToken) (*DeviceConfirmationTokenData, error) {
+	attemptID := confirmToken.GetId()
+	if attemptID == "" {
+		return nil, trace.BadParameter("confirmation token ID required")
+	}
+
+	// Read/validate the token.
+	item, attempt, err := s.getWebAuthnAttempt(ctx, attemptID, webAuthenticationAttemptConfirm, func(attempt *storedWebAuthenticationAttempt) error {
+		err := matchDeviceToken(confirmToken.Token, attempt.HashedConfirmToken)
+		return trace.Wrap(err)
+	})
+	// err handled below.
+
+	var tokenData *DeviceConfirmationTokenData
+	if attempt != nil {
+		tokenData = &DeviceConfirmationTokenData{
+			WebSessionID:          attempt.WebSessionID,
+			User:                  attempt.User,
+			BrowserIP:             attempt.BrowserIP,
+			AuthenticatedDeviceID: attempt.AuthenticatedDeviceID,
+		}
+	}
+	// Return tokenData from here onwards, it helps with audit.
+
+	if err != nil {
+		return tokenData, trace.Wrap(err)
+	}
+
+	// "Spend" it.
+	err = s.backend.Delete(ctx, item.Key)
+	return tokenData, trace.Wrap(err, "spend device confirmation token")
+}
+
 // DeleteDeviceWebAuthenticationAttempt deletes the device web authentication
 // attempt that underlies a DeviceWebToken or DeviceConfirmationToken.
 //
@@ -1784,7 +1841,8 @@ func (s *S) getWebAuthnAttempt(
 	// Validate the attempt.
 	if err := validate(&attempt); err != nil {
 		silentDeleteAttempt()
-		return nil, nil, trace.Wrap(err)
+		// Return item and attempt for audit purposes.
+		return item, &attempt, trace.Wrap(err)
 	}
 
 	return item, &attempt, nil

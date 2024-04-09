@@ -4053,6 +4053,20 @@ func TestS_SpendDeviceWebToken(t *testing.T) {
 	const invalidToken = "ceci n'est pas a valid token"
 	invalidTokenB64 := base64.RawURLEncoding.EncodeToString([]byte(invalidToken))
 
+	// Tested here to keep the failure table simpler.
+	t.Run("empty authenticatedDeviceID", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, err := s.SpendDeviceWebToken(ctx, &devicepb.DeviceWebToken{
+			Id:    "valid-token-id",
+			Token: "validtokenb64",
+		}, "" /* authenticatedDeviceID */)
+		if !trace.IsBadParameter(err) {
+			t.Errorf("SpendDeviceWebToken returned err=%v (%T), want BadParameter", err, trace.Unwrap(err))
+		}
+		assert.ErrorContains(t, err, "device ID required", "SpendDeviceWebToken error mismatch")
+	})
+
 	// Failure scenarios.
 	tests := []struct {
 		name            string
@@ -4143,6 +4157,137 @@ func TestS_SpendDeviceWebToken(t *testing.T) {
 			}
 			if _, _, err := s.SpendDeviceWebToken(ctx, token, authenticatedDeviceID); !trace.IsNotFound(err) {
 				t.Errorf("SpendDeviceEnrollToken returned err=%q (%T), wanted NotFound (signifying a spent token)", err, trace.Unwrap(err))
+			}
+		})
+	}
+}
+
+func TestS_SpendDeviceConfirmationToken(t *testing.T) {
+	t.Parallel()
+
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	const authenticatedDeviceID = "llama1"
+	sampleToken := &devicepb.DeviceWebToken{
+		WebSessionId:      "llama-session-id",
+		BrowserUserAgent:  sampleUserAgent,
+		BrowserIp:         sampleIP,
+		User:              "llama",
+		ExpectedDeviceIds: []string{authenticatedDeviceID, "llama2"},
+	}
+
+	createConfirmToken := func(t *testing.T) (*devicepb.DeviceWebToken, *devicepb.DeviceConfirmationToken) {
+		webToken, err := s.CreateDeviceWebToken(ctx, sampleToken)
+		if err != nil {
+			t.Fatalf("CreateDeviceWebToken failed: %v", err)
+		}
+
+		_, confirmToken, err := s.SpendDeviceWebToken(ctx, webToken, authenticatedDeviceID)
+		if err != nil {
+			t.Fatalf("SpendDeviceWebToken failed: %v", err)
+		}
+
+		return webToken, confirmToken
+	}
+
+	t.Run("success", func(t *testing.T) {
+		t.Parallel()
+
+		_, confirmToken := createConfirmToken(t)
+		gotData, err := s.SpendDeviceConfirmationToken(ctx, confirmToken)
+		if err != nil {
+			t.Fatalf("SpendDeviceConfirmationToken failed: %v", err)
+		}
+
+		// Verify returned data.
+		wantData := &storage.DeviceConfirmationTokenData{
+			WebSessionID:          sampleToken.WebSessionId,
+			User:                  sampleToken.User,
+			BrowserIP:             sampleToken.BrowserIp,
+			AuthenticatedDeviceID: authenticatedDeviceID,
+		}
+		if diff := cmp.Diff(wantData, gotData); diff != "" {
+			t.Errorf("SpendDeviceConfirmationToken mismatch (-want +got)\n%s", diff)
+		}
+
+		t.Run("double spend", func(t *testing.T) {
+			_, err := s.SpendDeviceConfirmationToken(ctx, confirmToken)
+			if !trace.IsNotFound(err) {
+				t.Errorf("SpendDeviceConfirmationToken returned err=%v (%T), want NotFound", err, trace.Unwrap(err))
+			}
+		})
+	})
+
+	// Failure scenarios.
+	tests := []struct {
+		name        string
+		createToken func(*testing.T) *devicepb.DeviceConfirmationToken
+		assertErr   func(error) bool
+		wantErr     string
+	}{
+		{
+			name: "nil token",
+			createToken: func(*testing.T) *devicepb.DeviceConfirmationToken {
+				return nil
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "token ID required",
+		},
+		{
+			name: "unknown token",
+			createToken: func(*testing.T) *devicepb.DeviceConfirmationToken {
+				return &devicepb.DeviceConfirmationToken{
+					Id:    "not a token ID",
+					Token: "ACBDEF0123456789", // valid b64
+				}
+			},
+			assertErr: trace.IsNotFound,
+		},
+		{
+			name: "invalid token",
+			createToken: func(*testing.T) *devicepb.DeviceConfirmationToken {
+				_, token := createConfirmToken(t)
+				token.Token = "notavalidtoken" // valid b64
+				return token
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "invalid device token",
+		},
+		{
+			name: "invalid attempt state",
+			createToken: func(*testing.T) *devicepb.DeviceConfirmationToken {
+				webToken, err := s.CreateDeviceWebToken(ctx, sampleToken)
+				if err != nil {
+					t.Fatalf("CreateDeviceWebToken failed: %v", err)
+				}
+
+				// Try to spend our webToken as if it was a confirmToken.
+				// This shouldn't work for various reasons, the first being an incorrect
+				// attempt state.
+				return &devicepb.DeviceConfirmationToken{
+					Id:    webToken.Id,
+					Token: webToken.Token,
+				}
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "attempt state",
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := s.SpendDeviceConfirmationToken(ctx, test.createToken(t))
+			if !test.assertErr(err) {
+				t.Errorf("SpendDeviceConfirmationToken: assertErr failed, err=%v (%T)", err, trace.Unwrap(err))
+			}
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "SpendDeviceConfirmationToken error mismatch")
 			}
 		})
 	}
