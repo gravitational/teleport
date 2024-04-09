@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -20,6 +21,7 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 )
 
 func createAndEnroll(
@@ -242,4 +244,32 @@ func (k *fakeEnclaveKey) simulator(opts ...fakeEnclaveKeySimOpt) simulator {
 	sim := newMacOSSimulator(b)
 	sim.key = k
 	return sim
+}
+
+type outgoingContextParams struct {
+	User       string // User used for contextWithUser.
+	SourceIP   string // IP used for testenv.WithOutgoingClientSourceAddr.
+	EmitterKey string // Key used for withOutgoingEmitterKey.
+}
+
+func configureOutgoingContext(parent context.Context, params outgoingContextParams) context.Context {
+	outCtx := parent
+
+	if params.User != "" {
+		outCtx = contextWithUser(outCtx, params.User)
+	}
+	if params.SourceIP != "" {
+		outCtx = testenv.WithOutgoingClientSourceAddr(
+			outCtx,
+			&net.TCPAddr{
+				IP:   net.ParseIP(params.SourceIP),
+				Port: 12345, // Port is discarded.
+			},
+		)
+	}
+	if params.EmitterKey != "" {
+		outCtx = withOutgoingEmitterKey(outCtx, params.EmitterKey)
+	}
+
+	return outCtx
 }

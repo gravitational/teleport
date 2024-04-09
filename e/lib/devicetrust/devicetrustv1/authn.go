@@ -17,9 +17,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/devicetrust/challenge"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/authz"
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -328,23 +326,14 @@ func (c *authnCeremony) validateDeviceWebToken(
 	}
 
 	// Verify user IP.
-	sourceAddr, err := authz.ClientSrcAddrFromContext(ctx)
+	sourceIP, err := getSourceIPFromContext(ctx)
 	if err != nil {
 		c.logger.
 			WithError(err).
-			Debug("AuthenticateDevice: failed to parse client src address")
-		// err swallowed on purpose.
+			Debug("AuthenticateDevice: failed to get source IP from context")
 		return trace.Wrap(errInvalidDeviceWebToken)
 	}
-	clientIP, _, err := utils.SplitHostPort(sourceAddr.String())
-	if err != nil {
-		c.logger.
-			WithError(err).
-			Debug("AuthenticateDevice: failed to split client src address")
-		// err swallowed on purpose.
-		return trace.Wrap(errInvalidDeviceWebToken)
-	}
-	if clientIP != storedToken.BrowserIp {
+	if sourceIP != storedToken.BrowserIp {
 		return auditStatusError{
 			Err:         trace.Wrap(errInvalidDeviceWebToken),
 			UserMessage: "device web authentication IP mismatch",

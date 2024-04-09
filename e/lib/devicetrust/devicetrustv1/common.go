@@ -7,7 +7,9 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
+	"github.com/gravitational/teleport/lib/authz"
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func findDeviceBySerial(ctx context.Context, s *storage.S, osType devicepb.OSType, serialNumber string) (*devicepb.Device, error) {
@@ -32,4 +34,18 @@ func protectReadOnlyDeviceDataFields(dcd *devicepb.DeviceCollectedData) error {
 		return trace.BadParameter("tpm_platform_attestation is a read only field and cannot be submitted in device collected data")
 	}
 	return nil
+}
+
+func getSourceIPFromContext(ctx context.Context) (string, error) {
+	sourceAddr, err := authz.ClientSrcAddrFromContext(ctx)
+	if err != nil {
+		return "", trace.Wrap(err, "read source address from context")
+	}
+
+	sourceIP, _, err := utils.SplitHostPort(sourceAddr.String())
+	if err != nil {
+		return "", trace.Wrap(err, "split host/port from source address")
+	}
+
+	return sourceIP, nil
 }
