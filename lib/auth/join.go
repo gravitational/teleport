@@ -115,7 +115,8 @@ func setRemoteAddrFromContext(ctx context.Context, req *types.RegisterUsingToken
 	return nil
 }
 
-// handleJoinFailure logs and audits the failure of a join.
+// handleJoinFailure logs and audits the failure of a join. It is intentionally
+// designed to handle potential nullness of the input parameters.
 func (a *Server) handleJoinFailure(
 	origErr error,
 	pt types.ProvisionToken,
@@ -123,7 +124,10 @@ func (a *Server) handleJoinFailure(
 	req *types.RegisterUsingTokenRequest,
 ) {
 	fields := logrus.Fields{
-		"role": req.Role,
+		"role": "unknown",
+	}
+	if req != nil {
+		fields["role"] = req.Role
 	}
 
 	var attributesProto *apievents.Struct
@@ -147,7 +151,7 @@ func (a *Server) handleJoinFailure(
 	log.WithError(origErr).WithFields(fields).Error("Failure to join cluster occurred")
 
 	var evt apievents.AuditEvent
-	if req.Role == types.RoleBot {
+	if req != nil && req.Role == types.RoleBot {
 		botJoinEvent := &apievents.BotJoin{
 			Metadata: apievents.Metadata{
 				Type: events.BotJoinEvent,
@@ -176,16 +180,21 @@ func (a *Server) handleJoinFailure(
 				Success: false,
 				Error:   origErr.Error(),
 			},
-			NodeName:   req.NodeName,
-			Role:       string(req.Role),
+			NodeName:   "unknown",
+			Role:       "unknown",
 			Method:     "unknown",
 			TokenName:  "unknown",
-			HostID:     req.HostID,
+			HostID:     "unknown",
 			Attributes: attributesProto,
 		}
 		if pt != nil {
 			instanceJoinEvent.Method = string(pt.GetJoinMethod())
 			instanceJoinEvent.TokenName = pt.GetSafeName()
+		}
+		if req != nil {
+			instanceJoinEvent.Role = string(req.Role)
+			instanceJoinEvent.NodeName = req.NodeName
+			instanceJoinEvent.HostID = req.HostID
 		}
 		evt = instanceJoinEvent
 	}
