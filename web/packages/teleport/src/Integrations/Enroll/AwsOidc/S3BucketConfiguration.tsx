@@ -52,7 +52,7 @@ export function S3BucketConfiguration({
       </Flex>
       <Flex gap={3}>
         <FieldInput
-          rule={requiredBucketName}
+          rule={requiredBucketName(Boolean(s3Bucket || s3Prefix))}
           value={s3Bucket}
           placeholder="bucket"
           label="Bucket Name"
@@ -67,7 +67,7 @@ export function S3BucketConfiguration({
           }
         />
         <FieldInput
-          rule={requiredPrefixName}
+          rule={requiredPrefixName(Boolean(s3Bucket || s3Prefix))}
           value={s3Prefix}
           placeholder="prefix"
           label="Bucket's Prefix Name"
