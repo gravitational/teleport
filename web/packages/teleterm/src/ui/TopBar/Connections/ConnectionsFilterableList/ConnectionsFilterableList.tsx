@@ -27,9 +27,9 @@ import { ConnectionItem } from './ConnectionItem';
 
 export function ConnectionsFilterableList(props: {
   items: ExtendedTrackedConnection[];
-  onActivateItem(id: string): void;
-  onRemoveItem(id: string): void;
-  onDisconnectItem(id: string): void;
+  activateItem(id: string): void;
+  removeItem(id: string): void;
+  disconnectItem(id: string): void;
   slideToVnet(): void;
 }) {
   const { setActiveIndex } = useKeyboardArrowsNavigationStateUpdate();
@@ -64,9 +64,9 @@ export function ConnectionsFilterableList(props: {
           <ConnectionItem
             item={item}
             index={index}
-            onActivate={() => props.onActivateItem(item.id)}
-            onRemove={() => props.onRemoveItem(item.id)}
-            onDisconnect={() => props.onDisconnectItem(item.id)}
+            activate={() => props.activateItem(item.id)}
+            remove={() => props.removeItem(item.id)}
+            disconnect={() => props.disconnectItem(item.id)}
           />
         )
       }

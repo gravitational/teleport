@@ -28,33 +28,28 @@ import { isAppUri, isDatabaseUri } from 'teleterm/ui/uri';
 
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 
-interface ConnectionItemProps {
+export function ConnectionItem(props: {
   index: number;
   item: ExtendedTrackedConnection;
-
-  onActivate(): void;
-
-  onRemove(): void;
-
-  onDisconnect(): void;
-}
-
-export function ConnectionItem(props: ConnectionItemProps) {
+  activate(): void;
+  remove(): void;
+  disconnect(): void;
+}) {
   const offline = !props.item.connected;
   const { isActive, scrollIntoViewIfActive } = useKeyboardArrowsNavigation({
     index: props.index,
-    onRun: props.onActivate,
+    onRun: props.activate,
   });
 
   const actionIcons = {
     disconnect: {
       title: `Disconnect ${props.item.title}`,
-      action: props.onDisconnect,
+      action: props.disconnect,
       Icon: Unlink,
     },
     remove: {
       title: `Remove ${props.item.title}`,
-      action: props.onRemove,
+      action: props.remove,
       Icon: Trash,
     },
   };
@@ -68,7 +63,7 @@ export function ConnectionItem(props: ConnectionItemProps) {
 
   return (
     <ListItem
-      onClick={props.onActivate}
+      onClick={props.activate}
       isActive={isActive}
       ref={ref}
       css={`

@@ -77,9 +77,9 @@ export const ConnectionsSliderStep = (
       <KeyboardArrowsNavigation>
         <ConnectionsFilterableList
           items={sortedItems}
-          onActivateItem={activateItem}
-          onRemoveItem={removeItem}
-          onDisconnectItem={disconnectItem}
+          activateItem={activateItem}
+          removeItem={removeItem}
+          disconnectItem={disconnectItem}
           slideToVnet={props.next}
         />
       </KeyboardArrowsNavigation>
