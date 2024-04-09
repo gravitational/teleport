@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
@@ -448,6 +449,11 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 			count += 1
 			ctr.Inc()
 			log.Tracef("Received server message: %#v.", message)
+
+			if event := makeBackendEvent(e.Context, message); event != nil {
+				slog.With("event", event).DebugContext(e.Context, "=== recording postgres response")
+				e.Audit.RecordEvent(e.Context, event)
+			}
 		}
 	}()
 

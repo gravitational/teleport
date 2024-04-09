@@ -19,9 +19,16 @@
 package postgres
 
 import (
+	"bytes"
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/jackc/pgproto3/v2"
 )
 
 // makeParseEvent returns audit event for Postgres Parse wire message which
@@ -97,5 +104,105 @@ func makeFuncCallEvent(session *common.Session, funcOID uint32, funcArgs []strin
 		DatabaseMetadata: common.MakeDatabaseMetadata(session),
 		FunctionOID:      funcOID,
 		FunctionArgs:     funcArgs,
+	}
+}
+
+func makeBackendEvent(ctx context.Context, i pgproto3.BackendMessage) events.AuditEvent {
+	switch message := i.(type) {
+	case *pgproto3.RowDescription:
+		event := makeRowDescriptionEvent(message)
+		return event
+	case *pgproto3.DataRow:
+		return makeDataRowEvent(message)
+	case *pgproto3.CommandComplete:
+		return makeCommandCompleteEvent(message)
+	case *pgproto3.ReadyForQuery:
+		return makeReadyForQueryEvent(message)
+	case *pgproto3.ErrorResponse:
+		return makeErrorResponseEvent(message)
+	default:
+		return nil
+	}
+}
+
+func makeBackendEventMetadata(message pgproto3.BackendMessage) events.Metadata {
+	// TODO eventType and code
+	messageType := fmt.Sprintf("%T", message)
+	eventType := "Postgres" + strings.TrimPrefix(messageType, "*pgproto3.")
+	now := time.Now().UTC().Round(time.Millisecond)
+	return events.Metadata{
+		Type: eventType,
+		Time: now,
+		Code: "POSTGRESDEMO",
+	}
+}
+
+func makeRowDescriptionEvent(message *pgproto3.RowDescription) events.AuditEvent {
+	event := &events.PostgresRowDescription{
+		Metadata: makeBackendEventMetadata(message),
+		Fields:   make([]*events.PostgresFieldDescription, 0, len(message.Fields)),
+	}
+	for _, field := range message.Fields {
+		event.Fields = append(event.Fields, &events.PostgresFieldDescription{
+			Name:                 string(field.Name),
+			TableOID:             field.TableOID,
+			TableAttributeNumber: uint32(field.TableAttributeNumber),
+			DataTypeOID:          field.DataTypeOID,
+			DataTypeSize:         int32(field.DataTypeSize),
+			TypeModifier:         field.TypeModifier,
+			Format:               int32(field.Format),
+		})
+	}
+	return event
+}
+
+func makeDataRowEvent(message *pgproto3.DataRow) events.AuditEvent {
+	event := &events.PostgresDataRow{
+		Metadata: makeBackendEventMetadata(message),
+		Values:   make([][]byte, 0, len(message.Values)),
+	}
+	for _, values := range message.Values {
+		event.Values = append(event.Values, bytes.Clone(values))
+	}
+	return event
+}
+
+func makeCommandCompleteEvent(message *pgproto3.CommandComplete) events.AuditEvent {
+	return &events.PostgresCommandComplete{
+		Metadata: makeBackendEventMetadata(message),
+		// TODO Fix typo
+		CommandTags: bytes.Clone(message.CommandTag),
+	}
+}
+
+func makeReadyForQueryEvent(message *pgproto3.ReadyForQuery) events.AuditEvent {
+	return &events.PostgresReadyForQuery{
+		Metadata: makeBackendEventMetadata(message),
+		TxStatus: int32(message.TxStatus),
+	}
+}
+
+func makeErrorResponseEvent(message *pgproto3.ErrorResponse) events.AuditEvent {
+	return &events.PostgresErrorResponse{
+		Severity:            message.Severity,
+		SeverityUnlocalized: message.SeverityUnlocalized,
+		ErrorCode:           message.Code,
+		Message:             message.Message,
+		Detail:              message.Detail,
+		Hint:                message.Hint,
+		Position:            message.Position,
+		InternalPosition:    message.InternalPosition,
+		InternalQuery:       message.InternalQuery,
+		Where:               message.Where,
+		// TODO Fix typo
+		SchemeName:     message.SchemaName,
+		TableName:      message.TableName,
+		ColumnName:     message.ColumnName,
+		DataTypeName:   message.DataTypeName,
+		ConstraintName: message.ConstraintName,
+		File:           message.File,
+		Line:           message.Line,
+		Routine:        message.Routine,
+		// TODO UnknownFields
 	}
 }
