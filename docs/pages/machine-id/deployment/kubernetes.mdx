@@ -289,6 +289,12 @@ not necessarily the public address (the port should not be included).
 This is an example manifest, consider modifying it to fit within the conventions
 of deployments to your clusters (e.g customizing labels).
 
+<Admonition type="warning" title="FIPS Compliance">
+The default `tbot-distroless` image does not contain the FIPS-compliant
+binaries. If you operate in an environment where FIPS compliance is required,
+please use the `tbot-fips-distroless` image instead.
+</Admonition>
+
 Apply this file to your Kubernetes cluster:
 
 ```code

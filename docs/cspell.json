@@ -86,6 +86,7 @@
     "Hqlo",
     "IAMR",
     "IDAQAB",
+    "IMDS",
     "INSYNC",
     "IQMHY",
     "IRSA",
@@ -134,6 +135,7 @@
     "NOFILE",
     "NOKEY",
     "NOPASSWD",
+    "nonprod",
     "NVGJ",
     "Näme",
     "ODBC",
@@ -389,7 +391,6 @@
     "doctl",
     "dodemo",
     "domainwidedelegation",
-    "dronegen",
     "dsacls",
     "dspublish",
     "dtypes",
@@ -905,7 +906,16 @@
     "yubishm",
     "znmqk",
     "zxvf",
-    "zztop"
+    "zztop",
+    "spiffe",
+    "SPIFFE",
+    "svid",
+    "SVID",
+    "SVIDs",
+    "Ghostunnel",
+    "Linkerd",
+    "Istio",
+    "mydb"
   ],
   "flagWords": [
     "hte"

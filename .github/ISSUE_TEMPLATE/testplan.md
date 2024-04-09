@@ -543,8 +543,7 @@ instance has label `azure/foo=bar`.
 ### Passwordless
 
 This feature has additional build requirements, so it should be tested with a
-pre-release build from Drone (eg:
-`https://get.gravitational.com/tsh-v10.0.0-alpha.2.pkg`).
+pre-release build (eg: `https://cdn.teleport.dev/tsh-v16.0.0-alpha.2.pkg`).
 
 This sections complements "Users -> Managing MFA devices". `tsh` binaries for
 each operating system (Linux, macOS and Windows) must be tested separately for
@@ -605,8 +604,7 @@ FIDO2 items.
 Device Trust requires Teleport Enterprise.
 
 This feature has additional build requirements, so it should be tested with a
-pre-release build from Drone (eg:
-`https://get.gravitational.com/teleport-ent-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
+pre-release build (eg: `https://cdn.teleport.dev/teleport-ent-v16.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
 Client-side enrollment requires a signed `tsh` for macOS, make sure to use the
 `tsh` binary from `tsh.app`.
@@ -735,7 +733,7 @@ Hardware Key Support is an Enterprise feature and is not available for OSS.
 
 You will need a YubiKey 4.3+ to test this feature.
 
-This feature has additional build requirements, so it should be tested with a pre-release build from Drone (eg: `https://get.gravitational.com/teleport-ent-v11.0.0-alpha.2-linux-amd64-bin.tar.gz`).
+This feature has additional build requirements, so it should be tested with a pre-release build (eg: `https://cdn.teleport.dev/teleport-ent-v16.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
 #### Server Access
 

@@ -18,10 +18,12 @@ package v1
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
+	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
@@ -68,5 +70,11 @@ func newDiscoveryConfig(t *testing.T, name string) *discoveryconfig.DiscoveryCon
 		},
 	)
 	require.NoError(t, err)
+	discoveryConfig.Status.State = discoveryconfigv1.DiscoveryConfigState_name[int32(discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_RUNNING)]
+	discoveryConfig.Status.DiscoveredResources = 42
+	now := time.Now()
+	discoveryConfig.Status.LastSyncTime = now
+	errMsg := "error message"
+	discoveryConfig.Status.ErrorMessage = &errMsg
 	return discoveryConfig
 }

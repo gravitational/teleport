@@ -23,9 +23,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // WebSessionsGetter provides access to web sessions
@@ -613,55 +610,6 @@ func (r *WebTokenV3) CheckAndSetDefaults() error {
 func (r *WebTokenV3) String() string {
 	return fmt.Sprintf("WebToken(kind=%v,user=%v,token=%v,expires=%v)",
 		r.GetKind(), r.GetUser(), r.GetToken(), r.Expiry())
-}
-
-// CheckAndSetDefaults validates the request and sets defaults.
-func (r *NewWebSessionRequest) CheckAndSetDefaults() error {
-	if r.User == "" {
-		return trace.BadParameter("user name required")
-	}
-	if len(r.Roles) == 0 {
-		return trace.BadParameter("roles required")
-	}
-	if len(r.Traits) == 0 {
-		return trace.BadParameter("traits required")
-	}
-	if r.SessionTTL == 0 {
-		r.SessionTTL = defaults.CertDuration
-	}
-	return nil
-}
-
-// NewWebSessionRequest defines a request to create a new user
-// web session
-// TODO (Joerger): Remove this and replace it with lib/auth.NewWebSessionRequest
-// once /e is no longer dependent on this.
-type NewWebSessionRequest struct {
-	// User specifies the user this session is bound to
-	User string
-	// LoginIP is an observed IP of the client, it will be embedded into certificates.
-	LoginIP string
-	// Roles optionally lists additional user roles
-	Roles []string
-	// Traits optionally lists role traits
-	Traits map[string][]string
-	// SessionTTL optionally specifies the session time-to-live.
-	// If left unspecified, the default certificate duration is used.
-	SessionTTL time.Duration
-	// LoginTime is the time that this user recently logged in.
-	LoginTime time.Time
-	// AccessRequests contains the UUIDs of the access requests currently in use.
-	AccessRequests []string
-	// RequestedResourceIDs optionally lists requested resources
-	RequestedResourceIDs []ResourceID
-	// AttestWebSession optionally attests the web session to meet private key policy requirements.
-	// This should only be set to true for web sessions that are purely in the purview of the Proxy
-	// and Auth services. Users should never have direct access to attested web sessions.
-	AttestWebSession bool
-	// PrivateKey is a specific private key to use when generating the web sessions' certificates.
-	// This should be provided when extending an attested web session in order to maintain the
-	// session attested status.
-	PrivateKey *keys.PrivateKey
 }
 
 // Check validates the request.

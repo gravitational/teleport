@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useEffect, useRef } from 'react';
 import { ButtonIcon, Flex, Text } from 'design';
 import { Trash, Unlink } from 'design/Icon';
 
@@ -41,7 +41,7 @@ interface ConnectionItemProps {
 
 export function ConnectionItem(props: ConnectionItemProps) {
   const offline = !props.item.connected;
-  const { isActive } = useKeyboardArrowsNavigation({
+  const { isActive, scrollIntoViewIfActive } = useKeyboardArrowsNavigation({
     index: props.index,
     onRun: props.onActivate,
   });
@@ -60,11 +60,17 @@ export function ConnectionItem(props: ConnectionItemProps) {
   };
 
   const actionIcon = offline ? actionIcons.remove : actionIcons.disconnect;
+  const ref = useRef<HTMLElement>();
+
+  useEffect(() => {
+    scrollIntoViewIfActive(ref.current);
+  }, [scrollIntoViewIfActive]);
 
   return (
     <ListItem
       onClick={props.onActivate}
       isActive={isActive}
+      ref={ref}
       css={`
         padding: 6px 8px;
         height: unset;
@@ -75,7 +81,7 @@ export function ConnectionItem(props: ConnectionItemProps) {
         css={`
           flex-shrink: 0;
         `}
-        connected={props.item.connected}
+        status={props.item.connected ? 'on' : 'off'}
       />
       <Flex
         alignItems="center"

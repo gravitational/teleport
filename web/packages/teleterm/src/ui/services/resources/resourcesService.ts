@@ -34,6 +34,7 @@ import {
 
 import Logger from 'teleterm/logger';
 
+import type { TshdClient } from 'teleterm/services/tshd';
 import type * as types from 'teleterm/services/tshd/types';
 import type * as uri from 'teleterm/ui/uri';
 import type { ResourceTypeFilter } from 'teleterm/ui/Search/searchResult';
@@ -41,7 +42,7 @@ import type { ResourceTypeFilter } from 'teleterm/ui/Search/searchResult';
 export class ResourcesService {
   private logger = new Logger('ResourcesService');
 
-  constructor(private tshClient: types.TshdClient) {}
+  constructor(private tshClient: TshdClient) {}
 
   async fetchServers(params: types.GetResourcesParams) {
     const { response } = await this.tshClient.getServers(

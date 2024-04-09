@@ -22,6 +22,7 @@ package teleport.lib.teleterm.v1;
 
 import "google/protobuf/timestamp.proto";
 import "teleport/accesslist/v1/accesslist.proto";
+import "teleport/devicetrust/v1/device_confirmation_token.proto";
 import "teleport/devicetrust/v1/device_web_token.proto";
 import "teleport/lib/teleterm/v1/access_request.proto";
 import "teleport/lib/teleterm/v1/app.proto";
@@ -655,7 +656,12 @@ message AuthenticateWebDeviceRequest {
   // Device web token to be spent in exchange for the device authentication
   // attempt.
   teleport.devicetrust.v1.DeviceWebToken device_web_token = 1;
+  string root_cluster_uri = 2;
 }
 
 // Response for AuthenticateWebDevice.
-message AuthenticateWebDeviceResponse {}
+message AuthenticateWebDeviceResponse {
+  // Device confirmation token to be sent to the browser that originated the
+  // authentication attempt.
+  teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 1;
+}

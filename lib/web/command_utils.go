@@ -42,6 +42,7 @@ type WSConn interface {
 	ReadMessage() (messageType int, p []byte, err error)
 	SetReadLimit(limit int64)
 	SetReadDeadline(t time.Time) error
+	SetWriteDeadline(t time.Time) error
 
 	PongHandler() func(appData string) error
 	SetPongHandler(h func(appData string) error)

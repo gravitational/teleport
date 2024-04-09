@@ -30,7 +30,7 @@ import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { ClustersService } from './clustersService';
 
 import type * as uri from 'teleterm/ui/uri';
-import type * as tsh from 'teleterm/services/tshd/types';
+import type { TshdClient } from 'teleterm/services/tshd';
 
 jest.mock('teleterm/ui/services/notifications');
 jest.mock('teleterm/ui/services/usage');
@@ -58,9 +58,9 @@ const NotificationsServiceMock = NotificationsService as jest.MockedClass<
 >;
 const UsageServiceMock = UsageService as jest.MockedClass<typeof UsageService>;
 
-function createService(client: Partial<tsh.TshdClient>): ClustersService {
+function createService(client: Partial<TshdClient>): ClustersService {
   return new ClustersService(
-    client as tsh.TshdClient,
+    client as TshdClient,
     {
       removeKubeConfig: jest.fn().mockResolvedValueOnce(undefined),
     } as unknown as MainProcessClient,
@@ -69,7 +69,7 @@ function createService(client: Partial<tsh.TshdClient>): ClustersService {
   );
 }
 
-function getClientMocks(): Partial<tsh.TshdClient> {
+function getClientMocks(): Partial<TshdClient> {
   return {
     login: jest.fn().mockReturnValueOnce(new MockedUnaryCall({})),
     logout: jest.fn().mockReturnValueOnce(new MockedUnaryCall({})),
