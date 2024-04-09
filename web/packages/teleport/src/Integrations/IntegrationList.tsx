@@ -16,7 +16,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Link } from 'react-router-dom';
+import { Link as InternalRouteLink } from 'react-router-dom';
 
 import { Box, Flex, Image } from 'design';
 import { AWSIcon } from 'design/SVGIcon';
@@ -48,6 +48,7 @@ import {
 import cfg from 'teleport/config';
 
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
+import { UpdateAwsOidcThumbprint } from './UpdateAwsOidcThumbprint';
 
 type Props<IntegrationLike> = {
   list: IntegrationLike[];
@@ -136,7 +137,7 @@ export function IntegrationList(props: Props<IntegrationLike>) {
                 <Cell align="right">
                   <MenuButton>
                     <MenuItem
-                      as={Link}
+                      as={InternalRouteLink}
                       to={{
                         pathname: cfg.getIntegrationEnrollRoute(
                           IntegrationKind.ExternalAuditStorage
@@ -181,6 +182,8 @@ export function IntegrationList(props: Props<IntegrationLike>) {
 }
 
 const StatusCell = ({ item }: { item: IntegrationLike }) => {
+  const status = getStatus(item);
+
   if (
     item.resourceType === 'integration' &&
     item.kind === IntegrationKind.AwsOidc &&
@@ -189,21 +192,16 @@ const StatusCell = ({ item }: { item: IntegrationLike }) => {
     return (
       <Cell>
         <Flex alignItems="center">
-          <StatusLight status={Status.Warning} />
-          Integration needs updating
+          <StatusLight status={status} />
+          {getStatusCodeTitle(item.statusCode)}
           <Box mx="1">
-            <ToolTipInfo>
-              Requires setting up a Amazon S3 Bucket. Click on 'OPTIONS' and
-              'Edit...' and fill out the 'S3 Location' input fields.
-            </ToolTipInfo>
+            <UpdateAwsOidcThumbprint integration={item} />
           </Box>
         </Flex>
       </Cell>
     );
   }
-  const status = getStatus(item);
   const statusDescription = getStatusCodeDescription(item.statusCode);
-
   return (
     <Cell>
       <Flex alignItems="center">
