@@ -18,6 +18,7 @@ package clusters
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 
 	"github.com/gravitational/trace"
@@ -170,6 +171,15 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		return nil, nil, trace.Wrap(err)
 	}
 
+	clusterLog := s.Log.WithField("cluster", clusterURI)
+
+	pingResponseJSON, err := json.Marshal(pingResponse)
+	if err != nil {
+		clusterLog.WithError(err).Debugln("Could not marshal ping response to JSON")
+	} else {
+		clusterLog.WithField("response", string(pingResponseJSON)).Debugln("Got ping response")
+	}
+
 	if err := clusterClient.SaveProfile(false); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -183,7 +193,7 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		clusterClient: clusterClient,
 		dir:           s.Dir,
 		clock:         s.Clock,
-		Log:           s.Log.WithField("cluster", clusterURI),
+		Log:           clusterLog,
 	}, clusterClient, nil
 }
 
