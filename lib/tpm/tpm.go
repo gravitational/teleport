@@ -123,6 +123,7 @@ func query(
 
 	if eks[0].Certificate != nil {
 		data.EKCert = eks[0].Certificate.Raw
+		data.EKCertSerial = serialString(eks[0].Certificate.SerialNumber)
 	}
 	log.DebugContext(ctx, "Successfully queried TPM", "data", data)
 	return data, nil

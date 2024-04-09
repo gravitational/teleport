@@ -33,6 +33,8 @@ type fakeCmdChannel struct {
 	io.ReadWriteCloser
 }
 
+// https://github.com/mrcdb/tpm2_ek_cert_generator/blob/master/generate_ek_cert.sh
+
 // MeasurementLog implements CommandChannelTPM20.
 func (cc *fakeCmdChannel) MeasurementLog() ([]byte, error) {
 	// Return nil, we inject an event log in handleEnrollStream
@@ -75,25 +77,34 @@ func TestWithSimulator(t *testing.T) {
 	require.NoError(t, err)
 
 	const nvramRSACertIndex = 0x1c00002
-
-	sessionHandle := tpm2.HandlePasswordSession
-
-	session := tpm2.AuthCommand{Session: sessionHandle, Attributes: tpm2.AttrContinueSession}
-
 	err = tpm2.NVDefineSpace(
 		sim,
-		tpm2.HandleOwner,
+		tpm2.HandlePlatform, // We act as the platform when creating this index.
 		nvramRSACertIndex,
-		"",
-		"",
+		"", // As this is the simulator, there isn't a password on the platform authorization.
+		"", // We do not configure a password for this index. This allows it to be read using the NV index as the auth handle.
 		nil,
-		tpm2.AttrOwnerWrite|tpm2.AttrOwnerRead|tpm2.AttrReadSTClear,
+		tpm2.AttrPPWrite| // Allows this NV index to be written with platform authorization.
+			tpm2.AttrPPRead| // Allows this NV index to be read with platform authorization.
+			tpm2.AttrPlatformCreate| // Marks this index as created by the Platform
+			tpm2.AttrAuthRead, // Allows the nv index to be used as an auth handle to read itself.
 		uint16(len(fakeEKBytes)),
 	)
 	require.NoError(t, err)
 
-	err = tpm2.NVWrite(sim, tpm2.HandleOwner, nvramRSACertIndex, "", fakeEKBytes, 0)
+	err = tpm2.NVWrite(sim, tpm2.HandlePlatform, nvramRSACertIndex, "", fakeEKBytes, 0)
 	require.NoError(t, err)
+
+	read, err := tpm2.NVReadEx(
+		sim,
+		nvramRSACertIndex, // The index we want to read.
+		nvramRSACertIndex, // Weird case: we act as the index itself when reading from it.
+		"",                // The password for the NV index auth handle - left empty in NVDefineSpace
+		0,
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, read)
+
 	t.Run("query", func(t *testing.T) {
 		res, err := query(ctx, slog.Default(), attestTPM)
 		require.NoError(t, err)
