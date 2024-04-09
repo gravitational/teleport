@@ -4075,6 +4075,7 @@ message OneOf {
     events.PostgresDataRow PostgresDataRow = 158;
     events.PostgresCommandComplete PostgresCommandComplete = 159;
     events.PostgresReadyForQuery PostgresReadyForQuery = 160;
+    events.PostgresErrorResponse PostgresErrorResponse = 161;
   }
 }
 
@@ -6194,7 +6195,7 @@ message PostgresCommandComplete {
     (gogoproto.jsontag) = ""
   ];
 
-  repeated bytes CommandTags = 2 [(gogoproto.jsontag) = "command_tags,omitempty"];
+  bytes CommandTags = 2 [(gogoproto.jsontag) = "command_tags,omitempty"];
 }
 
 // PostgresReadyForQuery defines pgproto3.ReadForQuery
@@ -6208,4 +6209,35 @@ message PostgresReadyForQuery {
 
   // note that real type is byte
   int32 TxStatus = 2 [(gogoproto.jsontag) = "tx_status,omitempty"];
+}
+
+// PostgresErrorResponse defines pgproto3.ErrorResponse
+message PostgresErrorResponse {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  string Severity = 2 [(gogoproto.jsontag) = "severity,omitempty"];
+  string SeverityUnlocalized = 3 [(gogoproto.jsontag) = "severity_unlocalized,omitempty"];
+  string ErrorCode = 4 [(gogoproto.jsontag) = "error_code,omitempty"];
+  string Message = 5 [(gogoproto.jsontag) = "message,omitempty"];
+  string Detail = 6 [(gogoproto.jsontag) = "detail,omitempty"];
+  string Hint = 7 [(gogoproto.jsontag) = "hint,omitempty"];
+  int32 Position = 8 [(gogoproto.jsontag) = "position,omitempty"];
+  int32 InternalPosition = 9 [(gogoproto.jsontag) = "internal_position,omitempty"];
+  string InternalQuery = 10 [(gogoproto.jsontag) = "internal_query,omitempty"];
+  string Where = 11 [(gogoproto.jsontag) = "where,omitempty"];
+  string SchemeName = 12 [(gogoproto.jsontag) = "schema_name,omitempty"];
+  string TableName = 13 [(gogoproto.jsontag) = "table_name,omitempty"];
+  string ColumnName = 14 [(gogoproto.jsontag) = "column_name,omitempty"];
+  string DataTypeName = 15 [(gogoproto.jsontag) = "data_type_name,omitempty"];
+  string ConstraintName = 16 [(gogoproto.jsontag) = "constraint_name,omitempty"];
+  string File = 17 [(gogoproto.jsontag) = "file,omitempty"];
+  int32 Line = 18 [(gogoproto.jsontag) = "line,omitempty"];
+  string Routine = 19 [(gogoproto.jsontag) = "routine,omitempty"];
+  // TODO
+  // UnknownFields map[byte]string
 }
