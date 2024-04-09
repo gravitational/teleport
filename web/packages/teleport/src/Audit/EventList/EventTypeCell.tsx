@@ -227,6 +227,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.SSMRUN_FAIL]: Icons.Info,
   [eventCodes.BOT_JOIN]: Icons.Info,
   [eventCodes.BOT_JOIN_FAILURE]: Icons.Warning,
+  [eventCodes.INSTANCE_JOIN]: Icons.Info,
   [eventCodes.INSTANCE_JOIN_FAILURE]: Icons.Warning,
   [eventCodes.LOGIN_RULE_CREATE]: Icons.Info,
   [eventCodes.LOGIN_RULE_DELETE]: Icons.Info,
