@@ -88,11 +88,19 @@ func TestWithSimulator(t *testing.T) {
 			tpm2.AttrPPRead| // Allows this NV index to be read with platform authorization.
 			tpm2.AttrPlatformCreate| // Marks this index as created by the Platform
 			tpm2.AttrAuthRead, // Allows the nv index to be used as an auth handle to read itself.
+
 		uint16(len(fakeEKBytes)),
 	)
 	require.NoError(t, err)
 
-	err = tpm2.NVWrite(sim, tpm2.HandlePlatform, nvramRSACertIndex, "", fakeEKBytes, 0)
+	err = tpm2.NVWrite(
+		sim,
+		tpm2.HandlePlatform,
+		nvramRSACertIndex,
+		"",
+		fakeEKBytes,
+		0,
+	)
 	require.NoError(t, err)
 
 	read, err := tpm2.NVReadEx(
