@@ -21,6 +21,7 @@ package services
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
@@ -778,6 +779,12 @@ func NewResourceExpression(expression string) (typical.Expression[types.Resource
 			}),
 			"exists": typical.UnaryFunction[types.ResourceWithLabels](func(value string) (bool, error) {
 				return value != "", nil
+			}),
+			"split": typical.BinaryFunction[types.ResourceWithLabels](func(value string, delimiter string) ([]string, error) {
+				return strings.Split(value, delimiter), nil
+			}),
+			"contains": typical.BinaryFunction[types.ResourceWithLabels](func(list []string, value string) (bool, error) {
+				return slices.Contains(list, value), nil
 			}),
 		},
 		GetUnknownIdentifier: func(env types.ResourceWithLabels, fields []string) (any, error) {

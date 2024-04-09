@@ -18,7 +18,8 @@ use crate::{
     CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateRequest, CGOSharedDirectoryCreateResponse,
     CGOSharedDirectoryDeleteRequest, CGOSharedDirectoryInfoRequest, CGOSharedDirectoryInfoResponse,
     CGOSharedDirectoryListRequest, CGOSharedDirectoryListResponse, CGOSharedDirectoryMoveRequest,
-    CGOSharedDirectoryReadRequest, CGOSharedDirectoryReadResponse, CGOSharedDirectoryWriteRequest,
+    CGOSharedDirectoryReadRequest, CGOSharedDirectoryReadResponse,
+    CGOSharedDirectoryTruncateRequest, CGOSharedDirectoryWriteRequest,
 };
 use ironrdp_pdu::{cast_length, custom_err, PduResult};
 use ironrdp_rdpdr::pdu::efs::{
@@ -556,6 +557,41 @@ impl SharedDirectoryListRequest {
             _data: vec![path.into()],
         })
     }
+}
+
+/// SharedDirectoryTruncateRequest is sent by the TDP server to the client
+/// to truncate a file at path to end_of_file bytes.
+#[derive(Debug)]
+pub struct SharedDirectoryTruncateRequest {
+    pub completion_id: u32,
+    pub directory_id: u32,
+    pub path: UnixPath,
+    pub end_of_file: u32,
+}
+
+impl SharedDirectoryTruncateRequest {
+    /// See [`CGOWithData`].
+    pub fn into_cgo(self) -> PduResult<CGOWithData<CGOSharedDirectoryTruncateRequest>> {
+        let path = self.path.to_cstring()?;
+        Ok(CGOWithData {
+            cgo: CGOSharedDirectoryTruncateRequest {
+                completion_id: self.completion_id,
+                directory_id: self.directory_id,
+                path: path.as_ptr(),
+                end_of_file: self.end_of_file,
+            },
+            _data: vec![path.into()],
+        })
+    }
+}
+
+/// SharedDirectoryTruncateResponse is sent by the TDP client to the server
+/// to acknowledge a SharedDirectoryTruncateRequest was received and executed.
+#[derive(Debug)]
+#[repr(C)]
+pub struct SharedDirectoryTruncateResponse {
+    pub completion_id: u32,
+    pub err_code: TdpErrCode,
 }
 
 #[repr(C)]

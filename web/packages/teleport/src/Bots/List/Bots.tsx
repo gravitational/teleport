@@ -45,7 +45,6 @@ export function Bots() {
   const hasAddBotPermissions = flags.addBots;
 
   const [bots, setBots] = useState<FlatBot[]>();
-  const [roles, setRoles] = useState<string[]>();
   const [selectedBot, setSelectedBot] = useState<FlatBot>();
   const [selectedRoles, setSelectedRoles] = useState<string[]>();
   const { attempt: crudAttempt, run: crudRun } = useAttemptNext();
@@ -59,22 +58,21 @@ export function Bots() {
       return await fetchBots(signal, flags);
     }
 
-    async function roles(signal: AbortSignal) {
-      return await fetchRoles(signal, flags);
-    }
-
     fetchRun(() =>
-      Promise.all([bots(signal.signal), roles(signal.signal)]).then(
-        ([botRes, roleRes]) => {
-          setBots(botRes.bots);
-          setRoles(roleRes.map(r => r.name));
-        }
-      )
+      bots(signal.signal).then(botRes => {
+        setBots(botRes.bots);
+      })
     );
     return () => {
       signal.abort();
     };
   }, [ctx, fetchRun]);
+
+  async function fetchRoleNames(search: string): Promise<string[]> {
+    const flags = ctx.getFeatureFlags();
+    const roles = await fetchRoles(search, flags);
+    return roles.items.map(r => r.name);
+  }
 
   function onDelete() {
     crudRun(() => deleteBot(flags, selectedBot.name)).then(() => {
@@ -148,7 +146,7 @@ export function Bots() {
           bots={bots}
           disabledEdit={!flags.roles || !flags.editBots}
           disabledDelete={!flags.removeBots}
-          roles={roles}
+          fetchRoles={fetchRoleNames}
           onClose={onClose}
           onDelete={onDelete}
           onEdit={onEdit}

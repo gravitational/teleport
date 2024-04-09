@@ -323,12 +323,18 @@ type Props<T> = {
 };
 
 export type StepComponentProps = {
-  // refCallback is a func that is called after component mounts.
-  // Required to calculate dimensions of the component for height animations.
+  /**
+   * refCallback is a func that is called after component mounts.
+   * Required to calculate dimensions of the component for height animations.
+   */
   refCallback(node: HTMLElement): void;
-  // next goes to the next step in the flow.
+  /**
+   * next goes to the next step in the flow.
+   */
   next(): void;
-  // prev goes back a step in the flow.
+  /**
+   * prev goes back a step in the flow.
+   */
   prev(): void;
   hasTransitionEnded: boolean;
   stepIndex: number;

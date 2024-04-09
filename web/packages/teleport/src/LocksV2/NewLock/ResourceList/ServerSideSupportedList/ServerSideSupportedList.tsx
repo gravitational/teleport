@@ -30,16 +30,23 @@ import { Desktop } from 'teleport/services/desktops';
 import { Node } from 'teleport/services/nodes';
 import { useServerSidePagination } from 'teleport/components/hooks';
 import useTeleport from 'teleport/useTeleport';
-import cfg from 'teleport/config';
+import cfg, { UrlResourcesParams } from 'teleport/config';
 import Ctx from 'teleport/teleportContext';
+
+import { RoleResource } from 'teleport/services/resources';
 
 import { TableWrapper, ServerSideListProps } from '../common';
 import { CommonListProps, LockResourceKind } from '../../common';
 
 import { Nodes } from './Nodes';
 import { Desktops } from './Desktops';
+import { Roles } from './Roles';
 
-import type { ResourceLabel, ResourceFilter } from 'teleport/services/agents';
+import type {
+  ResourceLabel,
+  ResourceFilter,
+  ResourcesResponse,
+} from 'teleport/services/agents';
 
 export function ServerSideSupportedList(props: CommonListProps) {
   const ctx = useTeleport();
@@ -58,7 +65,7 @@ export function ServerSideSupportedList(props: CommonListProps) {
     fetchFunc: getFetchFuncForServerSidePaginating(
       ctx,
       props.selectedResourceKind
-    ) as any,
+    ),
     clusterId: cfg.proxyCluster, // Locking only supported with root cluster
     params: resourceFilter,
     pageSize: props.pageSize,
@@ -112,6 +119,10 @@ export function ServerSideSupportedList(props: CommonListProps) {
     };
 
     switch (props.selectedResourceKind) {
+      case 'role':
+        return (
+          <Roles roles={fetchedData.agents as RoleResource[]} {...listProps} />
+        );
       case 'node':
         return <Nodes nodes={fetchedData.agents as Node[]} {...listProps} />;
       case 'windows_desktop':
@@ -141,6 +152,7 @@ export function ServerSideSupportedList(props: CommonListProps) {
           to: pageIndicators.to,
           total: pageIndicators.totalCount,
         }}
+        hideAdvancedSearch={props.selectedResourceKind === 'role'} // Roles don't support advanced search.
         filter={resourceFilter}
         showSearchBar={true}
         disableSearch={fetchStatus === 'loading'}
@@ -183,7 +195,16 @@ function getDefaultSort(kind: LockResourceKind): SortType {
 function getFetchFuncForServerSidePaginating(
   ctx: Ctx,
   resourceKind: LockResourceKind
-) {
+): (
+  clusterId: string,
+  params: UrlResourcesParams
+) => Promise<ResourcesResponse<unknown>> {
+  if (resourceKind === 'role') {
+    return async (clusterId, params) => {
+      const { items, startKey } = await ctx.resourceService.fetchRoles(params);
+      return { agents: items, startKey };
+    };
+  }
   if (resourceKind === 'node') {
     return ctx.nodeService.fetchNodes;
   }

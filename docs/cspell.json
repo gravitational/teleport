@@ -86,6 +86,7 @@
     "Hqlo",
     "IAMR",
     "IDAQAB",
+    "IMDS",
     "INSYNC",
     "IQMHY",
     "IRSA",
@@ -134,6 +135,7 @@
     "NOFILE",
     "NOKEY",
     "NOPASSWD",
+    "nonprod",
     "NVGJ",
     "Näme",
     "ODBC",
@@ -912,7 +914,8 @@
     "SVIDs",
     "Ghostunnel",
     "Linkerd",
-    "Istio"
+    "Istio",
+    "mydb"
   ],
   "flagWords": [
     "hte"

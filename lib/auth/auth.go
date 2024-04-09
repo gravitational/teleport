@@ -280,6 +280,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.DatabaseObjects == nil {
+		cfg.DatabaseObjects, err = local.NewDatabaseObjectService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.PluginData == nil {
 		cfg.PluginData = local.NewPluginData(cfg.Backend, cfg.DynamicAccessExt)
 	}
@@ -394,6 +400,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Okta:                      cfg.Okta,
 		AccessLists:               cfg.AccessLists,
 		DatabaseObjectImportRules: cfg.DatabaseObjectImportRules,
+		DatabaseObjects:           cfg.DatabaseObjects,
 		SecReports:                cfg.SecReports,
 		UserLoginStates:           cfg.UserLoginState,
 		StatusInternal:            cfg.Status,
@@ -548,6 +555,7 @@ type Services struct {
 	services.Okta
 	services.AccessLists
 	services.DatabaseObjectImportRules
+	services.DatabaseObjects
 	services.UserLoginStates
 	services.Assistant
 	services.Embeddings
@@ -5023,10 +5031,15 @@ func (a *Server) submitAccessReview(
 }
 
 func (a *Server) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
-	caps, err := services.CalculateAccessCapabilities(ctx, a.clock, a, req)
+	user, err := authz.UserFromContext(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	caps, err := services.CalculateAccessCapabilities(ctx, a.clock, a, user.GetIdentity(), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return caps, nil
 }
 

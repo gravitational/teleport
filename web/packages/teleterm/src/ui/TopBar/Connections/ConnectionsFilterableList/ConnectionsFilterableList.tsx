@@ -39,39 +39,39 @@ export function ConnectionsFilterableList(props: {
     return <Text color="text.muted">No Connections</Text>;
   } // With VNet being supported, there's always at least one item to show – the VNet item.
 
+  let items: Array<ExtendedTrackedConnection | VnetConnection> = props.items;
+
+  if (isVnetSupported) {
+    items = [{ kind: 'vnet', title: 'VNet' }, ...items];
+  }
+
   return (
-    <FilterableList<ExtendedTrackedConnection>
-      items={props.items}
+    <FilterableList<ExtendedTrackedConnection | VnetConnection>
+      items={items}
       filterBy="title"
       placeholder="Search Connections"
       onFilterChange={value =>
         value.length ? setActiveIndex(0) : setActiveIndex(-1)
       }
-      Node={({ item, index }) => (
-        <ConnectionItem
-          item={item}
-          index={index}
-          onActivate={() => props.onActivateItem(item.id)}
-          onRemove={() => props.onRemoveItem(item.id)}
-          onDisconnect={() => props.onDisconnectItem(item.id)}
-        />
-      )}
-    >
-      {/*
-        TODO(ravicious): Change the type of FilterableList above to something like
-        FilterableList<ExtendedTrackedConnection | Vnet> and render a different component in Node
-        depending on the item type. This way VNet will have tighter integration with the connection
-        list, i.e. be searchable and selectable through keyboard.
-
-        We don't want to put VNet into ExtendedTrackedConnection because these are two fundamentally
-        different things.
-      */}
-      {isVnetSupported && (
-        <VnetConnectionItem
-          onClick={props.slideToVnet}
-          title="Open VNet panel"
-        />
-      )}
-    </FilterableList>
+      Node={({ item, index }) =>
+        item.kind === 'vnet' ? (
+          <VnetConnectionItem
+            openVnetPanel={props.slideToVnet}
+            title="Open VNet panel"
+            index={index}
+          />
+        ) : (
+          <ConnectionItem
+            item={item}
+            index={index}
+            onActivate={() => props.onActivateItem(item.id)}
+            onRemove={() => props.onRemoveItem(item.id)}
+            onDisconnect={() => props.onDisconnectItem(item.id)}
+          />
+        )
+      }
+    />
   );
 }
+
+type VnetConnection = { kind: 'vnet'; title: 'VNet' };

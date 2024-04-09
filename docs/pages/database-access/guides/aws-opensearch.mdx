@@ -15,6 +15,11 @@ description: How to access AWS OpenSearch with Teleport database access
 
 </Tabs>
 
+This guide shows how to enroll databases through the Teleport Database Service.
+For a more scalable approach, learn how to [configure the Teleport Discovery
+Service](../../auto-discovery/databases.mdx) to automatically enroll all AWS
+databases in your infrastructure.
+
 ## Prerequisites
 
 - AWS OpenSearch domain.
@@ -29,15 +34,12 @@ description: How to access AWS OpenSearch with Teleport database access
 - A host, e.g., an EC2 instance, where you will run the Teleport Database Service.
   This guide assumes an EC2 instance when creating and applying IAM roles, and
   must be adjusted accordingly for custom configurations.
-- (!docs/pages/includes/database-access/aws-auto-discovery-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
-<Admonition type="note" title="Example Access Control">
 This guide provides an example configuration of IAM access roles as a model,
 and uses an EC2 instance to serve the Teleport Database Service. The level of
 access provided may not suit your needs, or may not fit your organization's
 access conventions. You should adjust the AWS IAM permissions to fit your needs.
-</Admonition>
 
 ## Step 1/4. Create IAM roles for OpenSearch Managed Cluster access
 
@@ -150,13 +152,128 @@ $ tctl create -f aws-opensearch-access.yaml
 
 ## Step 3/4. Install the Teleport Database Service
 
+Create an EC2 instance to host the Teleport Database Service, and attach the
+`TeleportDatabaseService` AWS IAM role to it. If you're hosting the service another
+way, you must provide AWS credentials to the service - see [AWS credentials
+configuration](https://docs.aws.amazon.com/sdkref/latest/guide/creds-config-files.html)
+for more details.
+
+<Admonition type="warning" title="non-standard AWS regions">
+For non-standard AWS regions such as AWS GovCloud (US) regions and AWS China
+regions, please set the corresponding region in the `AWS_REGION` environment
+variable or in the AWS credentials file so that the Database Service can use
+the correct STS endpoint.
+</Admonition>
+
+### Generate a token
+
+<Details title="Alterative methods">
+
+For users with a lot of infrastructure in AWS, or who might create or recreate
+many instances, consider alternative methods for joining new EC2 instances running
+Teleport:
+
+- [Configure Teleport to Automatically Enroll EC2 instances (Preview)](../../auto-discovery/servers/ec2-discovery.mdx)
+- [Joining Nodes via AWS IAM
+  Role](../../agents/join-services-to-your-cluster/aws-iam.mdx)
+- [Joining Nodes via AWS EC2 Identity Document](../../agents/join-services-to-your-cluster/aws-ec2.mdx)
+
+</Details>
+
 (!docs/pages/includes/database-access/token.mdx!)
 
-(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
+Use the token provided by the output of this command in the next step.
 
-(!docs/pages/includes/database-access/aws-create-db-configuration.mdx type="OpenSearch" matcher="opensearch" protocol="opensearch" example="my-opensearch-instance-xxxxxx.us-west-1.es.amazonaws.com" !)
+### Install and start Teleport
 
-(!docs/pages/includes/start-teleport.mdx service="the Database Service"!)
+Install Teleport on the host where you will run the Teleport Database
+Service. See our [Installation](../../installation.mdx) page for options
+besides Linux servers.
+
+(!docs/pages/includes/install-linux.mdx!)
+
+<Tabs>
+<TabItem label="Generating a new Teleport Config file">
+
+On the host where you will run the Teleport Database Service, start Teleport
+with the appropriate configuration.
+
+Note that a single Teleport process can run multiple different services, for
+example multiple Database Service agents as well as the SSH Service or Application
+Service. The step below will overwrite an existing configuration file, so if
+you're running multiple services add `--output=stdout` to print the config in
+your terminal, and manually adjust `/etc/teleport.yaml`.
+
+Generate a configuration file at `/etc/teleport.yaml` for the Database Service.
+Set the `--proxy` command-line option to the address for your Teleport cluster
+and database parameters to your AWS environment.
+
+```code
+$ sudo teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=<Var name="teleport.example.com" />:443 \
+   --name=example-opensearch \
+   --protocol=opensearch \
+   --uri=<Var name="opensearch-uri" />:443 \
+   --aws-account-id=(=aws.aws_access_key=)  \
+   --labels=env=dev
+```
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
+
+</TabItem>
+
+<TabItem label="Modifying the existing Database Service Config">
+Modify your Teleport Database Service static configuration file:
+
+```yaml
+db_service:
+  enabled: "yes"
+  databases:
+  - name: example-opensearch
+    aws:
+      account_id: "(=aws.aws_access_key=)"
+    protocol: opensearch
+    uri: <Var name="opensearch-uri" />:443
+    static_labels:
+      env: dev
+```
+
+Restart the Teleport Database Service for the configuration file changes to take
+effect.
+
+</TabItem>
+<TabItem label="Dynamic Config">
+Create a dynamic database resource to dynamically register an AWS database
+in an external account and proxy connections to it.
+
+```yaml
+kind: db
+version: v3
+metadata:
+  name: "example-opensearch"
+  description: "Example dynamic database resource"
+  labels:
+    env: "dev"
+spec:
+  protocol: "opensearch"
+  uri: <Var name="opensearch-uri" />:443
+  aws:
+    account_id: "(=aws.aws_access_key=)"
+```
+
+Save the configuration to a file like `database.yaml` and create it with `tctl`:
+
+```code
+$ tctl create database.yaml
+```
+
+For more information about database registration using dynamic database
+resources, see: [Dynamic Registration](dynamic-registration.mdx).
+
+</TabItem>
+</Tabs>
 
 ## Step 4/4. Connect
 
@@ -217,7 +334,3 @@ opensearchsql> select * from movies;
 #+----------------+---------+---------------+--------+-------------+
 opensearchsql>
 ```
-
-## Next steps
-
-(!docs/pages/includes/database-access/guides-next-steps.mdx!)

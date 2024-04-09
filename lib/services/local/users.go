@@ -28,6 +28,7 @@ import (
 	"io"
 	"sort"
 	"sync"
+	"testing"
 	"time"
 	"unicode/utf8"
 
@@ -62,15 +63,30 @@ var GlobalSessionDataMaxEntries = 5000 // arbitrary
 // user accounts as well
 type IdentityService struct {
 	backend.Backend
-	log logrus.FieldLogger
+	log        logrus.FieldLogger
+	bcryptCost int
 }
 
 // NewIdentityService returns a new instance of IdentityService object
 func NewIdentityService(backend backend.Backend) *IdentityService {
 	return &IdentityService{
-		Backend: backend,
-		log:     logrus.WithField(teleport.ComponentKey, "identity"),
+		Backend:    backend,
+		log:        logrus.WithField(teleport.ComponentKey, "identity"),
+		bcryptCost: bcrypt.DefaultCost,
 	}
+}
+
+// NewTestIdentityService returns a new instance of IdentityService object to be
+// used in tests. It will use weaker cryptography to minimize the time it takes
+// to perform flakiness tests and decrease the probability of timeouts.
+func NewTestIdentityService(backend backend.Backend) *IdentityService {
+	if !testing.Testing() {
+		// Don't allow using weak cryptography in production.
+		panic("Attempted to create a test identity service outside of a test")
+	}
+	s := NewIdentityService(backend)
+	s.bcryptCost = bcrypt.MinCost
+	return s
 }
 
 // DeleteAllUsers deletes all users
@@ -795,7 +811,7 @@ func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	hash, err := utils.BcryptFromPassword(password, bcrypt.DefaultCost)
+	hash, err := utils.BcryptFromPassword(password, s.bcryptCost)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -106,14 +106,14 @@ password created by APPLE_USERNAME"
   if [[ -z "${DEVELOPER_ID_APPLICATION}" ]]; then
     echo "\
 The DEVELOPER_ID_APPLICATION environment variable needs to be set to the hash\
-of the key to sign applications"
+or name of the key to sign applications"
     exit 1
   fi
 
   if [[ -z "${DEVELOPER_ID_INSTALLER}" ]]; then
     echo "\
 The DEVELOPER_ID_INSTALLER environment variable needs to be set to the hash\
-of the key to sign packages"
+or name of the key to sign packages"
     exit 1
   fi
 

@@ -240,19 +240,21 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	idService := local.NewTestIdentityService(p.backend)
+
 	p.trustS = local.NewCAService(p.backend)
 	p.clusterConfigS = clusterConfig
 	p.provisionerS = local.NewProvisioningService(p.backend)
 	p.eventsS = newProxyEvents(local.NewEventsService(p.backend), cfg.ignoreKinds)
 	p.presenceS = local.NewPresenceService(p.backend)
-	p.usersS = local.NewIdentityService(p.backend)
+	p.usersS = idService
 	p.accessS = local.NewAccessService(p.backend)
 	p.dynamicAccessS = local.NewDynamicAccessService(p.backend)
-	p.appSessionS = local.NewIdentityService(p.backend)
-	p.webSessionS = local.NewIdentityService(p.backend).WebSessions()
-	p.snowflakeSessionS = local.NewIdentityService(p.backend)
-	p.samlIdPSessionsS = local.NewIdentityService(p.backend)
-	p.webTokenS = local.NewIdentityService(p.backend).WebTokens()
+	p.appSessionS = idService
+	p.webSessionS = idService.WebSessions()
+	p.snowflakeSessionS = idService
+	p.samlIdPSessionsS = idService
+	p.webTokenS = idService.WebTokens()
 	p.restrictions = local.NewRestrictionsService(p.backend)
 	p.apps = local.NewAppService(p.backend)
 	p.kubernetes = local.NewKubernetesService(p.backend)
@@ -3332,6 +3334,7 @@ func newDiscoveryConfig(t *testing.T, name string) *discoveryconfig.DiscoveryCon
 		},
 	)
 	require.NoError(t, err)
+	discoveryConfig.Status.State = "DISCOVERY_CONFIG_STATE_UNSPECIFIED"
 	return discoveryConfig
 }
 

@@ -974,6 +974,9 @@ const (
 	// OktaGroupDescriptionLabel is the individual group description label.
 	OktaGroupDescriptionLabel = TeleportInternalLabelPrefix + "okta-group-description"
 
+	// OktaRoleNameLabel is the human readable name for a role sourced from Okta.
+	OktaRoleNameLabel = TeleportInternalLabelPrefix + "okta-role-name"
+
 	// PluginGenerationLabel is the label for the current generation of the plugin.
 	PluginGenerationLabel = TeleportInternalLabelPrefix + "plugin-generation"
 )
