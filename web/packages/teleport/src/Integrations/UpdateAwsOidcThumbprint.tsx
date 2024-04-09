@@ -19,7 +19,6 @@
 import { useState } from 'react';
 import styled from 'styled-components';
 import { Text, Link as ExternalLink, Flex, Box, ButtonPrimary } from 'design';
-import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import * as Icons from 'design/Icon';
@@ -31,6 +30,7 @@ import {
 } from 'teleport/services/integrations';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 import cfg from 'teleport/config';
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 
 export function UpdateAwsOidcThumbprint({
   integration,
