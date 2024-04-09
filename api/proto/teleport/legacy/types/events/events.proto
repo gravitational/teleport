@@ -6149,23 +6149,16 @@ message SessionRecordingConfigUpdate {
 
 // PostgresFieldDescription defines pgproto3.FieldDescription.
 message PostgresFieldDescription {
-  // Metadata is a common event metadata
-  Metadata Metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  string Name = 2 [(gogoproto.jsontag) = "name,omitempty"];
-  uint32 TableOID = 3 [(gogoproto.jsontag) = "table_oid,omitempty"];
+  string Name = 1 [(gogoproto.jsontag) = "name,omitempty"];
+  uint32 TableOID = 2 [(gogoproto.jsontag) = "table_oid,omitempty"];
   // note that real type is uint16
-  uint32 TableAttributeNumber = 4 [(gogoproto.jsontag) = "table_attribute_number,omitempty"];
-  uint32 DataTypeOID = 5 [(gogoproto.jsontag) = "data_type_oid,omitempty"];
+  uint32 TableAttributeNumber = 3 [(gogoproto.jsontag) = "table_attribute_number,omitempty"];
+  uint32 DataTypeOID = 4 [(gogoproto.jsontag) = "data_type_oid,omitempty"];
   // note that real type is int16
-  int32 DataTypeSize = 6 [(gogoproto.jsontag) = "data_type_size,omitempty"];
-  int32 TypeModifier = 7 [(gogoproto.jsontag) = "type_modifier,omitempty"];
+  int32 DataTypeSize = 5 [(gogoproto.jsontag) = "data_type_size,omitempty"];
+  int32 TypeModifier = 6 [(gogoproto.jsontag) = "type_modifier,omitempty"];
   // note that real type is int16
-  int32 Format = 8 [(gogoproto.jsontag) = "format,omitempty"];
+  int32 Format = 7 [(gogoproto.jsontag) = "format,omitempty"];
 }
 
 // PostgresRowDescription defines pgproto3.RowDescription.
