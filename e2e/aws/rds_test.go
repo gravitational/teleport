@@ -370,6 +370,129 @@ func testRDS(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("mariadb", func(t *testing.T) {
+		t.Parallel()
+
+		// wait for the database to be discovered
+		mariaDBName := mustGetEnv(t, rdsMariaDBInstanceNameEnv)
+		waitForDatabases(t, cluster.Process, mariaDBName)
+		db, err := cluster.Process.GetAuthServer().GetDatabase(ctx, mariaDBName)
+		require.NoError(t, err)
+		adminUser := mustGetDBAdmin(t, db)
+
+		// connect as the RDS database admin user - not to be confused
+		// with Teleport's "db admin user".
+		conn := connectAsRDSMySQLAdmin(t, ctx, db.GetAWS().RDS.InstanceID)
+		provisionMariaDBAdminUser(t, ctx, conn, adminUser.Name)
+
+		// create a couple test tables to test role assignment with.
+		testTable1 := "teleport.test_" + randASCII(t, 4)
+		_, err = conn.Execute(fmt.Sprintf("CREATE TABLE %s (x int)", testTable1))
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_, _ = conn.Execute(fmt.Sprintf("DROP TABLE %s", testTable1))
+		})
+		testTable2 := "teleport.test_" + randASCII(t, 4)
+		_, err = conn.Execute(fmt.Sprintf("CREATE TABLE %s (x int)", testTable2))
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_, _ = conn.Execute(fmt.Sprintf("DROP TABLE %s", testTable2))
+		})
+
+		// create the roles that Teleport will auto assign.
+		// role 1 only allows SELECT on test table 1.
+		// role 2 only allows SELECT on test table 2.
+		// a user needs to have both roles to select from a join of the tables.
+		_, err = conn.Execute(fmt.Sprintf("CREATE ROLE %q", autoRole1))
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_, _ = conn.Execute(fmt.Sprintf("DROP ROLE %q", autoRole1))
+		})
+		_, err = conn.Execute(fmt.Sprintf("CREATE ROLE %q", autoRole2))
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_, _ = conn.Execute(fmt.Sprintf("DROP ROLE %q", autoRole2))
+		})
+		_, err = conn.Execute(fmt.Sprintf("GRANT SELECT on %s TO %q", testTable1, autoRole1))
+		require.NoError(t, err)
+		_, err = conn.Execute(fmt.Sprintf("GRANT SELECT on %s TO %q", testTable2, autoRole2))
+		require.NoError(t, err)
+
+		// db admin needs the admin option for a role to grant others that role.
+		_, err = conn.Execute(fmt.Sprintf("GRANT %q TO %q WITH ADMIN OPTION", autoRole1, adminUser.Name))
+		require.NoError(t, err)
+		_, err = conn.Execute(fmt.Sprintf("GRANT %q TO %q WITH ADMIN OPTION", autoRole2, adminUser.Name))
+		require.NoError(t, err)
+		autoRolesQuery := fmt.Sprintf("SELECT 1 FROM %s JOIN %s", testTable1, testTable2)
+
+		t.Cleanup(func() {
+			// best effort cleanup all the users created by the tests.
+			// don't cleanup the admin or test runs will interfere with
+			// each other.
+			_, _ = conn.Execute(fmt.Sprintf("DROP ROLE %q", "tp-role-"+autoUserKeep))
+			_, _ = conn.Execute(fmt.Sprintf("DROP ROLE %q", "tp-role-"+autoUserDrop))
+			_, _ = conn.Execute(fmt.Sprintf("DROP USER %q", autoUserKeep))
+			_, _ = conn.Execute(fmt.Sprintf("DROP USER %q", autoUserDrop))
+			_, _ = conn.Execute("DELETE FROM teleport.user_attributes WHERE USER=?", autoUserKeep)
+			_, _ = conn.Execute("DELETE FROM teleport.user_attributes WHERE USER=?", autoUserDrop)
+		})
+
+		for name, test := range map[string]struct {
+			user            string
+			dbUser          string
+			query           string
+			afterConnTestFn func(t *testing.T)
+		}{
+			"existing user": {
+				user:   hostUser,
+				dbUser: adminUser.Name,
+				query:  "select 1",
+			},
+			"auto user keep": {
+				user:   autoUserKeep,
+				dbUser: autoUserKeep,
+				query:  autoRolesQuery,
+				afterConnTestFn: func(t *testing.T) {
+					waitForMariaDBAutoUserDeactivate(t, conn, autoUserKeep)
+				},
+			},
+			"auto user drop": {
+				user:   autoUserDrop,
+				dbUser: autoUserDrop,
+				query:  autoRolesQuery,
+				afterConnTestFn: func(t *testing.T) {
+					waitForMariaDBAutoUserDrop(t, conn, autoUserDrop)
+				},
+			},
+		} {
+			test := test
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				route := tlsca.RouteToDatabase{
+					ServiceName: mariaDBName,
+					Protocol:    defaults.ProtocolMySQL,
+					Username:    test.dbUser,
+					Database:    "", // not needed
+				}
+				t.Run("connect", func(t *testing.T) {
+					// run multiple conn tests in parallel to test parallel
+					// auto user connections.
+					t.Run("via local proxy 1", func(t *testing.T) {
+						t.Parallel()
+						mysqlLocalProxyConnTest(t, cluster, test.user, route, test.query)
+					})
+					t.Run("via local proxy 2", func(t *testing.T) {
+						t.Parallel()
+						mysqlLocalProxyConnTest(t, cluster, test.user, route, test.query)
+					})
+				})
+				if test.afterConnTestFn != nil {
+					test.afterConnTestFn(t)
+				}
+			})
+		}
+	})
 }
 
 const (
@@ -638,6 +761,11 @@ func getRDSAdminInfo(t *testing.T, ctx context.Context, instanceID string) rdsAd
 	require.NoError(t, err)
 	require.Len(t, result.DBInstances, 1)
 	dbInstance := result.DBInstances[0]
+	require.NotNil(t, dbInstance.MasterUsername)
+	require.NotNil(t, dbInstance.MasterUserSecret)
+	require.NotNil(t, dbInstance.MasterUserSecret.SecretArn)
+	require.NotEmpty(t, *dbInstance.MasterUsername)
+	require.NotEmpty(t, *dbInstance.MasterUserSecret.SecretArn)
 	return rdsAdminInfo{
 		address:  *dbInstance.Endpoint.Address,
 		port:     int(*dbInstance.Endpoint.Port),
@@ -658,6 +786,9 @@ func getRDSMasterUserPassword(t *testing.T, ctx context.Context, secretID string
 		// being paranoid. I don't want to leak the secret string in test error
 		// logs.
 		require.FailNow(t, "error unmarshaling secret string")
+	}
+	if len(secret.Pass) == 0 {
+		require.FailNow(t, "empty master user secret string")
 	}
 	return secret.Pass
 }
@@ -720,6 +851,34 @@ func provisionRDSMySQLAutoUsersAdmin(t *testing.T, ctx context.Context, conn *my
 	_, err = conn.Execute("CREATE DATABASE IF NOT EXISTS `teleport`")
 	require.NoError(t, err)
 	_, err = conn.Execute(fmt.Sprintf("GRANT ALTER ROUTINE, CREATE ROUTINE, EXECUTE ON `teleport`.* TO %q", adminUser))
+	require.NoError(t, err)
+}
+
+// provisionMariaDBAdminUser provisions an admin user suitable for auto-user
+// provisioning.
+func provisionMariaDBAdminUser(t *testing.T, ctx context.Context, conn *mySQLConn, adminUser string) {
+	t.Helper()
+	// provision the IAM user to test with.
+	// ignore errors from user creation. If the user doesn't exist
+	// later steps will catch it. The error we might get back when
+	// another test runner already created the admin is
+	// unpredictable: all we need to know is the user exists for
+	// test setup.
+	_, _ = conn.Execute(fmt.Sprintf("CREATE USER IF NOT EXISTS %q IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS'", adminUser))
+
+	// these statements are all idempotent - they should not return
+	// an error even if run in parallel by many test runners.
+	_, err := conn.Execute(fmt.Sprintf("GRANT PROCESS, CREATE USER ON *.* TO %q", adminUser))
+	require.NoError(t, err)
+	_, err = conn.Execute(fmt.Sprintf("GRANT SELECT ON mysql.roles_mapping to %q", adminUser))
+	require.NoError(t, err)
+	_, err = conn.Execute(fmt.Sprintf("GRANT UPDATE ON mysql.* TO %q", adminUser))
+	require.NoError(t, err)
+	_, err = conn.Execute(fmt.Sprintf("GRANT SELECT ON *.* TO %q", adminUser))
+	require.NoError(t, err)
+	_, err = conn.Execute("CREATE DATABASE IF NOT EXISTS `teleport`")
+	require.NoError(t, err)
+	_, err = conn.Execute(fmt.Sprintf("GRANT ALL ON `teleport`.* TO %q WITH GRANT OPTION", adminUser))
 	require.NoError(t, err)
 }
 
@@ -828,4 +987,45 @@ func waitForMySQLAutoUserDrop(t *testing.T, conn *mySQLConn, user string) {
 		assert.Equal(c, 0, result.RowNumber(), "user %q should have been dropped automatically after disconnecting", user)
 		result.Close()
 	}, autoUserWaitDur, autoUserWaitStep, "waiting for auto user %q to be dropped", user)
+}
+
+func waitForMariaDBAutoUserDeactivate(t *testing.T, conn *mySQLConn, user string) {
+	t.Helper()
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		result, err := conn.Execute("SELECT 1 FROM mysql.user AS u WHERE u.user = ?", user)
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.Equal(c, 1, result.RowNumber(), "user %q should not have been dropped after disconnecting", user) {
+			result.Close()
+			return
+		}
+		result.Close()
+
+		result, err = conn.Execute("SELECT 1 FROM mysql.global_priv AS u WHERE u.user = ? AND JSON_EXTRACT(u.priv, '$.account_locked') = true", user)
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.Equal(c, 1, result.RowNumber(), "user %q should not be able to login after deactivating", user) {
+			result.Close()
+			return
+		}
+		result.Close()
+
+		result, err = conn.Execute("SELECT 1 FROM mysql.roles_mapping AS u WHERE u.user = ? AND u.role != 'teleport-auto-user' AND u.ADMIN_OPTION='N'", user)
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.Equal(c, 0, result.RowNumber(), "user %q should have lost all additional roles after deactivating", user) {
+			result.Close()
+			return
+		}
+		result.Close()
+	}, autoUserWaitDur, autoUserWaitStep, "waiting for auto user %q to be deactivated", user)
+}
+
+func waitForMariaDBAutoUserDrop(t *testing.T, conn *mySQLConn, user string) {
+	t.Helper()
+	// run the same tests as mysql to check if the user was dropped.
+	waitForMySQLAutoUserDrop(t, conn, user)
 }

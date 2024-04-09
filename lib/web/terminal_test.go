@@ -228,6 +228,14 @@ func (t *terminal) Read(p []byte) (int, error) {
 	return t.stream.Read(p)
 }
 
+func (t *terminal) SetReadDeadline(deadline time.Time) error {
+	return t.stream.ws.SetReadDeadline(deadline)
+}
+
+func (t *terminal) SetWriteDeadline(deadline time.Time) error {
+	return t.stream.ws.SetWriteDeadline(deadline)
+}
+
 func (t *terminal) performMFACeremony(ceremonyFn func(challenge client.MFAAuthenticateChallenge) []byte) error {
 	// Wait for websocket authn challenge event.
 	ty, raw, err := t.ws.ReadMessage()

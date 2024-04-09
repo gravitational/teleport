@@ -20,6 +20,8 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1585,7 +1587,7 @@ func TestPruneRequestRoles(t *testing.T) {
 				Expires: clock.Now().UTC().Add(8 * time.Hour),
 			}
 
-			accessCaps, err := CalculateAccessCapabilities(ctx, clock, g, types.AccessCapabilitiesRequest{User: user, ResourceIDs: tc.requestResourceIDs})
+			accessCaps, err := CalculateAccessCapabilities(ctx, clock, g, tlsca.Identity{}, types.AccessCapabilitiesRequest{User: user, ResourceIDs: tc.requestResourceIDs})
 			require.NoError(t, err)
 
 			err = ValidateAccessRequestForUser(ctx, clock, g, req, identity, ExpandVars(true))
@@ -1608,9 +1610,173 @@ func TestPruneRequestRoles(t *testing.T) {
 	}
 }
 
-// TestCalculatePendingRequesTTL verifies that the TTL for the Access Request is capped to the
+func TestGetRequestableRoles(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	clusterName := "my-cluster"
+
+	g := &mockGetter{
+		roles:       make(map[string]types.Role),
+		userStates:  make(map[string]*userloginstate.UserLoginState),
+		nodes:       make(map[string]types.Server),
+		clusterName: clusterName,
+	}
+
+	for i := 0; i < 10; i++ {
+		node, err := types.NewServerWithLabels(
+			fmt.Sprintf("node-%d", i),
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{"index": strconv.Itoa(i)})
+		require.NoError(t, err)
+		g.nodes[node.GetName()] = node
+	}
+
+	getResourceID := func(i int) types.ResourceID {
+		return types.ResourceID{
+			ClusterName: clusterName,
+			Kind:        types.KindNode,
+			Name:        fmt.Sprintf("node-%d", i),
+		}
+	}
+
+	roleDesc := map[string]types.RoleSpecV6{
+		"partial-access": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:         []string{"full-access", "full-search"},
+					SearchAsRoles: []string{"full-access"},
+				},
+				NodeLabels: types.Labels{
+					"index": {"0", "1", "2", "3", "4"},
+				},
+				Logins: []string{"{{internal.logins}}"},
+			},
+		},
+		"full-access": {
+			Allow: types.RoleConditions{
+				NodeLabels: types.Labels{
+					"index": {"*"},
+				},
+				Logins: []string{"{{internal.logins}}"},
+			},
+		},
+		"full-search": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:         []string{"partial-access", "full-access"},
+					SearchAsRoles: []string{"full-access"},
+				},
+			},
+		},
+		"partial-search": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:         []string{"partial-access", "full-access"},
+					SearchAsRoles: []string{"partial-access"},
+				},
+			},
+		},
+		"partial-roles": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:         []string{"partial-access"},
+					SearchAsRoles: []string{"full-access"},
+				},
+			},
+		},
+	}
+
+	for name, spec := range roleDesc {
+		role, err := types.NewRole(name, spec)
+		require.NoError(t, err)
+		g.roles[name] = role
+	}
+
+	user := g.user(t)
+
+	tests := []struct {
+		name               string
+		userRole           string
+		requestedResources []types.ResourceID
+		disableFilter      bool
+		allowedResourceIDs []types.ResourceID
+		expectedRoles      []string
+	}{
+		{
+			name:          "no resources to filter by",
+			userRole:      "full-search",
+			expectedRoles: []string{"partial-access", "full-access"},
+		},
+		{
+			name:               "filtering disabled",
+			userRole:           "full-search",
+			requestedResources: []types.ResourceID{getResourceID(9)},
+			disableFilter:      true,
+			expectedRoles:      []string{"partial-access", "full-access"},
+		},
+		{
+			name:               "filter by resources",
+			userRole:           "full-search",
+			requestedResources: []types.ResourceID{getResourceID(9)},
+			expectedRoles:      []string{"full-access"},
+		},
+		{
+			name:     "resource in another cluster",
+			userRole: "full-search",
+			requestedResources: []types.ResourceID{
+				getResourceID(9),
+				{
+					ClusterName: "some-other-cluster",
+					Kind:        types.KindNode,
+					Name:        "node-9",
+				},
+			},
+			expectedRoles: []string{"partial-access", "full-access"},
+		},
+		{
+			name:               "resource user shouldn't know about",
+			userRole:           "partial-search",
+			requestedResources: []types.ResourceID{getResourceID(9)},
+			expectedRoles:      []string{"partial-access", "full-access"},
+		},
+		{
+			name:               "can view resource but not assume role",
+			userRole:           "partial-roles",
+			requestedResources: []types.ResourceID{getResourceID(9)},
+		},
+		{
+			name:               "prevent transitive access",
+			userRole:           "partial-access",
+			requestedResources: []types.ResourceID{getResourceID(9)},
+			allowedResourceIDs: []types.ResourceID{getResourceID(0), getResourceID(1), getResourceID(2), getResourceID(3), getResourceID(4)},
+			expectedRoles:      []string{"full-access", "full-search"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			g.userStates[user].Spec.Roles = []string{tc.userRole}
+			accessCaps, err := CalculateAccessCapabilities(ctx, clockwork.NewFakeClock(), g,
+				tlsca.Identity{
+					AllowedResourceIDs: tc.allowedResourceIDs,
+				},
+				types.AccessCapabilitiesRequest{
+					User:                             user,
+					RequestableRoles:                 true,
+					ResourceIDs:                      tc.requestedResources,
+					FilterRequestableRolesByResource: !tc.disableFilter,
+				})
+			require.NoError(t, err)
+			require.ElementsMatch(t, tc.expectedRoles, accessCaps.RequestableRoles)
+		})
+	}
+}
+
+// TestCalculatePendingRequestTTL verifies that the TTL for the Access Request is capped to the
 // request's access expiry or capped to the default const requestTTL, whichever is smaller.
-func TestCalculatePendingRequesTTL(t *testing.T) {
+func TestCalculatePendingRequestTTL(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	now := clock.Now().UTC()
 
@@ -1703,7 +1869,7 @@ func TestCalculatePendingRequesTTL(t *testing.T) {
 			request.SetExpiry(tt.requestPendingExpiryTTL)
 			request.SetAccessExpiry(now.Add(tt.accessExpiryTTL))
 
-			ttl, err := validator.calculatePendingRequestTTL(request)
+			ttl, err := validator.calculatePendingRequestTTL(request, now)
 			tt.assertion(t, err)
 			if err == nil {
 				require.Equal(t, tt.expectedDuration, ttl)
@@ -1777,7 +1943,7 @@ func TestSessionTTL(t *testing.T) {
 			request.SetAccessExpiry(tt.accessExpiry)
 			require.NoError(t, err)
 
-			ttl, err := validator.sessionTTL(context.Background(), tt.identity, request)
+			ttl, err := validator.sessionTTL(context.Background(), tt.identity, request, now)
 			tt.assertion(t, err)
 			if err == nil {
 				require.Equal(t, tt.expectedTTL, ttl)
