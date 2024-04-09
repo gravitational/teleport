@@ -60,6 +60,12 @@ func (e *SessionsCollection) WriteText(w io.Writer) error {
 		var id, typ, participants, hostname, timestamp string
 
 		switch session := event.(type) {
+		case *events.DatabaseSessionEnd:
+			id = session.GetSessionID()
+			typ = session.DatabaseProtocol
+			participants = session.User
+			hostname = fmt.Sprintf("%s@%s/%s", session.DatabaseUser, session.DatabaseService, session.DatabaseName)
+			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
 		case *events.SessionEnd:
 			id = session.GetSessionID()
 			typ = session.Protocol

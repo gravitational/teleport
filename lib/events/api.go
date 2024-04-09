@@ -754,6 +754,15 @@ const (
 	SessionRecordingConfigUpdateEvent = "session_recording_config.update"
 )
 
+var (
+	// TODO
+	SearchSessionEventTypes = []string{
+		SessionEndEvent,
+		WindowsDesktopSessionEndEvent,
+		DatabaseSessionEndEvent,
+	}
+)
+
 const (
 	// MaxChunkBytes defines the maximum size of a session stream chunk that
 	// can be requested via AuditLog.GetSessionChunk(). Set to 5MB
