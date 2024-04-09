@@ -151,16 +151,17 @@ func (a *Server) handleJoinFailure(
 	log.WithError(origErr).WithFields(fields).Error("Failure to join cluster occurred")
 
 	var evt apievents.AuditEvent
+	status := apievents.Status{
+		Success: false,
+		Error:   origErr.Error(),
+	}
 	if req != nil && req.Role == types.RoleBot {
 		botJoinEvent := &apievents.BotJoin{
 			Metadata: apievents.Metadata{
 				Type: events.BotJoinEvent,
 				Code: events.BotJoinFailureCode,
 			},
-			Status: apievents.Status{
-				Success: false,
-				Error:   origErr.Error(),
-			},
+			Status:     status,
 			BotName:    "unknown",
 			Method:     "unknown",
 			Attributes: attributesProto,
@@ -176,10 +177,7 @@ func (a *Server) handleJoinFailure(
 				Type: events.InstanceJoinEvent,
 				Code: events.InstanceJoinFailureCode,
 			},
-			Status: apievents.Status{
-				Success: false,
-				Error:   origErr.Error(),
-			},
+			Status:     status,
 			NodeName:   "unknown",
 			Role:       "unknown",
 			Method:     "unknown",
