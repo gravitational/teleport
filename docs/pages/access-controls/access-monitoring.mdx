@@ -33,19 +33,20 @@ Teleport Access Monitoring is enabled by default for all Teleport Cloud users.
 To enable Access Monitoring you need to update the Teleport Auth Service configuration:
 ```yaml
 auth_service:
- access_monitoring:
-   enabled: true
-   # AWS role ARN that Teleport will assume to execute Athena SQL queries.
-   # The Teleport role should have a configured trust relationship and be able to assume this role.
-   role_arn: arn:aws:iam::123456789012:role/AccessMonitoringRole
-   # S3 bucket where Access Monitoring reports will be stored.
-   report_results: s3://audit-long-term/report_results
-   # (Optional) Athena workgroup used by access monitoring queries (if not set, the default primary workgroup will be used).
-   workgroup: access_monitoring_workgroup
+  access_monitoring:
+    enabled: true
+    # AWS role ARN that Teleport will assume to execute Athena SQL queries.
+    # The Teleport role should be configured with a trust relationship and should be able to assume this role.
+    role_arn: arn:aws:iam::123456789012:role/AccessMonitoringRole
+    # S3 bucket where Access Monitoring reports will be stored.
+    report_results: s3://audit-long-term/report_results
+    # (Optional) Athena workgroup used by Access Monitoring
+    # queries (if not set, the default primary workgroup will be used).
+    workgroup: access_monitoring_workgroup
 ```
 
 
-Access Monitoring uses a different AWS role to execute Athena SQL queries.
+Access Monitoring executes Athena SQL queries using a different AWS role than the one used by the Auth Service to access the Athena Audit Events backend.
 This role should have a trusted relationship with the Teleport role and the following IAM permissions.
 Ensure that the IAM role used by Access Monitoring is configured with sufficient access to Athena.
 Below, you can find the IAM permissions that allow the Auth Service to execute Athena queries and store the results in an S3 bucket.
@@ -61,6 +62,7 @@ Below, you can find the IAM permissions that allow the Auth Service to execute A
 | `audit_table`     | Glue table used for audit logs                           |
 | `audit_workgroup` | Athena workgroup used for Access Monitoring queries      |
 
+<Details title="IAM Policy" closed>
 ```json
 {
   "Statement": [
@@ -130,8 +132,9 @@ Below, you can find the IAM permissions that allow the Auth Service to execute A
   "Version": "2012-10-17"
 }
 ```
+</Details>
 
-You can used our [Terraform Example](https://github.com/gravitational/teleport/tree/f38bac4bcf6e462a1cab66a0b6074ded4201867d/examples/athena)
+You can use our [Terraform Example](https://github.com/gravitational/teleport/tree/master/examples/athena)
 to set up Athena and Access Monitoring AWS resources and generate Athena Backend and Access Monitoring Teleport configuration:
 
 ```bash
@@ -142,8 +145,6 @@ $ terraform apply
    report_results: s3://long-term/report_results
    role_arn: arn:aws:iam::123456789012:role/AccessMonitoringRole
    workgroup: access_monitoring_workgroup
-...
-athena_url = "..."
 ```
 
 </TabItem>
