@@ -24,6 +24,7 @@ import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { VnetContextProvider } from 'teleterm/ui/Vnet';
 
 import { Connections } from './Connections';
+import { ConnectionsContextProvider } from './connectionsContext';
 
 export default {
   title: 'Teleterm/TopBar/Connections',
@@ -42,9 +43,11 @@ export function Story() {
 
   return (
     <AppContextProvider value={appContext}>
-      <VnetContextProvider>
-        <Connections />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </AppContextProvider>
   );
 }
@@ -56,9 +59,11 @@ export function JustVnet() {
 
   return (
     <AppContextProvider value={appContext}>
-      <VnetContextProvider>
-        <Connections />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </AppContextProvider>
   );
 }
@@ -90,9 +95,11 @@ export function WithScroll() {
       maxWidth="600px"
     >
       <AppContextProvider value={appContext}>
-        <VnetContextProvider>
-          <Connections />
-        </VnetContextProvider>
+        <ConnectionsContextProvider>
+          <VnetContextProvider>
+            <Connections />
+          </VnetContextProvider>
+        </ConnectionsContextProvider>
       </AppContextProvider>
       <Text
         css={`
@@ -111,9 +118,11 @@ export function WithoutVnet() {
 
   return (
     <AppContextProvider value={appContext}>
-      <VnetContextProvider>
-        <Connections />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </AppContextProvider>
   );
 }
@@ -123,9 +132,11 @@ export function EmptyWithoutVnet() {
 
   return (
     <AppContextProvider value={appContext}>
-      <VnetContextProvider>
-        <Connections />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </AppContextProvider>
   );
 }

@@ -24,12 +24,12 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 
 import { ConnectionsFilterableList } from './ConnectionsFilterableList/ConnectionsFilterableList';
+import { useConnectionsContext } from './connectionsContext';
 
-export const ConnectionsSliderStep = (
-  props: StepComponentProps & { closeConnectionList: () => void }
-) => {
+export const ConnectionsSliderStep = (props: StepComponentProps) => {
   const { connectionTracker } = useAppContext();
   connectionTracker.useState();
+  const { close: closeConnectionList } = useConnectionsContext();
 
   const items = connectionTracker.getConnections();
   const [sortedIds, setSortedIds] = useState<string[]>(null);
@@ -68,7 +68,7 @@ export const ConnectionsSliderStep = (
   const disconnectItem =
     connectionTracker.disconnectItem.bind(connectionTracker);
   const activateItem = (id: string) => {
-    props.closeConnectionList();
+    closeConnectionList();
     connectionTracker.activateItem(id, { origin: 'connection_list' });
   };
 
