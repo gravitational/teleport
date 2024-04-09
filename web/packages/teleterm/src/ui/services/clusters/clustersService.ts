@@ -474,6 +474,10 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return [...this.state.clusters.values()];
   }
 
+  getClustersCount() {
+    return this.state.clusters.size;
+  }
+
   getRootClusters() {
     return this.getClusters().filter(c => !c.leaf);
   }
