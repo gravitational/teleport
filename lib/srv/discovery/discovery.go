@@ -1407,7 +1407,7 @@ func (s *Server) startDynamicWatcherUpdater() {
 				oldDiscoveryConfig := s.dynamicDiscoveryConfig[dc.GetName()]
 				// If the DiscoveryConfig spec didn't change, then there's no need to update the matchers.
 				// we can skip this event.
-				if oldDiscoveryConfig.Equal(dc) {
+				if oldDiscoveryConfig.IsEqual(dc) {
 					continue
 				}
 
