@@ -19,11 +19,15 @@
 package e2e
 
 import (
+	"crypto/x509"
+	"io"
+	"net/http"
 	"os"
 	"os/user"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -35,15 +39,52 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// username is the name of the host user used for tests.
-var username string
+// hostUser is the name of the host user used for tests.
+var hostUser string
+
+// awsCertPool is an x509 cert pool containing the AWS global cert bundle.
+var awsCertPool *x509.CertPool
 
 func init() {
 	me, err := user.Current()
 	if err != nil {
 		panic(err)
 	}
-	username = me.Username
+	hostUser = me.Username
+
+	pool, err := getAWSGlobalCertBundlePool()
+	if err != nil {
+		panic(err)
+	}
+	awsCertPool = pool
+}
+
+func getAWSGlobalCertBundlePool() (*x509.CertPool, error) {
+	// AWS global certificate bundle
+	const certBundleURL = "https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem"
+
+	resp, err := http.Get(certBundleURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	if http.StatusOK != resp.StatusCode {
+		return nil, trace.Errorf("got non-ok response from AWS: %d", resp.StatusCode)
+	}
+
+	certBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certPool := x509.NewCertPool()
+	ok := certPool.AppendCertsFromPEM(certBytes)
+	if !ok {
+		return nil, trace.Errorf("error parsing AWS cert bundle")
+	}
+
+	return certPool, nil
 }
 
 // mustGetEnv is a test helper that fetches an env variable or fails with an
@@ -67,6 +108,13 @@ func mustGetDiscoveryMatcherLabels(t *testing.T) types.Labels {
 	return out
 }
 
+func mustGetDBAdmin(t *testing.T, db types.Database) types.DatabaseAdminUser {
+	t.Helper()
+	adminUser := db.GetAdminUser()
+	require.NotEmpty(t, adminUser.Name, "unknown db auto user provisioning admin, should have been imported using the %q label", types.DatabaseAdminLabel)
+	return adminUser
+}
+
 // testOptionsFunc is a test option configuration func.
 type testOptionsFunc func(*testOptions)
 
@@ -78,15 +126,16 @@ type testOptions struct {
 	// serviceConfigFuncs are a list of functions that configure the Teleport
 	// cluster before it starts.
 	serviceConfigFuncs []func(*servicecfg.Config)
-	// userRoles are roles that will be bootstrapped and added to the Teleport
-	// user under test.
-	userRoles []types.Role
+	// userRoles is a map from username to that user's roles that will be
+	// bootstrapped and added to the Teleport test cluster.
+	userRoles map[string][]types.Role
 }
 
 // createTeleportCluster sets up a Teleport cluster for tests.
 func createTeleportCluster(t *testing.T, opts ...testOptionsFunc) *helpers.TeleInstance {
 	t.Helper()
 	var options testOptions
+	options.userRoles = make(map[string][]types.Role)
 	for _, opt := range opts {
 		opt(&options)
 	}
@@ -98,7 +147,9 @@ func createTeleportCluster(t *testing.T, opts ...testOptionsFunc) *helpers.TeleI
 	teleport := helpers.NewInstance(t, cfg)
 
 	// Create a new user with the role created above.
-	teleport.AddUserWithRole(username, options.userRoles...)
+	for name, roles := range options.userRoles {
+		teleport.AddUserWithRole(name, roles...)
+	}
 
 	tconf := newTeleportConfig(t)
 	for _, optFn := range options.serviceConfigFuncs {
@@ -149,13 +200,13 @@ func newTeleportConfig(t *testing.T) *servicecfg.Config {
 
 // withUserRole creates a new role that will be bootstraped and then granted to
 // the Teleport user under test.
-func withUserRole(t *testing.T, name string, spec types.RoleSpecV6) testOptionsFunc {
+func withUserRole(t *testing.T, user, name string, spec types.RoleSpecV6) testOptionsFunc {
 	t.Helper()
 	// Create a new role with full access to all databases.
 	role, err := types.NewRole(name, spec)
 	require.NoError(t, err)
 	return func(options *testOptions) {
-		options.userRoles = append(options.userRoles, role)
+		options.userRoles[user] = append(options.userRoles[user], role)
 	}
 }
 
@@ -208,11 +259,32 @@ func withDatabaseService(t *testing.T, matchers ...services.ResourceMatcher) tes
 func withFullDatabaseAccessUserRole(t *testing.T) testOptionsFunc {
 	t.Helper()
 	// Create a new role with full access to all databases.
-	return withUserRole(t, "db-access", types.RoleSpecV6{
+	return withUserRole(t, hostUser, "db-access", allowDatabaseAccessRoleSpec)
+}
+
+var allowDatabaseAccessRoleSpec = types.RoleSpecV6{
+	Allow: types.RoleConditions{
+		DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		DatabaseUsers:  []string{types.Wildcard},
+		DatabaseNames:  []string{types.Wildcard},
+	},
+}
+
+func makeAutoUserKeepRoleSpec(roles ...string) types.RoleSpecV6 {
+	return types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseUsers:  []string{types.Wildcard},
 			DatabaseNames:  []string{types.Wildcard},
+			DatabaseRoles:  roles,
 		},
-	})
+		Options: types.RoleOptions{
+			CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+		},
+	}
+}
+
+func makeAutoUserDropRoleSpec(roles ...string) types.RoleSpecV6 {
+	spec := makeAutoUserKeepRoleSpec(roles...)
+	spec.Options.CreateDatabaseUserMode = types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP
+	return spec
 }

@@ -6,6 +6,18 @@ videoBanner: k2wz79XCexY
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="Microsoft SQL Server" dbConfigure="Microsoft SQL Server database with Active Directory authentication" dbName="Microsoft SQL Server" !)
 
+This guide will focus on Amazon RDS for SQL Server using AWS-managed Active
+Directory authentication.
+
+## How it works
+
+The Teleport Database Service joins the same Active Directory domain as the SQL
+Server database and uses the Kerberos protocol to authenticate with SQL Server.
+When a user connects to SQL Server via Teleport, the Database Service obtains a
+service ticket from Active Directory, then uses a long-term key for the database
+user to decrypt the ticket and connect to SQL Server. At that point, the
+Database Service forwards user traffic to the database.
+
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Database access with SQL Server and AD authentication](../../../img/database-access/sql-server-ad-1.png)
@@ -14,9 +26,6 @@ videoBanner: k2wz79XCexY
 ![Database access with SQL Server and AD authentication](../../../img/database-access/sql-server-ad-2.png)
 </TabItem>
 </Tabs>
-
-This guide will focus on Amazon RDS for SQL Server using AWS-managed Active
-Directory authentication.
 
 ## Prerequisites
 

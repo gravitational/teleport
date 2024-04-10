@@ -229,15 +229,6 @@ func assumeRoleStatementJSON(issuer string) string {
 }`, issuer, issuer)
 }
 
-func policyStatementS3PublicAccessJSON(bucket, prefix string) string {
-	return fmt.Sprintf(`{
-    "Effect": "Allow",
-    "Principal": "*",
-    "Action": "s3:GetObject",
-    "Resource": "arn:aws:s3:::%s/%s/*"
-}`, bucket, prefix)
-}
-
 func TestConfigureIdPIAMUsingProxyURL(t *testing.T) {
 	ctx := context.Background()
 
@@ -434,11 +425,15 @@ func TestConfigureIdPIAMUsingProxyURL(t *testing.T) {
 					bucket := mipc.existingBuckets["bucket-1"]
 					require.Equal(t, "my-region", bucket.region)
 					require.False(t, bucket.publicAccessIsBlocked)
-					expectedBucketPolicyDoc := policyDocWithStatementsJSON(
-						policyStatementS3PublicAccessJSON("bucket-1", "prefix-2"),
-					)
-					require.JSONEq(t, *expectedBucketPolicyDoc, *bucket.policyDoc)
+					require.Equal(t, "BucketOwnerPreferred", bucket.ownership)
 
+					jwksKey := "bucket-1/prefix-2/.well-known/jwks"
+					require.Contains(t, mipc.existingObjects, jwksKey)
+					require.Equal(t, "public-read", mipc.existingObjects[jwksKey].acl)
+
+					openidconfigKey := "bucket-1/prefix-2/.well-known/openid-configuration"
+					require.Contains(t, mipc.existingObjects, openidconfigKey)
+					require.Equal(t, "public-read", mipc.existingObjects[openidconfigKey].acl)
 				},
 			},
 			{
@@ -479,10 +474,7 @@ func TestConfigureIdPIAMUsingProxyURL(t *testing.T) {
 					bucket := mipc.existingBuckets["bucket-1"]
 					require.Equal(t, "my-region", bucket.region)
 					require.False(t, bucket.publicAccessIsBlocked)
-					expectedBucketPolicyDoc := policyDocWithStatementsJSON(
-						policyStatementS3PublicAccessJSON("bucket-1", "prefix-2"),
-					)
-					require.JSONEq(t, *expectedBucketPolicyDoc, *bucket.policyDoc)
+					require.Equal(t, "BucketOwnerPreferred", bucket.ownership)
 				},
 			},
 			{
@@ -495,6 +487,7 @@ func TestConfigureIdPIAMUsingProxyURL(t *testing.T) {
 					"bucket-1": {
 						region:                "another-region",
 						publicAccessIsBlocked: true,
+						ownership:             "BucketOwnerPreferred",
 					},
 				},
 				mockClientRegion: "my-region",
@@ -514,52 +507,10 @@ func TestConfigureIdPIAMUsingProxyURL(t *testing.T) {
 					require.Contains(t, mipc.existingBuckets, "bucket-1")
 					bucket := mipc.existingBuckets["bucket-1"]
 					require.False(t, bucket.publicAccessIsBlocked)
-					expectedBucketPolicyDoc := policyDocWithStatementsJSON(
-						policyStatementS3PublicAccessJSON("bucket-1", "prefix-2"),
-					)
-					require.JSONEq(t, *expectedBucketPolicyDoc, *bucket.policyDoc)
+					require.Equal(t, "BucketOwnerPreferred", bucket.ownership)
 
 					// The last configured region must be the existing bucket's region.
 					require.Equal(t, "another-region", mipc.clientRegion)
-				},
-			},
-			{
-				name:               "bucket already exists and already has a policy",
-				mockAccountID:      "123456789012",
-				req:                baseIdPIAMConfigReqWithS3Bucket,
-				mockExistingIdPUrl: []string{},
-				mockExistingRoles:  map[string]mockRole{},
-				mockExistingBuckets: map[string]mockBucket{
-					"bucket-1": {
-						region:                "my-region",
-						publicAccessIsBlocked: true,
-						policyDoc: policyDocWithStatementsJSON(
-							policyStatementS3PublicAccessJSON("bucket-2", "prefix-2"),
-						),
-					},
-				},
-				mockClientRegion: "my-region",
-				errCheck:         require.NoError,
-				externalStateCheck: func(t *testing.T, mipc mockIdPIAMConfigClient) {
-					// Check IdP creation
-					require.Contains(t, mipc.existingIDPUrl, expectedIssuerURL)
-
-					// Check Role creation
-					role := mipc.existingRoles["integrationrole"]
-					expectedAssumeRolePolicyDoc := policyDocWithStatementsJSON(
-						assumeRoleStatementJSON(expectedIssuer),
-					)
-					require.JSONEq(t, *expectedAssumeRolePolicyDoc, aws.ToString(role.assumeRolePolicyDoc))
-
-					// Check Bucket creation
-					require.Contains(t, mipc.existingBuckets, "bucket-1")
-					bucket := mipc.existingBuckets["bucket-1"]
-					require.False(t, bucket.publicAccessIsBlocked)
-					expectedBucketPolicyDoc := policyDocWithStatementsJSON(
-						policyStatementS3PublicAccessJSON("bucket-2", "prefix-2"),
-						policyStatementS3PublicAccessJSON("bucket-1", "prefix-2"),
-					)
-					require.JSONEq(t, *expectedBucketPolicyDoc, *bucket.policyDoc)
 				},
 			},
 			{
@@ -583,9 +534,6 @@ func TestConfigureIdPIAMUsingProxyURL(t *testing.T) {
 					"bucket-1": {
 						region:                "my-region",
 						publicAccessIsBlocked: true,
-						policyDoc: policyDocWithStatementsJSON(
-							policyStatementS3PublicAccessJSON("bucket-1", "prefix-2"),
-						),
 					},
 				},
 				mockClientRegion: "my-region",
@@ -605,10 +553,6 @@ func TestConfigureIdPIAMUsingProxyURL(t *testing.T) {
 					require.Contains(t, mipc.existingBuckets, "bucket-1")
 					bucket := mipc.existingBuckets["bucket-1"]
 					require.False(t, bucket.publicAccessIsBlocked)
-					expectedBucketPolicyDoc := policyDocWithStatementsJSON(
-						policyStatementS3PublicAccessJSON("bucket-1", "prefix-2"),
-					)
-					require.JSONEq(t, *expectedBucketPolicyDoc, *bucket.policyDoc)
 				},
 			},
 		} {
@@ -635,12 +579,16 @@ func TestConfigureIdPIAMUsingProxyURL(t *testing.T) {
 type mockBucket struct {
 	region                string
 	publicAccessIsBlocked bool
-	policyDoc             *string
+	ownership             string
 }
 
 type mockRole struct {
 	assumeRolePolicyDoc *string
 	tags                []iamTypes.Tag
+}
+
+type mockObject struct {
+	acl string
 }
 type mockIdPIAMConfigClient struct {
 	clientRegion    string
@@ -648,6 +596,7 @@ type mockIdPIAMConfigClient struct {
 	existingIDPUrl  []string
 	existingRoles   map[string]mockRole
 	existingBuckets map[string]mockBucket
+	existingObjects map[string]mockObject
 }
 
 // GetCallerIdentity returns information about the caller identity.
@@ -726,12 +675,22 @@ func (m *mockIdPIAMConfigClient) CreateBucket(ctx context.Context, params *s3.Cr
 	m.existingBuckets[*params.Bucket] = mockBucket{
 		publicAccessIsBlocked: true,
 		region:                m.clientRegion,
+		ownership:             string(params.ObjectOwnership),
 	}
 	return nil, nil
 }
 
 // PutObject adds an object to a bucket.
 func (m *mockIdPIAMConfigClient) PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
+	if m.existingObjects == nil {
+		m.existingObjects = map[string]mockObject{}
+	}
+
+	objectKey := fmt.Sprintf("%s/%s", *params.Bucket, *params.Key)
+
+	m.existingObjects[objectKey] = mockObject{
+		acl: string(params.ACL),
+	}
 	return nil, nil
 }
 
@@ -757,19 +716,6 @@ func (m *mockIdPIAMConfigClient) SetAWSRegion(awsRegion string) {
 	m.clientRegion = awsRegion
 }
 
-// PutBucketPolicy applies an Amazon S3 bucket policy to an Amazon S3 bucket.
-func (m *mockIdPIAMConfigClient) PutBucketPolicy(ctx context.Context, params *s3.PutBucketPolicyInput, optFns ...func(*s3.Options)) (*s3.PutBucketPolicyOutput, error) {
-	bucket, found := m.existingBuckets[*params.Bucket]
-	if !found {
-		return nil, trace.NotFound("bucket does not exist")
-	}
-
-	bucket.policyDoc = params.Policy
-	m.existingBuckets[*params.Bucket] = bucket
-
-	return &s3.PutBucketPolicyOutput{}, nil
-}
-
 // DeletePublicAccessBlock  removes the PublicAccessBlock configuration for an Amazon S3 bucket.
 func (m *mockIdPIAMConfigClient) DeletePublicAccessBlock(ctx context.Context, params *s3.DeletePublicAccessBlockInput, optFns ...func(*s3.Options)) (*s3.DeletePublicAccessBlockOutput, error) {
 	bucket, found := m.existingBuckets[*params.Bucket]
@@ -781,22 +727,6 @@ func (m *mockIdPIAMConfigClient) DeletePublicAccessBlock(ctx context.Context, pa
 	m.existingBuckets[*params.Bucket] = bucket
 
 	return &s3.DeletePublicAccessBlockOutput{}, nil
-}
-
-// GetBucketPolicy returns the policy of a specified bucket
-func (m *mockIdPIAMConfigClient) GetBucketPolicy(ctx context.Context, params *s3.GetBucketPolicyInput, optFns ...func(*s3.Options)) (*s3.GetBucketPolicyOutput, error) {
-	bucket, found := m.existingBuckets[*params.Bucket]
-	if !found {
-		return nil, trace.NotFound("bucket does not exist")
-	}
-
-	if bucket.policyDoc == nil {
-		return nil, trace.NotFound("policy not set yet")
-	}
-
-	return &s3.GetBucketPolicyOutput{
-		Policy: bucket.policyDoc,
-	}, nil
 }
 
 // HTTPHead does an HEAD HTTP Request to the target URL.

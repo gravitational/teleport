@@ -56,6 +56,7 @@ func Commands() []CLICommand {
 		&loginrule.Command{},
 		&IdPCommand{},
 		&accessmonitoring.Command{},
+		&PluginsCommand{},
 	}
 }
 

@@ -22,3 +22,6 @@ is published, since the PR will include an update to the plugins version as well
 - [ ] Update the list of OCI images to monitor and rebuild nightly in
   [`monitor-teleport-oci-distroless.yml` on `master`](https://github.com/gravitational/teleport.e/blob/master/.github/workflows/monitor-teleport-oci-distroless.yml) and
   [`rebuild-teleport-oci-distroless-cron.yml` on `master`](https://github.com/gravitational/teleport.e/blob/master/.github/workflows/rebuild-teleport-oci-distroless-cron.yml)
+- [ ] Update `e/.github/workflows/build-buildboxes-cron.yaml` to bump the
+  branches on each job (two per job) and to comment out the final job that only
+  exists for the pre-release, and bump the versions for the next release.

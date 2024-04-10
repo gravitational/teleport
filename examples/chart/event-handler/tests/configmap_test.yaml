@@ -1,0 +1,18 @@
+suite: Test deployment
+templates:
+  - configmap.yaml
+tests:
+  - it: should match the snapshot
+    set:
+      teleport:
+        address: teleport.example.com:1234
+      fluentd:
+        url: https://fluentd:8888/test.log
+        sessionUrl: https://fluentd:8888/session
+        certificate:
+          secretName: event-handler-fluentd-credentials
+          caPath: myca.crt
+          certPath: myclient.crt
+          keyPath: myclient.key
+    asserts:
+      - matchSnapshot: {}

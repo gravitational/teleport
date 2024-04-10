@@ -21,7 +21,7 @@ import { ipcMain } from 'electron';
 import { isAbortError } from 'shared/utils/abortError';
 
 import { proxyHostToBrowserProxyHost } from 'teleterm/services/tshd/cluster';
-import { TshdClient } from 'teleterm/services/tshd/types';
+import { TshdClient } from 'teleterm/services/tshd';
 import { Logger } from 'teleterm/types';
 import { MainProcessIpc } from 'teleterm/mainProcess/types';
 import * as tshd from 'teleterm/services/tshd/types';

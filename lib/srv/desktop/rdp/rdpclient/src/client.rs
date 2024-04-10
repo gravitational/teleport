@@ -124,8 +124,7 @@ impl Client {
         let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
         let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
 
-        let connector_config =
-            create_config(params.screen_width, params.screen_height, pin.clone());
+        let connector_config = create_config(&params, pin.clone());
 
         // Create a channel for sending/receiving function calls to/from the Client.
         let (client_handle, function_receiver) = ClientHandle::new(100);
@@ -397,6 +396,10 @@ impl Client {
                         }
                         ClientFunction::HandleTdpSdMoveResponse(res) => {
                             Client::handle_tdp_sd_move_response(x224_processor.clone(), res)
+                                .await?;
+                        }
+                        ClientFunction::HandleTdpSdTruncateResponse(res) => {
+                            Client::handle_tdp_sd_truncate_response(x224_processor.clone(), res)
                                 .await?;
                         }
                         ClientFunction::WriteCliprdr(f) => {
@@ -698,6 +701,21 @@ impl Client {
             .await?
     }
 
+    async fn handle_tdp_sd_truncate_response(
+        x224_processor: Arc<Mutex<x224::Processor>>,
+        res: tdp::SharedDirectoryTruncateResponse,
+    ) -> ClientResult<()> {
+        global::TOKIO_RT
+            .spawn_blocking(move || {
+                debug!("received tdp: {:?}", res);
+                let mut x224_processor = Self::x224_lock(&x224_processor)?;
+                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
+                rdpdr.handle_tdp_sd_truncate_response(res)?;
+                Ok(())
+            })
+            .await?
+    }
+
     async fn add_drive(
         x224_processor: Arc<Mutex<x224::Processor>>,
         sda: tdp::SharedDirectoryAnnounce,
@@ -863,6 +881,8 @@ enum ClientFunction {
     HandleTdpSdWriteResponse(tdp::SharedDirectoryWriteResponse),
     /// Corresponds to [`Client::handle_tdp_sd_move_response`]
     HandleTdpSdMoveResponse(tdp::SharedDirectoryMoveResponse),
+    /// Corresponds to [`Client::handle_tdp_sd_truncate_response`]
+    HandleTdpSdTruncateResponse(tdp::SharedDirectoryTruncateResponse),
     /// Corresponds to [`Client::write_cliprdr`]
     WriteCliprdr(Box<dyn ClipboardFn>),
     /// Corresponds to [`Client::update_clipboard`]
@@ -1041,6 +1061,21 @@ impl ClientHandle {
             .await
     }
 
+    pub fn handle_tdp_sd_truncate_response(
+        &self,
+        res: tdp::SharedDirectoryTruncateResponse,
+    ) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::HandleTdpSdTruncateResponse(res))
+    }
+
+    pub async fn handle_tdp_sd_truncate_response_async(
+        &self,
+        res: tdp::SharedDirectoryTruncateResponse,
+    ) -> ClientResult<()> {
+        self.send(ClientFunction::HandleTdpSdTruncateResponse(res))
+            .await
+    }
+
     pub fn write_cliprdr(&self, f: Box<dyn ClipboardFn>) -> ClientResult<()> {
         self.blocking_send(ClientFunction::WriteCliprdr(f))
     }
@@ -1102,9 +1137,12 @@ impl FunctionReceiver {
 type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
 type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 
-fn create_config(width: u16, height: u16, pin: String) -> Config {
+fn create_config(params: &ConnectParams, pin: String) -> Config {
     Config {
-        desktop_size: ironrdp_connector::DesktopSize { width, height },
+        desktop_size: ironrdp_connector::DesktopSize {
+            width: params.screen_width,
+            height: params.screen_height,
+        },
         enable_tls: true,
         enable_credssp: false,
         credentials: Credentials::SmartCard { pin },
@@ -1130,7 +1168,12 @@ fn create_config(width: u16, height: u16, pin: String) -> Config {
         no_server_pointer: false,
         autologon: true,
         pointer_software_rendering: false,
-        performance_flags: PerformanceFlags::empty(),
+        performance_flags: PerformanceFlags::default()
+            | if !params.show_desktop_wallpaper {
+                PerformanceFlags::DISABLE_WALLPAPER
+            } else {
+                PerformanceFlags::empty()
+            },
     }
 }
 

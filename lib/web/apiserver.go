@@ -39,6 +39,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/oxy/ratelimit"
@@ -765,7 +766,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
 	h.GET("/webapi/sites/:site/ttyplayback/:sid", h.WithClusterAuth(h.ttyPlaybackHandle))
 
-	// DELETE in 16(zmb3): v15+ web UIs use new streaming 'ttyplayback' endpoint
+	// TODO(zmb3): remove these endpoints when Assist is no longer using them
+	// (assist calls the proxy's web API, and the proxy uses an HTTP client to call auth's API)
 	h.GET("/webapi/sites/:site/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet)) // get recorded session's timing information (from events)
 	h.GET("/webapi/sites/:site/sessions/:sid/stream", h.siteSessionStreamGet)                    // get recorded session's bytes (from events)
 
@@ -843,7 +845,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// User Status (used by client to check if user session is valid)
 	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
 
-	h.GET("/webapi/roles", h.WithAuth(h.getRolesHandle))
+	h.GET("/webapi/roles", h.WithAuth(h.listRolesHandle))
 	h.POST("/webapi/roles", h.WithAuth(h.createRoleHandle))
 	h.PUT("/webapi/roles/:name", h.WithAuth(h.updateRoleHandle))
 	h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
@@ -1934,11 +1936,11 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 
 	tmpl := installers.Template{
 		PublicProxyAddr:   h.PublicProxyAddr(),
-		MajorVersion:      utils.UnixShellQuote(version),
+		MajorVersion:      shsprintf.EscapeDefaultContext(version),
 		TeleportPackage:   teleportPackage,
-		RepoChannel:       utils.UnixShellQuote(repoChannel),
+		RepoChannel:       shsprintf.EscapeDefaultContext(repoChannel),
 		AutomaticUpgrades: strconv.FormatBool(installUpdater),
-		AzureClientID:     utils.UnixShellQuote(azureClientID),
+		AzureClientID:     shsprintf.EscapeDefaultContext(azureClientID),
 	}
 	err = instTmpl.Execute(w, tmpl)
 	return nil, trace.Wrap(err)
@@ -3606,8 +3608,6 @@ func queryOrder(query url.Values, name string, def types.EventOrder) (types.Even
 // It returns the binary stream unencoded, directly in the respose body,
 // with Content-Type of application/octet-stream, gzipped with up to 95%
 // compression ratio.
-//
-// DELETE IN 16(zmb3)
 func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	httplib.SetNoCacheHeaders(w.Header())
 

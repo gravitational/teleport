@@ -45,6 +45,7 @@ After=network.target
 [Service]
 Type=simple
 Restart=on-failure
+RestartSec=5
 EnvironmentFile=-{{ .EnvironmentFile }}
 ExecStart={{ .TeleportInstallationFile }} start --config {{ .TeleportConfigPath }} --pid-file={{ .PIDFile }}
 # systemd before 239 needs an absolute path

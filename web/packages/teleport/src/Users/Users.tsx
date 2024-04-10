@@ -40,7 +40,7 @@ export function Users(props: State) {
   const {
     attempt,
     users,
-    roles,
+    fetchRoles,
     operation,
     onStartCreate,
     onStartDelete,
@@ -98,7 +98,7 @@ export function Users(props: State) {
       {(operation.type === 'create' || operation.type === 'edit') && (
         <UserAddEdit
           isNew={operation.type === 'create'}
-          roles={roles}
+          fetchRoles={fetchRoles}
           onClose={onClose}
           onCreate={onCreate}
           onUpdate={onUpdate}

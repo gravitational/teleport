@@ -4939,14 +4939,8 @@ func (a *ServerWithRoles) DeleteAllTunnelConnections() error {
 	return a.authServer.DeleteAllTunnelConnections()
 }
 
-func (a *ServerWithRoles) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error {
-	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	_, err := a.authServer.UpdateRemoteCluster(ctx, rc)
-	return trace.Wrap(err)
-}
-
+// Deprecated: use [presencev1.PresenceService.GetRemoteCluster]
+// TODO(noah): DELETE IN 17.0.0
 func (a *ServerWithRoles) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
 	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -4961,6 +4955,8 @@ func (a *ServerWithRoles) GetRemoteCluster(ctx context.Context, clusterName stri
 	return cluster, nil
 }
 
+// Deprecated: use [presencev1.PresenceService.ListRemoteClusters]
+// TODO(noah): DELETE IN 17.0.0
 func (a *ServerWithRoles) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
 	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
@@ -4973,6 +4969,7 @@ func (a *ServerWithRoles) GetRemoteClusters(ctx context.Context) ([]types.Remote
 }
 
 // filterRemoteClustersForUser filters remote clusters based on what the current user is authorized to access
+// TODO(noah): DELETE IN 17.0.0
 func (a *ServerWithRoles) filterRemoteClustersForUser(remoteClusters []types.RemoteCluster) ([]types.RemoteCluster, error) {
 	filteredClusters := make([]types.RemoteCluster, 0, len(remoteClusters))
 	for _, rc := range remoteClusters {
@@ -4987,6 +4984,8 @@ func (a *ServerWithRoles) filterRemoteClustersForUser(remoteClusters []types.Rem
 	return filteredClusters, nil
 }
 
+// Deprecated: use [presencev1.PresenceService.DeleteRemoteCluster]
+// TODO(noah): DELETE IN 17.0.0
 func (a *ServerWithRoles) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
 	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
@@ -5345,13 +5344,29 @@ func (a *ServerWithRoles) GetAppSession(ctx context.Context, req types.GetAppSes
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Users can only fetch their own app sessions.
-	if err := a.currentUserAction(session.GetUser()); err != nil {
-		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
+
+	authErr := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead)
+	if authErr == nil {
+		return session, nil
 	}
-	return session, nil
+
+	// Users can fetch their own app sessions without secrets.
+	if err := a.currentUserAction(session.GetUser()); err == nil {
+		// TODO (Joerger): DELETE IN 17.0.0
+		// App Session secrets should not be returned to the user. We only do this
+		// here for backwards compatibility with `tsh proxy azure`, which uses the
+		// app session key to sign JWT tokens with Azure claims. This check means
+		// that `tsh proxy azure` will fail for old clients when used with Per-session
+		// MFA or Hardware Key support, which is planned for release in v16.0.0.
+		identity := a.context.Identity.GetIdentity()
+		if !identity.IsMFAVerified() && identity.PrivateKeyPolicy != keys.PrivateKeyPolicyWebSession {
+			return session, nil
+		}
+
+		return session.WithoutSecrets(), nil
+	}
+
+	return nil, trace.Wrap(authErr)
 }
 
 // GetSnowflakeSession gets a Snowflake web session.
@@ -5445,7 +5460,8 @@ func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req *proto.Creat
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return session, nil
+
+	return session.WithoutSecrets(), nil
 }
 
 // CreateSnowflakeSession creates a Snowflake web session.

@@ -38,10 +38,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // This is bcrypt hash for password "barbaz".
@@ -90,32 +88,26 @@ func (a *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 		return nil, trace.BadParameter("unexpected WebSessionV2 type %T", sess)
 	}
 
+	// TODO(codingllama): Issue device web token here?
+	//  This could enable the initial transition, after the user sets password and
+	//  MFA, to trigger device web login.
+	//  At the moment it's highly unlikely the user has an enrolled device at this
+	//  stage, so there's little reason to do it.
+
 	return &proto.ChangeUserAuthenticationResponse{
 		WebSession: sess,
 		Recovery:   newRecovery,
 	}, nil
 }
 
-// ResetPassword securely generates a new random password and assigns it to user.
-// This method is used to invalidate existing user password during password
-// reset process.
-func (a *Server) ResetPassword(ctx context.Context, username string) (string, error) {
-	user, err := a.GetUser(ctx, username, false)
-	if err != nil {
-		return "", trace.Wrap(err)
+// ResetPassword deletes the user's password. This method is used to invalidate
+// existing user password during password reset process. This function doesn't
+// fail if the user doesn't have a password or the user doesn't exist at all.
+func (a *Server) ResetPassword(ctx context.Context, username string) error {
+	if err := a.DeletePassword(ctx, username); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
 	}
-
-	password, err := utils.CryptoRandomHex(defaults.ResetPasswordLength)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	err = a.UpsertPassword(user.GetName(), []byte(password))
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return password, nil
+	return nil
 }
 
 // ChangePassword updates users password based on the old password.
@@ -188,7 +180,7 @@ func (a *Server) checkPasswordWOToken(user string, password []byte) error {
 	userFound := true
 	if trace.IsNotFound(err) {
 		userFound = false
-		log.Debugf("Username %q not found, using fake hash to mitigate timing attacks.", user)
+		log.Debugf("Password for username %q not found, using fake hash to mitigate timing attacks.", user)
 		hash = fakePasswordHash
 	}
 

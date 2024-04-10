@@ -20,7 +20,6 @@ package tracing
 
 import (
 	"context"
-	"errors"
 	"io"
 
 	"github.com/gravitational/trace"
@@ -42,10 +41,7 @@ func NewExporter(ctx context.Context, cfg Config) (sdktrace.SpanExporter, error)
 	ctx, cancel := context.WithTimeout(ctx, cfg.DialTimeout)
 	defer cancel()
 	exporter, err := otlptrace.New(ctx, traceClient)
-	switch {
-	case errors.Is(err, context.DeadlineExceeded):
-		return nil, trace.ConnectionProblem(err, "failed to connect to tracing exporter %s: %v", cfg.ExporterURL, err)
-	case err != nil:
+	if err != nil {
 		return nil, trace.NewAggregate(err, traceClient.Stop(context.Background()))
 	}
 

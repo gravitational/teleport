@@ -92,7 +92,7 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 				`--cluster=localhost ` +
 				`--name=myintegration ` +
 				`--aws-region=us-east-1 ` +
-				`--role=Test+1=2,3.4@5-6_7 ` +
+				`--role=Test\+1=2,3.4\@5-6_7 ` +
 				`--task-role=taskRole`,
 		},
 		{
@@ -206,7 +206,7 @@ func TestBuildEICEConfigureIAMScript(t *testing.T) {
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure eice-iam " +
 				"--aws-region=us-east-1 " +
-				"--role=Test+1=2,3.4@5-6_7",
+				"--role=Test\\+1=2,3.4\\@5-6_7",
 		},
 		{
 			name: "missing aws-region",
@@ -295,7 +295,7 @@ func TestBuildEKSConfigureIAMScript(t *testing.T) {
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure eks-iam " +
 				"--aws-region=us-east-1 " +
-				"--role=Test+1=2,3.4@5-6_7",
+				"--role=Test\\+1=2,3.4\\@5-6_7",
 		},
 		{
 			name: "missing aws-region",
@@ -344,6 +344,7 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 
 	ctx := context.Background()
 	env := newWebPack(t, 1)
+	proxyPublicURL := env.proxies[0].webURL
 
 	// Unauthenticated client for script downloading.
 	publicClt := env.proxies[0].newClient(t)
@@ -386,6 +387,20 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 				"--s3-jwks-base64=" + jwksBase64,
 		},
 		{
+			name: "valid with proxy endpoint",
+			reqQuery: url.Values{
+				"awsRegion":       []string{"us-east-1"},
+				"role":            []string{"myRole"},
+				"integrationName": []string{"myintegration"},
+			},
+			errCheck: require.NoError,
+			expectedTeleportArgs: "integration configure awsoidc-idp " +
+				"--cluster=localhost " +
+				"--name=myintegration " +
+				"--role=myRole " +
+				"--proxy-public-url=" + proxyPublicURL.String(),
+		},
+		{
 			name: "valid with symbols in role",
 			reqQuery: url.Values{
 				"awsRegion":       []string{"us-east-1"},
@@ -398,7 +413,7 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 			expectedTeleportArgs: "integration configure awsoidc-idp " +
 				"--cluster=localhost " +
 				"--name=myintegration " +
-				"--role=Test+1=2,3.4@5-6_7 " +
+				"--role=Test\\+1=2,3.4\\@5-6_7 " +
 				`--s3-bucket-uri=s3://my-bucket/prefix ` +
 				"--s3-jwks-base64=" + jwksBase64,
 		},
@@ -514,7 +529,7 @@ func TestBuildListDatabasesConfigureIAMScript(t *testing.T) {
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure listdatabases-iam " +
 				"--aws-region=us-east-1 " +
-				"--role=Test+1=2,3.4@5-6_7",
+				"--role=Test\\+1=2,3.4\\@5-6_7",
 		},
 		{
 			name: "missing aws-region",

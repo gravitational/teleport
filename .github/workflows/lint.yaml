@@ -1,20 +1,49 @@
 name: Lint (Go)
-run-name: make lint
+run-name: Lint (Go and Rust)
 on:
   pull_request:
-    paths-ignore:
-      - "docs/**"
-      - "rfd/**"
-      - "**/*.md*"
+
   merge_group:
-    paths-ignore:
-      - "docs/**"
-      - "rfd/**"
-      - "**/*.md*"
 
 jobs:
-  lint:
+  changes:
+    name: Check for relevant changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      has_go: ${{ steps.changes.outputs.has_go }}
+      has_rust: ${{ steps.changes.outputs.has_rust }}
+    steps:
+      - name: Checkout
+        if: ${{ github.event_name == 'merge_group' }}
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          filters: |
+            has_go:
+              - '.github/workflows/lint.yaml'
+              - '**.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'build.assets/Makefile'
+              - 'build.assets/Dockerfile*'
+              - 'Makefile'
+            has_rust:
+              - '.github/workflows/lint.yaml'
+              - '**.rs'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'build.assets/versions.mk'
+              - 'Makefile'
+
+  lint-go:
     name: Lint (Go)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_go == 'true' }}
     runs-on: ubuntu-22.04-16core
 
     permissions:
@@ -74,24 +103,22 @@ jobs:
           args: --out-format=colored-line-number
           skip-cache: true
 
-      - uses: bufbuild/buf-setup-action@517ee23296d5caf38df31c21945e6a54bbc8a89f # v1.30.0
+      - uses: bufbuild/buf-setup-action@9990c72db080fa39cf561230b8d2d7b736681f85 # v1.30.1
         with:
           github_token: ${{ github.token }}
           version: ${{ env.BUF_VERSION }}
-      - uses: bufbuild/buf-lint-action@044d13acb1f155179c606aaa2e53aea304d22058 # v1.1.0
+      - uses: bufbuild/buf-lint-action@06f9dd823d873146471cfaaf108a993fe00e5325 # v1.1.1
       - name: buf breaking from parent to self
         uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
         with:
-          against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
+          against: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}'
       - name: buf breaking from self to master
         uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
         if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
         with:
-          input: "https://github.com/${GITHUB_REPOSITORY}.git#branch=master"
-          against: "."
+          input: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=master'
+          against: '.'
 
-      # TODO(codingllama): Consider https://github.com/actions-rs/clippy-check
-      #  for Rust.
       - name: Run (non-action) linters
         run: make lint-no-actions
 
@@ -106,3 +133,32 @@ jobs:
       - name: Check if derived functions are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make derive-up-to-date
+
+  lint-rust:
+    name: Lint (Rust)
+    runs-on: ubuntu-22.04
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_rust == 'true' }}
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set Rust version
+        run: echo "RUST_VERSION=$(make -s -C build.assets print-rust-version)" >> $GITHUB_ENV
+
+      - name: Set up Rust
+        run: |
+          echo "Setting up Rust version ${RUST_VERSION}"
+          rustup toolchain install ${RUST_VERSION} --component rustfmt,clippy
+          rustup override set ${RUST_VERSION}
+          rustc --version
+          cargo --version
+          rustfmt --version
+          cargo clippy --version
+
+      - name: Run Rust linters
+        run: make lint-rust
