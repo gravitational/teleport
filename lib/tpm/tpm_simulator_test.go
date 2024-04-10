@@ -123,7 +123,7 @@ func TestWithSimulator(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		assert.NoError(t, attestTPM.Close())
+		assert.NoError(t, attestTPM.Close(), "TPM simulator close errored")
 	})
 
 	t.Run("Without EKCert", func(t *testing.T) {
