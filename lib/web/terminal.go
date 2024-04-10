@@ -95,6 +95,8 @@ type TerminalRequest struct {
 
 	// ParticipantMode is the mode that determines what you can do when you join an active session.
 	ParticipantMode types.SessionParticipantMode `json:"mode"`
+
+	DBName string `json:"dbName"`
 }
 
 // UserAuthClient is a subset of the Auth API that performs
@@ -423,11 +425,17 @@ func (t *TerminalHandler) Close() error {
 
 func setupDBSSH(r *http.Request, tc *client.TeleportClient) {
 	q := r.URL.Query()
-	dbName := q.Get("dbName")
-	dbUser := q.Get("login")
+	params := q.Get("params")
+	if params == "" {
+		return
+	}
+	var req TerminalRequest
+	if err := json.Unmarshal([]byte(params), &req); err != nil {
+		return
+	}
 
-	if dbName != "" && dbUser != "" {
-		tc.ExtraEnvs = map[string]string{"DBSSH_DB_NAME": dbName, "DBSSH_DB_USER": dbUser}
+	if req.DBName != "" && req.Login != "" {
+		tc.ExtraEnvs = map[string]string{"DBSSH_DB_NAME": req.DBName, "DBSSH_DB_USER": req.Login}
 	}
 }
 
