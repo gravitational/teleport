@@ -71,6 +71,8 @@ type Player struct {
 
 	// err holds the error (if any) encountered during playback
 	err error
+
+	sessionDuration time.Duration
 }
 
 const normalPlayback = math.MinInt64
@@ -179,7 +181,7 @@ func (p *Player) stream() {
 				return
 			}
 
-			if err := p.waitWhilePaused(); err != nil {
+			if err := p.WaitWhilePaused(); err != nil {
 				p.log.Warn(err)
 				close(p.emit)
 				return
@@ -304,9 +306,9 @@ func (p *Player) setPlaying(play bool) {
 	p.playPause <- ch
 }
 
-// waitWhilePaused blocks while the player is in a paused state.
+// WaitWhilePaused blocks while the player is in a paused state.
 // It returns immediately if the player is currently playing.
-func (p *Player) waitWhilePaused() error {
+func (p *Player) WaitWhilePaused() error {
 	ch := <-p.playPause
 	p.playPause <- ch
 
@@ -335,4 +337,29 @@ func getDelay(e events.AuditEvent) int64 {
 	default:
 		return int64(0)
 	}
+}
+
+func (p *Player) SessionDuration() time.Duration {
+	if p.sessionDuration > 0 {
+		return p.sessionDuration
+	}
+	var startTime, endTime time.Time
+	eventsC, errC := p.streamer.StreamSessionEvents(context.TODO(), p.sessionID, 0)
+	go func() {
+		// TODO don't discard errors lol
+		for range errC {
+		}
+	}()
+	for event := range eventsC {
+		if startTime.IsZero() {
+			startTime = event.GetTime()
+		}
+		endTime = event.GetTime()
+	}
+	p.sessionDuration = endTime.Sub(startTime)
+	return p.sessionDuration
+}
+
+func (p *Player) Progress() float64 {
+	return float64(p.LastPlayed()) / float64(p.SessionDuration().Milliseconds())
 }

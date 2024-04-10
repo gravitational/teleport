@@ -38,6 +38,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravitational/trace"
@@ -2105,6 +2106,21 @@ func (tc *TeleportClient) Play(ctx context.Context, sessionID string, speed floa
 	return playSession(ctx, sessionID, speed, clusterClient.AuthClient)
 }
 
+const (
+	pauseButton   = "||"
+	playButton    = "|>"
+	forwardButton = ">>"
+	rewindButton  = "<<"
+)
+
+func renderPlayerUI(playing bool) string {
+	playControl := playButton
+	if playing {
+		playControl = pauseButton
+	}
+	return fmt.Sprintf(" %s %s %s ", rewindButton, playControl, forwardButton)
+}
+
 type fakeReader struct{}
 
 func (n fakeReader) Read(_ []byte) (int, error) {
@@ -2112,15 +2128,17 @@ func (n fakeReader) Read(_ []byte) (int, error) {
 }
 
 type model struct {
-	content       string
-	width         int
-	ready         bool
-	player        *player.Player
-	term          *terminal.Terminal
-	playing       bool
-	lastEventTime time.Time
-	viewport      viewport.Model
-	err           error
+	content          string
+	width            int
+	ready            bool
+	player           *player.Player
+	term             *terminal.Terminal
+	playing          bool
+	lastEventTime    time.Time
+	viewport         viewport.Model
+	progress         progress.Model
+	err              error
+	currentTimestamp string
 }
 
 func newModel(sessionID string, speed float64, streamer player.Streamer) (*model, error) {
@@ -2157,10 +2175,11 @@ type playbackFinishedMsg struct{}
 func (m *model) getNextEvent() tea.Msg {
 	// fmt.Println("getNextEvent")
 	evt := <-m.player.C()
-	// fmt.Println("got event")
 	if evt == nil { // events channel is closed
+		// fmt.Println("nil event")
 		return playbackFinishedMsg{}
 	}
+	// fmt.Println("got event", evt.GetType())
 	switch evt := evt.(type) {
 	case *apievents.WindowsDesktopSessionStart:
 		// TODO(zmb3): restore the playback URL
@@ -2192,6 +2211,8 @@ func (m *model) Init() tea.Cmd {
 		if err := m.player.Play(); err != nil {
 			return trace.Wrap(err)
 		}
+		m.playing = true
+		m.player.WaitWhilePaused()
 		return m.getNextEvent()
 	}
 }
@@ -2214,6 +2235,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.ready {
 			m.viewport = viewport.New(msg.Width, msg.Height-2)
 			m.viewport.HighPerformanceRendering = true
+
+			m.progress = progress.New(progress.WithDefaultGradient(), progress.WithoutPercentage())
 			m.ready = true
 		} else {
 			m.viewport.Width = msg.Width
@@ -2222,10 +2245,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds,
 			viewport.Sync(m.viewport),
 		)
+		m.progress.Width = m.width - len(renderPlayerUI(m.playing)) - len(time.Stamp)
 	case eventMsg:
 		if len(msg.data) != 0 {
 			if msg.time != m.lastEventTime {
-				cmds = append(cmds, tea.SetWindowTitle(msg.time.Format(time.Stamp)))
+				m.currentTimestamp = msg.time.Format(time.Stamp)
+				cmds = append(cmds, tea.SetWindowTitle(m.currentTimestamp))
 			}
 			m.lastEventTime = msg.time
 			followScroll := m.viewport.AtBottom()
@@ -2247,8 +2272,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case tea.KeyMsg:
 		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyCtrlD:
+		case tea.KeyCtrlC, tea.KeyCtrlD, tea.KeyEsc:
 			return m, tea.Quit
+		case tea.KeyRunes:
+			switch string(msg.Runes) {
+			case "q":
+				return m, tea.Quit
+			}
 		case tea.KeySpace:
 			if m.playing {
 				cmds = append(cmds, func() tea.Msg {
@@ -2295,9 +2325,19 @@ func (m *model) View() string {
 		return "not ready"
 	}
 	return fmt.Sprintf(
-		"%s\n%s\nbottom text",
+		"%s\n%s\n%s%s%s",
 		m.viewport.View(),
 		strings.Repeat("-", m.width),
+		renderPlayerUI(m.playing),
+		m.progress.ViewAs(m.player.Progress()),
+		m.currentTimestamp,
+	)
+}
+
+func (m *model) Close() error {
+	return trace.NewAggregate(
+		m.term.Close(),
+		m.player.Close(),
 	)
 }
 
@@ -2306,8 +2346,8 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	prog := tea.NewProgram(
-		m,
+	defer m.Close()
+	prog := tea.NewProgram(m,
 		tea.WithContext(ctx),
 		tea.WithAltScreen(),
 		tea.WithOutput(m.term.Stdout()),
@@ -2317,8 +2357,8 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	m2, ok := finalModel.(*model)
-	if ok && m2.err != nil {
+	m2 := finalModel.(*model)
+	if m2.err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
