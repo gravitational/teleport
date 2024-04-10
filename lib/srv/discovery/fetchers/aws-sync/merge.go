@@ -18,6 +18,8 @@
 
 package aws_sync
 
+import "reflect"
+
 // MergeResources merges multiple resources into a single Resources object.
 // This is used to merge resources from multiple accounts and regions
 // into a single object.
@@ -30,25 +32,17 @@ func MergeResources(results ...*Resources) *Resources {
 		return results[0]
 	}
 	result := &Resources{}
+	resultElem := reflect.ValueOf(result).Elem()
 	for _, r := range results {
-		result.Users = append(result.Users, r.Users...)
-		result.UserInlinePolicies = append(result.UserInlinePolicies, r.UserInlinePolicies...)
-		result.UserAttachedPolicies = append(result.UserAttachedPolicies, r.UserAttachedPolicies...)
-		result.UserGroups = append(result.UserGroups, r.UserGroups...)
-		result.Groups = append(result.Groups, r.Groups...)
-		result.GroupInlinePolicies = append(result.GroupInlinePolicies, r.GroupInlinePolicies...)
-		result.GroupAttachedPolicies = append(result.GroupAttachedPolicies, r.GroupAttachedPolicies...)
-		result.Instances = append(result.Instances, r.Instances...)
-		result.Policies = append(result.Policies, r.Policies...)
-		result.S3Buckets = append(result.S3Buckets, r.S3Buckets...)
-		result.Roles = append(result.Roles, r.Roles...)
-		result.RoleInlinePolicies = append(result.RoleInlinePolicies, r.RoleInlinePolicies...)
-		result.RoleAttachedPolicies = append(result.RoleAttachedPolicies, r.RoleAttachedPolicies...)
-		result.InstanceProfiles = append(result.InstanceProfiles, r.InstanceProfiles...)
-		result.AssociatedAccessPolicies = append(result.AssociatedAccessPolicies, r.AssociatedAccessPolicies...)
-		result.EKSClusters = append(result.EKSClusters, r.EKSClusters...)
-		result.AccessEntries = append(result.AccessEntries, r.AccessEntries...)
-		result.RDSDatabases = append(result.RDSDatabases, r.RDSDatabases...)
+		if r == nil {
+			continue
+		}
+		mergable := reflect.ValueOf(r).Elem()
+		for i := 0; i < resultElem.NumField(); i++ {
+			field := resultElem.Field(i)
+			mergableField := mergable.Field(i)
+			field.Set(reflect.AppendSlice(field, mergableField))
+		}
 	}
 	return result
 }
