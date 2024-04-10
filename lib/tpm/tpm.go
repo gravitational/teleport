@@ -93,7 +93,11 @@ func Query(ctx context.Context, log *slog.Logger) (*QueryRes, error) {
 	}
 	defer func() {
 		if err := tpm.Close(); err != nil {
-			log.ErrorContext(ctx, "Failed to close TPM", slog.Any("error", err))
+			log.ErrorContext(
+				ctx,
+				"Failed to close TPM",
+				slog.String("error", err.Error()),
+			)
 		}
 	}()
 	return queryWithTPM(ctx, log, tpm)
@@ -116,7 +120,9 @@ func queryWithTPM(
 		// create an EK if no EK Certs are present in the NVRAM of the TPM.
 		// Either way, it lets us catch this early in case `go-attestation`
 		// misbehaves.
-		return nil, trace.BadParameter("no endorsement keys found in tpm")
+		return nil, trace.BadParameter(
+			"no endorsement keys found in tpm",
+		)
 	}
 
 	// The first EK returned by `go-attestation` will be an RSA based EK key or
@@ -178,7 +184,11 @@ func attestWithTPM(ctx context.Context, log *slog.Logger, tpm *attest.TPM) (
 	defer func() {
 		if err != nil {
 			if err := tpm.Close(); err != nil {
-				log.ErrorContext(ctx, "Failed to close TPM", slog.Any("error", err))
+				log.ErrorContext(
+					ctx,
+					"Failed to close TPM",
+					slog.String("error", err.Error()),
+				)
 			}
 		}
 	}()

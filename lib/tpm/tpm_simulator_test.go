@@ -86,9 +86,13 @@ func TestWithSimulator(t *testing.T) {
 	}
 	caPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	require.NoError(t, err)
-	caBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &caPrivKey.PublicKey, caPrivKey)
+	caBytes, err := x509.CreateCertificate(
+		rand.Reader, ca, ca, &caPrivKey.PublicKey, caPrivKey,
+	)
 	require.NoError(t, err)
-	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caBytes})
+	caPEM := pem.EncodeToMemory(
+		&pem.Block{Type: "CERTIFICATE", Bytes: caBytes},
+	)
 
 	sim, err := tpmsimulator.GetWithFixedSeedInsecure(0)
 	require.NoError(t, err)
@@ -148,7 +152,9 @@ func TestWithSimulator(t *testing.T) {
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().Add(time.Hour),
 	}
-	fakeEKBytes, err := x509.CreateCertificate(rand.Reader, fakeEKCert, ca, origEK[0].Public, caPrivKey)
+	fakeEKBytes, err := x509.CreateCertificate(
+		rand.Reader, fakeEKCert, ca, origEK[0].Public, caPrivKey,
+	)
 	require.NoError(t, err)
 	writeEKCertToTPM(t, sim, fakeEKBytes)
 
