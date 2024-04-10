@@ -38,6 +38,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
@@ -2103,116 +2105,222 @@ func (tc *TeleportClient) Play(ctx context.Context, sessionID string, speed floa
 	return playSession(ctx, sessionID, speed, clusterClient.AuthClient)
 }
 
-const (
-	keyCtrlC = 3
-	keyCtrlD = 4
-	keySpace = 32
-	keyLeft  = 68
-	keyRight = 67
-	keyUp    = 65
-	keyDown  = 66
-)
+type fakeReader struct{}
 
-func playSession(ctx context.Context, sessionID string, speed float64, streamer player.Streamer) error {
+func (n fakeReader) Read(_ []byte) (int, error) {
+	return 0, io.EOF
+}
+
+type model struct {
+	content       string
+	width         int
+	ready         bool
+	player        *player.Player
+	term          *terminal.Terminal
+	playing       bool
+	lastEventTime time.Time
+	viewport      viewport.Model
+	err           error
+}
+
+func newModel(sessionID string, speed float64, streamer player.Streamer) (*model, error) {
 	sid, err := session.ParseID(sessionID)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	term, err := terminal.New(os.Stdin, os.Stdout, os.Stderr)
+	term, err := terminal.New(
+		// don't give terminal os.Stdin as bubbletea program is using it
+		fakeReader{},
+		os.Stdout,
+		os.Stderr,
+	)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	defer term.Close()
-
-	// configure terminal for direct unbuffered echo-less input
-	if term.IsAttached() {
-		err := term.InitRaw(true)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	term.Clear() // clear screen between runs:
-	term.SetCursorPos(1, 1)
 
 	player, err := player.New(&player.Config{
 		SessionID: *sid,
 		Streamer:  streamer,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
 	player.SetSpeed(speed)
-	if err := player.Play(); err != nil {
+	return &model{
+		term:   term,
+		player: player,
+	}, nil
+}
+
+type playbackFinishedMsg struct{}
+
+func (m *model) getNextEvent() tea.Msg {
+	// fmt.Println("getNextEvent")
+	evt := <-m.player.C()
+	// fmt.Println("got event")
+	if evt == nil { // events channel is closed
+		return playbackFinishedMsg{}
+	}
+	switch evt := evt.(type) {
+	case *apievents.WindowsDesktopSessionStart:
+		// TODO(zmb3): restore the playback URL
+		message := "Desktop sessions cannot be played with tsh play." +
+			" Export the recording to video with tsh recordings export" +
+			" or view the recording in your web browser."
+		return trace.BadParameter(message)
+	case *apievents.AppSessionStart, *apievents.DatabaseSessionStart, *apievents.AppSessionChunk:
+		return trace.BadParameter("Interactive session replay is only supported for SSH and Kubernetes sessions." +
+			" To play app or database sessions, specify --format=json or --format=yaml.")
+	case *apievents.Resize:
+		setTermSize(m.term.Stdout(), evt.TerminalSize)
+	case *apievents.SessionStart:
+		setTermSize(m.term.Stdout(), evt.TerminalSize)
+	case *apievents.SessionPrint:
+		return eventMsg{
+			data: evt.Data,
+			time: evt.Time,
+		}
+	}
+	// Even if we have nothing to print, Update() needs to know that the event
+	// happened so it can queue up getNextEvent() again
+	return eventMsg{}
+}
+
+func (m *model) Init() tea.Cmd {
+	return func() tea.Msg {
+		// fmt.Println("init command")
+		if err := m.player.Play(); err != nil {
+			return trace.Wrap(err)
+		}
+		return m.getNextEvent()
+	}
+}
+
+type errMsg error
+
+type eventMsg struct {
+	data []byte
+	time time.Time
+}
+
+func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	const skipDuration = 10 * time.Second
+
+	var cmds []tea.Cmd
+	// fmt.Printf("%+v\n", msg)
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		if !m.ready {
+			m.viewport = viewport.New(msg.Width, msg.Height-2)
+			m.viewport.HighPerformanceRendering = true
+			m.ready = true
+		} else {
+			m.viewport.Width = msg.Width
+			m.viewport.Height = msg.Height - 2
+		}
+		cmds = append(cmds,
+			viewport.Sync(m.viewport),
+		)
+	case eventMsg:
+		if len(msg.data) != 0 {
+			if msg.time != m.lastEventTime {
+				cmds = append(cmds, tea.SetWindowTitle(msg.time.Format(time.Stamp)))
+			}
+			m.lastEventTime = msg.time
+			followScroll := m.viewport.AtBottom()
+			m.content += string(msg.data)
+			if m.ready {
+				m.viewport.SetContent(m.content)
+				if followScroll {
+					m.viewport.GotoBottom()
+				}
+				cmds = append(cmds,
+					viewport.Sync(m.viewport),
+				)
+			}
+		}
+		cmds = append(cmds, m.getNextEvent)
+	case playbackFinishedMsg:
+		// TODO: instead of quitting here, we could pause the player and
+		// allow the recording to be played again
+		return m, tea.Quit
+	case tea.KeyMsg:
+		switch msg.Type {
+		case tea.KeyCtrlC, tea.KeyCtrlD:
+			return m, tea.Quit
+		case tea.KeySpace:
+			if m.playing {
+				cmds = append(cmds, func() tea.Msg {
+					m.player.Pause()
+					return nil
+				})
+			} else {
+				cmds = append(cmds, func() tea.Msg {
+					m.player.Play()
+					return nil
+				})
+			}
+			m.playing = !m.playing
+		case tea.KeyLeft:
+			current := time.Duration(m.player.LastPlayed() * int64(time.Millisecond))
+			m.player.SetPos(max(current-skipDuration, 0)) // rewind
+			// NOTE: if there are problems this might be the cause
+			// m.term.Clear()
+			// m.term.SetCursorPos(1, 1)
+			m.content = ""
+			m.viewport.SetContent(m.content)
+			cmds = append(cmds, viewport.Sync(m.viewport))
+		case tea.KeyRight:
+			current := time.Duration(m.player.LastPlayed() * int64(time.Millisecond))
+			m.player.SetPos(current + skipDuration) // advance forward
+		}
+	case errMsg:
+		m.err = msg
+		return m, tea.Quit
+	}
+	if m.ready {
+		vp, cmd := m.viewport.Update(msg)
+		m.viewport = vp
+		cmds = append(cmds, cmd)
+	}
+	return m, tea.Batch(cmds...)
+}
+
+func (m *model) View() string {
+	if m.err != nil {
+		return m.err.Error()
+	}
+	if !m.ready {
+		return "not ready"
+	}
+	return fmt.Sprintf(
+		"%s\n%s\nbottom text",
+		m.viewport.View(),
+		strings.Repeat("-", m.width),
+	)
+}
+
+func playSession(ctx context.Context, sessionID string, speed float64, streamer player.Streamer) error {
+	m, err := newModel(sessionID, speed, streamer)
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	playing := true
-
-	// playback control goroutine
-	const skipDuration = 10 * time.Second
-	go func() {
-		var key [1]byte
-		for {
-			_, err := term.Stdin().Read(key[:])
-			if err != nil {
-				return
-			}
-			switch key[0] {
-			case keyCtrlC, keyCtrlD:
-				player.Close()
-				return
-			case keySpace:
-				if playing {
-					player.Pause()
-				} else {
-					player.Play()
-				}
-				playing = !playing
-			case keyLeft, keyDown:
-				current := time.Duration(player.LastPlayed() * int64(time.Millisecond))
-				player.SetPos(max(current-skipDuration, 0)) // rewind
-				term.Clear()
-				term.SetCursorPos(1, 1)
-			case keyRight, keyUp:
-				current := time.Duration(player.LastPlayed() * int64(time.Millisecond))
-				player.SetPos(current + skipDuration) // advance forward
-			}
-		}
-	}()
-
-	var lastTime time.Time
-	for evt := range player.C() {
-		switch evt := evt.(type) {
-		case *apievents.WindowsDesktopSessionStart:
-			// TODO(zmb3): restore the playback URL
-			message := "Desktop sessions cannot be played with tsh play." +
-				" Export the recording to video with tsh recordings export" +
-				" or view the recording in your web browser."
-			return trace.BadParameter(message)
-		case *apievents.AppSessionStart, *apievents.DatabaseSessionStart, *apievents.AppSessionChunk:
-			return trace.BadParameter("Interactive session replay is only supported for SSH and Kubernetes sessions." +
-				" To play app or database sessions, specify --format=json or --format=yaml.")
-		case *apievents.Resize:
-			if err := setTermSize(term.Stdout(), evt.TerminalSize); err != nil {
-				continue
-			}
-		case *apievents.SessionStart:
-			if err := setTermSize(term.Stdout(), evt.TerminalSize); err != nil {
-				continue
-			}
-		case *apievents.SessionPrint:
-			term.Stdout().Write(evt.Data)
-			if evt.Time != lastTime {
-				term.SetWindowTitle(evt.Time.Format(time.Stamp))
-			}
-			lastTime = evt.Time
-		default:
-			continue
-		}
+	prog := tea.NewProgram(
+		m,
+		tea.WithContext(ctx),
+		tea.WithAltScreen(),
+		tea.WithOutput(m.term.Stdout()),
+		// tea.WithoutRenderer(),
+	)
+	finalModel, err := prog.Run()
+	if err != nil {
+		return trace.Wrap(err)
 	}
-
+	m2, ok := finalModel.(*model)
+	if ok && m2.err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
