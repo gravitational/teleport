@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -121,7 +122,10 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 	}
 	defer localProxy.Close()
 
-	if err := c.printTemplate(cf, localProxy); err != nil {
+	// re-exec into a new shell with $KUBECONFIG already pointed to our config file
+	// if --exec flag is set or headless mode is enabled.
+	reexecIntoShell := cf.Headless || c.exec
+	if err := c.printTemplate(cf.Stdout(), reexecIntoShell, localProxy); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -138,9 +142,6 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 		return trace.Wrap(cf.RunCommand(cmd))
 	}
 
-	// re-exec into a new shell with $KUBECONFIG already pointed to our config file
-	// if --exec flag is set or headless mode is enabled.
-	reexecIntoShell := cf.Headless || c.exec
 	if reexecIntoShell {
 		// If headless, run proxy in the background and reexec into a new shell with $KUBECONFIG already pointed to
 		// our config file
@@ -267,13 +268,13 @@ func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters kube
 	fmt.Fprintln(cf.Stdout(), table.AsBuffer().String())
 }
 
-func (c *proxyKubeCommand) printTemplate(cf *CLIConf, localProxy *kubeLocalProxy) error {
-	if cf.Headless {
-		return trace.Wrap(proxyKubeHeadlessTemplate.Execute(cf.Stdout(), map[string]interface{}{
+func (c *proxyKubeCommand) printTemplate(w io.Writer, isReexec bool, localProxy *kubeLocalProxy) error {
+	if isReexec {
+		return trace.Wrap(proxyKubeHeadlessTemplate.Execute(w, map[string]interface{}{
 			"multipleContexts": len(localProxy.kubeconfig.Contexts) > 1,
 		}))
 	}
-	return trace.Wrap(proxyKubeTemplate.Execute(cf.Stdout(), map[string]interface{}{
+	return trace.Wrap(proxyKubeTemplate.Execute(w, map[string]interface{}{
 		"addr":           localProxy.GetAddr(),
 		"format":         c.format,
 		"randomPort":     c.port == "",
