@@ -524,6 +524,7 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 		switch s.SubKind {
 		case SubKindOpenSSHEICENode:
 			// For EICE nodes, use a deterministic name.
+			// This name must comply with the expected format for EC2 Nodes as defined here: api/utils/aws.IsEC2NodeID
 			eiceNodeName := serverNameForEICE(s)
 			if eiceNodeName == "" {
 				return trace.BadParameter("missing account id or instance id in %s node", SubKindOpenSSHEICENode)
