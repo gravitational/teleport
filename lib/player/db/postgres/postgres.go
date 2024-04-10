@@ -93,7 +93,7 @@ func (s *playerState) Flush() error {
 
 	if s.table != nil {
 		s.table.Render()
-		fmt.Fprintf(s.w, "(%d row%s)\n\n", s.totalRows, pluralize(s.totalRows))
+		fmt.Fprintf(s.w, "(%d row%s)\r\n", s.totalRows, pluralize(s.totalRows))
 		return nil
 	}
 
@@ -104,7 +104,7 @@ func (s *playerState) Error(evt *events.PostgresErrorResponse) error {
 	defer s.Reset()
 
 	// TODO(gabrielcorado): add missing error details.
-	if _, err := fmt.Fprintf(s.w, "%s: %s\n", evt.Severity, evt.Message); err != nil {
+	if _, err := fmt.Fprintf(s.w, "%s: %s\r\n", evt.Severity, evt.Message); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -114,7 +114,7 @@ func (s *playerState) Error(evt *events.PostgresErrorResponse) error {
 func (s *playerState) Query(evt *events.DatabaseSessionQuery) error {
 	defer s.Reset()
 
-	if _, err := fmt.Fprintf(s.w, "%s=# %s\n", evt.DatabaseName, evt.DatabaseQuery); err != nil {
+	if _, err := fmt.Fprintf(s.w, "%s=# %s\r\n", evt.DatabaseName, evt.DatabaseQuery); err != nil {
 		return trace.Wrap(err)
 	}
 

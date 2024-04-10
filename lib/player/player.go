@@ -192,7 +192,9 @@ func (p *Player) stream() {
 			// Translate the event, and skip the event if no event gets
 			// translated.
 			p.maybeUdpateTranslater(evt)
+			// fmt.Println("==>> TRANSLATING:", evt)
 			evt, ok = p.translater.Translate(evt)
+			// fmt.Println("=>>> TO:", ok, evt)
 			if !ok {
 				continue
 			}
@@ -341,7 +343,7 @@ func (p *Player) LastPlayed() int64 {
 func (p *Player) maybeUdpateTranslater(e events.AuditEvent) {
 	switch e.(type) {
 	case *events.DatabaseSessionStart:
-		p.translater = &postgresTranslater{}
+		p.translater = newPostgresTranslater()
 	}
 }
 
