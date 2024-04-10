@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { DeepLinkParseResult, DeepURL } from 'teleterm/deepLinks';
+import { DeepURL } from 'shared/deepLinks';
+
+import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import { routing } from 'teleterm/ui/uri';
 import { assertUnreachable } from 'teleterm/ui/utils';
 import { RuntimeSettings } from 'teleterm/types';
@@ -50,14 +52,14 @@ export class DeepLinksService {
           reason = `The URL of the link is of an unknown protocol.`;
           break;
         }
-        case 'unsupported-uri': {
+        case 'unsupported-url': {
           reason =
             'The received link does not point at a resource or an action that can be launched from a link. ' +
             'Either this version of Teleport Connect does not support it or the link is incorrect.';
           break;
         }
         case 'malformed-url': {
-          reason = `The URL of the link appears to be malformed.`;
+          reason = `The URL of the link appears to be malformed. ${result.error.message}`;
           break;
         }
         default: {
@@ -83,6 +85,12 @@ export class DeepLinksService {
     switch (result.url.pathname) {
       case '/connect_my_computer': {
         await this.launchConnectMyComputer(result.url);
+        break;
+      }
+      case '/authenticate_web_device': {
+        // TODO (avatus): add authenticate device web confirmation dialog
+        // this case is a stub and will not be reached
+        break;
       }
     }
   }
