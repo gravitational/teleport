@@ -244,6 +244,12 @@ func onboardUserPreferencesResponse(resp *userpreferencesv1.OnboardUserPreferenc
 
 // accessGraphPreferencesResponse creates a JSON response for the access graph preferences.
 func accessGraphPreferencesResponse(resp *userpreferencesv1.AccessGraphUserPreferences) AccessGraphPreferencesResponse {
+	if resp == nil {
+		return AccessGraphPreferencesResponse{
+			HasBeenRedirected: false,
+		}
+	}
+
 	return AccessGraphPreferencesResponse{
 		HasBeenRedirected: resp.HasBeenRedirected,
 	}

@@ -80,7 +80,7 @@ func (s *DiscordSuite) startApp() {
 	t.Helper()
 
 	app := discord.NewApp(s.appConfig)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
 }
 
 // TestMessagePosting validates that a message is sent to each recipient
