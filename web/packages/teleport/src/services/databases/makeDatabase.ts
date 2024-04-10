@@ -21,7 +21,7 @@ import { formatDatabaseInfo } from 'shared/services/databases';
 import { Aws, Database, DatabaseService } from './types';
 
 export function makeDatabase(json: any): Database {
-  const { name, desc, protocol, type, aws } = json;
+  const { name, desc, protocol, type, aws, id } = json;
 
   const labels = json.labels || [];
 
@@ -44,6 +44,7 @@ export function makeDatabase(json: any): Database {
   return {
     kind: 'db',
     name,
+    id,
     description: desc,
     type: formatDatabaseInfo(type, protocol).title,
     protocol,

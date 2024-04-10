@@ -215,8 +215,8 @@ function DatabaseConnect({ database }: { database: Database }) {
   const authType = ctx.storeUser.state.authType;
   const accessRequestId = ctx.storeUser.getAccessRequestId();
 
-  const sshServerId = database.labels.find(({name, value}) => name == "teleport.dev/psql-server-id")?.value;
-  console.log("NIC sshServerId", sshServerId);
+  const sshServerId = database.id || "";
+  const dbUsers = database.users || [];
 
   const dbConnectURL = (login: string) => {
     return cfg.getDatabaseConnectRoute({
@@ -232,7 +232,7 @@ function DatabaseConnect({ database }: { database: Database }) {
   };
 
   const handleOnOpen = () => {
-    return ["postgres"].map(login => {
+    return dbUsers.map(login => {
       return {
         url: dbConnectURL(login),
         login,

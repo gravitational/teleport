@@ -2800,7 +2800,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				}
 				hasFetchedDBUsersAndNames = true
 			}
-			db := ui.MakeDatabase(r.GetDatabase(), dbUsers, dbNames)
+			db := ui.MakeDatabaseWithID(r.GetDatabase(), dbUsers, dbNames, r.GetHostID())
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{

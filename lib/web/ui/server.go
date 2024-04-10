@@ -312,6 +312,8 @@ type Database struct {
 	Kind string `json:"kind"`
 	// Name is the name of the database.
 	Name string `json:"name"`
+	// ID is the host UUID
+	ID string `json:"id"`
 	// Desc is the database description.
 	Desc string `json:"desc"`
 	// Protocol is the database description.
@@ -346,13 +348,18 @@ const (
 	LabelStatus = "status"
 )
 
-// MakeDatabase creates database objects.
 func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
+	return MakeDatabaseWithID(database, dbUsers, dbNames, "")
+}
+
+// MakeDatabase creates database objects.
+func MakeDatabaseWithID(database types.Database, dbUsers, dbNames []string, id string) Database {
 	uiLabels := makeLabels(database.GetAllLabels())
 
 	db := Database{
 		Kind:          database.GetKind(),
 		Name:          database.GetName(),
+		ID:            id,
 		Desc:          database.GetDescription(),
 		Protocol:      database.GetProtocol(),
 		Type:          database.GetType(),

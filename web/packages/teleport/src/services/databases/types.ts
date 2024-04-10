@@ -39,6 +39,7 @@ export type Aws = {
 export interface Database {
   kind: 'db';
   name: string;
+  id?: string;
   description: string;
   type: string;
   protocol: DbProtocol;
