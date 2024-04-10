@@ -210,7 +210,7 @@ func (p *Player) stream() {
 					}
 
 					switch err := p.applyDelay(lastDelay, currentDelay); {
-					case err == errSeekWhilePaused:
+					case errors.Is(err, errSeekWhilePaused):
 						p.log.Debug("seeked during pause, will restart stream")
 						go p.stream()
 						return
@@ -330,7 +330,7 @@ loop:
 				dur := float64(time.Since(start).Milliseconds()) * speed
 
 				// 2) wait here until the user resumes playback
-				if err := p.waitWhilePaused(); err == errSeekWhilePaused {
+				if err := p.waitWhilePaused(); errors.Is(err, errSeekWhilePaused) {
 					// the user changed the playback position, so consider the delay
 					// applied and let the player pick up from the new position
 					return errSeekWhilePaused
