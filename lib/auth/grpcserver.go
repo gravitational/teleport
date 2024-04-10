@@ -3497,13 +3497,13 @@ func (g *GRPCServer) ResetAuthPreference(ctx context.Context, _ *emptypb.Empty) 
 	return &emptypb.Empty{}, nil
 }
 
-func (g *GRPCServer) GetSessionMetadata(ctx context.Context, req *authpb.GetSessionMetadataRequest) (*authpb.SessionMetadata, error) {
+func (g *GRPCServer) GetSessionRecordingEvents(ctx context.Context, req *authpb.GetSessionRecordingEventsRequest) (*authpb.SessionRecordingEvents, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := auth.GetSessionMetadata(ctx, session.ID(req.SessionID))
+	out, err := auth.GetSessionRecordingEvents(ctx, session.ID(req.SessionID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

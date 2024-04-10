@@ -660,6 +660,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_DatabaseUserDeactivate{
 			DatabaseUserDeactivate: e,
 		}
+	case *SessionIdle:
+		out.Event = &OneOf_SessionIdle{
+			SessionIdle: e,
+		}
 
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())

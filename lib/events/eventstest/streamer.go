@@ -45,8 +45,8 @@ type fakeStreamer struct {
 	interval time.Duration
 }
 
-func (f fakeStreamer) GetSessionMetadata(ctx context.Context, sessionID session.ID)(*proto.SessionMetadata, error){
-	return nil,nil
+func (f fakeStreamer) GetSessionRecordingEvents(ctx context.Context, sessionID session.ID) (*proto.SessionRecordingEvents, error) {
+	return nil, nil
 }
 
 func (f fakeStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {

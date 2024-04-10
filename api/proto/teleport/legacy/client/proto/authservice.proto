@@ -1366,41 +1366,28 @@ message StreamSessionEventsRequest {
   int32 StartIndex = 2;
 }
 
-// GetSessionMetadataRequest
-message GetSessionMetadataRequest {
+// GetSessionRecordingEventsRequest
+message GetSessionRecordingEventsRequest {
   // SessionID
   string SessionID = 1;
 }
 
-// SessionMetadata
-message SessionMetadata {
+// SessionRecordingEvents
+message SessionRecordingEvents {
   // TotalTime
   int64 TotalTime = 1 [
     (gogoproto.jsontag) = "total_time",
     (gogoproto.casttype) = "Duration"
   ];
-  // TotalEvents
-  int64 TotalEvents = 2;
-  // IdlePrints
-  repeated SessionIdleTime IdlePrints = 3;
-  // NoteworthyEvents
-  repeated events.OneOf NoteworthyEvents = 4;
-}
-
-// SessionIdleTime
-message SessionIdleTime {
-  // Index
-  int64 Index = 1;
   // StartTime
   google.protobuf.Timestamp StartTime = 2 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
-  // EndTime
-  google.protobuf.Timestamp EndTime = 3 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false
-  ];
+  // TotalEvents
+  int64 TotalEvents = 3;
+  // Events
+  repeated events.OneOf Events = 4;
 }
 
 // // GetSessionChunkRequest
@@ -3133,8 +3120,8 @@ service AuthService {
   // ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
   rpc ReplaceRemoteLocks(ReplaceRemoteLocksRequest) returns (google.protobuf.Empty);
 
-  // GetSessionMetadata
-  rpc GetSessionMetadata(GetSessionMetadataRequest) returns (SessionMetadata);
+  // GetSessionRecordingEvents
+  rpc GetSessionRecordingEvents(GetSessionRecordingEventsRequest) returns (SessionRecordingEvents);
   // // GetSessionChunk
   // rpc GetSessionChunk(GetSessionChunkRequest) returns (Events);
 

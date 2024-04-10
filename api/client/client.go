@@ -2490,8 +2490,8 @@ func (c *Client) DeleteAllNodes(ctx context.Context, namespace string) error {
 	return trace.Wrap(err)
 }
 
-func (c *Client) GetSessionMetadata(ctx context.Context, sessionID string) (*proto.SessionMetadata, error) {
-	out, err := c.grpc.GetSessionMetadata(ctx, &proto.GetSessionMetadataRequest{
+func (c *Client) GetSessionRecordingEvents(ctx context.Context, sessionID string) (*proto.SessionRecordingEvents, error) {
+	out, err := c.grpc.GetSessionRecordingEvents(ctx, &proto.GetSessionRecordingEventsRequest{
 		SessionID: sessionID,
 	})
 	if err != nil {

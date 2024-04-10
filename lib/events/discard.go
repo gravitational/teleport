@@ -63,8 +63,8 @@ func (d *DiscardAuditLog) EmitAuditEvent(ctx context.Context, event apievents.Au
 	return nil
 }
 
-func (d *DiscardAuditLog) GetSessionMetadata(ctx context.Context, sessionID session.ID)(*proto.SessionMetadata, error){
-	return nil,nil
+func (d *DiscardAuditLog) GetSessionRecordingEvents(ctx context.Context, sessionID session.ID) (*proto.SessionRecordingEvents, error) {
+	return nil, nil
 }
 
 func (d *DiscardAuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {

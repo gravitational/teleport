@@ -5916,8 +5916,8 @@ func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName st
 	return a.authServer.ReplaceRemoteLocks(ctx, clusterName, locks)
 }
 
-func (a *ServerWithRoles) GetSessionMetadata(ctx context.Context, sessionID session.ID) (*proto.SessionMetadata, error) {
-	return a.alog.GetSessionMetadata(ctx, sessionID)
+func (a *ServerWithRoles) GetSessionRecordingEvents(ctx context.Context, sessionID session.ID) (*proto.SessionRecordingEvents, error) {
+	return a.alog.GetSessionRecordingEvents(ctx, sessionID)
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first

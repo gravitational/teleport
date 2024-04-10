@@ -298,8 +298,8 @@ func (c *Client) CompareAndSwapUser(ctx context.Context, new, expected types.Use
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-func (c *Client) GetSessionMetadata(ctx context.Context, sessionID session.ID) (*proto.SessionMetadata, error) {
-	return c.APIClient.GetSessionMetadata(ctx, sessionID.String())
+func (c *Client) GetSessionRecordingEvents(ctx context.Context, sessionID session.ID) (*proto.SessionRecordingEvents, error) {
+	return c.APIClient.GetSessionRecordingEvents(ctx, sessionID.String())
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first

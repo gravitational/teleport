@@ -445,6 +445,19 @@ message SessionPrint {
   int64 Offset = 6 [(gogoproto.jsontag) = "offset"];
 }
 
+// SessionIdle emitted when a session is idle
+message SessionIdle {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // IdleDuration in milliseconds
+  int64 IdleDuration = 2;
+}
+
 // DesktopRecording happens when a Teleport Desktop Protocol message
 // is captured during a Desktop Access Session.
 message DesktopRecording {
@@ -4071,6 +4084,7 @@ message OneOf {
     events.ClusterNetworkingConfigUpdate ClusterNetworkingConfigUpdate = 154;
     events.DatabaseUserCreate DatabaseUserCreate = 155;
     events.DatabaseUserDeactivate DatabaseUserDeactivate = 156;
+    events.SessionIdle SessionIdle = 157;
   }
 }
 

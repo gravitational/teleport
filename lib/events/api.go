@@ -955,7 +955,7 @@ type SessionStreamer interface {
 	// The event channel is not closed on error to prevent race conditions in downstream select statements.
 	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
 
-	GetSessionMetadata(ctx context.Context, sessionID session.ID) (*proto.SessionMetadata, error)
+	GetSessionRecordingEvents(ctx context.Context, sessionID session.ID) (*proto.SessionRecordingEvents, error)
 }
 
 type SearchEventsRequest struct {

@@ -19,8 +19,8 @@
 package filesessions
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -31,6 +31,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
@@ -205,9 +206,9 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		return trace.Wrap(err)
 	}
 
-	const maxIdleTime = 1 * time.Second
+	const maxIdleTime = 10 * time.Second
 	pr := events.NewProtoReader(f)
-	var metadata proto.SessionMetadata
+	var recordEvents proto.SessionRecordingEvents
 	var startTime time.Time
 	var lastPrintTime time.Time
 	var joined bool
@@ -223,13 +224,19 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 			startTime = e.Time
 			lastPrintTime = e.Time
 		case *apievents.SessionPrint:
-			printTime := e.GetTime()
-			if printTime.Sub(lastPrintTime) > maxIdleTime {
-				metadata.IdlePrints = append(metadata.IdlePrints, &proto.SessionIdleTime{
-					Index:     e.Index,
-					StartTime: lastPrintTime,
-					EndTime:   e.Time,
+			idleDuration := e.GetTime().Sub(lastPrintTime)
+			if idleDuration > maxIdleTime {
+				grpcEvent, err := apievents.ToOneOf(&apievents.SessionIdle{
+					Metadata: apievents.Metadata{
+						Time: lastPrintTime,
+					},
+					IdleDuration: int64(idleDuration),
 				})
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				recordEvents.Events = append(recordEvents.Events, grpcEvent)
 			}
 			lastPrintTime = e.GetTime()
 		case *apievents.SessionJoin:
@@ -239,7 +246,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			metadata.NoteworthyEvents = append(metadata.NoteworthyEvents, grpcEvent)
+			recordEvents.Events = append(recordEvents.Events, grpcEvent)
 		case *apievents.SessionLeave:
 			if !joined {
 				continue
@@ -249,10 +256,11 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			metadata.NoteworthyEvents = append(metadata.NoteworthyEvents, grpcEvent)
+			recordEvents.Events = append(recordEvents.Events, grpcEvent)
 		case *apievents.SessionEnd:
-			metadata.TotalTime = proto.Duration(e.Time.Sub(startTime))
-			metadata.TotalEvents = e.Index + 1
+			recordEvents.StartTime = startTime
+			recordEvents.TotalTime = proto.Duration(e.Time.Sub(startTime))
+			recordEvents.TotalEvents = e.Index + 1
 
 			filename := filepath.Join(h.Directory, "metadata", upload.SessionID.String())
 			metadataFile, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
@@ -261,8 +269,14 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 			}
 			defer metadataFile.Close()
 
-			enc := json.NewEncoder(metadataFile)
-			if err := enc.Encode(metadata); err != nil {
+			buf := new(bytes.Buffer)
+			err = (&jsonpb.Marshaler{}).Marshal(buf, &recordEvents)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			_, err = metadataFile.Write(buf.Bytes())
+			if err != nil {
 				return trace.Wrap(err)
 			}
 

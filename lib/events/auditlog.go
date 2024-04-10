@@ -35,6 +35,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -951,15 +952,15 @@ func (l *AuditLog) SearchSessionEvents(ctx context.Context, req SearchSessionEve
 	return l.localLog.SearchSessionEvents(ctx, req)
 }
 
-func (l *AuditLog) GetSessionMetadata(ctx context.Context, sessionID session.ID) (*proto.SessionMetadata, error) {
-	filename := filepath.Join(l.playbackDir, "metadata", sessionID.String())
+func (l *AuditLog) GetSessionRecordingEvents(ctx context.Context, sessionID session.ID) (*proto.SessionRecordingEvents, error) {
+	filename := filepath.Join(l.DataDir, "records", "metadata", sessionID.String())
 	encMetadata, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var metadata proto.SessionMetadata
-	if err := json.Unmarshal(encMetadata, &metadata); err != nil {
+	var metadata proto.SessionRecordingEvents
+	if err := jsonpb.Unmarshal(bytes.NewReader(encMetadata), &metadata); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

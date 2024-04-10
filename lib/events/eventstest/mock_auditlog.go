@@ -34,7 +34,7 @@ type MockAuditLog struct {
 	SessionEvents []apievents.AuditEvent
 }
 
-func (m *MockAuditLog) GetSessionMetadata(ctx context.Context, sessionID session.ID) (*proto.SessionMetadata, error) {
+func (m *MockAuditLog) GetSessionRecordingEvents(ctx context.Context, sessionID session.ID) (*proto.SessionRecordingEvents, error) {
 	return nil, nil
 }
 
