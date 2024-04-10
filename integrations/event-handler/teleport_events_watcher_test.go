@@ -182,12 +182,46 @@ func TestEvents(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("No events received within deadline")
 	}
+}
 
-	select {
-	case _, ok := <-chErr:
-		require.False(t, ok, "Error channel should be closed")
-	case <-time.After(100 * time.Millisecond):
-		t.Fatalf("No events received within deadline")
+func TestEventsNoExit(t *testing.T) {
+	ctx := context.Background()
+
+	// create fake audit events with ids 0-19
+	testAuditEvents := make([]events.AuditEvent, 20)
+	for i := 0; i < 20; i++ {
+		testAuditEvents[i] = &events.UserCreate{
+			Metadata: events.Metadata{
+				ID: strconv.Itoa(i),
+			},
+		}
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Add the 20 events to a mock event watcher.
+	mockEventWatcher := &mockTeleportEventWatcher{events: testAuditEvents}
+	client := newTeleportEventWatcher(t, mockEventWatcher)
+	client.config.ExitOnLastEvent = false
+
+	// Start the events goroutine
+	chEvt, chErr := client.Events(ctx)
+
+	// Collect all 20 events
+	for i := 0; i < 20; i++ {
+		select {
+		case event, ok := <-chEvt:
+			require.NotNil(t, event, "Expected an event but got nil. i: %v", i)
+			require.Equal(t, strconv.Itoa(i), event.ID)
+			if !ok {
+				return
+			}
+		case err := <-chErr:
+			t.Fatalf("Received unexpected error from error channel: %v", err)
+			return
+		case <-time.After(100 * time.Millisecond):
+			t.Fatalf("No events received within deadline")
+		}
 	}
 
 	// Events goroutine should return next page errors
@@ -195,8 +229,9 @@ func TestEvents(t *testing.T) {
 	mockEventWatcher.setSearchEventsError(mockErr)
 
 	select {
-	case err := <-chErr:
-		require.Error(t, mockErr, err)
+	case err, ok := <-chErr:
+		require.True(t, ok, "Channel unexpectedly close")
+		require.ErrorIs(t, err, mockErr)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("No events received within deadline")
 	}
@@ -317,8 +352,9 @@ func TestUpdatePage(t *testing.T) {
 	mockEventWatcher.setSearchEventsError(mockErr)
 
 	select {
-	case err := <-chErr:
-		require.Error(t, mockErr, err)
+	case err, ok := <-chErr:
+		require.True(t, ok, "Channel unexpectedly close")
+		require.ErrorIs(t, err, mockErr)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("No events received within deadline")
 	}
