@@ -54,7 +54,7 @@ type ValidateParams struct {
 // ValidatedTPM is returned by Validate and contains the validated information
 // about the remote TPM.
 type ValidatedTPM struct {
-	// EKPubHash is the SHA256 hash of the PKIX marshalled EKPub.
+	// EKPubHash is the SHA256 hash of the PKIX marshaled EKPub.
 	EKPubHash string `json:"ek_pub_hash"`
 	// EKCertSerial is the serial number of the EK cert represented as a colon
 	// delimited hex string. If there is no EKCert, this field will be empty.
@@ -158,7 +158,7 @@ func Validate(
 func parseEK(
 	ctx context.Context, params ValidateParams,
 ) (*x509.Certificate, crypto.PublicKey, error) {
-	ctx, span := tracer.Start(ctx, "parseEK")
+	_, span := tracer.Start(ctx, "parseEK")
 	defer span.End()
 
 	ekCertPresent := len(params.EKCert) > 0
@@ -186,7 +186,7 @@ func verifyEKCert(
 	allowedCAs []string,
 	ekCert *x509.Certificate,
 ) error {
-	ctx, span := tracer.Start(ctx, "verifyEKCert")
+	_, span := tracer.Start(ctx, "verifyEKCert")
 	defer span.End()
 
 	if ekCert == nil {

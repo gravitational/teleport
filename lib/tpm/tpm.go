@@ -53,7 +53,7 @@ func serialString(serial *big.Int) string {
 	return out.String()
 }
 
-// hashEKPub hashes the public part of an EK key. The key is first marshalled
+// hashEKPub hashes the public part of an EK key. The key is first marshaled
 // in PKIX format and then hashed with SHA256.
 func hashEKPub(key crypto.PublicKey) (string, error) {
 	marshaled, err := x509.MarshalPKIXPublicKey(key)
@@ -66,9 +66,9 @@ func hashEKPub(key crypto.PublicKey) (string, error) {
 
 // QueryRes is the result of the TPM query performed by Query.
 type QueryRes struct {
-	// EKPub is the PKIX marshalled public part of the EK.
+	// EKPub is the PKIX marshaled public part of the EK.
 	EKPub []byte
-	// EKPubHash is the SHA256 hash of the PKIX marshalled EKPub.
+	// EKPubHash is the SHA256 hash of the PKIX marshaled EKPub.
 	EKPubHash string
 	// EKCertPresent is true if an EK cert is present in the TPM.
 	EKCertPresent bool
