@@ -2935,18 +2935,16 @@ func (rc *ResourceCommand) createAccessMonitoringRule(ctx context.Context, clien
 
 	if rc.IsForced() {
 		if _, err = client.AccessMonitoringRuleClient().UpsertAccessMonitoringRule(ctx, in); err != nil {
-			if err != nil {
-				return trace.Wrap(err)
-			}
+			return trace.Wrap(err)
 		}
 		return nil
 	}
 
 	if _, err = client.AccessMonitoringRuleClient().CreateAccessMonitoringRule(ctx, in); err != nil {
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		return trace.Wrap(err)
 	}
+
+	fmt.Printf("access monitoring rule %q has been created\n", in.GetMetadata().GetName())
 	return nil
 }
 
@@ -2955,6 +2953,9 @@ func (rc *ResourceCommand) updateAccessMonitoringRule(ctx context.Context, clien
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_,err = client.AccessMonitoringRuleClient().UpdateAccessMonitoringRule(ctx, in)
-	return trace.Wrap(err)
+	if _, err := client.AccessMonitoringRuleClient().UpdateAccessMonitoringRule(ctx, in); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("access monitoring rule %q has been updated\n", in.GetMetadata().GetName())
+	return nil
 }
