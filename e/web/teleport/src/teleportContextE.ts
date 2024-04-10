@@ -4,6 +4,10 @@ import { storageService } from 'teleport/services/storageService';
 import * as service from 'teleport/services/userPreferences';
 import cfg from 'teleport/config';
 
+import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+
+import eCfg from 'e-teleport/config';
+
 import WorkflowService from 'e-teleport/services/workflow';
 import ResourceService from 'e-teleport/services/resource';
 import StoreAccessRequests from 'e-teleport/stores/storeAccessRequests';
@@ -41,12 +45,13 @@ class TeleportEContext extends TeleportContext {
   deviceService = deviceService;
   idpService = new IdpService();
   externalAuditStorageService = externalAuditStorageService;
+  redirectUrl: string | null = null;
 
   // init fetches data required for initial rendering of components.
   // The caller of this function provides the try/catch
   // block.
-  async init() {
-    await super.init();
+  async init(preferences: UserPreferences) {
+    await super.init(preferences);
 
     try {
       const accessLists = await accessManagementService.fetchAccessLists();
@@ -74,6 +79,28 @@ class TeleportEContext extends TeleportContext {
       //   3) we give users two weeks advance notice for due dates,
       //      which should give users plenty of chances to get this notice
       console.warn('Failed to set notifications: ', getErrMessage(err));
+    }
+
+    if (
+      cfg.isCloud &&
+      (!preferences.accessGraph || !preferences.accessGraph.hasBeenRedirected)
+    ) {
+      try {
+        // the marketing UTM params are only retrievable from the survey service
+        const survey = await surveyService.getSurveyCompanyResults();
+
+        if (survey.marketingParams.intent === 'policy') {
+          await service.updateUserPreferences({
+            accessGraph: {
+              hasBeenRedirected: true,
+            },
+          });
+
+          this.redirectUrl = eCfg.routes.accessGraph;
+        }
+      } catch {
+        // it's okay if we can't fetch the marketing params
+      }
     }
 
     const survey = storageService.getOnboardSurvey();
