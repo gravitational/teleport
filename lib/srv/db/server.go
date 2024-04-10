@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os/exec"
 	"strings"
@@ -30,6 +31,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/creack/pty"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -1290,14 +1292,27 @@ func (s *Server) pSQLConnect(ctx context.Context, addr string, webConn net.Conn,
 	dbName := sessionCtx.DatabaseName
 	pgURL := fmt.Sprintf("postgres://%s@%s/%s?sslmode=disable", dbUser, addr, dbName)
 	cmd := exec.CommandContext(ctx, "psql", pgURL)
-	cmd.Stdin = webConn
-	cmd.Stdout = webConn
-	cmd.Stderr = webConn
+
 	s.log.Debugf("starting psql with args: %v", cmd.Args)
-	if err := cmd.Start(); err != nil {
-		s.log.WithError(err).Debug("failed to start psql")
+	ptmx, err := pty.Start(cmd)
+	if err != nil {
+		s.log.WithError(err).Debug("failed to get a pty")
 		return trace.Wrap(err)
 	}
+	go func() {
+		_, _ = io.Copy(ptmx, webConn)
+	}()
+	go func() {
+		_, _ = io.Copy(webConn, ptmx)
+	}()
+
+	// cmd.Stdin = webConn
+	// cmd.Stdout = webConn
+	// cmd.Stderr = webConn
+	// if err := cmd.Start(); err != nil {
+	// 	s.log.WithError(err).Debug("failed to start psql")
+	// 	return trace.Wrap(err)
+	// }
 	go func() {
 		// reap psql when it exits
 		err := cmd.Wait()

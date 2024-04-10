@@ -20,6 +20,7 @@ package web
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,6 +44,7 @@ import (
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -423,20 +425,18 @@ func (t *TerminalHandler) Close() error {
 	return trace.Wrap(err)
 }
 
-func setupDBSSH(r *http.Request, tc *client.TeleportClient) {
+func getTerminalRequest(r *http.Request, tc *client.TeleportClient) *TerminalRequest {
 	q := r.URL.Query()
 	params := q.Get("params")
 	if params == "" {
-		return
+		return nil
 	}
 	var req TerminalRequest
 	if err := json.Unmarshal([]byte(params), &req); err != nil {
-		return
+		return nil
 	}
 
-	if req.DBName != "" && req.Login != "" {
-		tc.ExtraEnvs = map[string]string{"DBSSH_DB_NAME": req.DBName, "DBSSH_DB_USER": req.Login}
-	}
+	return &req
 }
 
 // handler is the main websocket loop. It creates a Teleport client and then
@@ -466,7 +466,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 		return
 	}
 
-	setupDBSSH(r, tc)
+	tReq := getTerminalRequest(r, tc)
 
 	t.log.Debug("Creating websocket stream")
 
@@ -489,6 +489,79 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamEvents(ctx, tc)
+
+	if tReq != nil && tReq.DBName != "" {
+		// generate user CA issued db cert w/ db route info inside
+		sessCtx := t.ctx
+		pk, err := keys.ParsePrivateKey(sessCtx.cfg.Session.GetPriv())
+		if err != nil {
+			t.log.WithError(err).Debug("failed to parse sessCtx priv key")
+			return
+		}
+
+		key := &client.Key{
+			PrivateKey: pk,
+			Cert:       sessCtx.cfg.Session.GetPub(),
+			TLSCert:    sessCtx.cfg.Session.GetTLSCert(),
+		}
+
+		certs, err := sessCtx.cfg.RootClient.GenerateUserCerts(ctx, authproto.UserCertsRequest{
+			PublicKey:      key.MarshalSSHPublicKey(),
+			Username:       sessCtx.GetUser(),
+			Expires:        time.Now().Add(30 * time.Minute),
+			RouteToCluster: tc.SiteName,
+			RouteToDatabase: authproto.RouteToDatabase{
+				ServiceName: tReq.DBName,
+				Protocol:    "postgres",
+				Username:    tReq.Login,
+				Database:    "postgres",
+			},
+		})
+
+		if err != nil {
+			t.log.WithError(err).Debug("failed to generate db user certs")
+			return
+		}
+
+		tlsCert, err := keys.X509KeyPair(certs.TLS, key.PrivateKeyPEM())
+		if err != nil {
+			t.log.WithError(err).Debug("failed to make an x509 keypair")
+			return
+		}
+
+		tlsCfg := &tls.Config{
+			InsecureSkipVerify: true,
+			Certificates:       []tls.Certificate{tlsCert},
+			NextProtos:         []string{teleport.WebDBClientALPN},
+		}
+
+		// dial the proxy (aka dialing myself)
+		tlsConn, err := apiclient.DialALPN(ctx, tc.WebProxyAddr, apiclient.ALPNDialerConfig{
+			TLSConfig: tlsCfg,
+		})
+		if err != nil {
+			t.log.WithError(err).Debug("failed to dial proxy")
+			return
+		}
+		defer tlsConn.Close()
+
+		// proxy between websocket and the raw tcp dialer
+		err = utils.ProxyConn(ctx, t.stream, tlsConn)
+		t.log.WithError(err).Debug("Closing db websocket stream")
+
+		// Send close envelope to web terminal upon exit without an error.
+		if err := t.stream.SendCloseMessage(sessionEndEvent{NodeID: t.sessionData.ServerID}); err != nil {
+			t.log.WithError(err).Error("Unable to send close event to web client.")
+		}
+
+		if err := t.stream.Close(); err != nil {
+			t.log.WithError(err).Error("Unable to send close event to web client.")
+			return
+		}
+
+		t.log.Debug("Sent close event to web client.")
+		return
+	}
 
 	// Block until the terminal session is complete.
 	t.streamTerminal(ctx, tc)
