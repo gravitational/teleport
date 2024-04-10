@@ -127,6 +127,9 @@ export interface TeleportFeature {
   // hideNavigation is used to hide the navigation completely
   // and show a back button in the top bar
   hideNavigation?: boolean;
+  // if highlightKey is specified, navigating to ?highlight=<highlightKey>
+  // will highlight the feature in the navigation, to draw a users attention to it
+  highlightKey?: string;
 }
 
 export type StickyCluster = {
