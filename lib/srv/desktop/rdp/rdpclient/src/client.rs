@@ -32,6 +32,7 @@ use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
 use ironrdp_pdu::mcs::DisconnectReason;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
+use ironrdp_pdu::rdp::client_info::PerformanceFlags;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::{custom_err, function, PduError};
 use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
@@ -207,8 +208,6 @@ impl Client {
             connection_result.static_channels,
             connection_result.user_channel_id,
             connection_result.io_channel_id,
-            None,
-            None,
             connection_result.connection_activation,
         );
 
@@ -1119,7 +1118,6 @@ fn create_config(width: u16, height: u16, pin: String) -> Config {
         keyboard_subtype: 0,
         keyboard_functional_keys_count: 12,
         ime_file_name: "".to_string(),
-        graphics: None,
         bitmap: Some(ironrdp_connector::BitmapConfig {
             lossy_compression: true,
             color_depth: 32, // Changing this to 16 gets us uncompressed bitmaps on machines configured like https://github.com/Devolutions/IronRDP/blob/55d11a5000ebd474c2ddc294b8b3935554443112/README.md?plain=1#L17-L36
@@ -1132,6 +1130,7 @@ fn create_config(width: u16, height: u16, pin: String) -> Config {
         no_server_pointer: false,
         autologon: true,
         pointer_software_rendering: false,
+        performance_flags: PerformanceFlags::empty(),
     }
 }
 
