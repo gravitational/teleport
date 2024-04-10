@@ -30,18 +30,38 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
+// ValidateParams are the parameters required to validate a TPM.
 type ValidateParams struct {
-	EKCert       []byte
-	EKKey        []byte
+	// EKCert should be the EK certificate in ASN.1 DER format. At least one of
+	// EKCert or EKKey must be provided.
+	EKCert []byte
+	// EKKey should be the public part of the EK key in PKIX format. At least
+	// one of EKCert or EKKey must be provided. If EKCert is provided, EKKey
+	// will be ignored.
+	EKKey []byte
+	// AttestParams are the parameters required to attest the TPM provided by
+	// the client. These relate to an AK that has been generated for this
+	// ceremony.
 	AttestParams attest.AttestationParameters
-	Solve        func(ec *attest.EncryptedCredential) ([]byte, error)
-	AllowedCAs   []string
+	// Solve is the function that Validate should call when it has prepared the
+	// challenge and needs the remote TPM to solve it.
+	Solve func(ec *attest.EncryptedCredential) ([]byte, error)
+	// AllowedCAs is a list of PEM encoded CAs that are allowed to sign the
+	// EKCert. If this list is empty, the EKCert will not be verified.
+	AllowedCAs []string
 }
 
+// ValidatedTPM is returned by Validate and contains the validated information
+// about the remote TPM.
 type ValidatedTPM struct {
-	EKPubHash      string `json:"ek_pub_hash"`
-	EKCertSerial   string `json:"ek_cert_serial,omitempty"`
-	EKCertVerified bool   `json:"ek_cert_verified"`
+	// EKPubHash is the SHA256 hash of the PKIX marshalled EKPub.
+	EKPubHash string `json:"ek_pub_hash"`
+	// EKCertSerial is the serial number of the EK cert represented as a colon
+	// delimited hex string. If there is no EKCert, this field will be empty.
+	EKCertSerial string `json:"ek_cert_serial,omitempty"`
+	// EKCertVerified is true if the EKCert was verified against the allowed
+	// CAs.
+	EKCertVerified bool `json:"ek_cert_verified"`
 }
 
 // JoinAuditAttributes returns a series of attributes that can be inserted into
@@ -62,10 +82,18 @@ func (c *ValidatedTPM) JoinAuditAttributes() (map[string]interface{}, error) {
 	return res, nil
 }
 
+// Validate takes the parameters from a remote TPM and performs the necessary
+// initial checks before then generating an encrypted credential challenge for
+// the client to solve in a credential activation ceremony. This allows us to
+// verify that the client possesses the TPM corresponding to the EK public key
+// or certificate presented by the client.
 func Validate(
 	ctx context.Context, log *slog.Logger, params ValidateParams,
 ) (*ValidatedTPM, error) {
-	ekCert, ekPub, err := parseEK(ctx, log, params)
+	ctx, span := tracer.Start(ctx, "Validate")
+	defer span.End()
+
+	ekCert, ekPub, err := parseEK(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -80,7 +108,7 @@ func Validate(
 	}
 
 	if len(params.AllowedCAs) > 0 {
-		if err := verifyEKCert(ctx, log, params.AllowedCAs, ekCert); err != nil {
+		if err := verifyEKCert(ctx, params.AllowedCAs, ekCert); err != nil {
 			log.ErrorContext(
 				ctx,
 				"EKCert CA verification failed",
@@ -128,25 +156,24 @@ func Validate(
 }
 
 func parseEK(
-	ctx context.Context, log *slog.Logger, params ValidateParams,
+	ctx context.Context, params ValidateParams,
 ) (*x509.Certificate, crypto.PublicKey, error) {
+	ctx, span := tracer.Start(ctx, "parseEK")
+	defer span.End()
+
 	ekCertPresent := len(params.EKCert) > 0
 	ekKeyPresent := len(params.EKKey) > 0
 	switch {
 	case ekCertPresent:
 		ekCert, err := attest.ParseEKCertificate(params.EKCert)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err, "parsing EK cert")
 		}
-		ekPub, err := x509.MarshalPKIXPublicKey(ekCert.PublicKey)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		return ekCert, ekPub, nil
+		return ekCert, ekCert.PublicKey, nil
 	case ekKeyPresent:
 		ekPub, err := x509.ParsePKIXPublicKey(params.EKKey)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err, "parsing EK key")
 		}
 		return nil, ekPub, nil
 	default:
@@ -156,10 +183,12 @@ func parseEK(
 
 func verifyEKCert(
 	ctx context.Context,
-	log *slog.Logger,
 	allowedCAs []string,
 	ekCert *x509.Certificate,
 ) error {
+	ctx, span := tracer.Start(ctx, "verifyEKCert")
+	defer span.End()
+
 	if ekCert == nil {
 		return trace.BadParameter("tpm did not provide an EKCert to validate against allowed CAs")
 	}
@@ -182,7 +211,7 @@ func verifyEKCert(
 		},
 	})
 	if err != nil {
-		return trace.Wrap(err, "verifying ekcert")
+		return trace.Wrap(err, "verifying EK cert")
 	}
 	return nil
 }

@@ -30,7 +30,10 @@ import (
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel"
 )
+
+var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tpm")
 
 // serialString converts a serial number into a readable colon-delimited hex
 // string thats user-readable e.g ab:ab:ab:ff:ff:ff
@@ -50,6 +53,8 @@ func serialString(serial *big.Int) string {
 	return out.String()
 }
 
+// hashEKPub hashes the public part of an EK key. The key is first marshalled
+// in PKIX format and then hashed with SHA256.
 func hashEKPub(key crypto.PublicKey) (string, error) {
 	marshaled, err := x509.MarshalPKIXPublicKey(key)
 	if err != nil {
@@ -59,6 +64,7 @@ func hashEKPub(key crypto.PublicKey) (string, error) {
 	return fmt.Sprintf("%x", hashed), nil
 }
 
+// QueryRes is the result of the TPM query performed by Query.
 type QueryRes struct {
 	// EKPub is the PKIX marshalled public part of the EK.
 	EKPub []byte
@@ -76,6 +82,9 @@ type QueryRes struct {
 // Query returns information about the TPM on a system, including the
 // EKPubHash and EKCertSerial which are needed to configure TPM joining.
 func Query(ctx context.Context, log *slog.Logger) (*QueryRes, error) {
+	ctx, span := tracer.Start(ctx, "Query")
+	defer span.End()
+
 	tpm, err := attest.OpenTPM(&attest.OpenConfig{
 		TPMVersion: attest.TPMVersion20,
 	})
@@ -87,12 +96,15 @@ func Query(ctx context.Context, log *slog.Logger) (*QueryRes, error) {
 			log.ErrorContext(ctx, "Failed to close TPM", slog.Any("error", err))
 		}
 	}()
-	return query(ctx, log, tpm)
+	return queryWithTPM(ctx, log, tpm)
 }
 
-func query(
+func queryWithTPM(
 	ctx context.Context, log *slog.Logger, tpm *attest.TPM,
 ) (*QueryRes, error) {
+	ctx, span := tracer.Start(ctx, "queryWithTPM")
+	defer span.End()
+
 	data := &QueryRes{}
 
 	eks, err := tpm.EKs()
@@ -124,6 +136,7 @@ func query(
 	if eks[0].Certificate != nil {
 		data.EKCert = eks[0].Certificate.Raw
 		data.EKCertSerial = serialString(eks[0].Certificate.SerialNumber)
+		data.EKCertPresent = true
 	}
 	log.DebugContext(ctx, "Successfully queried TPM", "data", data)
 	return data, nil
@@ -140,6 +153,9 @@ func Attest(ctx context.Context, log *slog.Logger) (
 	close func() error,
 	err error,
 ) {
+	ctx, span := tracer.Start(ctx, "Attest")
+	defer span.End()
+
 	tpm, err := attest.OpenTPM(&attest.OpenConfig{
 		TPMVersion: attest.TPMVersion20,
 	})
@@ -157,6 +173,8 @@ func attestWithTPM(ctx context.Context, log *slog.Logger, tpm *attest.TPM) (
 	close func() error,
 	err error,
 ) {
+	ctx, span := tracer.Start(ctx, "attestWithTPM")
+	defer span.End()
 	defer func() {
 		if err != nil {
 			if err := tpm.Close(); err != nil {
@@ -165,7 +183,7 @@ func attestWithTPM(ctx context.Context, log *slog.Logger, tpm *attest.TPM) (
 		}
 	}()
 
-	queryData, err := query(ctx, log, tpm)
+	queryData, err := queryWithTPM(ctx, log, tpm)
 	if err != nil {
 		return nil, nil, nil, nil, trace.Wrap(err, "querying TPM")
 	}
