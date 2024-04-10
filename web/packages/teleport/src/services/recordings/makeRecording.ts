@@ -26,6 +26,8 @@ import { Recording } from './types';
 export function makeRecording(event: any): Recording {
   if (event.code === eventCodes.DESKTOP_SESSION_ENDED) {
     return makeDesktopRecording(event);
+  } else if (event.code === eventCodes.DATABASE_SESSION_ENDED) {
+    return makeDatabaseRecording(event);
   } else {
     return makeSshOrKubeRecording(event);
   }
@@ -57,6 +59,48 @@ function makeDesktopRecording({
     description,
     recordingType: 'desktop',
     playable: recorded,
+  } as Recording;
+}
+
+function makeDatabaseRecording({
+  session_start,
+  session_stop,
+  time,
+  user,
+  sid,
+  db_user,
+  db_service,
+  db_name,
+  db_protocol,
+}) {
+  let { duration, durationText } = formatDuration(
+      session_start,
+      session_stop
+  );
+  if (duration === 0) {
+    return {
+      sid,
+      createdDate: time,
+      users: user,
+      hostname: `${db_user}@${db_service}/${db_name}`,
+      description: 'non-interactive',
+      playable: false,
+      recordingType: 'database',
+    } as Recording;
+  }
+
+  let playable = db_protocol === 'postgres';
+  let description = playable ? 'play' : 'non-interactive';
+  return {
+    duration,
+    durationText,
+    description,
+    sid,
+    createdDate: time,
+    users: user,
+    hostname: `${db_user}@${db_service}/${db_name}`,
+    playable,
+    recordingType: 'database',
   } as Recording;
 }
 
