@@ -31,7 +31,7 @@ type fakeCmdChannel struct {
 
 // MeasurementLog implements CommandChannelTPM20.
 func (cc *fakeCmdChannel) MeasurementLog() ([]byte, error) {
-	// Return nil, we inject an event log in handleEnrollStream
+	// Nothing to do here - we don't use the measurement log for tpm joining.
 	return nil, nil
 }
 
