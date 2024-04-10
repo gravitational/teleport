@@ -27,7 +27,13 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/common"
+	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
+)
+
+var (
+	_ compare.IsEqual[*ResourceHeader] = (*ResourceHeader)(nil)
+	_ compare.IsEqual[*Metadata]       = (*Metadata)(nil)
 )
 
 // Resource represents common properties for all resources.
