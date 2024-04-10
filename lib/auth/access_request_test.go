@@ -197,6 +197,43 @@ func TestAccessRequest(t *testing.T) {
 	t.Run("deny", func(t *testing.T) { testAccessRequestDenyRules(t, testPack) })
 }
 
+// waitForAccessRequests is a helper for writing access request tests that need to wait for access request CRUD. the supplied condition is
+// repeatedly called with the contents of the access request cache until it returns true or a reasonably long timeout is exceeded. this is
+// similar to require.Eventually except that it is safe to use normal (test-failing) assertions within the supplied condition closure.
+func waitForAccessRequests(t *testing.T, ctx context.Context, getter services.AccessRequestGetter, condition func([]*types.AccessRequestV3) bool) {
+	t.Helper()
+
+	timeout := time.After(time.Second * 30)
+	for {
+		var reqs []*types.AccessRequestV3
+		var nextKey string
+	Paginate:
+		for {
+			rsp, err := getter.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+				Limit:    1_000,
+				StartKey: nextKey,
+			})
+			require.NoError(t, err, "ListAccessRequests API call should succeed")
+
+			reqs = append(reqs, rsp.AccessRequests...)
+			nextKey = rsp.NextKey
+			if nextKey == "" {
+				break Paginate
+			}
+		}
+
+		if condition(reqs) {
+			return
+		}
+
+		select {
+		case <-time.After(time.Millisecond * 150):
+		case <-timeout:
+			require.FailNow(t, "timeout waiting for access request condition to pass")
+		}
+	}
+}
+
 // TestListAccessRequests tests some basic functionality of the ListAccessRequests API, including access-control,
 // filtering, sort, and pagination.
 func TestListAccessRequests(t *testing.T) {
@@ -291,6 +328,11 @@ func TestListAccessRequests(t *testing.T) {
 		orderedIDs = append(orderedIDs, rr.GetName())
 	}
 
+	// wait for all written requests to propagate to cache
+	waitForAccessRequests(t, ctx, tlsServer.Auth(), func(reqs []*types.AccessRequestV3) bool {
+		return len(reqs) == len(orderedIDs)
+	})
+
 	var reqs []*types.AccessRequestV3
 	var observedIDs []string
 	var nextKey string
@@ -381,6 +423,7 @@ func TestListAccessRequests(t *testing.T) {
 	// set requests to a variety of states so that state-based ordering
 	// is distinctly different from time-based ordering.
 	var deny bool
+	expectStates := make(map[string]types.RequestState)
 	for i, id := range observedIDs {
 		if i%2 == 0 {
 			// leave half the requests as pending
@@ -396,7 +439,18 @@ func TestListAccessRequests(t *testing.T) {
 			RequestID: id,
 			State:     state,
 		}))
+		expectStates[id] = state
 	}
+
+	// wait until all requests in cache to present the expected state
+	waitForAccessRequests(t, ctx, tlsServer.Auth(), func(reqs []*types.AccessRequestV3) bool {
+		for _, r := range reqs {
+			if expected, ok := expectStates[r.GetName()]; ok && r.GetState() != expected {
+				return false
+			}
+		}
+		return true
+	})
 
 	// aggregate requests by descending state ordering
 	reqs = nil
