@@ -348,16 +348,24 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 		return trace.Wrap(err)
 	}
 
-	switch proxyCtx.Identity.RouteToDatabase.Protocol {
-	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
-		return s.PostgresProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
-	case defaults.ProtocolMySQL:
-		version := getMySQLVersionFromServer(proxyCtx.Servers)
-		// Set the version in the context to match a behavior in other handlers.
-		ctx := context.WithValue(s.closeCtx, dbutils.ContextMySQLServerVersion, version)
-		return s.MySQLProxyNoTLS().HandleConnection(ctx, tlsConn)
-	case defaults.ProtocolSQLServer:
-		return s.SQLServerProxy().HandleConnection(s.closeCtx, proxyCtx, tlsConn)
+	isWebUI := s.isWebUIConn(tlsConn)
+	if isWebUI {
+		s.log.Debug("got a web ui connection")
+		proxyCtx.ALPN = tlsConn.ConnectionState().NegotiatedProtocol
+	} else {
+		s.log.Debug("got a non web ui connection")
+		// magic conns just proxy raw bytes
+		switch proxyCtx.Identity.RouteToDatabase.Protocol {
+		case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
+			return s.PostgresProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
+		case defaults.ProtocolMySQL:
+			version := getMySQLVersionFromServer(proxyCtx.Servers)
+			// Set the version in the context to match a behavior in other handlers.
+			ctx := context.WithValue(s.closeCtx, dbutils.ContextMySQLServerVersion, version)
+			return s.MySQLProxyNoTLS().HandleConnection(ctx, tlsConn)
+		case defaults.ProtocolSQLServer:
+			return s.SQLServerProxy().HandleConnection(s.closeCtx, proxyCtx, tlsConn)
+		}
 	}
 
 	serviceConn, err := s.Connect(s.closeCtx, proxyCtx, conn.RemoteAddr(), conn.LocalAddr())
@@ -370,6 +378,12 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (s *ProxyServer) isWebUIConn(tlsConn utils.TLSConn) bool {
+	connState := tlsConn.ConnectionState()
+	s.log.Debugf("negotiated protocol: %s", connState.NegotiatedProtocol)
+	return strings.Contains(connState.NegotiatedProtocol, teleport.WebDBClientALPN)
 }
 
 // getMySQLVersionFromServer returns the MySQL version returned by an instance on last connection or
@@ -469,6 +483,9 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 		tlsConfig, err := s.getConfigForServer(ctx, proxyCtx.Identity, server)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if proxyCtx.ALPN != "" {
+			tlsConfig.NextProtos = []string{proxyCtx.ALPN}
 		}
 
 		dialAttempts.With(labels).Inc()
@@ -659,6 +676,7 @@ func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log l
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error
+		log.Debugf("client supports protos: %v", info.SupportedProtos)
 		if info.ServerName != "" {
 			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
 			if err != nil && !trace.IsNotFound(err) {
@@ -672,6 +690,11 @@ func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log l
 		}
 		tlsCopy := conf.Clone()
 		tlsCopy.ClientCAs = pool
+		if len(info.SupportedProtos) == 0 {
+			tlsCopy.NextProtos = nil
+		} else {
+			tlsCopy.NextProtos = []string{teleport.WebDBClientALPN}
+		}
 		return tlsCopy, nil
 	}
 }

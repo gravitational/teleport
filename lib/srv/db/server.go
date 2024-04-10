@@ -22,7 +22,10 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
+	"os/exec"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -990,11 +993,22 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		}()
 	}()
 
+	isWebUI := s.isWebUIConn(clientConn)
 	// Wrap a client connection into monitor that auto-terminates
 	// idle connection and connection with expired cert.
 	ctx, clientConn, err = s.cfg.ConnectionMonitor.MonitorConn(cancelCtx, sessionCtx.AuthContext, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if isWebUI {
+		s.log.Debug("got a web ui conn")
+		clientConn, err = s.handleWebUIConn(ctx, clientConn, sessionCtx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		s.log.Debug("got a non web ui conn")
 	}
 
 	engine, err := s.dispatch(sessionCtx, rec, clientConn)
@@ -1243,4 +1257,61 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 	}()
 
 	return nil
+}
+
+func (s *Server) handleWebUIConn(ctx context.Context, webConn net.Conn, sessionCtx *common.Session) (net.Conn, error) {
+	s.log.Debug("handling a web ui connection")
+
+	// setup a local listener
+	l, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		s.log.WithError(err).Debug("failed to setup local proxy listener")
+		return nil, trace.Wrap(err)
+	}
+	defer l.Close()
+	s.log.Debugf("started a local proxy listener at %s", l.Addr())
+
+	// start psql
+	addr := l.Addr().String()
+	if err := s.pSQLConnect(ctx, addr, webConn, sessionCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	localConn, err := l.Accept()
+	if err != nil {
+		s.log.WithError(err).Debug("failed to accept local conn")
+		return nil, trace.Wrap(err)
+	}
+	return localConn, nil
+}
+
+func (s *Server) pSQLConnect(ctx context.Context, addr string, webConn net.Conn, sessionCtx *common.Session) error {
+	dbUser := sessionCtx.DatabaseUser
+	dbName := sessionCtx.DatabaseName
+	pgURL := fmt.Sprintf("postgres://%s@%s/%s?sslmode=disable", dbUser, addr, dbName)
+	cmd := exec.CommandContext(ctx, "psql", pgURL)
+	cmd.Stdin = webConn
+	cmd.Stdout = webConn
+	cmd.Stderr = webConn
+	s.log.Debugf("starting psql with args: %v", cmd.Args)
+	if err := cmd.Start(); err != nil {
+		s.log.WithError(err).Debug("failed to start psql")
+		return trace.Wrap(err)
+	}
+	go func() {
+		// reap psql when it exits
+		err := cmd.Wait()
+		s.log.WithError(err).Debug("psql exited")
+	}()
+	return nil
+}
+
+func (s *Server) isWebUIConn(conn net.Conn) bool {
+	tlsConn, ok := conn.(*tls.Conn)
+	if !ok {
+		return false
+	}
+	state := tlsConn.ConnectionState()
+	s.log.Debugf("negotiated protocol: %v", state.NegotiatedProtocol)
+	return strings.Contains(state.NegotiatedProtocol, teleport.WebDBClientALPN)
 }

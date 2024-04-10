@@ -187,6 +187,11 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	if cf.ALPN != "" {
+		proxyOpts = append(proxyOpts, alpnproxy.WithALPNProtocol(
+			alpncommon.Protocol(cf.ALPN)),
+		)
+	}
 	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf, tc, listener), proxyOpts...)
 	if err != nil {
 		return trace.Wrap(err)

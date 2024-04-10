@@ -109,6 +109,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// tlsConfig.NextProtos = []string{teleport.WebDBClientALPN}
 
 	asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
 	if err != nil {

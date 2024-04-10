@@ -66,6 +66,10 @@ type ProxyContext struct {
 	Servers []types.DatabaseServer
 	// AuthContext is a context of authenticated user.
 	AuthContext *authz.Context
+	// ALPN exists so I don't have to change all callers
+	// of ProxyServer.Connect. It's an optional ALPN to use in the tls config
+	// when dialing a db server.
+	ALPN string
 }
 
 // Engine defines an interface for specific database protocol engine such

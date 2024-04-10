@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -135,6 +136,7 @@ var SupportedProtocols = WithPingProtocols(
 		ProtocolProxySSHGRPC,
 		ProtocolProxyGRPCInsecure,
 		ProtocolProxyGRPCSecure,
+		teleport.WebDBClientALPN,
 	}, DatabaseProtocols...),
 )
 
@@ -196,6 +198,7 @@ func IsDBTLSProtocol(protocol Protocol) bool {
 		ProtocolOpenSearch,
 		ProtocolDynamoDB,
 		ProtocolClickhouse,
+		"teleport-web-db",
 	}
 
 	return slices.ContainsFunc(dbTLSProtocols, func(dbTLSProtocol Protocol) bool {

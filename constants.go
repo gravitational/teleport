@@ -548,6 +548,8 @@ const MaxResourceSize = 1000000
 // to prevent resource exhaustion attacks.
 const MaxHTTPRequestSize = 10 * 1024 * 1024
 
+const WebDBClientALPN = "teleport-web-db"
+
 // MaxHTTPResponseSize is the maximum accepted size (in bytes) of the body of
 // a received HTTP response.  This limit is meant to be used with utils.ReadAtMost
 // to prevent resource exhaustion attacks.

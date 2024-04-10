@@ -533,6 +533,9 @@ type CLIConf struct {
 
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
+
+	// ALPN overrides ALPN for tsh proxy db.
+	ALPN string
 }
 
 // Stdout returns the stdout writer.
@@ -865,6 +868,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyDB.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	proxyDB.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
 	proxyDB.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
+	proxyDB.Flag("alpn", "Use a custom ALPN").StringVar(&cf.ALPN)
 
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)

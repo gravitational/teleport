@@ -487,6 +487,7 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	e.Log.Debugf("tls config for real db next protos: %v", config.TLSConfig.NextProtos)
 	config.User = sessionCtx.DatabaseUser
 	config.Database = sessionCtx.DatabaseName
 	// Pgconn adds fallbacks to retry connection without TLS if the TLS
