@@ -21,6 +21,7 @@ package kubeconfig
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -164,15 +165,11 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 	if len(cas) == 0 {
 		return trace.BadParameter("TLS trusted CAs missing in provided credentials")
 	}
-	config.Clusters[v.TeleportClusterName] = &clientcmdapi.Cluster{
-		Server:                   v.ClusterAddr,
-		CertificateAuthorityData: cas,
-		TLSServerName:            v.TLSServerName,
-	}
 
 	if v.Exec != nil {
 		// Called from tsh, use the exec plugin model.
 		clusterName := v.TeleportClusterName
+
 		envVars := make([]clientcmdapi.ExecEnvVar, 0, len(v.Exec.Env))
 		if v.Exec.Env != nil {
 			for name, value := range v.Exec.Env {
@@ -182,6 +179,11 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 
 		for _, c := range v.KubeClusters {
 			contextName := ContextName(v.TeleportClusterName, c)
+			config.Clusters[contextName] = &clientcmdapi.Cluster{
+				Server:                   v.ClusterAddr + "/v1/teleport/" + hex.EncodeToString([]byte(v.TeleportClusterName)) + "/" + hex.EncodeToString([]byte(c)),
+				CertificateAuthorityData: cas,
+				TLSServerName:            v.TLSServerName,
+			}
 			authName := contextName
 			if contextTmpl != nil {
 				if contextName, err = executeKubeContextTemplate(contextTmpl, v.TeleportClusterName, c); err != nil {
@@ -277,7 +279,7 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 func setContext(contexts map[string]*clientcmdapi.Context, name, cluster, auth, kubeName, namespace string) {
 	lastContext := contexts[name]
 	newContext := &clientcmdapi.Context{
-		Cluster:  cluster,
+		Cluster:  name,
 		AuthInfo: auth,
 	}
 	if lastContext != nil {

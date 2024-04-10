@@ -293,6 +293,14 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		withCustomErrFormatter(fwd.writeResponseErrorToBody),
 	))
 
+	router.POST("/v1/teleport/:teleportCluster/:kubeCluster/*realPath", fwd.withAuthPassthrough(fwd.singleCertHandler))
+	router.GET("/v1/teleport/:teleportCluster/:kubeCluster/*realPath", fwd.withAuthPassthrough(fwd.singleCertHandler))
+	router.HEAD("/v1/teleport/:teleportCluster/:kubeCluster/*realPath", fwd.withAuthPassthrough(fwd.singleCertHandler))
+	router.OPTIONS("/v1/teleport/:teleportCluster/:kubeCluster/*realPath", fwd.withAuthPassthrough(fwd.singleCertHandler))
+	router.PUT("/v1/teleport/:teleportCluster/:kubeCluster/*realPath", fwd.withAuthPassthrough(fwd.singleCertHandler))
+	router.PATCH("/v1/teleport/:teleportCluster/:kubeCluster/*realPath", fwd.withAuthPassthrough(fwd.singleCertHandler))
+	router.DELETE("/v1/teleport/:teleportCluster/:kubeCluster/*realPath", fwd.withAuthPassthrough(fwd.singleCertHandler))
+
 	router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", fwd.withAuth(fwd.exec))
 	router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", fwd.withAuth(fwd.exec))
 
