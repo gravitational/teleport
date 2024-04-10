@@ -128,6 +128,57 @@ updates:
       - "go"
       - "no-changelog"
 
+  - package-ecosystem: gomod
+    directory: "/integrations/terraform"
+    schedule:
+      interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    ignore:
+      # breaks compatibility
+      - dependency-name: github.com/hashicorp/terraform-plugin-framework
+    open-pull-requests-limit: 5
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
+    reviewers:
+      - codingllama
+      - rosstimothy
+      - hugoshaka
+      - tigrato
+      - marcoandredinis
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
+
+  - package-ecosystem: gomod
+    directory: "/integrations/event-handler"
+    schedule:
+      interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    ignore: []
+    open-pull-requests-limit: 5
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
+    reviewers:
+      - codingllama
+      - rosstimothy
+      - hugoshaka
+      - tigrato
+      - marcoandredinis
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
+
+
   - package-ecosystem: cargo
     directory: "/"
     schedule:
