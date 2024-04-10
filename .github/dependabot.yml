@@ -137,7 +137,7 @@ updates:
     ignore:
       # breaks compatibility
       - dependency-name: github.com/hashicorp/terraform-plugin-framework
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
@@ -160,8 +160,7 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
-    ignore: []
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 20
     groups:
       go:
         update-types:
