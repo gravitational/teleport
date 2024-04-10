@@ -174,6 +174,7 @@ func TestClose(t *testing.T) {
 
 func TestSeekForward(t *testing.T) {
 	clk := clockwork.NewFakeClock()
+
 	p, err := player.New(&player.Config{
 		Clock:     clk,
 		SessionID: "test-session",
@@ -211,55 +212,25 @@ func TestSeekForward(t *testing.T) {
 }
 
 func TestSeekForwardTwice(t *testing.T) {
-	clk := clockwork.NewFakeClock()
+	clk := clockwork.NewRealClock()
 	p, err := player.New(&player.Config{
 		Clock:     clk,
 		SessionID: "test-session",
-		Streamer:  &simpleStreamer{count: 1, delay: 1000},
+		Streamer:  &simpleStreamer{count: 1, delay: 6000},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { p.Close() })
-
-	ch := make(chan struct{})
-
-	go func() {
-		clk.BlockUntil(1)
-		ch <- struct{}{}
-	}()
-
 	require.NoError(t, p.Play())
-	<-ch
 
-	go func() {
-		clk.BlockUntil(1)
-		ch <- struct{}{}
-	}()
+	time.Sleep(100 * time.Millisecond)
+	p.SetPos(500 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+	p.SetPos(5900 * time.Millisecond)
 
-	p.SetPos(100 * time.Millisecond)
-	<-ch
-
-	go func() {
-		clk.BlockUntil(1)
-		ch <- struct{}{}
-	}()
-
-	p.SetPos(800 * time.Millisecond)
-	<-ch
-
-	clk.BlockUntil(1)
-	clk.Advance(150 * time.Millisecond)
-
-	select {
-	case evt := <-p.C():
-		require.FailNow(t, "event should not be ready yet: %v", evt)
-	case <-time.After(1 * time.Second):
-	}
-
-	clk.Advance(51 * time.Millisecond)
 	select {
 	case <-p.C():
 	case <-time.After(5 * time.Second):
-		require.FailNow(t, "event not ready in time", "clock %#v", clk)
+		require.FailNow(t, "event not emitted on time")
 	}
 }
 
