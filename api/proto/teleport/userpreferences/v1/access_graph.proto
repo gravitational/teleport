@@ -20,7 +20,7 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/userpref
 
 // AccessGraphUserPreferences is the user preferences for Access Graph.
 message AccessGraphUserPreferences {
-  // hasBeenRedirected is true if the user has already been redirected to the Access Graph
+  // has_been_redirected is true if the user has already been redirected to the Access Graph
   // on login, after having signed up for a trial from the Teleport Policy page.
   bool has_been_redirected = 1;
 }
