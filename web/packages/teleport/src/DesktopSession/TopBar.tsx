@@ -27,6 +27,7 @@ import ActionMenu from './ActionMenu';
 import { WarningDropdown } from './WarningDropdown';
 
 import type { NotificationItem } from 'shared/components/Notification';
+import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
 
 export default function TopBar(props: Props) {
   const {
@@ -38,6 +39,7 @@ export default function TopBar(props: Props) {
     onShareDirectory,
     warnings,
     onRemoveWarning,
+    latency,
   } = props;
   const theme = useTheme();
 
@@ -61,6 +63,14 @@ export default function TopBar(props: Props) {
 
       <Flex px={3}>
         <Flex alignItems="center">
+          <HoverTooltip
+            tipContent={'Network Connection'}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+          >
+            <LatencyDiagnostic latency={latency} />
+          </HoverTooltip>
+
           <HoverTooltip
             tipContent={directorySharingToolTip(
               canShareDirectory,
@@ -121,4 +131,8 @@ type Props = {
   onShareDirectory: VoidFunction;
   warnings: NotificationItem[];
   onRemoveWarning(id: string): void;
+  latency: {
+    client: number;
+    server: number;
+  };
 };

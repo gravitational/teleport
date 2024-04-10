@@ -82,6 +82,7 @@ const (
 	TypeSyncKeys                        = MessageType(32)
 	TypeSharedDirectoryTruncateRequest  = MessageType(33)
 	TypeSharedDirectoryTruncateResponse = MessageType(34)
+	TypeLatencyStats                    = MessageType(35)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -1621,6 +1622,19 @@ func decodeSharedDirectoryTruncateResponse(in io.Reader) (SharedDirectoryTruncat
 	var res SharedDirectoryTruncateResponse
 	err := binary.Read(in, binary.BigEndian, &res)
 	return res, err
+}
+
+type LatencyStats struct {
+	BrowserLatency uint32
+	DesktopLatency uint32
+}
+
+func (l LatencyStats) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeLatencyStats))
+	writeUint32(buf, l.BrowserLatency)
+	writeUint32(buf, l.DesktopLatency)
+	return buf.Bytes(), nil
 }
 
 // encodeString encodes strings for TDP. Strings are encoded as UTF-8 with

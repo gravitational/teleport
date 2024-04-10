@@ -39,6 +39,7 @@ import TopBar from './TopBar';
 
 import type { State, WebsocketAttempt } from './useDesktopSession';
 import type { WebAuthnState } from 'teleport/lib/useWebAuthn';
+import { TdpClientEvent } from 'teleport/lib/tdp';
 
 export function DesktopSessionContainer() {
   const state = useDesktopSession();
@@ -93,6 +94,24 @@ export function DesktopSession(props: State) {
     canvasState: { shouldConnect: false, shouldDisplay: false },
   });
 
+  const [latencyStats, setLatencyStats] = useState({ client: 0, server: 0 });
+  useEffect(() => {
+    if (!tdpClient) {
+      return;
+    }
+    const setStats = stats => {
+      console.log('got latency', stats);
+      setLatencyStats({
+        client: stats.browserLatency,
+        server: stats.desktopLatency,
+      });
+    };
+    tdpClient.on(TdpClientEvent.LATENCY_STATS, setStats);
+    return () => {
+      tdpClient.removeListener(TdpClientEvent.LATENCY_STATS, setStats);
+    };
+  }, [tdpClient]);
+
   // Calculate the next `ScreenState` whenever any of the constituent pieces of state change.
   useEffect(() => {
     setScreenState(prevState =>
@@ -116,6 +135,7 @@ export function DesktopSession(props: State) {
   return (
     <Flex flexDirection="column">
       <TopBar
+        latency={latencyStats}
         onDisconnect={() => {
           setClipboardSharingState(prevState => ({
             ...prevState,
