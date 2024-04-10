@@ -70,38 +70,45 @@ type AccessListService struct {
 var _ services.AccessLists = (*AccessListService)(nil)
 
 // NewAccessListService creates a new AccessListService.
-func NewAccessListService(backend backend.Backend, clock clockwork.Clock) (*AccessListService, error) {
+func NewAccessListService(backend backend.Backend, clock clockwork.Clock, opts ...ServiceOption) (*AccessListService, error) {
+	var opt serviceOptions
+	for _, o := range opts {
+		o(&opt)
+	}
 	service, err := generic.NewService(&generic.ServiceConfig[*accesslist.AccessList]{
-		Backend:       backend,
-		PageLimit:     accessListMaxPageSize,
-		ResourceKind:  types.KindAccessList,
-		BackendPrefix: accessListPrefix,
-		MarshalFunc:   services.MarshalAccessList,
-		UnmarshalFunc: services.UnmarshalAccessList,
+		Backend:                     backend,
+		PageLimit:                   accessListMaxPageSize,
+		ResourceKind:                types.KindAccessList,
+		BackendPrefix:               accessListPrefix,
+		MarshalFunc:                 services.MarshalAccessList,
+		UnmarshalFunc:               services.UnmarshalAccessList,
+		RunWhileLockedRetryInterval: opt.runWhileLockedRetryInterval,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	memberService, err := generic.NewService(&generic.ServiceConfig[*accesslist.AccessListMember]{
-		Backend:       backend,
-		PageLimit:     accessListMemberMaxPageSize,
-		ResourceKind:  types.KindAccessListMember,
-		BackendPrefix: accessListMemberPrefix,
-		MarshalFunc:   services.MarshalAccessListMember,
-		UnmarshalFunc: services.UnmarshalAccessListMember,
+		Backend:                     backend,
+		PageLimit:                   accessListMemberMaxPageSize,
+		ResourceKind:                types.KindAccessListMember,
+		BackendPrefix:               accessListMemberPrefix,
+		MarshalFunc:                 services.MarshalAccessListMember,
+		UnmarshalFunc:               services.UnmarshalAccessListMember,
+		RunWhileLockedRetryInterval: opt.runWhileLockedRetryInterval,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	reviewService, err := generic.NewService(&generic.ServiceConfig[*accesslist.Review]{
-		Backend:       backend,
-		PageLimit:     accessListReviewMaxPageSize,
-		ResourceKind:  types.KindAccessListReview,
-		BackendPrefix: accessListReviewPrefix,
-		MarshalFunc:   services.MarshalAccessListReview,
-		UnmarshalFunc: services.UnmarshalAccessListReview,
+		Backend:                     backend,
+		PageLimit:                   accessListReviewMaxPageSize,
+		ResourceKind:                types.KindAccessListReview,
+		BackendPrefix:               accessListReviewPrefix,
+		MarshalFunc:                 services.MarshalAccessListReview,
+		UnmarshalFunc:               services.UnmarshalAccessListReview,
+		RunWhileLockedRetryInterval: opt.runWhileLockedRetryInterval,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
