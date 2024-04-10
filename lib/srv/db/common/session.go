@@ -21,6 +21,7 @@ package common
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -62,6 +63,8 @@ type Session struct {
 	LockTargets []types.LockTarget
 	// AuthContext is the identity context of the user.
 	AuthContext *authz.Context
+	// TODO
+	StartTime time.Time
 }
 
 // String returns string representation of the session parameters.

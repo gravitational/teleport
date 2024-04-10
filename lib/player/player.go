@@ -341,9 +341,14 @@ func (p *Player) LastPlayed() int64 {
 }
 
 func (p *Player) maybeUdpateTranslater(e events.AuditEvent) {
-	switch e.(type) {
+	// TODO make sure we only do this once
+	switch evt := e.(type) {
 	case *events.DatabaseSessionStart:
 		p.translater = newPostgresTranslater()
+		p.emit <- &events.SessionPrint{
+			Metadata: evt.Metadata,
+			Data:     []byte("DISCLAIMER: this is a simulated postgres player!\r\n\r\n"),
+		}
 	}
 }
 

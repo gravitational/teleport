@@ -22,6 +22,7 @@ package player
 import (
 	"bytes"
 	"fmt"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgtype"
@@ -50,6 +51,7 @@ type postgresTranslater struct {
 	columnNames []string
 	columnTypes []uint32
 	totalRows   int
+	startTime   time.Time
 }
 
 func newPostgresTranslater() *postgresTranslater {
@@ -128,8 +130,9 @@ func (s *postgresTranslater) flush(metadata events.Metadata) (events.AuditEvent,
 	// s.buf.Write([]byte{13, 10})
 
 	return &events.SessionPrint{
-		Metadata: metadata,
-		Data:     s.buf.Bytes(),
+		Metadata:          metadata,
+		Data:              s.buf.Bytes(),
+		DelayMilliseconds: metadata.Time.Sub(s.startTime).Milliseconds(),
 	}, true
 }
 
@@ -165,6 +168,7 @@ func (s *postgresTranslater) complete(evt *events.PostgresCommandComplete) error
 func (p *postgresTranslater) Translate(event events.AuditEvent) (events.AuditEvent, bool) {
 	switch evt := event.(type) {
 	case *events.DatabaseSessionStart:
+		p.startTime = evt.Time
 		return &events.SessionStart{
 			Metadata: evt.Metadata,
 		}, true
