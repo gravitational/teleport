@@ -86,6 +86,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/mfa"
@@ -7620,11 +7621,29 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 	}
 }
 
+// wrappedAuthClient is used when tests need to mock or replace parts of the
+// underlying auth.Client used by the Proxy.
+type wrappedAuthClient struct {
+	*auth.Client
+	devicesClient devicepb.DeviceTrustServiceClient
+}
+
+func (w *wrappedAuthClient) DevicesClient() devicepb.DeviceTrustServiceClient {
+	return w.devicesClient
+}
+
 type proxyConfig struct {
-	minimalHandler bool
+	minimalHandler        bool
+	devicesClientOverride devicepb.DeviceTrustServiceClient
 }
 
 type proxyOption func(cfg *proxyConfig)
+
+func withDevicesClientOverride(c devicepb.DeviceTrustServiceClient) proxyOption {
+	return func(cfg *proxyConfig) {
+		cfg.devicesClientOverride = c
+	}
+}
 
 func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *auth.TestTLSServer,
 	hostSigners []ssh.Signer, clock clockwork.FakeClock, opts ...proxyOption,
@@ -7634,14 +7653,26 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		opt(&cfg)
 	}
 	// create reverse tunnel service:
-	client, err := authServer.NewClient(auth.TestIdentity{
+	authClient, err := authServer.NewClient(auth.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleProxy,
 			Username: proxyID,
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, client.Close()) })
+	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+
+	// Replace underlying devicesClient, if the option was supplied.
+	var client auth.ClientI
+	if cfg.devicesClientOverride != nil {
+		client = &wrappedAuthClient{
+			Client:        authClient,
+			devicesClient: cfg.devicesClientOverride,
+		}
+	} else {
+		client = authClient
+	}
+	// Favor client instead of authClient from here on.
 
 	revTunListener, err := net.Listen("tcp", fmt.Sprintf("%v:0", authServer.ClusterName()))
 	require.NoError(t, err)
@@ -7678,7 +7709,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:                    node.ID(),
 		Listener:              revTunListener,
-		ClientTLS:             client.TLSConfig(),
+		ClientTLS:             authClient.TLSConfig(),
 		ClusterName:           authServer.ClusterName(),
 		HostSigners:           hostSigners,
 		LocalAuthClient:       client,
