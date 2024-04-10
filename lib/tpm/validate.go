@@ -146,7 +146,6 @@ func Validate(
 		log.ErrorContext(
 			ctx,
 			"TPM Credential Activation solution did not match expected solution.",
-			"error", err,
 			"tpm", validated,
 		)
 		return validated, trace.BadParameter("invalid credential activation solution")
