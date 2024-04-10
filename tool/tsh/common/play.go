@@ -25,12 +25,14 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -244,5 +246,65 @@ func exportFile(ctx context.Context, path string, format string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+func onPlayEvents(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	sessionRecordingEvents, err := clusterClient.AuthClient.GetSessionRecordingEvents(context.Background(), session.ID(cf.SessionID))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var rows [][]string
+	for _, ne := range sessionRecordingEvents.Events {
+		e, err := apievents.FromOneOf(*ne)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		switch e := e.(type) {
+		case *apievents.SessionJoin:
+			rows = append(rows, []string{
+				"Session Join",
+				fmt.Sprint(e.Time.Sub(sessionRecordingEvents.StartTime)),
+				fmt.Sprintf("%v joined the session at %v.", e.UserMetadata.User, e.Metadata.Time),
+			})
+		case *apievents.SessionLeave:
+			rows = append(rows, []string{
+				"Session Leave",
+				fmt.Sprint(e.Time.Sub(sessionRecordingEvents.StartTime)),
+				fmt.Sprintf("%v left the session at %v.", e.UserMetadata.User, e.Metadata.Time),
+			})
+		case *apievents.SessionIdle:
+			d := e.IdleDuration
+			h := d / int64(time.Hour)
+			d -= h
+			m := d / int64(time.Minute)
+			d -= m
+			s := d / int64(time.Second)
+			rows = append(rows, []string{
+				"Session Idle",
+				fmt.Sprint(e.Time.Sub(sessionRecordingEvents.StartTime)),
+				fmt.Sprintf("Session idle for %02d:%02d:%02d.", h, m, s),
+			})
+		}
+	}
+
+	t := asciitable.MakeTable([]string{"Event Name", "TimeStamp", "Description"}, rows...)
+	if _, err := fmt.Fprintln(cf.Stdout(), t.AsBuffer().String()); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }

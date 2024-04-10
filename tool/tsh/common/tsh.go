@@ -955,6 +955,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML)
 	play.Arg("session-id", "ID or path to session file to play").Required().StringVar(&cf.SessionID)
 
+	playEvents := app.Command("play-events", "get a list of session recording events.")
+	playEvents.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	playEvents.Arg("session-id", "ID or path to session file to play").Required().StringVar(&cf.SessionID)
+
 	// scp
 	scp := app.Command("scp", "Transfer files to a remote SSH node.")
 	scp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -1395,6 +1399,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onSCP(&cf)
 	case play.FullCommand():
 		err = onPlay(&cf)
+	case playEvents.FullCommand():
+		err = onPlayEvents(&cf)
 	case ls.FullCommand():
 		err = onListNodes(&cf)
 	case clusters.FullCommand():
