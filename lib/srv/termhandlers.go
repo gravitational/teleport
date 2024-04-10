@@ -21,6 +21,7 @@ package srv
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -117,8 +118,16 @@ func (t *TermHandlers) HandleShell(ctx context.Context, ch ssh.Channel, req *ssh
 		return trace.Wrap(err)
 	}
 
+	command := ""
+	if dbName := scx.env["DBSSH_DB_NAME"]; len(dbName) > 0 {
+		if dbUser := scx.env["DBSSH_DB_USER"]; len(dbUser) > 0 {
+			// todo: sanitize input.
+			command = fmt.Sprintf("/opt/homebrew/bin/psql --username=%s --dbname=%s", dbUser, dbName)
+		}
+	}
+
 	// Creating an empty exec request implies a interactive shell was requested.
-	execRequest, err := NewExecRequest(scx, "")
+	execRequest, err := NewExecRequest(scx, command)
 	if err != nil {
 		return trace.Wrap(err)
 	}

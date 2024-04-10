@@ -421,6 +421,16 @@ func (t *TerminalHandler) Close() error {
 	return trace.Wrap(err)
 }
 
+func setupDBSSH(r *http.Request, tc *client.TeleportClient) {
+	q := r.URL.Query()
+	dbName := q.Get("dbName")
+	dbUser := q.Get("login")
+
+	if dbName != "" && dbUser != "" {
+		tc.ExtraEnvs = map[string]string{"DBSSH_DB_NAME": dbName, "DBSSH_DB_USER": dbUser}
+	}
+}
+
 // handler is the main websocket loop. It creates a Teleport client and then
 // pumps raw events and audit events back to the client until the SSH session
 // is complete.
@@ -447,6 +457,8 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 		t.stream.writeError(err.Error())
 		return
 	}
+
+	setupDBSSH(r, tc)
 
 	t.log.Debug("Creating websocket stream")
 
