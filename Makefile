@@ -832,6 +832,10 @@ test-kube-agent-updater:
 test-access-integrations:
 	make -C integrations test-access
 
+.PHONY: test-access-integrations
+test-event-handler-integrations:
+	make -C integrations test-event-handler
+
 .PHONY: test-integrations-lib
 test-integrations-lib:
 	make -C integrations test-lib

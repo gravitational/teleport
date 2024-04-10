@@ -111,7 +111,7 @@ func (s *OpsgenieSuite) startApp() {
 
 	app, err := opsgenie.NewOpsgenieApp(context.Background(), &s.appConfig)
 	require.NoError(t, err)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
 }
 
 // TestAlertCreation validates that an alert is created to the service
