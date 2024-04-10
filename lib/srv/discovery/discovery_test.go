@@ -493,11 +493,14 @@ func TestDiscoveryServer(t *testing.T) {
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				CloudClients:     testCloudClients,
 				KubernetesClient: fake.NewSimpleClientset(),
-				AccessPoint:      tlsServer.Auth(),
-				Matchers:         tc.staticMatchers,
-				Emitter:          tc.emitter,
-				Log:              logger,
-				DiscoveryGroup:   defaultDiscoveryGroup,
+				AccessPoint: discoveryWrapper{
+					Server:                           tlsServer.Auth(),
+					DiscoveryConfigWithStatusUpdater: authClient.DiscoveryConfigClient(),
+				},
+				Matchers:       tc.staticMatchers,
+				Emitter:        tc.emitter,
+				Log:            logger,
+				DiscoveryGroup: defaultDiscoveryGroup,
 				ClusterFeatures: func() proto.Features {
 					return proto.Features{}
 				},
@@ -693,7 +696,10 @@ func TestDiscoveryKubeServices(t *testing.T) {
 				&Config{
 					CloudClients:     &cloud.TestCloudClients{},
 					KubernetesClient: fake.NewSimpleClientset(objects...),
-					AccessPoint:      tlsServer.Auth(),
+					AccessPoint: discoveryWrapper{
+						Server:                           tlsServer.Auth(),
+						DiscoveryConfigWithStatusUpdater: authClient.DiscoveryConfigClient(),
+					},
 					Matchers: Matchers{
 						Kubernetes: tt.kubernetesMatchers,
 					},
@@ -728,6 +734,11 @@ func TestDiscoveryKubeServices(t *testing.T) {
 			}, 5*time.Second, 200*time.Millisecond)
 		})
 	}
+}
+
+type discoveryWrapper struct {
+	*auth.Server
+	services.DiscoveryConfigWithStatusUpdater
 }
 
 func TestDiscoveryInCloudKube(t *testing.T) {
@@ -1015,7 +1026,10 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				&Config{
 					CloudClients:     testCloudClients,
 					KubernetesClient: fake.NewSimpleClientset(),
-					AccessPoint:      tlsServer.Auth(),
+					AccessPoint: discoveryWrapper{
+						Server:                           tlsServer.Auth(),
+						DiscoveryConfigWithStatusUpdater: authClient.DiscoveryConfigClient(),
+					},
 					Matchers: Matchers{
 						AWS:   tc.awsMatchers,
 						Azure: tc.azureMatchers,
@@ -1765,7 +1779,10 @@ func TestDiscoveryDatabase(t *testing.T) {
 					IntegrationOnlyCredentials: integrationOnlyCredential,
 					CloudClients:               testCloudClients,
 					KubernetesClient:           fake.NewSimpleClientset(),
-					AccessPoint:                tlsServer.Auth(),
+					AccessPoint: discoveryWrapper{
+						Server:                           tlsServer.Auth(),
+						DiscoveryConfigWithStatusUpdater: authClient.DiscoveryConfigClient(),
+					},
 					Matchers: Matchers{
 						AWS:   tc.awsMatchers,
 						Azure: tc.azureMatchers,
@@ -1874,11 +1891,14 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			},
 			CloudClients:     testCloudClients,
 			KubernetesClient: fake.NewSimpleClientset(),
-			AccessPoint:      tlsServer.Auth(),
-			Matchers:         Matchers{},
-			Emitter:          authClient,
-			DiscoveryGroup:   mainDiscoveryGroup,
-			clock:            clock,
+			AccessPoint: discoveryWrapper{
+				Server:                           tlsServer.Auth(),
+				DiscoveryConfigWithStatusUpdater: authClient.DiscoveryConfigClient(),
+			},
+			Matchers:       Matchers{},
+			Emitter:        authClient,
+			DiscoveryGroup: mainDiscoveryGroup,
+			clock:          clock,
 		})
 
 	require.NoError(t, err)
@@ -2306,11 +2326,14 @@ func TestAzureVMDiscovery(t *testing.T) {
 					return proto.Features{}
 				},
 				KubernetesClient: fake.NewSimpleClientset(),
-				AccessPoint:      tlsServer.Auth(),
-				Matchers:         tc.staticMatchers,
-				Emitter:          emitter,
-				Log:              logger,
-				DiscoveryGroup:   defaultDiscoveryGroup,
+				AccessPoint: discoveryWrapper{
+					Server:                           tlsServer.Auth(),
+					DiscoveryConfigWithStatusUpdater: authClient.DiscoveryConfigClient(),
+				},
+				Matchers:       tc.staticMatchers,
+				Emitter:        emitter,
+				Log:            logger,
+				DiscoveryGroup: defaultDiscoveryGroup,
 			})
 
 			require.NoError(t, err)
@@ -2569,11 +2592,14 @@ func TestGCPVMDiscovery(t *testing.T) {
 					return proto.Features{}
 				},
 				KubernetesClient: fake.NewSimpleClientset(),
-				AccessPoint:      tlsServer.Auth(),
-				Matchers:         tc.staticMatchers,
-				Emitter:          emitter,
-				Log:              logger,
-				DiscoveryGroup:   defaultDiscoveryGroup,
+				AccessPoint: discoveryWrapper{
+					Server:                           tlsServer.Auth(),
+					DiscoveryConfigWithStatusUpdater: authClient.DiscoveryConfigClient(),
+				},
+				Matchers:       tc.staticMatchers,
+				Emitter:        emitter,
+				Log:            logger,
+				DiscoveryGroup: defaultDiscoveryGroup,
 			})
 
 			require.NoError(t, err)
@@ -2667,7 +2693,10 @@ func TestEmitUsageEvents(t *testing.T) {
 
 	server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 		CloudClients: &testClients,
-		AccessPoint:  tlsServer.Auth(),
+		AccessPoint: discoveryWrapper{
+			Server:                           tlsServer.Auth(),
+			DiscoveryConfigWithStatusUpdater: authClient.DiscoveryConfigClient(),
+		},
 		ClusterFeatures: func() proto.Features {
 			return proto.Features{}
 		},
@@ -2698,25 +2727,6 @@ func TestEmitUsageEvents(t *testing.T) {
 		"inst3": event,
 	}))
 	require.Equal(t, 3, reporter.ResourceCreateEventCount())
-}
-
-type combinedDiscoveryClient struct {
-	*auth.Server
-	discoveryConfigStatusUpdater interface {
-		UpdateDiscoveryConfigStatus(context.Context, string, discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error)
-	}
-}
-
-func (d *combinedDiscoveryClient) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
-	if d.discoveryConfigStatusUpdater != nil {
-		return d.discoveryConfigStatusUpdater.UpdateDiscoveryConfigStatus(ctx, name, status)
-	}
-	return nil, trace.BadParameter("not implemented.")
-}
-
-func getDiscoveryAccessPoint(authServer *auth.Server, authClient auth.ClientI) auth.DiscoveryAccessPoint {
-	return &combinedDiscoveryClient{Server: authServer, discoveryConfigStatusUpdater: authClient.DiscoveryConfigClient()}
-
 }
 
 type fakeAccessPoint struct {
