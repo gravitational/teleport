@@ -530,7 +530,7 @@ func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, ro
 	t.Helper()
 
 	// Enable optional MFA.
-	_, err := authServer.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
+	helpers.UpsertAuthPrefAndWaitForCache(t, ctx, authServer, &types.AuthPreferenceV2{
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOptional,
@@ -539,13 +539,12 @@ func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, ro
 			},
 		},
 	})
-	require.NoError(t, err)
 
 	// Configure role.
 	options := role.GetOptions()
 	options.RequireMFAType = types.RequireMFAType_SESSION
 	role.SetOptions(options)
-	_, err = authServer.UpsertRole(ctx, role)
+	_, err := authServer.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	// Configure user account.

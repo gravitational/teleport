@@ -139,6 +139,17 @@ type User interface {
 	IsBot() bool
 	// BotGenerationLabel returns the bot generation label.
 	BotGenerationLabel() string
+	// GetPasswordState reflects what the system knows about the user's password.
+	// Note that this is a "best effort" property, in that it can be UNSPECIFIED
+	// for users who were created before this property was introduced and didn't
+	// perform any password-related activity since then. See RFD 0159 for details.
+	// Do NOT use this value for authentication purposes!
+	GetPasswordState() PasswordState
+	// SetPasswordState updates the information about user's password. Note that
+	// this is a "best effort" property, in that it can be UNSPECIFIED for users
+	// who were created before this property was introduced and didn't perform any
+	// password-related activity since then. See RFD 0159 for details.
+	SetPasswordState(PasswordState)
 }
 
 // NewUser creates new empty user
@@ -546,6 +557,14 @@ func (u *UserV2) ResetLocks() {
 // DeepCopy creates a clone of this user value.
 func (u *UserV2) DeepCopy() User {
 	return utils.CloneProtoMsg(u)
+}
+
+func (u *UserV2) GetPasswordState() PasswordState {
+	return u.Status.PasswordState
+}
+
+func (u *UserV2) SetPasswordState(state PasswordState) {
+	u.Status.PasswordState = state
 }
 
 // IsEmpty returns true if there's no info about who created this user
