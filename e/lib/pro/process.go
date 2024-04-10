@@ -86,9 +86,11 @@ func NewTeleport(cfg Config) (*Process, error) {
 	if cfg.LicenseFile.License.GetSalesCenterReporting() {
 		// forcibly stops when ExitContext closes or is gracefully stopped in
 		// auth.shutdown
+		const isCloudFalse = false
 		if err := prehog.InitAggregatingUsageReporting(
 			process.TeleportProcess,
 			cfg.LicenseFile,
+			isCloudFalse,
 		); err != nil {
 			return nil, trace.Wrap(err)
 		}

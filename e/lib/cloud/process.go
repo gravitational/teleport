@@ -156,6 +156,15 @@ func NewTeleport(cfg Config) (*Process, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	const isCloudTrue = true
+	if err := prehog.InitAggregatingUsageReporting(
+		process.TeleportProcess,
+		cfg.LicenseFile,
+		isCloudTrue,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return process, nil
 }
 

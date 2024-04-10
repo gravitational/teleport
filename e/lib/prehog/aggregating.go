@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net/http"
+	"os"
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
@@ -25,7 +26,7 @@ import (
 // NewUsageReportsSubmitter returns an [aggregating.UsageReportsSubmitter] that
 // sends usage reports to our ingest service via
 // prehog.v1alpha.TeleportReportingService/SubmitUsageReports .
-func NewUsageReportsSubmitter(clientCert *tls.Certificate, cipherSuites []uint16) (aggregating.UsageReportsSubmitter, error) {
+func NewUsageReportsSubmitter(clientCert *tls.Certificate, cipherSuites []uint16, endpoint string) (aggregating.UsageReportsSubmitter, error) {
 	ht, err := defaults.Transport()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -44,7 +45,7 @@ func NewUsageReportsSubmitter(clientCert *tls.Certificate, cipherSuites []uint16
 		},
 	}
 
-	clt := prehogv1c.NewTeleportReportingServiceClient(hc, aggregating.DefaultEndpoint, connect.WithGRPC())
+	clt := prehogv1c.NewTeleportReportingServiceClient(hc, endpoint, connect.WithGRPC())
 
 	return func(ctx context.Context, req *prehogv1.SubmitUsageReportsRequest) (uuid.UUID, error) {
 		resp, err := clt.SubmitUsageReports(ctx, connect.NewRequest(req))
@@ -65,7 +66,20 @@ func NewUsageReportsSubmitter(clientCert *tls.Certificate, cipherSuites []uint16
 func InitAggregatingUsageReporting(
 	process *service.TeleportProcess,
 	licenseFile *licensefile.LicenseFile,
+	isCloud bool,
 ) error {
+	endpoint := aggregating.DefaultEndpoint
+	if isCloud {
+		if e := os.Getenv(envVarPreHogAggregatingEndpoint); e != "" {
+			endpoint = e
+		} else if e := os.Getenv(envVarPreHogEndpoint); e != "" {
+			endpoint = e
+		} else {
+			log.Warnf("%q not set and no default available, PreHog aggregated usage reporting will not be enabled.", envVarPreHogAggregatingEndpoint)
+			return nil
+		}
+	}
+
 	clusterName, err := process.GetAuthServer().GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -94,7 +108,7 @@ func InitAggregatingUsageReporting(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	process.GetAuthServer().SetUsageReporter(reporter)
+	AddReporter(process.GetAuthServer(), reporter)
 
 	emitter, err := usageevents.New(
 		reporter, log, process.GetAuthServer().GetEmitter(),
@@ -104,7 +118,7 @@ func InitAggregatingUsageReporting(
 	}
 	process.GetAuthServer().SetEmitter(emitter)
 
-	submitter, err := NewUsageReportsSubmitter(cert, process.Config.CipherSuites)
+	submitter, err := NewUsageReportsSubmitter(cert, process.Config.CipherSuites, endpoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}

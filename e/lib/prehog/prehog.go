@@ -20,6 +20,11 @@ const (
 	// If unset, prehog event submission is not enabled.
 	envVarPreHogEndpoint = "PREHOG_ENDPOINT"
 
+	// envVarPreHogAggregatingEndpoint is the URL where prehog aggregated
+	// reports should be submitted by cloud tenants. If unset, prehog aggregated
+	// report submission uses the same endpoint as individual event submission.
+	envVarPreHogAggregatingEndpoint = "PREHOG_AGGREGATING_ENDPOINT"
+
 	// envVarPreHogCAPath is a path to the CA certificate for Prehog. May be
 	// omitted if Prehog's certificate is in the system trust store.
 	envVarPreHogCAPath = "PREHOG_CA_PATH"
@@ -79,7 +84,7 @@ func InitStreamingUsageReporting(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	process.GetAuthServer().SetUsageReporter(reporter)
+	AddReporter(process.GetAuthServer(), reporter)
 	go reporter.Run(ctx)
 
 	// Wrap the audit log in the usage reporting impl.
