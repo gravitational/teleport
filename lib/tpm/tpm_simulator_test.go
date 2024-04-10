@@ -23,14 +23,6 @@ import (
 	"github.com/gravitational/teleport/api/fixtures"
 )
 
-// To include tests based on this simulator, use the `tpmsimulator` build tag.
-// This requires openssl libraries to be installed on the machine and findable
-// by the compiler. On macOS:
-// brew install openssl
-// export C_INCLUDE_PATH="$(brew --prefix openssl)/include"
-// export LIBRARY_PATH="$(brew --prefix openssl)/lib"
-// go test ./e/lib/devicetrust/devicetrustv1 -run TestService_EnrollDevice -tags tpmsimulator
-
 // fakeCmdChannel is used to inject the TPM simulator into `go-attestation`'s
 // TPM wrapper.
 type fakeCmdChannel struct {
@@ -71,6 +63,14 @@ func writeEKCertToTPM(t *testing.T, sim *tpmsimulator.Simulator, data []byte) {
 	)
 	require.NoError(t, err)
 }
+
+// To include tests based on this simulator, use the `tpmsimulator` build tag.
+// This requires openssl libraries to be installed on the machine and findable
+// by the compiler. On macOS:
+// brew install openssl
+// export C_INCLUDE_PATH="$(brew --prefix openssl)/include"
+// export LIBRARY_PATH="$(brew --prefix openssl)/lib"
+// go test ./lib/tpm -run TestWithSimulator -tags tpmsimulator
 
 func TestWithSimulator(t *testing.T) {
 	t.Parallel()
