@@ -23,7 +23,7 @@ import { W3CTraceContextPropagator } from '@opentelemetry/core';
 
 import webSession from 'teleport/services/websession';
 import history from 'teleport/services/history';
-import cfg, { UrlResourcesParams, UrlSshParams } from 'teleport/config';
+import cfg, { UrlDatabaseConnectParams, UrlResourcesParams, UrlSshParams } from 'teleport/config';
 import { getHostName } from 'teleport/services/api';
 import Tty from 'teleport/lib/term/tty';
 import TtyAddressResolver from 'teleport/lib/term/ttyAddressResolver';
@@ -124,6 +124,28 @@ export default class ConsoleContext {
     });
   }
 
+  addDatabaseConnectDocument({clusterId, serverId, dbName, login}: UrlDatabaseConnectParams) {
+    const title = `db connect ${login}@${serverId}.${dbName}`;
+    const url = cfg.getDatabaseConnectRoute({clusterId,
+      sshServerId: serverId,
+      dbName,
+      login,
+    });
+
+    return this.storeDocs.add({
+      kind: 'terminal',
+      status: 'disconnected',
+      clusterId,
+      title,
+      serverId,
+      dbName,
+      login,
+      url,
+      created: new Date(),
+      latency: undefined,
+    });
+  }
+
   getDocuments() {
     return this.storeDocs.state.items;
   }
@@ -185,7 +207,7 @@ export default class ConsoleContext {
     webSession.logout();
   }
 
-  createTty(session: Session, mode?: ParticipantMode): Tty {
+  createTty(session: Session, mode?: ParticipantMode, dbName?: string): Tty {
     const { login, sid, serverId, clusterId } = session;
 
     const propagator = new W3CTraceContextPropagator();
@@ -200,6 +222,9 @@ export default class ConsoleContext {
       .replace(':clusterId', clusterId)
       .replace(':traceparent', carrier['traceparent']);
 
+    console.log("NIC createTty");
+    console.log(dbName);
+
     const addressResolver = new TtyAddressResolver({
       ttyUrl,
       ttyParams: {
@@ -207,6 +232,7 @@ export default class ConsoleContext {
         sid,
         server_id: serverId,
         mode,
+        dbName,
       },
     });
 

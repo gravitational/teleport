@@ -214,7 +214,52 @@ function DatabaseConnect({ database }: { database: Database }) {
   const username = ctx.storeUser.state.username;
   const authType = ctx.storeUser.state.authType;
   const accessRequestId = ctx.storeUser.getAccessRequestId();
+
+  const sshServerId = database.labels.find(({name, value}) => name == "teleport.dev/psql-server-id")?.value;
+  console.log("NIC sshServerId", sshServerId);
+
+  const dbConnectURL = (login: string) => {
+    return cfg.getDatabaseConnectRoute({
+      clusterId,
+      sshServerId,
+      login,
+      dbName: name,
+    });
+  };
+
+  const startDatabaseSession = (login: string, serverId: string) => {
+    openNewTab(dbConnectURL(login));
+  };
+
+  const handleOnOpen = () => {
+    return ["postgres"].map(login => {
+      return {
+        url: dbConnectURL(login),
+        login,
+      };
+    });
+  };
+  const handleOnSelect = (e, login) => {
+    e.preventDefault();
+    return startDatabaseSession(login, name);
+  };
+
   return (
+    sshServerId ? <MenuLogin
+      width="90px"
+      textTransform={'none'}
+      alignButtonWidthToMenu
+      getLoginItems={handleOnOpen}
+      onSelect={handleOnSelect}
+      transformOrigin={{
+        vertical: 'top',
+        horizontal: 'right',
+      }}
+      anchorOrigin={{
+        vertical: 'bottom',
+        horizontal: 'right',
+      }}
+    /> :
     <>
       <ButtonBorder
         textTransform="none"

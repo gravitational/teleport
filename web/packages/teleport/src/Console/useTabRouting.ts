@@ -19,7 +19,7 @@
 import React from 'react';
 import { useRouteMatch, useParams, useLocation } from 'react-router';
 
-import cfg, { UrlSshParams } from 'teleport/config';
+import cfg, { UrlDatabaseConnectParams, UrlSshParams } from 'teleport/config';
 import { ParticipantMode } from 'teleport/services/session';
 
 import ConsoleContext from './consoleContext';
@@ -28,6 +28,7 @@ export default function useRouting(ctx: ConsoleContext) {
   const { pathname, search } = useLocation();
   const { clusterId } = useParams<{ clusterId: string }>();
   const sshRouteMatch = useRouteMatch<UrlSshParams>(cfg.routes.consoleConnect);
+  const databaseConnectRouteMatch = useRouteMatch<UrlDatabaseConnectParams>(cfg.routes.databaseConsoleConnect);
   const nodesRouteMatch = useRouteMatch(cfg.routes.consoleNodes);
   const joinSshRouteMatch = useRouteMatch<UrlSshParams>(
     cfg.routes.consoleSession
@@ -41,7 +42,9 @@ export default function useRouting(ctx: ConsoleContext) {
 
     // When no document matches current URL that means we need to
     // create one base on URL parameters.
-    if (sshRouteMatch) {
+    if (databaseConnectRouteMatch) {
+      ctx.addDatabaseConnectDocument(databaseConnectRouteMatch.params);
+    } else if (sshRouteMatch) {
       ctx.addSshDocument(sshRouteMatch.params);
     } else if (joinSshRouteMatch) {
       // Extract the mode param from the URL if it is present.
