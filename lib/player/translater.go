@@ -22,6 +22,7 @@ package player
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -118,7 +119,7 @@ func (s *postgresTranslater) flush(metadata events.Metadata) (events.AuditEvent,
 
 	if s.table != nil {
 		s.table.Render()
-		fmt.Fprintf(s.buf, "(%d row%s)\r\n", s.totalRows, pluralize(s.totalRows))
+		fmt.Fprintf(s.buf, "(%d row%s)\r\n\r\n", s.totalRows, pluralize(s.totalRows))
 	}
 
 	if s.buf.Len() == 0 {
@@ -146,7 +147,9 @@ func (s *postgresTranslater) error(evt *events.PostgresErrorResponse) error {
 }
 
 func (s *postgresTranslater) query(evt *events.DatabaseSessionQuery) error {
-	if _, err := fmt.Fprintf(s.buf, "%s=# %s\r\n", evt.DatabaseName, evt.DatabaseQuery); err != nil {
+	query := strings.ReplaceAll(evt.DatabaseQuery, "\r\n", "\n")
+	query = strings.ReplaceAll(evt.DatabaseQuery, "\n", "\r\n")
+	if _, err := fmt.Fprintf(s.buf, "%s=# %s\r\n", evt.DatabaseName, query); err != nil {
 		return trace.Wrap(err)
 	}
 
