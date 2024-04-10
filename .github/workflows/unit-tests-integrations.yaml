@@ -56,9 +56,6 @@ jobs:
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
 
-      - name: Build teleport binaries
-        run: make build/tctl build/teleport build/tsh && echo "$PWD/build" >> "$GITHUB_PATH"
-
       - name: Run access plugin tests
         run: make test-access-integrations
         timeout-minutes: 5
