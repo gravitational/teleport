@@ -1296,6 +1296,23 @@ buf/installed:
 		exit 1; \
 	fi
 
+GODERIVE := $(TOOLINGDIR)/bin/goderive
+# derive will generate derived functions for our API.
+# we need to build goderive first otherwise it will not be able to resolve dependencies
+# in the api/types/discoveryconfig package
+.PHONY: derive
+derive:
+	cd $(TOOLINGDIR) && go build  -o $(GODERIVE) ./cmd/goderive/main.go
+	$(GODERIVE) ./api/types ./api/types/discoveryconfig
+
+# derive-up-to-date checks if the generated derived functions are up to date.
+.PHONY: derive-up-to-date
+derive-up-to-date: must-start-clean/host derive
+	@if ! $(GIT) diff --quiet; then \
+		echo 'Please run make derive.'; \
+		exit 1; \
+	fi
+
 # grpc generates gRPC stubs from service definitions.
 # This target runs in the buildbox container.
 .PHONY: grpc
