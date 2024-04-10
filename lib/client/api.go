@@ -19,6 +19,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -86,6 +87,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/player"
+	"github.com/gravitational/teleport/lib/player/db/postgres"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
@@ -2108,13 +2110,17 @@ const (
 	keyDown  = 66
 )
 
+// TODO(gabrielcorado): move database session recording player to an external
+// function.
 func playSession(ctx context.Context, sessionID string, speed float64, streamer player.Streamer) error {
 	sid, err := session.ParseID(sessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	term, err := terminal.New(os.Stdin, os.Stdout, os.Stderr)
+	// TODO(gabrielcorado): using terminal breaks the table.
+	// term, err := terminal.New(os.Stdin, os.Stdout, os.Stderr)
+	term, err := terminal.New(new(bytes.Buffer), io.Discard, io.Discard)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2177,6 +2183,8 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 		}
 	}()
 
+	postgresPlayer := postgres.New(os.Stdout)
+
 	var lastTime time.Time
 	for evt := range player.C() {
 		switch evt := evt.(type) {
@@ -2186,7 +2194,7 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 				" Export the recording to video with tsh recordings export" +
 				" or view the recording in your web browser."
 			return trace.BadParameter(message)
-		case *apievents.AppSessionStart, *apievents.DatabaseSessionStart, *apievents.AppSessionChunk:
+		case *apievents.AppSessionStart, *apievents.AppSessionChunk:
 			return trace.BadParameter("Interactive session replay is only supported for SSH and Kubernetes sessions." +
 				" To play app or database sessions, specify --format=json or --format=yaml.")
 		case *apievents.Resize:
@@ -2203,6 +2211,15 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 				term.SetWindowTitle(evt.Time.Format(time.Stamp))
 			}
 			lastTime = evt.Time
+		case *apievents.DatabaseSessionStart:
+			if evt.DatabaseProtocol != defaults.ProtocolPostgres {
+				return trace.BadParameter("Interactive database session replay is only supported for PostgreSQL." +
+					" To play other database session, specify --format=json or --format=yaml.")
+			}
+		case *apievents.DatabaseSessionQuery, *apievents.PostgresRowDescription, *apievents.PostgresErrorResponse, *apievents.PostgresCommandComplete, *apievents.PostgresDataRow:
+			if err := postgresPlayer.Event(evt); err != nil {
+				return trace.Wrap(err)
+			}
 		default:
 			continue
 		}

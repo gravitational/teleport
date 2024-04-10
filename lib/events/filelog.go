@@ -365,7 +365,9 @@ func getCheckpointFromEvent(event apievents.AuditEvent) (string, error) {
 
 func (l *FileLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	l.Debugf("SearchSessionEvents(%v, %v, order=%v, limit=%v, cond=%q)", req.From, req.To, req.Order, req.Limit, req.Cond)
-	filter := searchEventsFilter{eventTypes: []string{SessionEndEvent, WindowsDesktopSessionEndEvent}}
+	// TODO(gabrielcorado): check if this will be a real change. If yes, check
+	// if other backends require update.
+	filter := searchEventsFilter{eventTypes: []string{SessionEndEvent, WindowsDesktopSessionEndEvent, DatabaseSessionEndEvent}}
 	if req.Cond != nil {
 		condFn, err := utils.ToFieldsCondition(req.Cond)
 		if err != nil {
