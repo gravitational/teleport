@@ -1366,6 +1366,55 @@ message StreamSessionEventsRequest {
   int32 StartIndex = 2;
 }
 
+// GetSessionMetadataRequest
+message GetSessionMetadataRequest {
+  // SessionID
+  string SessionID = 1;
+}
+
+// SessionMetadata
+message SessionMetadata {
+  // TotalTime
+  int64 TotalTime = 1 [
+    (gogoproto.jsontag) = "total_time",
+    (gogoproto.casttype) = "Duration"
+  ];
+  // TotalEvents
+  int64 TotalEvents = 2;
+  // IdlePrints
+  repeated SessionIdleTime IdlePrints = 3;
+  // NoteworthyEvents
+  repeated events.OneOf NoteworthyEvents = 4;
+}
+
+// SessionIdleTime
+message SessionIdleTime {
+  // Index
+  int64 Index = 1;
+  // StartTime
+  google.protobuf.Timestamp StartTime = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  // EndTime
+  google.protobuf.Timestamp EndTime = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+}
+
+// // GetSessionChunkRequest
+// message GetSessionChunkRequest {
+//   // SessionID
+//   string SessionID = 1;
+//   // StartIndex
+//   uint64 StartIndex = 2;
+//   // Limit
+//   uint64 Limit = 3;
+//   // StartKey
+//   string StartKey = 4;
+// }
+
 // NodeLogin specifies an SSH node and OS login.
 message NodeLogin {
   // Node can be node's hostname or UUID.
@@ -3083,6 +3132,11 @@ service AuthService {
   rpc DeleteLock(DeleteLockRequest) returns (google.protobuf.Empty);
   // ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
   rpc ReplaceRemoteLocks(ReplaceRemoteLocksRequest) returns (google.protobuf.Empty);
+
+  // GetSessionMetadata
+  rpc GetSessionMetadata(GetSessionMetadataRequest) returns (SessionMetadata);
+  // // GetSessionChunk
+  // rpc GetSessionChunk(GetSessionChunkRequest) returns (Events);
 
   // StreamSessionEvents streams audit events from a given session recording.
   rpc StreamSessionEvents(StreamSessionEventsRequest) returns (stream events.OneOf);

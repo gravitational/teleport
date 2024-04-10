@@ -3497,6 +3497,20 @@ func (g *GRPCServer) ResetAuthPreference(ctx context.Context, _ *emptypb.Empty) 
 	return &emptypb.Empty{}, nil
 }
 
+func (g *GRPCServer) GetSessionMetadata(ctx context.Context, req *authpb.GetSessionMetadataRequest) (*authpb.SessionMetadata, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out, err := auth.GetSessionMetadata(ctx, session.ID(req.SessionID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return out, nil
+}
+
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.

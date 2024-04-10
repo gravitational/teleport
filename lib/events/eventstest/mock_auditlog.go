@@ -21,6 +21,7 @@ package eventstest
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -31,6 +32,10 @@ type MockAuditLog struct {
 
 	Emitter       *MockRecorderEmitter
 	SessionEvents []apievents.AuditEvent
+}
+
+func (m *MockAuditLog) GetSessionMetadata(ctx context.Context, sessionID session.ID) (*proto.SessionMetadata, error) {
+	return nil, nil
 }
 
 func (m *MockAuditLog) StreamSessionEvents(ctx context.Context, sid session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {

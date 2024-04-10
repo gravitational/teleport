@@ -2490,6 +2490,16 @@ func (c *Client) DeleteAllNodes(ctx context.Context, namespace string) error {
 	return trace.Wrap(err)
 }
 
+func (c *Client) GetSessionMetadata(ctx context.Context, sessionID string) (*proto.SessionMetadata, error) {
+	out, err := c.grpc.GetSessionMetadata(ctx, &proto.GetSessionMetadataRequest{
+		SessionID: sessionID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return out, nil
+}
+
 // StreamSessionEvents streams audit events from a given session recording.
 func (c *Client) StreamSessionEvents(ctx context.Context, sessionID string, startIndex int64) (chan events.AuditEvent, chan error) {
 	request := &proto.StreamSessionEventsRequest{

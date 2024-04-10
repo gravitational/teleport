@@ -5916,6 +5916,10 @@ func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName st
 	return a.authServer.ReplaceRemoteLocks(ctx, clusterName, locks)
 }
 
+func (a *ServerWithRoles) GetSessionMetadata(ctx context.Context, sessionID session.ID) (*proto.SessionMetadata, error) {
+	return a.alog.GetSessionMetadata(ctx, sessionID)
+}
+
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.

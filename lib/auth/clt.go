@@ -298,6 +298,10 @@ func (c *Client) CompareAndSwapUser(ctx context.Context, new, expected types.Use
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+func (c *Client) GetSessionMetadata(ctx context.Context, sessionID session.ID) (*proto.SessionMetadata, error) {
+	return c.APIClient.GetSessionMetadata(ctx, sessionID.String())
+}
+
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.

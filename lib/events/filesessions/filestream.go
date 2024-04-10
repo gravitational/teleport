@@ -20,6 +20,7 @@ package filesessions
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -28,11 +29,14 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -192,7 +196,79 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	if err != nil {
 		h.WithError(err).Errorf("Failed to remove upload %q.", upload.ID)
 	}
-	return nil
+
+	if err := f.Sync(); err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = f.Seek(0, io.SeekStart)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	const maxIdleTime = 1 * time.Second
+	pr := events.NewProtoReader(f)
+	var metadata proto.SessionMetadata
+	var startTime time.Time
+	var lastPrintTime time.Time
+	var joined bool
+
+	for {
+		event, err := pr.Read(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		switch e := event.(type) {
+		case *apievents.SessionStart:
+			startTime = e.Time
+			lastPrintTime = e.Time
+		case *apievents.SessionPrint:
+			printTime := e.GetTime()
+			if printTime.Sub(lastPrintTime) > maxIdleTime {
+				metadata.IdlePrints = append(metadata.IdlePrints, &proto.SessionIdleTime{
+					Index:     e.Index,
+					StartTime: lastPrintTime,
+					EndTime:   e.Time,
+				})
+			}
+			lastPrintTime = e.GetTime()
+		case *apievents.SessionJoin:
+			joined = true
+
+			grpcEvent, err := apievents.ToOneOf(e)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			metadata.NoteworthyEvents = append(metadata.NoteworthyEvents, grpcEvent)
+		case *apievents.SessionLeave:
+			if !joined {
+				continue
+			}
+
+			grpcEvent, err := apievents.ToOneOf(e)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			metadata.NoteworthyEvents = append(metadata.NoteworthyEvents, grpcEvent)
+		case *apievents.SessionEnd:
+			metadata.TotalTime = proto.Duration(e.Time.Sub(startTime))
+			metadata.TotalEvents = e.Index + 1
+
+			filename := filepath.Join(h.Directory, "metadata", upload.SessionID.String())
+			metadataFile, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer metadataFile.Close()
+
+			enc := json.NewEncoder(metadataFile)
+			if err := enc.Encode(metadata); err != nil {
+				return trace.Wrap(err)
+			}
+
+			return nil
+		}
+	}
 }
 
 // ListParts lists upload parts

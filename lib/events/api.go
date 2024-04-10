@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -953,6 +954,8 @@ type SessionStreamer interface {
 	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 	// The event channel is not closed on error to prevent race conditions in downstream select statements.
 	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
+
+	GetSessionMetadata(ctx context.Context, sessionID session.ID) (*proto.SessionMetadata, error)
 }
 
 type SearchEventsRequest struct {

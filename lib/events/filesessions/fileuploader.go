@@ -67,6 +67,9 @@ func NewHandler(cfg Config) (*Handler, error) {
 	if err := os.MkdirAll(cfg.Directory, teleport.SharedDirMode); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
+	if err := os.MkdirAll(filepath.Join(cfg.Directory, "metadata"), teleport.SharedDirMode); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

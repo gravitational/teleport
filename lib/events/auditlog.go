@@ -41,6 +41,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -948,6 +949,21 @@ func (l *AuditLog) SearchSessionEvents(ctx context.Context, req SearchSessionEve
 		return l.ExternalLog.SearchSessionEvents(ctx, req)
 	}
 	return l.localLog.SearchSessionEvents(ctx, req)
+}
+
+func (l *AuditLog) GetSessionMetadata(ctx context.Context, sessionID session.ID) (*proto.SessionMetadata, error) {
+	filename := filepath.Join(l.playbackDir, "metadata", sessionID.String())
+	encMetadata, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var metadata proto.SessionMetadata
+	if err := json.Unmarshal(encMetadata, &metadata); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &metadata, nil
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
