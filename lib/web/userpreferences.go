@@ -58,6 +58,7 @@ type UnifiedResourcePreferencesResponse struct {
 	LabelsViewMode userpreferencesv1.LabelsViewMode `json:"labelsViewMode"`
 }
 
+// AccessGraphPreferencesResponse is the JSON response for Access Graph preferences.
 type AccessGraphPreferencesResponse struct {
 	HasBeenRedirected bool `json:"hasBeenRedirected"`
 }
