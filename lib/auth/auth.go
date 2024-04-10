@@ -375,7 +375,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
-		Trust:                     cfg.Trust,
+		TrustInternal:             cfg.Trust,
 		PresenceInternal:          cfg.Presence,
 		Provisioner:               cfg.Provisioner,
 		Identity:                  cfg.Identity,
@@ -531,7 +531,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 }
 
 type Services struct {
-	services.Trust
+	services.TrustInternal
 	services.PresenceInternal
 	services.Provisioner
 	services.Identity
@@ -6414,50 +6414,36 @@ func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
 	return newKeySet
 }
 
-// addAdditionalTrustedKeysAtomic performs an atomic CompareAndSwap to update
+// addAdditionalTrustedKeysAtomic performs an atomic update to
 // the given CA with newKeys added to the AdditionalTrustedKeys
-func (a *Server) addAdditionalTrustedKeysAtomic(
-	ctx context.Context,
-	currentCA types.CertAuthority,
-	newKeys types.CAKeySet,
-	needsUpdate func(types.CertAuthority) (bool, error),
-) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
-		default:
+func (a *Server) addAdditionalTrustedKeysAtomic(ctx context.Context, ca types.CertAuthority, newKeys types.CAKeySet, needsUpdate func(types.CertAuthority) (bool, error)) error {
+	const maxIterations = 64
+
+	for i := 0; i < maxIterations; i++ {
+		if update, err := needsUpdate(ca); err != nil || !update {
+			return trace.Wrap(err)
 		}
-		updateRequired, err := needsUpdate(currentCA)
+
+		err := ca.SetAdditionalTrustedKeys(mergeKeySets(
+			ca.GetAdditionalTrustedKeys(),
+			newKeys,
+		))
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if !updateRequired {
-			return nil
-		}
 
-		newCA := currentCA.Clone()
-		currentKeySet := newCA.GetAdditionalTrustedKeys()
-		mergedKeySet := mergeKeySets(currentKeySet, newKeys)
-		if err := newCA.SetAdditionalTrustedKeys(mergedKeySet); err != nil {
+		if _, err := a.UpdateCertAuthority(ctx, ca); err == nil {
+			return nil
+		} else if !errors.Is(err, backend.ErrIncorrectRevision) {
 			return trace.Wrap(err)
 		}
 
-		err = a.CompareAndSwapCertAuthority(newCA, currentCA)
-		if err != nil && !trace.IsCompareFailed(err) {
-			return trace.Wrap(err)
-		}
-		if err == nil {
-			// success!
-			return nil
-		}
-		// else trace.IsCompareFailed(err) == true (CA was concurrently updated)
-
-		currentCA, err = a.Services.GetCertAuthority(ctx, currentCA.GetID(), true)
+		ca, err = a.Services.GetCertAuthority(ctx, ca.GetID(), true)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
+	return trace.Errorf("too many conflicts attempting to set additional trusted keys for ca %q of type %q", ca.GetClusterName(), ca.GetType())
 }
 
 // newKeySet generates a new sets of keys for a given CA type.
