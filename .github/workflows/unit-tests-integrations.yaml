@@ -67,6 +67,10 @@ jobs:
         run: make test-integrations-lib
         timeout-minutes: 5
 
+      - name: Run terraform provider OSS tests
+        run: make test-terraform-provider
+        timeout-minutes: 15
+
       - name: Run operator tests
         timeout-minutes: 40
         run: make test-operator
