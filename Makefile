@@ -829,7 +829,7 @@ test-operator:
 #
 .PHONY: test-terraform-provider
 test-terraform-provider:
-	make -C integrations/terraform test
+	make -C integrations test-terraform-provider
 #
 # Runs Go tests on the integrations/kube-agent-updater module. These have to be run separately as the package name is different.
 #
@@ -846,7 +846,7 @@ test-kube-agent-updater:
 test-access-integrations:
 	make -C integrations test-access
 
-.PHONY: test-access-integrations
+.PHONY: test-event-handler-integrations
 test-event-handler-integrations:
 	make -C integrations test-event-handler
 
