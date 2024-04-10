@@ -18,6 +18,8 @@
 
 import React from 'react';
 
+import { UserPreferences } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+
 import {
   ManagementSection,
   NavigationCategory,
@@ -26,7 +28,7 @@ import {
 export type NavGroup = 'team' | 'activity' | 'clusters' | 'accessrequests';
 
 export interface Context {
-  init(): Promise<void>;
+  init(preferences: UserPreferences): Promise<void>;
   getFeatureFlags(): FeatureFlags;
 }
 
@@ -125,6 +127,9 @@ export interface TeleportFeature {
   // hideNavigation is used to hide the navigation completely
   // and show a back button in the top bar
   hideNavigation?: boolean;
+  // if highlightKey is specified, navigating to ?highlight=<highlightKey>
+  // will highlight the feature in the navigation, to draw a users attention to it
+  highlightKey?: string;
 }
 
 export type StickyCluster = {

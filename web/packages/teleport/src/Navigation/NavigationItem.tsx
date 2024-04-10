@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback } from 'react';
-import styled from 'styled-components';
+import React, { useCallback, useMemo } from 'react';
+import styled, { css, keyframes } from 'styled-components';
 
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 
 import { ExternalLinkIcon } from 'design/SVGIcon';
 
@@ -33,6 +33,7 @@ import {
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { storageService } from 'teleport/services/storageService';
 import { useTeleport } from 'teleport';
+
 import { NavTitle, RecommendationStatus } from 'teleport/types';
 import { NotificationKind } from 'teleport/stores/storeNotifications';
 
@@ -56,9 +57,25 @@ const ExternalLink = styled.a`
   }
 `;
 
+const highlight = keyframes`
+  to {
+    background: none;
+  }
+`;
+
 const Link = styled(NavLink)`
   ${commonNavigationItemStyles};
   color: ${props => props.theme.colors.text.main};
+  z-index: 1;
+  background: ${p =>
+    p.isHighlighted ? p.theme.colors.highlightedNavigationItem : 'none'};
+  animation: ${p =>
+    p.isHighlighted
+      ? css`
+          ${highlight} 10s forwards linear
+        `
+      : 'none'};
+  animation-delay: 2s;
 
   &:focus {
     background: ${props => props.theme.colors.spotBackground[0]};
@@ -95,6 +112,14 @@ export function NavigationItem(props: NavigationItemProps) {
     lockedRoute,
     hideFromNavigation,
   } = props.feature;
+
+  const { search } = useLocation();
+
+  const params = useMemo(() => new URLSearchParams(search), [search]);
+
+  const highlighted =
+    props.feature.highlightKey &&
+    params.get('highlight') === props.feature.highlightKey;
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -254,6 +279,7 @@ export function NavigationItem(props: NavigationItemProps) {
           tabIndex={props.visible ? 0 : -1}
           to={navigationItemVersion.getLink(clusterId)}
           exact={navigationItemVersion.exact}
+          isHighlighted={highlighted}
         >
           <LinkContent size={props.size}>
             {getIcon(props.feature, props.size)}
