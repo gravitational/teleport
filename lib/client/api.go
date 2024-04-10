@@ -2134,6 +2134,7 @@ type model struct {
 	player           *player.Player
 	term             *terminal.Terminal
 	playing          bool
+	finished         bool
 	lastEventTime    time.Time
 	viewport         viewport.Model
 	progress         progress.Model
@@ -2248,7 +2249,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.progress.Width = m.width - len(renderPlayerUI(m.playing)) - len(time.Stamp)
 	case eventMsg:
 		if len(msg.data) != 0 {
-			if msg.time != m.lastEventTime {
+			if !msg.time.IsZero() && msg.time != m.lastEventTime {
 				m.currentTimestamp = msg.time.Format(time.Stamp)
 				cmds = append(cmds, tea.SetWindowTitle(m.currentTimestamp))
 			}
@@ -2265,11 +2266,19 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				)
 			}
 		}
-		cmds = append(cmds, m.getNextEvent)
+		if !m.finished {
+			cmds = append(cmds, m.getNextEvent)
+		}
 	case playbackFinishedMsg:
 		// TODO: instead of quitting here, we could pause the player and
 		// allow the recording to be played again
-		return m, tea.Quit
+		m.finished = true
+		cmds = append(cmds, func() tea.Msg {
+			return eventMsg{
+				// TODO add lipgloss :)
+				data: []byte("\n<< session finished >>"),
+			}
+		})
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyCtrlC, tea.KeyCtrlD, tea.KeyEsc:
