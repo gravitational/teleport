@@ -1330,6 +1330,7 @@ func (s *Server) getAllGCPServerFetchers() []server.Fetcher {
 // It will retry using an exponential backoff algorithm.
 func (s *Server) acquireDiscoveryGroup() error {
 	if s.DiscoveryGroup == "" {
+		s.Log.Warnf("DiscoveryGroup is not set, skipping semaphore lock. It is recommended to set a DiscoveryGroup")
 		return nil
 	}
 
@@ -1344,20 +1345,45 @@ func (s *Server) acquireDiscoveryGroup() error {
 		return trace.Wrap(err)
 	}
 
-	var lease *services.SemaphoreLock
 	for range retry.After() {
 		retry.Inc()
 		s.Log.Debugf("Discovery service is trying to acquire lock for DiscoveryGroup %q", s.DiscoveryGroup)
-		lease, err = s.tryAcquireDiscoveryGroupLease()
-		if err != nil {
-			if !strings.Contains(err.Error(), teleport.MaxLeases) {
-				return trace.Wrap(err)
+		if err := s.tryAcquireDiscoveryGroupLease(); err != nil {
+			if strings.Contains(err.Error(), teleport.MaxLeases) {
+				s.Log.Debugf("Discovery service is waiting on DiscoveryGroup %q lock: %v", s.DiscoveryGroup, err)
+				continue
 			}
-			s.Log.Debugf("Discovery service is waiting on DiscoveryGroup %q lock: %v", s.DiscoveryGroup, err)
-			continue
+			return trace.Wrap(err)
 		}
-
 		break
+	}
+
+	return nil
+}
+
+func (s *Server) tryAcquireDiscoveryGroupLease() error {
+	lease, err := services.AcquireSemaphoreLock(s.ctx, services.SemaphoreLockConfig{
+		Service: s.Config.AccessPoint,
+		Expiry:  time.Minute,
+		Params: types.AcquireSemaphoreRequest{
+			SemaphoreKind: types.SemaphoreKindDiscoveryServiceGroup,
+			SemaphoreName: s.DiscoveryGroup,
+			MaxLeases:     1,
+			Holder:        s.ServerID,
+		},
+		Clock: s.clock,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.relaseGroupMu.Lock()
+	defer s.relaseGroupMu.Unlock()
+	s.releaseGroupLockFn = func() {
+		lease.Stop()
+		if err := lease.Wait(); err != nil {
+			s.Log.WithError(err).Warn("DiscoveryGroup semaphore cleanup")
+		}
 	}
 
 	go func() {
@@ -1374,34 +1400,6 @@ func (s *Server) acquireDiscoveryGroup() error {
 	}()
 
 	return nil
-}
-
-func (s *Server) tryAcquireDiscoveryGroupLease() (*services.SemaphoreLock, error) {
-	lease, err := services.AcquireSemaphoreLock(s.ctx, services.SemaphoreLockConfig{
-		Service: s.Config.AccessPoint,
-		Expiry:  time.Minute,
-		Params: types.AcquireSemaphoreRequest{
-			SemaphoreKind: types.SemaphoreKindDiscoveryServiceGroup,
-			SemaphoreName: s.DiscoveryGroup,
-			MaxLeases:     1,
-			Holder:        s.ServerID,
-		},
-		Clock: s.clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	s.relaseGroupMu.Lock()
-	defer s.relaseGroupMu.Unlock()
-	s.releaseGroupLockFn = func() {
-		lease.Stop()
-		if err := lease.Wait(); err != nil {
-			s.Log.WithError(err).Warn("DiscoveryGroup semaphore cleanup")
-		}
-	}
-
-	return lease, nil
 }
 
 // Start starts the discovery service.
