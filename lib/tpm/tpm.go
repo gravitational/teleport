@@ -148,7 +148,7 @@ func queryWithTPM(
 	return data, nil
 }
 
-// Attest provides the information necessary to perform a tpm join to a Teleport
+// Attest provides the information necessary to perform a TPM join to a Teleport
 // cluster. It returns a solve function which should be called when the
 // encrypted credential challenge is received from the server.
 // The Close function must be called if Attest returns in a non-error state.
