@@ -1,0 +1,62 @@
+name: Build Buildboxes (scheduled)
+on:
+  schedule:
+    # Scheduled jobs only run from master. If you are reading this on a branch,
+    # this event does not fire there.
+    # Run daily at 6am UTC which is about 23:00 PST (plus/minus DST).
+    # The minute offset of 33 is a "random" offset to not run at the top of the hour.
+    - cron: '33 6 * * *'
+
+env:
+  REGISTRY: ghcr.io
+
+# Each job depends on the last so that we do not run too many build jobs
+# in parallel so as to not require too many self-hosted runners which
+# are used for the ARM64 builds.
+jobs:
+  build-master:
+    uses: gravitational/teleport.e/.github/workflows/build-buildboxes.yaml@master
+    with:
+      branch: master
+    permissions:
+      contents: read
+      packages: write
+
+  build-branch-latest:
+    needs: [build-master]
+    uses: gravitational/teleport.e/.github/workflows/build-buildboxes.yaml@branch/v15
+    with:
+      branch: branch/v15
+    permissions:
+      contents: read
+      packages: write
+
+  build-branch-latest-minus-1:
+    needs: [build-branch-latest]
+    uses: gravitational/teleport.e/.github/workflows/build-buildboxes.yaml@branch/v14
+    with:
+      branch: branch/v14
+    permissions:
+      contents: read
+      packages: write
+
+  build-branch-latest-minus-2:
+    needs: [build-branch-latest-minus-1]
+    uses: gravitational/teleport.e/.github/workflows/build-buildboxes.yaml@branch/v13
+    with:
+      branch: branch/v13
+    permissions:
+      contents: read
+      packages: write
+
+  # build-branch-latest-prerelease is to build the buildboxes for a freshly cut
+  # teleport version that is still alpha, beta or rc. Once released, this job
+  # should be updated to the next branch number and disabled.
+  #build-branch-latest-prerelease:
+  #  needs: [build-branch-latest-minus-2]
+  #  uses: gravitational/teleport.e/.github/workflows/build-buildboxes.yaml@branch/v16
+  #  with:
+  #    branch: branch/v16
+  #  permissions:
+  #    contents: read
+  #    packages: write
