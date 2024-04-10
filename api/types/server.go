@@ -503,15 +503,15 @@ func (s *ServerV2) openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults() er
 
 // serverNameForEICE returns the deterministic Server's name for an EICE instance.
 // Returns an empty string if AccountID or InstanceID is not present.
-func serverNameForEICE(s *ServerV2) string {
+func serverNameForEICE(s *ServerV2) (string, error) {
 	awsAccountID := s.GetAWSAccountID()
 	awsInstanceID := s.GetAWSInstanceID()
 
 	if awsAccountID != "" && awsInstanceID != "" {
-		return fmt.Sprintf("%s-%s", awsAccountID, awsInstanceID)
+		return fmt.Sprintf("%s-%s", awsAccountID, awsInstanceID), nil
 	}
 
-	return ""
+	return "", trace.BadParameter("missing account id or instance id in %s node", SubKindOpenSSHEICENode)
 }
 
 // CheckAndSetDefaults checks and set default values for any missing fields.
@@ -525,9 +525,9 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 		case SubKindOpenSSHEICENode:
 			// For EICE nodes, use a deterministic name.
 			// This name must comply with the expected format for EC2 Nodes as defined here: api/utils/aws.IsEC2NodeID
-			eiceNodeName := serverNameForEICE(s)
-			if eiceNodeName == "" {
-				return trace.BadParameter("missing account id or instance id in %s node", SubKindOpenSSHEICENode)
+			eiceNodeName, err := serverNameForEICE(s)
+			if err != nil {
+				return trace.Wrap(err)
 			}
 			s.Metadata.Name = eiceNodeName
 		case SubKindOpenSSHNode:
