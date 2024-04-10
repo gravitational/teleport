@@ -184,6 +184,7 @@ func makeReadyForQueryEvent(message *pgproto3.ReadyForQuery) events.AuditEvent {
 
 func makeErrorResponseEvent(message *pgproto3.ErrorResponse) events.AuditEvent {
 	return &events.PostgresErrorResponse{
+		Metadata:            makeBackendEventMetadata(message),
 		Severity:            message.Severity,
 		SeverityUnlocalized: message.SeverityUnlocalized,
 		ErrorCode:           message.Code,
