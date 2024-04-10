@@ -463,6 +463,8 @@ const colors: ThemeColors = {
 
   link: '#66ABFF',
 
+  highlightedNavigationItem: 'rgba(255, 255, 255, 0.3)',
+
   success: {
     main: '#00A223',
     hover: '#35D655',
