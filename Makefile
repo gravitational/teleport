@@ -703,12 +703,16 @@ test-helm: helmunit/installed
 	helm unittest -3 --with-subchart=false examples/chart/teleport-cluster
 	helm unittest -3 examples/chart/teleport-kube-agent
 	helm unittest -3 examples/chart/teleport-cluster/charts/teleport-operator
+	helm unittest -3 examples/chart/access/*
+	helm unittest -3 examples/chart/event-handler
 
 .PHONY: test-helm-update-snapshots
 test-helm-update-snapshots: helmunit/installed
 	helm unittest -3 -u --with-subchart=false examples/chart/teleport-cluster
 	helm unittest -3 -u examples/chart/teleport-kube-agent
 	helm unittest -3 -u examples/chart/teleport-cluster/charts/teleport-operator
+	helm unittest -3 -u examples/chart/access/*
+	helm unittest -3 -u examples/chart/event-handler
 
 #
 # Runs all Go tests except integration, called by CI/CD.

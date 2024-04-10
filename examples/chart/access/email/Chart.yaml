@@ -1,0 +1,8 @@
+.version: &version "16.0.0-dev"
+
+apiVersion: v2
+name: teleport-plugin-email
+description: A Helm chart for the Teleport Email Plugin
+type: application
+version: *version
+appVersion: *version
