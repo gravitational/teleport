@@ -124,10 +124,11 @@ export default class ConsoleContext {
     });
   }
 
-  addDatabaseConnectDocument({clusterId, serverId, dbName, login}: UrlDatabaseConnectParams) {
-    const title = `db connect ${login}@${serverId}.${dbName}`;
+  addDatabaseConnectDocument({clusterId, serverId, dbServerName, dbName, login}: UrlDatabaseConnectParams) {
+    const title = `db connect ${login}@${dbServerName}.${dbName}`;
     const url = cfg.getDatabaseConnectRoute({clusterId,
       sshServerId: serverId,
+      dbServerName,
       dbName,
       login,
     });
@@ -138,6 +139,7 @@ export default class ConsoleContext {
       clusterId,
       title,
       serverId,
+      dbServerName,
       dbName,
       login,
       url,
@@ -207,7 +209,7 @@ export default class ConsoleContext {
     webSession.logout();
   }
 
-  createTty(session: Session, mode?: ParticipantMode, dbName?: string): Tty {
+  createTty(session: Session, mode?: ParticipantMode, dbServerName?: string, dbName?: string): Tty {
     const { login, sid, serverId, clusterId } = session;
 
     const propagator = new W3CTraceContextPropagator();
@@ -223,7 +225,7 @@ export default class ConsoleContext {
       .replace(':traceparent', carrier['traceparent']);
 
     console.log("NIC createTty");
-    console.log(dbName);
+    console.log(dbServerName, dbName);
 
     const addressResolver = new TtyAddressResolver({
       ttyUrl,
@@ -232,6 +234,7 @@ export default class ConsoleContext {
         sid,
         server_id: serverId,
         mode,
+        dbServerName,
         dbName,
       },
     });

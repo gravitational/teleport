@@ -217,13 +217,17 @@ function DatabaseConnect({ database }: { database: Database }) {
 
   const sshServerId = database.id || "";
   const dbUsers = database.users || [];
+  let dbNames = database.names || ["postgres"];
+
+  const [dbName, setDbName] = useState(dbNames[0]);
 
   const dbConnectURL = (login: string) => {
     return cfg.getDatabaseConnectRoute({
       clusterId,
       sshServerId,
       login,
-      dbName: name,
+      dbServerName: name,
+      dbName: dbName,
     });
   };
 
@@ -245,7 +249,19 @@ function DatabaseConnect({ database }: { database: Database }) {
   };
 
   return (
-    sshServerId ? <MenuLogin
+    sshServerId ? 
+    <>
+    <input
+      style={{width: "90px"}}
+      type="text"
+      value={dbName}
+      placeholder='db name'
+      onChange={e => setDbName(e.target.value)}
+      list="db-name-options" />
+    <datalist id="db-name-options">
+      {dbNames.map(dbName => <option key={dbName} value={dbName}>{dbName}</option>)}
+    </datalist>
+    <MenuLogin
       width="90px"
       textTransform={'none'}
       alignButtonWidthToMenu
@@ -259,7 +275,8 @@ function DatabaseConnect({ database }: { database: Database }) {
         vertical: 'bottom',
         horizontal: 'right',
       }}
-    /> :
+    />
+    </> :
     <>
       <ButtonBorder
         textTransform="none"

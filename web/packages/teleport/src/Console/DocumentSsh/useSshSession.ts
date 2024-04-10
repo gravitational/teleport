@@ -36,9 +36,9 @@ import type {
 const tracer = trace.getTracer('TTY');
 
 export default function useSshSession(doc: DocumentSsh) {
-  const { clusterId, sid, serverId, login, mode, dbName } = doc;
+  const { clusterId, sid, serverId, login, mode, dbServerName, dbName } = doc;
   console.log("NIC useSshSession")
-  console.log(dbName)
+  console.log(dbServerName, dbName)
   const ctx = useConsoleContext();
   const ttyRef = React.useRef<Tty>(null);
   const tty = ttyRef.current as ReturnType<typeof ctx.createTty>;
@@ -56,7 +56,7 @@ export default function useSshSession(doc: DocumentSsh) {
         undefined, // SpanOptions
         context.active(),
         span => {
-          const tty = ctx.createTty(session, mode, dbName);
+          const tty = ctx.createTty(session, mode, dbServerName, dbName);
 
           // subscribe to tty events to handle connect/disconnects events
           tty.on(TermEvent.CLOSE, () => ctx.closeTab(doc));

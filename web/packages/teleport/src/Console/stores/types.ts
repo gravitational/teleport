@@ -37,6 +37,7 @@ export interface DocumentSsh extends DocumentBase {
   sid?: string;
   mode?: ParticipantMode;
   serverId: string;
+  dbServerName?: string;
   dbName?: string;
   login: string;
   latency:

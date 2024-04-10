@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
@@ -98,7 +99,8 @@ type TerminalRequest struct {
 	// ParticipantMode is the mode that determines what you can do when you join an active session.
 	ParticipantMode types.SessionParticipantMode `json:"mode"`
 
-	DBName string `json:"dbName"`
+	DBServerName string `json:"dbServerName"`
+	DBName       string `json:"dbName"`
 }
 
 // UserAuthClient is a subset of the Auth API that performs
@@ -436,6 +438,7 @@ func getTerminalRequest(r *http.Request, tc *client.TeleportClient) *TerminalReq
 		return nil
 	}
 
+	slog.With("DBServerName", req.DBServerName, "DBName", req.DBName, "login", req.Login).Debug("NIC getTerminalRequest")
 	return &req
 }
 
@@ -490,7 +493,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamEvents(ctx, tc)
 
-	if tReq != nil && tReq.DBName != "" {
+	if tReq != nil && tReq.DBServerName != "" && tReq.DBName != "" {
 		// generate user CA issued db cert w/ db route info inside
 		sessCtx := t.ctx
 		pk, err := keys.ParsePrivateKey(sessCtx.cfg.Session.GetPriv())
@@ -511,10 +514,10 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 			Expires:        time.Now().Add(30 * time.Minute),
 			RouteToCluster: tc.SiteName,
 			RouteToDatabase: authproto.RouteToDatabase{
-				ServiceName: tReq.DBName,
+				ServiceName: tReq.DBServerName,
 				Protocol:    "postgres",
 				Username:    tReq.Login,
-				Database:    "postgres",
+				Database:    tReq.DBName,
 			},
 		})
 

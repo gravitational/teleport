@@ -137,7 +137,7 @@ const cfg = {
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
-    databaseConsoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:dbName/:login',
+    databaseConsoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:dbServerName/:dbName/:login',
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
@@ -539,11 +539,12 @@ const cfg = {
     });
   },
 
-  getDatabaseConnectRoute({clusterId, sshServerId, dbName, login}) {
+  getDatabaseConnectRoute({clusterId, sshServerId, dbServerName, dbName, login}) {
     return generatePath(cfg.routes.databaseConsoleConnect, {
       clusterId,
       serverId: sshServerId,
       login,
+      dbServerName,
       dbName,
     })
   },
@@ -1118,6 +1119,7 @@ export interface UrlDatabaseConnectParams {
   login: string;
   serverId: string;
   clusterId: string;
+  dbServerName: string;
   dbName: string;
 }
 
