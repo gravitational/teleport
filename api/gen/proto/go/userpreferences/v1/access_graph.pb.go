@@ -40,7 +40,7 @@ type AccessGraphUserPreferences struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// hasBeenRedirected is true if the user has already been redirected to the Access Graph
+	// has_been_redirected is true if the user has already been redirected to the Access Graph
 	// on login, after having signed up for a trial from the Teleport Policy page.
 	HasBeenRedirected bool `protobuf:"varint,1,opt,name=has_been_redirected,json=hasBeenRedirected,proto3" json:"has_been_redirected,omitempty"`
 }
