@@ -34,7 +34,7 @@ import { MessageType } from "@protobuf-ts/runtime";
  */
 export interface AccessGraphUserPreferences {
     /**
-     * hasBeenRedirected is true if the user has already been redirected to the Access Graph
+     * has_been_redirected is true if the user has already been redirected to the Access Graph
      * on login, after having signed up for a trial from the Teleport Policy page.
      *
      * @generated from protobuf field: bool has_been_redirected = 1;
