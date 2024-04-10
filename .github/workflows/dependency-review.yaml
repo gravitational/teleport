@@ -12,7 +12,10 @@ jobs:
       pull-requests: write
     with:
       base-ref: ${{ github.event.pull_request.base.sha || 'master' }}
-      allow-ghsas: 'GHSA-xwh9-gc39-5298'
+      # 'GHSA-6xf3-5hp7-xqqg' is a false positive. That's an old Teleport Vuln,
+      # but because of the replace, the dependency cannot find the correct
+      # Teleport version.
+      allow-ghsas: 'GHSA-6xf3-5hp7-xqqg'
       allow-dependencies-licenses: >-
         pkg:cargo/curve25519-dalek-derive,
         pkg:cargo/ring,

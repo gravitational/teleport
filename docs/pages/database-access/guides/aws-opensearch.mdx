@@ -5,6 +5,16 @@ description: How to access AWS OpenSearch with Teleport database access
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS OpenSearch" dbConfigure="AWS OpenSearch Service via REST API with IAM Authentication" dbName="AWS OpenSearch" !)
 
+## How it works
+
+The Teleport Database Service makes use of [fine-grained access
+control](https://docs.aws.amazon.com/opensearch-service/latest/developerguide/fgac.html),
+which maps an IAM role to a backend OpenSearch role. Teleport users choose an
+IAM role and connect to OpenSearch via a local proxy server. The local proxy
+server forwards requests to the Teleport Database Service via the Teleport Proxy
+Service. The Database Service assumes the user's chosen IAM role, rewrites
+requests with AWS credentials, and forwards them to the OpenSearch API.
+
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![OpenSearch Self-Hosted](../../../img/database-access/guides/aws-opensearch/opensearch_selfhosted.png)
@@ -98,8 +108,8 @@ Finally, click **Create Role**.
 
 ### Configure Cluster Fine-grained access control IAM Role mapping in Amazon OpenSearch Managed Custer
 
-Teleport AWS OpenSearch service integration leverages the [OpenSearch Fine-grained
-access control](https://docs.aws.amazon.com/opensearch-service/latest/developerguide/fgac.html)
+Teleport AWS OpenSearch service integration leverages the OpenSearch Fine-grained
+access control
 where the IAM role or user is mapped to the OpenSearch role.
 
 In order to configure Role Mapping log into OpenSearch Domain Dashboard using

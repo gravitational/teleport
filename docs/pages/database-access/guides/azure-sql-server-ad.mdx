@@ -5,6 +5,15 @@ description: How to configure Teleport database access with Azure SQL Server usi
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="Azure SQL Server" dbConfigure="Azure SQL Server using Azure Active Directory authentication" dbName="Azure SQL Server" !)
 
+## How it works
+
+The Teleport Database Service runs on an Azure virtual machine with an attached
+Azure identity with permissions to retrieve authentication tokens from Azure
+Active Directory. When a user connects to SQL Server with Teleport, the Teleport
+Database service authenticates with Azure AD, then uses an authentication token
+to connect to SQL Server. The Database Service then forwards user traffic to the
+database.
+
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Azure SQL Server Azure Active Directory Self-Hosted](../../../img/database-access/guides/sqlserver/sql-aad.png)

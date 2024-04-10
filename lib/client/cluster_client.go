@@ -86,7 +86,11 @@ func (c *ClusterClient) ConnectToCluster(ctx context.Context, clusterName string
 		return c.CurrentCluster(), nil
 	}
 
-	clientConfig := c.ProxyClient.ClientConfig(ctx, clusterName)
+	clientConfig, err := c.ProxyClient.ClientConfig(ctx, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	authClient, err := auth.NewClient(clientConfig)
 	return authClient, trace.Wrap(err)
 }
@@ -271,7 +275,12 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 
 	mfaClt := c
 	if target.Cluster != rootClusterName {
-		authClient, err := auth.NewClient(c.ProxyClient.ClientConfig(ctx, rootClusterName))
+		cfg, err := c.ProxyClient.ClientConfig(ctx, rootClusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		authClient, err := auth.NewClient(cfg)
 		if err != nil {
 			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}

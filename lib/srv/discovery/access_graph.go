@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/services"
@@ -203,7 +204,13 @@ func newAccessGraphClient(ctx context.Context, certs []tls.Certificate, config A
 		return nil, trace.Wrap(err)
 	}
 
-	conn, err := grpc.DialContext(ctx, config.Addr, append(opts, opt)...)
+	opts = append(opts,
+		opt,
+		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
+		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
+	)
+
+	conn, err := grpc.DialContext(ctx, config.Addr, opts...)
 	return conn, trace.Wrap(err)
 }
 

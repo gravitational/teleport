@@ -18,26 +18,36 @@
 
 import { StepComponentProps } from 'design/StepSlider';
 import { Box, Flex, Text } from 'design';
+import { mergeRefs } from 'shared/libs/mergeRefs';
+import { useRefAutoFocus } from 'shared/hooks';
 
 import { useVnetContext } from './vnetContext';
-import { VnetConnectionItem, AppConnectionItem } from './VnetConnectionItem';
+import { VnetSliderStepHeader, AppConnectionItem } from './VnetConnectionItem';
 
 /**
  * VnetSliderStep is the second step of StepSlider used in TopBar/Connections. It is shown after
  * selecting VnetConnectionItem from ConnectionsFilterableList.
  */
 export const VnetSliderStep = (props: StepComponentProps) => {
+  const visible = props.stepIndex === 1 && props.hasTransitionEnded;
   const { status, startAttempt, stopAttempt } = useVnetContext();
+  const autoFocusRef = useRefAutoFocus<HTMLElement>({
+    shouldFocus: visible,
+  });
 
   return (
     // Padding needs to align with the padding of the previous slider step.
-    <Box p={2} ref={props.refCallback}>
-      <VnetConnectionItem
-        onClick={props.prev}
-        title="Go back to Connections"
-        showBackButton
-        showHelpButton
-      />
+    <Box
+      p={2}
+      ref={mergeRefs([props.refCallback, autoFocusRef])}
+      tabIndex={visible ? 0 : -1}
+      css={`
+        // Do not show the outline when focused. This element cannot be interacted with and we focus
+        // it only so that the next tab press is going to focus the VNet header button instead.
+        outline: none;
+      `}
+    >
+      <VnetSliderStepHeader goBack={props.prev} />
       <Flex
         p={textSpacing}
         gap={1}
