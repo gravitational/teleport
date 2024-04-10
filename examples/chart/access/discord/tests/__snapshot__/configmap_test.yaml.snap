@@ -1,0 +1,29 @@
+should match the snapshot:
+  1: |
+    apiVersion: v1
+    data:
+      teleport-discord.toml: |
+        [teleport]
+        addr = "teleport.example.com:1234"
+        identity = "/var/lib/teleport/plugins/discord/teleport-identity/auth_id"
+        refresh_identity = true
+
+        [discord]
+        token = "/var/lib/teleport/plugins/discord/discord-token"
+
+        [role_to_recipients]
+        "*" = ["dev-access-requests"]
+        "dev" = ["dev-access-requests","example-user@example.com"]
+
+        [log]
+        output = "/var/log/teleport-discord.log"
+        severity = "DEBUG"
+    kind: ConfigMap
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-plugin-discord
+        app.kubernetes.io/version: 16.0.0-dev
+        helm.sh/chart: teleport-plugin-discord-16.0.0-dev
+      name: RELEASE-NAME-teleport-plugin-discord
