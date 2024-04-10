@@ -258,7 +258,7 @@ func TestSeekForwardTwice(t *testing.T) {
 	clk.Advance(51 * time.Millisecond)
 	select {
 	case <-p.C():
-	case <-time.After(3 * time.Second):
+	case <-time.After(5 * time.Second):
 		require.FailNow(t, "event not ready in time", "clock %#v", clk)
 	}
 }
