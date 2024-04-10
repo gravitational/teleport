@@ -21,6 +21,7 @@ package player
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/gravitational/teleport/api/types/events"
 )
@@ -37,11 +38,20 @@ func (n *noopTranslater) Translate(evt events.AuditEvent) (events.AuditEvent, bo
 }
 
 type postgresTranslater struct {
+	startTime time.Time
+}
+
+func (p *postgresTranslater) getDelayMiliseconds(eventTime time.Time) int64 {
+	if p.startTime.IsZero() {
+		return 0
+	}
+	return eventTime.Sub(p.startTime).Milliseconds()
 }
 
 func (p *postgresTranslater) Translate(event events.AuditEvent) (events.AuditEvent, bool) {
 	switch evt := event.(type) {
 	case *events.DatabaseSessionStart:
+		p.startTime = evt.Time
 		return &events.SessionStart{
 			Metadata: evt.Metadata,
 		}, true
@@ -65,8 +75,9 @@ func (p *postgresTranslater) Translate(event events.AuditEvent) (events.AuditEve
 		data = append(data, byte(13), byte(10))
 
 		return &events.SessionPrint{
-			Metadata: evt.Metadata,
-			Data:     data,
+			Metadata:          evt.Metadata,
+			Data:              data,
+			DelayMilliseconds: p.getDelayMiliseconds(evt.Time),
 		}, true
 
 		// TODO print properly
@@ -74,8 +85,9 @@ func (p *postgresTranslater) Translate(event events.AuditEvent) (events.AuditEve
 		var data []byte
 		data = append(data, []byte("(TODO) received row description\r\n")...)
 		return &events.SessionPrint{
-			Metadata: evt.Metadata,
-			Data:     data,
+			Metadata:          evt.Metadata,
+			Data:              data,
+			DelayMilliseconds: p.getDelayMiliseconds(evt.Time),
 		}, true
 
 		// TODO print properly
@@ -86,14 +98,16 @@ func (p *postgresTranslater) Translate(event events.AuditEvent) (events.AuditEve
 			data = append(data, value...)
 		}
 		return &events.SessionPrint{
-			Metadata: evt.Metadata,
-			Data:     data,
+			Metadata:          evt.Metadata,
+			Data:              data,
+			DelayMilliseconds: p.getDelayMiliseconds(evt.Time),
 		}, true
 		// TODO print properly
 	case *events.PostgresCommandComplete:
 		return &events.SessionPrint{
-			Metadata: evt.Metadata,
-			Data:     []byte{13, 10},
+			Metadata:          evt.Metadata,
+			Data:              []byte{13, 10},
+			DelayMilliseconds: p.getDelayMiliseconds(evt.Time),
 		}, true
 	}
 	return nil, false

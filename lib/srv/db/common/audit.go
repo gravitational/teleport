@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -126,6 +127,10 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 			Success: true,
 		},
 	}
+	// TODO
+	now := time.Now()
+	event.SetTime(now)
+	session.StartTime = now
 
 	// If the database session wasn't started successfully, emit
 	// a failure event with error details.
@@ -142,14 +147,21 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 
 // OnSessionEnd emits an audit event when database session ends.
 func (a *audit) OnSessionEnd(ctx context.Context, session *Session) {
-	a.EmitEvent(ctx, &events.DatabaseSessionEnd{
+	event := &events.DatabaseSessionEnd{
 		Metadata: MakeEventMetadata(session,
 			libevents.DatabaseSessionEndEvent,
 			libevents.DatabaseSessionEndCode),
 		UserMetadata:     MakeUserMetadata(session),
 		SessionMetadata:  MakeSessionMetadata(session),
 		DatabaseMetadata: MakeDatabaseMetadata(session),
-	})
+	}
+
+	now := time.Now()
+	event.SetTime(now)
+	event.StartTime = session.StartTime
+	event.EndTime = now
+
+	a.EmitEvent(ctx, event)
 }
 
 // OnQuery emits an audit event when a database query is executed.
