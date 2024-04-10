@@ -21,10 +21,13 @@ package handler
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
@@ -106,8 +109,15 @@ func makeGatewayCLICommand(cmds cmd.Cmds) *api.GatewayCLICommand {
 			strings.Join(cmds.Preview.Env, " "),
 			strings.Join(cmds.Preview.Args, " ")))
 
+	path := cmds.Exec.Path
+
+	// TODO: Comment.
+	if runtime.GOOS == constants.WindowsOS && !filepath.IsAbs(path) && filepath.Ext(path) == "" {
+		path = path + ".exe"
+	}
+
 	return &api.GatewayCLICommand{
-		Path:    cmds.Exec.Path,
+		Path:    path,
 		Args:    cmds.Exec.Args,
 		Env:     cmds.Exec.Env,
 		Preview: preview,

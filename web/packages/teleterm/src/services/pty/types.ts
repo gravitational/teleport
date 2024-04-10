@@ -80,6 +80,7 @@ export type GatewayCliClientCommand = PtyCommandBase & {
   //
   // It cannot be just the command name such as `psql` because Windows fails to resolve the
   // command name if it doesn't include the `.exe` suffix.
+  // TODO: What about this? ^
   path: string;
   // args is a Node.js-style list of arguments passed to the command, _without_ the command name as
   // the first element.
