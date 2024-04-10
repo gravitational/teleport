@@ -2179,6 +2179,7 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 
 	var lastTime time.Time
 	for evt := range player.C() {
+		logrus.Debugf("=== receiving any event %T %v", evt, evt)
 		switch evt := evt.(type) {
 		case *apievents.WindowsDesktopSessionStart:
 			// TODO(zmb3): restore the playback URL

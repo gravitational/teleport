@@ -71,6 +71,9 @@ type Player struct {
 
 	// err holds the error (if any) encountered during playback
 	err error
+
+	// translater translates events.
+	translater translater
 }
 
 const normalPlayback = math.MinInt64
@@ -101,7 +104,6 @@ func New(cfg *Config) (*Player, error) {
 	if cfg.SessionID == "" {
 		return nil, trace.BadParameter("missing SessionID")
 	}
-
 	clk := cfg.Clock
 	if clk == nil {
 		clk = clockwork.NewRealClock()
@@ -113,13 +115,14 @@ func New(cfg *Config) (*Player, error) {
 	}
 
 	p := &Player{
-		clock:     clk,
-		log:       log,
-		sessionID: cfg.SessionID,
-		streamer:  cfg.Streamer,
-		emit:      make(chan events.AuditEvent, 1024),
-		playPause: make(chan chan struct{}, 1),
-		done:      make(chan struct{}),
+		clock:      clk,
+		log:        log,
+		sessionID:  cfg.SessionID,
+		streamer:   cfg.Streamer,
+		emit:       make(chan events.AuditEvent, 1024),
+		playPause:  make(chan chan struct{}, 1),
+		done:       make(chan struct{}),
+		translater: &noopTranslater{},
 	}
 
 	p.speed.Store(float64(defaultPlaybackSpeed))
@@ -160,6 +163,7 @@ func (p *Player) stream() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	var ok bool
 	eventsC, errC := p.streamer.StreamSessionEvents(ctx, p.sessionID, 0)
 	lastDelay := int64(0)
 	for {
@@ -183,6 +187,14 @@ func (p *Player) stream() {
 				p.log.Warn(err)
 				close(p.emit)
 				return
+			}
+
+			// Translate the event, and skip the event if no event gets
+			// translated.
+			p.maybeUdpateTranslater(evt)
+			evt, ok = p.translater.Translate(evt)
+			if !ok {
+				continue
 			}
 
 			currentDelay := getDelay(evt)
@@ -324,6 +336,13 @@ func (p *Player) waitWhilePaused() error {
 // expressed as milliseconds since the start of the session.
 func (p *Player) LastPlayed() int64 {
 	return p.lastPlayed.Load()
+}
+
+func (p *Player) maybeUdpateTranslater(e events.AuditEvent) {
+	switch e.(type) {
+	case *events.DatabaseSessionStart:
+		p.translater = &postgresTranslater{}
+	}
 }
 
 func getDelay(e events.AuditEvent) int64 {
