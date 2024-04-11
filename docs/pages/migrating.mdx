@@ -9,8 +9,6 @@ The migration process involves transferring configurations, migrating Teleport a
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
-
 - An existing Teleport Self Hosted Cluster
 
 - Determine if the current Teleport license dashboard tenant will interfere with the desired Cloud tenant.
@@ -109,9 +107,22 @@ Access Request Plugins
 The following procedure is required to successfully migrate your Teleport agents:
 
 - Log in to your Teleport Enterpise cloud Tenant, You'll need to authenticate to access your Teleport Cloud resources and management interfaces.
-- Obtain a valid join token.  We recommend using a Delegated Joining Method.
+
+- Obtain a valid join token: We recommend using a [Delegated Join Method](https://goteleport.com/docs/reference/join-methods/#delegated-join-methods)
+If using ephemeral tokens, ensure you specify the appropriate token type to match the Teleport services. Token types can include `node`, `app`, `Kube`, `DB`, `WindowsDesktop`, and others depending on the service you wish to join to your Teleport cluster.
+In the following example, a new token is created with the TTL of fifteen minutes:
+
+```code
+$ tctl tokens add --type node,app,db --ttl 15m
+```
+
+In this command, we assigned the token the `node`, `app` and `db` type, indicating that it will belong to an SSH Service, Database Service and Application Service instance.
+
+Copy the token so you can use it later in this guide.
+
 - Stop the Teleport service on the agent (if applicable)
-- Change the `proxy_server` or `auth_server` field in the agent configuration file to point to the address of your Teleport cloud proxy. By default, the configuration is located in the `/etc/teleport.yaml` directory
+
+- Update the `proxy_server` or `auth_server` field in the agent configuration file to point to the address of your Teleport cloud proxy. By default, the configuration is located in the `/etc/teleport.yaml` directory
 
 ```code
 proxy_server:
@@ -120,10 +131,10 @@ proxy_server:
 
 - Update the auth_token field with the newly generated token. 
 
-- Delete the local agent cache to force the agent to rejoin the new Teleport Cloud cluster. By default, the data is located in the  /var/lib/teleport directory
+- Delete the local agent cache to force the agent to rejoin the new Teleport Cloud cluster. By default, the data is located in the  `/var/lib/teleport` directory
 
 - Start the Teleport process on each agent or recycle the pod to apply the new configuration. This will cause the agents to re-register with the Teleport cloud cluster and obtain new certificates signed by the cloud cluster's certificate authority.
-
+As new services come online, they start sending heartbeat requests every few seconds to the Auth Service. This allows users to explore cluster membership. 
 
 Note: ​​Migration of agents can be done all at once or gradually, depending on your business requirements. If running teleport at scale, you'll generally want to leverage the use of a configuration management tool to automate and streamline the process of carrying out the actions involved in migrating agent configurations. 
 
@@ -131,7 +142,6 @@ Note: ​​Migration of agents can be done all at once or gradually, depending 
 4. ### Verify end User Access and performance.
 
 Once the migration is complete, validate that the resources are present in the Teleport cluster and verify their status and connectivity to ensure they are properly registered and available for connections. You can either check via the Web UI or use tctl to get a list of all resources and verify their registration and status. 
-
 For example, to list all nodes registered with the Teleport cluster, you can run the command below
 
 ```
