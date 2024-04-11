@@ -18,7 +18,6 @@ package test
 
 import (
 	"context"
-	"github.com/gravitational/teleport/api/client"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -26,6 +25,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+
+	"github.com/gravitational/teleport/api/client"
 )
 
 type nextAuditDateComparer struct {
