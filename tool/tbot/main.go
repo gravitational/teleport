@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -243,7 +244,11 @@ func Run(args []string, stdout io.Writer) error {
 	case spiffeInspectCmd.FullCommand():
 		err = onSPIFFEInspect(spiffeInspectPath)
 	case tpmIdentifyCommand.FullCommand():
-		err = onTPMIdentify(cf.Debug)
+		query, err := tpm.Query(context.Background(), slog.Default())
+		if err != nil {
+			return trace.Wrap(err, "querying TPM")
+		}
+		tpm.PrintQuery(query, cf.Debug, os.Stdout)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
