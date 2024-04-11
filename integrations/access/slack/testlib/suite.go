@@ -656,21 +656,25 @@ func (s *SlackSuiteEnterprise) TestAccessListReminder() {
 
 	// Test execution: move the clock to 2 weeks before expiry
 	// This should trigger a reminder.
+	clock.BlockUntil(1)
 	clock.Advance(45 * 24 * time.Hour)
 	s.requireReminderMsgEqual(ctx, s.reviewer1SlackUser.ID, "Access List *simple title* is due for a review by 2023-03-01. Please review it soon!")
 
 	// Test execution: move the clock to 1 week before expiry
 	// This should trigger a reminder.
+	clock.BlockUntil(1)
 	clock.Advance(7 * 24 * time.Hour)
 	s.requireReminderMsgEqual(ctx, s.reviewer1SlackUser.ID, "Access List *simple title* is due for a review by 2023-03-01. Please review it soon!")
 
 	// Test execution: move the clock to the expiry day
 	// This should trigger a reminder.
+	clock.BlockUntil(1)
 	clock.Advance(7 * 24 * time.Hour)
 	s.requireReminderMsgEqual(ctx, s.reviewer1SlackUser.ID, "Access List *simple title* is due for a review by 2023-03-01. Please review it soon!")
 
 	// Test execution: move the clock after the expiry day
 	// This should trigger a reminder.
+	clock.BlockUntil(1)
 	clock.Advance(7 * 24 * time.Hour)
 	s.requireReminderMsgEqual(ctx, s.reviewer1SlackUser.ID, "Access List *simple title* is 7 day(s) past due for a review! Please review it.")
 }
