@@ -48,7 +48,7 @@ const SemaphoreKindAccessMonitoringLimiter = "access_monitoring_limiter"
 
 // SemaphoreKindDiscoveryServiceGroup is the semaphore kind used by
 // the DiscoveryService to ensure that only one DiscoveryService with
-// discovery group DG1 can run at the same time.
+// the same discovery group can run at the same time.
 const SemaphoreKindDiscoveryServiceGroup = "discovery_service_group"
 
 // Semaphore represents distributed semaphore concept
