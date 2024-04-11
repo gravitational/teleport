@@ -226,7 +226,7 @@ To export the Teleport user CA certificate:
    command and replacing `teleport.example.com` with the address of your Teleport cluster:
 
    ```code
-   $ curl -o user-ca.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
+   $ curl.exe -fo user-ca.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
    ```
 
 1. Take note of the path to the `user-ca.cer` file for use in a later step.

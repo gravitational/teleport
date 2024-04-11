@@ -1,0 +1,77 @@
+# Default values for slack.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+#
+# Plugin specific options
+#
+teleport:
+  address: ""
+  identitySecretName: ""
+  identitySecretPath: "auth_id"
+
+slack:
+  token: ""
+  tokenFromSecret: ""
+  tokenSecretPath: "slackToken"
+
+roleToRecipients: {}
+
+log:
+  output: stdout
+  severity: INFO
+
+secretVolumeName: "password-file"
+
+# Kubernetes annotations to apply
+# https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+annotations:
+  # Annotations for the ConfigMap
+  config: {}
+  # Annotations for the Deployment
+  deployment: {}
+  # Annotations for each Pod in the Deployment
+  pod: {}
+  # Annotations for the Secret
+  secret: {}
+
+#
+# Deployment
+#
+image:
+  repository: public.ecr.aws/gravitational/teleport-plugin-slack
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Deprecated way to set pod annotations. `annotations.pod` should be preferred.
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+resources: {}
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

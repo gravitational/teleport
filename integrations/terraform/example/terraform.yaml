@@ -1,0 +1,40 @@
+kind: role
+metadata:
+  name: terraform
+spec:
+  allow:
+    app_labels: # This gives Terraform access to all apps in the cluster. You might want to restrict it.
+      '*': '*'
+    db_labels: # This gives Terraform access to all databases in the cluster. You might want to restrict it.
+      '*': '*'
+    db_users: ['*']
+    db_names: ['*']
+
+    rules:
+      - resources:
+        - user
+        - role
+        - token
+        - trusted_cluster
+        - github
+        - oidc
+        - saml
+        - cluster_auth_preference
+        - cluster_networking_config
+        - cluster_maintenance_config
+        - session_recording_config
+        - app
+        - db
+        - login_rule
+        - device
+        - okta_import_rule
+        - access_list
+        verbs: ['list','create','read','update','delete']
+version: v6
+---
+kind: user
+metadata:
+  name: terraform
+spec:
+  roles: ['terraform']
+version: v2

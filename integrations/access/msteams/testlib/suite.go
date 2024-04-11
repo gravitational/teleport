@@ -87,7 +87,7 @@ func (s *MsTeamsSuite) startApp() {
 
 	app, err := msteams.NewApp(*s.appConfig)
 	require.NoError(t, err)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
 }
 
 func (s *MsTeamsSuite) TestMessagePosting() {

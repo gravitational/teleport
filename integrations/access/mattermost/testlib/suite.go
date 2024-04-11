@@ -94,7 +94,7 @@ func (s *MattermostSuite) startApp() {
 	t.Helper()
 
 	app := mattermost.NewMattermostApp(s.appConfig)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
 }
 
 // TestMattermostMessagePosting validates that a message is sent to each recipient

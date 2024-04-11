@@ -1634,6 +1634,7 @@ spec:
 		users,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		cmpopts.IgnoreFields(types.UserSpecV2{}, "CreatedBy"),
+		cmpopts.IgnoreFields(types.UserV2{}, "Status"),
 	))
 
 	// Explicitly change the revision and try creating the user with and without

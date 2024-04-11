@@ -25,7 +25,6 @@ import {
   Alert,
   Text,
   Box,
-  Flex,
   Link,
 } from 'design';
 import Dialog, {
@@ -38,19 +37,16 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredRoleArn } from 'shared/components/Validation/rules';
-import { ToolTipInfo } from 'shared/components/ToolTip';
 import { CheckboxInput } from 'design/Checkbox';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 
 import { Integration } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 import { EditableIntegrationFields } from './Operations/useIntegrationOperation';
 import { S3BucketConfiguration } from './Enroll/AwsOidc/S3BucketConfiguration';
-import {
-  getDefaultS3BucketName,
-  getDefaultS3PrefixName,
-} from './Enroll/AwsOidc/Shared/utils';
+import { S3BucketWarningBanner } from './Enroll/AwsOidc/S3BucketWarningBanner';
 
 type Props = {
   close(): void;
@@ -62,14 +58,13 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
   const { close, edit, integration } = props;
   const { attempt, run } = useAttempt();
 
+  const [showS3BucketWarning, setShowS3BucketWarning] = useState(false);
   const [roleArn, setRoleArn] = useState(integration.spec.roleArn);
   const [s3Bucket, setS3Bucket] = useState(
-    () => integration.spec.issuerS3Bucket || getDefaultS3BucketName()
+    () => integration.spec.issuerS3Bucket
   );
   const [s3Prefix, setS3Prefix] = useState(
-    () =>
-      integration.spec.issuerS3Prefix ||
-      getDefaultS3PrefixName(integration.spec.roleArn.split(':role/')[1])
+    () => integration.spec.issuerS3Prefix
   );
 
   const [scriptUrl, setScriptUrl] = useState('');
@@ -90,10 +85,12 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
 
     validator.reset();
 
-    const roleName = roleArn.split(':role/')[1];
+    const { arnResourceName } = splitAwsIamArn(
+      roleArn || props.integration.spec.roleArn
+    );
     const newScriptUrl = cfg.getAwsOidcConfigureIdpScriptUrl({
       integrationName: integration.name,
-      roleName,
+      roleName: arnResourceName,
       s3Bucket: s3Bucket,
       s3Prefix: s3Prefix,
     });
@@ -102,17 +99,29 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
   }
 
   const isProcessing = attempt.status === 'processing';
-  const requiresS3 =
-    !integration.spec.issuerS3Bucket || !integration.spec.issuerS3Prefix;
+  const requiresS3BucketWarning = !s3Bucket && !s3Prefix;
   const showGenerateCommand =
-    requiresS3 ||
     integration.spec.issuerS3Bucket !== s3Bucket ||
-    integration.spec.issuerS3Prefix !== s3Prefix;
+    integration.spec.issuerS3Prefix !== s3Prefix ||
+    integration.spec.roleArn !== roleArn;
+
+  const changeDetected =
+    integration.spec.issuerS3Bucket !== s3Bucket ||
+    integration.spec.issuerS3Prefix !== s3Prefix ||
+    integration.spec.roleArn !== roleArn;
 
   return (
     <Validation>
       {({ validator }) => (
-        <Dialog disableEscapeKeyDown={false} onClose={close} open={true}>
+        <Dialog
+          disableEscapeKeyDown={false}
+          onClose={close}
+          open={true}
+          dialogCss={() => ({
+            maxWidth: '650px',
+            width: '100%',
+          })}
+        >
           <DialogHeader>
             <DialogTitle>Edit Integration</DialogTitle>
           </DialogHeader>
@@ -125,30 +134,22 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
               value={integration.name}
               readonly={true}
             />
-            <FieldInput
-              autoFocus
-              label="Role ARN"
-              rule={requiredRoleArn}
-              value={roleArn}
-              onChange={e => setRoleArn(e.target.value)}
-              placeholder="arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>"
-              toolTipContent={
-                <Text>
-                  Role ARN can be found in the format: <br />
-                  {`arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>`}
-                </Text>
-              }
-              disabled={scriptUrl}
-            />
-            <S3BucketBox requiresS3={requiresS3} px={3} pt={2}>
-              {requiresS3 && (
-                <Flex alignItems="center" gap={1} mb={2}>
-                  <Text bold>Required</Text>
-                  <ToolTipInfo>
-                    This integration does not have Amazon S3 configured
-                  </ToolTipInfo>
-                </Flex>
-              )}
+            <EditableBox px={3} pt={2}>
+              <FieldInput
+                autoFocus
+                label="Role ARN"
+                rule={requiredRoleArn}
+                value={roleArn}
+                onChange={e => setRoleArn(e.target.value)}
+                placeholder="arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>"
+                toolTipContent={
+                  <Text>
+                    Role ARN can be found in the format: <br />
+                    {`arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>`}
+                  </Text>
+                }
+                disabled={scriptUrl}
+              />
               <S3BucketConfiguration
                 s3Bucket={s3Bucket}
                 setS3Bucket={setS3Bucket}
@@ -194,12 +195,15 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                 <ButtonBorder
                   mb={3}
                   onClick={() => generateAwsOidcConfigIdpScript(validator)}
-                  disabled={!s3Bucket || !s3Prefix || !roleArn}
+                  disabled={
+                    (!requiresS3BucketWarning && (!s3Bucket || !s3Prefix)) ||
+                    !roleArn
+                  }
                 >
                   Generate Command
                 </ButtonBorder>
               )}
-            </S3BucketBox>
+            </EditableBox>
           </DialogContent>
           <DialogFooter>
             {showGenerateCommand && scriptUrl && (
@@ -217,22 +221,40 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                 I have ran the command
               </Box>
             )}
-            <ButtonPrimary
-              mr="3"
-              disabled={
-                isProcessing ||
-                (showGenerateCommand && !confirmed) ||
-                (roleArn === integration.spec.roleArn &&
-                  s3Bucket === integration.spec.issuerS3Bucket &&
-                  s3Prefix === integration.spec.issuerS3Prefix)
-              }
-              onClick={() => handleEdit(validator)}
-            >
-              Save
-            </ButtonPrimary>
-            <ButtonSecondary disabled={isProcessing} onClick={close}>
-              Cancel
-            </ButtonSecondary>
+
+            {requiresS3BucketWarning && showS3BucketWarning ? (
+              <S3BucketWarningBanner
+                onClose={() => setShowS3BucketWarning(false)}
+                onContinue={() => {
+                  setShowS3BucketWarning(false);
+                  handleEdit(validator);
+                }}
+                btnFlexWrap={true}
+              />
+            ) : (
+              <>
+                <ButtonPrimary
+                  mr="3"
+                  disabled={
+                    isProcessing ||
+                    (showGenerateCommand && !confirmed) ||
+                    !changeDetected
+                  }
+                  onClick={() => {
+                    if (requiresS3BucketWarning) {
+                      setShowS3BucketWarning(true);
+                    } else {
+                      handleEdit(validator);
+                    }
+                  }}
+                >
+                  Save
+                </ButtonPrimary>
+                <ButtonSecondary disabled={isProcessing} onClick={close}>
+                  Cancel
+                </ButtonSecondary>
+              </>
+            )}
           </DialogFooter>
         </Dialog>
       )}
@@ -240,19 +262,8 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
   );
 }
 
-const S3BucketBox = styled(Box)`
+const EditableBox = styled(Box)`
   border-radius: ${p => p.theme.space[1]}px;
-  border: 2px solid
-    ${p => {
-      if (p.requiresS3) {
-        return p.theme.colors.warning.main;
-      }
-      return p.theme.colors.spotBackground[1];
-    }};
-  background-color: ${p => {
-    if (p.requiresS3) {
-      return p.theme.colors.interactive.tonal.alert[0];
-    }
-    return p.theme.colors.spotBackground[0];
-  }};
+  border: 2px solid ${p => p.theme.colors.spotBackground[1]};
+  background-color: ${p => p.theme.colors.spotBackground[0]};
 `;
