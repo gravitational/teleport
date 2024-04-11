@@ -100,4 +100,5 @@ export const props: State = {
   isSearchEmpty: false,
   onLabelClick: () => null,
   accessRequestId: null,
+  modifyFetchedData: () => null,
 };
