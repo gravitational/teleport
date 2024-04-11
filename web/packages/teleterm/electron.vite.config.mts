@@ -47,129 +47,132 @@ const externalizeDeps = ['strip-ansi', 'ansi-regex', 'd3-color'];
  *
  * @param inputs - contains paths to the app entry points.
  */
-export const makeConfig = (inputs: {
-  rendererRoot: string
-}) => defineConfig(env => {
-  const tsConfigPathsPlugin = tsconfigPaths({
-    projects: [resolve(rootDirectory, 'tsconfig.json')],
-  });
-  const commonPlugins = [
-    externalizeDepsPlugin({
-      exclude: externalizeDeps,
-      // The `externalizeDepsPlugin` plugin is not able to detect dependencies
-      // from Connect OSS package.json when it is run in the enterprise app context
-      // (it simply reads the direct package.json content).
-      // We have to provide them manually.
-      include: Object.keys(packageJson.dependencies),
-    }),
-    tsConfigPathsPlugin,
-  ];
+export const makeConfig = (inputs: { rendererRoot: string }) =>
+  defineConfig(env => {
+    const tsConfigPathsPlugin = tsconfigPaths({
+      projects: [resolve(rootDirectory, 'tsconfig.json')],
+    });
+    const commonPlugins = [
+      externalizeDepsPlugin({
+        exclude: externalizeDeps,
+        // The `externalizeDepsPlugin` plugin is not able to detect dependencies
+        // from Connect OSS package.json when it is run in the enterprise app context
+        // (it simply reads the direct package.json content).
+        // We have to provide them manually.
+        include: Object.keys(packageJson.dependencies),
+      }),
+      tsConfigPathsPlugin,
+    ];
 
-  const config: UserConfig = {
-    main: {
-      build: {
-        outDir: 'build/app/main',
-        rollupOptions: {
-          input: {
-            index: resolvePathFromDirname('src/main.ts'),
-            sharedProcess: resolvePathFromDirname('src/sharedProcess/sharedProcess.ts'),
-            agentCleanupDaemon: resolvePathFromDirname('src/agentCleanupDaemon/agentCleanupDaemon.js'),
-          },
-          output: {
-            manualChunks,
-          },
-        },
-      },
-      plugins: commonPlugins,
-      define: {
-        // It's not common to pre-process Node code with NODE_ENV, but this is what our Webpack
-        // config used to do, so for compatibility purposes we kept the Vite config this way.
-        //
-        // If we were to get rid of this, we'd somehow need to set NODE_ENV when the packaged app
-        // gets started.
-        'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
-      },
-    },
-    preload: {
-      build: {
-        outDir: 'build/app/preload',
-        rollupOptions: {
-          input: {
-            index: resolvePathFromDirname('src/preload.ts'),
-          },
-          output: {
-            manualChunks,
+    const config: UserConfig = {
+      main: {
+        build: {
+          outDir: 'build/app/main',
+          rollupOptions: {
+            input: {
+              index: resolvePathFromDirname('src/main.ts'),
+              sharedProcess: resolvePathFromDirname(
+                'src/sharedProcess/sharedProcess.ts'
+              ),
+              agentCleanupDaemon: resolvePathFromDirname(
+                'src/agentCleanupDaemon/agentCleanupDaemon.js'
+              ),
+            },
+            output: {
+              manualChunks,
+            },
           },
         },
+        plugins: commonPlugins,
+        define: {
+          // It's not common to pre-process Node code with NODE_ENV, but this is what our Webpack
+          // config used to do, so for compatibility purposes we kept the Vite config this way.
+          //
+          // If we were to get rid of this, we'd somehow need to set NODE_ENV when the packaged app
+          // gets started.
+          'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
+        },
       },
-      plugins: commonPlugins,
-      define: {
-        // Preload is also mean to be run by Node, see the comment for define under main.
-        'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
-      },
-    },
-    renderer: {
-      root: inputs.rendererRoot,
-      build: {
-        outDir: 'build/app/renderer',
-        rollupOptions: {
-          input: {
-            index: 'index.html',
+      preload: {
+        build: {
+          outDir: 'build/app/preload',
+          rollupOptions: {
+            input: {
+              index: resolvePathFromDirname('src/preload.ts'),
+            },
+            output: {
+              manualChunks,
+            },
           },
         },
-      },
-      server: {
-        host: 'localhost',
-        port: 8080,
-        fs: {
-          allow: [rootDirectory, '.'],
+        plugins: commonPlugins,
+        define: {
+          // Preload is also mean to be run by Node, see the comment for define under main.
+          'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
         },
       },
-      plugins: [
-        react({
-          plugins: [
-            [
-              '@swc/plugin-styled-components',
-              getStyledComponentsConfig(env.mode),
+      renderer: {
+        root: inputs.rendererRoot,
+        build: {
+          outDir: 'build/app/renderer',
+          rollupOptions: {
+            input: {
+              index: 'index.html',
+            },
+          },
+        },
+        server: {
+          host: 'localhost',
+          port: 8080,
+          fs: {
+            allow: [rootDirectory, '.'],
+          },
+        },
+        plugins: [
+          react({
+            plugins: [
+              [
+                '@swc/plugin-styled-components',
+                getStyledComponentsConfig(env.mode),
+              ],
             ],
-          ],
-        }),
-        cspPlugin(getConnectCsp(env.mode === 'development')),
-        tsConfigPathsPlugin,
-      ],
-      define: {
-        'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
+          }),
+          cspPlugin(getConnectCsp(env.mode === 'development')),
+          tsConfigPathsPlugin,
+        ],
+        define: {
+          'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
+        },
       },
-    },
-  };
+    };
 
-  if (env.mode === 'development') {
-    if (process.env.VITE_HTTPS_KEY && process.env.VITE_HTTPS_CERT) {
-      config.renderer.server.https = {
-        key: readFileSync(process.env.VITE_HTTPS_KEY),
-        cert: readFileSync(process.env.VITE_HTTPS_CERT),
-      };
-    } else {
-      const certsDirectory = resolve(rootDirectory, 'web/certs');
+    if (env.mode === 'development') {
+      if (process.env.VITE_HTTPS_KEY && process.env.VITE_HTTPS_CERT) {
+        config.renderer.server.https = {
+          key: readFileSync(process.env.VITE_HTTPS_KEY),
+          cert: readFileSync(process.env.VITE_HTTPS_CERT),
+        };
+      } else {
+        const certsDirectory = resolve(rootDirectory, 'web/certs');
 
-      if (!existsSync(certsDirectory)) {
-        throw new Error(
-          'Could not find SSL certificates. Please follow web/README.md to generate certificates.',
-        );
+        if (!existsSync(certsDirectory)) {
+          throw new Error(
+            'Could not find SSL certificates. Please follow web/README.md to generate certificates.'
+          );
+        }
+
+        const keyPath = resolve(certsDirectory, 'server.key');
+        const certPath = resolve(certsDirectory, 'server.crt');
+
+        config.renderer.server.https = {
+          key: readFileSync(keyPath),
+          cert: readFileSync(certPath),
+        };
       }
-
-      const keyPath = resolve(certsDirectory, 'server.key');
-      const certPath = resolve(certsDirectory, 'server.crt');
-
-      config.renderer.server.https = {
-        key: readFileSync(keyPath),
-        cert: readFileSync(certPath),
-      };
     }
-  }
 
-  return config;
-});
+    return config;
+  });
 
 export default makeConfig({ rendererRoot: __dirname });
 
