@@ -328,6 +328,13 @@ async fn connect_x11(
     let (client_handle, function_receiver) = ClientHandle::new(100);
     let mut connector = ironrdp_connector::ClientConnector::new(connector_config)
         .with_server_addr(server_socket_addr);
+
+    if params.allow_clipboard {
+        connector = connector.with_static_channel(Cliprdr::new(Box::new(
+            TeleportCliprdrBackend::new(client_handle.clone()),
+        )));
+    }
+
     let should_upgrade = ironrdp_tokio::connect_begin(&mut client_stream, &mut connector).await?;
     // Typically this is where we would upgrade to SSL, however here we have no need to actually upgrade anything, just mark as upgraded.
     let upgraded = ironrdp_tokio::mark_as_upgraded(should_upgrade, &mut connector);
