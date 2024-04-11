@@ -153,14 +153,25 @@ func QueryWithTPM(
 	return data, nil
 }
 
+// Attestation holds the information necessary to perform a TPM join to a
+// Teleport cluster.
+type Attestation struct {
+	// Data holds the queried information about the EK and EKCert if present.
+	Data QueryRes
+	// AttestParams holds the attestation parameters for the AK created for
+	// this join ceremony.
+	AttestParams attest.AttestationParameters
+	// Solve is a function that should be called when the encrypted credential
+	// challenge is received from the server.
+	Solve func(ec *attest.EncryptedCredential) ([]byte, error)
+}
+
 // Attest provides the information necessary to perform a TPM join to a Teleport
 // cluster. It returns a solve function which should be called when the
 // encrypted credential challenge is received from the server.
 // The Close function must be called if Attest returns in a non-error state.
 func Attest(ctx context.Context, log *slog.Logger) (
-	data *QueryRes,
-	attestParams *attest.AttestationParameters,
-	solve func(ec *attest.EncryptedCredential) ([]byte, error),
+	att *Attestation,
 	close func() error,
 	err error,
 ) {
@@ -171,7 +182,7 @@ func Attest(ctx context.Context, log *slog.Logger) (
 		TPMVersion: attest.TPMVersion20,
 	})
 	if err != nil {
-		return nil, nil, nil, nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	defer func() {
 		if err != nil {
@@ -185,20 +196,18 @@ func Attest(ctx context.Context, log *slog.Logger) (
 		}
 	}()
 
-	data, attestParams, solve, err = AttestWithTPM(ctx, log, tpm)
+	att, err = AttestWithTPM(ctx, log, tpm)
 	if err != nil {
-		return nil, nil, nil, nil, trace.Wrap(err, "attesting with TPM")
+		return nil, nil, trace.Wrap(err, "attesting with TPM")
 	}
 
-	return data, attestParams, solve, tpm.Close, nil
+	return att, tpm.Close, nil
 
 }
 
 // AttestWithTPM is similar to Attest, but accepts an already opened TPM.
 func AttestWithTPM(ctx context.Context, log *slog.Logger, tpm *attest.TPM) (
-	data *QueryRes,
-	attestParams *attest.AttestationParameters,
-	solve func(ec *attest.EncryptedCredential) ([]byte, error),
+	att *Attestation,
 	err error,
 ) {
 	ctx, span := tracer.Start(ctx, "AttestWithTPM")
@@ -206,19 +215,22 @@ func AttestWithTPM(ctx context.Context, log *slog.Logger, tpm *attest.TPM) (
 
 	queryData, err := QueryWithTPM(ctx, log, tpm)
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err, "querying TPM")
+		return nil, trace.Wrap(err, "querying TPM")
 	}
 
 	// Create AK and calculate attestation parameters.
 	ak, err := tpm.NewAK(&attest.AKConfig{})
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err, "creating ak")
+		return nil, trace.Wrap(err, "creating ak")
 	}
 	log.DebugContext(ctx, "Successfully generated AK for TPM")
-	attParams := ak.AttestationParameters()
-	solve = func(ec *attest.EncryptedCredential) ([]byte, error) {
-		log.DebugContext(ctx, "Solving credential challenge")
-		return ak.ActivateCredential(tpm, *ec)
-	}
-	return queryData, &attParams, solve, nil
+
+	return &Attestation{
+		Data:         *queryData,
+		AttestParams: ak.AttestationParameters(),
+		Solve: func(ec *attest.EncryptedCredential) ([]byte, error) {
+			log.DebugContext(ctx, "Solving credential challenge")
+			return ak.ActivateCredential(tpm, *ec)
+		},
+	}, nil
 }

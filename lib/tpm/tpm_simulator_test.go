@@ -140,21 +140,20 @@ func TestWithSimulator(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Without EKCert", func(t *testing.T) {
-		queryRes, attParams, solve, err := tpm.AttestWithTPM(ctx, log, attestTPM)
+		att, err := tpm.AttestWithTPM(ctx, log, attestTPM)
 		require.NoError(t, err)
 
 		// Check QueryRes looks right.
-		assert.Empty(t, gocmp.Diff(&tpm.QueryRes{
+		assert.Empty(t, gocmp.Diff(tpm.QueryRes{
 			EKPubHash: wantEKPubHash,
 			EKPub:     wantEKPub,
-		}, queryRes))
+		}, att.Data))
 
 		t.Run("Success", func(t *testing.T) {
 			validated, err := tpm.Validate(ctx, log, tpm.ValidateParams{
-				EKKey:        queryRes.EKPub,
-				EKCert:       nil,
-				AttestParams: *attParams,
-				Solve:        solve,
+				EKKey:        att.Data.EKPub,
+				AttestParams: att.AttestParams,
+				Solve:        att.Solve,
 			})
 			require.NoError(t, err)
 			assert.Empty(t, gocmp.Diff(&tpm.ValidatedTPM{
@@ -164,10 +163,9 @@ func TestWithSimulator(t *testing.T) {
 		})
 		t.Run("Failure due to missing EKCert", func(t *testing.T) {
 			_, err = tpm.Validate(ctx, log, tpm.ValidateParams{
-				EKKey:        queryRes.EKPub,
-				EKCert:       nil,
-				AttestParams: *attParams,
-				Solve:        solve,
+				EKKey:        att.Data.EKPub,
+				AttestParams: att.AttestParams,
+				Solve:        att.Solve,
 				AllowedCAs:   caPool,
 			})
 			assert.ErrorContains(t, err, "tpm did not provide an EKCert to validate against allowed CAs")
@@ -189,25 +187,25 @@ func TestWithSimulator(t *testing.T) {
 	writeEKCertToTPM(t, sim, fakeEKBytes)
 
 	t.Run("With EKCert", func(t *testing.T) {
-		queryRes, attParams, solve, err := tpm.AttestWithTPM(ctx, log, attestTPM)
+		att, err := tpm.AttestWithTPM(ctx, log, attestTPM)
 		require.NoError(t, err)
 
 		// Check queryRes looks right.
-		assert.Empty(t, gocmp.Diff(&tpm.QueryRes{
+		assert.Empty(t, gocmp.Diff(tpm.QueryRes{
 			EKPubHash: wantEKPubHash,
 			EKPub:     wantEKPub,
 			EKCert: &tpm.QueryEKCert{
 				Raw:          fakeEKBytes,
 				SerialNumber: ekCertSerialHex,
 			},
-		}, queryRes))
+		}, att.Data))
 
 		t.Run("Success without CAs", func(t *testing.T) {
 			validated, err := tpm.Validate(ctx, log, tpm.ValidateParams{
-				EKKey:        queryRes.EKPub,
-				EKCert:       queryRes.EKCert.Raw,
-				AttestParams: *attParams,
-				Solve:        solve,
+				EKKey:        att.Data.EKPub,
+				EKCert:       att.Data.EKCert.Raw,
+				AttestParams: att.AttestParams,
+				Solve:        att.Solve,
 			})
 			require.NoError(t, err)
 			assert.Empty(t, gocmp.Diff(&tpm.ValidatedTPM{
@@ -218,10 +216,10 @@ func TestWithSimulator(t *testing.T) {
 		})
 		t.Run("Success with CAs", func(t *testing.T) {
 			validated, err := tpm.Validate(ctx, log, tpm.ValidateParams{
-				EKKey:        queryRes.EKPub,
-				EKCert:       queryRes.EKCert.Raw,
-				AttestParams: *attParams,
-				Solve:        solve,
+				EKKey:        att.Data.EKPub,
+				EKCert:       att.Data.EKCert.Raw,
+				AttestParams: att.AttestParams,
+				Solve:        att.Solve,
 				AllowedCAs:   caPool,
 			})
 			require.NoError(t, err)
@@ -233,10 +231,10 @@ func TestWithSimulator(t *testing.T) {
 		})
 		t.Run("Failure with wrong CA", func(t *testing.T) {
 			_, err := tpm.Validate(ctx, log, tpm.ValidateParams{
-				EKKey:        queryRes.EKPub,
-				EKCert:       queryRes.EKCert.Raw,
-				AttestParams: *attParams,
-				Solve:        solve,
+				EKKey:        att.Data.EKPub,
+				EKCert:       att.Data.EKCert.Raw,
+				AttestParams: att.AttestParams,
+				Solve:        att.Solve,
 				// Some random CA that won't match the EKCert.
 				AllowedCAs: wrongCAPool,
 			})
