@@ -166,6 +166,9 @@ func Run(args []string, stdout io.Writer) error {
 	spiffeInspectCmd := app.Command("spiffe-inspect", "Inspects a SPIFFE Workload API endpoint to ensure it is working correctly.")
 	spiffeInspectCmd.Flag("path", "The path to the SPIFFE Workload API endpoint to test.").Required().StringVar(&spiffeInspectPath)
 
+	tpmCommand := app.Command("tpm", "Commands related to managing TPM joining functionality.")
+	tpmIdentifyCommand := tpmCommand.Command("identify", "Output identifying information related to the TPM detected on the system.")
+
 	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if err != nil {
@@ -239,6 +242,8 @@ func Run(args []string, stdout io.Writer) error {
 		err = onKubeCredentialsCommand(botConfig)
 	case spiffeInspectCmd.FullCommand():
 		err = onSPIFFEInspect(spiffeInspectPath)
+	case tpmIdentifyCommand.FullCommand():
+		err = onTPMIdentify(cf.Debug)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)

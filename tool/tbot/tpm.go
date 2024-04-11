@@ -20,6 +20,7 @@ package main
 
 import (
 	"context"
+	"encoding/pem"
 	"fmt"
 	"log/slog"
 
@@ -28,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/tpm"
 )
 
-func onTPMIdentify() error {
+func onTPMIdentify(debug bool) error {
 	ctx := context.Background()
 	data, err := tpm.Query(ctx, slog.Default())
 	if err != nil {
@@ -36,9 +37,21 @@ func onTPMIdentify() error {
 	}
 	fmt.Printf("TPM Information:\n")
 	fmt.Printf("EKPub Hash: %s\n", data.EKPubHash)
-	fmt.Printf("EKCert Detected: %t\n", data.EKCertPresent)
-	if data.EKCertPresent {
-		fmt.Printf("EKCert Serial: %s\n", data.EKCertSerial)
+	fmt.Printf("EKCert Detected: %t\n", data.EKCert != nil)
+	if data.EKCert != nil {
+		fmt.Printf("EKCert Serial: %s\n", data.EKCert.SerialNumber)
+	}
+	if debug {
+		fmt.Printf("EKPub:\n%s\n", pem.EncodeToMemory(&pem.Block{
+			Type:  "PUBLIC KEY",
+			Bytes: data.EKPub,
+		}))
+		if data.EKCert != nil {
+			fmt.Printf("EKCert:\n%s\n", pem.EncodeToMemory(&pem.Block{
+				Type:  "CERTIFICATE",
+				Bytes: data.EKCert.Raw,
+			}))
+		}
 	}
 	return nil
 }
