@@ -26,9 +26,7 @@ The migration process involves transferring configurations, migrating Teleport a
 ## Next Steps:
 
 1. ### Deploy your Teleport Enterprise cloud tenant
-- Follow our guide to [sign up for a Teleport Enterprise Cloud](https://goteleport.com/docs/choose-an-edition/teleport-cloud/)
-
-- Ensure recovery codes are saved securely in order not to lose access.
+- Reach out to our Account Management team to setup your Teleport Enterprise Cloud Tenant [Contact Us](https://goteleport.com/signup/enterprise/). For more information, you may refer to our documentation on [signing up for a Teleport Enterprise Cloud account](https://goteleport.com/docs/choose-an-edition/teleport-cloud/introduction/)
 
 </Details>
 
@@ -37,7 +35,7 @@ The migration process involves transferring configurations, migrating Teleport a
   title="Note"
 >
 
-  Teleport support cannot assist with resetting passwords or recovering lost credentials.
+  Ensure recovery codes are saved securely in order not to lose access! For your security, Teleport support cannot assist with resetting passwords or recovering lost credentials.
 
 </Admonition>
 
@@ -63,7 +61,7 @@ Migrating Teleport configurations involves transferring essential resource confi
 - Local users
 - SSO authentication connectors
 
-Review the [dynamic resources](https://goteleport.com/docs/reference/resources/) list to see if any other resources need to be migrated.  Some common dynamic resources are listed below.  Common resources include:
+Review the [dynamic resources](https://goteleport.com/docs/reference/resources/) list to see if any other resources need to be migrated.  Some common dynamic resources includes:
 - windows_desktop
 - apps
 - dbs
@@ -103,17 +101,15 @@ For your SSO auth connector, most SSO integrations only work for a single config
 
 3. ### Migrate Teleport Agents.
 
-The following resources should be considered for migration:
+To ensure a smooth migration process across your infrastructure, start by cataloging the various services you're managing with Teleport, The following resources should be considered for migration:
 Teleport Agents (SSH, Kubernetes, Databases, Applications, Desktops)
 Machine ID Bots
 Access Request Plugins
 
+The following procedure is required to successfully migrate your Teleport agents:
 
-The steps required to perform the migration are listed below:
-
-
-- Take an inventory of resources to migrate
-- Log in to your Teleport cloud cluster and obtain a valid join token.  We recommend using a Delegated Joining Method.
+- Log in to your Teleport Enterpise cloud Tenant, You'll need to authenticate to access your Teleport Cloud resources and management interfaces.
+- Obtain a valid join token.  We recommend using a Delegated Joining Method.
 - Stop the Teleport service on the agent (if applicable)
 - Change the `proxy_server` or `auth_server` field in the agent configuration file to point to the address of your Teleport cloud proxy. By default, the configuration is located in the `/etc/teleport.yaml` directory
 
