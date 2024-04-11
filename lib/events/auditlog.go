@@ -977,6 +977,7 @@ func (l *AuditLog) SearchSessionContents(ctx context.Context, sessionID session.
 
 	var contents string
 	var contentsEventMap []*apievents.SessionPrint
+	i := 0
 	for {
 		event, err := pr.Read(ctx)
 		if err != nil {
@@ -992,11 +993,15 @@ func (l *AuditLog) SearchSessionContents(ctx context.Context, sessionID session.
 		}
 
 		contents += string(printEvent.Data)
+
+		fmt.Printf("i: %d\n%v\n\n", i, string(printEvent.Data))
+
 		eventMap := make([]*apievents.SessionPrint, len(printEvent.Data))
 		for i := 0; i < len(eventMap); i++ {
 			eventMap[i] = printEvent
 		}
 		contentsEventMap = append(contentsEventMap, eventMap...)
+		i++
 	}
 
 	matches := Index(contents, query)
@@ -1006,35 +1011,12 @@ func (l *AuditLog) SearchSessionContents(ctx context.Context, sessionID session.
 		protoMatches[i] = &proto.SessionContentMatch{
 			Index:     contentsEventMap[mi].Index,
 			StartTime: contentsEventMap[mi].GetTime(),
-			Match:     getMatchLine(contents, mi, mi+len(query)),
 		}
 	}
 
 	return &proto.SessionContentMatches{
 		Matches: protoMatches,
 	}, nil
-}
-
-func getMatchLine(contents string, startIndex, endIndex int) string {
-	for i := startIndex - 1; i >= 0; i-- {
-		if contents[i] == '\n' || i < startIndex-25 {
-			startIndex = i
-			break
-		} else if i == 0 {
-			startIndex = i
-		}
-	}
-
-	for i := endIndex + 1; i < len(contents); i++ {
-		if contents[i] == '\n' || i > endIndex+25 {
-			endIndex = i
-			break
-		} else if i == len(contents)-1 {
-			endIndex = i
-		}
-	}
-
-	return contents[startIndex:endIndex]
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first

@@ -334,11 +334,10 @@ func onRecordingGrep(cf *CLIConf) error {
 	for _, match := range matches.Matches {
 		rows = append(rows, []string{
 			fmt.Sprint(match.StartTime.Sub(sessionRecordingEvents.StartTime)),
-			match.Match,
 		})
 	}
 
-	t := asciitable.MakeTable([]string{"TimeStamp", "Match"}, rows...)
+	t := asciitable.MakeTable([]string{"TimeStamp"}, rows...)
 	if _, err := fmt.Fprintln(cf.Stdout(), t.AsBuffer().String()); err != nil {
 		return trace.Wrap(err)
 	}
