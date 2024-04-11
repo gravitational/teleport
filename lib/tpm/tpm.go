@@ -101,13 +101,14 @@ func Query(ctx context.Context, log *slog.Logger) (*QueryRes, error) {
 			)
 		}
 	}()
-	return queryWithTPM(ctx, log, tpm)
+	return QueryWithTPM(ctx, log, tpm)
 }
 
-func queryWithTPM(
+// QueryWithTPM is similar to Query, but accepts an already opened TPM.
+func QueryWithTPM(
 	ctx context.Context, log *slog.Logger, tpm *attest.TPM,
 ) (*QueryRes, error) {
-	ctx, span := tracer.Start(ctx, "queryWithTPM")
+	ctx, span := tracer.Start(ctx, "QueryWithTPM")
 	defer span.End()
 
 	data := &QueryRes{}
@@ -181,7 +182,7 @@ func Attest(ctx context.Context, log *slog.Logger) (
 		}
 	}()
 
-	data, attestParams, solve, err = attestWithTPM(ctx, log, tpm)
+	data, attestParams, solve, err = AttestWithTPM(ctx, log, tpm)
 	if err != nil {
 		return nil, nil, nil, nil, trace.Wrap(err, "attesting with TPM")
 	}
@@ -190,16 +191,17 @@ func Attest(ctx context.Context, log *slog.Logger) (
 
 }
 
-func attestWithTPM(ctx context.Context, log *slog.Logger, tpm *attest.TPM) (
+// AttestWithTPM is similar to Attest, but accepts an already opened TPM.
+func AttestWithTPM(ctx context.Context, log *slog.Logger, tpm *attest.TPM) (
 	data *QueryRes,
 	attestParams *attest.AttestationParameters,
 	solve func(ec *attest.EncryptedCredential) ([]byte, error),
 	err error,
 ) {
-	ctx, span := tracer.Start(ctx, "attestWithTPM")
+	ctx, span := tracer.Start(ctx, "AttestWithTPM")
 	defer span.End()
 
-	queryData, err := queryWithTPM(ctx, log, tpm)
+	queryData, err := QueryWithTPM(ctx, log, tpm)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err, "querying TPM")
 	}
