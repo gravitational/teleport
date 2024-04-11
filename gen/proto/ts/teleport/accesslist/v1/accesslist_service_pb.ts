@@ -304,6 +304,20 @@ export interface UpsertAccessListWithMembersRequest {
      * @generated from protobuf field: repeated teleport.accesslist.v1.Member members = 2;
      */
     members: Member[];
+    /**
+     * preserve_expiry indicates that the upsert operation should preserve the
+     * existing membership expiry (if any) when overwriting an AccessList member
+     *
+     * @generated from protobuf field: bool preserve_expiry = 3;
+     */
+    preserveExpiry: boolean;
+    /**
+     * preserve_reason indicates that the upsert operation should preserve the
+     * existing membership reason (if any) when overwriting an AccessList member
+     *
+     * @generated from protobuf field: bool preserve_reason = 4;
+     */
+    preserveReason: boolean;
 }
 /**
  * UpsertAccessListWithMembersResponse is the response for upserting an access
@@ -1415,12 +1429,16 @@ class UpsertAccessListWithMembersRequest$Type extends MessageType<UpsertAccessLi
     constructor() {
         super("teleport.accesslist.v1.UpsertAccessListWithMembersRequest", [
             { no: 1, name: "access_list", kind: "message", T: () => AccessList },
-            { no: 2, name: "members", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Member }
+            { no: 2, name: "members", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Member },
+            { no: 3, name: "preserve_expiry", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 4, name: "preserve_reason", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<UpsertAccessListWithMembersRequest>): UpsertAccessListWithMembersRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.members = [];
+        message.preserveExpiry = false;
+        message.preserveReason = false;
         if (value !== undefined)
             reflectionMergePartial<UpsertAccessListWithMembersRequest>(this, message, value);
         return message;
@@ -1435,6 +1453,12 @@ class UpsertAccessListWithMembersRequest$Type extends MessageType<UpsertAccessLi
                     break;
                 case /* repeated teleport.accesslist.v1.Member members */ 2:
                     message.members.push(Member.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* bool preserve_expiry */ 3:
+                    message.preserveExpiry = reader.bool();
+                    break;
+                case /* bool preserve_reason */ 4:
+                    message.preserveReason = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1454,6 +1478,12 @@ class UpsertAccessListWithMembersRequest$Type extends MessageType<UpsertAccessLi
         /* repeated teleport.accesslist.v1.Member members = 2; */
         for (let i = 0; i < message.members.length; i++)
             Member.internalBinaryWrite(message.members[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* bool preserve_expiry = 3; */
+        if (message.preserveExpiry !== false)
+            writer.tag(3, WireType.Varint).bool(message.preserveExpiry);
+        /* bool preserve_reason = 4; */
+        if (message.preserveReason !== false)
+            writer.tag(4, WireType.Varint).bool(message.preserveReason);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
