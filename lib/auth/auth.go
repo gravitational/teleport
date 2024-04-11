@@ -2336,7 +2336,8 @@ func (a *Server) AugmentContextUserCertificates(
 type AugmentWebSessionCertificatesOpts struct {
 	// WebSessionID is the identifier for the WebSession.
 	WebSessionID string
-
+	// User is the owner of the WebSession.
+	User string
 	// DeviceExtensions are the device-aware extensions to add to the certificates
 	// being augmented.
 	DeviceExtensions *DeviceExtensions
@@ -2346,39 +2347,25 @@ type AugmentWebSessionCertificatesOpts struct {
 // [AugmentContextUserCertificates] that operates directly in the certificates
 // stored in a WebSession.
 //
-// The authCtx user must be the owner of the session. Unlike
-// [AugmentContextUserCertificates], the user certificate doesn't need to be
-// present in the ctx, as the session certificates are used.
-//
 // On success the WebSession is updated with device extension certificates.
-func (a *Server) AugmentWebSessionCertificates(
-	ctx context.Context,
-	authCtx *authz.Context,
-	opts *AugmentWebSessionCertificatesOpts,
-) error {
+func (a *Server) AugmentWebSessionCertificates(ctx context.Context, opts *AugmentWebSessionCertificatesOpts) error {
 	switch {
-	case authCtx == nil:
-		return trace.BadParameter("authCtx required")
 	case opts == nil:
 		return trace.BadParameter("opts required")
 	case opts.WebSessionID == "":
 		return trace.BadParameter("opts.WebSessionID required")
+	case opts.User == "":
+		return trace.BadParameter("opts.User required")
 	}
-
-	identity := authCtx.Identity.GetIdentity()
 
 	// Get and validate session.
 	sessions := a.WebSessions()
 	session, err := sessions.Get(ctx, types.GetWebSessionRequest{
-		User:      identity.Username,
+		User:      opts.User,
 		SessionID: opts.WebSessionID,
 	})
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	// Sanity check: session must belong to user.
-	if session.GetUser() != identity.Username {
-		return trace.AccessDenied("identity and session user mismatch")
 	}
 
 	// Coerce session before doing more expensive operations.
@@ -2401,9 +2388,23 @@ func (a *Server) AugmentWebSessionCertificates(
 		return trace.Wrap(err)
 	}
 
+	// Prepare the AccessChecker for the WebSession identity.
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	accessInfo, err := services.AccessInfoFromLocalIdentity(*x509Identity, a)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Augment certificates.
 	newCerts, err := a.augmentUserCertificates(ctx, augmentUserCertificatesOpts{
-		checker:          authCtx.Checker,
+		checker:          checker,
 		x509Cert:         x509Cert,
 		x509Identity:     x509Identity,
 		sshAuthorizedKey: session.GetPub(),
