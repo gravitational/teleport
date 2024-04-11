@@ -1,4 +1,4 @@
-//go:build tpmsimulator_test
+//go:build tpmsimulator
 
 /*
  * Teleport
@@ -18,7 +18,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tpm
+package tpm_test
 
 import (
 	"context"
@@ -39,6 +39,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/fixtures"
+	"github.com/gravitational/teleport/lib/tpm"
 )
 
 // fakeCmdChannel is used to inject the TPM simulator into `go-attestation`'s
@@ -113,6 +114,10 @@ func TestWithSimulator(t *testing.T) {
 	caPEM := pem.EncodeToMemory(
 		&pem.Block{Type: "CERTIFICATE", Bytes: caBytes},
 	)
+	caPool := x509.NewCertPool()
+	require.True(t, caPool.AppendCertsFromPEM(caPEM))
+	wrongCAPool := x509.NewCertPool()
+	require.True(t, wrongCAPool.AppendCertsFromPEM([]byte(fixtures.TLSCACertPEM)))
 
 	sim, err := tpmsimulator.GetWithFixedSeedInsecure(0)
 	require.NoError(t, err)
@@ -129,7 +134,7 @@ func TestWithSimulator(t *testing.T) {
 	})
 
 	t.Run("Without EKCert", func(t *testing.T) {
-		queryRes, attParams, solve, err := AttestWithTPM(ctx, log, attestTPM)
+		queryRes, attParams, solve, err := tpm.AttestWithTPM(ctx, log, attestTPM)
 		require.NoError(t, err)
 
 		// Check QueryRes looks right.
@@ -140,7 +145,7 @@ func TestWithSimulator(t *testing.T) {
 		assert.Empty(t, queryRes.EKCert)
 
 		t.Run("Success", func(t *testing.T) {
-			validated, err := Validate(ctx, log, ValidateParams{
+			validated, err := tpm.Validate(ctx, log, tpm.ValidateParams{
 				EKKey:        queryRes.EKPub,
 				EKCert:       nil,
 				AttestParams: *attParams,
@@ -152,12 +157,12 @@ func TestWithSimulator(t *testing.T) {
 			assert.Empty(t, validated.EKCertSerial)
 		})
 		t.Run("Failure due to missing EKCert", func(t *testing.T) {
-			_, err = Validate(ctx, log, ValidateParams{
+			_, err = tpm.Validate(ctx, log, tpm.ValidateParams{
 				EKKey:        queryRes.EKPub,
 				EKCert:       nil,
 				AttestParams: *attParams,
 				Solve:        solve,
-				AllowedCAs:   []string{string(caPEM)},
+				AllowedCAs:   caPool,
 			})
 			assert.ErrorContains(t, err, "tpm did not provide an EKCert to validate against allowed CAs")
 		})
@@ -180,7 +185,7 @@ func TestWithSimulator(t *testing.T) {
 	writeEKCertToTPM(t, sim, fakeEKBytes)
 
 	t.Run("With EKCert", func(t *testing.T) {
-		queryRes, attParams, solve, err := AttestWithTPM(ctx, log, attestTPM)
+		queryRes, attParams, solve, err := tpm.AttestWithTPM(ctx, log, attestTPM)
 		require.NoError(t, err)
 
 		// Check queryRes looks right.
@@ -191,7 +196,7 @@ func TestWithSimulator(t *testing.T) {
 		assert.NotEmpty(t, queryRes.EKCert)
 
 		t.Run("Success without CAs", func(t *testing.T) {
-			validated, err := Validate(ctx, log, ValidateParams{
+			validated, err := tpm.Validate(ctx, log, tpm.ValidateParams{
 				EKKey:        queryRes.EKPub,
 				EKCert:       queryRes.EKCert,
 				AttestParams: *attParams,
@@ -203,12 +208,12 @@ func TestWithSimulator(t *testing.T) {
 			assert.Equal(t, ekCertSerialHex, validated.EKCertSerial)
 		})
 		t.Run("Success with CAs", func(t *testing.T) {
-			validated, err := Validate(ctx, log, ValidateParams{
+			validated, err := tpm.Validate(ctx, log, tpm.ValidateParams{
 				EKKey:        queryRes.EKPub,
 				EKCert:       queryRes.EKCert,
 				AttestParams: *attParams,
 				Solve:        solve,
-				AllowedCAs:   []string{string(caPEM)},
+				AllowedCAs:   caPool,
 			})
 			require.NoError(t, err)
 			assert.Equal(t, wantEKPubHash, validated.EKPubHash)
@@ -216,13 +221,13 @@ func TestWithSimulator(t *testing.T) {
 			assert.Equal(t, ekCertSerialHex, validated.EKCertSerial)
 		})
 		t.Run("Failure with wrong CA", func(t *testing.T) {
-			_, err := Validate(ctx, log, ValidateParams{
+			_, err := tpm.Validate(ctx, log, tpm.ValidateParams{
 				EKKey:        queryRes.EKPub,
 				EKCert:       queryRes.EKCert,
 				AttestParams: *attParams,
 				Solve:        solve,
 				// Some random CA that won't match the EKCert.
-				AllowedCAs: []string{fixtures.TLSCACertPEM},
+				AllowedCAs: wrongCAPool,
 			})
 			assert.ErrorContains(t, err, "certificate signed by unknown authority")
 		})

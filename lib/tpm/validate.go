@@ -45,9 +45,9 @@ type ValidateParams struct {
 	// Solve is the function that Validate should call when it has prepared the
 	// challenge and needs the remote TPM to solve it.
 	Solve func(ec *attest.EncryptedCredential) ([]byte, error)
-	// AllowedCAs is a list of PEM encoded CAs that are allowed to sign the
-	// EKCert. If this list is empty, the EKCert will not be verified.
-	AllowedCAs []string
+	// AllowedCAs is a pool of PEM encoded CAs that are allowed to sign the
+	// EKCert. If this value is nil, the EKCert will not be verified.
+	AllowedCAs *x509.CertPool
 }
 
 // ValidatedTPM is returned by Validate and contains the validated information
@@ -98,15 +98,9 @@ func Validate(
 		validated.EKCertSerial = serialString(ekCert.SerialNumber)
 	}
 
-	if len(params.AllowedCAs) > 0 {
+	if params.AllowedCAs != nil {
 		if err := verifyEKCert(ctx, params.AllowedCAs, ekCert); err != nil {
-			log.ErrorContext(
-				ctx,
-				"EKCert CA verification failed",
-				"error", err,
-				"tpm", validated,
-			)
-			return validated, trace.Wrap(err)
+			return validated, trace.Wrap(err, "verifying EK cert")
 		}
 		validated.EKCertVerified = true
 	}
@@ -134,11 +128,6 @@ func Validate(
 		return validated, trace.Wrap(err, "asking client to perform credential activation")
 	}
 	if subtle.ConstantTimeCompare(clientSolution, solution) == 0 {
-		log.ErrorContext(
-			ctx,
-			"TPM Credential Activation solution did not match expected solution.",
-			"tpm", validated,
-		)
 		return validated, trace.BadParameter("invalid credential activation solution")
 	}
 
@@ -173,7 +162,7 @@ func parseEK(
 
 func verifyEKCert(
 	ctx context.Context,
-	allowedCAs []string,
+	allowedCAs *x509.CertPool,
 	ekCert *x509.Certificate,
 ) error {
 	_, span := tracer.Start(ctx, "verifyEKCert")
@@ -183,16 +172,9 @@ func verifyEKCert(
 		return trace.BadParameter("tpm did not provide an EKCert to validate against allowed CAs")
 	}
 
-	// Collect CAs into a pool to use for validation
-	caPool := x509.NewCertPool()
-	for _, caPEM := range allowedCAs {
-		if !caPool.AppendCertsFromPEM([]byte(caPEM)) {
-			return trace.BadParameter("invalid CA PEM")
-		}
-	}
 	// Validate EKCert against CA pool
 	_, err := ekCert.Verify(x509.VerifyOptions{
-		Roots: caPool,
+		Roots: allowedCAs,
 		KeyUsages: []x509.ExtKeyUsage{
 			// Go's x509 Verification doesn't support the EK certificate
 			// ExtKeyUsage (http://oid-info.com/get/2.23.133.8.1), so we
