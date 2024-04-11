@@ -36,17 +36,23 @@ import { Theme } from 'design/theme/themes/types';
 
 import { Notification as NotificationType } from 'teleport/services/notifications';
 
-import {
-  NotificationContent,
-  notificationContentFactory,
-} from './notificationContentFactory';
+import { useTeleport } from '..';
+
+import { NotificationContent } from './notificationContentFactory';
 
 export function Notification({
   notification,
 }: {
   notification: NotificationType;
 }) {
-  const content = notificationContentFactory(notification);
+  const ctx = useTeleport();
+
+  const content = ctx.notificationContentFactory(notification);
+
+  // If the notification is unsupported, it should not be shown.
+  if (!content) {
+    return null;
+  }
 
   // Whether to show the text content dialog. This is only ever used for user-created notifications which only contain informational text
   // and don't redirect to any page.

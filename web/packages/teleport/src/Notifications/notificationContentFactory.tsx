@@ -26,6 +26,9 @@ import {
 } from 'teleport/services/notifications';
 import { Label } from 'teleport/types';
 
+/**
+ notificationContentFactory produces the content for notifications for OSS features.
+*/
 export function notificationContentFactory({
   subKind,
   labels,
@@ -59,68 +62,8 @@ export function notificationContentFactory({
       };
       break;
     }
-
-    case NotificationSubKind.AccessRequestApproved: {
-      notificationContent = {
-        kind: 'redirect',
-        title: notification.title,
-        type: 'success',
-        icon: Icons.Users,
-        redirectRoute: '/', //TODO: rudream - handle enterprise routes
-        quickAction: {
-          onClick: () => null, //TODO: rudream - handle assuming roles from quick action button
-          buttonText: 'Assume Roles',
-        },
-      };
-      break;
-    }
-
-    case NotificationSubKind.AccessRequestDenied: {
-      notificationContent = {
-        kind: 'redirect',
-        title: notification.title,
-        type: 'failure',
-        icon: Icons.Users,
-        redirectRoute: '/', //TODO: rudream - handle enterprise routes
-      };
-      break;
-    }
-
-    case NotificationSubKind.AccessRequestPending: {
-      notificationContent = {
-        kind: 'redirect',
-        title: notification.title,
-        type: 'informational',
-        icon: Icons.UserList,
-        redirectRoute: '/', //TODO: rudream - handle enterprise routes
-      };
-      break;
-    }
-
-    case NotificationSubKind.AccessRequestNowAssumable: {
-      let buttonText;
-
-      const accessRequestType = getLabelValue(labels, 'request-type');
-
-      if (accessRequestType === 'resource') {
-        buttonText = 'Access Now';
-      } else {
-        buttonText = 'Assume Role';
-      }
-
-      notificationContent = {
-        kind: 'redirect',
-        title: notification.title,
-        type: 'success-alt',
-        icon: Icons.Users,
-        redirectRoute: '/', //TODO: rudream - handle enterprise routes
-        quickAction: {
-          onClick: () => null, //TODO: rudream - handle assuming roles from quick action button
-          buttonText: buttonText,
-        },
-      };
-      break;
-    }
+    default:
+      return null;
   }
 
   return notificationContent;
@@ -160,7 +103,7 @@ export type NotificationContent =
   | NotificationContentText;
 
 // getLabelValue returns the value of a label for a given key.
-function getLabelValue(labels: Label[], key: string): string {
+export function getLabelValue(labels: Label[], key: string): string {
   const label = labels.find(label => {
     return label.name === key;
   });
