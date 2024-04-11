@@ -127,7 +127,7 @@ func TestWithSimulator(t *testing.T) {
 	})
 
 	t.Run("Without EKCert", func(t *testing.T) {
-		queryRes, attParams, solve, _, err := attestWithTPM(ctx, log, attestTPM)
+		queryRes, attParams, solve, err := attestWithTPM(ctx, log, attestTPM)
 		require.NoError(t, err)
 
 		// Check QueryRes looks right.
@@ -178,7 +178,7 @@ func TestWithSimulator(t *testing.T) {
 	writeEKCertToTPM(t, sim, fakeEKBytes)
 
 	t.Run("With EKCert", func(t *testing.T) {
-		queryRes, attParams, solve, _, err := attestWithTPM(ctx, log, attestTPM)
+		queryRes, attParams, solve, err := attestWithTPM(ctx, log, attestTPM)
 		require.NoError(t, err)
 
 		// Check queryRes looks right.

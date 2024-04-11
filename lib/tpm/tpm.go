@@ -93,7 +93,7 @@ func Query(ctx context.Context, log *slog.Logger) (*QueryRes, error) {
 	}
 	defer func() {
 		if err := tpm.Close(); err != nil {
-			log.ErrorContext(
+			log.WarnContext(
 				ctx,
 				"Failed to close TPM",
 				slog.String("error", err.Error()),
@@ -168,23 +168,10 @@ func Attest(ctx context.Context, log *slog.Logger) (
 	if err != nil {
 		return nil, nil, nil, nil, trace.Wrap(err)
 	}
-	return attestWithTPM(ctx, log, tpm)
-
-}
-
-func attestWithTPM(ctx context.Context, log *slog.Logger, tpm *attest.TPM) (
-	data *QueryRes,
-	attestParams *attest.AttestationParameters,
-	solve func(ec *attest.EncryptedCredential) ([]byte, error),
-	close func() error,
-	err error,
-) {
-	ctx, span := tracer.Start(ctx, "attestWithTPM")
-	defer span.End()
 	defer func() {
 		if err != nil {
 			if err := tpm.Close(); err != nil {
-				log.ErrorContext(
+				log.WarnContext(
 					ctx,
 					"Failed to close TPM",
 					slog.String("error", err.Error()),
@@ -193,15 +180,33 @@ func attestWithTPM(ctx context.Context, log *slog.Logger, tpm *attest.TPM) (
 		}
 	}()
 
+	data, attestParams, solve, err = attestWithTPM(ctx, log, tpm)
+	if err != nil {
+		return nil, nil, nil, nil, trace.Wrap(err, "attesting with TPM")
+	}
+
+	return data, attestParams, solve, tpm.Close, nil
+
+}
+
+func attestWithTPM(ctx context.Context, log *slog.Logger, tpm *attest.TPM) (
+	data *QueryRes,
+	attestParams *attest.AttestationParameters,
+	solve func(ec *attest.EncryptedCredential) ([]byte, error),
+	err error,
+) {
+	ctx, span := tracer.Start(ctx, "attestWithTPM")
+	defer span.End()
+
 	queryData, err := queryWithTPM(ctx, log, tpm)
 	if err != nil {
-		return nil, nil, nil, nil, trace.Wrap(err, "querying TPM")
+		return nil, nil, nil, trace.Wrap(err, "querying TPM")
 	}
 
 	// Create AK and calculate attestation parameters.
 	ak, err := tpm.NewAK(&attest.AKConfig{})
 	if err != nil {
-		return nil, nil, nil, nil, trace.Wrap(err, "creating ak")
+		return nil, nil, nil, trace.Wrap(err, "creating ak")
 	}
 	log.DebugContext(ctx, "Successfully generated AK for TPM")
 	attParams := ak.AttestationParameters()
@@ -209,8 +214,5 @@ func attestWithTPM(ctx context.Context, log *slog.Logger, tpm *attest.TPM) (
 		log.DebugContext(ctx, "Solving credential challenge")
 		return ak.ActivateCredential(tpm, *ec)
 	}
-	close = func() error {
-		return tpm.Close()
-	}
-	return queryData, &attParams, solve, close, nil
+	return queryData, &attParams, solve, nil
 }
