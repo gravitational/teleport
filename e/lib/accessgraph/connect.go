@@ -9,6 +9,8 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+
+	"github.com/gravitational/teleport/api/metadata"
 )
 
 // ServiceClientConfig is the configuration for the access graph service client.
@@ -37,7 +39,13 @@ func NewAccessGraphClient(ctx context.Context, config ServiceClientConfig, creds
 		return nil, trace.Wrap(err)
 	}
 
-	conn, err := grpc.DialContext(ctx, config.Addr, append(opts, opt)...)
+	opts = append(opts,
+		opt,
+		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
+		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
+	)
+
+	conn, err := grpc.DialContext(ctx, config.Addr, opts...)
 	return conn, trace.Wrap(err)
 }
 

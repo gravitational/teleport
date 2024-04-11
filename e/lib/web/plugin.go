@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/services"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -536,8 +537,13 @@ func buildAccessGraphForwarder(tlsConfig *tls.Config) (*reverseproxy.Forwarder, 
 	}
 	tr.TLSClientConfig = tlsConfig
 
+	// Don't trust any "X-Forward-*" headers the client sends, instead set our own.
+	delegate := reverseproxy.NewHeaderRewriter()
+	delegate.TrustForwardHeader = false
+
 	accessGraphForwarder, err := reverseproxy.New(
 		reverseproxy.WithRoundTripper(tr),
+		reverseproxy.WithRewriter(common.NewHeaderRewriter(delegate, &teleportVersionHeaderAppender{})),
 	)
 
 	return accessGraphForwarder, trace.Wrap(err)
@@ -728,4 +734,12 @@ func getAccessGraphTLSConfig(cfg *AccessGraphConfig, tlsConfig *tls.Config) (*tl
 	tlsConfig.RootCAs = caPool
 	tlsConfig.ServerName = "" /* empty server name to avoid SNI */
 	return tlsConfig, nil
+}
+
+// teleportVersionHeaderAppender sets the X-TELEPORT-VERSION header on the request.
+type teleportVersionHeaderAppender struct{}
+
+// Rewrite request headers.
+func (rw *teleportVersionHeaderAppender) Rewrite(req *http.Request) {
+	req.Header.Set(teleport.VersionRequest, teleport.Version)
 }
