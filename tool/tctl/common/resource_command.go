@@ -2937,6 +2937,7 @@ func (rc *ResourceCommand) createAccessMonitoringRule(ctx context.Context, clien
 		if _, err = client.AccessMonitoringRuleClient().UpsertAccessMonitoringRule(ctx, in); err != nil {
 			return trace.Wrap(err)
 		}
+		fmt.Printf("access monitoring rule %q has been created\n", in.GetMetadata().GetName())
 		return nil
 	}
 
