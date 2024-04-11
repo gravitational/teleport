@@ -139,7 +139,7 @@ func Validate(
 	if err != nil {
 		return validated, trace.Wrap(err, "asking client to perform credential activation")
 	}
-	if subtle.ConstantTimeCompare(clientSolution, solution) == 0 {
+	if subtle.ConstantTimeCompare(clientSolution, solution) != 1 {
 		return validated, trace.BadParameter("invalid credential activation solution")
 	}
 
