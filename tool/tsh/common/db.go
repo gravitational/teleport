@@ -56,6 +56,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+var (
+	promptCacheDatabases     types.Databases
+	promptCacheAccessChecker services.AccessChecker
+)
+
 // onListDatabases implements "tsh db ls" command.
 func onListDatabases(cf *CLIConf) error {
 	if cf.ListAll {
@@ -101,6 +106,8 @@ func onListDatabases(cf *CLIConf) error {
 	}
 
 	sort.Sort(types.Databases(databases))
+	promptCacheDatabases = databases
+	promptCacheAccessChecker = accessChecker
 	return trace.Wrap(showDatabases(cf, databases, activeDatabases, accessChecker))
 }
 

@@ -41,7 +41,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -576,7 +575,10 @@ func Main() {
 	cmdLineOrig := os.Args[1:]
 	var cmdLine []string
 
+	/* TODO
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	*/
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// lets see: if the executable name is 'ssh' or 'scp' we convert
@@ -750,6 +752,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	ver.Flag("client", "Show the client version only (no server required).").
 		BoolVar(&cf.clientOnlyVersionCheck)
+
+	prompt := app.Command("prompt", "interactive TSH with auto-complete")
+
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node.").Interspersed(false)
@@ -1321,6 +1326,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	switch command {
 	case ver.FullCommand():
 		err = onVersion(&cf)
+	case prompt.FullCommand():
+		err = onPrompt(&cf)
 	case ssh.FullCommand():
 		err = onSSH(&cf)
 	case latencySSH.FullCommand():
