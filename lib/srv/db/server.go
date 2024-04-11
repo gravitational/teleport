@@ -1294,7 +1294,7 @@ func (s *Server) pSQLConnect(ctx context.Context, addr string, webConn net.Conn,
 	cmd := exec.CommandContext(ctx, "psql", pgURL)
 
 	s.log.Debugf("starting psql with args: %v", cmd.Args)
-	ptmx, err := pty.Start(cmd)
+	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: 200, Rows: 50})
 	if err != nil {
 		s.log.WithError(err).Debug("failed to get a pty")
 		return trace.Wrap(err)
@@ -1316,6 +1316,7 @@ func (s *Server) pSQLConnect(ctx context.Context, addr string, webConn net.Conn,
 	go func() {
 		// reap psql when it exits
 		err := cmd.Wait()
+		webConn.Write([]byte("psql exited: " + err.Error()))
 		s.log.WithError(err).Debug("psql exited")
 	}()
 	return nil
