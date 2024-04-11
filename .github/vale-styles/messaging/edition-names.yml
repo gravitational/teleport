@@ -1,0 +1,13 @@
+extends: existence
+scope:
+  # Using the raw scope so we can catch instances in TabItem labels.
+  - raw
+message: '"%s" is no longer a recognized Teleport edition. Use "Teleport Enterprise" instead, and clarify the hosting type in parentheses rather than including it in the name of the product, e.g., "Teleport Enterprise (self-hosted)" or "Teleport Enterprise (cloud-hosted)".'
+level: error
+ignorecase: false
+tokens:
+  # Adding the pattern '[ \t]*\n?[ \t]*' between each word since we are using the raw
+  # scope. This lets use catch violations that span two lines (i.e., that occupy
+  # the same paragraph).
+  - 'Teleport[ \t]*\n?[ \t]*Cloud'
+  - 'Teleport[ \t]*\n?[ \t]*Enterprise[ \t]*\n?[ \t]*Cloud'
