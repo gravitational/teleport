@@ -53,7 +53,7 @@ type ValidateParams struct {
 // ValidatedTPM is returned by Validate and contains the validated information
 // about the remote TPM.
 type ValidatedTPM struct {
-	// EKPubHash is the SHA256 hash of the PKIX marshaled EKPub.
+	// EKPubHash is the SHA256 hash of the PKIX marshaled EKPub in hex format.
 	EKPubHash string `json:"ek_pub_hash"`
 	// EKCertSerial is the serial number of the EK cert represented as a colon
 	// delimited hex string. If there is no EKCert, this field will be empty.

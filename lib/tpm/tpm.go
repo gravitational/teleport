@@ -68,7 +68,8 @@ func hashEKPub(key crypto.PublicKey) (string, error) {
 type QueryRes struct {
 	// EKPub is the PKIX marshaled public part of the EK.
 	EKPub []byte
-	// EKPubHash is the SHA256 hash of the PKIX marshaled EKPub.
+	// EKPubHash is the SHA256 hash of the PKIX marshaled EKPub in hexadecimal
+	// format.
 	EKPubHash string
 	// EKCertPresent is true if an EK cert is present in the TPM.
 	EKCertPresent bool
