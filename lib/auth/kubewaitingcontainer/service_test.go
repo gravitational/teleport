@@ -354,7 +354,7 @@ func initSvc(t *testing.T, authorizerFn func(t *testing.T, client localClient) a
 	require.NoError(t, err)
 
 	roleSvc := local.NewAccessService(backend)
-	userSvc := local.NewIdentityService(backend)
+	userSvc := local.NewTestIdentityService(backend)
 	clusterSrv, err := local.NewClusterConfigurationService(backend)
 	require.NoError(t, err)
 	caSrv := local.NewCAService(backend)
