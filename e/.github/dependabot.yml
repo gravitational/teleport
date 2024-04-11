@@ -15,7 +15,6 @@ updates:
     reviewers:
       - codingllama
       - fheinecke
-      - jentfoo
       - rosstimothy
       - zmb3
   - package-ecosystem: cargo
@@ -32,7 +31,6 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - jentfoo
       - probakowski
       - rosstimothy
       - zmb3
@@ -45,8 +43,6 @@ updates:
       time: "09:00"
       timezone: "America/Los_Angeles"
     reviewers:
-      - wadells
-      - jentfoo
       - fheinecke
       - camscale
 
@@ -61,8 +57,6 @@ updates:
       time: "09:00"
       timezone: "America/Los_Angeles"
     reviewers:
-      - wadells
-      - jentfoo
       - fheinecke
       - camscale
   - package-ecosystem: github-actions
@@ -73,8 +67,6 @@ updates:
       time: "09:00"
       timezone: "America/Los_Angeles"
     reviewers:
-      - wadells
-      - jentfoo
       - fheinecke
       - camscale
   - package-ecosystem: github-actions
@@ -85,8 +77,6 @@ updates:
       time: "09:00"
       timezone: "America/Los_Angeles"
     reviewers:
-      - wadells
-      - jentfoo
       - fheinecke
       - camscale
   - package-ecosystem: github-actions
@@ -97,7 +87,5 @@ updates:
       time: "09:00"
       timezone: "America/Los_Angeles"
     reviewers:
-      - wadells
-      - jentfoo
       - fheinecke
       - camscale
