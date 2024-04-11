@@ -23,8 +23,8 @@ The migration process involves transferring configurations, migrating Teleport a
 
 ## Next Steps:
 
-1. ### Deploy your Teleport Enterprise cloud tenant
-- Reach out to our Account Management team to setup your Teleport Enterprise Cloud Tenant [Contact Us](https://goteleport.com/signup/enterprise/). For more information, you may refer to our documentation on [signing up for a Teleport Enterprise Cloud account](https://goteleport.com/docs/choose-an-edition/teleport-cloud/introduction/)
+### Deploy your Teleport Enterprise cloud tenant
+- Reach out to your Account Management team to setup your Teleport Enterprise Cloud Tenant, [Contact Us](https://goteleport.com/signup/enterprise/). For more information, you may refer to our documentation on [signing up for a Teleport Enterprise Cloud account](https://goteleport.com/docs/choose-an-edition/teleport-cloud/introduction/)
 
 </Details>
 
@@ -39,7 +39,7 @@ The migration process involves transferring configurations, migrating Teleport a
 
 - Subscribe to the [Teleport Cloud status website](https://status.teleport.sh/) to stay current on any issues impacting Teleport Cloud performance.
 
-2.  ### Validate connectivity  
+### Validate connectivity  
 
 To check that you can connect to your Teleport cloud tenant, using the tsh command-line tool sign in with tsh login, then verify that you can run tctl commands using your current credentials. tctl is supported on macOS and Linux machines. 
 For example:
@@ -51,7 +51,7 @@ $ tsh status && tctl status
 
 If you can connect to the cluster and run the `tctl status` command, you can use your current credentials to run subsequent tctl commands from your workstation.
 
-3. ### Migrate Teleport Configurations.
+### Migrate Teleport Configurations.
 
 Migrating Teleport configurations involves transferring essential resource configurations from your self-hosted cluster to Teleport Cloud. Teleport uses YAML configuration for these resources, hence, it is required to grab a backup of the dynamic resource configurations from the existing self-hosted cluster and restore the resource on the Teleport cloud. These resources include:  
 
@@ -97,7 +97,7 @@ $ tctl create -f  user.yaml
 For your SSO auth connector, most SSO integrations only work for a single configured endpoint. It is recommended to create a separate SSO connector in your Identity Provider specifically for the Teleport Cloud endpoint, and configure a new Auth Connector in the Teleport Cloud tenant.
 
 
-3. ### Migrate Teleport Agents.
+### Migrate Teleport Agents.
 
 To ensure a successful migration process across your infrastructure, start by cataloging the various services you're managing with Teleport, The following resources should be considered for migration:
 Teleport Agents (SSH, Kubernetes, Databases, Applications, Desktops)
@@ -109,7 +109,9 @@ The following procedure is required to successfully migrate your Teleport agents
 - Log in to your Teleport Enterpise cloud Tenant, You'll need to authenticate to access your Teleport Cloud resources and management interfaces.
 
 - Obtain a valid join token: We recommend using a [Delegated Join Method](https://goteleport.com/docs/reference/join-methods/#delegated-join-methods)
+
 If using ephemeral tokens, ensure you specify the appropriate token type to match the Teleport services. Token types can include `node`, `app`, `Kube`, `DB`, `WindowsDesktop`, and others depending on the service you wish to join to your Teleport cluster.
+
 In the following example, a new token is created with the TTL of fifteen minutes:
 
 ```code
@@ -134,12 +136,13 @@ proxy_server:
 - Delete the local agent cache to force the agent to rejoin the new Teleport Cloud cluster. By default, the data is located in the  `/var/lib/teleport` directory
 
 - Start the Teleport process on each agent or recycle the pod to apply the new configuration. This will cause the agents to re-register with the Teleport cloud cluster and obtain new certificates signed by the cloud cluster's certificate authority.
+
 As new services come online, they start sending heartbeat requests every few seconds to the Auth Service. This allows users to explore cluster membership. 
 
 Note: ​​Migration of agents can be done all at once or gradually, depending on your business requirements. If running teleport at scale, you'll generally want to leverage the use of a configuration management tool to automate and streamline the process of carrying out the actions involved in migrating agent configurations. 
 
 
-4. ### Verify end User Access and performance.
+### Verify end User Access and performance.
 
 Once the migration is complete, validate that the resources are present in the Teleport cluster and verify their status and connectivity to ensure they are properly registered and available for connections. You can either check via the Web UI or use tctl to get a list of all resources and verify their registration and status. 
 For example, to list all nodes registered with the Teleport cluster, you can run the command below
