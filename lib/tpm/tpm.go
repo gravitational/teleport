@@ -39,11 +39,17 @@ var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tpm")
 // string thats user-readable e.g ab:ab:ab:ff:ff:ff
 func serialString(serial *big.Int) string {
 	hex := serial.Text(16)
-	if len(hex)%2 == 1 {
-		hex = "0" + hex
-	}
 
 	out := strings.Builder{}
+	// Handle odd-sized strings.
+	if len(hex)%2 == 1 {
+		out.WriteRune('0')
+		out.WriteRune(rune(hex[0]))
+		if len(hex) > 1 {
+			out.WriteRune(':')
+		}
+		hex = hex[1:]
+	}
 	for i := 0; i < len(hex); i += 2 {
 		if i != 0 {
 			out.WriteString(":")
