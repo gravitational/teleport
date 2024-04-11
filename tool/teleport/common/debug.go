@@ -41,7 +41,9 @@ import (
 
 // debugServiceClient debug service client.
 type debugServiceClient struct {
-	clt *http.Client
+	clt        *http.Client
+	dataDir    string
+	socketPath string
 }
 
 // newDebugServiceClient generates a new debug service client.
@@ -58,11 +60,14 @@ func newDebugServiceClient(configPath string) (*debugServiceClient, error) {
 		dataDir = cfg.DataDir
 	}
 
+	socketPath := filepath.Join(dataDir, debug.ServiceSocketName)
 	return &debugServiceClient{
+		dataDir:    dataDir,
+		socketPath: socketPath,
 		clt: &http.Client{
 			Transport: &http.Transport{
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial("unix", filepath.Join(dataDir, debug.ServiceSocketName))
+					return net.Dial("unix", socketPath)
 				},
 			},
 		},
@@ -155,6 +160,13 @@ func (c *debugServiceClient) do(ctx context.Context, method string, u url.URL, b
 
 	resp, err := c.clt.Do(req)
 	if err != nil {
+		if trace.IsConnectionProblem(trace.ConvertSystemError(err)) {
+			return nil, trace.BadParameter("Unable to reach debug service socket at %q."+
+				"\n\nVerify if you have enough permissions to open the socket and if the path"+
+				" to your data directory (%q) is correct. The command assumes the data"+
+				" directory from your configuration file, you can provide the path to it using the --config flag.", c.socketPath, c.dataDir)
+		}
+
 		return nil, trace.Wrap(err)
 	}
 
