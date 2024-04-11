@@ -101,7 +101,8 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/google/go-containerregistry v0.17.0
 	github.com/google/go-querystring v1.1.0
-	github.com/google/go-tpm-tools v0.4.2
+	github.com/google/go-tpm v0.9.0
+	github.com/google/go-tpm-tools v0.4.4
 	github.com/google/renameio/v2 v2.0.0
 	github.com/google/safetext v0.0.0-20240104143208-7a7d9b3d812f
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
@@ -351,7 +352,7 @@ require (
 	github.com/google/certificate-transparency-go v1.1.7 // indirect
 	github.com/google/flatbuffers v23.1.21+incompatible // indirect
 	github.com/google/gnostic-models v0.6.9-0.20230804172637-c7be7c783f49 // indirect
-	github.com/google/go-tpm v0.9.0 // indirect
+	github.com/google/go-configfs-tsm v0.2.2 // indirect
 	github.com/google/go-tspi v0.3.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/s2a-go v0.1.7 // indirect
