@@ -22,7 +22,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"io"
 	"log/slog"
 	"math/big"
 	"strings"
@@ -228,4 +230,27 @@ func AttestWithTPM(ctx context.Context, log *slog.Logger, tpm *attest.TPM) (
 			return ak.ActivateCredential(tpm, *ec)
 		},
 	}, nil
+}
+
+// PrintQuery prints a human-readable summary of the TPM information to the
+// specified io.Writer.
+func PrintQuery(data *QueryRes, debug bool, w io.Writer) {
+	_, _ = fmt.Fprintf(w, "TPM Information\n")
+	_, _ = fmt.Fprintf(w, "EKPub Hash: %s\n", data.EKPubHash)
+	_, _ = fmt.Fprintf(w, "EKCert Detected: %t\n", data.EKCert != nil)
+	if data.EKCert != nil {
+		_, _ = fmt.Fprintf(w, "EKCert Serial: %s\n", data.EKCert.SerialNumber)
+	}
+	if debug {
+		_, _ = fmt.Fprintf(w, "EKPub:\n%s", pem.EncodeToMemory(&pem.Block{
+			Type:  "PUBLIC KEY",
+			Bytes: data.EKPub,
+		}))
+		if data.EKCert != nil {
+			_, _ = fmt.Fprintf(w, "EKCert:\n%s", pem.EncodeToMemory(&pem.Block{
+				Type:  "CERTIFICATE",
+				Bytes: data.EKCert.Raw,
+			}))
+		}
+	}
 }
