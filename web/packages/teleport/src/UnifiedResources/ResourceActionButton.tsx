@@ -219,7 +219,7 @@ function DatabaseConnect({ database }: { database: Database }) {
   const dbUsers = database.users || [];
   let dbNames = database.names || ["postgres"];
 
-  const [dbName, setDbName] = useState(dbNames[0]);
+  const [dbName, setDbName] = useState('');
 
   const dbConnectURL = (login: string) => {
     return cfg.getDatabaseConnectRoute({
@@ -252,14 +252,14 @@ function DatabaseConnect({ database }: { database: Database }) {
     sshServerId ? 
     <>
     <input
-      style={{width: "90px"}}
       type="text"
       value={dbName}
+      style={{width: "90px"}}
       placeholder='db name'
       onChange={e => setDbName(e.target.value)}
       list="db-name-options" />
     <datalist id="db-name-options">
-      {dbNames.map(dbName => <option key={dbName} value={dbName}>{dbName}</option>)}
+      {dbNames.map(name => <option key={name} value={name}>{name}</option>)}
     </datalist>
     <MenuLogin
       width="90px"
