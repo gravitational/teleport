@@ -24,6 +24,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -36,8 +37,8 @@ import (
 )
 
 func TestSetLogLevel(t *testing.T) {
-	configFilePath, dataDir := newConfigWithDataDir(t)
-	closeFn := newSocketMockService(t, dataDir, []byte{})
+	socketDir, closeFn := newSocketMockService(t, []byte{})
+	configFilePath := newConfigWithDataDir(t, socketDir)
 	defer closeFn()
 
 	// All supported log levels should be accepted here.
@@ -58,8 +59,6 @@ func TestSetLogLevel(t *testing.T) {
 }
 
 func TestCollectProfiles(t *testing.T) {
-	configFilePath, dataDir := newConfigWithDataDir(t)
-
 	for _, test := range []struct {
 		desc                      string
 		profilesInput             string
@@ -112,9 +111,8 @@ func TestCollectProfiles(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			closeFn := newSocketMockService(t, dataDir, []byte("collected profile"))
-			// We need to ensure that the socket is always closed after the test
-			// completion, otherwise next tests will fail to open the socket.
+			socketDir, closeFn := newSocketMockService(t, []byte("collected profile"))
+			configFilePath := newConfigWithDataDir(t, socketDir)
 			defer closeFn()
 
 			var out bytes.Buffer
@@ -156,10 +154,8 @@ func TestCollectProfiles(t *testing.T) {
 }
 
 // newConfigWithDataDir creates a temporary directory with a configuration file.
-// The configuration has data directory set to the temporary directory.
-func newConfigWithDataDir(t *testing.T) (string, string) {
+func newConfigWithDataDir(t *testing.T, dataDir string) string {
 	t.Helper()
-	dataDir := t.TempDir()
 
 	cfg, err := config.MakeSampleFileConfig(config.SampleFlags{
 		DataDir: dataDir,
@@ -170,15 +166,28 @@ func newConfigWithDataDir(t *testing.T) (string, string) {
 	_, err = dumpConfigFile("file://"+configFilePath, cfg.DebugDumpToYAML(), "")
 	require.NoError(t, err)
 
-	return configFilePath, dataDir
+	return configFilePath
 }
 
 // newSocketMockService creates a unix socket that access HTTP requests and
-// always replies with success. `closeFn` returns the requested paths.
-func newSocketMockService(t *testing.T, dataDir string, contents []byte) func() []string {
+// always replies with success. Returns the path to the socket and `closeFn`,
+// which when called closes the socket and returns the requested paths.
+func newSocketMockService(t *testing.T, contents []byte) (string, func() []string) {
 	t.Helper()
 
-	l, err := net.Listen("unix", filepath.Join(dataDir, debug.ServiceSocketName))
+	// We cannot simply use the `t.TempDir()` due to the size limit of UDS.
+	// Here, we place it inside the temporary directory, which will most likely
+	// give a smaller path.
+	// https://github.com/golang/go/issues/62614
+	socketDir, err := os.MkdirTemp("", "*")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(socketDir) })
+
+	socketPath := filepath.Join(socketDir, debug.ServiceSocketName)
+	require.Greater(t, 100, len(socketPath), "expected socket name to be smaller (less than 100 characters)"+
+		" due to Unix domain socket size limitation but got %q (%d).", socketPath, len(socketPath))
+
+	l, err := net.Listen("unix", socketPath)
 	require.NoError(t, err)
 
 	var requests []string
@@ -196,7 +205,7 @@ func newSocketMockService(t *testing.T, dataDir string, contents []byte) func() 
 		}
 	}()
 
-	return func() []string {
+	return socketDir, func() []string {
 		srv.Shutdown(context.Background())
 		return requests
 	}
