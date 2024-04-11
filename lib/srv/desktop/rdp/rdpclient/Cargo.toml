@@ -37,6 +37,11 @@ tokio-boring = { git = "https://github.com/gravitational/boring", rev="605253d99
 utf16string = "0.2.0"
 uuid = { version = "1.8.0", features = ["v4"] }
 
+x11rb = { version = "0.12.0", features = ["image", "randr", "damage", "xtest"] }
+ironrdp-server.workspace = true
+async-trait = "0.1.73"
+anyhow = "1.0.75"
+
 [build-dependencies]
 cbindgen = "0.26.0"
 tempfile = "3.10.1"
