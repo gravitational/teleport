@@ -84,6 +84,14 @@ func Validate(
 	ctx, span := tracer.Start(ctx, "Validate")
 	defer span.End()
 
+	// Validate params
+	switch {
+	case params.Solve == nil:
+		return nil, trace.BadParameter("solve must be non-nil")
+	case params.EKCert == nil && params.EKKey == nil:
+		return nil, trace.BadParameter("at least one of EKCert or EKKey must be provided")
+	}
+
 	ekCert, ekPub, err := parseEK(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
