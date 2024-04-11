@@ -67,6 +67,10 @@ func (d *DiscardAuditLog) GetSessionRecordingEvents(ctx context.Context, session
 	return nil, nil
 }
 
+func (d *DiscardAuditLog) SearchSessionContents(ctx context.Context, sessionID session.ID, query string) (*proto.SessionContentMatches, error) {
+	return nil, nil
+}
+
 func (d *DiscardAuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
 	close(c)

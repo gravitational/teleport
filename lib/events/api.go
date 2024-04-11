@@ -956,6 +956,9 @@ type SessionStreamer interface {
 	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
 
 	GetSessionRecordingEvents(ctx context.Context, sessionID session.ID) (*proto.SessionRecordingEvents, error)
+
+	// TODO: this should really probably be in AuditLogger
+	SearchSessionContents(ctx context.Context, sessionID session.ID, query string) (*proto.SessionContentMatches, error)
 }
 
 type SearchEventsRequest struct {

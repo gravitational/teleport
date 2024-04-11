@@ -49,6 +49,10 @@ func (f fakeStreamer) GetSessionRecordingEvents(ctx context.Context, sessionID s
 	return nil, nil
 }
 
+func (f fakeStreamer) SearchSessionContents(ctx context.Context, sessionID session.ID, query string) (*proto.SessionContentMatches, error) {
+	return nil, nil
+}
+
 func (f fakeStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	errors := make(chan error, 1)
 	events := make(chan apievents.AuditEvent)

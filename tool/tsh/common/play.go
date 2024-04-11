@@ -91,6 +91,19 @@ func playSession(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	matches, err := clusterClient.AuthClient.SearchSessionContents(cf.Context, session.ID(cf.SessionID), "ls -la")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, match := range matches.Matches {
+		fmt.Printf("index: %d time: %s: match: %s\n", match.Index, match.StartTime, match.Match)
+	}
+	return nil
+
 	if err := tc.Play(cf.Context, cf.SessionID, speed); err != nil {
 		if trace.IsNotFound(err) {
 			log.WithError(err).Debug("error playing session")

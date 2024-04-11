@@ -2500,6 +2500,18 @@ func (c *Client) GetSessionRecordingEvents(ctx context.Context, sessionID string
 	return out, nil
 }
 
+func (c *Client) SearchSessionContents(ctx context.Context, sessionID string, query string) (*proto.SessionContentMatches, error) {
+	request := &proto.SearchSessionContentsRequest{
+		SessionID: sessionID,
+		Query:     query,
+	}
+	out, err := c.grpc.SearchSessionContents(ctx, request)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return out, nil
+}
+
 // StreamSessionEvents streams audit events from a given session recording.
 func (c *Client) StreamSessionEvents(ctx context.Context, sessionID string, startIndex int64) (chan events.AuditEvent, chan error) {
 	request := &proto.StreamSessionEventsRequest{

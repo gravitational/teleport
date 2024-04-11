@@ -1390,17 +1390,32 @@ message SessionRecordingEvents {
   repeated events.OneOf Events = 4;
 }
 
-// // GetSessionChunkRequest
-// message GetSessionChunkRequest {
-//   // SessionID
-//   string SessionID = 1;
-//   // StartIndex
-//   uint64 StartIndex = 2;
-//   // Limit
-//   uint64 Limit = 3;
-//   // StartKey
-//   string StartKey = 4;
-// }
+// SearchSessionContentsRequest
+message SearchSessionContentsRequest {
+  // SessionID
+  string SessionID = 1;
+  // Query
+  string Query = 2;
+}
+
+// SessionContentMatches
+message SessionContentMatches {
+  // Matches
+  repeated SessionContentMatch Matches = 1;
+}
+
+// SessionContentMatch
+message SessionContentMatch {
+  // Index
+  int64 Index = 1;
+  // StartTime
+  google.protobuf.Timestamp StartTime = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  // Match
+  string Match = 3;
+}
 
 // NodeLogin specifies an SSH node and OS login.
 message NodeLogin {
@@ -3122,8 +3137,8 @@ service AuthService {
 
   // GetSessionRecordingEvents
   rpc GetSessionRecordingEvents(GetSessionRecordingEventsRequest) returns (SessionRecordingEvents);
-  // // GetSessionChunk
-  // rpc GetSessionChunk(GetSessionChunkRequest) returns (Events);
+  // SearchSessionContents
+  rpc SearchSessionContents(SearchSessionContentsRequest) returns (SessionContentMatches);
 
   // StreamSessionEvents streams audit events from a given session recording.
   rpc StreamSessionEvents(StreamSessionEventsRequest) returns (stream events.OneOf);

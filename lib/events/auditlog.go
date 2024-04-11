@@ -967,6 +967,45 @@ func (l *AuditLog) GetSessionRecordingEvents(ctx context.Context, sessionID sess
 	return &metadata, nil
 }
 
+type printInfo struct {
+	offset  int
+	dataLen int
+	index   int
+}
+
+func (l *AuditLog) SearchSessionContents(ctx context.Context, sessionID session.ID, query string) (*proto.SessionContentMatches, error) {
+	rawSession, err := l.downloadRecording(sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	queryLen := len(query)
+	pr := NewProtoReader(rawSession)
+	table := calculateSlideTable(query)
+
+	i := 0
+	for {
+		event, err := pr.Read(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		printEvent, ok := event.(*apievents.SessionPrint)
+		if !ok {
+			continue
+		}
+
+		j := queryLen - 1
+		for ; j >= 0 && contents[i+j] == query[j]; j-- {
+		}
+		if j < 0 {
+			return i
+		}
+
+		slid := max(1, j-table[contents[i+j]])
+		i += slid
+	}
+}
+
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
@@ -975,43 +1014,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	e := make(chan error, 1)
 	c := make(chan apievents.AuditEvent)
 
-	tarballPath := filepath.Join(l.playbackDir, string(sessionID)+".stream.tar")
-	downloadCtx, cancel := l.createOrGetDownload(tarballPath)
-
-	// Wait until another in progress download finishes and use its tarball.
-	if cancel == nil {
-		l.log.Debugf("Another download is in progress for %v, waiting until it gets completed.", sessionID)
-		select {
-		case <-downloadCtx.Done():
-		case <-l.ctx.Done():
-			e <- trace.BadParameter("audit log is closing, aborting the download")
-			return c, e
-		}
-	} else {
-		defer cancel()
-	}
-
-	rawSession, err := os.OpenFile(tarballPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o640)
-	if err != nil {
-		e <- trace.Wrap(err)
-		return c, e
-	}
-
-	start := time.Now()
-	if err := l.UploadHandler.Download(l.ctx, sessionID, rawSession); err != nil {
-		// remove partially downloaded tarball
-		if rmErr := os.Remove(tarballPath); rmErr != nil {
-			l.log.WithError(rmErr).Warningf("Failed to remove file %v.", tarballPath)
-		}
-		if errors.Is(err, fs.ErrNotExist) {
-			err = trace.NotFound("a recording for session %v was not found", sessionID)
-		}
-		e <- trace.Wrap(err)
-		return c, e
-	}
-
-	l.log.WithField("duration", time.Since(start)).Debugf("Downloaded %v to %v.", sessionID, tarballPath)
-	_, err = rawSession.Seek(0, 0)
+	rawSession, err := l.downloadRecording(sessionID)
 	if err != nil {
 		e <- trace.Wrap(err)
 		return c, e
@@ -1048,6 +1051,48 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	}()
 
 	return c, e
+}
+
+func (l *AuditLog) downloadRecording(sessionID session.ID) (*os.File, error) {
+	tarballPath := filepath.Join(l.playbackDir, string(sessionID)+".stream.tar")
+	downloadCtx, cancel := l.createOrGetDownload(tarballPath)
+
+	// Wait until another in progress download finishes and use its tarball.
+	if cancel == nil {
+		l.log.Debugf("Another download is in progress for %v, waiting until it gets completed.", sessionID)
+		select {
+		case <-downloadCtx.Done():
+		case <-l.ctx.Done():
+			return nil, trace.BadParameter("audit log is closing, aborting the download")
+		}
+	} else {
+		defer cancel()
+	}
+
+	rawSession, err := os.OpenFile(tarballPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o640)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	start := time.Now()
+	if err := l.UploadHandler.Download(l.ctx, sessionID, rawSession); err != nil {
+		// remove partially downloaded tarball
+		if rmErr := os.Remove(tarballPath); rmErr != nil {
+			l.log.WithError(rmErr).Warningf("Failed to remove file %v.", tarballPath)
+		}
+		if errors.Is(err, fs.ErrNotExist) {
+			err = trace.NotFound("a recording for session %v was not found", sessionID)
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	l.log.WithField("duration", time.Since(start)).Debugf("Downloaded %v to %v.", sessionID, tarballPath)
+	_, err = rawSession.Seek(0, 0)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rawSession, nil
 }
 
 // getLocalLog returns the local (file based) AuditLogger.

@@ -5920,6 +5920,10 @@ func (a *ServerWithRoles) GetSessionRecordingEvents(ctx context.Context, session
 	return a.alog.GetSessionRecordingEvents(ctx, sessionID)
 }
 
+func (a *ServerWithRoles) SearchSessionContents(ctx context.Context, sessionID session.ID, query string) (*proto.SessionContentMatches, error) {
+	return a.alog.SearchSessionContents(ctx, sessionID, query)
+}
+
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.

@@ -38,6 +38,10 @@ func (m *MockAuditLog) GetSessionRecordingEvents(ctx context.Context, sessionID 
 	return nil, nil
 }
 
+func (m *MockAuditLog) SearchSessionContents(ctx context.Context, sessionID session.ID, query string) (*proto.SessionContentMatches, error) {
+	return nil, nil
+}
+
 func (m *MockAuditLog) StreamSessionEvents(ctx context.Context, sid session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	errors := make(chan error, 1)
 	events := make(chan apievents.AuditEvent)
