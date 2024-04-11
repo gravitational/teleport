@@ -97,7 +97,7 @@ func (s *SlackSuite) startApp() {
 	t.Helper()
 
 	app := slack.NewSlackApp(s.appConfig)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
 }
 
 // TestMessagePosting validates that a message is sent to each recipient

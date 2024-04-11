@@ -1,0 +1,8 @@
+.version: &version "16.0.0-dev"
+
+apiVersion: v2
+name: teleport-plugin-event-handler
+description: A Helm chart for Teleport Event Handler Plugin
+type: application
+version: *version
+appVersion: *version

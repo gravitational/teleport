@@ -1,9 +1,18 @@
 ---
-title: Database Access with AWS DynamoDB
-description: How to access AWS DynamoDB with Teleport database access
+title: Database Access with Amazon DynamoDB
+description: How to access Amazon DynamoDB with Teleport database access
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS DynamoDB" dbConfigure="AWS DynamoDB database with IAM authentication" dbName="AWS DynamoDB" !)
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Amazon DynamoDB" dbConfigure="Amazon DynamoDB database with IAM authentication" dbName="Amazon DynamoDB" !)
+
+## How it works
+
+Teleport users connect to DynamoDB using a local proxy server that forwards
+requests to the Teleport Database Service via the Teleport Proxy Service. When
+connecting, the user chooses an IAM role to assume. The Teleport Database
+Service has permissions to assume this role and potentially other IAM roles.
+When the Teleport Database Service receives a user request, it rewrites the
+request with credentials from AWS, then forwards it to the DynamoDB API.
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -28,12 +37,10 @@ description: How to access AWS DynamoDB with Teleport database access
   must be adjusted accordingly for custom configurations.
 - (!docs/pages/includes/tctl.mdx!)
 
-<Admonition type="note" title="Example Access Control">
 This guide provides an example configuration of IAM access roles as a model,
 and uses an EC2 instance to serve the Teleport Database Service.
 The level of access provided may not suit your needs, or may not fit your
 organization's access conventions. You should adjust the AWS IAM permissions to fit your needs.
-</Admonition>
 
 ## Step 1/4. Create IAM roles for DynamoDB access
 

@@ -18,6 +18,11 @@ issues:
     - linters:
       - unused
       path: 'integrations/operator/controllers/resources/(.+)_controller_test\.go'
+    # TODO(codingllama): Remove once we move to grpc.NewClient.
+    - linters: [staticcheck]
+      text: "grpc.Dial is deprecated"
+    - linters: [staticcheck]
+      text: "grpc.DialContext is deprecated"
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0

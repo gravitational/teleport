@@ -49,8 +49,8 @@ type ClientConfig struct {
 	ProxyAddress string
 	// TLSRoutingEnabled indicates if the cluster is using TLS Routing.
 	TLSRoutingEnabled bool
-	// TLSConfig contains the tls.Config required for mTLS connections.
-	TLSConfig *tls.Config
+	// TLSConfigFunc produces the [tls.Config] required for mTLS connections to a specific cluster.
+	TLSConfigFunc func(cluster string) (*tls.Config, error)
 	// UnaryInterceptors are optional [grpc.UnaryClientInterceptor] to apply
 	// to the gRPC client.
 	UnaryInterceptors []grpc.UnaryClientInterceptor
@@ -77,9 +77,9 @@ type ClientConfig struct {
 
 	// The below items are intended to be used by tests to connect without mTLS.
 	// The gRPC transport credentials to use when establishing the connection to proxy.
-	creds func() credentials.TransportCredentials
+	creds func(cluster string) (credentials.TransportCredentials, error)
 	// The client credentials to use when establishing the connection to auth.
-	clientCreds func() client.Credentials
+	clientCreds func(cluster string) (client.Credentials, error)
 }
 
 // CheckAndSetDefaults ensures required options are present and
@@ -94,13 +94,21 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 	if c.DialTimeout <= 0 {
 		c.DialTimeout = defaults.DefaultIOTimeout
 	}
-	if c.TLSConfig != nil {
-		c.clientCreds = func() client.Credentials {
-			return client.LoadTLS(c.TLSConfig.Clone())
+	if c.TLSConfigFunc != nil {
+		c.clientCreds = func(cluster string) (client.Credentials, error) {
+			cfg, err := c.TLSConfigFunc(cluster)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return client.LoadTLS(cfg), nil
 		}
-		c.creds = func() credentials.TransportCredentials {
-			tlsCfg := c.TLSConfig.Clone()
-			if !slices.Contains(c.TLSConfig.NextProtos, protocolProxySSHGRPC) {
+		c.creds = func(cluster string) (credentials.TransportCredentials, error) {
+			tlsCfg, err := c.TLSConfigFunc(cluster)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if !slices.Contains(tlsCfg.NextProtos, protocolProxySSHGRPC) {
 				tlsCfg.NextProtos = append(tlsCfg.NextProtos, protocolProxySSHGRPC)
 			}
 
@@ -115,14 +123,14 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 				}
 			}
 
-			return credentials.NewTLS(tlsCfg)
+			return credentials.NewTLS(tlsCfg), nil
 		}
 	} else {
-		c.clientCreds = func() client.Credentials {
-			return insecureCredentials{}
+		c.clientCreds = func(cluster string) (client.Credentials, error) {
+			return insecureCredentials{}, nil
 		}
-		c.creds = func() credentials.TransportCredentials {
-			return insecure.NewCredentials()
+		c.creds = func(cluster string) (credentials.TransportCredentials, error) {
+			return insecure.NewCredentials(), nil
 		}
 	}
 
@@ -265,12 +273,18 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 	defer cancel()
 
 	c := &clusterName{}
+
+	creds, err := cfg.creds("")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	conn, err := grpc.DialContext(
 		dialCtx,
 		cfg.ProxyAddress,
 		append([]grpc.DialOption{
 			grpc.WithContextDialer(newDialerForGRPCClient(ctx, cfg)),
-			grpc.WithTransportCredentials(&clusterCredentials{TransportCredentials: cfg.creds(), clusterName: c}),
+			grpc.WithTransportCredentials(&clusterCredentials{TransportCredentials: creds, clusterName: c}),
 			grpc.WithChainUnaryInterceptor(
 				append(cfg.UnaryInterceptors,
 					//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
@@ -361,22 +375,27 @@ type ClusterDetails struct {
 // Auth server in the provided cluster via [client.New] or similar. The [client.Config]
 // returned will have the correct credentials and dialer set based on the ClientConfig
 // that was provided to create this Client.
-func (c *Client) ClientConfig(ctx context.Context, cluster string) client.Config {
+func (c *Client) ClientConfig(ctx context.Context, cluster string) (client.Config, error) {
+	creds, err := c.cfg.clientCreds(cluster)
+	if err != nil {
+		return client.Config{}, trace.Wrap(err)
+	}
+
 	if c.cfg.TLSRoutingEnabled {
 		return client.Config{
 			Context:                    ctx,
 			Addrs:                      []string{c.cfg.ProxyAddress},
-			Credentials:                []client.Credentials{c.cfg.clientCreds()},
+			Credentials:                []client.Credentials{creds},
 			ALPNSNIAuthDialClusterName: cluster,
 			CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
 			ALPNConnUpgradeRequired:    c.cfg.ALPNConnUpgradeRequired,
 			DialOpts:                   c.cfg.DialOpts,
-		}
+		}, nil
 	}
 
 	return client.Config{
 		Context:              ctx,
-		Credentials:          []client.Credentials{c.cfg.clientCreds()},
+		Credentials:          []client.Credentials{creds},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		DialInBackground:     true,
 		Dialer: client.ContextDialerFunc(func(dialCtx context.Context, _ string, _ string) (net.Conn, error) {
@@ -395,8 +414,7 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) client.Config
 			return conn, trace.Wrap(err)
 		}),
 		DialOpts: c.cfg.DialOpts,
-	}
-
+	}, nil
 }
 
 // DialHost establishes a connection to the `target` in cluster named `cluster`. If a keyring

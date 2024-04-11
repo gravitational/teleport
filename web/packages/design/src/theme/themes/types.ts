@@ -200,6 +200,8 @@ export type ThemeColors = {
 
   link: string;
 
+  highlightedNavigationItem: string;
+
   dataVisualisation: DataVisualisationColors;
   accessGraph: AccessGraphColors;
 } & SharedColors;

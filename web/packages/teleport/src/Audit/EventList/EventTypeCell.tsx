@@ -200,6 +200,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.DEVICE_ENROLL_TOKEN_SPENT]: Icons.Info,
   [eventCodes.DEVICE_UPDATE]: Icons.Info,
   [eventCodes.DEVICE_WEB_TOKEN_CREATE]: Icons.Info,
+  [eventCodes.DEVICE_AUTHENTICATE_CONFIRM]: Icons.Info,
   [eventCodes.MFA_DEVICE_ADD]: Icons.Info,
   [eventCodes.MFA_DEVICE_DELETE]: Icons.Info,
   [eventCodes.BILLING_CARD_CREATE]: Icons.CreditCard,

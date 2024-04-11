@@ -94,7 +94,7 @@ func (s *JiraSuite) startApp() {
 
 	app, err := jira.NewApp(s.appConfig)
 	require.NoError(t, err)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
 	s.webhookURL = app.PublicURL()
 }
 

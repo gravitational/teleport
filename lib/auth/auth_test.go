@@ -3611,10 +3611,10 @@ func newTestServices(t *testing.T) Services {
 	require.NoError(t, err)
 
 	return Services{
-		Trust:                   local.NewCAService(bk),
+		TrustInternal:           local.NewCAService(bk),
 		PresenceInternal:        local.NewPresenceService(bk),
 		Provisioner:             local.NewProvisioningService(bk),
-		Identity:                local.NewIdentityService(bk),
+		Identity:                local.NewTestIdentityService(bk),
 		Access:                  local.NewAccessService(bk),
 		DynamicAccessExt:        local.NewDynamicAccessService(bk),
 		ClusterConfiguration:    configService,
