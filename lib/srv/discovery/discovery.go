@@ -270,10 +270,6 @@ type Server struct {
 	// This method ensures we only stop the server once.
 	stopServerOnce sync.Once
 
-	relaseGroupMu sync.Mutex
-	// releaseGroupLockFn is used to release the lock of the current DiscoveryGroup.
-	releaseGroupLockFn func()
-
 	// nodeWatcher is a node watcher.
 	nodeWatcher *services.NodeWatcher
 
@@ -1361,6 +1357,15 @@ func (s *Server) acquireDiscoveryGroup() error {
 	return nil
 }
 
+// tryAcquireDiscoveryGroupLease tries to acquire a semaphore lock on the DiscoveryService/<DiscoveryGroup> key.
+// If successful, a new goroutine is created to handle lease termination.
+// A lease can be terminated in two ways:
+// - Server's context is cancelled
+// - lease is lost
+//
+// When the lease is lost, the server is stopped.
+// Calling Stop twice is safe because it is protected by a `sync.Once`.
+// The 2nd time it is called, it will be a no-op.
 func (s *Server) tryAcquireDiscoveryGroupLease() error {
 	lease, err := services.AcquireSemaphoreLock(s.ctx, services.SemaphoreLockConfig{
 		Service: s.Config.AccessPoint,
@@ -1377,22 +1382,16 @@ func (s *Server) tryAcquireDiscoveryGroupLease() error {
 		return trace.Wrap(err)
 	}
 
-	s.relaseGroupMu.Lock()
-	defer s.relaseGroupMu.Unlock()
-	s.releaseGroupLockFn = func() {
-		lease.Stop()
-		if err := lease.Wait(); err != nil {
-			s.Log.WithError(err).Warn("DiscoveryGroup semaphore cleanup")
-		}
-	}
-
 	go func() {
 		for {
 			select {
 			case <-lease.Renewed():
 				continue
+
+			// A lease.Done() signal means that the lease was lost.
+			// The server must be stopped to ensure only one DiscoveryService is running at the same time.
 			case <-lease.Done():
-				s.Log.WithError(lease.Wait()).Warnf("DiscoveryGroup %q lock was lost, stopping discovery service", s.DiscoveryGroup)
+				s.Log.WithError(lease.Wait()).Warnf("DiscoveryGroup %q lock was lost, stopping discovery service.", s.DiscoveryGroup)
 				s.Stop()
 				return
 			}
@@ -1697,12 +1696,6 @@ func (s *Server) Stop() {
 				s.Log.Warnf("dynamic matcher watcher closing error: ", trace.Wrap(err))
 			}
 		}
-
-		s.relaseGroupMu.Lock()
-		if s.releaseGroupLockFn != nil {
-			s.releaseGroupLockFn()
-		}
-		s.relaseGroupMu.Unlock()
 	})
 }
 

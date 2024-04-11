@@ -559,9 +559,9 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	testCloudClients := &cloud.TestCloudClients{
 		EC2: &mockEC2Client{output: &ec2.DescribeInstancesOutput{
 			Reservations: []*ec2.Reservation{{
-				OwnerId: aws.String("owner"),
+				OwnerId: aws.String("123456789012"),
 				Instances: []*ec2.Instance{{
-					InstanceId: aws.String("instance-id-1"),
+					InstanceId: aws.String("i-123456789012"),
 					Tags: []*ec2.Tag{{
 						Key:   aws.String("env"),
 						Value: aws.String("dev"),
