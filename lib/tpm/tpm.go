@@ -77,13 +77,18 @@ type QueryRes struct {
 	// EKPubHash is the SHA256 hash of the PKIX marshaled EKPub in hexadecimal
 	// format.
 	EKPubHash string
-	// EKCertPresent is true if an EK cert is present in the TPM.
-	EKCertPresent bool
-	// EKCert is the ASN.1 DER encoded EK cert.
-	EKCert []byte
-	// EKCertSerial is the serial number of the EK cert represented as a colon
+	// EKCert holds the information about the EKCert if present. If nil, the
+	// TPM does not have an EKCert.
+	EKCert *QueryEKCert
+}
+
+// QueryEKCert contains the EKCert information if present.
+type QueryEKCert struct {
+	// Raw is the ASN.1 DER encoded EKCert.
+	Raw []byte
+	// SerialNumber is the serial number of the EKCert represented as a colon
 	// delimited hex string.
-	EKCertSerial string
+	SerialNumber string
 }
 
 // Query returns information about the TPM on a system, including the
@@ -139,9 +144,10 @@ func QueryWithTPM(
 	}
 
 	if eks[0].Certificate != nil {
-		data.EKCert = eks[0].Certificate.Raw
-		data.EKCertSerial = serialString(eks[0].Certificate.SerialNumber)
-		data.EKCertPresent = true
+		data.EKCert = &QueryEKCert{
+			Raw:          eks[0].Certificate.Raw,
+			SerialNumber: serialString(eks[0].Certificate.SerialNumber),
+		}
 	}
 	log.DebugContext(ctx, "Successfully queried TPM", "data", data)
 	return data, nil

@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/google/go-attestation/attest"
+	gocmp "github.com/google/go-cmp/cmp"
 	tpmsimulator "github.com/google/go-tpm-tools/simulator"
 	"github.com/google/go-tpm/legacy/tpm2"
 	"github.com/stretchr/testify/assert"
@@ -133,16 +134,20 @@ func TestWithSimulator(t *testing.T) {
 		assert.NoError(t, attestTPM.Close(), "TPM simulator close errored")
 	})
 
+	tpmEKs, err := attestTPM.EKs()
+	require.NoError(t, err)
+	wantEKPub, err := x509.MarshalPKIXPublicKey(tpmEKs[0].Public)
+	require.NoError(t, err)
+
 	t.Run("Without EKCert", func(t *testing.T) {
 		queryRes, attParams, solve, err := tpm.AttestWithTPM(ctx, log, attestTPM)
 		require.NoError(t, err)
 
 		// Check QueryRes looks right.
-		assert.Equal(t, wantEKPubHash, queryRes.EKPubHash)
-		assert.NotEmpty(t, queryRes.EKPub)
-		assert.False(t, queryRes.EKCertPresent)
-		assert.Empty(t, queryRes.EKCertSerial)
-		assert.Empty(t, queryRes.EKCert)
+		assert.Empty(t, gocmp.Diff(&tpm.QueryRes{
+			EKPubHash: wantEKPubHash,
+			EKPub:     wantEKPub,
+		}, queryRes))
 
 		t.Run("Success", func(t *testing.T) {
 			validated, err := tpm.Validate(ctx, log, tpm.ValidateParams{
@@ -152,9 +157,10 @@ func TestWithSimulator(t *testing.T) {
 				Solve:        solve,
 			})
 			require.NoError(t, err)
-			assert.Equal(t, wantEKPubHash, validated.EKPubHash)
-			assert.False(t, validated.EKCertVerified)
-			assert.Empty(t, validated.EKCertSerial)
+			assert.Empty(t, gocmp.Diff(&tpm.ValidatedTPM{
+				EKPubHash:      wantEKPubHash,
+				EKCertVerified: false,
+			}, validated))
 		})
 		t.Run("Failure due to missing EKCert", func(t *testing.T) {
 			_, err = tpm.Validate(ctx, log, tpm.ValidateParams{
@@ -169,8 +175,6 @@ func TestWithSimulator(t *testing.T) {
 	})
 
 	// Write fake EKCert to the TPM
-	origEK, err := attestTPM.EKs()
-	require.NoError(t, err)
 	const ekCertSerialNum = 1337133713371337
 	const ekCertSerialHex = "04:c0:1d:b4:00:b0:c9"
 	fakeEKCert := &x509.Certificate{
@@ -179,7 +183,7 @@ func TestWithSimulator(t *testing.T) {
 		NotAfter:     time.Now().Add(time.Hour),
 	}
 	fakeEKBytes, err := x509.CreateCertificate(
-		rand.Reader, fakeEKCert, ca, origEK[0].Public, caPrivKey,
+		rand.Reader, fakeEKCert, ca, tpmEKs[0].Public, caPrivKey,
 	)
 	require.NoError(t, err)
 	writeEKCertToTPM(t, sim, fakeEKBytes)
@@ -189,41 +193,48 @@ func TestWithSimulator(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check queryRes looks right.
-		assert.Equal(t, wantEKPubHash, queryRes.EKPubHash)
-		assert.NotEmpty(t, queryRes.EKPub)
-		assert.True(t, queryRes.EKCertPresent)
-		assert.Equal(t, ekCertSerialHex, queryRes.EKCertSerial)
-		assert.NotEmpty(t, queryRes.EKCert)
+		assert.Empty(t, gocmp.Diff(&tpm.QueryRes{
+			EKPubHash: wantEKPubHash,
+			EKPub:     wantEKPub,
+			EKCert: &tpm.QueryEKCert{
+				Raw:          fakeEKBytes,
+				SerialNumber: ekCertSerialHex,
+			},
+		}, queryRes))
 
 		t.Run("Success without CAs", func(t *testing.T) {
 			validated, err := tpm.Validate(ctx, log, tpm.ValidateParams{
 				EKKey:        queryRes.EKPub,
-				EKCert:       queryRes.EKCert,
+				EKCert:       queryRes.EKCert.Raw,
 				AttestParams: *attParams,
 				Solve:        solve,
 			})
 			require.NoError(t, err)
-			assert.Equal(t, wantEKPubHash, validated.EKPubHash)
-			assert.False(t, validated.EKCertVerified)
-			assert.Equal(t, ekCertSerialHex, validated.EKCertSerial)
+			assert.Empty(t, gocmp.Diff(&tpm.ValidatedTPM{
+				EKPubHash:      wantEKPubHash,
+				EKCertVerified: false,
+				EKCertSerial:   ekCertSerialHex,
+			}, validated))
 		})
 		t.Run("Success with CAs", func(t *testing.T) {
 			validated, err := tpm.Validate(ctx, log, tpm.ValidateParams{
 				EKKey:        queryRes.EKPub,
-				EKCert:       queryRes.EKCert,
+				EKCert:       queryRes.EKCert.Raw,
 				AttestParams: *attParams,
 				Solve:        solve,
 				AllowedCAs:   caPool,
 			})
 			require.NoError(t, err)
-			assert.Equal(t, wantEKPubHash, validated.EKPubHash)
-			assert.True(t, validated.EKCertVerified)
-			assert.Equal(t, ekCertSerialHex, validated.EKCertSerial)
+			assert.Empty(t, gocmp.Diff(&tpm.ValidatedTPM{
+				EKPubHash:      wantEKPubHash,
+				EKCertVerified: true,
+				EKCertSerial:   ekCertSerialHex,
+			}, validated))
 		})
 		t.Run("Failure with wrong CA", func(t *testing.T) {
 			_, err := tpm.Validate(ctx, log, tpm.ValidateParams{
 				EKKey:        queryRes.EKPub,
-				EKCert:       queryRes.EKCert,
+				EKCert:       queryRes.EKCert.Raw,
 				AttestParams: *attParams,
 				Solve:        solve,
 				// Some random CA that won't match the EKCert.
