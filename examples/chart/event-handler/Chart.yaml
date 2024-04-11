@@ -1,4 +1,4 @@
-.version: &version "16.0.0-fred.25"
+.version: &version "16.0.0-fred.26"
 
 apiVersion: v2
 name: teleport-plugin-event-handler
