@@ -115,16 +115,7 @@ func QueryWithTPM(
 
 	eks, err := tpm.EKs()
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(eks) == 0 {
-		// This is a pretty unusual case, `go-attestation` will attempt to
-		// create an EK if no EK Certs are present in the NVRAM of the TPM.
-		// Either way, it lets us catch this early in case `go-attestation`
-		// misbehaves.
-		return nil, trace.BadParameter(
-			"no endorsement keys found in tpm",
-		)
+		return nil, trace.Wrap(err, "querying EKs")
 	}
 
 	// The first EK returned by `go-attestation` will be an RSA based EK key or
