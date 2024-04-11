@@ -653,7 +653,12 @@ func TestDeleteCertAuthority(t *testing.T) {
 				Domain: "unknown",
 			},
 			assertion: func(t *testing.T, err error) {
-				require.True(t, trace.IsNotFound(err))
+				// ca deletion doesn't generate not found errors. this is a quirk of
+				// the fact that deleting active and inactive CAs simultanesouly
+				// is difficult to do conditionally without introducing odd edge
+				// cases (e.g. having a delete fail while appearing to succeed if it
+				// races with a concurrent activation/deactivation).
+				require.NoError(t, err)
 			},
 		},
 		{

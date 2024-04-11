@@ -44,7 +44,10 @@ import (
 // integration tests to build teleport clients for each user/plugin/bot.
 type OSSAuthHelper struct {
 	server *libauth.TestTLSServer
-	dir    string
+	// dir is where we put identity files, and start the auth server
+	// (unless AuthConfig.Dir is manually set).
+	dir        string
+	AuthConfig libauth.TestAuthServerConfig
 }
 
 // StartServer implements the AuthHelper interface.
@@ -52,9 +55,10 @@ type OSSAuthHelper struct {
 // on the t.Cleanup() stack.
 func (a *OSSAuthHelper) StartServer(t *testing.T) *client.Client {
 	a.dir = t.TempDir()
-	authServer, err := libauth.NewTestAuthServer(libauth.TestAuthServerConfig{
-		Dir: a.dir,
-	})
+	if a.AuthConfig.Dir == "" {
+		a.AuthConfig.Dir = a.dir
+	}
+	authServer, err := libauth.NewTestAuthServer(a.AuthConfig)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

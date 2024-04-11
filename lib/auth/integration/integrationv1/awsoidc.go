@@ -41,11 +41,13 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.G
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
-		return nil, trace.Wrap(err)
+	for _, allowedRole := range []types.SystemRole{types.RoleDiscovery, types.RoleAuth, types.RoleProxy} {
+		if authz.HasBuiltinRole(*authCtx, string(allowedRole)) {
+			return s.generateAWSOIDCTokenWithoutAuthZ(ctx, req.Integration)
+		}
 	}
 
-	return s.generateAWSOIDCTokenWithoutAuthZ(ctx, req.Integration)
+	return nil, trace.AccessDenied("token generation is only available to auth, proxy or discovery services")
 }
 
 // generateAWSOIDCTokenWithoutAuthZ generates a token to be used when executing an AWS OIDC Integration action.

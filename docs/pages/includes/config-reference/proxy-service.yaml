@@ -161,3 +161,18 @@ proxy_service:
         # An absolute path to the file containing the API token for OpenAI.
         # This is required for Assist functionality.
         api_token_path: /etc/teleport/openai_key
+
+    # Configuration for the built-in version server for agent automatic updates.
+    # If you leave this configuration unset, a default channel is created and
+    # serves the Teleport version run by the Proxy Service.
+    automatic_upgrades_channels:
+      # Override the default version channel
+      default:
+        static_version: v14.2.1
+      # Define a new version channel with a static version
+      additional/channel/static:
+        static_version: v14.2.0
+        critical: true
+      # Define a new version channel forwarding requests to an upstream version server
+      additional/channel/remote:
+        forward_url: https://updates.releases.teleport.dev/v1/stable/cloud

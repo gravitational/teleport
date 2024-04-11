@@ -1403,6 +1403,14 @@ export const formatters: Formatters = {
         ? `User [${user}] has issued a device web token`
         : `User [${user}] has failed to issue a device web token`,
   },
+  [eventCodes.DEVICE_AUTHENTICATE_CONFIRM]: {
+    type: 'device.authenticate.confirm',
+    desc: 'Device Web Authentication Confirmed',
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
+        ? `User [${user}] has confirmed device web authentication`
+        : `User [${user}] has failed to confirm device web authentication`,
+  },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',
     desc: 'X11 Forwarding Requested',
