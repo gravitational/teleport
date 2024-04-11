@@ -355,10 +355,10 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 		// When both notify-services and approve-schedules are present, each is used for their own intended purpose.
 		recipients := make([]string, 0)
 		if approveSchedules, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationApproveSchedulesLabel]; ok {
-				recipients = approveSchedules
+			recipients = approveSchedules
 		}
 		if notifySchedules, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationNotifySchedulesLabel]; ok {
-				recipients = notifySchedules
+			recipients = notifySchedules
 		}
 		for _, recipient := range recipients {
 			rec, err := a.bot.FetchRecipient(ctx, recipient)
