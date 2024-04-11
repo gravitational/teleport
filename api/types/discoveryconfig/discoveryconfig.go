@@ -57,6 +57,11 @@ type Spec struct {
 	AccessGraph *types.AccessGraphSync `json:"access_graph,omitempty" yaml:"access_graph"`
 }
 
+// Equal checks if the discovery config is equal to another.
+func (m *DiscoveryConfig) Equal(n *DiscoveryConfig) bool {
+	return deriveTeleportEqualDiscoveryConfig(m, n)
+}
+
 // Status holds dynamic information about the discovery configuration
 // running status such as errors, state and count of the resources.
 type Status struct {
