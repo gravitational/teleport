@@ -73,8 +73,9 @@ $ tctl sso configure github \
 ```
 <Admonition type="tip">
   GitHub organizations and teams should be referred to by their slug, not display name.
-  To create the slug, GitHub replaces special characters in the name string, changes all words to lowercase,
+  To create the team slug, GitHub replaces special characters in the name string, changes all words to lowercase,
   and replaces spaces with a `-` separator. For example, `My TEam Näme` would become `my-team-name`.
+  The organization slug is treated the same except the organization is not changed to lowercase.
   You can confirm the slug in GitHub Web application URLs or via the GitHub API.
   Example: navigate to the team `My Team` in the GitHub web application.
   The URL `https://github.com/orgs/org-name/teams/my-team`
