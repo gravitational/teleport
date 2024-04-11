@@ -1379,12 +1379,12 @@ func (s *Server) pSQLConnect(ctx context.Context, addr string, webConn net.Conn,
 	// 	s.log.WithError(err).Debug("failed to start psql")
 	// 	return trace.Wrap(err)
 	// }
-	go func() {
+	go func(webConn net.Conn) {
 		// reap psql when it exits
 		err := cmd.Wait()
 		webConn.Write([]byte("psql exited: " + err.Error()))
 		s.log.WithError(err).Debug("psql exited")
-	}()
+	}(webConn)
 	return nil
 }
 
