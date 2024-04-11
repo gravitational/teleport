@@ -25,8 +25,8 @@ jobs:
            ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
            filters: |
              changed:
-               - '/go.mod'
-               - '/go.sum'
+               - 'go.mod'
+               - 'go.sum'
                - 'integrations/**'
                - 'api/types/**'
                - 'gen/**'
