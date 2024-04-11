@@ -73,6 +73,7 @@ type Player struct {
 	err error
 
 	sessionDuration time.Duration
+	eventTimes      map[int64]*EventTimingInfo
 }
 
 const normalPlayback = math.MinInt64
@@ -339,10 +340,7 @@ func getDelay(e events.AuditEvent) int64 {
 	}
 }
 
-func (p *Player) SessionDuration() time.Duration {
-	if p.sessionDuration > 0 {
-		return p.sessionDuration
-	}
+func (p *Player) initStats() {
 	var startTime, endTime time.Time
 	eventsC, errC := p.streamer.StreamSessionEvents(context.TODO(), p.sessionID, 0)
 	go func() {
@@ -350,16 +348,42 @@ func (p *Player) SessionDuration() time.Duration {
 		for range errC {
 		}
 	}()
+	lastEventIndex := int64(-1)
+	p.eventTimes = make(map[int64]*EventTimingInfo)
 	for event := range eventsC {
 		if startTime.IsZero() {
 			startTime = event.GetTime()
 		}
 		endTime = event.GetTime()
+
+		if _, ok := event.(*events.SessionPrint); ok {
+			p.eventTimes[event.GetIndex()] = &EventTimingInfo{
+				SessionTime: event.GetTime(),
+			}
+			if lastEventIndex != -1 {
+				p.eventTimes[lastEventIndex].EventDuration = event.GetTime().Sub(p.eventTimes[lastEventIndex].SessionTime)
+			}
+			lastEventIndex = event.GetIndex()
+		}
 	}
 	p.sessionDuration = endTime.Sub(startTime)
+}
+
+func (p *Player) GetSessionDuration() time.Duration {
+	if p.sessionDuration == 0 {
+		p.initStats()
+	}
 	return p.sessionDuration
 }
 
-func (p *Player) Progress() float64 {
-	return float64(p.LastPlayed()) / float64(p.SessionDuration().Milliseconds())
+func (p *Player) GetEventTimes() map[int64]*EventTimingInfo {
+	if len(p.eventTimes) == 0 {
+		p.initStats()
+	}
+	return p.eventTimes
+}
+
+type EventTimingInfo struct {
+	SessionTime   time.Time
+	EventDuration time.Duration
 }

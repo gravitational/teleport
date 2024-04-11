@@ -2128,18 +2128,25 @@ func (n fakeReader) Read(_ []byte) (int, error) {
 }
 
 type model struct {
-	content          string
-	width            int
-	ready            bool
-	player           *player.Player
-	term             *terminal.Terminal
-	playing          bool
-	finished         bool
-	lastEventTime    time.Time
-	viewport         viewport.Model
-	progress         progress.Model
-	err              error
-	currentTimestamp string
+	content           string
+	width             int
+	ready             bool
+	player            *player.Player
+	term              *terminal.Terminal
+	playing           bool
+	finished          bool
+	lastEventTime     time.Time
+	lastEventSeenAt   time.Time
+	lastEventDuration time.Duration
+	viewport          viewport.Model
+	progress          progress.Model
+	err               error
+	currentTimestamp  string
+
+	sessionStart     time.Time
+	pausedAt         time.Time
+	pauseDuration    time.Duration
+	progresTimestamp string
 }
 
 func newModel(sessionID string, speed float64, streamer player.Streamer) (*model, error) {
@@ -2196,9 +2203,11 @@ func (m *model) getNextEvent() tea.Msg {
 	case *apievents.SessionStart:
 		setTermSize(m.term.Stdout(), evt.TerminalSize)
 	case *apievents.SessionPrint:
+		// fmt.Println("print event with index", evt.GetIndex())
 		return eventMsg{
-			data: evt.Data,
-			time: evt.Time,
+			data:  evt.Data,
+			time:  evt.Time,
+			index: evt.Index,
 		}
 	}
 	// Even if we have nothing to print, Update() needs to know that the event
@@ -2206,8 +2215,30 @@ func (m *model) getNextEvent() tea.Msg {
 	return eventMsg{}
 }
 
+type tickMsg struct{}
+
+func (m *model) setProgressWidth() {
+	m.progress.Width = m.width - len(renderPlayerUI(m.playing)) - len(m.progresTimestamp) - 1
+}
+
+func (m *model) updateProgress() tea.Cmd {
+	every := tea.Every(100*time.Millisecond, func(t time.Time) tea.Msg {
+		return tickMsg{}
+	})
+	updateTime, prog := m.getProgress()
+	m.progresTimestamp = fmt.Sprintf(
+		"%02d:%02d:%02d",
+		updateTime/time.Hour,
+		updateTime/time.Minute%60,
+		updateTime/time.Second%60,
+	)
+	m.setProgressWidth()
+	updateProg := m.progress.SetPercent(prog)
+	return tea.Batch(every, updateProg)
+}
+
 func (m *model) Init() tea.Cmd {
-	return func() tea.Msg {
+	init := func() tea.Msg {
 		// fmt.Println("init command")
 		if err := m.player.Play(); err != nil {
 			return trace.Wrap(err)
@@ -2216,20 +2247,22 @@ func (m *model) Init() tea.Cmd {
 		m.player.WaitWhilePaused()
 		return m.getNextEvent()
 	}
+	return tea.Batch(init, m.updateProgress())
 }
 
 type errMsg error
 
 type eventMsg struct {
-	data []byte
-	time time.Time
+	data  []byte
+	time  time.Time
+	index int64
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	const skipDuration = 10 * time.Second
 
 	var cmds []tea.Cmd
-	// fmt.Printf("%+v\n", msg)
+	logrus.Debugf("%T%+v", msg, msg)
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -2246,7 +2279,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds,
 			viewport.Sync(m.viewport),
 		)
-		m.progress.Width = m.width - len(renderPlayerUI(m.playing)) - len(time.Stamp)
+		m.setProgressWidth()
+	case tickMsg:
+		cmds = append(cmds, m.updateProgress())
 	case eventMsg:
 		if len(msg.data) != 0 {
 			if !msg.time.IsZero() && msg.time != m.lastEventTime {
@@ -2267,18 +2302,35 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		if !m.finished {
+			if msg.index != 0 {
+				// fmt.Println("saw event", msg.index)
+				m.lastEventTime = m.player.GetEventTimes()[msg.index].SessionTime
+				m.lastEventDuration = m.player.GetEventTimes()[msg.index].EventDuration
+				m.lastEventSeenAt = time.Now()
+				if m.sessionStart.IsZero() {
+					m.sessionStart = m.lastEventTime
+					// fmt.Println("session start", m.sessionStart)
+				}
+				// fmt.Println("last event time", m.lastEventTime)
+				m.pauseDuration = 0
+			}
 			cmds = append(cmds, m.getNextEvent)
 		}
 	case playbackFinishedMsg:
-		// TODO: instead of quitting here, we could pause the player and
-		// allow the recording to be played again
-		m.finished = true
-		cmds = append(cmds, func() tea.Msg {
-			return eventMsg{
-				// TODO add lipgloss :)
-				data: []byte("\n<< session finished >>"),
-			}
-		})
+		// spurious playbackFinishedMsg, session hasn't started yet!
+		if m.sessionStart.IsZero() {
+			cmds = append(cmds, tea.Every(500*time.Millisecond, func(t time.Time) tea.Msg {
+				return m.getNextEvent()
+			}))
+		} else {
+			m.finished = true
+			cmds = append(cmds, func() tea.Msg {
+				return eventMsg{
+					// TODO add lipgloss :)
+					data: []byte("\n<< session finished >>"),
+				}
+			})
+		}
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyCtrlC, tea.KeyCtrlD, tea.KeyEsc:
@@ -2292,6 +2344,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.playing {
 				cmds = append(cmds, func() tea.Msg {
 					m.player.Pause()
+					m.pausedAt = time.Now()
 					return nil
 				})
 			} else {
@@ -2322,11 +2375,36 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		vp, cmd := m.viewport.Update(msg)
 		m.viewport = vp
 		cmds = append(cmds, cmd)
+		prog, cmd := m.progress.Update(msg)
+		m.progress = prog.(progress.Model)
+		cmds = append(cmds, cmd)
 	}
 	return m, tea.Batch(cmds...)
 }
 
+func (m *model) getProgress() (time.Duration, float64) {
+	sessionDuration := m.player.GetSessionDuration()
+	if sessionDuration == 0 {
+		return 0, 0
+	}
+	if m.finished {
+		return sessionDuration, 1.0
+	}
+	now := time.Now()
+
+	sessionPlayedTime := m.lastEventTime.Sub(m.sessionStart)
+	timeSinceLastEvent := now.Sub(m.lastEventSeenAt)
+	logrus.Debugf("played: %v timeSince: %v", sessionPlayedTime, timeSinceLastEvent)
+	if timeSinceLastEvent > m.lastEventDuration {
+		logrus.Debug("hit end of segment, waiting to update progress bar until next event")
+		timeSinceLastEvent = m.lastEventDuration
+	}
+	timePassed := sessionPlayedTime + timeSinceLastEvent
+	return timePassed, float64(timePassed) / float64(m.player.GetSessionDuration())
+}
+
 func (m *model) View() string {
+	logrus.Debugf("progress: %v", m.progress.Percent())
 	if m.err != nil {
 		return m.err.Error()
 	}
@@ -2334,12 +2412,12 @@ func (m *model) View() string {
 		return "not ready"
 	}
 	return fmt.Sprintf(
-		"%s\n%s\n%s%s%s",
+		"%s\n%s\n%s%s %s",
 		m.viewport.View(),
 		strings.Repeat("-", m.width),
 		renderPlayerUI(m.playing),
-		m.progress.ViewAs(m.player.Progress()),
-		m.currentTimestamp,
+		m.progress.View(),
+		m.progresTimestamp,
 	)
 }
 
@@ -2356,12 +2434,15 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 		return trace.Wrap(err)
 	}
 	defer m.Close()
-	prog := tea.NewProgram(m,
+	opts := []tea.ProgramOption{
 		tea.WithContext(ctx),
 		tea.WithAltScreen(),
 		tea.WithOutput(m.term.Stdout()),
-		// tea.WithoutRenderer(),
-	)
+	}
+	if logrus.GetLevel() == logrus.DebugLevel {
+		opts = append(opts, tea.WithoutRenderer())
+	}
+	prog := tea.NewProgram(m, opts...)
 	finalModel, err := prog.Run()
 	if err != nil {
 		return trace.Wrap(err)
