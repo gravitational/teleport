@@ -118,16 +118,16 @@ Examples:
 %v`, appUsageExamples, dbUsageExamples)
 
 	collectProfileUsageExamples = `Examples:
-> teleport debug collect > pprof.tar.gz
+> teleport debug profile > pprof.tar.gz
   Collect default profiles and stores the resulting tarball in a file.
 
-> teleport debug collect | tar xzv -C pprof/
+> teleport debug profile | tar xzv -C pprof/
   Collects default profiles, decompress the results into pprof/ directory.
 
-> teleport debug collect heap,goroutine > pprof.tar.gz
+> teleport debug profile heap,goroutine > pprof.tar.gz
   Collects heap and goroutine profiles. Stores the results in a file.
 
-> teleport debug collect -s 0 goroutine > pprof.tar.gz
+> teleport debug profile -s 0 goroutine > pprof.tar.gz
   Collects a snapshot of goroutine profile. Stores the results in a file.
   Note: Only allocs,block,goroutine,heap,mutex,threadcreate,trace,cmdline
         supports snapshots.`
