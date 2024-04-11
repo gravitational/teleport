@@ -20,7 +20,6 @@ package tpm
 
 import (
 	"context"
-	"crypto"
 	"crypto/sha256"
 	"crypto/x509"
 	"fmt"
@@ -59,14 +58,10 @@ func serialString(serial *big.Int) string {
 	return out.String()
 }
 
-// hashEKPub hashes the public part of an EK key. The key is first marshaled
-// in PKIX format, hashed with SHA256, and returned as a hexadecimal string.
-func hashEKPub(key crypto.PublicKey) (string, error) {
-	marshaled, err := x509.MarshalPKIXPublicKey(key)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	hashed := sha256.Sum256(marshaled)
+// hashEKPub hashes the public part of an EK key. The key is hashed with SHA256,
+// and returned as a hexadecimal string.
+func hashEKPub(pkixPublicKey []byte) (string, error) {
+	hashed := sha256.Sum256(pkixPublicKey)
 	return fmt.Sprintf("%x", hashed), nil
 }
 
@@ -138,7 +133,7 @@ func QueryWithTPM(
 		return nil, trace.Wrap(err)
 	}
 	data.EKPub = ekPub
-	data.EKPubHash, err = hashEKPub(eks[0].Public)
+	data.EKPubHash, err = hashEKPub(ekPub)
 	if err != nil {
 		return nil, trace.Wrap(err, "hashing ekpub")
 	}

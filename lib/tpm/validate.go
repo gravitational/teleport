@@ -98,7 +98,11 @@ func Validate(
 	}
 
 	validated := &ValidatedTPM{}
-	validated.EKPubHash, err = hashEKPub(ekPub)
+	ekPubPKIX, err := x509.MarshalPKIXPublicKey(ekPub)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	validated.EKPubHash, err = hashEKPub(ekPubPKIX)
 	if err != nil {
 		return validated, trace.Wrap(err, "hashing EK public key")
 	}
