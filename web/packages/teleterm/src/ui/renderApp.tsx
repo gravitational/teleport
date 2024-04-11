@@ -26,7 +26,7 @@ import { FailedApp } from 'teleterm/ui/components/App';
 import AppContext from 'teleterm/ui/appContext';
 import Logger from 'teleterm/logger';
 
-async function boot(): Promise<void> {
+export async function renderApp(): Promise<void> {
   Logger.init(window['loggerService']);
   const logger = new Logger('UI');
 
@@ -48,10 +48,10 @@ async function boot(): Promise<void> {
       logger.error(event.reason.stack);
     });
 
-    renderApp(<App ctx={appContext} />);
+    renderContent(<App ctx={appContext} />);
   } catch (e) {
     logger.error('Failed to boot the React app', e);
-    renderApp(<FailedApp message={e.toString()} />);
+    renderContent(<FailedApp message={e.toString()} />);
   }
 }
 
@@ -81,8 +81,6 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
   return globalsCopy;
 }
 
-function renderApp(content: React.ReactElement): void {
+function renderContent(content: React.ReactElement): void {
   createRoot(document.getElementById('app')).render(content);
 }
-
-boot();
