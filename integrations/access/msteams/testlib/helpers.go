@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/msteams"
 )
 
-func (s *MsTeamsSuite) checkPluginData(ctx context.Context, reqID string, cond func(msteams.PluginData) bool) msteams.PluginData {
+func (s *MsTeamsBaseSuite) checkPluginData(ctx context.Context, reqID string, cond func(msteams.PluginData) bool) msteams.PluginData {
 	t := s.T()
 	t.Helper()
 
@@ -39,7 +39,7 @@ func (s *MsTeamsSuite) checkPluginData(ctx context.Context, reqID string, cond f
 	}
 }
 
-func (s *MsTeamsSuite) getNewMessages(ctx context.Context, n int) (MsgSlice, error) {
+func (s *MsTeamsBaseSuite) getNewMessages(ctx context.Context, n int) (MsgSlice, error) {
 	msgs := MsgSlice{}
 	for i := 0; i < 2; i++ {
 		msg, err := s.fakeTeams.CheckNewMessage(ctx)

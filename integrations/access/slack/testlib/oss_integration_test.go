@@ -27,9 +27,11 @@ import (
 )
 
 func TestSlackPluginOSS(t *testing.T) {
-	slackSuite := &SlackSuite{
-		AccessRequestSuite: &integration.AccessRequestSuite{
-			AuthHelper: &integration.OSSAuthHelper{},
+	slackSuite := &SlackSuiteOSS{
+		SlackBaseSuite: SlackBaseSuite{
+			AccessRequestSuite: &integration.AccessRequestSuite{
+				AuthHelper: &integration.MinimalAuthHelper{},
+			},
 		},
 	}
 	suite.Run(t, slackSuite)
