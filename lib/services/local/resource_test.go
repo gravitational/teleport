@@ -83,7 +83,7 @@ func runUserResourceTest(
 	require.NoError(t, err)
 
 	// Check that dynamically created item is compatible with service
-	s := NewIdentityService(tt.bk)
+	s := NewTestIdentityService(tt.bk)
 	b, err := s.GetUser("bob", withSecrets)
 	require.NoError(t, err)
 	require.Equal(t, services.UsersEquals(bob, b), true, "dynamically inserted user does not match")
@@ -194,7 +194,7 @@ func TestGithubConnectorResource(t *testing.T) {
 	err := CreateResources(ctx, tt.bk, connector)
 	require.NoError(t, err)
 
-	s := NewIdentityService(tt.bk)
+	s := NewTestIdentityService(tt.bk)
 	_, err = s.GetGithubConnector(ctx, "github", true)
 	require.NoError(t, err)
 }
