@@ -1317,10 +1317,14 @@ buf/installed:
 		exit 1; \
 	fi
 
+GODERIVE := $(TOOLINGDIR)/bin/goderive
 # derive will generate derived functions for our API.
+# we need to build goderive first otherwise it will not be able to resolve dependencies
+# in the api/types/discoveryconfig package
 .PHONY: derive
 derive:
-	cd $(TOOLINGDIR) && go run ./cmd/goderive/main.go ../../api/types
+	cd $(TOOLINGDIR) && go build  -o $(GODERIVE) ./cmd/goderive/main.go
+	$(GODERIVE) ./api/types ./api/types/discoveryconfig
 
 # derive-up-to-date checks if the generated derived functions are up to date.
 .PHONY: derive-up-to-date

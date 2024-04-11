@@ -324,6 +324,8 @@ type Server struct {
 	muDynamicTAGSyncFetchers sync.RWMutex
 	staticTAGSyncFetchers    []aws_sync.AWSSync
 
+	dynamicDiscoveryConfig map[string]*discoveryconfig.DiscoveryConfig
+
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
 	// reconciler periodically reconciles the labels of discovered instances
@@ -354,6 +356,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		dynamicServerAzureFetchers: make(map[string][]server.Fetcher),
 		dynamicServerGCPFetchers:   make(map[string][]server.Fetcher),
 		dynamicTAGSyncFetchers:     make(map[string][]aws_sync.AWSSync),
+		dynamicDiscoveryConfig:     make(map[string]*discoveryconfig.DiscoveryConfig),
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
@@ -1374,6 +1377,7 @@ func (s *Server) loadExistingDynamicDiscoveryConfigs() error {
 				s.Log.WithError(err).Warnf("failed to update dynamic matchers for discovery config %q", dc.GetName())
 				continue
 			}
+			s.dynamicDiscoveryConfig[dc.GetName()] = dc
 		}
 		if respNextKey == "" {
 			break
@@ -1401,11 +1405,25 @@ func (s *Server) startDynamicWatcherUpdater() {
 				}
 
 				if dc.GetDiscoveryGroup() != s.DiscoveryGroup {
+					name := dc.GetName()
+					// If the DiscoveryConfig was never part part of this discovery service because the
+					// discovery group never matched, then it must be ignored.
+					if _, ok := s.dynamicDiscoveryConfig[name]; !ok {
+						continue
+					}
 					// Let's assume there's a DiscoveryConfig DC1 has DiscoveryGroup DG1, which this process is monitoring.
 					// If the user updates the DiscoveryGroup to DG2, then DC1 must be removed from the scope of this process.
 					// We blindly delete it, in the worst case, this is a no-op.
-					s.deleteDynamicFetchers(event.Resource.GetName())
+					s.deleteDynamicFetchers(name)
+					delete(s.dynamicDiscoveryConfig, name)
 					s.notifyDiscoveryConfigChanged()
+					continue
+				}
+
+				oldDiscoveryConfig := s.dynamicDiscoveryConfig[dc.GetName()]
+				// If the DiscoveryConfig spec didn't change, then there's no need to update the matchers.
+				// we can skip this event.
+				if oldDiscoveryConfig.Equal(dc) {
 					continue
 				}
 
@@ -1413,10 +1431,18 @@ func (s *Server) startDynamicWatcherUpdater() {
 					s.Log.WithError(err).Warnf("failed to update dynamic matchers for discovery config %q", dc.GetName())
 					continue
 				}
+				s.dynamicDiscoveryConfig[dc.GetName()] = dc
 				s.notifyDiscoveryConfigChanged()
 
 			case types.OpDelete:
-				s.deleteDynamicFetchers(event.Resource.GetName())
+				name := event.Resource.GetName()
+				// If the DiscoveryConfig was never part part of this discovery service because the
+				// discovery group never matched, then it must be ignored.
+				if _, ok := s.dynamicDiscoveryConfig[name]; !ok {
+					continue
+				}
+				s.deleteDynamicFetchers(name)
+				delete(s.dynamicDiscoveryConfig, name)
 				s.notifyDiscoveryConfigChanged()
 			default:
 				s.Log.Warnf("Skipping unknown event type %s", event.Type)
@@ -1520,7 +1546,7 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 	s.muDynamicDatabaseFetchers.Unlock()
 
 	awsSyncMatchers, err := s.accessGraphFetchersFromMatchers(
-		ctx, matchers,
+		ctx, matchers, dc.GetName(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
