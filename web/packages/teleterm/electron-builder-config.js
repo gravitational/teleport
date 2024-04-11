@@ -1,5 +1,8 @@
 const { env, platform } = require('process');
 const fs = require('fs');
+const { resolve } = require('path');
+
+const packageJson = require('./package.json');
 
 const isMac = platform === 'darwin';
 
@@ -37,13 +40,24 @@ let tshAppPlist;
 const appId = 'gravitational.teleport.connect';
 
 /**
+ * A base electron-builder config.
+ * Provided paths are either relative or absolute, depending on the needs.
+ * The paths to the icons or scripts are always absolute, Connect Enterprise can
+ * overwrite them or keep using the OSS defaults.
+ * The files/output paths, on the other hand, are always relative: both OSS and Enterprise
+ * Connect must place the artifacts in their respective directories.
+ *
  * @type { import('electron-builder').Configuration }
  */
 module.exports = {
+  // Electron version needs to be provided manually,
+  // Connect Enterprise can't detect it from its package.json,
+  // since it isn't a direct dependency.
+  electronVersion: packageJson.devDependencies.electron,
   appId,
   asar: true,
   asarUnpack: '**\\*.{node,dll}',
-  afterSign: 'notarize.js',
+  afterSign: resolvePathFromDirname('notarize.js'),
   afterPack: packed => {
     // @electron-universal adds the `ElectronAsarIntegrity` key to every .plist
     // file it finds, causing signature verification to fail for tsh.app that gets
@@ -99,7 +113,7 @@ module.exports = {
     gatekeeperAssess: false,
     // If CONNECT_TSH_APP_PATH is provided, we assume that tsh.app is already signed.
     signIgnore: env.CONNECT_TSH_APP_PATH && ['tsh.app'],
-    icon: 'build_resources/icon-mac.png',
+    icon: resolvePathFromDirname('build_resources/icon-mac.png'),
     // x64ArchFiles is for x64 and universal files (lipo tool should skip them)
     x64ArchFiles: 'Contents/MacOS/tsh.app/Contents/MacOS/tsh',
     // On macOS, helper apps (such as tsh.app) should be under Contents/MacOS, hence using
@@ -143,7 +157,7 @@ module.exports = {
   win: {
     target: ['nsis'],
     artifactName: '${productName} Setup-${version}.${ext}',
-    icon: 'build_resources/icon-win.ico',
+    icon: resolvePathFromDirname('build_resources/icon-win.ico'),
     extraResources: [
       env.CONNECT_TSH_BIN_PATH && {
         from: env.CONNECT_TSH_BIN_PATH,
@@ -158,8 +172,12 @@ module.exports = {
   },
   rpm: {
     artifactName: '${name}-${version}.${arch}.${ext}',
-    afterInstall: 'build_resources/linux/after-install.tpl',
-    afterRemove: 'build_resources/linux/after-remove.tpl',
+    afterInstall: resolvePathFromDirname(
+      'build_resources/linux/after-install.tpl'
+    ),
+    afterRemove: resolvePathFromDirname(
+      'build_resources/linux/after-remove.tpl'
+    ),
     // --rpm-rpmbuild-define "_build_id_links none" fixes the problem with not being able to install
     // Connect's rpm next to other Electron apps.
     // https://github.com/gravitational/teleport/issues/18859
@@ -167,14 +185,18 @@ module.exports = {
   },
   deb: {
     artifactName: '${name}_${version}_${arch}.${ext}',
-    afterInstall: 'build_resources/linux/after-install.tpl',
-    afterRemove: 'build_resources/linux/after-remove.tpl',
+    afterInstall: resolvePathFromDirname(
+      'build_resources/linux/after-install.tpl'
+    ),
+    afterRemove: resolvePathFromDirname(
+      'build_resources/linux/after-remove.tpl'
+    ),
   },
   linux: {
     target: ['tar.gz', 'rpm', 'deb'],
     artifactName: '${name}-${version}-${arch}.${ext}', // tar.gz
     category: 'Development',
-    icon: 'build_resources/icon-linux',
+    icon: resolvePathFromDirname('build_resources/icon-linux'),
     extraResources: [
       env.CONNECT_TSH_BIN_PATH && {
         from: env.CONNECT_TSH_BIN_PATH,
@@ -183,7 +205,15 @@ module.exports = {
     ].filter(Boolean),
   },
   directories: {
-    buildResources: 'build_resources',
+    buildResources: resolvePathFromDirname('build_resources'),
     output: 'build/release',
   },
 };
+
+/**
+ * Returns path relative to the current script location.
+ * This allows both OSS and Enterprise Connect point to the same OSS files.
+ */
+function resolvePathFromDirname(path) {
+  return resolve(__dirname, path);
+}

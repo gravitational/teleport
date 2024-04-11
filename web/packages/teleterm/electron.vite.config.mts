@@ -29,39 +29,51 @@ import { cspPlugin } from '../build/vite/csp';
 import { getStyledComponentsConfig } from '../build/vite/styled';
 
 import { getConnectCsp } from './csp';
+import packageJson from './package.json';
 
 const rootDirectory = resolve(__dirname, '../../..');
-const outputDirectory = resolve(__dirname, 'build', 'app');
 
 // these dependencies don't play well unless they're externalized
 // if Vite complains about a dependency, add it here
 const externalizeDeps = ['strip-ansi', 'ansi-regex', 'd3-color'];
 
-const config = defineConfig(env => {
+/**
+ * Produces a base electron-vite config.
+ * Provided paths are either relative or absolute, depending on the needs.
+ * The paths to the source code are always absolute, Connect Enterprise can
+ * provide its own implementation through `inputs` or keep using the OSS defaults.
+ * The output paths, on the other hand, are always relative: both OSS and Enterprise
+ * Connect must keep the output code in their respective directories.
+ *
+ * @param inputs - contains paths to the app entry points.
+ */
+export const makeConfig = (inputs: {
+  rendererRoot: string
+}) => defineConfig(env => {
   const tsConfigPathsPlugin = tsconfigPaths({
     projects: [resolve(rootDirectory, 'tsconfig.json')],
   });
-
   const commonPlugins = [
-    externalizeDepsPlugin({ exclude: externalizeDeps }),
+    externalizeDepsPlugin({
+      exclude: externalizeDeps,
+      // The `externalizeDepsPlugin` plugin is not able to detect dependencies
+      // from Connect OSS package.json when it is run in the enterprise app context
+      // (it simply reads the direct package.json content).
+      // We have to provide them manually.
+      include: Object.keys(packageJson.dependencies),
+    }),
     tsConfigPathsPlugin,
   ];
 
   const config: UserConfig = {
     main: {
       build: {
-        outDir: resolve(outputDirectory, 'main'),
+        outDir: 'build/app/main',
         rollupOptions: {
           input: {
-            index: resolve(__dirname, 'src/main.ts'),
-            sharedProcess: resolve(
-              __dirname,
-              'src/sharedProcess/sharedProcess.ts'
-            ),
-            agentCleanupDaemon: resolve(
-              __dirname,
-              'src/agentCleanupDaemon/agentCleanupDaemon.js'
-            ),
+            index: resolvePathFromDirname('src/main.ts'),
+            sharedProcess: resolvePathFromDirname('src/sharedProcess/sharedProcess.ts'),
+            agentCleanupDaemon: resolvePathFromDirname('src/agentCleanupDaemon/agentCleanupDaemon.js'),
           },
           output: {
             manualChunks,
@@ -80,10 +92,10 @@ const config = defineConfig(env => {
     },
     preload: {
       build: {
-        outDir: resolve(outputDirectory, 'preload'),
+        outDir: 'build/app/preload',
         rollupOptions: {
           input: {
-            index: resolve(__dirname, 'src/preload.ts'),
+            index: resolvePathFromDirname('src/preload.ts'),
           },
           output: {
             manualChunks,
@@ -97,12 +109,12 @@ const config = defineConfig(env => {
       },
     },
     renderer: {
-      root: '.',
+      root: inputs.rendererRoot,
       build: {
-        outDir: resolve(outputDirectory, 'renderer'),
+        outDir: 'build/app/renderer',
         rollupOptions: {
           input: {
-            index: resolve(__dirname, 'index.html'),
+            index: 'index.html',
           },
         },
       },
@@ -142,7 +154,7 @@ const config = defineConfig(env => {
 
       if (!existsSync(certsDirectory)) {
         throw new Error(
-          'Could not find SSL certificates. Please follow web/README.md to generate certificates.'
+          'Could not find SSL certificates. Please follow web/README.md to generate certificates.',
         );
       }
 
@@ -159,7 +171,7 @@ const config = defineConfig(env => {
   return config;
 });
 
-export { config as default };
+export default makeConfig({ rendererRoot: __dirname });
 
 function manualChunks(id: string) {
   for (const dep of externalizeDeps) {
@@ -167,4 +179,12 @@ function manualChunks(id: string) {
       return dep;
     }
   }
+}
+
+/**
+ * Returns an absolute path that is relative to the current script location.
+ * This allows both OSS and Enterprise Connect point to the same OSS files.
+ */
+function resolvePathFromDirname(path: string): string {
+  return resolve(__dirname, path);
 }

@@ -3,7 +3,8 @@
     "composite": true,
     "module": "nodenext",
     "moduleResolution": "nodenext",
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true
   },
   "include": [
     "e/web/**/*.mts",
