@@ -28,7 +28,9 @@ import { VnetSliderStepHeader, AppConnectionItem } from './VnetConnectionItem';
  * VnetSliderStep is the second step of StepSlider used in TopBar/Connections. It is shown after
  * selecting VnetConnectionItem from ConnectionsFilterableList.
  */
-export const VnetSliderStep = (props: StepComponentProps) => {
+export const VnetSliderStep = (
+  props: StepComponentProps & { closeConnectionList: () => void }
+) => {
   const visible = props.stepIndex === 1 && props.hasTransitionEnded;
   const { status, startAttempt, stopAttempt } = useVnetContext();
   const autoFocusRef = useRefAutoFocus<HTMLElement>({
