@@ -67,19 +67,11 @@ type ValidatedTPM struct {
 // JoinAuditAttributes returns a series of attributes that can be inserted into
 // audit events related to a specific join.
 func (c *ValidatedTPM) JoinAuditAttributes() (map[string]interface{}, error) {
-	res := map[string]interface{}{}
-	d, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		TagName: "json",
-		Result:  &res,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	return map[string]interface{}{
+		"ek_pub_hash": c.EKPubHash,
+		"ek_cert_serial": c.EKCertSerial,
+		"ek_cert_verified": c.EKCertVerified,
 	}
-
-	if err := d.Decode(c); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return res, nil
 }
 
 // Validate takes the parameters from a remote TPM and performs the necessary
