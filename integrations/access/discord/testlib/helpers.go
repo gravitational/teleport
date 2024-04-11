@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/discord"
 )
 
-func (s *DiscordSuite) checkPluginData(ctx context.Context, reqID string, cond func(accessrequest.PluginData) bool) accessrequest.PluginData {
+func (s *DiscordBaseSuite) checkPluginData(ctx context.Context, reqID string, cond func(accessrequest.PluginData) bool) accessrequest.PluginData {
 	t := s.T()
 	t.Helper()
 

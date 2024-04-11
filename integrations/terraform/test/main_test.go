@@ -20,28 +20,28 @@ import (
 	"context"
 	"embed"
 	"fmt"
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/lib/auth"
-	libclient "github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/identityfile"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/integrations/terraform/provider"
+	"github.com/gravitational/teleport/lib/auth"
+	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/identityfile"
 )
 
 //go:embed fixtures/*
@@ -76,7 +76,7 @@ type TerraformSuite struct {
 func TestTerraform(t *testing.T) {
 	suite.Run(t, &TerraformSuite{
 		TerraformBaseSuite: TerraformBaseSuite{
-			AuthHelper: &integration.OSSAuthHelper{},
+			AuthHelper: &integration.MinimalAuthHelper{},
 		},
 	})
 }
@@ -84,7 +84,7 @@ func TestTerraform(t *testing.T) {
 func TestTerraformWithCache(t *testing.T) {
 	suite.Run(t, &TerraformSuiteWithCache{
 		TerraformBaseSuite: TerraformBaseSuite{
-			AuthHelper: &integration.OSSAuthHelper{
+			AuthHelper: &integration.MinimalAuthHelper{
 				AuthConfig: auth.TestAuthServerConfig{CacheEnabled: true},
 			},
 		},
