@@ -189,3 +189,78 @@ func makeLog(t *testing.T, clock clockwork.Clock) *events.AuditLog {
 
 	return alog
 }
+
+func TestSearchEventsContents(t *testing.T) {
+	ctx := context.Background()
+
+	for _, tt := range []struct {
+		eventData          []string
+		query              string
+		expectMatchIndexes []int
+	}{
+		{
+			eventData: []string{
+				"abcde",
+			},
+			query:              "bcd",
+			expectMatchIndexes: []int{0},
+		},
+		{
+			eventData: []string{
+				"a",
+				"b",
+				"c",
+				"d",
+			},
+			query:              "bcd",
+			expectMatchIndexes: []int{1},
+		},
+		{
+			eventData: []string{
+				"ababa",
+				"bab",
+				"ab",
+				"a",
+			},
+			query:              "baba",
+			expectMatchIndexes: []int{0, 1},
+		},
+	} {
+		printEvents := make([]*apievents.SessionPrint, len(tt.eventData))
+		for i, data := range tt.eventData {
+			printEvents[i] = &apievents.SessionPrint{
+				Metadata: apievents.Metadata{
+					Index: int64(i),
+				},
+				Data: []byte(data),
+			}
+		}
+
+		matches, err := events.SearchSessionContentsReader(ctx, &mockSessionReader{events: printEvents}, tt.query)
+		require.NoError(t, err)
+
+		matchIndexes := make([]int, len(matches))
+		for i, match := range matches {
+			matchIndexes[i] = int(match.Index)
+		}
+
+		require.Equal(t, tt.expectMatchIndexes, matchIndexes)
+	}
+}
+
+// SessionReader provides method to read
+// session events one by one
+type mockSessionReader struct {
+	idx    int
+	events []*apievents.SessionPrint
+}
+
+// Read reads session events
+func (r *mockSessionReader) Read(context.Context) (apievents.AuditEvent, error) {
+	if r.idx > len(r.events) {
+		return nil, io.EOF
+	}
+	idx := r.idx
+	r.idx++
+	return r.events[idx], nil
+}

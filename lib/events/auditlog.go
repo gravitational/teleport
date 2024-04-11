@@ -974,49 +974,102 @@ func (l *AuditLog) SearchSessionContents(ctx context.Context, sessionID session.
 	}
 
 	pr := NewProtoReader(rawSession)
-
-	var contents string
-	var contentsEventMap []*apievents.SessionPrint
-	i := 0
-	for {
-		event, err := pr.Read(ctx)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, trace.Wrap(err)
-		}
-
-		printEvent, ok := event.(*apievents.SessionPrint)
-		if !ok {
-			continue
-		}
-
-		contents += string(printEvent.Data)
-
-		fmt.Printf("i: %d\n%v\n\n", i, string(printEvent.Data))
-
-		eventMap := make([]*apievents.SessionPrint, len(printEvent.Data))
-		for i := 0; i < len(eventMap); i++ {
-			eventMap[i] = printEvent
-		}
-		contentsEventMap = append(contentsEventMap, eventMap...)
-		i++
-	}
-
-	matches := Index(contents, query)
-
-	protoMatches := make([]*proto.SessionContentMatch, len(matches))
-	for i, mi := range matches {
-		protoMatches[i] = &proto.SessionContentMatch{
-			Index:     contentsEventMap[mi].Index,
-			StartTime: contentsEventMap[mi].GetTime(),
-		}
+	matces, err := SearchSessionContentsReader(ctx, pr, query)
+	if err != nil {
+		return nil, err
 	}
 
 	return &proto.SessionContentMatches{
-		Matches: protoMatches,
+		Matches: matces,
 	}, nil
+}
+
+func SearchSessionContentsReader(ctx context.Context, reader SessionReader, query string) ([]*proto.SessionContentMatch, error) {
+	queryLen := len(query)
+	if queryLen == 0 {
+		return nil, trace.BadParameter("query length must be non-zero")
+	}
+
+	slideTable := calculateSlideTable(query)
+	var protoMatches []*proto.SessionContentMatch
+
+	type tuple struct {
+		event *apievents.SessionPrint
+		len   int
+		left  *tuple
+		right *tuple
+	}
+
+	rightTuple := &tuple{}
+	rightIdx := queryLen - 1
+loop:
+	for {
+		for rightIdx >= rightTuple.len {
+			event, err := reader.Read(ctx)
+			if err != nil {
+				if err == io.EOF {
+					break loop
+				}
+				return nil, trace.Wrap(err)
+			}
+
+			printEvent, ok := event.(*apievents.SessionPrint)
+			if !ok {
+				continue
+			}
+
+			rightIdx -= rightTuple.len
+
+			newTuple := &tuple{
+				event: printEvent,
+				len:   len(printEvent.Data),
+				left:  rightTuple,
+				right: nil,
+			}
+			rightTuple.right = newTuple
+			newTuple.left = rightTuple
+			rightTuple = newTuple
+		}
+
+		currentTuple := rightTuple
+		currentIdx := rightIdx
+		queryIdx := queryLen - 1
+		for queryIdx >= 0 && currentTuple.event.Data[currentIdx] == query[queryIdx] {
+			queryIdx--
+			currentIdx--
+
+			// we've reached the start of the current tuple, proceed
+			// to the next tuple (left)
+			if currentIdx < 0 {
+				currentTuple = currentTuple.left
+				currentIdx = currentTuple.len - 1
+			}
+		}
+
+		// We've gotten to the start of the query, matched!
+		if queryIdx < 0 {
+			matchedEvent := currentTuple.event
+
+			// don't duplicate matches
+			if len(protoMatches) == 0 || protoMatches[len(protoMatches)-1].Index != matchedEvent.Index {
+				protoMatches = append(protoMatches, &proto.SessionContentMatch{
+					Index:     matchedEvent.Index,
+					StartTime: matchedEvent.Time,
+				})
+			}
+
+			// TODO: handle edge case where there is a match at the end of the stream.
+
+			rightIdx += queryLen - slideTable[rightTuple.event.Data[rightIdx+1]]
+			continue
+		}
+
+		// current char mismatch, slide forward to the last
+		// instance of the mismatched char in the query string.
+		rightIdx += min(1, queryIdx-slideTable[currentTuple.event.Data[currentIdx]])
+	}
+
+	return protoMatches, nil
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
