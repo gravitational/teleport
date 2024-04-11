@@ -351,6 +351,11 @@ const (
 	SFTPLinkFailureCode     = "TS019E"
 	SFTPDisallowedCode      = "TS020E"
 
+	SFTPRequestCreateCode  = "TS021I"
+	SFTPRequestUpdateCode  = "TS022I"
+	SFTPRequestApproveCode = "TS023I"
+	SFTPRequestDenyCode    = "TS024I"
+
 	// SessionCommandCode is a session command code.
 	SessionCommandCode = "T4000I"
 	// SessionDiskCode is a session disk code.

@@ -549,6 +549,18 @@ func (s *SessionRegistry) NotifyFileTransferRequest(req *FileTransferRequest, re
 		s.log.Debugf("Sent %s event to %v.", res, p.sconn.RemoteAddr())
 	}
 
+	switch res {
+	case FileTransferUpdate:
+		fileTransferEvent.SetCode(events.SFTPRequestUpdateCode)
+	case FileTransferApproved:
+		fileTransferEvent.SetCode(events.SFTPRequestApproveCode)
+	case FileTransferDenied:
+		fileTransferEvent.SetCode(events.SFTPRequestDenyCode)
+	}
+	if err := s.Srv.EmitAuditEvent(context.TODO(), fileTransferEvent); err != nil {
+		s.log.Warnf("Unable to emit %s event: %v.", fileTransferEvent.GetType(), err)
+	}
+
 	return nil
 }
 

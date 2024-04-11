@@ -664,6 +664,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SessionIdle{
 			SessionIdle: e,
 		}
+	case *FileTransferRequestEvent:
+		out.Event = &OneOf_FileTransferRequest{
+			FileTransferRequest: e,
+		}
 
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())

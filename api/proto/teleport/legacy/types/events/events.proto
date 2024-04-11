@@ -4085,6 +4085,7 @@ message OneOf {
     events.DatabaseUserCreate DatabaseUserCreate = 155;
     events.DatabaseUserDeactivate DatabaseUserDeactivate = 156;
     events.SessionIdle SessionIdle = 157;
+    events.FileTransferRequestEvent FileTransferRequest = 158;
   }
 }
 
