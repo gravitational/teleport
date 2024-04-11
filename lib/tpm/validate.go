@@ -27,7 +27,6 @@ import (
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
-	"github.com/mitchellh/mapstructure"
 )
 
 // ValidateParams are the parameters required to validate a TPM.
@@ -68,10 +67,10 @@ type ValidatedTPM struct {
 // audit events related to a specific join.
 func (c *ValidatedTPM) JoinAuditAttributes() (map[string]interface{}, error) {
 	return map[string]interface{}{
-		"ek_pub_hash": c.EKPubHash,
-		"ek_cert_serial": c.EKCertSerial,
+		"ek_pub_hash":      c.EKPubHash,
+		"ek_cert_serial":   c.EKCertSerial,
 		"ek_cert_verified": c.EKCertVerified,
-	}
+	}, nil
 }
 
 // Validate takes the parameters from a remote TPM and performs the necessary
