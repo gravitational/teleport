@@ -164,8 +164,10 @@ func TestWithSimulator(t *testing.T) {
 	// Write fake EKCert to the TPM
 	origEK, err := attestTPM.EKs()
 	require.NoError(t, err)
+	const ekCertSerialNum = 1337133713371337
+	const ekCertSerialHex = "04:c0:1d:b4:00:b0:c9"
 	fakeEKCert := &x509.Certificate{
-		SerialNumber: big.NewInt(1337133713371337),
+		SerialNumber: big.NewInt(ekCertSerialNum),
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().Add(time.Hour),
 	}
