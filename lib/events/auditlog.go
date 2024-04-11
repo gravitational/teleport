@@ -967,43 +967,74 @@ func (l *AuditLog) GetSessionRecordingEvents(ctx context.Context, sessionID sess
 	return &metadata, nil
 }
 
-type printInfo struct {
-	offset  int
-	dataLen int
-	index   int
-}
-
 func (l *AuditLog) SearchSessionContents(ctx context.Context, sessionID session.ID, query string) (*proto.SessionContentMatches, error) {
 	rawSession, err := l.downloadRecording(sessionID)
 	if err != nil {
 		return nil, err
 	}
 
-	queryLen := len(query)
 	pr := NewProtoReader(rawSession)
-	table := calculateSlideTable(query)
 
-	i := 0
+	var contents string
+	var contentsEventMap []*apievents.SessionPrint
 	for {
 		event, err := pr.Read(ctx)
 		if err != nil {
+			if err == io.EOF {
+				break
+			}
 			return nil, trace.Wrap(err)
 		}
+
 		printEvent, ok := event.(*apievents.SessionPrint)
 		if !ok {
 			continue
 		}
 
-		j := queryLen - 1
-		for ; j >= 0 && contents[i+j] == query[j]; j-- {
+		contents += string(printEvent.Data)
+		eventMap := make([]*apievents.SessionPrint, len(printEvent.Data))
+		for i := 0; i < len(eventMap); i++ {
+			eventMap[i] = printEvent
 		}
-		if j < 0 {
-			return i
-		}
-
-		slid := max(1, j-table[contents[i+j]])
-		i += slid
+		contentsEventMap = append(contentsEventMap, eventMap...)
 	}
+
+	matches := Index(contents, query)
+
+	protoMatches := make([]*proto.SessionContentMatch, len(matches))
+	for i, mi := range matches {
+		protoMatches[i] = &proto.SessionContentMatch{
+			Index:     contentsEventMap[mi].Index,
+			StartTime: contentsEventMap[mi].GetTime(),
+			Match:     getMatchLine(contents, mi, mi+len(query)),
+		}
+	}
+
+	return &proto.SessionContentMatches{
+		Matches: protoMatches,
+	}, nil
+}
+
+func getMatchLine(contents string, startIndex, endIndex int) string {
+	for i := startIndex - 1; i >= 0; i-- {
+		if contents[i] == '\n' || i < startIndex-25 {
+			startIndex = i
+			break
+		} else if i == 0 {
+			startIndex = i
+		}
+	}
+
+	for i := endIndex + 1; i < len(contents); i++ {
+		if contents[i] == '\n' || i > endIndex+25 {
+			endIndex = i
+			break
+		} else if i == len(contents)-1 {
+			endIndex = i
+		}
+	}
+
+	return contents[startIndex:endIndex]
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first

@@ -91,19 +91,6 @@ func playSession(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	clusterClient, err := tc.ConnectToCluster(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	matches, err := clusterClient.AuthClient.SearchSessionContents(cf.Context, session.ID(cf.SessionID), "ls -la")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, match := range matches.Matches {
-		fmt.Printf("index: %d time: %s: match: %s\n", match.Index, match.StartTime, match.Match)
-	}
-	return nil
-
 	if err := tc.Play(cf.Context, cf.SessionID, speed); err != nil {
 		if trace.IsNotFound(err) {
 			log.WithError(err).Debug("error playing session")
@@ -262,7 +249,7 @@ func exportFile(ctx context.Context, path string, format string) error {
 	return nil
 }
 
-func onPlayEvents(cf *CLIConf) error {
+func onRecordingEvents(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -315,6 +302,43 @@ func onPlayEvents(cf *CLIConf) error {
 	}
 
 	t := asciitable.MakeTable([]string{"Event Name", "TimeStamp", "Description"}, rows...)
+	if _, err := fmt.Fprintln(cf.Stdout(), t.AsBuffer().String()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func onRecordingGrep(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sessionRecordingEvents, err := clusterClient.AuthClient.GetSessionRecordingEvents(context.Background(), session.ID(cf.SessionID))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	matches, err := clusterClient.AuthClient.SearchSessionContents(cf.Context, session.ID(cf.SessionID), cf.QueryTerm)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var rows [][]string
+	for _, match := range matches.Matches {
+		rows = append(rows, []string{
+			fmt.Sprint(match.StartTime.Sub(sessionRecordingEvents.StartTime)),
+			match.Match,
+		})
+	}
+
+	t := asciitable.MakeTable([]string{"TimeStamp", "Match"}, rows...)
 	if _, err := fmt.Fprintln(cf.Stdout(), t.AsBuffer().String()); err != nil {
 		return trace.Wrap(err)
 	}

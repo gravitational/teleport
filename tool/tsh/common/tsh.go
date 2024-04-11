@@ -533,6 +533,8 @@ type CLIConf struct {
 
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
+
+	QueryTerm string
 }
 
 // Stdout returns the stdout writer.
@@ -846,6 +848,13 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	exportRecordings.Flag("out", "Override output file name").StringVar(&cf.OutFile)
 	exportRecordings.Arg("session-id", "ID of the session to export").Required().StringVar(&cf.SessionID)
 
+	recordingEvents := recordings.Command("events", "get a list of session recording events and their timestamps.")
+	recordingEvents.Arg("session-id", "ID or path to session file to play").Required().StringVar(&cf.SessionID)
+
+	recordingGrep := recordings.Command("grep", "grep a session recording.")
+	recordingGrep.Arg("session-id", "ID or path to session file to play").Required().StringVar(&cf.SessionID)
+	recordingGrep.Arg("query-term", "query term").Required().StringVar(&cf.QueryTerm)
+
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode.")
 	proxySSH := proxy.Command("ssh", "Start local TLS proxy for ssh connections when using Teleport in single-port mode.")
@@ -954,10 +963,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		teleport.PTY, teleport.JSON, teleport.YAML,
 	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML)
 	play.Arg("session-id", "ID or path to session file to play").Required().StringVar(&cf.SessionID)
-
-	playEvents := app.Command("play-events", "get a list of session recording events.")
-	playEvents.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	playEvents.Arg("session-id", "ID or path to session file to play").Required().StringVar(&cf.SessionID)
 
 	// scp
 	scp := app.Command("scp", "Transfer files to a remote SSH node.")
@@ -1399,8 +1404,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onSCP(&cf)
 	case play.FullCommand():
 		err = onPlay(&cf)
-	case playEvents.FullCommand():
-		err = onPlayEvents(&cf)
 	case ls.FullCommand():
 		err = onListNodes(&cf)
 	case clusters.FullCommand():
@@ -1431,6 +1434,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onRecordings(&cf)
 	case exportRecordings.FullCommand():
 		err = onExportRecording(&cf)
+	case recordingEvents.FullCommand():
+		err = onRecordingEvents(&cf)
+	case recordingGrep.FullCommand():
+		err = onRecordingGrep(&cf)
 	case appLogin.FullCommand():
 		err = onAppLogin(&cf)
 	case appLogout.FullCommand():
