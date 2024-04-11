@@ -301,24 +301,32 @@ interface AnyFlows<ExtraProps> {
 type Props<Flows> =
   Flows extends AnyFlows<infer ExtraProps>
     ? {
-        // flows contains the different flows and its accompanying steps.
+        /** flows contains the different flows and its accompanying steps. */
         flows: Flows;
-        // currFlow refers to the current set of steps.
-        // E.g. we have a flow named "passwordless", flow "passwordless"
-        // will refer to all the steps related to "passwordless".
+        /**
+         * currFlow refers to the current set of steps.
+         * E.g. we have a flow named "passwordless", flow "passwordless"
+         * will refer to all the steps related to "passwordless".
+         */
         currFlow: keyof Flows;
-        // tDuration is the length of time a transition
-        // animation should take to complete.
+        /**
+         * tDuration is the length of time a transition
+         * animation should take to complete.
+         */
         tDuration?: number;
-        // newFlow is step 1 of 2 of changing the current flow to a new flow.
-        // When supplied, it sets the premount data and the next animation class
-        // which will kick of the next step `onSwitchFlow` that does the actual
-        // switching to the new flow.
-        // Optional if there is only one flow.
+        /**
+         * newFlow is step 1 of 2 of changing the current flow to a new flow.
+         * When supplied, it sets the premount data and the next animation class
+         * which will kick of the next step `onSwitchFlow` that does the actual
+         * switching to the new flow.
+         * Optional if there is only one flow.
+         */
         newFlow?: NewFlow<keyof Flows>;
-        // onSwitchFlow is the final step that switches the current flow to the new flow.
-        // E.g, toggling between "passwordless" or "local" login flow.
-        // Optional if there is only one flow.
+        /**
+         * onSwitchFlow is the final step that switches the current flow to the new flow.
+         * E.g, toggling between "passwordless" or "local" login flow.
+         * Optional if there is only one flow.
+         */
         onSwitchFlow?(flow: keyof Flows): void;
       } & ExtraProps // Extra props that are passed to each step component. Each step of each flow needs to accept the same set of extra props.
     : never;
@@ -342,9 +350,11 @@ export type StepComponentProps = {
   flowLength: number;
 };
 
-// NewFlow defines fields for a new flow.
-// The applyNextAnimation flag when true applies the next-slide-* transition,
-// otherwise prev-slide-* transitions are applied.
+/**
+ * NewFlow defines fields for a new flow.
+ * The applyNextAnimation flag when true applies the next-slide-* transition,
+ * otherwise prev-slide-* transitions are applied.
+ */
 export type NewFlow<T> = {
   flow: T;
   applyNextAnimation?: boolean;
