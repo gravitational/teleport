@@ -193,7 +193,6 @@ func TestWithSimulator(t *testing.T) {
 			EKCert:       queryRes.EKCert,
 			AttestParams: *attParams,
 			Solve:        solve,
-			AllowedCAs:   []string{},
 		})
 		require.NoError(t, err)
 		require.Equal(t, wantEKPubHash, validated.EKPubHash)
