@@ -58,6 +58,7 @@ export enum NavTitle {
   Users = 'Users',
   Bots = 'Bots',
   Roles = 'User Roles',
+  DbShell = 'DB Shell',
   AuthConnectors = 'Auth Connectors',
   Integrations = 'Integrations',
   EnrollNewResource = 'Enroll New Resource',

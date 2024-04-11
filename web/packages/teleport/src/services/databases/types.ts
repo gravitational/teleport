@@ -94,3 +94,17 @@ export type DatabaseServicesResponse = {
   startKey?: string;
   totalCount?: number;
 };
+
+export type DatabaseQueryRequest = {
+  db_service: string;
+  db_name: string;
+  db_user: string;
+
+  query: string;
+}
+
+export type DatabaseQueryResponse = {
+  headers : string[];
+  query_result : any[][];
+  error : string;
+}

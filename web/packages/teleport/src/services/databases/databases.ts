@@ -20,14 +20,14 @@ import api from 'teleport/services/api';
 import cfg, { UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 
-import { makeDatabase, makeDatabaseService } from './makeDatabase';
+import {makeDatabase, makeDatabaseQueryResponse, makeDatabaseService} from './makeDatabase';
 
-import type {
+import {
   CreateDatabaseRequest,
   Database,
   UpdateDatabaseRequest,
   DatabaseIamPolicyResponse,
-  DatabaseServicesResponse,
+  DatabaseServicesResponse, DatabaseQueryResponse, DatabaseQueryRequest,
 } from './types';
 
 class DatabaseService {
@@ -86,6 +86,13 @@ class DatabaseService {
     req: CreateDatabaseRequest
   ): Promise<Database> {
     return api.post(cfg.getDatabasesUrl(clusterId), req).then(makeDatabase);
+  }
+
+  dbShellQuery(
+      clusterId: string,
+      req: DatabaseQueryRequest
+  ): Promise<DatabaseQueryResponse> {
+    return api.post(cfg.getDBShellURL(clusterId), req).then(makeDatabaseQueryResponse);
   }
 }
 

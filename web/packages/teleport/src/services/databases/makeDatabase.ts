@@ -18,7 +18,18 @@
 
 import { formatDatabaseInfo } from 'shared/services/databases';
 
-import { Aws, Database, DatabaseService } from './types';
+import {Aws, Database, DatabaseQueryResponse, DatabaseService} from './types';
+
+export function makeDatabaseQueryResponse(json: any): DatabaseQueryResponse {
+  console.log("makeDatabaseQueryResponse", json)
+  const { query_result, headers, error } = json;
+
+  return {
+    query_result: Array.isArray(query_result) ? query_result : [],
+    headers: headers,
+    error: typeof error === 'string' || error === null ? error : null,
+  };
+}
 
 export function makeDatabase(json: any): Database {
   const { name, desc, protocol, type, aws } = json;
