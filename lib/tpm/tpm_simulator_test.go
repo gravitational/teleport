@@ -133,34 +133,34 @@ func TestWithSimulator(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check QueryRes looks right.
-		require.Equal(t, wantEKPubHash, queryRes.EKPubHash)
-		require.NotEmpty(t, queryRes.EKPub)
-		require.False(t, queryRes.EKCertPresent)
-		require.Empty(t, queryRes.EKCertSerial)
-		require.Empty(t, queryRes.EKCert)
+		assert.Equal(t, wantEKPubHash, queryRes.EKPubHash)
+		assert.NotEmpty(t, queryRes.EKPub)
+		assert.False(t, queryRes.EKCertPresent)
+		assert.Empty(t, queryRes.EKCertSerial)
+		assert.Empty(t, queryRes.EKCert)
 
-		// Now attempt a validation that should succeed
-		validated, err := Validate(ctx, log, ValidateParams{
-			EKKey:        queryRes.EKPub,
-			EKCert:       nil,
-			AttestParams: *attParams,
-			Solve:        solve,
+		t.Run("Success", func(t *testing.T) {
+			validated, err := Validate(ctx, log, ValidateParams{
+				EKKey:        queryRes.EKPub,
+				EKCert:       nil,
+				AttestParams: *attParams,
+				Solve:        solve,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, wantEKPubHash, validated.EKPubHash)
+			assert.False(t, validated.EKCertVerified)
+			assert.Empty(t, validated.EKCertSerial)
 		})
-		require.NoError(t, err)
-		require.Equal(t, wantEKPubHash, validated.EKPubHash)
-		require.False(t, validated.EKCertVerified)
-		require.Empty(t, validated.EKCertSerial)
-
-		// Attempt a validation which should fail because there's no EKCert and
-		// AllowedCAs is configured.
-		_, err = Validate(ctx, log, ValidateParams{
-			EKKey:        queryRes.EKPub,
-			EKCert:       nil,
-			AttestParams: *attParams,
-			Solve:        solve,
-			AllowedCAs:   []string{string(caPEM)},
+		t.Run("Failure due to missing EKCert", func(t *testing.T) {
+			_, err = Validate(ctx, log, ValidateParams{
+				EKKey:        queryRes.EKPub,
+				EKCert:       nil,
+				AttestParams: *attParams,
+				Solve:        solve,
+				AllowedCAs:   []string{string(caPEM)},
+			})
+			assert.ErrorContains(t, err, "tpm did not provide an EKCert to validate against allowed CAs")
 		})
-		require.ErrorContains(t, err, "tpm did not provide an EKCert to validate against allowed CAs")
 	})
 
 	// Write fake EKCert to the TPM
@@ -184,49 +184,47 @@ func TestWithSimulator(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check queryRes looks right.
-		require.Equal(t, wantEKPubHash, queryRes.EKPubHash)
-		require.NotEmpty(t, queryRes.EKPub)
-		require.True(t, queryRes.EKCertPresent)
-		require.Equal(t, ekCertSerialHex, queryRes.EKCertSerial)
-		require.NotEmpty(t, queryRes.EKCert)
+		assert.Equal(t, wantEKPubHash, queryRes.EKPubHash)
+		assert.NotEmpty(t, queryRes.EKPub)
+		assert.True(t, queryRes.EKCertPresent)
+		assert.Equal(t, ekCertSerialHex, queryRes.EKCertSerial)
+		assert.NotEmpty(t, queryRes.EKCert)
 
-		// Now attempt a validation that should succeed without verifying the
-		// EKCert.
-		validated, err := Validate(ctx, log, ValidateParams{
-			EKKey:        queryRes.EKPub,
-			EKCert:       queryRes.EKCert,
-			AttestParams: *attParams,
-			Solve:        solve,
+		t.Run("Success without CAs", func(t *testing.T) {
+			validated, err := Validate(ctx, log, ValidateParams{
+				EKKey:        queryRes.EKPub,
+				EKCert:       queryRes.EKCert,
+				AttestParams: *attParams,
+				Solve:        solve,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, wantEKPubHash, validated.EKPubHash)
+			assert.False(t, validated.EKCertVerified)
+			assert.Equal(t, ekCertSerialHex, validated.EKCertSerial)
 		})
-		require.NoError(t, err)
-		require.Equal(t, wantEKPubHash, validated.EKPubHash)
-		require.False(t, validated.EKCertVerified)
-		require.Equal(t, ekCertSerialHex, validated.EKCertSerial)
-
-		// Now attempt a validation that should succeed with verifying the
-		// against a CA.
-		validated, err = Validate(ctx, log, ValidateParams{
-			EKKey:        queryRes.EKPub,
-			EKCert:       queryRes.EKCert,
-			AttestParams: *attParams,
-			Solve:        solve,
-			AllowedCAs:   []string{string(caPEM)},
+		t.Run("Success with CAs", func(t *testing.T) {
+			validated, err := Validate(ctx, log, ValidateParams{
+				EKKey:        queryRes.EKPub,
+				EKCert:       queryRes.EKCert,
+				AttestParams: *attParams,
+				Solve:        solve,
+				AllowedCAs:   []string{string(caPEM)},
+			})
+			require.NoError(t, err)
+			assert.Equal(t, wantEKPubHash, validated.EKPubHash)
+			assert.True(t, validated.EKCertVerified)
+			assert.Equal(t, ekCertSerialHex, validated.EKCertSerial)
 		})
-		require.NoError(t, err)
-		require.Equal(t, wantEKPubHash, validated.EKPubHash)
-		require.True(t, validated.EKCertVerified)
-		require.Equal(t, ekCertSerialHex, validated.EKCertSerial)
-
-		// Now attempt a validation that should fail because the allowed CA does
-		// not match the EKCert.
-		validated, err = Validate(ctx, log, ValidateParams{
-			EKKey:        queryRes.EKPub,
-			EKCert:       queryRes.EKCert,
-			AttestParams: *attParams,
-			Solve:        solve,
-			// Some random CA that won't match the EKCert.
-			AllowedCAs: []string{fixtures.TLSCACertPEM},
+		t.Run("Failure with wrong CA", func(t *testing.T) {
+			_, err := Validate(ctx, log, ValidateParams{
+				EKKey:        queryRes.EKPub,
+				EKCert:       queryRes.EKCert,
+				AttestParams: *attParams,
+				Solve:        solve,
+				// Some random CA that won't match the EKCert.
+				AllowedCAs: []string{fixtures.TLSCACertPEM},
+			})
+			assert.ErrorContains(t, err, "certificate signed by unknown authority")
 		})
-		require.ErrorContains(t, err, "certificate signed by unknown authority")
 	})
 }
