@@ -129,11 +129,10 @@ func (a *App) run(ctx context.Context) error {
 	for {
 		select {
 		case <-timer.Chan():
-			timer.Reset(jitter(reminderInterval))
-
 			if err := a.remindIfNecessary(ctx); err != nil {
 				return trace.Wrap(err)
 			}
+			timer.Reset(jitter(reminderInterval))
 		case <-ctx.Done():
 			log.Info("Access list monitor is finished")
 			return nil
