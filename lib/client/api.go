@@ -2135,6 +2135,8 @@ type model struct {
 	term              *terminal.Terminal
 	playing           bool
 	finished          bool
+	fastForward       bool
+	speed             float64
 	lastEventTime     time.Time
 	lastEventSeenAt   time.Time
 	lastEventDuration time.Duration
@@ -2175,6 +2177,7 @@ func newModel(sessionID string, speed float64, streamer player.Streamer) (*model
 	return &model{
 		term:   term,
 		player: player,
+		speed:  speed,
 	}, nil
 }
 
@@ -2258,9 +2261,13 @@ type eventMsg struct {
 	index int64
 }
 
-func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	const skipDuration = 10 * time.Second
+const (
+	smallSkipDuration  = time.Second
+	mediumSkipDuration = 10 * time.Second
+	largeSkipDuration  = time.Minute
+)
 
+func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	logrus.Debugf("%T%+v", msg, msg)
 	switch msg := msg.(type) {
@@ -2339,6 +2346,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch string(msg.Runes) {
 			case "q":
 				return m, tea.Quit
+			case "f":
+				if m.fastForward {
+					m.speed = 1.0
+				} else {
+					m.speed = 2.0
+				}
+				m.player.SetSpeed(m.speed)
+				m.fastForward = !m.fastForward
 			}
 		case tea.KeySpace:
 			if m.playing {
@@ -2354,18 +2369,18 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				})
 			}
 			m.playing = !m.playing
+		case tea.KeyCtrlLeft:
+			cmds = append(cmds, m.scroll(-smallSkipDuration))
 		case tea.KeyLeft:
-			current := time.Duration(m.player.LastPlayed() * int64(time.Millisecond))
-			m.player.SetPos(max(current-skipDuration, 0)) // rewind
-			// NOTE: if there are problems this might be the cause
-			// m.term.Clear()
-			// m.term.SetCursorPos(1, 1)
-			m.content = ""
-			m.viewport.SetContent(m.content)
-			cmds = append(cmds, viewport.Sync(m.viewport))
+			cmds = append(cmds, m.scroll(-mediumSkipDuration))
+		case tea.KeyShiftLeft:
+			cmds = append(cmds, m.scroll(-largeSkipDuration))
+		case tea.KeyCtrlRight:
+			cmds = append(cmds, m.scroll(smallSkipDuration))
 		case tea.KeyRight:
-			current := time.Duration(m.player.LastPlayed() * int64(time.Millisecond))
-			m.player.SetPos(current + skipDuration) // advance forward
+			cmds = append(cmds, m.scroll(mediumSkipDuration))
+		case tea.KeyShiftRight:
+			cmds = append(cmds, m.scroll(largeSkipDuration))
 		}
 	case errMsg:
 		m.err = msg
@@ -2380,6 +2395,18 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 	}
 	return m, tea.Batch(cmds...)
+}
+
+func (m *model) scroll(duration time.Duration) tea.Cmd {
+	current := time.Duration(m.player.LastPlayed() * int64(time.Millisecond))
+	m.player.SetPos(max(current+duration, 0))
+	if duration >= 0 {
+		return nil
+	}
+	// clear screen on rewind
+	m.content = ""
+	m.viewport.SetContent(m.content)
+	return viewport.Sync(m.viewport)
 }
 
 func (m *model) getProgress() (time.Duration, float64) {
