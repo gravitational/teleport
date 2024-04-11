@@ -101,7 +101,7 @@ func getRoles(clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
 }
 
 func listRoles(clt resourcesAPIGetter, values url.Values) (*listResourcesWithoutCountGetResponse, error) {
-	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	limit, err := queryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
