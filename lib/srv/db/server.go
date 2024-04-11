@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"os/exec"
 	"strings"
@@ -1300,10 +1299,8 @@ func (s *Server) pSQLConnect(ctx context.Context, addr string, webConn net.Conn,
 		return trace.Wrap(err)
 	}
 	go func() {
-		_, _ = io.Copy(ptmx, webConn)
-	}()
-	go func() {
-		_, _ = io.Copy(webConn, ptmx)
+		err := utils.ProxyConn(ctx, webConn, ptmx)
+		s.log.WithError(err).Debug("finished copying between web conn and psql")
 	}()
 
 	// cmd.Stdin = webConn
