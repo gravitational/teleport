@@ -54,6 +54,8 @@ func (cc *fakeCmdChannel) MeasurementLog() ([]byte, error) {
 }
 
 func writeEKCertToTPM(t *testing.T, sim *tpmsimulator.Simulator, data []byte) {
+	// As per TCG Credential Profile EK for TPM 2.0, 2.2.1.4, the RSA 2048
+	// EK certificate is stored in the TPM's NV index 0x1c00002.
 	const nvramRSAEKCertIndex = 0x1c00002
 	err := tpm2.NVDefineSpace(
 		sim,
