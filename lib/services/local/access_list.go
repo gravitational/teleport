@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -361,18 +362,17 @@ func (a *AccessListService) DeleteAllAccessListMembers(ctx context.Context) erro
 	return trace.Wrap(a.memberService.DeleteAllResources(ctx))
 }
 
+func getName[R types.Resource](r R) string {
+	return r.GetName()
+}
+
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.
-func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember, options accesslist.MemberOptions) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
 	// Double the lock TTL to account for the time it takes to upsert the members.
 	upsertWithLockFn := func() error {
 		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-			// Create a map of the members from the request for easier lookup.
-			membersMap := make(map[string]*accesslist.AccessListMember)
-
 			// Convert the members slice to a map for easier lookup.
-			for _, member := range membersIn {
-				membersMap[member.GetName()] = member
-			}
+			membersMap := utils.FromSlice(membersIn, getName)
 
 			var (
 				members      []*accesslist.AccessListMember
@@ -387,18 +387,26 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 					return trace.Wrap(err)
 				}
 
-				for _, member := range members {
-					// If the member is not in the members map (request), delete it.
-					if existingMember, ok := membersMap[member.GetName()]; !ok {
-						err = a.memberService.WithPrefix(accessList.GetName()).DeleteResource(ctx, member.GetName())
+				for _, existingMember := range members {
+					// If the member is not in the new members map (request), delete it.
+					if newMember, ok := membersMap[existingMember.GetName()]; !ok {
+						err = a.memberService.WithPrefix(accessList.GetName()).DeleteResource(ctx, existingMember.GetName())
 						if err != nil {
 							return trace.Wrap(err)
 						}
 					} else {
+						if options.PreserveExpiry && !existingMember.Spec.Expires.IsZero() {
+							newMember.Spec.Expires = existingMember.Spec.Expires
+						}
+
+						if options.PreserveReason && (existingMember.Spec.Reason != "") {
+							newMember.Spec.Reason = existingMember.Spec.Reason
+						}
+
 						// Compare members and update if necessary.
-						if !cmp.Equal(member, existingMember) {
+						if !cmp.Equal(newMember, existingMember) {
 							// Update the member.
-							upserted, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, existingMember)
+							upserted, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, newMember)
 							if err != nil {
 								return trace.Wrap(err)
 							}
@@ -408,7 +416,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 					}
 
 					// Remove the member from the map.
-					delete(membersMap, member.GetName())
+					delete(membersMap, existingMember.GetName())
 				}
 
 				if membersToken == "" {

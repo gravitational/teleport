@@ -216,6 +216,12 @@ message UpsertAccessListWithMembersRequest {
   AccessList access_list = 1;
   // members is the list of access list members.
   repeated Member members = 2;
+  // preserve_expiry indicates that the upsert operation should preserve the
+  // existing membership expiry (if any) when overwriting an AccessList member
+  bool preserve_expiry = 3;
+  // preserve_reason indicates that the upsert operation should preserve the
+  // existing membership reason (if any) when overwriting an AccessList member
+  bool preserve_reason = 4;
 }
 
 // UpsertAccessListWithMembersResponse is the response for upserting an access
