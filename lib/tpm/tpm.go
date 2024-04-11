@@ -54,7 +54,7 @@ func serialString(serial *big.Int) string {
 }
 
 // hashEKPub hashes the public part of an EK key. The key is first marshaled
-// in PKIX format and then hashed with SHA256.
+// in PKIX format, hashed with SHA256, and returned as a hexadecimal string.
 func hashEKPub(key crypto.PublicKey) (string, error) {
 	marshaled, err := x509.MarshalPKIXPublicKey(key)
 	if err != nil {
