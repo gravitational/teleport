@@ -90,7 +90,7 @@ func (s *ServiceNowSuite) startApp() {
 
 	app, err := servicenow.NewServiceNowApp(ctx, &s.appConfig)
 	require.NoError(t, err)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
 }
 
 // TestIncidentCreation validates that a new access request triggers an

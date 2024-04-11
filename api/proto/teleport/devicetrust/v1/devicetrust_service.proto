@@ -22,6 +22,7 @@ import "google/protobuf/timestamp.proto";
 import "google/rpc/status.proto";
 import "teleport/devicetrust/v1/device.proto";
 import "teleport/devicetrust/v1/device_collected_data.proto";
+import "teleport/devicetrust/v1/device_confirmation_token.proto";
 import "teleport/devicetrust/v1/device_enroll_token.proto";
 import "teleport/devicetrust/v1/device_source.proto";
 import "teleport/devicetrust/v1/device_web_token.proto";
@@ -137,6 +138,22 @@ service DeviceTrustService {
   //
   // Only registered and enrolled devices may perform device authentication.
   rpc AuthenticateDevice(stream AuthenticateDeviceRequest) returns (stream AuthenticateDeviceResponse);
+
+  // ConfirmDeviceWebAuthentication finalizes the device web authentication
+  // ceremony started by the creation of a DeviceWebToken and subsequent
+  // AuthenticateDevice call.
+  //
+  // The DeviceConfirmationToken issued by AuthenticateDevice is spent in this
+  // method, which consequently augments the corresponding Web Session
+  // certificates with device extensions.
+  //
+  // This method must be called by the Teleport Proxy, and the Proxy itself must
+  // be called by the same browser that started the on-behalf-of authentication
+  // attempt. See the /webapi/device/webconfirm endpoint.
+  //
+  // See
+  // https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
+  rpc ConfirmDeviceWebAuthentication(ConfirmDeviceWebAuthenticationRequest) returns (ConfirmDeviceWebAuthenticationResponse);
 
   // Syncs device inventory from a source exterior to Teleport, for example an
   // MDM.
@@ -461,7 +478,7 @@ message TPMEnrollChallengeResponse {
 // -> AuthenticateDeviceInit (client)
 // <- AuthenticateDeviceChallenge (server)
 // -> AuthenticateDeviceChallengeResponse
-// <- UserCertificates
+// <- UserCertificates (regular authn) or ConfirmationToken (web authn)
 message AuthenticateDeviceRequest {
   oneof payload {
     AuthenticateDeviceInit init = 1;
@@ -474,8 +491,18 @@ message AuthenticateDeviceRequest {
 message AuthenticateDeviceResponse {
   oneof payload {
     AuthenticateDeviceChallenge challenge = 1;
+
+    // User certificates are returned as the result of a successful device
+    // authentication attempt ("regular" or non-web authentication).
     UserCertificates user_certificates = 2;
+
     TPMAuthenticateDeviceChallenge tpm_challenge = 3;
+
+    // A confirmation token is returned as the result of a successful device web
+    // authentication.
+    //
+    // See AuthenticateDeviceInit.device_web_token.
+    DeviceConfirmationToken confirmation_token = 4;
   }
 }
 
@@ -501,8 +528,10 @@ message AuthenticateDeviceInit {
 
   // If present, on-behalf-of device authentication is performed.
   // The user_certificates input field is ignored and no certificate data is
-  // returned to the caller, instead the WebSession certificates are updated
-  // on success.
+  // returned to the caller, instead a confirmation_token is returned in
+  // the last step.
+  //
+  // See ConfirmDeviceWebAuthentication.
   DeviceWebToken device_web_token = 4;
 }
 
@@ -534,6 +563,22 @@ message AuthenticateDeviceChallengeResponse {
   // Signature over the challenge, using the device key.
   bytes signature = 1;
 }
+
+// Request for ConfirmDeviceWebAuthentication.
+message ConfirmDeviceWebAuthenticationRequest {
+  // Confirmation token to be spent.
+  DeviceConfirmationToken confirmation_token = 1;
+
+  // Web Session identifier of the session that started this request, via
+  // Teleport Proxy.
+  //
+  // For the request to be successful the Web Session must match the session
+  // that started the authentication attempt.
+  string current_web_session_id = 2;
+}
+
+// Response for ConfirmDeviceWebAuthentication.
+message ConfirmDeviceWebAuthenticationResponse {}
 
 // Request for SyncInventory.
 //

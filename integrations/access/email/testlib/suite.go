@@ -107,7 +107,7 @@ func (s *EmailSuite) startApp() {
 
 	app, err := email.NewApp(s.appConfig)
 	require.NoError(t, err)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
 }
 
 // TestNewThreads tests that the plugin starts new email threads when it

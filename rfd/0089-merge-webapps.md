@@ -195,7 +195,7 @@ build systems to successfully build Teleport.
       the correct version in the `teleport.e/web` folder.
 - [ ] Only require teleport build processes to run on teleport paths and the webapp
       ones to run on the webapp paths
-- [ ] Update Connect's build pipelines (in teleport/dronegen) as webapps will no longer need to be cloned.
+- [ ] Update Connect's build pipelines as webapps will no longer need to be cloned.
 
 #### CI jobs
 

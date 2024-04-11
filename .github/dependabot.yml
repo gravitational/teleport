@@ -29,7 +29,6 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - jentfoo
       - rosstimothy
       - zmb3
     labels:
@@ -51,7 +50,6 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - jentfoo
       - rosstimothy
       - zmb3
     labels:
@@ -76,7 +74,6 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - jentfoo
       - rosstimothy
       - tcsc
       - zmb3
@@ -99,7 +96,6 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - jentfoo
       - rosstimothy
       - zmb3
     labels:
@@ -125,13 +121,64 @@ updates:
     reviewers:
       - codingllama
       - fheinecke
-      - jentfoo
       - rosstimothy
       - zmb3
     labels:
       - "dependencies"
       - "go"
       - "no-changelog"
+
+  - package-ecosystem: gomod
+    directory: "/integrations/terraform"
+    schedule:
+      interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    ignore:
+      # breaks compatibility
+      - dependency-name: github.com/hashicorp/terraform-plugin-framework
+      # breaks compatibility
+      - dependency-name: github.com/hashicorp/terraform-plugin-go
+    open-pull-requests-limit: 20
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
+    reviewers:
+      - codingllama
+      - rosstimothy
+      - hugoshaka
+      - tigrato
+      - marcoandredinis
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
+
+  - package-ecosystem: gomod
+    directory: "/integrations/event-handler"
+    schedule:
+      interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    open-pull-requests-limit: 20
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
+    reviewers:
+      - codingllama
+      - rosstimothy
+      - hugoshaka
+      - tigrato
+      - marcoandredinis
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
+
 
   - package-ecosystem: cargo
     directory: "/"
@@ -148,7 +195,6 @@ updates:
     reviewers:
       - codingllama
       - ibeckermayer
-      - jentfoo
       - rosstimothy
       - zmb3
     labels:
@@ -171,7 +217,6 @@ updates:
     reviewers:
       - codingllama
       - ibeckermayer
-      - jentfoo
       - rosstimothy
       - zmb3
     labels:
@@ -187,8 +232,6 @@ updates:
       time: "09:00"
       timezone: "America/Los_Angeles"
     reviewers:
-      - wadells
-      - jentfoo
       - fheinecke
       - camscale
     labels:
@@ -204,8 +247,6 @@ updates:
       time: "09:00"
       timezone: "America/Los_Angeles"
     reviewers:
-      - wadells
-      - jentfoo
       - fheinecke
       - camscale
     labels:

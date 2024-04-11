@@ -219,9 +219,25 @@ spec:
     # Functions transform variables.
     db_users: ['{{email.local(external.email)}}']
     db_names: ['{{external.db_names}}']
-    db_roles: ['{{external.db_roles}}']
     db_labels:
       'env': '{{regexp.replace(external.env, "^(staging)$", "$1")}}'
+
+    # List of database roles to grant. Mutually exclusive with `db_permissions`.
+    db_roles: ['{{external.db_roles}}']
+    
+    # Grant all possible Postgres permissions for all tables.
+    # List of database permissions to grant. Mutually exclusive with `db_roles`.
+    db_permissions:
+    - match:
+        object_kind: table
+      permissions:
+	    - SELECT
+	    - INSERT
+	    - UPDATE
+	    - DELETE
+	    - TRUNCATE
+	    - REFERENCES
+	    - TRIGGER
 
     # app_labels: a user with this role will be allowed to connect to
     # applications with labels matching below.
@@ -376,6 +392,27 @@ spec:
         kinds: ['k8s', 'ssh']
         # The list of session participant modes the role may join the session as.
         modes: ['moderator', 'observer']
+
+    # spiffe is a list of SPIFFE IDs that the role holder is allowed to request
+    # SVIDs for. As long as the request matches one of the blocks within the
+    # spiffe list, the certificate will be issued.
+    spiffe:
+        # The path of the SPIFFE ID that can be requested. This field is
+        # required for each block. It must begin with a preceding slash and
+        # should not contain a trailing slash.
+      - path: "/svc/foo"
+        # IP SANs that the user can request be included in a SVID along with the
+        # SPIFFE ID in this block. This field is optional and if omitted,
+        # the user will not be able to request a SVID with IP SANs.
+        ip_sans: ["10.0.0.100/32"]
+        # DNS SANs that the user can request be included in a SVID along with
+        # the SPIFFE ID in this block. This field is optional and if omitted,
+        # the user will not be able to request a SVID with DNS SANs.
+        #
+        # The '*' wildcard character is supported to indicated one or more of
+        # any character. For example, '*.example.com' would match
+        # 'foo.example.com'.
+        dns_sans: ["foo.svc.example.com"]
 
     # rules allow a user holding this role to modify other resources
     # matching the expressions below

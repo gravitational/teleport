@@ -37,10 +37,7 @@ function renderWithContext(element) {
 }
 
 test('fetches bots on load', async () => {
-  jest
-    .spyOn(api, 'get')
-    .mockResolvedValueOnce({ ...botsApiResponseFixture })
-    .mockResolvedValueOnce(['role-1', 'editor']);
+  jest.spyOn(api, 'get').mockResolvedValueOnce({ ...botsApiResponseFixture });
   renderWithContext(<Bots />);
 
   expect(screen.getByText('Bots')).toBeInTheDocument();
@@ -49,7 +46,7 @@ test('fetches bots on load', async () => {
       screen.getByText(botsApiResponseFixture.items[0].metadata.name)
     ).toBeInTheDocument();
   });
-  expect(api.get).toHaveBeenCalledTimes(2);
+  expect(api.get).toHaveBeenCalledTimes(1);
 });
 
 test('calls edit endpoint', async () => {

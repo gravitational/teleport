@@ -760,7 +760,7 @@ type ReRegisterParams struct {
 }
 
 // ReRegister renews the certificates and private keys based on the client's existing identity.
-func ReRegister(params ReRegisterParams) (*Identity, error) {
+func ReRegister(ctx context.Context, params ReRegisterParams) (*Identity, error) {
 	var rotation *types.Rotation
 	if !params.Rotation.IsZero() {
 		// older auths didn't distinguish between empty and nil rotation
@@ -768,7 +768,7 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 		// if it is truly non-empty.
 		rotation = &params.Rotation
 	}
-	certs, err := params.Client.GenerateHostCerts(context.Background(),
+	certs, err := params.Client.GenerateHostCerts(ctx,
 		&proto.HostCertsRequest{
 			HostID:               params.ID.HostID(),
 			NodeName:             params.ID.NodeName,

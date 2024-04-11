@@ -21,11 +21,13 @@ import React from 'react';
 import { Account, AccountProps } from './Account';
 
 export default {
-  title: 'Teleport/Account (new)',
+  title: 'Teleport/Account',
   component: Account,
 };
 
 export const Loaded = () => <Account {...props} />;
+
+export const LoadedNoDevices = () => <Account {...props} devices={[]} />;
 
 export const LoadedPasskeysOff = () => (
   <Account {...props} canAddPasskeys={false} />

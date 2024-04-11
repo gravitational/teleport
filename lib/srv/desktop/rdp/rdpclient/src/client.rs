@@ -398,6 +398,10 @@ impl Client {
                             Client::handle_tdp_sd_move_response(x224_processor.clone(), res)
                                 .await?;
                         }
+                        ClientFunction::HandleTdpSdTruncateResponse(res) => {
+                            Client::handle_tdp_sd_truncate_response(x224_processor.clone(), res)
+                                .await?;
+                        }
                         ClientFunction::WriteCliprdr(f) => {
                             Client::write_cliprdr(x224_processor.clone(), &mut write_stream, f)
                                 .await?;
@@ -697,6 +701,21 @@ impl Client {
             .await?
     }
 
+    async fn handle_tdp_sd_truncate_response(
+        x224_processor: Arc<Mutex<x224::Processor>>,
+        res: tdp::SharedDirectoryTruncateResponse,
+    ) -> ClientResult<()> {
+        global::TOKIO_RT
+            .spawn_blocking(move || {
+                debug!("received tdp: {:?}", res);
+                let mut x224_processor = Self::x224_lock(&x224_processor)?;
+                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
+                rdpdr.handle_tdp_sd_truncate_response(res)?;
+                Ok(())
+            })
+            .await?
+    }
+
     async fn add_drive(
         x224_processor: Arc<Mutex<x224::Processor>>,
         sda: tdp::SharedDirectoryAnnounce,
@@ -862,6 +881,8 @@ enum ClientFunction {
     HandleTdpSdWriteResponse(tdp::SharedDirectoryWriteResponse),
     /// Corresponds to [`Client::handle_tdp_sd_move_response`]
     HandleTdpSdMoveResponse(tdp::SharedDirectoryMoveResponse),
+    /// Corresponds to [`Client::handle_tdp_sd_truncate_response`]
+    HandleTdpSdTruncateResponse(tdp::SharedDirectoryTruncateResponse),
     /// Corresponds to [`Client::write_cliprdr`]
     WriteCliprdr(Box<dyn ClipboardFn>),
     /// Corresponds to [`Client::update_clipboard`]
@@ -1037,6 +1058,21 @@ impl ClientHandle {
         res: tdp::SharedDirectoryMoveResponse,
     ) -> ClientResult<()> {
         self.send(ClientFunction::HandleTdpSdMoveResponse(res))
+            .await
+    }
+
+    pub fn handle_tdp_sd_truncate_response(
+        &self,
+        res: tdp::SharedDirectoryTruncateResponse,
+    ) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::HandleTdpSdTruncateResponse(res))
+    }
+
+    pub async fn handle_tdp_sd_truncate_response_async(
+        &self,
+        res: tdp::SharedDirectoryTruncateResponse,
+    ) -> ClientResult<()> {
+        self.send(ClientFunction::HandleTdpSdTruncateResponse(res))
             .await
     }
 

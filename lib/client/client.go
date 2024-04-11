@@ -432,24 +432,8 @@ func makeDatabaseClientPEM(proto string, cert []byte, pk *Key) ([]byte, error) {
 // or an error if anything goes wrong.
 type PromptMFAChallengeHandler func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 
-// issueUserCertsOpts contains extra options for issuing user certs.
-type issueUserCertsOpts struct {
-	mfaRequired *bool
-}
-
-// IssueUserCertsOpt is an option func for issuing user certs.
-type IssueUserCertsOpt func(*issueUserCertsOpts)
-
-// WithMFARequired is an IssueUserCertsOpt that sets the MFA required check
-// result in provided bool ptr.
-func WithMFARequired(mfaRequired *bool) IssueUserCertsOpt {
-	return func(opt *issueUserCertsOpts) {
-		opt.mfaRequired = mfaRequired
-	}
-}
-
 // IssueUserCertsWithMFA generates a single-use certificate for the user.
-func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPrompt mfa.Prompt, applyOpts ...IssueUserCertsOpt) (*Key, error) {
+func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPrompt mfa.Prompt) (*Key, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/IssueUserCertsWithMFA",
@@ -459,11 +443,6 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		),
 	)
 	defer span.End()
-
-	issueOpts := issueUserCertsOpts{}
-	for _, applyOpt := range applyOpts {
-		applyOpt(&issueOpts)
-	}
 
 	if params.RouteToCluster == "" {
 		params.RouteToCluster = proxy.siteName
@@ -511,10 +490,6 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 			return nil, trace.Wrap(err)
 		}
 		requiredCheck = check
-	}
-
-	if issueOpts.mfaRequired != nil {
-		*issueOpts.mfaRequired = requiredCheck.Required
 	}
 
 	if !requiredCheck.Required {

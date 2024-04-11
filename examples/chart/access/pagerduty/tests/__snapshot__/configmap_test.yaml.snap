@@ -1,0 +1,26 @@
+should match the snapshot (smtp on):
+  1: |
+    apiVersion: v1
+    data:
+      teleport-pagerduty.toml: |
+        [teleport]
+        addr = "teleport.example.com:1234"
+        identity = "/var/lib/teleport/plugins/pagerduty/teleport-identity/auth_id"
+        refresh_identity = true
+
+        [pagerduty]
+        api_key    = "/var/lib/teleport/plugins/pagerduty/pagerduty_api_key"
+        user_email = "example-user@example.com"
+
+        [log]
+        output = "/var/log/teleport-pagerduty.log"
+        severity = "DEBUG"
+    kind: ConfigMap
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-plugin-pagerduty
+        app.kubernetes.io/version: 16.0.0-dev
+        helm.sh/chart: teleport-plugin-pagerduty-16.0.0-dev
+      name: RELEASE-NAME-teleport-plugin-pagerduty
