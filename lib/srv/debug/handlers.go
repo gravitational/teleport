@@ -22,7 +22,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/pprof"
-	"strings"
 
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -38,28 +37,30 @@ type LogLeveler interface {
 // NewServeMux returns a http mux that handles all the debug service endpoints.
 func NewServeMux(logger *slog.Logger, leveler LogLeveler) *http.ServeMux {
 	mux := http.NewServeMux()
-	mux.HandleFunc(PProfEndpointsPrefix, pprofMiddleware(logger, pprof.Index))
-	mux.HandleFunc(PProfEndpointsPrefix+"cmdline", pprofMiddleware(logger, pprof.Cmdline))
-	mux.HandleFunc(PProfEndpointsPrefix+"profile", pprofMiddleware(logger, pprof.Profile))
-	mux.HandleFunc(PProfEndpointsPrefix+"symbol", pprofMiddleware(logger, pprof.Symbol))
-	mux.HandleFunc(PProfEndpointsPrefix+"trace", pprofMiddleware(logger, pprof.Trace))
-	mux.Handle(LogLevelEndpoint, handleLog(logger, leveler))
+	mux.HandleFunc(PProfEndpointsPrefix+"cmdline", pprofMiddleware(logger, "cmdline", pprof.Cmdline))
+	mux.HandleFunc(PProfEndpointsPrefix+"profile", pprofMiddleware(logger, "profile", pprof.Profile))
+	mux.HandleFunc(PProfEndpointsPrefix+"symbol", pprofMiddleware(logger, "symbol", pprof.Symbol))
+	mux.HandleFunc(PProfEndpointsPrefix+"trace", pprofMiddleware(logger, "trace", pprof.Trace))
+	mux.HandleFunc(PProfEndpointsPrefix+"{profile}", func(w http.ResponseWriter, r *http.Request) {
+		pprofMiddleware(logger, r.PathValue("profile"), pprof.Index)(w, r)
+	})
+	mux.Handle(GetLogLevelMethod+" "+LogLevelEndpoint, handleGetLog(logger, leveler))
+	mux.Handle(SetLogLevelMethod+" "+LogLevelEndpoint, handleSetLog(logger, leveler))
 	return mux
 }
 
-// handleLog returns the http set/get log level handler.
-func handleLog(logger *slog.Logger, leveler LogLeveler) http.HandlerFunc {
+// handleGetLog returns the http get log level handler.
+func handleGetLog(logger *slog.Logger, leveler LogLeveler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == GetLogLevelMethod {
-			w.Write([]byte(logutils.MarshalText(leveler.GetLogLevel())))
-			return
-		}
+		level := leveler.GetLogLevel()
+		logger.InfoContext(r.Context(), "Log level requested", "log_level", level)
+		w.Write([]byte(logutils.MarshalText(level)))
+	}
+}
 
-		if r.Method != SetLogLevelMethod {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-
+// handleSetLog returns the http set log level handler.
+func handleSetLog(logger *slog.Logger, leveler LogLeveler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		rawLevel, err := io.ReadAll(io.LimitReader(r.Body, 1024))
 		defer r.Body.Close()
 		if err != nil {
@@ -89,7 +90,7 @@ func handleLog(logger *slog.Logger, leveler LogLeveler) http.HandlerFunc {
 }
 
 // pprofMiddleware logs pprof HTTP requests.
-func pprofMiddleware(logger *slog.Logger, next http.HandlerFunc) http.HandlerFunc {
+func pprofMiddleware(logger *slog.Logger, profile string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		seconds := r.URL.Query().Get("seconds")
 		if seconds == "" {
@@ -99,7 +100,7 @@ func pprofMiddleware(logger *slog.Logger, next http.HandlerFunc) http.HandlerFun
 		logger.InfoContext(
 			r.Context(),
 			"Collecting pprof profile.",
-			"profile", strings.TrimSuffix(r.URL.Path, PProfEndpointsPrefix),
+			"profile", profile,
 			"seconds", seconds,
 		)
 
