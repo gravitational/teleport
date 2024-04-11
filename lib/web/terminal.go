@@ -537,6 +537,9 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 			Certificates:       []tls.Certificate{tlsCert},
 			NextProtos:         []string{teleport.WebDBClientALPN},
 		}
+		if t.proxyPublicAddr != "" {
+			tlsCfg.ServerName, _, _ = net.SplitHostPort(t.proxyPublicAddr)
+		}
 
 		// dial the proxy (aka dialing myself)
 		tlsConn, err := apiclient.DialALPN(ctx, tc.WebProxyAddr, apiclient.ALPNDialerConfig{

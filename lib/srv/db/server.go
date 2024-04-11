@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os/exec"
 	"strings"
@@ -305,6 +306,9 @@ type Server struct {
 	connContext context.Context
 	// closeConnFunc is the cancel function of the connContext context.
 	closeConnFunc context.CancelFunc
+
+	// TODO by sesison ID
+	sessions map[net.Conn]*srv.TermManager
 }
 
 // monitoredDatabases is a collection of databases from different sources
@@ -403,6 +407,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 		},
 		connContext:   connCtx,
 		closeConnFunc: connCancelFunc,
+		sessions:      make(map[net.Conn]*srv.TermManager),
 	}
 
 	// Update TLS config to require client certificate.
@@ -1002,11 +1007,20 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		return trace.Wrap(err)
 	}
 
+	monitorConn := clientConn
 	if isWebUI {
-		s.log.Debug("got a web ui conn")
-		clientConn, err = s.handleWebUIConn(ctx, clientConn, sessionCtx)
-		if err != nil {
-			return trace.Wrap(err)
+		if sessionCtx.DatabaseUser == "join-as-peer" {
+			s.log.WithField("db-user", sessionCtx.DatabaseUser).Debug("got a web ui peer conn")
+			clientConn, err = s.handleWebUIPeerConn(ctx, clientConn)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			s.log.WithField("db-user", sessionCtx.DatabaseUser).Debug("got a web ui conn")
+			clientConn, err = s.handleWebUIConn(ctx, clientConn, sessionCtx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	} else {
 		s.log.Debug("got a non web ui conn")
@@ -1024,6 +1038,15 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		}
 		if err != nil {
 			engine.SendError(err)
+		}
+		if isWebUI {
+			manager, ok := s.sessions[monitorConn]
+			s.log.Debugf("=== cleaning up term manager %v", ok)
+			if ok {
+				manager.Off()
+				manager.Close()
+				delete(s.sessions, monitorConn)
+			}
 		}
 	}()
 
@@ -1260,6 +1283,35 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 	return nil
 }
 
+func (s *Server) handleWebUIPeerConn(ctx context.Context, webConn net.Conn) (net.Conn, error) {
+	s.log.Debug("=== handling a web ui peer connection")
+	// TODO Join any session for now, but need to find by sesion ID.
+	for _, manager := range s.sessions {
+		webConn.Write(manager.GetRecentHistory())
+		manager.AddWriter("peer", webConn)
+		manager.AddReader("peer", webConn)
+		<-manager.TerminateNotifier()
+		return nil, trace.Errorf("peeer success")
+	}
+	return nil, trace.Errorf("no session found")
+}
+
+func (s *Server) startTermManager(ctx context.Context, webConn net.Conn) io.ReadWriter {
+	manager := srv.NewTermManager()
+	s.sessions[webConn] = manager
+
+	manager.OnReadError = func(id string, err error) {
+		s.log.Debugf("== read error %v, %v", id, err)
+	}
+	manager.OnWriteError = func(id string, err error) {
+		s.log.Debugf("== write error %v, %v", id, err)
+	}
+	manager.AddWriter("host", webConn)
+	manager.AddReader("host", webConn)
+	manager.On()
+	return manager
+}
+
 func (s *Server) handleWebUIConn(ctx context.Context, webConn net.Conn, sessionCtx *common.Session) (net.Conn, error) {
 	s.log.Debug("handling a web ui connection")
 
@@ -1272,9 +1324,11 @@ func (s *Server) handleWebUIConn(ctx context.Context, webConn net.Conn, sessionC
 	defer l.Close()
 	s.log.Debugf("started a local proxy listener at %s", l.Addr())
 
+	manager := s.startTermManager(ctx, webConn)
+
 	// start psql
 	addr := l.Addr().String()
-	if err := s.pSQLConnect(ctx, addr, webConn, sessionCtx); err != nil {
+	if err := s.pSQLConnect(ctx, addr, webConn, sessionCtx, manager); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1286,7 +1340,21 @@ func (s *Server) handleWebUIConn(ctx context.Context, webConn net.Conn, sessionC
 	return localConn, nil
 }
 
-func (s *Server) pSQLConnect(ctx context.Context, addr string, webConn net.Conn, sessionCtx *common.Session) error {
+// TODO tmp hack, fix term manager Close func to satisfy io.ReadWriteCloser
+type nopReadWriteCloser struct {
+	io.ReadWriter
+}
+
+func newNopReadWriterCloser(in io.ReadWriter) io.ReadWriteCloser {
+	return &nopReadWriteCloser{
+		ReadWriter: in,
+	}
+}
+func (n *nopReadWriteCloser) Close() error {
+	return nil
+}
+
+func (s *Server) pSQLConnect(ctx context.Context, addr string, webConn net.Conn, sessionCtx *common.Session, manager io.ReadWriter) error {
 	dbUser := sessionCtx.DatabaseUser
 	dbName := sessionCtx.DatabaseName
 	pgURL := fmt.Sprintf("postgres://%s@%s/%s?sslmode=disable", dbUser, addr, dbName)
@@ -1298,8 +1366,9 @@ func (s *Server) pSQLConnect(ctx context.Context, addr string, webConn net.Conn,
 		s.log.WithError(err).Debug("failed to get a pty")
 		return trace.Wrap(err)
 	}
+
 	go func() {
-		err := utils.ProxyConn(ctx, webConn, ptmx)
+		err := utils.ProxyConn(ctx, newNopReadWriterCloser(manager), ptmx)
 		s.log.WithError(err).Debug("finished copying between web conn and psql")
 	}()
 
