@@ -106,13 +106,20 @@ func withPlugin(p plugin.Plugin) webSuiteOption {
 }
 
 type webSuiteOptions struct {
-	customPlugin        plugin.Plugin
-	accessGraphFeatures string
+	customPlugin                plugin.Plugin
+	accessGraphFeatures         string
+	runWhileLockedRetryInterval time.Duration
 }
 
 func withAccessGraphFeatures(features string) webSuiteOption {
 	return func(o *webSuiteOptions) {
 		o.accessGraphFeatures = features
+	}
+}
+
+func withRunWhileLockedRetryInterval(interval time.Duration) webSuiteOption {
+	return func(o *webSuiteOptions) {
+		o.runWhileLockedRetryInterval = interval
 	}
 }
 
@@ -181,6 +188,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
 				SecondFactor: "otp",
 			},
+			RunWhileLockedRetryInterval: options.runWhileLockedRetryInterval,
 		},
 		TLS: &auth.TestTLSServerConfig{
 			APIConfig: &auth.APIConfig{PluginRegistry: pluginRegistry},

@@ -15,6 +15,7 @@ import (
 // required by the reconciler
 type AccessListMembers interface {
 	UpsertAccessListMember(context.Context, *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
+	UpdateAccessListMember(context.Context, *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
 	DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error
 }
 

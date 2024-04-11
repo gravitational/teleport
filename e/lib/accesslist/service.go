@@ -55,6 +55,9 @@ var (
 		cmpopts.IgnoreFields(accesslist.AccessList{}, "Status"),
 		// ID is handled by the backend, so it'll be ignored here.
 		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
+		// Ignore the IneligibleStatus field for owners since
+		// it's managed by the reconciler.
+		cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
 	}
 
 	// reviewValidOwnerChanges lists the fields that owners are allowed to modify as part of a review.
@@ -66,10 +69,6 @@ var (
 	oktaValidModifications = append([]cmp.Option{cmpopts.IgnoreFields(accesslist.Spec{}, "Owners", "MembershipRequires", "OwnershipRequires")},
 		ignoreEphemeralFields...)
 )
-
-type UsersService interface {
-	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
-}
 
 type AuthServer interface {
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
@@ -109,10 +108,17 @@ type ServiceConfig struct {
 	// Clock is the clock.
 	Clock clockwork.Clock
 
-	CachedUsersServices UsersService
+	// Cache is the Auth server cache.
+	Cache Cache
 
 	// AuthServer implements the minimal auth server interface.
 	AuthServer AuthServer
+
+	// Backend is the backend to use.
+	Backend backend.Backend
+	// disableReconciler is a flag to disable the reconciler
+	// for access list ineligibility updates during tests.
+	disableReconciler bool
 }
 
 // UsageEventsClient is an interface that allows for submitting usage events to Posthog.
@@ -142,12 +148,16 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 		return trace.BadParameter("emitter is missing")
 	}
 
-	if c.CachedUsersServices == nil {
-		return trace.BadParameter("CachedUsersServices is missing")
+	if c.Cache == nil {
+		return trace.BadParameter("Cache is missing")
 	}
 
 	if c.AuthServer == nil {
 		return trace.BadParameter("auth server is missing")
+	}
+
+	if c.Backend == nil {
+		return trace.BadParameter("backend is missing")
 	}
 
 	if c.Logger == nil {
@@ -173,20 +183,21 @@ type Service struct {
 	usageReporter     usagereporter.UsageReporter
 	emitter           apievents.Emitter
 	clock             clockwork.Clock
-	cachedUsers       UsersService
+	cache             Cache
 	authServer        AuthServer
+	backend           backend.Backend
 
 	// When not set, this will use the default page size for ListUsers.
 	userPageSize int
 }
 
 // NewService creates a new Access List gRPC service.
-func NewService(cfg ServiceConfig) (*Service, error) {
+func NewService(ctx context.Context, cfg ServiceConfig) (*Service, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &Service{
+	s := &Service{
 		log:         cfg.Logger,
 		authorizer:  cfg.Authorizer,
 		accessLists: cfg.AccessLists,
@@ -197,9 +208,16 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		usageReporter:     cfg.UsageReporter,
 		emitter:           cfg.Emitter,
 		clock:             cfg.Clock,
-		cachedUsers:       cfg.CachedUsersServices,
+		cache:             cfg.Cache,
 		authServer:        cfg.AuthServer,
-	}, nil
+		backend:           cfg.Backend,
+	}
+
+	if !cfg.disableReconciler {
+		go s.runAccessListIneligibleReconciler(ctx)
+	}
+
+	return s, nil
 }
 
 // GetAccessLists returns a list of all access lists.
@@ -384,7 +402,7 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 	s.addMemberCounts(ctx, isMember, result)
 
 	// Get a list of all users, to compute eligibility for owners.
-	users, err := s.getAllUsers(ctx)
+	users, err := getAllUsers(ctx, s.cache, s.userPageSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -397,13 +415,13 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 }
 
 // getAllUsers returns all users known to Teleport.
-func (s *Service) getAllUsers(ctx context.Context) ([]types.User, error) {
+func getAllUsers(ctx context.Context, cache Cache, pageSize int) ([]types.User, error) {
 	var users []types.User
 	req := userspb.ListUsersRequest{
-		PageSize: int32(s.userPageSize),
+		PageSize: int32(pageSize),
 	}
 	for {
-		rsp, err := s.cachedUsers.ListUsers(ctx, &req)
+		rsp, err := cache.ListUsers(ctx, &req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -461,7 +479,22 @@ func needsReviewBy(identity tlsca.Identity, accessList *accesslist.AccessList, n
 
 // UpsertAccessList creates or updates an access list resource.
 func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.UpsertAccessListRequest) (*accesslistv1.AccessList, error) {
-	newAccessList, err := conv.FromProto(req.GetAccessList())
+	rsp, err := s.updateOrUpsertAccessList(ctx, req.GetAccessList(), s.upsertAccessList)
+	return rsp, trace.Wrap(err)
+}
+
+// UpdateAccessList updates an access list resource.
+func (s *Service) UpdateAccessList(ctx context.Context, req *accesslistv1.UpdateAccessListRequest) (*accesslistv1.AccessList, error) {
+	rsp, err := s.updateOrUpsertAccessList(ctx, req.GetAccessList(), s.updateAccessList)
+	return rsp, trace.Wrap(err)
+}
+
+// updateOrUpsertAccessListSigFunc is a function that will upsert or update an access list.
+// it's the signature for
+type updateOrUpsertAccessListSigFunc func(ctx context.Context, authCtx *authz.Context, newAccessList *accesslist.AccessList) (resp *accesslistv1.AccessList, err error)
+
+func (s *Service) updateOrUpsertAccessList(ctx context.Context, accessList *accesslistv1.AccessList, funcOpts updateOrUpsertAccessListSigFunc) (*accesslistv1.AccessList, error) {
+	newAccessList, err := conv.FromProto(accessList)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -508,7 +541,7 @@ func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.Upsert
 	}
 
 	updated := oldAccessList != nil
-	resp, upsertErr := s.upsertAccessList(ctx, authCtx, newAccessList)
+	resp, upsertErr := funcOpts(ctx, authCtx, newAccessList)
 
 	s.emitUpsertAccessListEvent(ctx, username, updated, accessListName, upsertErr)
 
@@ -522,6 +555,16 @@ func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.Upsert
 // upsertAccessList is a helper for upserting the access list that returns the response, whether this was an update request, and an error.
 func (s *Service) upsertAccessList(ctx context.Context, authCtx *authz.Context, newAccessList *accesslist.AccessList) (resp *accesslistv1.AccessList, err error) {
 	responseAccessList, err := s.accessLists.UpsertAccessList(ctx, newAccessList)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conv.ToProto(responseAccessList), nil
+}
+
+// updateAccessList is a helper for updating the access list that returns the response, whether this was an update request, and an error.
+func (s *Service) updateAccessList(ctx context.Context, authCtx *authz.Context, newAccessList *accesslist.AccessList) (resp *accesslistv1.AccessList, err error) {
+	responseAccessList, err := s.accessLists.UpdateAccessList(ctx, newAccessList)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -734,7 +777,7 @@ func (s *Service) ListAccessListMembers(ctx context.Context, req *accesslistv1.L
 	}
 
 	// Get a list of all users, to compute eligibility for members.
-	users, err := s.getAllUsers(ctx)
+	users, err := getAllUsers(ctx, s.cache, s.userPageSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -783,7 +826,7 @@ func (s *Service) UpsertAccessListMember(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
-	resp, accessListName, updated, upsertErr := s.upsertAccessListMember(ctx, authCtx, member)
+	resp, accessListName, updated, upsertErr := s.upsertAccessListMember(ctx, authCtx, member, s.accessLists.UpsertAccessListMember)
 
 	var joinTime time.Time
 	if resp != nil {
@@ -800,8 +843,49 @@ func (s *Service) UpsertAccessListMember(ctx context.Context, req *accesslistv1.
 	return resp, trace.Wrap(upsertErr)
 }
 
+// UpdateAccessListMember updates an access list member resource.
+func (s *Service) UpdateAccessListMember(ctx context.Context, req *accesslistv1.UpdateAccessListMemberRequest) (*accesslistv1.Member, error) {
+	authCtx, err := s.authOrIsOwner(ctx, req.Member.Spec.AccessList, types.VerbCreate, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	member, err := conv.FromMemberProto(req.Member)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	username, err := getUsername(authCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, accessListName, updated, upsertErr := s.upsertAccessListMember(ctx, authCtx, member, s.accessLists.UpdateAccessListMember)
+
+	var joinTime time.Time
+	if resp != nil {
+		joinTime = resp.Spec.Joined.AsTime()
+	}
+
+	s.emitUpsertAccessListMemberEvent(ctx, username, updated, accessListName, upsertErr,
+		accessListMembersForEvent(joinTime, time.Time{}, accessListMemberProtoToMemberEventMetadata(req.Member))...)
+
+	if upsertErr == nil {
+		s.emitUpsertAccessListMemberUsageEvent(ctx, updated, accessListName)
+	}
+
+	return resp, trace.Wrap(upsertErr)
+}
+
+// updateOrUpsertSignature is a function signature for updating or upserting access list members.
+type updateOrUpsertSignature func(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
+
 // upsertAccessListMember is a helper for creating or updating access list members that returns the response, whether this was an update, and an error.
-func (s *Service) upsertAccessListMember(ctx context.Context, authCtx *authz.Context, member *accesslist.AccessListMember) (resultProto *accesslistv1.Member, accessListName string, updated bool, err error) {
+func (s *Service) upsertAccessListMember(ctx context.Context, authCtx *authz.Context, member *accesslist.AccessListMember, f updateOrUpsertSignature) (resultProto *accesslistv1.Member, accessListName string, updated bool, err error) {
 	updated = false
 	username, err := getUsername(authCtx)
 	if err != nil {
@@ -819,7 +903,7 @@ func (s *Service) upsertAccessListMember(ctx context.Context, authCtx *authz.Con
 		return nil, member.Spec.AccessList, updated, trace.Wrap(err)
 	}
 
-	result, err := s.accessLists.UpsertAccessListMember(ctx, member)
+	result, err := f(ctx, member)
 	if err != nil {
 		return nil, member.Spec.AccessList, updated, trace.Wrap(err)
 	}
@@ -1284,7 +1368,7 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 	modified = getModifiedMembers(oldMembers, updatedMembers)
 
 	// Get a list of all users, to compute eligibility's.
-	users, err := s.getAllUsers(ctx)
+	users, err := getAllUsers(ctx, s.cache, s.userPageSize)
 	if err != nil {
 		return nil, updated, accessListModified, nil, trace.Wrap(err)
 	}
@@ -1514,7 +1598,7 @@ func (s *Service) AccessRequestPromote(ctx context.Context, req *accesslistv1.Ac
 			Name:       memberName,
 			AddedBy:    authCtx.User.GetName(),
 		},
-	})
+	}, s.accessLists.UpsertAccessListMember)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1855,6 +1939,53 @@ func (s *Service) addMemberCounts(ctx context.Context, isMember bool, accessList
 		return
 	}
 	accessList.Status.MemberCount = &memberCount
+}
+
+func (s *Service) runAccessListIneligibleReconciler(ctx context.Context) error {
+	const accessListIneligibleReconciler = "access_list_ineligible_reconciler"
+	for {
+		err := backend.RunWhileLocked(
+			ctx,
+			backend.RunWhileLockedConfig{
+				LockConfiguration: backend.LockConfiguration{
+					LockName:      accessListIneligibleReconciler,
+					Backend:       s.backend,
+					TTL:           60 * time.Second,
+					RetryInterval: 30 * time.Second,
+				},
+				ReleaseCtxTimeout:   60 * time.Second,
+				RefreshLockInterval: 30 * time.Second,
+			},
+			func(ctx context.Context) error {
+				reconciler, err := NewIneligibleStatusReconciler(
+					ctx,
+					IneligibleStatusReconcilerConfig{
+						Cache:   s.cache,
+						Service: s.accessLists,
+						Log:     s.log.WithField("reconciler", accessListIneligibleReconciler),
+						Clock:   s.clock,
+					},
+				)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				defer reconciler.Close()
+				if err := reconciler.Run(ctx); err != nil {
+					s.log.WithError(err).Error("Error running access list ineligible reconciler")
+					return trace.Wrap(err)
+				}
+				return nil
+			},
+		)
+		if err != nil {
+			select {
+			case <-s.clock.After(30 * time.Second):
+			case <-ctx.Done():
+				return trace.Wrap(err)
+			}
+			s.log.WithError(err).Error("Error running access list ineligible reconciler")
+		}
+	}
 }
 
 type StillEligibleFields struct {

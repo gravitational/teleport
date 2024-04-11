@@ -731,7 +731,8 @@ type testClient struct {
 }
 
 type testEnvironment struct {
-	identity services.Identity
+	identity    services.Identity
+	accessLists services.AccessLists
 }
 
 type testSvcComponents struct {
@@ -748,8 +749,25 @@ type testSvcComponents struct {
 	testEnv          *testEnvironment
 }
 
-func initSvc(t *testing.T) testSvcComponents {
-	ctx := context.Background()
+type testSvcOptions struct {
+	disabledReconciler bool
+}
+
+type svcOpts func(*testSvcOptions)
+
+func withDisabledReconciler() svcOpts {
+	return func(o *testSvcOptions) {
+		o.disabledReconciler = true
+	}
+}
+
+func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
+	var options testSvcOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	clock := clockwork.NewFakeClock()
 	backend, err := memory.New(memory.Config{
 		Clock: clock,
@@ -769,7 +787,8 @@ func initSvc(t *testing.T) testSvcComponents {
 	trustSvc := local.NewCAService(backend)
 	roleSvc := local.NewAccessService(backend)
 	userSvc := local.NewIdentityService(backend)
-
+	storage, err := local.NewAccessListService(backend, clock, local.WithRunWhileLockedRetryInterval(-1*time.Millisecond))
+	require.NoError(t, err)
 	_, err = clusterConfigSvc.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
 	require.NoError(t, err)
 	require.NoError(t, clusterConfigSvc.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()))
@@ -804,13 +823,11 @@ func initSvc(t *testing.T) testSvcComponents {
 	})
 	require.NoError(t, err)
 
-	type client struct {
-		services.Access
-		services.Identity
-	}
 	clt := client{
-		Access:   accessService,
-		Identity: userSvc,
+		Access:        accessService,
+		Identity:      userSvc,
+		AccessLists:   storage,
+		EventsService: eventService,
 	}
 
 	role, err := auth.CreateRole(ctx, clt, "access-lists", types.RoleSpecV6{
@@ -929,25 +946,26 @@ func initSvc(t *testing.T) testSvcComponents {
 	_, err = userSvc.CreateUser(ctx, owner2)
 	require.NoError(t, err)
 
-	storage, err := local.NewAccessListService(backend, clock)
-	require.NoError(t, err)
-
 	locks := local.NewAccessService(backend)
 
 	usageEvents := &usageEventsClient{}
 	usageReporter := &usageReporter{}
-	svc, err := NewService(ServiceConfig{
-		Authorizer:          authorizer,
-		AccessLists:         storage,
-		LockGetter:          locks,
-		AccessListReviews:   storage,
-		Emitter:             emitter,
-		UsageEvents:         usageEvents,
-		UsageReporter:       usageReporter,
-		Clock:               clock,
-		CachedUsersServices: userSvc,
-		AuthServer:          &fakeAuth{},
-	})
+	svc, err := NewService(
+		ctx,
+		ServiceConfig{
+			Authorizer:        authorizer,
+			AccessLists:       storage,
+			LockGetter:        locks,
+			AccessListReviews: storage,
+			Emitter:           emitter,
+			UsageEvents:       usageEvents,
+			UsageReporter:     usageReporter,
+			Clock:             clock,
+			Cache:             &clt,
+			AuthServer:        &fakeAuth{},
+			Backend:           backend,
+			disableReconciler: options.disabledReconciler,
+		})
 	require.NoError(t, err)
 
 	// Force pagination for testing purposes.
@@ -992,7 +1010,8 @@ func initSvc(t *testing.T) testSvcComponents {
 		usageEvents:      usageEvents,
 		usageReporter:    usageReporter,
 		testEnv: &testEnvironment{
-			identity: userSvc,
+			identity:    userSvc,
+			accessLists: storage,
 		},
 	}
 }
@@ -1152,6 +1171,13 @@ func TestService_GetAccessListMember(t *testing.T) {
 	member, err = c.svc.GetAccessListMember(c.userWhereCtx, &accesslistv1.GetAccessListMemberRequest{AccessList: a2.GetName(), MemberName: a2m2.GetName()})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(a2m2, mustFromMemberProto(t, member), cmpOpts...))
+}
+
+type client struct {
+	services.Access
+	services.Identity
+	services.AccessLists
+	*local.EventsService
 }
 
 func TestService_UpsertAccessListMember(t *testing.T) {
@@ -1417,7 +1443,8 @@ func TestService_UpsertAccessListWithMembers_IneligibleStatus(t *testing.T) {
 }
 
 func TestService_UpsertAccessListWithMembers(t *testing.T) {
-	c := initSvc(t)
+	// disable reconciler to avoid extra update events
+	c := initSvc(t, withDisabledReconciler())
 
 	memberCtx := genUserContext(context.Background(), member2, []string{"mrole1", "mrole2"}, map[string][]string{
 		"mtrait1": {"mvalue1", "mvalue2"},

@@ -35,7 +35,11 @@ func TestGetAccessLists(t *testing.T) {
 		TestFeatures: modules.Features{IdentityGovernanceSecurity: true},
 	})
 
-	s := newWebSuite(t)
+	s := newWebSuite(t,
+		// Disable retry interval to prevent test from hanging
+		// because it uses the fake clock.
+		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+	)
 	webPack := s.newAuthWebPack(t, "foo")
 	authClient := s.newAdminAuthClient(s.ctx, t)
 
@@ -97,14 +101,22 @@ func TestGetAccessLists(t *testing.T) {
 }
 
 func TestCreateAccessList(t *testing.T) {
-	s := newWebSuite(t)
+	s := newWebSuite(t,
+		// Disable retry interval to prevent test from hanging
+		// because it uses the fake clock.
+		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+	)
 	webPack := s.newAuthWebPack(t, "foo")
 
 	createTestAccessList(t, webPack, s)
 }
 
 func TestUpdateAccessList(t *testing.T) {
-	s := newWebSuite(t)
+	s := newWebSuite(t,
+		// Disable retry interval to prevent test from hanging
+		// because it uses the fake clock.
+		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+	)
 	webPack := s.newAuthWebPack(t, "foo")
 
 	accessListId := createTestAccessList(t, webPack, s)
@@ -175,7 +187,11 @@ func updateAccessList(t *testing.T, webPack *authWebPack, s *webSuite, accessLis
 }
 
 func TestGetAccessList(t *testing.T) {
-	s := newWebSuite(t)
+	s := newWebSuite(t,
+		// Disable retry interval to prevent test from hanging
+		// because it uses the fake clock.
+		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+	)
 	webPack := s.newAuthWebPack(t, "foo")
 	authClient := s.newAdminAuthClient(s.ctx, t)
 
@@ -220,14 +236,17 @@ func TestGetAccessList(t *testing.T) {
 
 	accessListResp := getAccessList(t, webPack, s, createdAccessList.GetName())
 	require.Empty(t, cmp.Diff(createdAccessList, accessListResp.AccessList.AccessList, accessListCmpOpts))
-
 	// Members are returned by the API.
 	require.Len(t, accessListResp.AccessList.Members, 1)
 	require.Equal(t, createdMember.Spec, accessListResp.AccessList.Members[0])
 }
 
 func TestDeleteAccessList(t *testing.T) {
-	s := newWebSuite(t)
+	s := newWebSuite(t,
+		// Disable retry interval to prevent test from hanging
+		// because it uses the fake clock.
+		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+	)
 	webPack := s.newAuthWebPack(t, "foo")
 	authClient := s.newAdminAuthClient(s.ctx, t)
 
@@ -254,7 +273,11 @@ func TestDeleteAccessList(t *testing.T) {
 }
 
 func TestAddMemberToAccessList(t *testing.T) {
-	s := newWebSuite(t)
+	s := newWebSuite(t,
+		// Disable retry interval to prevent test from hanging
+		// because it uses the fake clock.
+		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+	)
 	webPack := s.newAuthWebPack(t, "foo")
 
 	accessListName := createTestAccessList(t, webPack, s)
@@ -287,7 +310,11 @@ func addMemberToAccessList(t *testing.T, webPack *authWebPack, s *webSuite, acce
 }
 
 func TestReviewAccessList(t *testing.T) {
-	s := newWebSuite(t)
+	s := newWebSuite(t,
+		// Disable retry interval to prevent test from hanging
+		// because it uses the fake clock.
+		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+	)
 	webPack := s.newAuthWebPack(t, "foo")
 
 	accessListName := createTestAccessList(t, webPack, s)

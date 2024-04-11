@@ -5,6 +5,7 @@ package operatortest
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -27,6 +28,9 @@ func startAuthServer(t *testing.T) *client.Client {
 	})
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir: t.TempDir(),
+		// Disable the retry interval to make tests unblock when
+		// RunWhileLocked is called.
+		RunWhileLockedRetryInterval: -1 * time.Millisecond,
 	})
 	require.NoError(t, err)
 
