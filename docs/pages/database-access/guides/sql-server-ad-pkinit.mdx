@@ -5,6 +5,16 @@ description: How to configure Microsoft SQL Server access with Active Directory 
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="Microsoft SQL Server" dbConfigure="Microsoft SQL Server database with PKINIT authentication" dbName="Microsoft SQL Server" !)
 
+## How it works
+
+The Teleport Database Service joins the same Active Directory domain as the SQL
+Server database and uses the Kerberos protocol to authenticate with SQL Server.
+An Active Directory domain is configured to trust the Teleport certificate
+authority. When a user connects to SQL Server via Teleport, the Database Service
+uses [PKINIT](https://web.mit.edu/kerberos/krb5-1.12/doc/admin/pkinit.html) to
+obtain a ticket-granting ticket from Active Directory. After authenticating, the
+Teleport Database Service forwards user traffic to the database.
+
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Database access with SQL Server and AD authentication](../../../img/database-access/sql-server-ad-1.png)

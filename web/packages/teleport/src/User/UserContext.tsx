@@ -18,11 +18,11 @@
 
 import React, {
   createContext,
-  useCallback,
   PropsWithChildren,
+  useCallback,
   useContext,
-  useRef,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 
@@ -168,6 +168,10 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
       // updatePreferences only update the root cluster so we can only pass cluster
       // preferences from the root cluster
       clusterPreferences: clusterPreferences.current[cfg.proxyCluster],
+      accessGraph: {
+        ...preferences.accessGraph,
+        ...newPreferences.accessGraph,
+      },
     } as UserPreferences;
     setPreferences(nextPreferences);
     storageService.setUserPreferences(nextPreferences);

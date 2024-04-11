@@ -466,6 +466,8 @@ const (
 	DeviceUpdateCode = "TV007I"
 	// DeviceWebTokenCreateCode is the device web token creation code.
 	DeviceWebTokenCreateCode = "TV008I"
+	// DeviceAuthenticateConfirmCode is the device authentication confirm code.
+	DeviceAuthenticateConfirmCode = "TV009I"
 
 	// LoginRuleCreateCode is the login rule create code.
 	LoginRuleCreateCode = "TLR00I"

@@ -788,6 +788,9 @@ type DiscoveryAccessPoint interface {
 
 	// Ping gets basic info about the auth server.
 	Ping(context.Context) (proto.PingResponse, error)
+
+	// UpdateDiscoveryConfigStatus updates the status of a discovery config.
+	UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error)
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -1385,6 +1388,11 @@ func (w *DiscoveryWrapper) EnrollEKSClusters(ctx context.Context, req *integrati
 // Ping gets basic info about the auth server.
 func (w *DiscoveryWrapper) Ping(ctx context.Context) (proto.PingResponse, error) {
 	return w.NoCache.Ping(ctx)
+}
+
+// UpdateDiscoveryConfigStatus updates the status of a discovery config.
+func (w *DiscoveryWrapper) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
+	return w.NoCache.UpdateDiscoveryConfigStatus(ctx, name, status)
 }
 
 // Close closes all associated resources

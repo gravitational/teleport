@@ -128,7 +128,7 @@ func (s *PagerdutySuite) startApp() {
 
 	app, err := pagerduty.NewApp(s.appConfig)
 	require.NoError(t, err)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
 }
 
 // TestIncidentCreation validates that an incident is created to the service
