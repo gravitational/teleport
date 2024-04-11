@@ -185,7 +185,7 @@ func TestWithSimulator(t *testing.T) {
 		require.Equal(t, wantEKPubHash, queryRes.EKPubHash)
 		require.NotEmpty(t, queryRes.EKPub)
 		require.True(t, queryRes.EKCertPresent)
-		require.Equal(t, "04:c0:1d:b4:00:b0:c9", queryRes.EKCertSerial)
+		require.Equal(t, ekCertSerialHex, queryRes.EKCertSerial)
 		require.NotEmpty(t, queryRes.EKCert)
 
 		// Now attempt a validation that should succeed without verifying the
@@ -199,7 +199,7 @@ func TestWithSimulator(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, wantEKPubHash, validated.EKPubHash)
 		require.False(t, validated.EKCertVerified)
-		require.Equal(t, "04:c0:1d:b4:00:b0:c9", validated.EKCertSerial)
+		require.Equal(t, ekCertSerialHex, validated.EKCertSerial)
 
 		// Now attempt a validation that should succeed with verifying the
 		// against a CA.
@@ -213,7 +213,7 @@ func TestWithSimulator(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, wantEKPubHash, validated.EKPubHash)
 		require.True(t, validated.EKCertVerified)
-		require.Equal(t, "04:c0:1d:b4:00:b0:c9", validated.EKCertSerial)
+		require.Equal(t, ekCertSerialHex, validated.EKCertSerial)
 
 		// Now attempt a validation that should fail because the allowed CA does
 		// not match the EKCert.
