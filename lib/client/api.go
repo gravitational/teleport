@@ -41,6 +41,7 @@ import (
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
@@ -2107,16 +2108,23 @@ func (tc *TeleportClient) Play(ctx context.Context, sessionID string, speed floa
 }
 
 const (
-	pauseButton   = "||"
-	playButton    = "|>"
-	forwardButton = ">>"
-	rewindButton  = "<<"
+	pauseButton       = "[||]"
+	playButton        = "[|>]"
+	forwardButton     = "+10s"
+	rewindButton      = "-10s"
+	fastForwardButton = "[>>]"
+
+	controlsDescription = " <   (space)   >\t\tpress f to toggle fast forward"
 )
 
-func renderPlayerUI(playing bool) string {
+func (m *model) renderPlayerUI() string {
 	playControl := playButton
-	if playing {
-		playControl = pauseButton
+	if m.playing {
+		if m.fastForward {
+			playControl = fastForwardButton
+		} else {
+			playControl = pauseButton
+		}
 	}
 	return fmt.Sprintf(" %s %s %s ", rewindButton, playControl, forwardButton)
 }
@@ -2145,10 +2153,12 @@ type model struct {
 	err               error
 	currentTimestamp  string
 
-	sessionStart     time.Time
-	pausedAt         time.Time
-	pauseDuration    time.Duration
-	progresTimestamp string
+	sessionStart      time.Time
+	pausedAt          time.Time
+	pauseDuration     time.Duration
+	progressTimestamp string
+
+	controlsStyle lipgloss.Style
 }
 
 func newModel(sessionID string, speed float64, streamer player.Streamer) (*model, error) {
@@ -2221,7 +2231,7 @@ func (m *model) getNextEvent() tea.Msg {
 type tickMsg struct{}
 
 func (m *model) setProgressWidth() {
-	m.progress.Width = m.width - len(renderPlayerUI(m.playing)) - len(m.progresTimestamp) - 1
+	m.progress.Width = m.width - len(m.renderPlayerUI()) - len(m.progressTimestamp) - 2 - m.controlsStyle.GetHorizontalFrameSize()
 }
 
 func (m *model) updateProgress() tea.Cmd {
@@ -2229,7 +2239,7 @@ func (m *model) updateProgress() tea.Cmd {
 		return tickMsg{}
 	})
 	updateTime, prog := m.getProgress()
-	m.progresTimestamp = fmt.Sprintf(
+	m.progressTimestamp = fmt.Sprintf(
 		"%02d:%02d:%02d",
 		updateTime/time.Hour,
 		updateTime/time.Minute%60,
@@ -2274,15 +2284,23 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		if !m.ready {
-			m.viewport = viewport.New(msg.Width, msg.Height-2)
+			m.viewport = viewport.New(0, 0)
 			m.viewport.HighPerformanceRendering = true
 
-			m.progress = progress.New(progress.WithDefaultGradient(), progress.WithoutPercentage())
+			m.progress = progress.New(
+				progress.WithGradient("#651FFF", "#512FC9"),
+				progress.WithoutPercentage(),
+			)
 			m.ready = true
-		} else {
-			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - 2
 		}
+		m.controlsStyle = lipgloss.NewStyle().
+			MaxHeight(4).
+			Width(msg.Width).
+			Border(lipgloss.RoundedBorder()).
+			MarginLeft(1).
+			MarginRight(1)
+		m.viewport.Width = msg.Width
+		m.viewport.Height = msg.Height - m.controlsStyle.GetVerticalBorderSize() - 2
 		cmds = append(cmds,
 			viewport.Sync(m.viewport),
 		)
@@ -2438,13 +2456,11 @@ func (m *model) View() string {
 	if !m.ready {
 		return "not ready"
 	}
+	controls := fmt.Sprintf("%s %s %s\n%s", m.renderPlayerUI(), m.progress.View(), m.progressTimestamp, controlsDescription)
 	return fmt.Sprintf(
-		"%s\n%s\n%s%s %s",
+		"%s\n%s",
 		m.viewport.View(),
-		strings.Repeat("-", m.width),
-		renderPlayerUI(m.playing),
-		m.progress.View(),
-		m.progresTimestamp,
+		m.controlsStyle.Render(controls),
 	)
 }
 
