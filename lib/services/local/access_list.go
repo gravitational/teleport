@@ -383,10 +383,6 @@ func (a *AccessListService) DeleteAllAccessListMembers(ctx context.Context) erro
 	return trace.Wrap(a.memberService.DeleteAllResources(ctx))
 }
 
-func getName[R types.Resource](r R) string {
-	return r.GetName()
-}
-
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.
 func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember, options accesslist.MemberOptions) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
 
@@ -397,7 +393,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 	reconcileMembers := func() error {
 		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 			// Convert the members slice to a map for easier lookup.
-			membersMap := utils.FromSlice(membersIn, getName)
+			membersMap := utils.FromSlice(membersIn, types.GetName)
 
 			var (
 				members      []*accesslist.AccessListMember
