@@ -384,7 +384,7 @@ func (a *AccessListService) DeleteAllAccessListMembers(ctx context.Context) erro
 }
 
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.
-func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember, options accesslist.MemberOptions) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
 
 	if err := validateOwnerList(accessList); err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -416,17 +416,15 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 							return trace.Wrap(err)
 						}
 					} else {
-						if options.PreserveExpiry && !existingMember.Spec.Expires.IsZero() {
+						if !existingMember.Spec.Expires.IsZero() {
 							newMember.Spec.Expires = existingMember.Spec.Expires
 						}
 
-						if options.PreserveReason && (existingMember.Spec.Reason != "") {
+						if existingMember.Spec.Reason != "" {
 							newMember.Spec.Reason = existingMember.Spec.Reason
 						}
 
-						if options.PreserveAddedBy {
-							newMember.Spec.AddedBy = existingMember.Spec.AddedBy
-						}
+						newMember.Spec.AddedBy = existingMember.Spec.AddedBy
 
 						// Compare members and update if necessary.
 						if !cmp.Equal(newMember, existingMember) {
