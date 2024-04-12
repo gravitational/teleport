@@ -272,7 +272,7 @@ func TestAccessListCreate_UpsertAccessListWithMembers_WithLimit(t *testing.T) {
 	accessListMember2 := newAccessListMember(t, accessList1.GetName(), "bob")
 
 	// First create is free.
-	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1}, accesslist.MemberOptions{})
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1})
 	require.NoError(t, err)
 
 	// Check the count
@@ -281,7 +281,7 @@ func TestAccessListCreate_UpsertAccessListWithMembers_WithLimit(t *testing.T) {
 	require.Equal(t, uint32(1), count)
 
 	// Second create should return an error.
-	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList2, []*accesslist.AccessListMember{accessListMember2}, accesslist.MemberOptions{})
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList2, []*accesslist.AccessListMember{accessListMember2})
 	require.True(t, trace.IsAccessDenied(err), "expected access denied / license limit error, got %v", err)
 	require.ErrorContains(t, err, "reached its limit")
 
@@ -299,7 +299,7 @@ func TestAccessListCreate_UpsertAccessListWithMembers_WithLimit(t *testing.T) {
 
 	// Updating existing access list should be allowed.
 	accessList1.Spec.Description = "changing description"
-	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1}, accesslist.MemberOptions{})
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1})
 	require.NoError(t, err)
 
 	// Delete the one access list.
@@ -307,7 +307,7 @@ func TestAccessListCreate_UpsertAccessListWithMembers_WithLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create the same list again.
-	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1}, accesslist.MemberOptions{})
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1})
 	require.NoError(t, err)
 }
 
@@ -333,11 +333,11 @@ func TestAccessListCreate_UpsertAccessListWithMembers_WithoutLimit(t *testing.T)
 	accessListMember2 := newAccessListMember(t, accessList1.GetName(), "bob")
 
 	// No limit to creating access list.
-	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1}, accesslist.MemberOptions{})
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1})
 	require.NoError(t, err)
-	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList2, []*accesslist.AccessListMember{accessListMember2}, accesslist.MemberOptions{})
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList2, []*accesslist.AccessListMember{accessListMember2})
 	require.NoError(t, err)
-	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList3, []*accesslist.AccessListMember{}, accesslist.MemberOptions{})
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList3, []*accesslist.AccessListMember{})
 	require.NoError(t, err)
 
 	// Fetch all access lists.
@@ -395,7 +395,7 @@ func TestAccessListUpsertWithMembers(t *testing.T) {
 
 	t.Run("create access list", func(t *testing.T) {
 		// Create both access lists.
-		accessList, _, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{}, accesslist.MemberOptions{})
+		accessList, _, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{})
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(accessList1, accessList, cmpOpts...))
 	})
@@ -404,7 +404,7 @@ func TestAccessListUpsertWithMembers(t *testing.T) {
 
 	t.Run("add member to the access list", func(t *testing.T) {
 		// Add access list members.
-		updatedAccessList, updatedMembers, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessList1Member1}, accesslist.MemberOptions{})
+		updatedAccessList, updatedMembers, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessList1Member1})
 		require.NoError(t, err)
 		// Assert that access list is returned.
 		require.Empty(t, cmp.Diff(updatedAccessList, updatedAccessList, cmpOpts...))
@@ -421,7 +421,7 @@ func TestAccessListUpsertWithMembers(t *testing.T) {
 
 	t.Run("add another member to the access list", func(t *testing.T) {
 		// Add access list members.
-		updatedAccessList, updatedMembers, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessList1Member1, accessList1Member2}, accesslist.MemberOptions{})
+		updatedAccessList, updatedMembers, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessList1Member1, accessList1Member2})
 		require.NoError(t, err)
 		// Assert that access list is returned.
 		require.Empty(t, cmp.Diff(updatedAccessList, updatedAccessList, cmpOpts...))
@@ -439,7 +439,7 @@ func TestAccessListUpsertWithMembers(t *testing.T) {
 	})
 
 	t.Run("empty members removes all members", func(t *testing.T) {
-		_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{}, accesslist.MemberOptions{})
+		_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{})
 		require.NoError(t, err)
 
 		members, _, err := service.ListAccessListMembers(ctx, accessList1.GetName(), 0 /* default size*/, "")
