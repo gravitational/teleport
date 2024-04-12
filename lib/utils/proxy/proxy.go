@@ -55,28 +55,35 @@ type directDial struct {
 
 // Dial returns traced SSH client connection
 func (d directDial) Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
+	logrus.Debug("directDial.Dial")
 	conn, err := d.DialTimeout(ctx, network, addr, config.Timeout)
+	logrus.Debug("directDial.Dial")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Works around the case when net.DialWithTimeout succeeds, but key exchange hangs.
 	// Setting deadline on connection prevents this case from happening
+	logrus.Debug("directDial.Dial")
+	defer logrus.Debug("directDial.Dial")
 	return tracessh.NewClientConnWithDeadline(ctx, conn, addr, config)
 }
 
 // DialTimeout acts like Dial but takes a timeout.
 func (d directDial) DialTimeout(ctx context.Context, network, address string, timeout time.Duration) (net.Conn, error) {
 	if d.alpnDialer != nil {
+		logrus.Debug("directDial.DialTimeout")
 		conn, err := d.alpnDialer.DialContext(ctx, network, address)
+		logrus.Debug("directDial.DialTimeout")
 		return conn, trace.Wrap(err)
 	}
 
 	dialer := apiclient.NewPROXYHeaderDialer(&net.Dialer{
 		Timeout: timeout,
 	}, d.proxyHeaderGetter)
-
+	logrus.Debug("directDial.DialTimeout")
 	conn, err := dialer.DialContext(ctx, network, address)
+	logrus.Debug("directDial.DialTimeout")
 	return conn, trace.Wrap(err)
 }
 

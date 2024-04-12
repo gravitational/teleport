@@ -1552,7 +1552,6 @@ func initializeTracing(cf *CLIConf) func() {
 			ExporterURL:  cf.TraceExporter,
 			SamplingRate: samplingRate,
 		})
-
 		if err != nil {
 			log.WithError(err).Debugf("failed to connect to trace exporter %s", cf.TraceExporter)
 			return func() {}
@@ -3608,6 +3607,7 @@ func makeClient(cf *CLIConf) (*client.TeleportClient, error) {
 // makeClient takes the command-line configuration and a proxy address and constructs & returns
 // a fully configured TeleportClient object
 func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, error) {
+	logrus.Debug("makeClientForProxy")
 	c, err := loadClientConfigFromCLIConf(cf, proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3616,16 +3616,19 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 	ctx, span := c.Tracer.Start(cf.Context, "makeClientForProxy/init")
 	defer span.End()
 
+	logrus.Debug("makeClientForProxy")
 	tc, err := client.NewClient(c)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	logrus.Debug("makeClientForProxy")
 	// Load SSH key for the cluster indicated in the profile.
 	// Handle gracefully if the profile is empty, the key cannot
 	// be found, or the key isn't supported as an agent key.
 	profile, profileError := c.GetProfile(c.ClientStore, proxy)
 	if profileError == nil {
+		logrus.Debug("makeClientForProxy")
 		if err := tc.LoadKeyForCluster(ctx, profile.SiteName); err != nil {
 			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) && !trace.IsCompareFailed(err) {
 				return nil, trace.Wrap(err)
@@ -3634,11 +3637,14 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 		}
 	}
 
+	logrus.Debug("makeClientForProxy")
 	// If we are missing client profile information, ping the webproxy
 	// for proxy info and load it into the client config.
 	if profileError != nil || profile.MissingClusterDetails {
+		logrus.Debug("makeClientForProxy")
 		log.Debug("Pinging the proxy to fetch listening addresses for non-web ports.")
 		_, err := tc.Ping(cf.Context)
+		logrus.Debug("makeClientForProxy")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3646,12 +3652,14 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 		// This is a placeholder profile created from limited cluster details.
 		// Save missing cluster details gathererd during Ping.
 		if profileError == nil && profile.MissingClusterDetails {
+			logrus.Debug("makeClientForProxy")
 			if err := tc.SaveProfile(true); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
 	}
 
+	logrus.Debug("makeClientForProxy")
 	return tc, nil
 }
 
@@ -3664,6 +3672,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	ctx, span := cf.tracer.Start(cf.Context, "loadClientConfigFromCLIConf")
 	defer span.End()
 
+	logrus.Debug("makeClientForProxy")
 	// Parse OpenSSH style options.
 	options, err := parseOptions(cf.Options)
 	if err != nil {
@@ -3720,12 +3729,15 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		return nil, trace.Wrap(err)
 	}
 
+	logrus.Debug("loadClientConfigFromCLIConf")
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
 
+	logrus.Debug("loadClientConfigFromCLIConf")
 	c.DialOpts = append(c.DialOpts, metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTSH))
 	c.Tracer = cf.tracer
 
+	logrus.Debug("loadClientConfigFromCLIConf")
 	// Force the use of proxy template below.
 	useProxyTemplate := strings.Contains(cf.ProxyJump, "{{proxy}}")
 	if useProxyTemplate {
@@ -3808,25 +3820,31 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		}
 	}
 
+	logrus.Debug("loadClientConfigFromCLIConf")
 	if err := tryLockMemory(cf); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	logrus.Debug("loadClientConfigFromCLIConf")
 	if cf.PIVSlot != "" {
+		logrus.Debug("loadClientConfigFromCLIConf")
 		c.PIVSlot = keys.PIVSlot(cf.PIVSlot)
 		if err = c.PIVSlot.Validate(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
+	logrus.Debug("loadClientConfigFromCLIConf")
 	c.ClientStore, err = initClientStore(cf, proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	logrus.Debug("loadClientConfigFromCLIConf")
 	// load profile. if no --proxy is given the currently active profile is used, otherwise
 	// fetch profile for exact proxy we are trying to connect to.
 	profileErr := c.LoadProfile(c.ClientStore, proxy)
+	logrus.Debug("loadClientConfigFromCLIConf")
 	if profileErr != nil && !trace.IsNotFound(profileErr) {
 		fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", proxy, profileErr)
 	}
@@ -3841,6 +3859,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.ExplicitUsername = cf.ExplicitUsername
 	// if proxy is set, and proxy is not equal to profile's
 	// loaded addresses, override the values
+	logrus.Debug("loadClientConfigFromCLIConf")
 	if err := setClientWebProxyAddr(ctx, cf, c); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3902,6 +3921,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.CheckVersions = !cf.SkipVersionCheck
 
 	// parse compatibility parameter
+	logrus.Debug("loadClientConfigFromCLIConf")
 	certificateFormat, err := parseCertificateCompatibilityFlag(cf.Compatibility, cf.CertificateFormat)
 	if err != nil {
 		return nil, trace.Wrap(err)
