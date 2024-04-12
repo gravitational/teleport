@@ -1705,6 +1705,9 @@ func TestGetBotUsersLegacy(t *testing.T) {
 							User: types.UserRef{Name: "Admin.localhost"},
 						},
 					},
+					Status: types.UserStatusV2{
+						PasswordState: types.PasswordState_PASSWORD_STATE_UNSET,
+					},
 				},
 				&types.UserV2{
 					Kind:    types.KindUser,
@@ -1722,6 +1725,9 @@ func TestGetBotUsersLegacy(t *testing.T) {
 						CreatedBy: types.CreatedBy{
 							User: types.UserRef{Name: "Admin.localhost"},
 						},
+					},
+					Status: types.UserStatusV2{
+						PasswordState: types.PasswordState_PASSWORD_STATE_UNSET,
 					},
 				},
 			},
