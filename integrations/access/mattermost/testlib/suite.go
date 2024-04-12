@@ -507,10 +507,9 @@ func (s *MattermostSuiteOSS) TestExpiration() {
 // short time frame.
 func (s *MattermostSuiteEnterprise) TestRace() {
 	t := s.T()
+	t.Skip("This test is flaky")
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(cancel)
-
-	t.Skip("This test is flaky")
 
 	err := logger.Setup(logger.Config{Severity: "info"}) // Turn off noisy debug logging
 	require.NoError(t, err)
