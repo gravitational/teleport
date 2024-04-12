@@ -26,13 +26,13 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import { ConnectionsIcon } from './ConnectionsIcon/ConnectionsIcon';
 import { ConnectionsSliderStep } from './ConnectionsSliderStep';
-import { useConnectionsContext } from './connectionsContext';
+import { Step, useConnectionsContext } from './connectionsContext';
 
 export function Connections() {
   const { connectionTracker } = useAppContext();
   connectionTracker.useState();
   const iconRef = useRef();
-  const { isOpen, toggle, close } = useConnectionsContext();
+  const { isOpen, toggle, close, stepToOpen } = useConnectionsContext();
   const { status: vnetStatus } = useVnetContext();
   const isAnyConnectionActive =
     connectionTracker.getConnections().some(c => c.connected) ||
@@ -74,7 +74,11 @@ export function Connections() {
           padding (so 24px on both sides) and ConnectionsFilterableList had 300px of width.
         */}
         <Box width="324px" bg="levels.elevated">
-          <StepSlider currFlow="default" flows={stepSliderFlows} />
+          <StepSlider
+            currFlow="default"
+            flows={stepSliderFlows}
+            defaultStepIndex={stepToIndex(stepToOpen)}
+          />
         </Box>
       </Popover>
     </>
@@ -82,3 +86,15 @@ export function Connections() {
 }
 
 const stepSliderFlows = { default: [ConnectionsSliderStep, VnetSliderStep] };
+
+const stepToIndex = (step: Step): number => {
+  switch (step) {
+    case 'connections':
+      return 0;
+    case 'vnet':
+      return 1;
+    default:
+      step satisfies never;
+      return 0;
+  }
+};

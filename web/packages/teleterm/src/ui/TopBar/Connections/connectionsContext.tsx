@@ -30,25 +30,48 @@ import {
  */
 export type ConnectionsContext = {
   isOpen: boolean;
+  open: (step?: Step) => void;
   close: () => void;
   toggle: () => void;
+  /**
+   * stepToOpen is the step that will be shown when the connection list gets opened.
+   * It doesn't control the current stop beyond the initial render.
+   */
+  stepToOpen: Step;
 };
+
+export type Step = 'connections' | 'vnet';
+
+const defaultStep: Step = 'connections';
 
 export const ConnectionsContext = createContext<ConnectionsContext>(null);
 
 export const ConnectionsContextProvider: FC<PropsWithChildren> = props => {
   const [isOpen, setIsOpen] = useState(false);
+  const [stepToOpen, setStepToOpen] = useState<Step>('connections');
 
   const toggle = useCallback(() => {
     setIsOpen(wasOpen => !wasOpen);
-  }, []);
+
+    if (isOpen) {
+      setStepToOpen(defaultStep);
+    }
+  }, [isOpen]);
 
   const close = useCallback(() => {
     setIsOpen(false);
+    setStepToOpen(defaultStep);
+  }, []);
+
+  const open = useCallback((step: Step = defaultStep) => {
+    setIsOpen(true);
+    setStepToOpen(step);
   }, []);
 
   return (
-    <ConnectionsContext.Provider value={{ isOpen, toggle, close }}>
+    <ConnectionsContext.Provider
+      value={{ isOpen, toggle, close, open, stepToOpen }}
+    >
       {props.children}
     </ConnectionsContext.Provider>
   );
