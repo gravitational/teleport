@@ -36,9 +36,6 @@ func (m *Memory) AtomicWrite(ctx context.Context, condacts []backend.Conditional
 
 	m.Lock()
 	defer m.Unlock()
-	if m.Mirror {
-		return "", trace.Errorf("atomic write not supported by mirror-mode memory backend")
-	}
 
 	m.removeExpired()
 
