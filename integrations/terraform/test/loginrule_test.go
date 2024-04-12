@@ -18,11 +18,12 @@ import (
 	"context"
 	"fmt"
 
-	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	"github.com/gravitational/teleport/api/types"
 )
 
 func (s *TerraformSuite) TestLoginRule() {

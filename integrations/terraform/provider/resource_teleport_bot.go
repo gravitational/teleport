@@ -20,14 +20,15 @@ import (
 	"context"
 	"fmt"
 
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )

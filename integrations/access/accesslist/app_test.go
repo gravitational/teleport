@@ -20,6 +20,7 @@ package accesslist
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -40,6 +41,7 @@ import (
 type mockMessagingBot struct {
 	lastReminderRecipients []common.Recipient
 	recipients             map[string]*common.Recipient
+	mutex                  sync.Mutex
 }
 
 func (m *mockMessagingBot) CheckHealth(ctx context.Context) error {
@@ -47,11 +49,27 @@ func (m *mockMessagingBot) CheckHealth(ctx context.Context) error {
 }
 
 func (m *mockMessagingBot) SendReviewReminders(ctx context.Context, recipient common.Recipient, accessList *accesslist.AccessList) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	m.lastReminderRecipients = append(m.lastReminderRecipients, recipient)
 	return nil
 }
 
+func (m *mockMessagingBot) getLastRecipients() []common.Recipient {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	return m.lastReminderRecipients
+}
+
+func (m *mockMessagingBot) resetLastRecipients() {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.lastReminderRecipients = make([]common.Recipient, 0)
+}
+
 func (m *mockMessagingBot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	fetchedRecipient, ok := m.recipients[recipient]
 	if !ok {
 		return nil, trace.NotFound("recipient %s not found", recipient)
@@ -255,14 +273,13 @@ func advanceAndLookForRecipients(t *testing.T,
 	advance time.Duration,
 	accessList *accesslist.AccessList,
 	recipients ...string) {
-	t.Helper()
 
 	ctx := context.Background()
 
 	_, err := alSvc.UpsertAccessList(ctx, accessList)
 	require.NoError(t, err)
 
-	bot.lastReminderRecipients = nil
+	bot.resetLastRecipients()
 
 	var expectedRecipients []common.Recipient
 	if len(recipients) > 0 {
@@ -274,5 +291,5 @@ func advanceAndLookForRecipients(t *testing.T,
 	clock.Advance(advance)
 	clock.BlockUntil(1)
 
-	require.ElementsMatch(t, expectedRecipients, bot.lastReminderRecipients)
+	require.ElementsMatch(t, expectedRecipients, bot.getLastRecipients())
 }

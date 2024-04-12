@@ -1023,9 +1023,8 @@ fix-imports/host:
 		echo 'gci is not installed or is missing from PATH, consider installing it ("go install github.com/daixiang0/gci@latest") or use "make -C build.assets/ fix-imports"';\
 		exit 1;\
 	fi
-	gci write -s standard -s default -s 'prefix(github.com/gravitational/teleport)' --skip-generated .
+	gci write -s standard -s default  -s 'prefix(github.com/gravitational/teleport)' -s 'prefix(github.com/gravitational/teleport/integrations/terraform,github.com/gravitational/teleport/integrations/event-handler)' --skip-generated .
 
-.PHONY: lint-build-tooling
 lint-build-tooling: GO_LINT_FLAGS ?=
 lint-build-tooling:
 	cd build.assets/tooling && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
