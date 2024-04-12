@@ -278,6 +278,13 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if staticCreds == nil {
 			return trace.BadParameter("ServiceNow plugin must be used with the static credentials ref type")
 		}
+	case *PluginSpecV1_EntraId:
+		if settings.EntraId == nil {
+			return trace.BadParameter("missing Entra ID settings")
+		}
+		if err := settings.EntraId.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
