@@ -24,9 +24,10 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/integrations/event-handler/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/stringset"
+
+	"github.com/gravitational/teleport/integrations/event-handler/lib"
 )
 
 // FluentdConfig represents fluentd instance configuration
