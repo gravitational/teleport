@@ -224,10 +224,15 @@ async fn connect_tls(
     })
 }
 
-async fn start_x11_server(server_stream: DuplexStream) -> ClientResult<()> {
+async fn start_x11_server(
+    server_stream: DuplexStream,
+    username: String,
+    width: u16,
+    height: u16,
+) -> ClientResult<()> {
     info!("Starting Xvfb");
     let xvfb = Command::new("Xvfb")
-        .args([":99", "-screen", "0", "800x600x24"])
+        .args([":99", "-screen", "0", &format!("{}x{}x24", width, height)])
         .spawn()?;
     info!("Starting gnome-shell");
     let xfce = Command::new("gnome-shell")
@@ -246,6 +251,8 @@ async fn start_x11_server(server_stream: DuplexStream) -> ClientResult<()> {
         x11: x11.clone(),
         tx: tx.clone(),
         updates: rx,
+        width,
+        height,
     };
 
     // addr is not actually used in our case, it's just required by the builder
@@ -280,13 +287,13 @@ async fn start_x11_server(server_stream: DuplexStream) -> ClientResult<()> {
                     .reply()?;
                 info!("prop: {:?}", prop);
             }
-            let (image, _) = Image::get(x11.as_ref(), root.root, 0, 0, 800, 600)?;
+            let (image, _) = Image::get(x11.as_ref(), root.root, 0, 0, width, height)?;
             tx.send(Update {
                 rect: Rectangle {
                     x: 0,
                     y: 0,
-                    width: 800,
-                    height: 600,
+                    width,
+                    height,
                 },
                 data: Vec::from(image.data()),
             })?;
@@ -402,9 +409,17 @@ pub fn run(cgo_handle: CgoHandle, params: ConnectParams) -> ClientResult<Option<
             debug!("in x11 branch");
             let (client_stream, server_stream) = duplex(64);
             debug!("before start x11 server");
+            let username = params.username.clone();
             // TODO: need to handle this JoinHandle
             let _ = global::TOKIO_RT.spawn(async move {
-                start_x11_server(server_stream).await.unwrap();
+                start_x11_server(
+                    server_stream,
+                    username,
+                    params.screen_width,
+                    params.screen_height,
+                )
+                .await
+                .unwrap();
             });
             debug!("after start x11 server");
             debug!("before connect x11");
@@ -1465,6 +1480,7 @@ pub struct ConnectParams {
     pub allow_directory_sharing: bool,
     pub show_desktop_wallpaper: bool,
     pub x11: bool,
+    pub username: String,
 }
 
 #[derive(Debug)]
@@ -1611,14 +1627,16 @@ struct Handler {
     x11: Arc<RustConnection>,
     tx: broadcast::Sender<Update>,
     updates: broadcast::Receiver<Update>,
+    width: u16,
+    height: u16,
 }
 
 #[async_trait::async_trait]
 impl RdpServerDisplay for Handler {
     async fn size(&mut self) -> DesktopSize {
         DesktopSize {
-            width: 800,
-            height: 600,
+            width: self.width,
+            height: self.height,
         }
     }
 

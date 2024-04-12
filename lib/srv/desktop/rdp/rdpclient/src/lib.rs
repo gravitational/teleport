@@ -87,6 +87,7 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
     trace!("client_run");
     // Convert from C to Rust types.
     let addr = from_c_string(params.go_addr);
+    let username = from_c_string(params.go_username);
     let cert_der = from_go_array(params.cert_der, params.cert_der_len);
     let key_der = from_go_array(params.key_der, params.key_der_len);
 
@@ -102,6 +103,7 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             allow_directory_sharing: params.allow_directory_sharing,
             show_desktop_wallpaper: params.show_desktop_wallpaper,
             x11: true,
+            username,
         },
     ) {
         Ok(res) => CGOResult {
@@ -446,6 +448,7 @@ pub struct CGOConnectParams {
     allow_clipboard: bool,
     allow_directory_sharing: bool,
     show_desktop_wallpaper: bool,
+    go_username: *const c_char,
 }
 
 /// CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.

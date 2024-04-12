@@ -286,6 +286,8 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	// thus can be freed here.
 	addr := C.CString(c.cfg.Addr)
 	defer C.free(unsafe.Pointer(addr))
+	username := C.CString(c.username)
+	defer C.free(unsafe.Pointer(username))
 
 	cert_der, err := utils.UnsafeSliceData(userCertDER)
 	if err != nil {
@@ -316,6 +318,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
+			go_username:             username,
 		},
 	)
 
