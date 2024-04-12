@@ -384,6 +384,9 @@ databaseResources: []
 # documentation](../../../auto-discovery/kubernetes-applications/architecture.mdx)
 # for more details.
 #
+# NOTE: Discovery mechanism ignores Kubernetes services running in the "kube-system" and
+# "kube-public" namespaces.
+#
 # The default value will try to discover all apps running in Kubernetes.
 # The discovery can be restricted through this value. For example:
 #
