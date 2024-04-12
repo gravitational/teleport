@@ -5462,14 +5462,27 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
+		connectionsHandler, err := app.NewConnectionsHandler(process.ExitContext(), &app.ConnectionsHandlerConfig{
+			Clock:             process.Config.Clock,
+			DataDir:           process.Config.DataDir,
+			Emitter:           asyncEmitter,
+			Authorizer:        authorizer,
+			HostID:            process.Config.HostUUID,
+			AuthClient:        conn.Client,
+			AccessPoint:       accessPoint,
+			TLSConfig:         tlsConfig,
+			ConnectionMonitor: connMonitor,
+			CipherSuites:      process.Config.CipherSuites,
+			ServiceComponent:  teleport.ComponentApp,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		appServer, err := app.New(process.ExitContext(), &app.Config{
 			Clock:                process.Config.Clock,
-			DataDir:              process.Config.DataDir,
 			AuthClient:           conn.Client,
 			AccessPoint:          accessPoint,
-			Authorizer:           authorizer,
-			TLSConfig:            tlsConfig,
-			CipherSuites:         process.Config.CipherSuites,
 			HostID:               process.Config.HostUUID,
 			Hostname:             process.Config.Hostname,
 			GetRotation:          process.GetRotation,
@@ -5478,8 +5491,7 @@ func (process *TeleportProcess) initApps() {
 			ResourceMatchers:     process.Config.Apps.ResourceMatchers,
 			OnHeartbeat:          process.OnHeartbeat(teleport.ComponentApp),
 			ConnectedProxyGetter: proxyGetter,
-			Emitter:              asyncEmitter,
-			ConnectionMonitor:    connMonitor,
+			ConnectionsHandler:   connectionsHandler,
 		})
 		if err != nil {
 			return trace.Wrap(err)
