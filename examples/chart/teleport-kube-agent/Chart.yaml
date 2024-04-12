@@ -1,4 +1,4 @@
-.version: &version "14.3.14-dev.kubelsdebug.2"
+.version: &version "14.3.14-dev.kubelsdebug.3"
 
 name: teleport-kube-agent
 apiVersion: v2
