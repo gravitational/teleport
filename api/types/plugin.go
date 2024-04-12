@@ -294,6 +294,13 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if staticCreds == nil {
 			return trace.BadParameter("Gitlab plugin must be used with the static credentials ref type")
 		}
+	case *PluginSpecV1_EntraId:
+		if settings.EntraId == nil {
+			return trace.BadParameter("missing Entra ID settings")
+		}
+		if err := settings.EntraId.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
 	}
@@ -605,6 +612,23 @@ func (c *PluginOAuth2AccessTokenCredentials) CheckAndSetDefaults() error {
 		return trace.BadParameter("refresh_token must be set")
 	}
 	c.Expires = c.Expires.UTC()
+
+	return nil
+}
+
+func (c *PluginEntraIDSettings) CheckAndSetDefaults() error {
+	if c.SyncSettings == nil {
+		return trace.BadParameter("sync_settings must be set")
+	}
+	if len(c.SyncSettings.DefaultOwners) == 0 {
+		return trace.BadParameter("sync_settings.default_owners must be set")
+	}
+	if c.TenantId == "" {
+		return trace.BadParameter("tenant_id must be set")
+	}
+	if c.ClientId == "" {
+		return trace.BadParameter("client_id must be set")
+	}
 
 	return nil
 }

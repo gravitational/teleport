@@ -849,3 +849,78 @@ func TestPluginDiscordValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestPluginEntraIDValidation(t *testing.T) {
+	validSettings := func() *PluginSpecV1_EntraId {
+		return &PluginSpecV1_EntraId{
+			EntraId: &PluginEntraIDSettings{
+				SyncSettings: &PluginEntraIDSyncSettings{
+					DefaultOwners: []string{"admin"},
+				},
+				TenantId: "foo",
+				ClientId: "bar",
+			},
+		}
+	}
+	testCases := []struct {
+		name           string
+		mutateSettings func(*PluginSpecV1_EntraId)
+		assertErr      require.ErrorAssertionFunc
+	}{
+		{
+			name:           "valid",
+			mutateSettings: nil,
+			assertErr:      require.NoError,
+		},
+		{
+			name: "missing sync settings",
+			mutateSettings: func(s *PluginSpecV1_EntraId) {
+				s.EntraId.SyncSettings = nil
+			},
+			assertErr: reqireNamedBadParameterError("sync_settings"),
+		},
+		{
+			name: "missing default owners",
+			mutateSettings: func(s *PluginSpecV1_EntraId) {
+				s.EntraId.SyncSettings.DefaultOwners = nil
+			},
+			assertErr: reqireNamedBadParameterError("sync_settings.default_owners"),
+		},
+		{
+			name: "empty default owners",
+			mutateSettings: func(s *PluginSpecV1_EntraId) {
+				s.EntraId.SyncSettings.DefaultOwners = []string{}
+			},
+			assertErr: reqireNamedBadParameterError("sync_settings.default_owners"),
+		},
+		{
+			name: "missing tenant id",
+			mutateSettings: func(s *PluginSpecV1_EntraId) {
+				s.EntraId.TenantId = ""
+			},
+			assertErr: reqireNamedBadParameterError("tenant_id"),
+		},
+		{
+			name: "missing client id",
+			mutateSettings: func(s *PluginSpecV1_EntraId) {
+				s.EntraId.ClientId = ""
+			},
+			assertErr: reqireNamedBadParameterError("client_id"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			settings := validSettings()
+			if tc.mutateSettings != nil {
+				tc.mutateSettings(settings)
+			}
+
+			plugin := NewPluginV1(
+				Metadata{Name: "uut"},
+				PluginSpecV1{Settings: settings},
+				nil)
+			tc.assertErr(t, plugin.CheckAndSetDefaults())
+		})
+	}
+}
