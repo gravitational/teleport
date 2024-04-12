@@ -136,4 +136,8 @@ type MemberOptions struct {
 	// preserved when the member record is overwritten. If no original reason is
 	// set, the overwritten record will take the new record's value.
 	PreserveReason bool
+
+	// PreserveAddedBy indicates that the original "added by" value, should be
+	// preserved when the member record is overwritten.
+	PreserveAddedBy bool
 }

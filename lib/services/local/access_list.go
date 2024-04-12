@@ -424,6 +424,10 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 							newMember.Spec.Reason = existingMember.Spec.Reason
 						}
 
+						if options.PreserveAddedBy {
+							newMember.Spec.AddedBy = existingMember.Spec.AddedBy
+						}
+
 						// Compare members and update if necessary.
 						if !cmp.Equal(newMember, existingMember) {
 							// Update the member.
