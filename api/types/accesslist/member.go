@@ -28,9 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-var (
-	_ compare.IsEqual[*AccessListMember] = (*AccessListMember)(nil)
-)
+var _ compare.IsEqual[*AccessListMember] = (*AccessListMember)(nil)
 
 // AccessListMember is an access list member resource.
 type AccessListMember struct {

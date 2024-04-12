@@ -29,9 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-var (
-	_ compare.IsEqual[Application] = (*AppV3)(nil)
-)
+var _ compare.IsEqual[Application] = (*AppV3)(nil)
 
 // Application represents a web, TCP or cloud console application.
 type Application interface {

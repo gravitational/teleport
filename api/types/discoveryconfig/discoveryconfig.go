@@ -28,9 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-var (
-	_ compare.IsEqual[*DiscoveryConfig] = (*DiscoveryConfig)(nil)
-)
+var _ compare.IsEqual[*DiscoveryConfig] = (*DiscoveryConfig)(nil)
 
 // DiscoveryConfig describes extra discovery matchers that are added to DiscoveryServices that share the same Discovery Group.
 type DiscoveryConfig struct {

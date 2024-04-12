@@ -31,9 +31,7 @@ const (
 	MaxRDPScreenHeight = 8192
 )
 
-var (
-	_ compare.IsEqual[WindowsDesktop] = (*WindowsDesktopV3)(nil)
-)
+var _ compare.IsEqual[WindowsDesktop] = (*WindowsDesktopV3)(nil)
 
 // WindowsDesktopService represents a Windows desktop service instance.
 type WindowsDesktopService interface {
