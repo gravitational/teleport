@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
@@ -96,6 +97,7 @@ func withProxyURL(proxyURL *url.URL) DialProxyOption {
 		}
 	}
 }
+
 func withBaseDialer(dialer ContextDialer) DialProxyOption {
 	return func(cfg *dialProxyConfig) {
 		cfg.baseDialer = dialer
@@ -198,32 +200,41 @@ func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration, 
 		// Base direct dialer.
 		var dialer ContextDialer = cfg.baseDialer
 		if dialer == nil {
+			logrus.Debug("NewDialer")
 			dialer = newDirectDialer(keepAlivePeriod, dialTimeout)
 		}
 
 		// Currently there is no use case where both cfg.proxyHeaderGetter and
 		// cfg.alpnConnUpgradeRequired are set.
 		if cfg.proxyHeaderGetter != nil && cfg.alpnConnUpgradeRequired {
+			logrus.Debug("NewDialer")
 			return nil, trace.NotImplemented("ALPN connection upgrade does not support multiplexer header")
 		}
 
 		// Wrap with PROXY header dialer if getter is present.
 		// Used by Proxy's web server to propagate real client IP when making calls on behalf of connected clients
 		if cfg.proxyHeaderGetter != nil {
+			logrus.Debug("NewDialer")
 			dialer = NewPROXYHeaderDialer(dialer, cfg.proxyHeaderGetter)
 		}
 
 		// Wrap with proxy URL dialer if proxy URL is detected.
+		logrus.Debug("NewDialer")
 		if proxyURL := cfg.getProxyURL(addr); proxyURL != nil {
+			logrus.Debug("NewDialer")
 			dialer = newProxyURLDialer(proxyURL, dialer, opts...)
 		}
 
 		// Wrap with alpnConnUpgradeDialer if upgrade is required for TLS Routing.
 		if cfg.alpnConnUpgradeRequired {
+			logrus.Debug("NewDialer")
 			dialer = newALPNConnUpgradeDialer(dialer, cfg.tlsConfig, cfg.alpnConnUpgradeWithPing)
+			logrus.Debug("NewDialer")
 		}
 
 		// Dial.
+		logrus.Debug("NewDialer")
+		defer logrus.Debug("NewDialer")
 		return dialer.DialContext(ctx, network, addr)
 	})
 }
