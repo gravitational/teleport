@@ -125,7 +125,15 @@ func (a *AccessListMember) MatchSearch(values []string) bool {
 	return types.MatchSearch(fieldVals, values, nil)
 }
 
+// MemberOptions controls optional behavior when overwriting an AccessListMember
 type MemberOptions struct {
+	// PreserveExpiry indicates that the original expiry date, if any, should be
+	// preserved when the member record is overwritten. If no original expiry
+	// date is set, the overwritten record will take the new record's value.
 	PreserveExpiry bool
+
+	// PreserveReason indicates that the original reason, if any, should be
+	// preserved when the member record is overwritten. If no original reason is
+	// set, the overwritten record will take the new record's value.
 	PreserveReason bool
 }
