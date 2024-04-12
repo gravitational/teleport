@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package testlib
 
 import (
 	"context"
@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func (s *TerraformSuite) TestGithubConnector() {
+func (s *TerraformSuiteOSS) TestGithubConnector() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -81,7 +81,7 @@ func (s *TerraformSuite) TestGithubConnector() {
 	})
 }
 
-func (s *TerraformSuite) TestImportGithubConnector() {
+func (s *TerraformSuiteOSS) TestImportGithubConnector() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -134,7 +134,7 @@ func (s *TerraformSuite) TestImportGithubConnector() {
 	})
 }
 
-func (s *TerraformSuite) TestGithubConnectorTeamsToRoles() {
+func (s *TerraformSuiteOSS) TestGithubConnectorTeamsToRoles() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -172,7 +172,7 @@ func (s *TerraformSuite) TestGithubConnectorTeamsToRoles() {
 	})
 }
 
-func (s *TerraformSuite) TestGithubConnectorWithoutMapping() {
+func (s *TerraformSuiteOSS) TestGithubConnectorWithoutMapping() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 

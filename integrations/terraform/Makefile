@@ -117,7 +117,21 @@ ifeq ($(shell expr $(CURRENT_ULIMIT) \< 1024), 1)
 	@echo "ulimit -n is too low ($(CURRENT_ULIMIT)), please set ulimit -n 1024"
 	@exit -1
 endif
-	TF_ACC=true go test ./test -v
+	TF_ACC=true go test ./testlib -v
+
+.PHONY: test-ent
+test-ent: install
+ifndef TERRAFORM_EXISTS
+	@echo "Terraform v1.4+ is not installed (tfenv install 1.5.6 && tfenv use 1.5.6)."
+	terraform -version
+	@exit -1
+endif
+# NOTE: This is related to an old bug in Terraform and will be fixed in future releases (possibly, by a workaround on our side)
+ifeq ($(shell expr $(CURRENT_ULIMIT) \< 1024), 1)
+	@echo "ulimit -n is too low ($(CURRENT_ULIMIT)), please set ulimit -n 1024"
+	@exit -1
+endif
+	TF_ACC=true go test ./testlib -v --tags=enterprisetests
 
 .PHONY: apply
 apply: install
