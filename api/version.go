@@ -3,6 +3,6 @@ package api
 
 import "github.com/coreos/go-semver/semver"
 
-const Version = "14.3.14-dev.kubelsdebug.1"
+const Version = "14.3.14-dev.kubelsdebug.2"
 
 var SemVersion = semver.New(Version)
