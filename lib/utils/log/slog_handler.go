@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
 )
@@ -256,6 +257,8 @@ func writeTimeRFC3339(buf *buffer, t time.Time) {
 func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 	buf := newBuffer()
 	defer buf.Free()
+
+	addTracingContextToRecord(ctx, &r)
 
 	if s.withTimestamp && !r.Time.IsZero() {
 		if s.cfg.ReplaceAttr != nil {
@@ -551,6 +554,32 @@ func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler
 			},
 		}),
 	}
+}
+
+const (
+	traceID = "trace_id"
+	spanID  = "span_id"
+)
+
+func addTracingContextToRecord(ctx context.Context, r *slog.Record) {
+	span := oteltrace.SpanFromContext(ctx)
+	if span == nil || !span.IsRecording() {
+		return
+	}
+
+	spanContext := span.SpanContext()
+	if spanContext.HasTraceID() {
+		r.AddAttrs(slog.String(traceID, spanContext.TraceID().String()))
+	}
+
+	if spanContext.HasSpanID() {
+		r.AddAttrs(slog.String(spanID, spanContext.SpanID().String()))
+	}
+}
+
+func (j *SlogJSONHandler) Handle(ctx context.Context, r slog.Record) error {
+	addTracingContextToRecord(ctx, &r)
+	return j.JSONHandler.Handle(ctx, r)
 }
 
 // getCaller retrieves source information from the attribute
