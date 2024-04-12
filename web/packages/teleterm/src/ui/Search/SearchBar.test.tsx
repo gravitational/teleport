@@ -30,8 +30,9 @@ import {
   makeRootCluster,
   makeRetryableError,
 } from 'teleterm/services/tshd/testHelpers';
-
 import { ClusterUri } from 'teleterm/ui/uri';
+import { VnetContextProvider } from 'teleterm/ui/Vnet';
+import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 
 import { SearchAction } from './actions';
 
@@ -89,7 +90,11 @@ it('does not display empty results copy after selecting two filters', () => {
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <SearchBarConnected />
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <SearchBarConnected />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 
@@ -119,7 +124,11 @@ it('displays empty results copy after providing search query for which there is 
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <SearchBarConnected />
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <SearchBarConnected />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 
@@ -153,7 +162,11 @@ it('includes offline cluster names in the empty results copy', () => {
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <SearchBarConnected />
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <SearchBarConnected />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 
@@ -198,7 +211,11 @@ it('notifies about resource search errors and allows to display details', () => 
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <SearchBarConnected />
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <SearchBarConnected />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 
@@ -246,8 +263,12 @@ it('maintains focus on the search input after closing a resource search error mo
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <SearchBarConnected />
-      <ModalsHost />
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <SearchBarConnected />
+          <ModalsHost />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 
@@ -305,8 +326,12 @@ it('shows a login modal when a request to a cluster from the current workspace f
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <SearchBarConnected />
-      <ModalsHost />
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <SearchBarConnected />
+          <ModalsHost />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 
@@ -346,8 +371,12 @@ it('closes on a click on an unfocusable element outside of the search bar', asyn
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <SearchBarConnected />
-      <p data-testid="unfocusable-element">Lorem ipsum</p>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <SearchBarConnected />
+          <p data-testid="unfocusable-element">Lorem ipsum</p>
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 
