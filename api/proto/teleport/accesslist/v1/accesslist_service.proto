@@ -222,6 +222,9 @@ message UpsertAccessListWithMembersRequest {
   // preserve_reason indicates that the upsert operation should preserve the
   // existing membership reason (if any) when overwriting an AccessList member
   bool preserve_reason = 4;
+  // preserve_added_by indicates that the upsert opertation should preserve the
+  // existing "added_by" value
+  bool preserve_added_by = 5;
 }
 
 // UpsertAccessListWithMembersResponse is the response for upserting an access
