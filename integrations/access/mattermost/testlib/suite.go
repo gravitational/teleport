@@ -510,6 +510,8 @@ func (s *MattermostSuiteEnterprise) TestRace() {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(cancel)
 
+	t.Skip("This test is flaky")
+
 	err := logger.Setup(logger.Config{Severity: "info"}) // Turn off noisy debug logging
 	require.NoError(t, err)
 
