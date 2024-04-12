@@ -143,6 +143,8 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/mdlayher/netlink v1.7.2
 	github.com/microsoft/go-mssqldb v0.0.0-00010101000000-000000000000 // replaced
+	github.com/microsoft/kiota-authentication-azure-go v1.0.2
+	github.com/microsoftgraph/msgraph-sdk-go v1.37.0
 	github.com/miekg/pkcs11 v1.1.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/term v0.5.0
@@ -278,6 +280,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
+	github.com/cjlapao/common-go v0.0.39 // indirect
 	github.com/cloudflare/cfssl v1.6.4 // indirect
 	github.com/containerd/console v1.0.4 // indirect
 	github.com/containerd/containerd v1.7.12 // indirect
@@ -409,6 +412,13 @@ require (
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
+	github.com/microsoft/kiota-abstractions-go v1.6.0 // indirect
+	github.com/microsoft/kiota-http-go v1.3.1 // indirect
+	github.com/microsoft/kiota-serialization-form-go v1.0.0 // indirect
+	github.com/microsoft/kiota-serialization-json-go v1.0.7 // indirect
+	github.com/microsoft/kiota-serialization-multipart-go v1.0.0 // indirect
+	github.com/microsoft/kiota-serialization-text-go v1.0.0 // indirect
+	github.com/microsoftgraph/msgraph-sdk-go-core v1.1.0 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -472,6 +482,7 @@ require (
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.18.2 // indirect
+	github.com/std-uritemplate/std-uritemplate/go v0.0.55 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6d // indirect
