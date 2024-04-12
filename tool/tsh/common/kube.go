@@ -34,6 +34,7 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	dockerterm "github.com/moby/term"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -169,7 +170,6 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 
 				return trace.Wrap(err)
 			})
-
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -948,19 +948,23 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 		return trace.Wrap(c.runAllClusters(cf))
 	}
 
+	logrus.Debug("kubeLSCommand.run")
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	logrus.Debug("kubeLSCommand.run")
 	currentTeleportCluster, kubeClusters, err := fetchKubeClusters(cf.Context, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	logrus.Debug("kubeLSCommand.run")
 
 	// Ignore errors from fetching the current cluster, since it's not
 	// mandatory to have a cluster selected or even to have a kubeconfig file.
 	selectedCluster, _ := kubeconfig.SelectedKubeCluster(getKubeConfigPath(cf, ""), currentTeleportCluster)
 	err = c.showKubeClusters(cf.Stdout(), kubeClusters, selectedCluster)
+	logrus.Debug("kubeLSCommand.run")
 	return trace.Wrap(err)
 }
 
@@ -1406,8 +1410,11 @@ Learn more at https://goteleport.com/docs/architecture/tls-routing/#working-with
 }
 
 func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []types.KubeCluster, err error) {
+	logrus.Debug("fetchKubeClusters")
 	err = client.RetryWithRelogin(ctx, tc, func() error {
+		logrus.Debug("fetchKubeClusters")
 		pc, err := tc.ConnectToProxy(ctx)
+		logrus.Debug("fetchKubeClusters")
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1416,12 +1423,14 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 		ac := pc.CurrentCluster()
 		defer ac.Close()
 
+		logrus.Debug("fetchKubeClusters")
 		teleportCluster = pc.ClusterName()
 		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, ac, proto.ListResourcesRequest{
 			SearchKeywords:      tc.SearchKeywords,
 			PredicateExpression: tc.PredicateExpression,
 			Labels:              tc.Labels,
 		})
+		logrus.Debug("fetchKubeClusters")
 		if err != nil {
 			return trace.Wrap(err)
 		}

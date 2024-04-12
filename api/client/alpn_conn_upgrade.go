@@ -70,7 +70,9 @@ func IsALPNConnUpgradeRequired(ctx context.Context, addr string, insecure bool, 
 		NextProtos:         []string{string(constants.ALPNSNIProtocolReverseTunnel)},
 		InsecureSkipVerify: insecure,
 	}
+	logrus.Debug("IsALPNConnUpgradeRequired")
 	testConn, err := tlsutils.TLSDial(ctx, baseDialer, "tcp", addr, tlsConfig)
+	logrus.Debug("IsALPNConnUpgradeRequired")
 	if err != nil {
 		if isRemoteNoALPNError(err) {
 			logrus.Debugf("ALPN connection upgrade required for %q: %v. No ALPN protocol is negotiated by the server.", addr, true)

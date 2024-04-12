@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -99,23 +100,31 @@ func (d *ALPNDialer) shouldGetClusterCAs() bool {
 }
 
 func (d *ALPNDialer) getTLSConfig(ctx context.Context, addr string) (*tls.Config, error) {
+	logrus.Debug("ALPNDialer.getTLSConfig")
 	if d.cfg.TLSConfig == nil {
+		logrus.Debug("ALPNDialer.getTLSConfig")
 		return nil, trace.BadParameter("missing TLS config")
 	}
+	logrus.Debug("ALPNDialer.getTLSConfig")
 	if !d.shouldUpdateTLSConfig() {
+		logrus.Debug("ALPNDialer.getTLSConfig")
 		return d.cfg.TLSConfig, nil
 	}
 
 	var err error
 	tlsConfig := d.cfg.TLSConfig.Clone()
 	if d.shouldGetClusterCAs() {
+		logrus.Debug("ALPNDialer.getTLSConfig")
 		tlsConfig.RootCAs, err = d.cfg.GetClusterCAs(ctx)
+		logrus.Debug("ALPNDialer.getTLSConfig")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 	if d.shouldUpdateServerName() {
+		logrus.Debug("ALPNDialer.getTLSConfig")
 		tlsConfig.ServerName, _, err = webclient.ParseHostPort(addr)
+		logrus.Debug("ALPNDialer.getTLSConfig")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -125,11 +134,14 @@ func (d *ALPNDialer) getTLSConfig(ctx context.Context, addr string) (*tls.Config
 
 // DialContext implements ContextDialer.
 func (d *ALPNDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	logrus.Debug("ALPNDialer.DialContext")
 	tlsConfig, err := d.getTLSConfig(ctx, addr)
+	logrus.Debug("ALPNDialer.DialContext")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	logrus.Debug("ALPNDialer.DialContext")
 	dialer := NewDialer(ctx, d.cfg.DialTimeout, d.cfg.DialTimeout,
 		WithInsecureSkipVerify(d.cfg.TLSConfig.InsecureSkipVerify),
 		WithALPNConnUpgrade(d.cfg.ALPNConnUpgradeRequired),
@@ -137,16 +149,22 @@ func (d *ALPNDialer) DialContext(ctx context.Context, network, addr string) (net
 		WithPROXYHeaderGetter(d.cfg.PROXYHeaderGetter),
 	)
 
+	logrus.Debug("ALPNDialer.DialContext")
 	conn, err := dialer.DialContext(ctx, network, addr)
+	logrus.Debug("ALPNDialer.DialContext")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	logrus.Debug("ALPNDialer.DialContext")
 	tlsConn := tls.Client(conn, tlsConfig)
+	logrus.Debug("ALPNDialer.DialContext")
 	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		logrus.Debug("ALPNDialer.DialContext")
 		defer tlsConn.Close()
 		return nil, trace.Wrap(err)
 	}
+	logrus.Debug("ALPNDialer.DialContext")
 	return tlsConn, nil
 }
 

@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/moby/term"
+	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -1121,7 +1122,9 @@ func (proxy *ProxyClient) loadTLS(clusterName string) (*tls.Config, error) {
 // service and returns auth client. For routing purposes, TLS ServerName is set to destination auth service
 // cluster name with ALPN values set to teleport-auth protocol.
 func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Context, clusterName, proxyAddr string) (auth.ClientI, error) {
+	logrus.Debug("ProxyClient.ConnectToAuthServiceThroughALPNSNIProxy")
 	tlsConfig, err := proxy.loadTLS(clusterName)
+	logrus.Debug("ProxyClient.ConnectToAuthServiceThroughALPNSNIProxy")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1131,6 +1134,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 	}
 
 	tlsConfig.InsecureSkipVerify = proxy.teleportClient.InsecureSkipVerify
+	logrus.Debug("ProxyClient.ConnectToAuthServiceThroughALPNSNIProxy")
 	clt, err := auth.NewClient(client.Config{
 		Context: ctx,
 		Addrs:   []string{proxyAddr},
@@ -1144,6 +1148,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		InsecureAddressDiscovery:   proxy.teleportClient.InsecureSkipVerify,
 		DialOpts:                   proxy.teleportClient.DialOpts,
 	})
+	logrus.Debug("ProxyClient.ConnectToAuthServiceThroughALPNSNIProxy")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1156,6 +1161,7 @@ func (proxy *ProxyClient) shouldDialWithTLSRouting(ctx context.Context) (string,
 		// This is needed to distinguish if the JumpHost address from Teleport Proxy Web address
 		// or Teleport Proxy SSH address.
 		jumpHostAddr := proxy.teleportClient.JumpHosts[0].Addr.String()
+		logrus.Debug("ProxyClient.shouldDialWithTLSRouting")
 		resp, err := webclient.Find(
 			&webclient.Config{
 				Context:   ctx,
@@ -1163,6 +1169,7 @@ func (proxy *ProxyClient) shouldDialWithTLSRouting(ctx context.Context) (string,
 				Insecure:  proxy.teleportClient.InsecureSkipVerify,
 			},
 		)
+		logrus.Debug("ProxyClient.shouldDialWithTLSRouting")
 		if err != nil {
 			// HTTP ping call failed. The JumpHost address is not a Teleport proxy address
 			return "", false
@@ -1178,6 +1185,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 	// If connecting to the local cluster then return the already
 	// established auth client instead of dialing it a second time.
 	if clusterName == proxy.siteName && proxy.currentCluster != nil {
+		logrus.Debug("ProxyClient.ConnectToCluster")
 		return proxy.CurrentCluster(), nil
 	}
 
@@ -1194,7 +1202,9 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 	if proxyAddr, ok := proxy.shouldDialWithTLSRouting(ctx); ok {
 		// If proxy supports multiplex listener mode dial root/leaf cluster auth service via ALPN Proxy
 		// directly without using SSH tunnels.
+		logrus.Debug("ProxyClient.ConnectToCluster")
 		clt, err := proxy.ConnectToAuthServiceThroughALPNSNIProxy(ctx, clusterName, proxyAddr)
+		logrus.Debug("ProxyClient.ConnectToCluster")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1206,14 +1216,19 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		// passes in a context.Background() during dial which causes these two spans to be in
 		// different traces.
 		ctx = oteltrace.ContextWithSpan(ctx, span)
+		logrus.Debug("ProxyClient.ConnectToCluster")
+		defer logrus.Debug("ProxyClient.ConnectToCluster")
 		return proxy.dialAuthServer(ctx, clusterName)
 	})
 
+	logrus.Debug("ProxyClient.ConnectToCluster")
 	tlsConfig, err := proxy.loadTLS(clusterName)
+	logrus.Debug("ProxyClient.ConnectToCluster")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	logrus.Debug("ProxyClient.ConnectToCluster")
 	clt, err := auth.NewClient(client.Config{
 		Context: ctx,
 		Dialer:  dialer,
@@ -1224,6 +1239,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		PromptAdminRequestMFA: proxy.teleportClient.NewMFAPrompt(mfa.WithHintBeforePrompt(mfa.AdminMFAHintBeforePrompt)),
 		DialOpts:              proxy.teleportClient.DialOpts,
 	})
+	logrus.Debug("ProxyClient.ConnectToCluster")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1296,7 +1312,9 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 		return nil, trace.Wrap(err)
 	}
 
+	logrus.Debug("ProxyClient.dialAuthServer")
 	proxySession, err := proxy.Client.NewSession(ctx)
+	logrus.Debug("ProxyClient.dialAuthServer")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1313,7 +1331,9 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 		return nil, trace.Wrap(err)
 	}
 
+	logrus.Debug("ProxyClient.dialAuthServer")
 	err = proxySession.RequestSubsystem(ctx, "proxy:"+address)
+	logrus.Debug("ProxyClient.dialAuthServer")
 	if err != nil {
 		// read the stderr output from the failed SSH session and append
 		// it to the end of our own message:

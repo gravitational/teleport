@@ -575,17 +575,23 @@ func VirtualPathEnvNames(kind VirtualPathKind, params VirtualPathParams) []strin
 // RetryWithRelogin is a helper error handling method, attempts to relogin and
 // retry the function once.
 func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, opts ...RetryWithReloginOption) error {
+	logrus.Debug("RetryWithRelogin")
 	fnErr := fn()
 	switch {
 	case fnErr == nil:
+		logrus.Debug("RetryWithRelogin")
 		return nil
 	case utils.IsPredicateError(fnErr):
+		logrus.Debug("RetryWithRelogin")
 		return trace.Wrap(utils.PredicateError{Err: fnErr})
 	case tc.NonInteractive:
+		logrus.Debug("RetryWithRelogin")
 		return trace.Wrap(fnErr)
 	case !IsErrorResolvableWithRelogin(fnErr):
+		logrus.Debug("RetryWithRelogin")
 		return trace.Wrap(fnErr)
 	}
+	logrus.Debug("RetryWithRelogin")
 	opt := retryWithReloginOptions{}
 	for _, o := range opts {
 		o(&opt)
@@ -608,7 +614,9 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 			return trace.Wrap(err)
 		}
 	}
+	logrus.Debug("RetryWithRelogin")
 	key, err := tc.Login(ctx)
+	logrus.Debug("RetryWithRelogin")
 	if err != nil {
 		if errors.Is(err, prompt.ErrNotTerminal) {
 			log.WithError(err).Debugf("Relogin is not available in this environment")
@@ -620,7 +628,9 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 		return trace.Wrap(err)
 	}
 
+	logrus.Debug("RetryWithRelogin")
 	proxyClient, rootAuthClient, err := tc.ConnectToRootCluster(ctx, key)
+	logrus.Debug("RetryWithRelogin")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -630,7 +640,9 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	}()
 
 	// Attempt device login. This activates a fresh key if successful.
+	logrus.Debug("RetryWithRelogin")
 	if err := tc.AttemptDeviceLogin(ctx, key, rootAuthClient); err != nil {
+		logrus.Debug("RetryWithRelogin")
 		return trace.Wrap(err)
 	}
 
@@ -640,6 +652,8 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 		return trace.Wrap(err)
 	}
 
+	logrus.Debug("RetryWithRelogin")
+	defer logrus.Debug("RetryWithRelogin")
 	return fn()
 }
 
@@ -1231,7 +1245,9 @@ func (tc *TeleportClient) SignersForClusterWithReissue(ctx context.Context, clus
 	)
 	defer span.End()
 
+	logrus.Debug("TeleportClient.SignersForClusterWithReissue")
 	signers, err := tc.localAgent.signersForCluster(clusterName)
+	logrus.Debug("TeleportClient.SignersForClusterWithReissue")
 	if err == nil {
 		return signers, nil
 	}
@@ -1240,12 +1256,16 @@ func (tc *TeleportClient) SignersForClusterWithReissue(ctx context.Context, clus
 	}
 
 	if err := tc.WithoutJumpHosts(func(tc *TeleportClient) error {
+		logrus.Debug("TeleportClient.SignersForClusterWithReissue")
+		defer logrus.Debug("TeleportClient.SignersForClusterWithReissue")
 		return tc.ReissueUserCerts(ctx, CertCacheKeep, ReissueParams{RouteToCluster: clusterName})
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	logrus.Debug("TeleportClient.SignersForClusterWithReissue")
 	signers, err = tc.localAgent.signersForCluster(clusterName)
+	logrus.Debug("TeleportClient.SignersForClusterWithReissue")
 	if err != nil {
 		log.WithError(err).Warnf("Failed to load/reissue certificates for cluster %q.", clusterName)
 		return nil, trace.Wrap(err)
@@ -2987,9 +3007,12 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 			// clusterGuesser will use the host key callback to guess the target
 			// cluster based on the host certificate. It will then use the auth
 			// callback to load the appropriate SSH certificate for that cluster.
+			logrus.Debug("TeleportClient.generateClientConfig")
 			clusterGuesser := newProxyClusterGuesser(hostKeyCallback, tc.SignersForClusterWithReissue)
 			hostKeyCallback = clusterGuesser.hostKeyCallback
+			logrus.Debug("TeleportClient.generateClientConfig")
 			authMethods = append(authMethods, clusterGuesser.authMethod(ctx))
+			logrus.Debug("TeleportClient.generateClientConfig")
 
 			rootClusterName, err := tc.rootClusterName()
 			if err != nil {
@@ -3064,7 +3087,9 @@ func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, err
 	defer cancel()
 
 	go func() {
+		logrus.Debug("TeleportClient.ConnectToProxy")
 		proxyClient, err := tc.connectToProxy(connectContext)
+		logrus.Debug("TeleportClient.ConnectToProxy")
 		done <- result{proxyClient, err}
 	}()
 
@@ -3082,12 +3107,15 @@ func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, err
 // connectToProxy will dial to the proxy server and return a ProxyClient when
 // successful.
 func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, error) {
+	logrus.Debug("TeleportClient.connectToProxy")
 	cfg, err := tc.generateClientConfig(ctx)
+	logrus.Debug("TeleportClient.connectToProxy")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	sshClient, err := makeProxySSHClient(ctx, tc, cfg.ClientConfig)
+	logrus.Debug("TeleportClient.connectToProxy")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3114,6 +3142,8 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	// to the local cluster will end up reusing this auth.ClientI
 	// for the lifespan of the ProxyClient.
 	clt, err := pc.ConnectToCluster(ctx, pc.siteName)
+	logrus.Debug("TeleportClient.connectToProxy")
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3137,11 +3167,14 @@ func confirmSSHConnectivityErrorMsg(proxyAddress string) string {
 //  3. Dial sshProxyAddr with raw SSH Dialer where sshProxyAddress is proxy ssh address or JumpHost address if
 //     JumpHost address was provided.
 func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig) (*tracessh.Client, error) {
+	logrus.Debug("makeProxySSHClient")
 	// Use TLS Routing dialer only if proxy support TLS Routing and JumpHost was not set.
 	if tc.Config.TLSRoutingEnabled && len(tc.JumpHosts) == 0 {
+		logrus.Debug("makeProxySSHClient")
 		log.Infof("Connecting to proxy=%v login=%q using TLS Routing", tc.Config.WebProxyAddr, sshConfig.User)
 		c, err := makeProxySSHClientWithTLSWrapper(ctx, tc, sshConfig, tc.Config.WebProxyAddr)
 		if err != nil {
+			logrus.Debug("makeProxySSHClient")
 			return nil, trace.Wrap(err, confirmSSHConnectivityErrorMsg(tc.Config.WebProxyAddr))
 		}
 		log.Infof("Successful auth with proxy %v.", tc.Config.WebProxyAddr)
@@ -3152,6 +3185,7 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 
 	// Handle situation where a Jump Host was set to proxy web address and Teleport supports TLS Routing.
 	if len(tc.JumpHosts) > 0 {
+		logrus.Debug("makeProxySSHClient")
 		sshProxyAddr = tc.JumpHosts[0].Addr.Addr
 		// Check if JumpHost address is a proxy web address.
 		resp, err := webclient.Find(&webclient.Config{
@@ -3160,10 +3194,13 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 			Insecure:     tc.InsecureSkipVerify,
 			ExtraHeaders: tc.ExtraProxyHeaders,
 		})
+		logrus.Debug("makeProxySSHClient")
 		// If JumpHost address is a proxy web port and proxy supports TLSRouting dial proxy with TLSWrapper.
 		if err == nil && resp.Proxy.TLSRoutingEnabled {
 			log.Infof("Connecting to proxy=%v login=%q using TLS Routing JumpHost", sshProxyAddr, sshConfig.User)
+			logrus.Debug("makeProxySSHClient")
 			c, err := makeProxySSHClientWithTLSWrapper(ctx, tc, sshConfig, sshProxyAddr)
+			logrus.Debug("makeProxySSHClient")
 			if err != nil {
 				return nil, trace.Wrap(err, confirmSSHConnectivityErrorMsg(tc.Config.WebProxyAddr))
 			}
@@ -3173,7 +3210,9 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 	}
 
 	log.Infof("Connecting to proxy=%v login=%q", sshProxyAddr, sshConfig.User)
+	logrus.Debug("makeProxySSHClient")
 	client, err := makeProxySSHClientDirect(ctx, tc, sshConfig, sshProxyAddr)
+	logrus.Debug("makeProxySSHClient")
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
 			return nil, trace.AccessDenied(confirmSSHConnectivityErrorMsg(sshProxyAddr)+" Error: %v", err)
@@ -3207,20 +3246,26 @@ func makeProxySSHClientDirect(ctx context.Context, tc *TeleportClient, sshConfig
 }
 
 func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*tracessh.Client, error) {
+	logrus.Debug("makeProxySSHClientWithTLSWrapper")
 	tlsConfig, err := tc.LoadTLSConfig()
+	logrus.Debug("makeProxySSHClientWithTLSWrapper")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	logrus.Debug("makeProxySSHClientWithTLSWrapper")
 	headerGetter := CreatePROXYHeaderGetter(ctx, tc.PROXYSigner)
 
 	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
+	logrus.Debug("makeProxySSHClientWithTLSWrapper")
 	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithALPNDialer(client.ALPNDialerConfig{
 		TLSConfig:               tlsConfig,
 		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 		DialTimeout:             sshConfig.Timeout,
 		PROXYHeaderGetter:       headerGetter,
 	}), proxy.WithPROXYHeaderGetter(headerGetter))
+	logrus.Debug("makeProxySSHClientWithTLSWrapper")
+	defer logrus.Debug("makeProxySSHClientWithTLSWrapper")
 	return dialer.Dial(ctx, "tcp", proxyAddr, sshConfig)
 }
 
@@ -3288,6 +3333,8 @@ func (g *proxyClusterGuesser) clusterName() string {
 
 func (g *proxyClusterGuesser) authMethod(ctx context.Context) ssh.AuthMethod {
 	return ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
+		logrus.Debug("proxyClusterGuesser.authMethod")
+		defer logrus.Debug("proxyClusterGuesser.authMethod")
 		return g.signersForCluster(ctx, g.clusterName())
 	})
 }
@@ -4234,10 +4281,12 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 	)
 	defer span.End()
 
+	logrus.Debug("TeleportClient.Ping")
 	// If, at some point, there's a need to bypass this caching, consider
 	// adding a bool argument. At the time of writing this we always want to
 	// cache.
 	if tc.lastPing != nil {
+		logrus.Debug("TeleportClient.Ping")
 		return tc.lastPing, nil
 	}
 	pr, err := webclient.Ping(&webclient.Config{
@@ -4252,8 +4301,10 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 		return nil, trace.Wrap(err)
 	}
 
+	logrus.Debug("TeleportClient.Ping")
 	// If version checking was requested and the server advertises a minimum version.
 	if tc.CheckVersions && pr.MinClientVersion != "" {
+		logrus.Debug("TeleportClient.Ping")
 		if err := utils.CheckVersion(teleport.Version, pr.MinClientVersion); err != nil && trace.IsBadParameter(err) {
 			fmt.Fprintf(tc.Stderr, `
 WARNING
@@ -4272,12 +4323,15 @@ Future versions of tsh will fail when incompatible versions are detected.
 		return nil, trace.Wrap(err)
 	}
 
+	logrus.Debug("TeleportClient.Ping")
 	// Perform the ALPN handshake test during Ping as it's part of the Proxy
 	// settings. Only do this when Ping is successful. If tc.lastPing is
 	// cached, there is no need to do this test again.
 	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
 
+	logrus.Debug("TeleportClient.Ping")
 	tc.applyAuthSettings(pr.Auth)
+	logrus.Debug("TeleportClient.Ping")
 
 	tc.lastPing = pr
 
@@ -5158,9 +5212,12 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 func (tc *TeleportClient) IsALPNConnUpgradeRequiredForWebProxy(ctx context.Context, proxyAddr string) bool {
 	// Use cached value.
 	if proxyAddr == tc.WebProxyAddr {
+		logrus.Debug("TeleportClient.IsALPNConnUpgradeRequiredForWebProxy")
 		return tc.TLSRoutingConnUpgradeRequired
 	}
 	// Do a test for other proxy addresses.
+	logrus.Debug("TeleportClient.IsALPNConnUpgradeRequiredForWebProxy")
+	defer logrus.Debug("TeleportClient.IsALPNConnUpgradeRequiredForWebProxy")
 	return client.IsALPNConnUpgradeRequired(ctx, proxyAddr, tc.InsecureSkipVerify)
 }
 
