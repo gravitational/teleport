@@ -2437,8 +2437,7 @@ func TestAccessListReviews(t *testing.T) {
 			newAccessListMember(t, "access-list", "member3"),
 			newAccessListMember(t, "access-list", "member4"),
 			newAccessListMember(t, "access-list", "member5"),
-		},
-		accesslist.MemberOptions{})
+		})
 	require.NoError(t, err)
 
 	// Keep track of the reviews, as create can update them. We'll use this
