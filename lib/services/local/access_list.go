@@ -54,6 +54,11 @@ const (
 	// This lock is necessary to prevent a race condition between access lists and members and to ensure
 	// consistency of the one-to-many relationship between them.
 	accessListLockTTL = 5 * time.Second
+
+	// createAccessListLimitLockName is the lock used to prevent simultaneous
+	// creation or update of AccessLists in order to enforce the license limit
+	// on the number AccessLists in a cluster.
+	createAccessListLimitLockName = "createAccessListLimitLock"
 )
 
 // AccessListService manages Access List resources in the Backend. The AccessListService's
@@ -168,37 +173,53 @@ func (a *AccessListService) UpdateAccessList(ctx context.Context, accessList *ac
 
 type opFunc func(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
 
+func validateOwnerList(acl *accesslist.AccessList) error {
+	ownerMap := make(map[string]struct{}, len(acl.Spec.Owners))
+	for _, owner := range acl.Spec.Owners {
+		if _, ok := ownerMap[owner.Name]; ok {
+			return trace.AlreadyExists("owner %s already exists in the owner list", owner.Name)
+		}
+		ownerMap[owner.Name] = struct{}{}
+	}
+	return nil
+}
+
 func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *accesslist.AccessList, op opFunc) (*accesslist.AccessList, error) {
+	if err := validateOwnerList(accessList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var upserted *accesslist.AccessList
-	upsertWithLockFn := func() error {
-		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-			ownerMap := make(map[string]struct{}, len(accessList.Spec.Owners))
-			for _, owner := range accessList.Spec.Owners {
-				if _, ok := ownerMap[owner.Name]; ok {
-					return trace.AlreadyExists("owner %s already exists in the owner list", owner.Name)
-				}
-				ownerMap[owner.Name] = struct{}{}
-			}
 
-			var err error
-			upserted, err = op(ctx, accessList)
-			return trace.Wrap(err)
-		})
-	}
-
-	var err error
-	if feature := modules.GetModules().Features(); !feature.IGSEnabled() {
-		err = a.service.RunWhileLocked(ctx, "createAccessListLimitLock", accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-			if err := a.VerifyAccessListCreateLimit(ctx, accessList.GetName()); err != nil {
+	updateAccessList := func() error {
+		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), accessListLockTTL,
+			func(ctx context.Context, _ backend.Backend) error {
+				var err error
+				upserted, err = op(ctx, accessList)
 				return trace.Wrap(err)
-			}
-			return trace.Wrap(upsertWithLockFn())
-		})
-	} else {
-		err = upsertWithLockFn()
+			})
 	}
 
-	if err != nil {
+	// If IGS is not enabled for this cluster we need to wrap the whole
+	// operation inside *another* lock so that we can accurately count the
+	// access lists in the cluster in order to prevent un-authorized use of
+	// the AccessList feature
+
+	action := updateAccessList
+	if !modules.GetModules().Features().IGSEnabled() {
+		action = func() error {
+			err := a.service.RunWhileLocked(ctx, createAccessListLimitLockName, accessListLockTTL,
+				func(ctx context.Context, _ backend.Backend) error {
+					if err := a.VerifyAccessListCreateLimit(ctx, accessList.GetName()); err != nil {
+						return trace.Wrap(err)
+					}
+					return trace.Wrap(updateAccessList())
+				})
+			return trace.Wrap(err)
+		}
+	}
+
+	if err := action(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -368,8 +389,12 @@ func getName[R types.Resource](r R) string {
 
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.
 func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember, options accesslist.MemberOptions) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
-	// Double the lock TTL to account for the time it takes to upsert the members.
-	upsertWithLockFn := func() error {
+
+	if err := validateOwnerList(accessList); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	reconcileMembers := func() error {
 		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 			// Convert the members slice to a map for easier lookup.
 			membersMap := utils.FromSlice(membersIn, getName)
@@ -439,19 +464,25 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 		})
 	}
 
-	var err error
-	if feature := modules.GetModules().Features(); !feature.IGSEnabled() {
-		err = a.service.RunWhileLocked(ctx, "createAccessListWithMembersLimitLock", accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-			if err := a.VerifyAccessListCreateLimit(ctx, accessList.GetName()); err != nil {
-				return trace.Wrap(err)
-			}
-			return trace.Wrap(upsertWithLockFn())
-		})
-	} else {
-		err = upsertWithLockFn()
+	// If IGS is not enabled for this cluster we need to wrap the whole update and
+	// member reconciliation in *another* lock so that we can accurately count the
+	// access lists in the cluster in order to  prevent un-authorized use of the
+	// AccessList feature
+
+	action := reconcileMembers
+	if !modules.GetModules().Features().IGSEnabled() {
+		action = func() error {
+			return a.service.RunWhileLocked(ctx, createAccessListLimitLockName, 2*accessListLockTTL,
+				func(ctx context.Context, _ backend.Backend) error {
+					if err := a.VerifyAccessListCreateLimit(ctx, accessList.GetName()); err != nil {
+						return trace.Wrap(err)
+					}
+					return trace.Wrap(reconcileMembers())
+				})
+		}
 	}
 
-	if err != nil {
+	if err := action(); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
