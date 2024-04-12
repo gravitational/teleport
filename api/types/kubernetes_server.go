@@ -28,9 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-var (
-	_ compare.IsEqual[KubeServer] = (*KubernetesServerV3)(nil)
-)
+var _ compare.IsEqual[KubeServer] = (*KubernetesServerV3)(nil)
 
 // KubeServer represents a single Kubernetes server.
 type KubeServer interface {

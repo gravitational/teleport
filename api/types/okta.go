@@ -27,9 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-var (
-	_ compare.IsEqual[OktaAssignment] = (*OktaAssignmentV1)(nil)
-)
+var _ compare.IsEqual[OktaAssignment] = (*OktaAssignmentV1)(nil)
 
 // OktaImportRule specifies a rule for importing and labeling Okta applications and groups.
 type OktaImportRule interface {

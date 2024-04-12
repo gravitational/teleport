@@ -34,9 +34,7 @@ import (
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 )
 
-var (
-	_ compare.IsEqual[Database] = (*DatabaseV3)(nil)
-)
+var _ compare.IsEqual[Database] = (*DatabaseV3)(nil)
 
 // Database represents a single database proxied by a database server.
 type Database interface {

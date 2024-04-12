@@ -29,9 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-var (
-	_ compare.IsEqual[KubeCluster] = (*KubernetesClusterV3)(nil)
-)
+var _ compare.IsEqual[KubeCluster] = (*KubernetesClusterV3)(nil)
 
 // KubeCluster represents a kubernetes cluster.
 type KubeCluster interface {
