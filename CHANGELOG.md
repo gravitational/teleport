@@ -1,5 +1,26 @@
 # Changelog
 
+## 14.3.15 (04/12/24)
+
+* Fixed accidental passkey "downgrades" to MFA. [#40410](https://github.com/gravitational/teleport/pull/40410)
+* Added `tsh proxy kube --exec` mode that spawns kube proxy in the background, which re-executes the user shell with the appropriate kubeconfig. [#40394](https://github.com/gravitational/teleport/pull/40394)
+* Made Amazon S3 fields optional when creating or editing AWS OIDC integration on the web UI. [#40372](https://github.com/gravitational/teleport/pull/40372)
+* Changed Teleport Connect to hide cluster name in the connection list if there is only a single cluster available. [#40357](https://github.com/gravitational/teleport/pull/40357)
+* Changed Teleport Connect to now show all recent connections instead of capping them at 10. [#40251](https://github.com/gravitational/teleport/pull/40251)
+* Fixed an issue that prevents the Teleport service from restarting. [#40230](https://github.com/gravitational/teleport/pull/40230)
+* Added a new resource filtering predicates to allow exact matches on a single item of a delimited list stored in a label value. For example, if given the following label containing a string separated list of values `foo=bar,baz,bang`, it is now possible to match on any resources with a label `foo` that contains the element `bar` via `contains(split(labels[foo], ","), bar)`. [#40184](https://github.com/gravitational/teleport/pull/40184)
+* Updated Go to 1.21.9. [#40177](https://github.com/gravitational/teleport/pull/40177)
+* Added `disable_exec_plugin` option to the Machine ID Kubernetes Output to remove the dependency on `tbot` existing in the target environment. [#40163](https://github.com/gravitational/teleport/pull/40163)
+* Added the database-tunnel service to `tbot` which allows an authenticated database tunnel to be opened by `tbot`. This is an improvement over the original technique of using `tbot proxy db`. [#40160](https://github.com/gravitational/teleport/pull/40160)
+* Enabled diagnostic endpoints access behind a PROXY protocol enabled loadbalancer/proxy. [#40139](https://github.com/gravitational/teleport/pull/40139)
+* Added system annotations to audit event entries for access requests. [#40122](https://github.com/gravitational/teleport/pull/40122)
+* Fixed "Invalid URI" error in Teleport Connect when starting MongoDB `mongosh` from the database connection tab. [#40105](https://github.com/gravitational/teleport/pull/40105)
+* Improved the performance of filtering resources via predicate expressions. [#39975](https://github.com/gravitational/teleport/pull/39975)
+* Fixed a verbosity issue that caused the `teleport-kube-agent-updater` to output debug logs by default. [#39954](https://github.com/gravitational/teleport/pull/39954)
+* Reduced default Jamf inventory page size, and added support for custom values. [#39934](https://github.com/gravitational/teleport/pull/39934)
+* Added support to the `teleport-cluster` Helm chart for using an Amazon Athena event backend. [#39908](https://github.com/gravitational/teleport/pull/39908)
+* Improved the performance of resource filtering via labels and fuzzy search. [#39792](https://github.com/gravitational/teleport/pull/39792)
+
 ## 14.3.14 (03/27/24)
 
 * Fixed possible phishing links which could result in code execution with install and join scripts. [#39838](https://github.com/gravitational/teleport/pull/39838)
