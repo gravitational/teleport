@@ -117,7 +117,7 @@ ifeq ($(shell expr $(CURRENT_ULIMIT) \< 1024), 1)
 	@echo "ulimit -n is too low ($(CURRENT_ULIMIT)), please set ulimit -n 1024"
 	@exit -1
 endif
-	TF_ACC=true go test ./test -v
+	TF_ACC=true go test ./testlib -v
 
 .PHONY: apply
 apply: install

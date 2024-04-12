@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package testlib
 
 import (
 	"context"
@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func (s *TerraformSuite) TestRole() {
+func (s *TerraformSuiteOSS) TestRole() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -113,10 +113,12 @@ func (s *TerraformSuite) TestRole() {
 	})
 }
 
-func (s *TerraformSuiteWithCache) TestRoleMultipleReviewers() {
-	if !s.teleportFeatures.GetAdvancedAccessWorkflows() {
-		s.T().Skip("Doesn't work in OSS version, requires Advanced Access Workflows")
-	}
+func (s *TerraformSuiteEnterpriseWithCache) TestRoleMultipleReviewers() {
+	require.True(s.T(),
+		s.teleportFeatures.GetAdvancedAccessWorkflows(),
+		"Test requires Advanced Access Workflows",
+	)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -157,7 +159,7 @@ func (s *TerraformSuiteWithCache) TestRoleMultipleReviewers() {
 	})
 }
 
-func (s *TerraformSuite) TestImportRole() {
+func (s *TerraformSuiteOSS) TestImportRole() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -196,7 +198,7 @@ func (s *TerraformSuite) TestImportRole() {
 	})
 }
 
-func (s *TerraformSuite) TestRoleLoginsSplitBrain() {
+func (s *TerraformSuiteOSS) TestRoleLoginsSplitBrain() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -251,7 +253,7 @@ func (s *TerraformSuite) TestRoleLoginsSplitBrain() {
 	})
 }
 
-func (s *TerraformSuite) TestRoleVersionUpgrade() {
+func (s *TerraformSuiteOSS) TestRoleVersionUpgrade() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -400,7 +402,7 @@ func (s *TerraformSuite) TestRoleVersionUpgrade() {
 	})
 }
 
-func (s *TerraformSuite) TestRoleWithKubernetesResources() {
+func (s *TerraformSuiteOSS) TestRoleWithKubernetesResources() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -439,7 +441,7 @@ func (s *TerraformSuite) TestRoleWithKubernetesResources() {
 	})
 }
 
-func (s *TerraformSuite) TestRoleWithKubernetesVerbs() {
+func (s *TerraformSuiteOSS) TestRoleWithKubernetesVerbs() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -480,7 +482,7 @@ func (s *TerraformSuite) TestRoleWithKubernetesVerbs() {
 	})
 }
 
-func (s *TerraformSuite) TestRoleNoVersion() {
+func (s *TerraformSuiteOSS) TestRoleNoVersion() {
 	re, err := regexp.Compile(".*The argument \"version\" is required, but no definition was found.*")
 	require.NoError(s.T(), err)
 	resource.Test(s.T(), resource.TestCase{

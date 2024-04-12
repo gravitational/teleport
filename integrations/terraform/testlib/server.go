@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package testlib
 
 import (
 	"context"
@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func (s *TerraformSuite) TestOpenSSHServer() {
+func (s *TerraformSuiteOSS) TestOpenSSHServer() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -80,7 +80,7 @@ func (s *TerraformSuite) TestOpenSSHServer() {
 	})
 }
 
-func (s *TerraformSuite) TestOpenSSHServerNameless() {
+func (s *TerraformSuiteOSS) TestOpenSSHServerNameless() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -132,7 +132,7 @@ func (s *TerraformSuite) TestOpenSSHServerNameless() {
 	})
 }
 
-func (s *TerraformSuite) TestImportOpenSSHServer() {
+func (s *TerraformSuiteOSS) TestImportOpenSSHServer() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -188,7 +188,7 @@ func (s *TerraformSuite) TestImportOpenSSHServer() {
 	})
 }
 
-func (s *TerraformSuite) TestOpenSSHEICEServer() {
+func (s *TerraformSuiteOSS) TestOpenSSHEICEServer() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -251,7 +251,7 @@ func (s *TerraformSuite) TestOpenSSHEICEServer() {
 	})
 }
 
-func (s *TerraformSuite) TestImportOpenSSHEICEServer() {
+func (s *TerraformSuiteOSS) TestImportOpenSSHEICEServer() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 

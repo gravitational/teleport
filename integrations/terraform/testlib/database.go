@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package testlib
 
 import (
 	"context"
@@ -28,12 +28,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func (s *TerraformSuite) TestApp() {
+func (s *TerraformSuiteOSS) TestDatabase() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
 	checkDestroyed := func(state *terraform.State) error {
-		_, err := s.client.GetApp(ctx, "test")
+		_, err := s.client.GetDatabase(ctx, "test")
 		if trace.IsNotFound(err) {
 			return nil
 		}
@@ -41,63 +41,67 @@ func (s *TerraformSuite) TestApp() {
 		return err
 	}
 
-	name := "teleport_app.test"
+	name := "teleport_database.test"
 
 	resource.Test(s.T(), resource.TestCase{
 		ProtoV6ProviderFactories: s.terraformProviders,
 		CheckDestroy:             checkDestroyed,
-		IsUnitTest:               true,
 		Steps: []resource.TestStep{
 			{
-				Config: s.getFixture("app_0_create.tf"),
+				Config: s.getFixture("database_0_create.tf"),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(name, "kind", "app"),
-					resource.TestCheckResourceAttr(name, "spec.uri", "localhost:3000"),
+					resource.TestCheckResourceAttr(name, "kind", "db"),
+					resource.TestCheckResourceAttr(name, "metadata.expires", "2032-10-12T07:20:50Z"),
+					resource.TestCheckResourceAttr(name, "spec.protocol", "postgres"),
+					resource.TestCheckResourceAttr(name, "spec.uri", "localhost:5432"),
 				),
 			},
 			{
-				Config:   s.getFixture("app_0_create.tf"),
+				Config:   s.getFixture("database_0_create.tf"),
 				PlanOnly: true,
 			},
 			{
-				Config: s.getFixture("app_1_update.tf"),
+				Config: s.getFixture("database_1_update.tf"),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(name, "kind", "app"),
-					resource.TestCheckResourceAttr(name, "spec.uri", "localhost:3000"),
+					resource.TestCheckResourceAttr(name, "kind", "db"),
+					resource.TestCheckResourceAttr(name, "metadata.expires", "2032-10-12T07:20:50Z"),
+					resource.TestCheckResourceAttr(name, "spec.protocol", "postgres"),
+					resource.TestCheckResourceAttr(name, "spec.uri", "example.com:5432"),
 				),
 			},
 			{
-				Config:   s.getFixture("app_1_update.tf"),
+				Config:   s.getFixture("database_1_update.tf"),
 				PlanOnly: true,
 			},
 		},
 	})
 }
 
-func (s *TerraformSuite) TestImportApp() {
+func (s *TerraformSuiteOSS) TestImportDatabase() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
-	r := "teleport_app"
-	id := "test_import"
+	r := "teleport_database"
+	id := "test-import"
 	name := r + "." + id
 
-	app := &types.AppV3{
+	database := &types.DatabaseV3{
 		Metadata: types.Metadata{
 			Name: id,
 		},
-		Spec: types.AppSpecV3{
-			URI: "localhost:3000/test",
+		Spec: types.DatabaseSpecV3{
+			Protocol: "postgres",
+			URI:      "localhost:3000/test",
 		},
 	}
-	err := app.CheckAndSetDefaults()
+	err := database.CheckAndSetDefaults()
 	require.NoError(s.T(), err)
 
-	err = s.client.CreateApp(ctx, app)
+	err = s.client.CreateDatabase(ctx, database)
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {
-		_, err := s.client.GetApp(ctx, app.GetName())
+		_, err := s.client.GetDatabase(ctx, database.GetName())
 		if trace.IsNotFound(err) {
 			return false
 		}
@@ -107,7 +111,6 @@ func (s *TerraformSuite) TestImportApp() {
 
 	resource.Test(s.T(), resource.TestCase{
 		ProtoV6ProviderFactories: s.terraformProviders,
-		IsUnitTest:               true,
 		Steps: []resource.TestStep{
 			{
 				Config:        s.terraformConfig + "\n" + `resource "` + r + `" "` + id + `" { }`,
@@ -115,45 +118,12 @@ func (s *TerraformSuite) TestImportApp() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(s.T(), state[0].Attributes["kind"], "app")
+					require.Equal(s.T(), state[0].Attributes["kind"], "db")
 					require.Equal(s.T(), state[0].Attributes["spec.uri"], "localhost:3000/test")
+					require.Equal(s.T(), state[0].Attributes["spec.protocol"], "postgres")
 
 					return nil
 				},
-			},
-		},
-	})
-}
-
-func (s *TerraformSuiteWithCache) TestAppWithCache() {
-	ctx, cancel := context.WithCancel(context.Background())
-	s.T().Cleanup(cancel)
-	checkDestroyed := func(state *terraform.State) error {
-		_, err := s.client.GetApp(ctx, "test")
-		if trace.IsNotFound(err) {
-			return nil
-		}
-
-		return err
-	}
-
-	name := "teleport_app.test_with_cache"
-
-	resource.Test(s.T(), resource.TestCase{
-		ProtoV6ProviderFactories: s.terraformProviders,
-		CheckDestroy:             checkDestroyed,
-		IsUnitTest:               true,
-		Steps: []resource.TestStep{
-			{
-				Config: s.getFixture("app_0_create_with_cache.tf"),
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(name, "kind", "app"),
-					resource.TestCheckResourceAttr(name, "spec.uri", "localhost:3000"),
-				),
-			},
-			{
-				Config:   s.getFixture("app_0_create_with_cache.tf"),
-				PlanOnly: true,
 			},
 		},
 	})

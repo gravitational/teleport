@@ -14,13 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package testlib
 
 import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
-func (s *TerraformSuite) TestClusterMaintenanceConfig() {
+func (s *TerraformSuiteOSS) TestClusterMaintenanceConfig() {
 	name := "teleport_cluster_maintenance_config.test"
 
 	resource.Test(s.T(), resource.TestCase{

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package testlib
 
 import (
 	"context"
@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func (s *TerraformSuite) TestAuthPreference() {
+func (s *TerraformSuiteOSS) TestAuthPreference() {
 	name := "teleport_auth_preference.test"
 
 	resource.Test(s.T(), resource.TestCase{
@@ -62,7 +62,7 @@ func (s *TerraformSuite) TestAuthPreference() {
 	})
 }
 
-func (s *TerraformSuite) TestImportAuthPreference() {
+func (s *TerraformSuiteOSS) TestImportAuthPreference() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -112,7 +112,7 @@ func (s *TerraformSuite) TestImportAuthPreference() {
 	})
 }
 
-func (s *TerraformSuiteWithCache) TestAuthPreferenceAddLabel() {
+func (s *TerraformSuiteOSSWithCache) TestAuthPreferenceAddLabel() {
 	name := "teleport_auth_preference.cluster_auth_preference"
 
 	resource.Test(s.T(), resource.TestCase{

@@ -1,5 +1,5 @@
 /*
-Copyright 2023 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package testlib
 
 import (
 	"context"
@@ -27,75 +27,71 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func (s *TerraformSuite) TestClusterNetworkingConfig() {
-	name := "teleport_cluster_networking_config.test"
+func (s *TerraformSuiteOSS) TestSessionRecordingConfig() {
+	name := "teleport_session_recording_config.test"
 
 	resource.Test(s.T(), resource.TestCase{
 		ProtoV6ProviderFactories:  s.terraformProviders,
 		PreventPostDestroyRefresh: true,
-		IsUnitTest:                true,
 		Steps: []resource.TestStep{
 			{
-				Config: s.getFixture("networking_config_0_set.tf"),
+				Config: s.getFixture("session_recording_config_0_set.tf"),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(name, "kind", "cluster_networking_config"),
-					resource.TestCheckResourceAttr(name, "metadata.labels.example", "yes"),
-					resource.TestCheckResourceAttr(name, "spec.client_idle_timeout", "30m"),
+					resource.TestCheckResourceAttr(name, "kind", "session_recording_config"),
+					resource.TestCheckResourceAttr(name, "spec.mode", "node"),
 				),
 			},
 			{
-				Config:   s.getFixture("networking_config_0_set.tf"),
+				Config:   s.getFixture("session_recording_config_0_set.tf"),
 				PlanOnly: true,
 			},
 			{
-				Config: s.getFixture("networking_config_1_update.tf"),
+				Config: s.getFixture("session_recording_config_1_update.tf"),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(name, "kind", "cluster_networking_config"),
-					resource.TestCheckResourceAttr(name, "metadata.labels.example", "no"),
-					resource.TestCheckResourceAttr(name, "spec.client_idle_timeout", "1h"),
+					resource.TestCheckResourceAttr(name, "kind", "session_recording_config"),
+					resource.TestCheckResourceAttr(name, "spec.mode", "off"),
 				),
 			},
 			{
-				Config:   s.getFixture("networking_config_1_update.tf"),
+				Config:   s.getFixture("session_recording_config_1_update.tf"),
 				PlanOnly: true,
 			},
 		},
 	})
 }
 
-func (s *TerraformSuite) TestImportClusterNetworkingConfig() {
+func (s *TerraformSuiteOSS) TestImportSessionRecordingConfig() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
-	r := "teleport_cluster_networking_config"
+	r := "teleport_session_recording_config"
 	id := "test_import"
 	name := r + "." + id
 
-	clusterNetworkingConfig := &types.ClusterNetworkingConfigV2{
+	sessionrRecordingConfig := &types.SessionRecordingConfigV2{
 		Metadata: types.Metadata{},
-		Spec: types.ClusterNetworkingConfigSpecV2{
-			ClientIdleTimeout: types.Duration(30 * time.Second),
+		Spec: types.SessionRecordingConfigSpecV2{
+			Mode: "off",
 		},
 	}
-	err := clusterNetworkingConfig.CheckAndSetDefaults()
+	err := sessionrRecordingConfig.CheckAndSetDefaults()
 	require.NoError(s.T(), err)
 
-	clusterNetworkConfigBefore, err := s.client.GetClusterNetworkingConfig(ctx)
+	recordingConfigBefore, err := s.client.GetSessionRecordingConfig(ctx)
 	require.NoError(s.T(), err)
 
-	err = s.client.SetClusterNetworkingConfig(ctx, clusterNetworkingConfig)
+	err = s.client.SetSessionRecordingConfig(ctx, sessionrRecordingConfig)
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {
-		clusterNetworkConfigCurrent, err := s.client.GetClusterNetworkingConfig(ctx)
+		recordingConfigCurrent, err := s.client.GetSessionRecordingConfig(ctx)
 		require.NoError(s.T(), err)
 
-		return clusterNetworkConfigBefore.GetMetadata().ID != clusterNetworkConfigCurrent.GetMetadata().ID
+		return recordingConfigBefore.GetMetadata().ID != recordingConfigCurrent.GetMetadata().ID
 	}, 5*time.Second, time.Second)
 
 	resource.Test(s.T(), resource.TestCase{
 		ProtoV6ProviderFactories: s.terraformProviders,
-		IsUnitTest:               true,
 		Steps: []resource.TestStep{
 			{
 				Config:        s.terraformConfig + "\n" + `resource "` + r + `" "` + id + `" { }`,
@@ -103,8 +99,8 @@ func (s *TerraformSuite) TestImportClusterNetworkingConfig() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(s.T(), state[0].Attributes["kind"], "cluster_networking_config")
-					require.Equal(s.T(), state[0].Attributes["spec.client_idle_timeout"], "30s")
+					require.Equal(s.T(), state[0].Attributes["kind"], "session_recording_config")
+					require.Equal(s.T(), state[0].Attributes["spec.mode"], "off")
 
 					return nil
 				},
