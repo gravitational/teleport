@@ -2088,9 +2088,22 @@ func isRelevantWebsocketError(err error) bool {
 }
 
 func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
-	if details, ok := f.clusterDetails[sess.kubeClusterName]; ok &&
-		kubernetesSupportsExecSubprotocolV5(details.kubeClusterVersion) && f.allServersSupportExecSubprotocolV5(sess) {
+	isWSSupported := false
+	if sess.noAuditEvents {
+		// We're forwarding it to another kube_service, check if it supports new protocol.
+		isWSSupported = f.allServersSupportExecSubprotocolV5(sess)
+	} else {
+		// We're accessing the Kubernetes cluster directly, check if it is version that supports new protocol.
+		f.rwMutexDetails.RLock()
+		if details, ok := f.clusterDetails[sess.kubeClusterName]; ok {
+			details.rwMu.RLock()
+			isWSSupported = kubernetesSupportsExecSubprotocolV5(details.kubeClusterVersion)
+			details.rwMu.RUnlock()
+		}
+		f.rwMutexDetails.RUnlock()
+	}
 
+	if isWSSupported {
 		wsExec, err := f.getWebsocketExecutor(sess, req)
 		return wsExec, trace.Wrap(err)
 	}

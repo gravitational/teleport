@@ -177,11 +177,17 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 					continue
 				}
 
+				kubeVersion, err := kubeClient.Discovery().ServerVersion()
+				if err != nil {
+					cfg.log.WithError(err).Warn("Failed to get Kubernetes cluster version. Possibly the cluster is offline.")
+				}
+
 				k.rwMu.Lock()
 				k.kubeCodecs = codecFactory
 				k.rbacSupportedTypes = rbacSupportedTypes
 				k.gvkSupportedResources = gvkSupportedResources
 				k.isClusterOffline = false
+				k.kubeClusterVersion = kubeVersion
 				k.rwMu.Unlock()
 			}
 		}
