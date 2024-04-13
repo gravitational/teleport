@@ -410,14 +410,15 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 							return trace.Wrap(err)
 						}
 					} else {
+						// Preserve the membership metadata for any existing members
+						// to suppress member records flipping back and forth due
+						// due SCIM pushes or Sync Service updates.
 						if !existingMember.Spec.Expires.IsZero() {
 							newMember.Spec.Expires = existingMember.Spec.Expires
 						}
-
 						if existingMember.Spec.Reason != "" {
 							newMember.Spec.Reason = existingMember.Spec.Reason
 						}
-
 						newMember.Spec.AddedBy = existingMember.Spec.AddedBy
 
 						// Compare members and update if necessary.
