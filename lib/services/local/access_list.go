@@ -173,19 +173,8 @@ func (a *AccessListService) UpdateAccessList(ctx context.Context, accessList *ac
 
 type opFunc func(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
 
-func validateOwnerList(acl *accesslist.AccessList) error {
-	ownerMap := make(map[string]struct{}, len(acl.Spec.Owners))
-	for _, owner := range acl.Spec.Owners {
-		if _, ok := ownerMap[owner.Name]; ok {
-			return trace.AlreadyExists("owner %s already exists in the owner list", owner.Name)
-		}
-		ownerMap[owner.Name] = struct{}{}
-	}
-	return nil
-}
-
 func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *accesslist.AccessList, op opFunc) (*accesslist.AccessList, error) {
-	if err := validateOwnerList(accessList); err != nil {
+	if err := accessList.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -385,9 +374,14 @@ func (a *AccessListService) DeleteAllAccessListMembers(ctx context.Context) erro
 
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.
 func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
-
-	if err := validateOwnerList(accessList); err != nil {
+	if err := accessList.CheckAndSetDefaults(); err != nil {
 		return nil, nil, trace.Wrap(err)
+	}
+
+	for _, m := range membersIn {
+		if err := m.CheckAndSetDefaults(); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 	}
 
 	reconcileMembers := func() error {
