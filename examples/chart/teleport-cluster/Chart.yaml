@@ -1,4 +1,4 @@
-.version: &version "14.3.15"
+.version: &version "14.3.15-dev.kubelsdebug.1"
 
 name: teleport-cluster
 apiVersion: v2
