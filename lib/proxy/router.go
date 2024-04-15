@@ -365,12 +365,12 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 
 	site, err := r.siteGetter.GetSite(clusterName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, utils.OpaqueAccessDenied(err)
 	}
 
 	rc, err := r.clusterGetter.GetRemoteCluster(ctx, clusterName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, utils.OpaqueAccessDenied(err)
 	}
 
 	if err := checker.CheckAccessToRemoteCluster(rc); err != nil {
