@@ -12,7 +12,9 @@ env:
 
 # Each job depends on the last so that we do not run too many build jobs
 # in parallel so as to not require too many self-hosted runners which
-# are used for the ARM64 builds.
+# are used for the ARM64 builds. We use `if: always()` so even if a job
+# fails, it will continue on to the next, as there are not likely to be
+# any reasons for failures in common.
 jobs:
   build-master:
     uses: gravitational/teleport.e/.github/workflows/build-buildboxes.yaml@master
@@ -24,6 +26,7 @@ jobs:
 
   build-branch-latest:
     needs: [build-master]
+    if: always()
     uses: gravitational/teleport.e/.github/workflows/build-buildboxes.yaml@branch/v15
     with:
       branch: branch/v15
@@ -33,6 +36,7 @@ jobs:
 
   build-branch-latest-minus-1:
     needs: [build-branch-latest]
+    if: always()
     uses: gravitational/teleport.e/.github/workflows/build-buildboxes.yaml@branch/v14
     with:
       branch: branch/v14
@@ -42,6 +46,7 @@ jobs:
 
   build-branch-latest-minus-2:
     needs: [build-branch-latest-minus-1]
+    if: always()
     uses: gravitational/teleport.e/.github/workflows/build-buildboxes.yaml@branch/v13
     with:
       branch: branch/v13
@@ -54,6 +59,7 @@ jobs:
   # should be updated to the next branch number and disabled.
   #build-branch-latest-prerelease:
   #  needs: [build-branch-latest-minus-2]
+  #  if: always()
   #  uses: gravitational/teleport.e/.github/workflows/build-buildboxes.yaml@branch/v16
   #  with:
   #    branch: branch/v16
