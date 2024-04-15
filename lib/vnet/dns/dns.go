@@ -31,6 +31,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gravitational/trace"
 	"golang.org/x/net/dns/dnsmessage"
+	"gvisor.dev/gvisor/pkg/tcpip"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
@@ -140,10 +141,10 @@ func (s *Server) HandleUDPConn(ctx context.Context, conn io.ReadWriteCloser) err
 		slog.Info("Name matched but no record, responding with authoritative non-answer.")
 		response, err = buildEmptyResponse(buf, &requestHeader, &question)
 	case result.A != ([4]byte{}):
-		slog.Info("Matched DNS A.", "A", result.A)
+		slog.Info("Matched DNS A.", "A", tcpip.AddrFrom4(result.A))
 		response, err = buildAResponse(buf, &requestHeader, &question, result.A)
 	case result.AAAA != ([16]byte{}):
-		slog.Info("Matched DNS AAAA.", "AAAA", result.AAAA)
+		slog.Info("Matched DNS AAAA.", "AAAA", tcpip.AddrFrom16(result.AAAA))
 		response, err = buildAAAAResponse(buf, &requestHeader, &question, result.AAAA)
 	default:
 		slog.Info("Forwarding unmatched query.")

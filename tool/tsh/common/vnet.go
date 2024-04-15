@@ -61,6 +61,8 @@ type vnetAdminSetupCommand struct {
 	pidFilePath string
 	// customDNSZones is a comma-separated list of custom DNS zones.
 	customDNSZones string
+	// baseIPv6Address is the IPv6 prefix for the VNet.
+	baseIPv6Address string
 }
 
 func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
@@ -71,6 +73,7 @@ func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 	cmd.Flag("socket", "unix socket path").StringVar(&cmd.socketPath)
 	cmd.Flag("pidfile", "pid file path").StringVar(&cmd.pidFilePath)
 	cmd.Flag("custom-dns-zones", "custom DNS zones (comma-separated)").StringVar(&cmd.customDNSZones)
+	cmd.Flag("ipv6-address", "IPv6 prefix for the VNet").StringVar(&cmd.baseIPv6Address)
 
 	return cmd
 }

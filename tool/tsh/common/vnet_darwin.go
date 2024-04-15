@@ -49,5 +49,5 @@ func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 	if len(c.customDNSZones) > 0 {
 		customDNSZones = strings.Split(c.customDNSZones, ",")
 	}
-	return trace.Wrap(vnet.AdminSubcommand(cf.Context, c.socketPath, c.pidFilePath, customDNSZones))
+	return trace.Wrap(vnet.AdminSubcommand(cf.Context, c.socketPath, c.pidFilePath, c.baseIPv6Address, customDNSZones))
 }

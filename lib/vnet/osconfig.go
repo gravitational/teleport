@@ -2,7 +2,8 @@ package vnet
 
 type osConfig struct {
 	tunName               string
-	tunIP                 string
+	tunIPv4               string
+	tunIPv6               string
 	vnetNetmasks          []string
 	vnetNameserverAddress string
 	dnsZones              []string

@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -40,6 +41,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
+	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
@@ -62,18 +64,41 @@ var (
 	defaultDNSAddress = tcpip.AddrFrom4([4]byte{100, 127, 100, 127})
 )
 
+func BaseIPv6Address() (tcpip.Address, error) {
+	// |   8 bits   |  40 bits   |  16 bits  |          64 bits           |
+	// +------------+------------+-----------+----------------------------+
+	// | ULA Prefix | Global ID  | Subnet ID |        Interface ID        |
+	// +------------+------------+-----------+----------------------------+
+	// ULA Prefix is always 0xfd
+	// Global ID is random bytes
+	// Subnet ID is always 0
+	// Interface ID will be the IPv4 address prefixed with zeros.
+	var bytes [16]byte
+	bytes[0] = 0xfd
+	if _, err := rand.Read(bytes[1:6]); err != nil {
+		return tcpip.Address{}, trace.Wrap(err)
+	}
+	return tcpip.AddrFrom16(bytes), nil
+}
+
 // Run is a blocking call to create and start Teleport VNet.
 func Run(ctx context.Context, tc *client.TeleportClient, customDNSZones []string) error {
-	tun, cleanup, err := CreateAndSetupTUNDevice(ctx, customDNSZones)
+	baseAddress, err := BaseIPv6Address()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tun, cleanup, err := CreateAndSetupTUNDevice(ctx, baseAddress.String(), customDNSZones)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer cleanup()
 
 	manager, err := NewManager(ctx, &Config{
-		Client:         tc,
-		TUNDevice:      tun,
-		customDNSZones: customDNSZones,
+		Client:          tc,
+		TUNDevice:       tun,
+		BaseIPv6Address: baseAddress,
+		customDNSZones:  customDNSZones,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -86,10 +111,11 @@ func Run(ctx context.Context, tc *client.TeleportClient, customDNSZones []string
 
 // Config holds configuration parameters for the VNet.
 type Config struct {
-	Client         *client.TeleportClient
-	TUNDevice      tun.Device
-	DNSAddress     tcpip.Address
-	customDNSZones []string
+	Client          *client.TeleportClient
+	TUNDevice       tun.Device
+	DNSAddress      tcpip.Address
+	BaseIPv6Address tcpip.Address
+	customDNSZones  []string
 }
 
 // CheckAndSetDefaults checks the config and sets defaults.
@@ -143,6 +169,7 @@ type Manager struct {
 	state         state
 	// TODO: remove this and get custom DNS zones per cluster.
 	globalCustomDNSZones []string
+	baseIPv6Address      tcpip.Address
 }
 
 // NewManager creates a new VNet manager with the given configuration and root
@@ -167,7 +194,9 @@ func NewManager(ctx context.Context, cfg *Config) (*Manager, error) {
 		slog:                 slog,
 		state:                newState(),
 		globalCustomDNSZones: cfg.customDNSZones,
+		baseIPv6Address:      cfg.BaseIPv6Address,
 	}
+
 	dnsServer, err := dns.NewServer(slog, m)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating DNS server")
@@ -228,9 +257,9 @@ func (m *Manager) Close() error {
 
 // ResolveA implements [dns.Resolver.ResolveA]
 func (m *Manager) ResolveA(ctx context.Context, fqdn string) (dns.Result, error) {
-	if ip, ok := m.cachedIP(fqdn); ok {
+	if ipv6, ok := m.cachedIPv6(fqdn); ok {
 		return dns.Result{
-			A: ip.As4(),
+			A: ipv4Suffix(ipv6).As4(),
 		}, nil
 	}
 
@@ -253,20 +282,25 @@ func (m *Manager) ResolveA(ctx context.Context, fqdn string) (dns.Result, error)
 		return dns.Result{}, nil
 	}
 
-	ip, err := m.assignIPv4ToApp(fqdn, app)
+	ipv4, _, err := m.assignIPsToApp(fqdn, app)
 	if err != nil {
 		return dns.Result{}, trace.Wrap(err)
 	}
 
 	return dns.Result{
-		A: ip.As4(),
+		A: ipv4.As4(),
 	}, nil
 }
 
 // ResolveAAAA implements [dns.Resolver.ResolveAAAA]
 func (m *Manager) ResolveAAAA(ctx context.Context, fqdn string) (dns.Result, error) {
-	appPublicAddr := strings.TrimSuffix(fqdn, ".")
+	if ip, ok := m.cachedIPv6(fqdn); ok {
+		return dns.Result{
+			AAAA: ip.As16(),
+		}, nil
+	}
 
+	appPublicAddr := strings.TrimSuffix(fqdn, ".")
 	matchingProfile, ok, err := m.matchingProfile(appPublicAddr)
 	if err != nil {
 		return dns.Result{}, trace.Wrap(err)
@@ -276,7 +310,7 @@ func (m *Manager) ResolveAAAA(ctx context.Context, fqdn string) (dns.Result, err
 		return dns.Result{}, nil
 	}
 
-	_, match, err := m.matchingAppForProfile(ctx, matchingProfile, appPublicAddr)
+	app, match, err := m.matchingAppForProfile(ctx, matchingProfile, appPublicAddr)
 	if err != nil {
 		return dns.Result{}, trace.Wrap(err)
 	}
@@ -285,17 +319,14 @@ func (m *Manager) ResolveAAAA(ctx context.Context, fqdn string) (dns.Result, err
 		return dns.Result{}, nil
 	}
 
-	// TODO(nklaassen): implement IPv6 assignment
-	return dns.Result{
-		NoRecord: true,
-	}, nil
-}
+	_, ipv6, err := m.assignIPsToApp(fqdn, app)
+	if err != nil {
+		return dns.Result{}, trace.Wrap(err)
+	}
 
-func (m *Manager) cachedIP(fqdn string) (tcpip.Address, bool) {
-	m.state.mu.RLock()
-	defer m.state.mu.RUnlock()
-	ip, ok := m.state.ips[fqdn]
-	return ip, ok
+	return dns.Result{
+		AAAA: ipv6.As16(),
+	}, nil
 }
 
 func (m *Manager) matchingProfile(appPublicAddr string) (string, bool, error) {
@@ -356,10 +387,10 @@ func (m *Manager) apiClient(ctx context.Context, profileName string) (*apiclient
 	})
 }
 
-func (m *Manager) assignIPv4ToApp(fqdn string, app types.Application) (tcpip.Address, error) {
+func (m *Manager) assignIPsToApp(fqdn string, app types.Application) (ipv4 tcpip.Address, ipv6 tcpip.Address, err error) {
 	appHandler, err := newAppHandler(m.tc, app)
 	if err != nil {
-		return tcpip.Address{}, trace.Wrap(err)
+		return ipv4, ipv6, trace.Wrap(err)
 	}
 
 	m.state.mu.Lock()
@@ -367,12 +398,28 @@ func (m *Manager) assignIPv4ToApp(fqdn string, app types.Application) (tcpip.Add
 
 	ip := m.state.nextFreeIP
 	m.state.nextFreeIP += 1
-	addr := tcpip.AddrFrom4([4]byte{byte(ip >> 24), byte(ip >> 16), byte(ip >> 8), byte(ip >> 0)})
 
-	m.state.tcpHandlers[addr] = appHandler
-	m.state.ips[fqdn] = addr
+	ipv4 = tcpip.AddrFrom4([4]byte{byte(ip >> 24), byte(ip >> 16), byte(ip >> 8), byte(ip >> 0)})
+	ipv6Bytes := m.baseIPv6Address.As16()
+	copy(ipv6Bytes[12:16], ipv4.AsSlice())
+	ipv6 = tcpip.AddrFrom16(ipv6Bytes)
 
-	return addr, nil
+	m.state.tcpHandlers[ipv4] = appHandler
+	m.state.tcpHandlers[ipv6] = appHandler
+	m.state.ips[fqdn] = ipv6
+
+	return ipv4, ipv6, nil
+}
+
+func (m *Manager) cachedIPv6(fqdn string) (tcpip.Address, bool) {
+	m.state.mu.RLock()
+	defer m.state.mu.RUnlock()
+	ipv6, ok := m.state.ips[fqdn]
+	return ipv6, ok
+}
+
+func ipv4Suffix(ipv6 tcpip.Address) tcpip.Address {
+	return tcpip.AddrFromSlice(ipv6.AsSlice()[12:16])
 }
 
 func (m *Manager) tcpHandler(addr tcpip.Address, port uint16) (tcpHandler, bool) {
@@ -389,6 +436,23 @@ func (m *Manager) udpHandler(addr tcpip.Address, port uint16) (udpHandler, bool)
 	return handler, ok
 }
 
+func protocolAddress(addr tcpip.Address) (tcpip.ProtocolAddress, error) {
+	addrWithPrefix := addr.WithPrefix()
+	var protocol tcpip.NetworkProtocolNumber
+	switch addrWithPrefix.PrefixLen {
+	case 32:
+		protocol = ipv4.ProtocolNumber
+	case 128:
+		protocol = ipv6.ProtocolNumber
+	default:
+		return tcpip.ProtocolAddress{}, trace.BadParameter("unhandled prefx len %d", addrWithPrefix.PrefixLen)
+	}
+	return tcpip.ProtocolAddress{
+		AddressWithPrefix: addrWithPrefix,
+		Protocol:          protocol,
+	}, nil
+}
+
 func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 	ctx, cancel := context.WithCancel(m.rootCtx)
 	defer cancel()
@@ -399,10 +463,15 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 
 	// Add the address to the NIC so that the gvisor stack routes packets back
 	// out to the host. Seems fine to call multiple times for same IP.
-	m.stack.AddProtocolAddress(nicID, tcpip.ProtocolAddress{
-		AddressWithPrefix: id.LocalAddress.WithPrefix(),
-		Protocol:          ipv4.ProtocolNumber, // TODO(nklaassen): Support IPv6
-	}, stack.AddressProperties{})
+	protocolAddress, err := protocolAddress(id.LocalAddress)
+	if err != nil {
+		slog.With("error", err).Debug("Failed to construct protocol address.")
+		return
+	}
+	if err := m.stack.AddProtocolAddress(nicID, protocolAddress, stack.AddressProperties{}); err != nil {
+		slog.With("error", err).Debug("Failed to add protocol address to netstack.")
+		return
+	}
 
 	handler, ok := m.tcpHandler(id.LocalAddress, id.LocalPort)
 	if !ok {
@@ -495,21 +564,29 @@ func (m *Manager) handleUDPConcurrent(req *udp.ForwarderRequest) {
 
 func createStack() (*stack.Stack, error) {
 	netStack := stack.New(stack.Options{
-		// TODO(nklaassen): IPv6
-		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4.NewProtocol},
+		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4.NewProtocol, ipv6.NewProtocol},
 		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol},
 	})
 
 	// Route everything to the one NIC.
-	// TODO(nklaassen): Support IPv6.
 	ipv4Subnet, err := tcpip.NewSubnet(tcpip.AddrFrom4([4]byte{}), tcpip.MaskFromBytes(make([]byte, 4)))
 	if err != nil {
 		return nil, trace.Wrap(err, "creating VNet IPv4 subnet")
 	}
-	netStack.SetRouteTable([]tcpip.Route{{
-		Destination: ipv4Subnet,
-		NIC:         nicID,
-	}})
+	ipv6Subnet, err := tcpip.NewSubnet(tcpip.AddrFrom16([16]byte{}), tcpip.MaskFromBytes(make([]byte, 16)))
+	if err != nil {
+		return nil, trace.Wrap(err, "creating VNet IPv6 subnet")
+	}
+	netStack.SetRouteTable([]tcpip.Route{
+		{
+			Destination: ipv4Subnet,
+			NIC:         nicID,
+		},
+		{
+			Destination: ipv6Subnet,
+			NIC:         nicID,
+		},
+	})
 	return netStack, nil
 }
 
@@ -561,11 +638,25 @@ func forwardOsTUNToVnetEndpoint(ctx context.Context, tun tun.Device, dstEndpoint
 			return trace.Wrap(err, "reading packets from TUN")
 		}
 		for i := range sizes[:n] {
+			protocol, ok := protocolVersion(bufs[i][readOffset])
+			if !ok {
+				continue
+			}
 			packet := stack.NewPacketBuffer(stack.PacketBufferOptions{
 				Payload: buffer.MakeWithData(bufs[i][readOffset : readOffset+sizes[i]]),
 			})
-			dstEndpoint.InjectInbound(header.IPv4ProtocolNumber, packet)
+			dstEndpoint.InjectInbound(protocol, packet)
 			packet.DecRef()
 		}
 	}
+}
+
+func protocolVersion(b byte) (tcpip.NetworkProtocolNumber, bool) {
+	switch b >> 4 {
+	case 4:
+		return header.IPv4ProtocolNumber, true
+	case 6:
+		return header.IPv6ProtocolNumber, true
+	}
+	return 0, false
 }

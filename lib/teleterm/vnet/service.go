@@ -101,8 +101,13 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	// is shown at the time of cancelation.
 	adminSubcmdCtx, cancelAdminSubcmdCtx := context.WithCancel(context.Background())
 
+	baseAddress, err := vnet.BaseIPv6Address()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	customDNSZones := []string{}
-	tun, cleanup, err := vnet.CreateAndSetupTUNDevice(adminSubcmdCtx, customDNSZones)
+	tun, cleanup, err := vnet.CreateAndSetupTUNDevice(adminSubcmdCtx, baseAddress.String(), customDNSZones)
 	if err != nil {
 		cancelAdminSubcmdCtx()
 		return nil, trace.Wrap(err)
@@ -110,8 +115,9 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 
 	// TODO: Should NewManager take context?
 	manager, err := vnet.NewManager(context.TODO(), &vnet.Config{
-		Client:    client,
-		TUNDevice: tun,
+		Client:          client,
+		TUNDevice:       tun,
+		BaseIPv6Address: baseAddress,
 	})
 	if err != nil {
 		cancelAdminSubcmdCtx()

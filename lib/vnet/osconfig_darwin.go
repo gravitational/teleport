@@ -15,9 +15,22 @@ import (
 )
 
 func configureOS(ctx context.Context, cfg *osConfig) error {
-	if cfg.tunIP != "" {
-		slog.With("device", cfg.tunName, "address", cfg.tunIP).Info("Setting IP address for the TUN device.")
-		cmd := exec.CommandContext(ctx, "ifconfig", cfg.tunName, cfg.tunIP, cfg.tunIP, "up")
+	if cfg.tunIPv4 != "" {
+		slog.With("device", cfg.tunName, "address", cfg.tunIPv4).Info("Setting IPv4 address for the TUN device.")
+		cmd := exec.CommandContext(ctx, "ifconfig", cfg.tunName, cfg.tunIPv4, cfg.tunIPv4, "up")
+		if err := cmd.Run(); err != nil {
+			return trace.Wrap(err, "running %v", cmd.Args)
+		}
+	}
+	if cfg.tunIPv6 != "" {
+		slog.With("device", cfg.tunName, "address", cfg.tunIPv6).Info("Setting IPv6 address for the TUN device.")
+		cmd := exec.CommandContext(ctx, "ifconfig", cfg.tunName, "inet6", cfg.tunIPv6, "prefixlen", "64")
+		if err := cmd.Run(); err != nil {
+			return trace.Wrap(err, "running %v", cmd.Args)
+		}
+
+		slog.Info("Setting an IPv6 route for the VNet.")
+		cmd = exec.CommandContext(ctx, "route", "add", "-inet6", cfg.tunIPv6, "-prefixlen", "64", "-interface", cfg.tunName)
 		if err := cmd.Run(); err != nil {
 			return trace.Wrap(err, "running %v", cmd.Args)
 		}
