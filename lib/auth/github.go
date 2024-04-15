@@ -232,7 +232,7 @@ func (a *Server) updateGithubConnector(ctx context.Context, connector types.Gith
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit GitHub connector create event.")
+		log.WithError(err).Warn("Failed to emit GitHub connector update event.")
 	}
 
 	return updated, nil
@@ -271,7 +271,8 @@ func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, u
 	}
 
 	// Check each organization only once
-	// DELETE IN 12 (zmb3)
+	// TODO: this can be removed as of Teleport 12, but we should create cluster
+	// alerts for anyone using the old teams_to_logins field to avoid breaking anyone
 	for _, mapping := range conn.GetTeamsToLogins() {
 		addOrg(mapping.Organization)
 	}

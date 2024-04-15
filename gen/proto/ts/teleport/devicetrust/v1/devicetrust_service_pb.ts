@@ -33,6 +33,7 @@ import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
 import { DeviceSource } from "./device_source_pb";
 import { DeviceWebToken } from "./device_web_token_pb";
+import { DeviceConfirmationToken } from "./device_confirmation_token_pb";
 import { UserCertificates } from "./user_certificates_pb";
 import { TPMPlatformParameters } from "./tpm_pb";
 import { DeviceCollectedData } from "./device_collected_data_pb";
@@ -633,7 +634,7 @@ export interface TPMEnrollChallengeResponse {
  * -> AuthenticateDeviceInit (client)
  * <- AuthenticateDeviceChallenge (server)
  * -> AuthenticateDeviceChallengeResponse
- * <- UserCertificates
+ * <- UserCertificates (regular authn) or ConfirmationToken (web authn)
  *
  * @generated from protobuf message teleport.devicetrust.v1.AuthenticateDeviceRequest
  */
@@ -681,6 +682,9 @@ export interface AuthenticateDeviceResponse {
     } | {
         oneofKind: "userCertificates";
         /**
+         * User certificates are returned as the result of a successful device
+         * authentication attempt ("regular" or non-web authentication).
+         *
          * @generated from protobuf field: teleport.devicetrust.v1.UserCertificates user_certificates = 2;
          */
         userCertificates: UserCertificates;
@@ -690,6 +694,17 @@ export interface AuthenticateDeviceResponse {
          * @generated from protobuf field: teleport.devicetrust.v1.TPMAuthenticateDeviceChallenge tpm_challenge = 3;
          */
         tpmChallenge: TPMAuthenticateDeviceChallenge;
+    } | {
+        oneofKind: "confirmationToken";
+        /**
+         * A confirmation token is returned as the result of a successful device web
+         * authentication.
+         *
+         * See AuthenticateDeviceInit.device_web_token.
+         *
+         * @generated from protobuf field: teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 4;
+         */
+        confirmationToken: DeviceConfirmationToken;
     } | {
         oneofKind: undefined;
     };
@@ -730,8 +745,10 @@ export interface AuthenticateDeviceInit {
     /**
      * If present, on-behalf-of device authentication is performed.
      * The user_certificates input field is ignored and no certificate data is
-     * returned to the caller, instead the WebSession certificates are updated
-     * on success.
+     * returned to the caller, instead a confirmation_token is returned in
+     * the last step.
+     *
+     * See ConfirmDeviceWebAuthentication.
      *
      * @generated from protobuf field: teleport.devicetrust.v1.DeviceWebToken device_web_token = 4;
      */
@@ -793,6 +810,36 @@ export interface AuthenticateDeviceChallengeResponse {
      * @generated from protobuf field: bytes signature = 1;
      */
     signature: Uint8Array;
+}
+/**
+ * Request for ConfirmDeviceWebAuthentication.
+ *
+ * @generated from protobuf message teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationRequest
+ */
+export interface ConfirmDeviceWebAuthenticationRequest {
+    /**
+     * Confirmation token to be spent.
+     *
+     * @generated from protobuf field: teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 1;
+     */
+    confirmationToken?: DeviceConfirmationToken;
+    /**
+     * Web Session identifier of the session that started this request, via
+     * Teleport Proxy.
+     *
+     * For the request to be successful the Web Session must match the session
+     * that started the authentication attempt.
+     *
+     * @generated from protobuf field: string current_web_session_id = 2;
+     */
+    currentWebSessionId: string;
+}
+/**
+ * Response for ConfirmDeviceWebAuthentication.
+ *
+ * @generated from protobuf message teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationResponse
+ */
+export interface ConfirmDeviceWebAuthenticationResponse {
 }
 /**
  * Request for SyncInventory.
@@ -2488,7 +2535,8 @@ class AuthenticateDeviceResponse$Type extends MessageType<AuthenticateDeviceResp
         super("teleport.devicetrust.v1.AuthenticateDeviceResponse", [
             { no: 1, name: "challenge", kind: "message", oneof: "payload", T: () => AuthenticateDeviceChallenge },
             { no: 2, name: "user_certificates", kind: "message", oneof: "payload", T: () => UserCertificates },
-            { no: 3, name: "tpm_challenge", kind: "message", oneof: "payload", T: () => TPMAuthenticateDeviceChallenge }
+            { no: 3, name: "tpm_challenge", kind: "message", oneof: "payload", T: () => TPMAuthenticateDeviceChallenge },
+            { no: 4, name: "confirmation_token", kind: "message", oneof: "payload", T: () => DeviceConfirmationToken }
         ]);
     }
     create(value?: PartialMessage<AuthenticateDeviceResponse>): AuthenticateDeviceResponse {
@@ -2521,6 +2569,12 @@ class AuthenticateDeviceResponse$Type extends MessageType<AuthenticateDeviceResp
                         tpmChallenge: TPMAuthenticateDeviceChallenge.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).tpmChallenge)
                     };
                     break;
+                case /* teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token */ 4:
+                    message.payload = {
+                        oneofKind: "confirmationToken",
+                        confirmationToken: DeviceConfirmationToken.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).confirmationToken)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -2542,6 +2596,9 @@ class AuthenticateDeviceResponse$Type extends MessageType<AuthenticateDeviceResp
         /* teleport.devicetrust.v1.TPMAuthenticateDeviceChallenge tpm_challenge = 3; */
         if (message.payload.oneofKind === "tpmChallenge")
             TPMAuthenticateDeviceChallenge.internalBinaryWrite(message.payload.tpmChallenge, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 4; */
+        if (message.payload.oneofKind === "confirmationToken")
+            DeviceConfirmationToken.internalBinaryWrite(message.payload.confirmationToken, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2807,6 +2864,85 @@ class AuthenticateDeviceChallengeResponse$Type extends MessageType<AuthenticateD
  * @generated MessageType for protobuf message teleport.devicetrust.v1.AuthenticateDeviceChallengeResponse
  */
 export const AuthenticateDeviceChallengeResponse = new AuthenticateDeviceChallengeResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ConfirmDeviceWebAuthenticationRequest$Type extends MessageType<ConfirmDeviceWebAuthenticationRequest> {
+    constructor() {
+        super("teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationRequest", [
+            { no: 1, name: "confirmation_token", kind: "message", T: () => DeviceConfirmationToken },
+            { no: 2, name: "current_web_session_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ConfirmDeviceWebAuthenticationRequest>): ConfirmDeviceWebAuthenticationRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.currentWebSessionId = "";
+        if (value !== undefined)
+            reflectionMergePartial<ConfirmDeviceWebAuthenticationRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConfirmDeviceWebAuthenticationRequest): ConfirmDeviceWebAuthenticationRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token */ 1:
+                    message.confirmationToken = DeviceConfirmationToken.internalBinaryRead(reader, reader.uint32(), options, message.confirmationToken);
+                    break;
+                case /* string current_web_session_id */ 2:
+                    message.currentWebSessionId = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ConfirmDeviceWebAuthenticationRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 1; */
+        if (message.confirmationToken)
+            DeviceConfirmationToken.internalBinaryWrite(message.confirmationToken, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* string current_web_session_id = 2; */
+        if (message.currentWebSessionId !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.currentWebSessionId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationRequest
+ */
+export const ConfirmDeviceWebAuthenticationRequest = new ConfirmDeviceWebAuthenticationRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ConfirmDeviceWebAuthenticationResponse$Type extends MessageType<ConfirmDeviceWebAuthenticationResponse> {
+    constructor() {
+        super("teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationResponse", []);
+    }
+    create(value?: PartialMessage<ConfirmDeviceWebAuthenticationResponse>): ConfirmDeviceWebAuthenticationResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<ConfirmDeviceWebAuthenticationResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConfirmDeviceWebAuthenticationResponse): ConfirmDeviceWebAuthenticationResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: ConfirmDeviceWebAuthenticationResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationResponse
+ */
+export const ConfirmDeviceWebAuthenticationResponse = new ConfirmDeviceWebAuthenticationResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class SyncInventoryRequest$Type extends MessageType<SyncInventoryRequest> {
     constructor() {
@@ -3242,6 +3378,7 @@ export const DeviceTrustService = new ServiceType("teleport.devicetrust.v1.Devic
     { name: "CreateDeviceEnrollToken", options: {}, I: CreateDeviceEnrollTokenRequest, O: DeviceEnrollToken },
     { name: "EnrollDevice", serverStreaming: true, clientStreaming: true, options: {}, I: EnrollDeviceRequest, O: EnrollDeviceResponse },
     { name: "AuthenticateDevice", serverStreaming: true, clientStreaming: true, options: {}, I: AuthenticateDeviceRequest, O: AuthenticateDeviceResponse },
+    { name: "ConfirmDeviceWebAuthentication", options: {}, I: ConfirmDeviceWebAuthenticationRequest, O: ConfirmDeviceWebAuthenticationResponse },
     { name: "SyncInventory", serverStreaming: true, clientStreaming: true, options: {}, I: SyncInventoryRequest, O: SyncInventoryResponse },
     { name: "GetDevicesUsage", options: {}, I: GetDevicesUsageRequest, O: DevicesUsage }
 ]);

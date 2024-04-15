@@ -3040,6 +3040,19 @@ func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string
 	return rg.reader.ListAccessListMembers(ctx, accessListName, pageSize, pageToken)
 }
 
+// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+func (c *Cache) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAllAccessListMembers")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListAllAccessListMembers(ctx, pageSize, pageToken)
+}
+
 // GetAccessListMember returns the specified access list member resource.
 // May return a DynamicAccessListError if the requested access list has an
 // implicit member list and the underlying implementation does not have

@@ -643,6 +643,11 @@ const (
 	// Tokens are spent in exchange for a single on-behalf-of device
 	// authentication attempt.
 	DeviceWebTokenCreateEvent = "device.webtoken.create"
+	// DeviceAuthenticateConfirmEvent is emitted when a device web authentication
+	// attempt is confirmed (via the ConfirmDeviceWebAuthentication RPC).
+	// A confirmed web authentication means the WebSession itself now holds
+	// augmented TLS and SSH certificates.
+	DeviceAuthenticateConfirmEvent = "device.authenticate.confirm"
 
 	// BotJoinEvent is emitted when a bot joins
 	BotJoinEvent = "bot.join"

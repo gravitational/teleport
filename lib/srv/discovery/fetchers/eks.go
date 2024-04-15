@@ -97,7 +97,7 @@ func (c *EKSFetcherConfig) CheckAndSetDefaults() error {
 
 // MakeEKSFetchersFromAWSMatchers creates fetchers from the provided matchers. Returned fetchers are separated
 // by their reliance on the integration.
-func MakeEKSFetchersFromAWSMatchers(log logrus.FieldLogger, clients cloud.AWSClients, matchers []types.AWSMatcher) (kubeFetchers, kubeIntegrationFetchers []common.Fetcher, _ error) {
+func MakeEKSFetchersFromAWSMatchers(log logrus.FieldLogger, clients cloud.AWSClients, matchers []types.AWSMatcher) (kubeFetchers []common.Fetcher, _ error) {
 	for _, matcher := range matchers {
 		var matcherAssumeRole types.AssumeRole
 		if matcher.AssumeRole != nil {
@@ -123,17 +123,12 @@ func MakeEKSFetchersFromAWSMatchers(log logrus.FieldLogger, clients cloud.AWSCli
 						log.WithError(err).Warnf("Could not initialize EKS fetcher(Region=%q, Labels=%q, AssumeRole=%q), skipping.", region, matcher.Tags, matcherAssumeRole.RoleARN)
 						continue
 					}
-
-					if matcher.Integration != "" {
-						kubeIntegrationFetchers = append(kubeIntegrationFetchers, fetcher)
-					} else {
-						kubeFetchers = append(kubeFetchers, fetcher)
-					}
+					kubeFetchers = append(kubeFetchers, fetcher)
 				}
 			}
 		}
 	}
-	return kubeFetchers, kubeIntegrationFetchers, nil
+	return kubeFetchers, nil
 }
 
 // NewEKSFetcher creates a new EKS fetcher configuration.
@@ -168,6 +163,11 @@ func (a *eksFetcher) getClient(ctx context.Context) (eksiface.EKSAPI, error) {
 	a.client = client
 
 	return a.client, nil
+}
+
+// GetIntegration returns the integration name that is used for getting credentials of the fetcher.
+func (a *eksFetcher) GetIntegration() string {
+	return a.Integration
 }
 
 type DiscoveredEKSCluster struct {

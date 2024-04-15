@@ -21,7 +21,8 @@ import { SubmitConnectEventRequest } from 'gen-proto-ts/prehog/v1alpha/connect_p
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 
 import { ClusterOrResourceUri, ClusterUri, routing } from 'teleterm/ui/uri';
-import { Cluster, TshdClient } from 'teleterm/services/tshd/types';
+import { Cluster } from 'teleterm/services/tshd/types';
+import { TshdClient } from 'teleterm/services/tshd';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { ConfigService } from 'teleterm/services/config';
 import Logger from 'teleterm/logger';

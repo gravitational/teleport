@@ -23,9 +23,11 @@ import (
 )
 
 func TestMsTeamsPluginOSS(t *testing.T) {
-	teamsSuite := &MsTeamsSuite{
-		AccessRequestSuite: &integration.AccessRequestSuite{
-			AuthHelper: &integration.OSSAuthHelper{},
+	teamsSuite := &MsTeamsSuiteOSS{
+		MsTeamsBaseSuite: MsTeamsBaseSuite{
+			AccessRequestSuite: &integration.AccessRequestSuite{
+				AuthHelper: &integration.MinimalAuthHelper{},
+			},
 		},
 	}
 	suite.Run(t, teamsSuite)

@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/tlsca"
+	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 // TestSSH verifies "tsh ssh" command.
@@ -558,101 +559,107 @@ func TestProxySSH(t *testing.T) {
 
 // TestProxySSHJumpHost verifies "tsh proxy ssh -J" functionality.
 func TestProxySSHJumpHost(t *testing.T) {
+	ctx := context.Background()
+
 	lib.SetInsecureDevMode(true)
 	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 
 	createAgent(t)
 
-	tests := []struct {
-		name string
-		opts []testSuiteOptionFunc
-	}{
-		{
-			name: "TLS routing enabled for root and leaf",
-			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
-				}),
-				withLeafConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
-				}),
-			},
-		},
-		{
-			name: "TLS routing enabled for root and disabled for leaf",
-			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
-				}),
-				withLeafConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
-					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
-				}),
-			},
-		},
-		{
-			name: "TLS routing disabled for root and enabled for leaf",
-			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
-					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
-				}),
-				withLeafConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
-				}),
-			},
-		},
-		{
-			name: "TLS routing disabled for root and leaf",
-			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
-					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
-				}),
-				withLeafConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
-					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
-				}),
-			},
-		},
+	listenerModes := []types.ProxyListenerMode{
+		types.ProxyListenerMode_Multiplex,
+		types.ProxyListenerMode_Separate,
 	}
 
-	for _, tc := range tests {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	for _, rootListenerMode := range listenerModes {
+		for _, leafListenerMode := range listenerModes {
+			rootListenerMode := rootListenerMode
+			leafListenerMode := leafListenerMode
+			t.Run(fmt.Sprintf("Proxy listener mode %s for root and %s for leaf", rootListenerMode, leafListenerMode), func(t *testing.T) {
+				t.Parallel()
 
-			s := newTestSuite(t, tc.opts...)
+				accessUser, err := types.NewUser("access")
+				require.NoError(t, err)
+				accessUser.SetRoles([]string{"access"})
 
-			runProxySSHJump := func(opts ...CliOption) error {
-				proxyRequest := fmt.Sprintf("%s:%d",
-					s.leaf.Config.Proxy.SSHAddr.Host(),
-					s.leaf.Config.SSH.Addr.Port(defaults.SSHServerListenPort))
-				return Run(context.Background(), []string{
-					"--insecure", "proxy", "ssh", "-J", s.leaf.Config.Proxy.WebAddr.Addr, proxyRequest,
-				}, opts...)
-			}
+				user, err := user.Current()
+				require.NoError(t, err)
+				accessUser.SetLogins([]string{user.Name})
 
-			// login to root
-			tshHome, _ := mustLogin(t, s, s.root.Config.Auth.ClusterName.GetClusterName())
+				connector := mockConnector(t)
+				rootServerOpts := []testserver.TestServerOptFunc{
+					testserver.WithBootstrap(connector, accessUser),
+					testserver.WithHostname("node01"),
+					testserver.WithClusterName(t, "root"),
+					testserver.WithAuthConfig(
+						func(cfg *servicecfg.AuthConfig) {
+							cfg.NetworkingConfig.SetProxyListenerMode(rootListenerMode)
+							// Disable session recording to prevent writing to disk after the test concludes.
+							cfg.SessionRecordingConfig.SetMode(types.RecordOff)
+							// Load all CAs on login so that leaf CA is trusted by clients.
+							cfg.LoadAllCAs = true
+						},
+					),
+				}
+				rootServer := testserver.MakeTestServer(t, rootServerOpts...)
 
-			// Connect to leaf node though proxy jump host. This should automatically
-			// reissue leaf certs from the root without explicility switching clusters.
-			err := runProxySSHJump(setHomePath(tshHome))
-			require.NoError(t, err)
+				leafServerOpts := []testserver.TestServerOptFunc{
+					testserver.WithBootstrap(accessUser),
+					testserver.WithHostname("node02"),
+					testserver.WithClusterName(t, "leaf"),
+					testserver.WithAuthConfig(
+						func(cfg *servicecfg.AuthConfig) {
+							cfg.NetworkingConfig.SetProxyListenerMode(leafListenerMode)
+							// Disable session recording to prevent writing to disk after the test concludes.
+							cfg.SessionRecordingConfig.SetMode(types.RecordOff)
+						},
+					),
+				}
+				leafServer := testserver.MakeTestServer(t, leafServerOpts...)
+				testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer)
 
-			// Terminate root cluster.
-			err = s.root.Close()
-			require.NoError(t, err)
+				rootProxyAddr, err := rootServer.ProxyWebAddr()
+				require.NoError(t, err)
+				leafProxyAddr, err := leafServer.ProxyWebAddr()
+				require.NoError(t, err)
 
-			// Since we've already retrieved valid leaf certs, we should be able to connect without root.
-			err = runProxySSHJump(setHomePath(tshHome))
-			require.NoError(t, err)
-		})
+				// login to root
+				tshHome := t.TempDir()
+				err = Run(ctx, []string{
+					"--insecure",
+					"login",
+					"--proxy", rootProxyAddr.String(),
+				}, setHomePath(tshHome), setMockSSOLogin(rootServer.GetAuthServer(), accessUser, connector.GetName()))
+				require.NoError(t, err)
+
+				// Connect through the leaf proxy jumphost.
+				err = Run(ctx, []string{
+					"--debug",
+					"proxy",
+					"ssh",
+					"--no-resume",
+					"-J", leafProxyAddr.String(),
+					"node02",
+				}, setHomePath(tshHome))
+				require.NoError(t, err)
+
+				// Terminate root cluster.
+				err = rootServer.Close()
+				require.NoError(t, err)
+
+				// We should be able to connect without root online.
+				err = Run(ctx, []string{
+					"--debug",
+					"--insecure",
+					"proxy",
+					"ssh",
+					"--no-resume",
+					"-J", leafProxyAddr.String(),
+					"node02",
+				}, setHomePath(tshHome))
+				require.NoError(t, err)
+			})
+		}
 	}
 }
 

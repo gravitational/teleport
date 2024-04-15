@@ -73,6 +73,7 @@ import (
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
@@ -2360,19 +2361,24 @@ type eksClustersEnroller interface {
 	EnrollEKSClusters(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
 }
 
+type discoveryConfigClient interface {
+	UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error)
+	services.DiscoveryConfigsGetter
+}
+
 // combinedDiscoveryClient is an auth.Client client with other, specific, services added to it.
 type combinedDiscoveryClient struct {
 	auth.ClientI
-	services.DiscoveryConfigsGetter
+	discoveryConfigClient
 	eksClustersEnroller
 }
 
 // newLocalCacheForDiscovery returns a new instance of access point for a discovery service.
 func (process *TeleportProcess) newLocalCacheForDiscovery(clt auth.ClientI, cacheName []string) (auth.DiscoveryAccessPoint, error) {
 	client := combinedDiscoveryClient{
-		ClientI:                clt,
-		DiscoveryConfigsGetter: clt.DiscoveryConfigClient(),
-		eksClustersEnroller:    clt.IntegrationAWSOIDCClient(),
+		ClientI:               clt,
+		discoveryConfigClient: clt.DiscoveryConfigClient(),
+		eksClustersEnroller:   clt.IntegrationAWSOIDCClient(),
 	}
 
 	// if caching is disabled, return access point
@@ -2464,10 +2470,22 @@ func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI,
 	return auth.NewWindowsDesktopWrapper(clt, cache), nil
 }
 
+// accessPointWrapper is a wrapper around auth.ClientI that reduces the surface area of the
+// auth.ClientI.DiscoveryConfigClient interface to services.DiscoveryConfigs.
+// Cache doesn't implement the full auth.ClientI interface, so we need to wrap auth.ClientI to
+// to make it compatible with the services.DiscoveryConfigs interface.
+type accessPointWrapper struct {
+	auth.ClientI
+}
+
+func (a accessPointWrapper) DiscoveryConfigClient() services.DiscoveryConfigs {
+	return a.ClientI.DiscoveryConfigClient()
+}
+
 // NewLocalCache returns new instance of access point
 func (process *TeleportProcess) NewLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (*cache.Cache, error) {
 	return process.newAccessCache(accesspoint.AccessCacheConfig{
-		Services:  clt,
+		Services:  &accessPointWrapper{ClientI: clt},
 		Setup:     setupConfig,
 		CacheName: cacheName,
 	})
@@ -3236,15 +3254,33 @@ func (process *TeleportProcess) initDiagnosticService() error {
 
 	logger.InfoContext(process.ExitContext(), "Starting diagnostic service.", "listen_address", process.Config.DiagnosticAddr.Addr)
 
+	muxListener, err := multiplexer.New(multiplexer.Config{
+		Context:                        process.ExitContext(),
+		Listener:                       listener,
+		PROXYProtocolMode:              multiplexer.PROXYProtocolUnspecified,
+		SuppressUnexpectedPROXYWarning: true,
+		ID:                             teleport.Component(teleport.ComponentDiagnostic),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	process.RegisterFunc("diagnostic.service", func() error {
-		err := server.Serve(listener)
-		if err != nil && err != http.ErrServerClosed {
+		listenerHTTP := muxListener.HTTP()
+		go func() {
+			if err := muxListener.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+				muxListener.Entry.WithError(err).Error("Mux encountered err serving")
+			}
+		}()
+
+		if err := server.Serve(listenerHTTP); !errors.Is(err, http.ErrServerClosed) {
 			logger.WarnContext(process.ExitContext(), "Diagnostic server exited with error.", "error", err)
 		}
 		return nil
 	})
 
 	process.OnExit("diagnostic.shutdown", func(payload interface{}) {
+		warnOnErr(process.ExitContext(), muxListener.Close(), logger)
 		if payload == nil {
 			logger.InfoContext(process.ExitContext(), "Shutting down immediately.")
 			warnOnErr(process.ExitContext(), server.Close(), logger)

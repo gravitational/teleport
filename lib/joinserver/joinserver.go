@@ -51,6 +51,8 @@ type joinServiceClient interface {
 // JoinServiceGRPCServer implements proto.JoinServiceServer and is designed
 // to run on both the Teleport Proxy and Auth servers.
 type JoinServiceGRPCServer struct {
+	*proto.UnimplementedJoinServiceServer
+
 	joinServiceClient joinServiceClient
 	clock             clockwork.Clock
 }

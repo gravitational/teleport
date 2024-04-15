@@ -40,11 +40,10 @@ import { UsageService } from 'teleterm/ui/services/usage';
 import { ResourcesService } from 'teleterm/ui/services/resources';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
 import { ConfigService } from 'teleterm/services/config';
-import { TshdClient } from 'teleterm/services/tshd/types';
+import { TshdClient, VnetClient } from 'teleterm/services/tshd/createClient';
 import { IAppContext } from 'teleterm/ui/types';
 import { DeepLinksService } from 'teleterm/ui/services/deepLinks';
 import { parseDeepLink } from 'teleterm/deepLinks';
-import { VnetServiceClient } from 'teleterm/services/tshd/createClient';
 
 import { CommandLauncher } from './commandLauncher';
 import { createTshdEventsContextBridgeService } from './tshdEvents';
@@ -64,7 +63,7 @@ export default class AppContext implements IAppContext {
   fileTransferService: FileTransferService;
   resourcesService: ResourcesService;
   tshd: TshdClient;
-  vnet: VnetServiceClient;
+  vnet: VnetClient;
   /**
    * setupTshdEventContextBridgeService adds a context-bridge-compatible version of a gRPC service
    * that's going to be called every time a client makes a particular RPC to the tshd events

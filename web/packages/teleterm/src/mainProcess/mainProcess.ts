@@ -49,8 +49,7 @@ import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import Logger from 'teleterm/logger';
 import * as grpcCreds from 'teleterm/services/grpcCredentials';
-import { createTshdClient } from 'teleterm/services/tshd/createClient';
-import { TshdClient } from 'teleterm/services/tshd/types';
+import { createTshdClient, TshdClient } from 'teleterm/services/tshd';
 import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 
 import {

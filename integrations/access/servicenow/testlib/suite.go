@@ -34,9 +34,9 @@ import (
 
 const snowOnCallRotationName = "important-rotation"
 
-// ServiceNowSuite is the ServiceNow access plugin test suite.
+// ServiceNowBaseSuite is the ServiceNow access plugin test suite.
 // It implements the testify.TestingSuite interface.
-type ServiceNowSuite struct {
+type ServiceNowBaseSuite struct {
 	*integration.AccessRequestSuite
 	appConfig      servicenow.Config
 	raceNumber     int
@@ -50,7 +50,7 @@ type ServiceNowSuite struct {
 // It also configures the role notifications for ServiceNow notifications and
 // automatic approval.
 // It is run for each test.
-func (s *ServiceNowSuite) SetupTest() {
+func (s *ServiceNowBaseSuite) SetupTest() {
 	t := s.T()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -82,7 +82,7 @@ func (s *ServiceNowSuite) SetupTest() {
 }
 
 // startApp starts the ServiceNow plugin, waits for it to become ready and returns.
-func (s *ServiceNowSuite) startApp() {
+func (s *ServiceNowBaseSuite) startApp() {
 	t := s.T()
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -90,12 +90,32 @@ func (s *ServiceNowSuite) startApp() {
 
 	app, err := servicenow.NewServiceNowApp(ctx, &s.appConfig)
 	require.NoError(t, err)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
+}
+
+// ServiceNowSuiteOSS contains all tests that support running against a Teleport
+// OSS Server.
+type ServiceNowSuiteOSS struct {
+	ServiceNowBaseSuite
+}
+
+// ServiceNowSuiteEnterprise contains all tests that require a Teleport Enterprise
+// to run.
+type ServiceNowSuiteEnterprise struct {
+	ServiceNowBaseSuite
+}
+
+// SetupTest overrides ServiceNowBaseSuite.SetupTest to check the Teleport features
+// before each test.
+func (s *ServiceNowSuiteEnterprise) SetupTest() {
+	t := s.T()
+	s.RequireAdvancedWorkflow(t)
+	s.ServiceNowBaseSuite.SetupTest()
 }
 
 // TestIncidentCreation validates that a new access request triggers an
 // incident creation.
-func (s *ServiceNowSuite) TestIncidentCreation() {
+func (s *ServiceNowSuiteOSS) TestIncidentCreation() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -117,7 +137,7 @@ func (s *ServiceNowSuite) TestIncidentCreation() {
 
 // TestApproval tests that when a request is approved, its corresponding incident
 // is updated to reflect the new request state and a note is added to the incident.
-func (s *ServiceNowSuite) TestApproval() {
+func (s *ServiceNowSuiteOSS) TestApproval() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -146,7 +166,7 @@ func (s *ServiceNowSuite) TestApproval() {
 
 // TestDenial tests that when a request is denied, its corresponding incident
 // is updated to reflect the new request state and a note is added to the incident.
-func (s *ServiceNowSuite) TestDenial() {
+func (s *ServiceNowSuiteOSS) TestDenial() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -176,14 +196,10 @@ func (s *ServiceNowSuite) TestDenial() {
 
 // TestReviewNotes tests that incident notes are sent after the access request
 // is reviewed. Each review should create a new note.
-func (s *ServiceNowSuite) TestReviewNotes() {
+func (s *ServiceNowSuiteEnterprise) TestReviewNotes() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -227,14 +243,10 @@ func (s *ServiceNowSuite) TestReviewNotes() {
 
 // TestApprovalByReview tests that the incident is annotated and resolved after the
 // access request approval threshold is reached.
-func (s *ServiceNowSuite) TestApprovalByReview() {
+func (s *ServiceNowSuiteEnterprise) TestApprovalByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -287,14 +299,10 @@ func (s *ServiceNowSuite) TestApprovalByReview() {
 
 // TestDenialByReview tests that the incident is annotated and resolved after the
 // access request denial threshold is reached.
-func (s *ServiceNowSuite) TestDenialByReview() {
+func (s *ServiceNowSuiteEnterprise) TestDenialByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -347,14 +355,10 @@ func (s *ServiceNowSuite) TestDenialByReview() {
 
 // TestAutoApproval tests that access requests are automatically
 // approved when the user is on-call.
-func (s *ServiceNowSuite) TestAutoApproval() {
+func (s *ServiceNowSuiteEnterprise) TestAutoApproval() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
