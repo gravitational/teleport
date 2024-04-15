@@ -619,15 +619,15 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Start both servers, but only one should be executing at the same time
+	// Start both servers.
 	go server1.Start()
 	t.Cleanup(server1.Stop)
 
-	// Server must not start because lock exists.
 	go server2.Start()
 	t.Cleanup(server2.Stop)
 
-	// We should get only one instance.
+	// We must get only one EC2 EICE Node.
+	// Even when two servers are discovering the same EC2 Instance, they will use the same name when converting to EICE Node.
 	require.Eventually(t, func() bool {
 		allNodes, err := tlsServer.Auth().GetNodes(ctx, "default")
 		require.NoError(t, err)
