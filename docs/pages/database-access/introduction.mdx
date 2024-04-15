@@ -14,30 +14,13 @@ Some of the things you can do with database access:
   [Access Request](../access-controls/access-requests.mdx) workflows.
 - Capture database activity in the Teleport audit log.
 
-## Demo
+Teleport protects databases through the Teleport Database Service, which is a
+Teleport agent service. For more information on agent services, read [Teleport
+Agent Architecture](../architecture/agents.mdx). You can also learn how to
+deploy a [pool of Teleport agents](../agents/introduction.mdx) to run multiple
+agent services.
 
-Let's connect to a PostgreSQL server with `psql` and pgAdmin 4 after authenticating
-with GitHub, execute a few SQL queries and observe them in the audit log:
-
-<video
-  autoPlay
-  loop
-  muted
-  playsInline
-  controls
->
-  <source
-    src="../../img/database-access/dbaccessdemo.mp4"
-    type="video/mp4"
-  />
-
-  <source
-    src="../../img/database-access/dbaccessdemo.webm"
-    type="video/webm"
-  />
-
-  Your browser does not support the video tag.
-</video>
+![Teleport Database Access Diagram](../../img/database-access/architecture.svg)
 
 ## Get started
 
