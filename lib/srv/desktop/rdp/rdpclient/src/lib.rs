@@ -617,8 +617,7 @@ fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client, Con
         // Any `arc_with_non_send_sync` is generally a bad idea, but the system is stable
         // and will be deprecated over the course of the next few months as we transition
         // all supported versions to `IronRDP`.
-        // TODO(isaiah): Temporary hack to pass CI when updating RUST_VERSION; uncomment the following line once merged:
-        // #[allow(clippy::arc_with_non_send_sync)]
+        #[allow(clippy::arc_with_non_send_sync)]
         rdp_client: Arc::new(Mutex::new(rdp_client)),
         tcp_fd,
         go_ref,
