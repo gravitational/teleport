@@ -353,6 +353,7 @@ export type IsMfaRequiredRequest =
   | IsMfaRequiredNode
   | IsMfaRequiredKube
   | IsMfaRequiredWindowsDesktop
+  | IsMfaRequiredApp
   | IsMfaRequiredAdminAction;
 
 export type IsMfaRequiredResponse = {
@@ -393,6 +394,17 @@ export type IsMfaRequiredWindowsDesktop = {
 export type IsMfaRequiredKube = {
   kube: {
     // cluster_name is the name of the kube cluster.
+    cluster_name: string;
+  };
+};
+
+export type IsMfaRequiredApp = {
+  app: {
+    // fqdn indicates (tentatively) the fully qualified domain name of the application.
+    fqdn: string;
+    // public_addr is the public address of the application.
+    public_addr: string;
+    // cluster_name is the cluster within which this application is running.
     cluster_name: string;
   };
 };
