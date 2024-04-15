@@ -180,7 +180,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 // using gRPC to guarantee consistency between local and remote services
 type ServicesTestSuite struct {
 	Access        services.Access
-	CAS           services.Trust
+	CAS           services.TrustInternal
 	PresenceS     services.Presence
 	ProvisioningS services.Provisioner
 	WebS          services.Identity
@@ -379,6 +379,72 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	out, err = s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(&newCA, out, cmpopts.EquateApproxTime(time.Second), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	// test conditional update
+	ca = NewTestCA(types.UserCA, "update.example.com")
+	rev, err := s.CAS.CreateCertAuthorities(ctx, ca)
+	require.NoError(t, err)
+
+	newCA = *ca
+	rotation = types.Rotation{
+		State:       types.RotationStateInProgress,
+		CurrentID:   "id1",
+		GracePeriod: types.NewDuration(time.Hour),
+		Started:     clock.Now(),
+	}
+	newCA.SetRotation(rotation)
+
+	// verify that mismatched revision does not work
+	_, err = s.CAS.UpdateCertAuthority(ctx, &newCA)
+	require.ErrorIs(t, err, backend.ErrIncorrectRevision)
+
+	// verify that revision returned by create causes update to succeed
+	newCA.SetRevision(rev)
+	_, err = s.CAS.UpdateCertAuthority(ctx, &newCA)
+	require.NoError(t, err)
+
+	out, err = s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(&newCA, out, cmpopts.EquateApproxTime(time.Second), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	// verify 'bulk' ca operations
+
+	clusterNames := []string{
+		"foo.example.com",
+		"bar.example.com",
+		"bin.example.com",
+		"baz.example.com",
+	}
+
+	cas = nil
+	for _, cn := range clusterNames {
+		cas = append(cas, NewTestCA(types.UserCA, cn))
+	}
+
+	rev, err = s.CAS.CreateCertAuthorities(ctx, cas...)
+	require.NoError(t, err)
+
+	// verify that all CAs were created and that they all have the expected revision
+	for _, original := range cas {
+		ca, err := s.CAS.GetCertAuthority(ctx, original.GetID(), true)
+		require.NoError(t, err)
+		require.Equal(t, rev, ca.GetRevision())
+		require.Empty(t, cmp.Diff(original, ca, cmpopts.EquateApproxTime(time.Second), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	}
+
+	// set up bulk delete
+	var ids []types.CertAuthID
+	for _, ca := range cas {
+		ids = append(ids, ca.GetID())
+	}
+
+	require.NoError(t, s.CAS.DeleteCertAuthorities(ctx, ids...))
+
+	// verify that bulk deletion succeeded
+	for _, ca := range cas {
+		_, err := s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
+		require.True(t, trace.IsNotFound(err), "err: %v", err)
+	}
 }
 
 // NewServer creates a new server resource

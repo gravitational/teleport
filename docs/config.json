@@ -670,6 +670,14 @@
               "forScopes": [
                 "enterprise"
               ]
+            },
+            {
+              "title": "Analyze AWS IAM policies",
+              "slug": "/access-controls/access-graph/aws-sync/",
+              "forScopes": [
+                "cloud",
+                "enterprise"
+              ]
             }
           ]
         },
@@ -2167,7 +2175,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "15.1.10",
+      "version": "15.2.1",
       "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -2212,17 +2220,17 @@
     "teleport": {
       "git": "api/14.0.0-gd1e081e",
       "major_version": "15",
-      "version": "15.2.0",
+      "version": "15.2.2",
       "url": "teleport.example.com",
       "golang": "1.21",
       "plugin": {
-        "version": "15.2.0"
+        "version": "15.2.2"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:15.2.0",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:15.2.0",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:15.2.0",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:15.2.0"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:15.2.2",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:15.2.2",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:15.2.2",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:15.2.2"
     },
     "terraform": {
       "version": "1.0.0"

@@ -64,7 +64,7 @@ func setupServicesContext(ctx context.Context, t *testing.T) *servicesContext {
 		CAS:           NewCAService(tt.bk),
 		PresenceS:     presenceService,
 		ProvisioningS: NewProvisioningService(tt.bk),
-		WebS:          NewIdentityService(tt.bk),
+		WebS:          NewTestIdentityService(tt.bk),
 		Access:        NewAccessService(tt.bk),
 		EventsS:       eventsService,
 		ChangesC:      make(chan interface{}),

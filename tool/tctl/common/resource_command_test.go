@@ -1867,7 +1867,7 @@ version: v2
 	var expected types.SessionRecordingConfigV2
 	require.NoError(t, yaml.Unmarshal([]byte(srcYAML), &expected))
 
-	require.Equal(t, types.RecordAtNode, initial.GetMode())
+	require.Equal(t, types.RecordOff, initial.GetMode())
 	require.Equal(t, types.RecordAtProxy, expected.GetMode())
 
 	// Explicitly change the revision and try creating the src with and without

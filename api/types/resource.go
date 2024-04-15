@@ -692,6 +692,8 @@ func FriendlyName(resource ResourceWithLabels) string {
 			return appName
 		} else if groupName, ok := resource.GetLabel(OktaGroupNameLabel); ok {
 			return groupName
+		} else if roleName, ok := resource.GetLabel(OktaRoleNameLabel); ok {
+			return roleName
 		}
 		return resource.GetMetadata().Description
 	}

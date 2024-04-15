@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useEffect, useRef } from 'react';
 import { ButtonIcon, Flex, Text } from 'design';
 import { Trash, Unlink } from 'design/Icon';
 
@@ -28,20 +28,16 @@ import { isAppUri, isDatabaseUri } from 'teleterm/ui/uri';
 
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 
-interface ConnectionItemProps {
+export function ConnectionItem(props: {
   index: number;
   item: ExtendedTrackedConnection;
-
+  showClusterName: boolean;
   onActivate(): void;
-
   onRemove(): void;
-
   onDisconnect(): void;
-}
-
-export function ConnectionItem(props: ConnectionItemProps) {
+}) {
   const offline = !props.item.connected;
-  const { isActive } = useKeyboardArrowsNavigation({
+  const { isActive, scrollIntoViewIfActive } = useKeyboardArrowsNavigation({
     index: props.index,
     onRun: props.onActivate,
   });
@@ -60,13 +56,24 @@ export function ConnectionItem(props: ConnectionItemProps) {
   };
 
   const actionIcon = offline ? actionIcons.remove : actionIcons.disconnect;
+  const ref = useRef<HTMLElement>();
+
+  useEffect(() => {
+    scrollIntoViewIfActive(ref.current);
+  }, [scrollIntoViewIfActive]);
 
   return (
     <ListItem
       onClick={props.onActivate}
       isActive={isActive}
+      ref={ref}
+      $showClusterName={props.showClusterName}
       css={`
-        padding: 6px 8px;
+        padding: ${props => props.theme.space[1]}px
+          ${props => props.theme.space[2]}px;
+        // Space out items more if there are two lines of text to show inside a single item.
+        margin-block-start: ${props =>
+          props.$showClusterName ? props.theme.space[1] : 0}px;
         height: unset;
       `}
     >
@@ -94,6 +101,7 @@ export function ConnectionItem(props: ConnectionItemProps) {
             color="text.main"
             title={props.item.title}
             css={`
+              // Needed to condense a single item when the cluster name is displayed.
               line-height: 16px;
             `}
           >
@@ -117,13 +125,16 @@ export function ConnectionItem(props: ConnectionItemProps) {
               {props.item.title}
             </span>
           </Text>
-          <Text
-            color="text.slightlyMuted"
-            typography="body2"
-            title={props.item.clusterName}
-          >
-            {props.item.clusterName}
-          </Text>
+
+          {props.showClusterName && (
+            <Text
+              color="text.slightlyMuted"
+              typography="body2"
+              title={props.item.clusterName}
+            >
+              {props.item.clusterName}
+            </Text>
+          )}
         </div>
         <ButtonIcon
           mr="-3px"

@@ -90,6 +90,7 @@
     "Hqlo",
     "IAMR",
     "IDAQAB",
+    "IMDS",
     "INSYNC",
     "IPSANs",
     "IQMHY",
@@ -195,6 +196,7 @@
     "SVID",
     "SVIDs",
     "Shockbyte",
+    "Silverfort's",
     "Slackbot",
     "Sllavd",
     "Smartcard",
@@ -926,7 +928,8 @@
     "SVIDs",
     "Ghostunnel",
     "Linkerd",
-    "Istio"
+    "Istio",
+    "mydb"
   ],
   "flagWords": [
     "hte"

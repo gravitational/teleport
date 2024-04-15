@@ -17,15 +17,15 @@
  */
 
 import React, {
+  createContext,
+  lazy,
   ReactNode,
   Suspense,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
-  lazy,
   useState,
-  createContext,
-  useContext,
 } from 'react';
 import styled from 'styled-components';
 import { Box, Indicator } from 'design';
@@ -83,16 +83,17 @@ export function Main(props: MainProps) {
 
   const { attempt, setAttempt, run } = useAttempt('processing');
 
+  const { preferences } = useUser();
+
   useEffect(() => {
     if (ctx.storeUser.state) {
       setAttempt({ status: 'success' });
       return;
     }
 
-    run(() => ctx.init());
+    run(() => ctx.init(preferences));
   }, []);
 
-  const { preferences } = useUser();
   const viewMode = preferences?.assist?.viewMode;
   const assistEnabled = ctx.getFeatureFlags().assist && ctx.assistEnabled;
   const [showAssist, setShowAssist] = useState(false);
@@ -117,6 +118,17 @@ export function Main(props: MainProps) {
   const [showOnboardSurvey, setShowOnboardSurvey] = useState<boolean>(
     !!props.Questionnaire
   );
+
+  useEffect(() => {
+    if (
+      matchPath(history.location.pathname, {
+        path: ctx.redirectUrl,
+        exact: true,
+      })
+    ) {
+      ctx.redirectUrl = null;
+    }
+  }, [ctx, history.location.pathname]);
 
   if (attempt.status === 'failed') {
     return <Failed message={attempt.statusText} />;
@@ -149,6 +161,10 @@ export function Main(props: MainProps) {
   if (
     matchPath(history.location.pathname, { path: cfg.routes.root, exact: true })
   ) {
+    if (ctx.redirectUrl) {
+      return <Redirect to={ctx.redirectUrl} />;
+    }
+
     const indexRoute = cfg.isDashboard
       ? cfg.routes.downloadCenter
       : getFirstRouteForCategory(features, NavigationCategory.Resources);

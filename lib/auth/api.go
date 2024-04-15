@@ -787,6 +787,9 @@ type DiscoveryAccessPoint interface {
 
 	// Ping gets basic info about the auth server.
 	Ping(context.Context) (proto.PingResponse, error)
+
+	// UpdateDiscoveryConfigStatus updates the status of a discovery config.
+	UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error)
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -1138,6 +1141,8 @@ type Cache interface {
 	// implicit member list and the underlying implementation does not have
 	// enough information to compute the dynamic member list.
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// ListAllAccessListMembers returns a paginated list of all members of all access lists.
+	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// GetAccessListMember returns the specified access list member resource.
 	// May return a DynamicAccessListError if the requested access list has an
 	// implicit member list and the underlying implementation does not have
@@ -1377,6 +1382,11 @@ func (w *DiscoveryWrapper) EnrollEKSClusters(ctx context.Context, req *integrati
 // Ping gets basic info about the auth server.
 func (w *DiscoveryWrapper) Ping(ctx context.Context) (proto.PingResponse, error) {
 	return w.NoCache.Ping(ctx)
+}
+
+// UpdateDiscoveryConfigStatus updates the status of a discovery config.
+func (w *DiscoveryWrapper) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
+	return w.NoCache.UpdateDiscoveryConfigStatus(ctx, name, status)
 }
 
 // Close closes all associated resources
