@@ -141,10 +141,13 @@ $ tree /var/lib/teleport
    │  │  ├── ...
    │  │  ├── teleport-updater
    │  │  └── teleport
-   │  └── etc
-   │     ├── ...
-   │     └── systemd
-   │        └── teleport.service
+   │  ├── etc
+   │  │  ├── ...
+   │  │  └── systemd
+   │  │     └── teleport.service
+   │  └── backup
+   │     ├── teleport
+   │     └── backup.yaml
    ├── 15.1.1
    │  ├── bin
    │  │  ├── ...
@@ -176,6 +179,19 @@ spec:
   active_version: 15.1.1
 ```
 
+backup.yaml:
+```
+version: v1
+kind: config_backup
+spec:
+  # proxy address from the backup
+  proxy: mytenant.teleport.sh
+  # version from the backup
+  version: 15.1.0
+  # time the backup was created
+  creation_time: 2020-12-09T16:09:53+00:00
+```
+
 ### Runtime
 
 The agent-updater will run as a periodically executing systemd service which runs every 10 minutes.
@@ -203,12 +219,13 @@ The `enable` subcommand will:
 6. Verify the checksum.
 7. Extract the tarball to `/var/lib/teleport/versions/VERSION`.
 8. Replace any existing binaries or symlinks with symlinks to the current version.
-9. Restart the agent if the systemd service is already enabled.
-10. Set `active_version` in `updates.yaml` if successful or not enabled.
-11. Replace the old symlinks or binaries and quit (exit 1) if unsuccessful.
-12. Remove any `teleport` package if installed.
-13. Verify the symlinks to the active version still exists.
-14. Remove all stored versions of the agent except the current version and last working version.
+9. Backup /var/lib/teleport into `/var/lib/teleport/versions/OLD-VERSION/backup/teleport`
+10. Restart the agent if the systemd service is already enabled.
+11. Set `active_version` in `updates.yaml` if successful or not enabled.
+12. Replace the symlink/binary and `/var/lib/teleport` and quit (exit 1) if unsuccessful.
+13. Remove any `teleport` package if installed.
+14. Verify the symlinks to the active version still exists.
+15. Remove all stored versions of the agent except the current version and last working version.
 
 The `disable` subcommand will:
 1. Configure `updates.yaml` to set `enabled` to false.
@@ -223,10 +240,11 @@ When `update` subcommand is otherwise executed, it will:
 7. Verify the checksum.
 8. Extract the tarball to `/var/lib/teleport/versions/VERSION`.
 9. Update symlinks to point at the new version.
-10. Restart the agent if the systemd service is already enabled.
-11. Set `active_version` in `updates.yaml` if successful or not enabled.
-12. Replace the old symlink or binary and quit (exit 1) if unsuccessful.
-13. Remove all stored versions of the agent except the current version and last working version.
+10. Backup /var/lib/teleport into `/var/lib/teleport/versions/OLD-VERSION/backup/teleport`.
+11. Restart the agent if the systemd service is already enabled.
+12. Set `active_version` in `updates.yaml` if successful or not enabled.
+13. Replace the old symlink/binary and `/var/lib/teleport` and quit (exit 1) if unsuccessful.
+14. Remove all stored versions of the agent except the current version and last working version.
 
 To enable auto-updates of the updater itself, all commands will first check for an `active_version`, and reexec using the `teleport-updater` at that version if present and different.
 The `/usr/local/bin/teleport-upgrader` symlink will take precedence to avoid reexec in most scenarios.
@@ -246,6 +264,26 @@ To retrieve known information about agent upgrades, the `status` subcommand will
   "agent_updates_enabled": true
 }
 ```
+
+### Downgrades
+
+Downgrades may be necessary in cases where we have rolled out a bug or security vulnerability with critical impact.
+Downgrades are challenging, because `/var/lib/teleport` used by newer version of Teleport may not be valid for older versions of Teleport.
+
+When Teleport is downgraded to a previous version that has a backup of `/var/lib/teleport` present in `/var/lib/teleport/versions/OLD-VERSION/backup/teleport`:
+1. `/var/lib/teleport/versions/OLD-VERSION/backup/backup.yaml` is validated to determine if the backup is usable (proxy and version must match, age must be less than cert lifetime, etc.)
+2. If the backup is valid, Teleport is fully stopped, the backup is restored along with symlinks, and the downgraded version of Teleport is started.
+3. If the backup is invalid, we refuse to downgrade.
+
+Downgrades are still applied with `teleport-upgrader update`.
+The above steps modulate the standard workflow in the section above.
+
+Notes:
+- Downgrades can lead to downtime, as Teleport must be fully-stopped to safely replace `/var/lib/teleport`.
+- `/var/lib/teleport/versions/` is not included in backups.
+
+Questions:
+- Should we refuse to downgrade in step (3), or risk starting the older version of Teleport with the newer `/var/lib/teleport`?
 
 ### Manual Workflow
 
