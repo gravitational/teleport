@@ -518,6 +518,7 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 	})
 
 	svc, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
+		SessionProvider:   awsutils.SessionProviderUsingAmbientCredentials(),
 		CredentialsGetter: awsutils.NewStaticCredentialsGetter(staticAWSCredentials),
 		Clock:             clock,
 	})
