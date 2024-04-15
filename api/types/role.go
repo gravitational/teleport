@@ -56,6 +56,10 @@ func (f *RoleFilter) Match(role *RoleV6) bool {
 		}
 	}
 
+	if f.SkipSystemRoles {
+		return !IsSystemResource(role)
+	}
+
 	return true
 }
 
