@@ -1,0 +1,12 @@
+TPM Information
+EKPub Hash: aabbaabbcc
+EKCert Detected: true
+EKCert Serial: aa:bb:cc
+EKPub:
+-----BEGIN PUBLIC KEY-----
+ZWtwdWI=
+-----END PUBLIC KEY-----
+EKCert:
+-----BEGIN CERTIFICATE-----
+ZWtjZXJ0
+-----END CERTIFICATE-----
