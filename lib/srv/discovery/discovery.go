@@ -865,19 +865,20 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 		}
 
 		// EICE Node's Name are deterministic (based on the Account and Instance ID).
-		if existingNode != nil {
-			// To reduce load, nodes are skipped if
-			// - they didn't change and
-			// - their expiration is far away in the future (at least 2 Poll iterations before the Node expires)
-			//
-			// As an example, and using the default PollInterval (5 minutes),
-			// nodes that didn't change and have their expiration greater than now+15m will be skipped.
-			// This gives at least another two iterations of the DiscoveryService before the node is actually removed.
-			// Note: heartbeats set an expiration of 90 minutes.
-			if existingNode.Expiry().After(s.clock.Now().Add(3*s.PollInterval)) &&
-				services.CompareServers(existingNode, eiceNode) == services.OnlyTimestampsDifferent {
-				continue
-			}
+		//
+		// To reduce load, nodes are skipped if
+		// - they didn't change and
+		// - their expiration is far away in the future (at least 2 Poll iterations before the Node expires)
+		//
+		// As an example, and using the default PollInterval (5 minutes),
+		// nodes that didn't change and have their expiration greater than now+15m will be skipped.
+		// This gives at least another two iterations of the DiscoveryService before the node is actually removed.
+		// Note: heartbeats set an expiration of 90 minutes.
+		if existingNode != nil &&
+			existingNode.Expiry().After(s.clock.Now().Add(3*s.PollInterval)) &&
+			services.CompareServers(existingNode, eiceNode) == services.OnlyTimestampsDifferent {
+
+			continue
 		}
 
 		eiceNodeExpiration := s.clock.Now().Add(s.jitter(serverExpirationDuration))
