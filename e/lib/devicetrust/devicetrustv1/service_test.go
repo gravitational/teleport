@@ -17,6 +17,7 @@ import (
 
 	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -2766,6 +2767,303 @@ func TestService_CreateDeviceWebToken_deviceTrustDisabled(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestService_ConfirmDeviceWebAuthentication(t *testing.T) {
+	enableDeviceWebAuthn(t)
+
+	const userLlama = "llama"
+	const userProxy = "proxy"
+	allUsers := []string{userLlama, userProxy}
+
+	augmentWebFunc := &fakeAugmentWebFunc{}
+	emitter := &keyedEmitter{}
+	env := testenv.NewUsingT(t,
+		testenv.WithAugmentWebFunc(augmentWebFunc.function),
+		testenv.WithAuthorizer(&userAwareAuthorizer{
+			knownUsers:      allUsers,
+			authorizedUsers: allUsers,
+			userToSystemRoles: map[string][]types.SystemRole{
+				userProxy: []types.SystemRole{types.RoleProxy},
+			},
+		}),
+		testenv.WithEmitter(emitter),
+	)
+
+	devicesClient := env.DevicesClient
+	ctx := context.Background()
+
+	userData := setupUserForDeviceWebAuthn(t, env, setupUserWebAuthnOpts{
+		user: userLlama,
+		devices: []*devicepb.Device{
+			{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "llama-1",
+			},
+		},
+	})
+
+	makeConfirmParams := func() createConfirmationTokenParams {
+		return createConfirmationTokenParams{
+			device:       userData.device.dev,
+			sim:          userData.device.sim,
+			user:         userData.user,
+			sourceIP:     sampleIP,
+			webSessionID: uuid.NewString(),
+		}
+	}
+
+	t.Run("ok", func(t *testing.T) {
+		t.Parallel()
+
+		params := makeConfirmParams()
+		confirmToken := createConfirmationToken(t, env, params)
+
+		outCtx := configureOutgoingContext(ctx, outgoingContextParams{
+			User:       userProxy,
+			SourceIP:   params.sourceIP,
+			EmitterKey: params.webSessionID,
+		})
+
+		if _, err := devicesClient.ConfirmDeviceWebAuthentication(outCtx, &devicepb.ConfirmDeviceWebAuthenticationRequest{
+			ConfirmationToken:   confirmToken,
+			CurrentWebSessionId: params.webSessionID,
+		}); err != nil {
+			t.Errorf("ConfirmDeviceWebAuthentication failed: %v", err)
+		}
+
+		// Verify that Auth was called to augment the session.
+		if got := augmentWebFunc.getNumCalls(params.webSessionID); got != 1 {
+			t.Errorf("ConfirmDeviceWebAuthentication: unexpected number of augmentWebFunc calls, got=%v, want 1", got)
+		}
+
+		// Verify audit events.
+		assertEvents(t, emitter.Events(params.webSessionID), []wantEvent{
+			{
+				Type: events.DeviceAuthenticateConfirmEvent,
+				Code: events.DeviceAuthenticateConfirmCode,
+			},
+		})
+	})
+
+	makeSuccessRequest := func(t *testing.T) *devicepb.ConfirmDeviceWebAuthenticationRequest {
+		p := makeConfirmParams()
+		confirmToken := createConfirmationToken(t, env, p)
+		return &devicepb.ConfirmDeviceWebAuthenticationRequest{
+			ConfirmationToken:   confirmToken,
+			CurrentWebSessionId: p.webSessionID,
+		}
+	}
+
+	// Failure scenarios.
+	const invalidTokenError = "invalid device confirmation token"
+	tests := []struct {
+		name               string
+		currentUser        string // defaults to userProxy
+		currentSourceIP    string // defaults to sampleIP
+		failAugmentWebFunc bool
+		makeRequest        func(*testing.T) *devicepb.ConfirmDeviceWebAuthenticationRequest
+		assertErr          func(error) bool
+		wantErr            string
+		wantAuditErr       string // audit UserMessage string
+		skipAudit          bool
+	}{
+		{
+			name: "nil token",
+			makeRequest: func(_ *testing.T) *devicepb.ConfirmDeviceWebAuthenticationRequest {
+				return &devicepb.ConfirmDeviceWebAuthenticationRequest{
+					CurrentWebSessionId: uuid.NewString(),
+				}
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "token required",
+			skipAudit: true,
+		},
+		{
+			name: "empty session ID",
+			makeRequest: func(_ *testing.T) *devicepb.ConfirmDeviceWebAuthenticationRequest {
+				return &devicepb.ConfirmDeviceWebAuthenticationRequest{
+					ConfirmationToken: &devicepb.DeviceConfirmationToken{
+						Id:    "real-looking-id",
+						Token: "base64token",
+					},
+				}
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "session ID required",
+			skipAudit: true,
+		},
+		{
+			name:        "non-proxy caller",
+			currentUser: userLlama,
+			makeRequest: func(t *testing.T) *devicepb.ConfirmDeviceWebAuthenticationRequest {
+				return &devicepb.ConfirmDeviceWebAuthenticationRequest{
+					ConfirmationToken: &devicepb.DeviceConfirmationToken{
+						Id:    "real-looking-id-2",
+						Token: "base64token2",
+					},
+					CurrentWebSessionId: uuid.NewString(),
+				}
+			},
+			assertErr: trace.IsAccessDenied,
+			wantErr:   "access denied",
+			skipAudit: true,
+		},
+		{
+			name: "invalid token",
+			makeRequest: func(t *testing.T) *devicepb.ConfirmDeviceWebAuthenticationRequest {
+				req := makeSuccessRequest(t)
+				req.ConfirmationToken.Token += "invalid"
+				return req
+			},
+			assertErr:    trace.IsAccessDenied,
+			wantErr:      invalidTokenError,
+			wantAuditErr: invalidTokenError, // This is the actual failure reason in this case
+		},
+		{
+			name: "invalid session ID",
+			makeRequest: func(t *testing.T) *devicepb.ConfirmDeviceWebAuthenticationRequest {
+				req := makeSuccessRequest(t)
+				req.CurrentWebSessionId = "bad-session-id"
+				return req
+			},
+			assertErr:    trace.IsAccessDenied,
+			wantErr:      invalidTokenError,
+			wantAuditErr: "token move",
+		},
+		{
+			name:            "invalid source IP",
+			currentSourceIP: "142.251.132.3", // doesn't match token creator
+			makeRequest:     makeSuccessRequest,
+			assertErr:       trace.IsAccessDenied,
+			wantErr:         invalidTokenError,
+			wantAuditErr:    "IP mismatch",
+		},
+		{
+			name:               "fails to issue certificates",
+			failAugmentWebFunc: true,
+			makeRequest:        makeSuccessRequest,
+			wantErr:            errFakeAugmentWebFuncFailed.Error(),
+			wantAuditErr:       "failed to issue",
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Prepare outCtx user and source IP.
+			user := userProxy
+			if test.currentUser != "" {
+				user = test.currentUser
+			}
+			ip := sampleIP
+			if test.currentSourceIP != "" {
+				ip = test.currentSourceIP
+			}
+
+			req := test.makeRequest(t)
+
+			// Use an unique emitter key for every test.
+			emitterKey := req.CurrentWebSessionId
+			if emitterKey == "" {
+				emitterKey = uuid.NewString()
+			}
+
+			outCtx := configureOutgoingContext(ctx, outgoingContextParams{
+				User:       user,
+				SourceIP:   ip,
+				EmitterKey: emitterKey,
+			})
+
+			if test.failAugmentWebFunc {
+				augmentWebFunc.setFailNext(emitterKey)
+			}
+
+			_, err := devicesClient.ConfirmDeviceWebAuthentication(outCtx, req)
+			if err == nil {
+				t.Fatal("ConfirmDeviceWebAuthentication returned err=nil, want non-nil")
+			}
+			if test.assertErr != nil && !test.assertErr(err) {
+				t.Errorf("ConfirmDeviceWebAuthentication: assertErr failed, err=%v (%T)", err, trace.Unwrap(err))
+			}
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "ConfirmDeviceWebAuthentication error mismatch")
+			}
+
+			// Verify certs not augmented.
+			wantCalls := 0
+			if test.failAugmentWebFunc {
+				wantCalls++
+			}
+			if got := augmentWebFunc.getNumCalls(emitterKey); got != wantCalls {
+				t.Errorf("ConfirmDeviceWebAuthentication: unexpected number of augmentWebFunc calls, got=%v, want %v", got, wantCalls)
+			}
+
+			if test.skipAudit {
+				return
+			}
+
+			// Verify audit.
+			allEvents := emitter.Events(emitterKey)
+			assertEvents(t, allEvents, []wantEvent{
+				{
+					Type:     events.DeviceAuthenticateConfirmEvent,
+					Code:     events.DeviceAuthenticateConfirmCode,
+					WantFail: true,
+				},
+			})
+
+			var auditUserMessage string
+			if len(allEvents) > 0 {
+				if event, ok := allEvents[0].(*apievents.DeviceEvent2); ok {
+					auditUserMessage = event.Status.UserMessage
+				}
+			}
+			if !strings.Contains(auditUserMessage, test.wantAuditErr) {
+				t.Errorf("ConfirmDeviceWebAuthentication: event.Status.UserMessage=%q, want %q", auditUserMessage, test.wantAuditErr)
+			}
+		})
+	}
+}
+
+type createConfirmationTokenParams struct {
+	device       *devicepb.Device
+	sim          simulator
+	user         string
+	sourceIP     string
+	webSessionID string
+}
+
+func createConfirmationToken(t *testing.T, env *testenv.E, p createConfirmationTokenParams) *devicepb.DeviceConfirmationToken {
+	ctx := context.Background()
+
+	service := env.DevicesService
+	webToken, err := service.CreateDeviceWebToken(ctx, &devicepb.DeviceWebToken{
+		WebSessionId:     p.webSessionID,
+		BrowserUserAgent: sampleUserAgentMacOS,
+		BrowserIp:        p.sourceIP,
+		User:             p.user,
+		ExpectedDeviceIds: []string{
+			p.device.Id,
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateDeviceWebToken failed: %v", err)
+	}
+
+	outCtx := configureOutgoingContext(ctx, outgoingContextParams{
+		User:     p.user,
+		SourceIP: p.sourceIP,
+	})
+
+	devicesClient := env.DevicesClient
+	confirmToken, err := authenticateDeviceWeb(outCtx, devicesClient, p.device, p.sim, webToken)
+	if err != nil {
+		t.Fatalf("AuthenticateDevice failed: %v", err)
+	}
+
+	return confirmToken
 }
 
 func TestDeviceWebAuthnFeatureGuard(t *testing.T) {

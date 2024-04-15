@@ -228,9 +228,12 @@ func New(opts ...Opt) (*E, error) {
 		// Options below are similar to auth.GRPCServer.
 		grpc.ChainStreamInterceptor(
 			interceptors.GRPCServerStreamErrorInterceptor,
-			clientSourceAddrInterceptor, // for testing only
+			clientSourceAddrStreamInterceptor, // for testing only
 		),
-		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
+		grpc.ChainUnaryInterceptor(
+			interceptors.GRPCServerUnaryErrorInterceptor,
+			clientSourceAddrUnaryInterceptor, // for testing only
+		),
 	)
 	e.closers = append(e.closers, func() error {
 		s.GracefulStop()

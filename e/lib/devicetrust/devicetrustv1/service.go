@@ -86,6 +86,10 @@ var (
 	}
 )
 
+var errInvalidDeviceConfirmationToken = &trace.AccessDeniedError{
+	Message: "invalid device confirmation token",
+}
+
 // AugmentWebSessionCertificates is a variant of
 // [AugmentContextUserCertificates] that works directly on the WebSession
 // certificates.
@@ -852,6 +856,124 @@ func (s *Service) isDeviceAuthnAllowed(dt *types.DeviceTrust, userRoles []types.
 	}
 
 	return trace.BadParameter("device trust disabled by cluster settings")
+}
+
+func (s *Service) ConfirmDeviceWebAuthentication(ctx context.Context, req *devicepb.ConfirmDeviceWebAuthenticationRequest) (*devicepb.ConfirmDeviceWebAuthenticationResponse, error) {
+	switch {
+	case req.ConfirmationToken == nil:
+		return nil, trace.BadParameter("confirmation token required")
+	case req.CurrentWebSessionId == "":
+		return nil, trace.BadParameter("current web session ID required")
+	}
+
+	// Only the Proxy may call this RPC.
+	authCtx, err := s.authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleProxy)) {
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	tokenData, dev, err := s.confirmDeviceWebAuthentication(ctx, req, authCtx)
+	// err handled after audit.
+
+	var deviceID, user string
+	if tokenData != nil {
+		deviceID = tokenData.AuthenticatedDeviceID
+		user = tokenData.User
+	}
+
+	s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
+		Metadata: apievents.Metadata{
+			Type: events.DeviceAuthenticateConfirmEvent,
+			Code: events.DeviceAuthenticateConfirmCode,
+		},
+		Device: &apievents.DeviceMetadata{
+			DeviceId:     deviceID,
+			WebSessionId: req.CurrentWebSessionId,
+		},
+		Status: apievents.Status{
+			Success:     err == nil,
+			UserMessage: getUserMessage(err),
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:          user,
+			TrustedDevice: getDeviceMetadata(dev),
+		},
+	})
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &devicepb.ConfirmDeviceWebAuthenticationResponse{}, nil
+}
+
+func (s *Service) confirmDeviceWebAuthentication(
+	ctx context.Context,
+	req *devicepb.ConfirmDeviceWebAuthenticationRequest,
+	authCtx *authz.Context,
+) (*storage.DeviceConfirmationTokenData, *devicepb.Device, error) {
+	tokenData, err := s.storage.SpendDeviceConfirmationToken(ctx, req.ConfirmationToken)
+	if err != nil {
+		s.logger.
+			WithError(err).
+			Debug("Failed to spend device confirmation token")
+		// err swallowed on purpose.
+		return tokenData, nil, auditStatusError{
+			Err:         trace.Wrap(errInvalidDeviceConfirmationToken),
+			UserMessage: "invalid device confirmation token",
+		}
+	}
+	// Always return tokenData for audit purposes.
+
+	if req.CurrentWebSessionId != tokenData.WebSessionID {
+		return tokenData, nil, auditStatusError{
+			Err:         trace.Wrap(errInvalidDeviceConfirmationToken),
+			UserMessage: "token move check failed",
+		}
+	}
+
+	sourceIP, err := getSourceIPFromContext(ctx)
+	if err != nil {
+		s.logger.
+			WithError(err).
+			Debug("Failed to get source IP from context")
+		// err swallowed on purpose.
+		return tokenData, nil, trace.Wrap(errInvalidDeviceConfirmationToken)
+	}
+	if sourceIP != tokenData.BrowserIP {
+		return tokenData, nil, auditStatusError{
+			Err:         trace.Wrap(errInvalidDeviceConfirmationToken),
+			UserMessage: "browser IP mismatch",
+		}
+	}
+
+	dev, err := s.storage.GetDeviceByID(ctx, tokenData.AuthenticatedDeviceID)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	// Always return dev for audit purposes.
+
+	if err := s.augmentWebSessionCertificates(ctx, &auth.AugmentWebSessionCertificatesOpts{
+		WebSessionID: tokenData.WebSessionID,
+		DeviceExtensions: &auth.DeviceExtensions{
+			DeviceID:     dev.Id,
+			AssetTag:     dev.AssetTag,
+			CredentialID: dev.Credential.Id,
+		},
+	}); err != nil {
+		s.logger.
+			WithError(err).
+			Debug("Failed to augment WebSession certificates")
+		return tokenData, dev, auditStatusError{
+			Err:         trace.Wrap(err),
+			UserMessage: "failed to issue device web certificates",
+		}
+	}
+
+	return tokenData, dev, nil
 }
 
 func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventoryServer) error {
