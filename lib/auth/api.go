@@ -772,6 +772,9 @@ type DiscoveryAccessPoint interface {
 
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
+
+	// UpdateDiscoveryConfigStatus updates the status of a discovery config.
+	UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error)
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -1120,6 +1123,8 @@ type Cache interface {
 	// implicit member list and the underlying implementation does not have
 	// enough information to compute the dynamic member list.
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// GetAccessListMember returns the specified access list member resource.
 	// May return a DynamicAccessListError if the requested access list has an
 	// implicit member list and the underlying implementation does not have
@@ -1349,6 +1354,11 @@ func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.Subm
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	return w.NoCache.GenerateAWSOIDCToken(ctx, integration)
+}
+
+// UpdateDiscoveryConfigStatus updates the status of a discovery config.
+func (w *DiscoveryWrapper) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
+	return w.NoCache.UpdateDiscoveryConfigStatus(ctx, name, status)
 }
 
 // Close closes all associated resources

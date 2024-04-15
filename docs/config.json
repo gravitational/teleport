@@ -650,6 +650,14 @@
               "forScopes": [
                 "enterprise"
               ]
+            },
+            {
+              "title": "Analyze AWS IAM policies",
+              "slug": "/access-controls/access-graph/aws-sync/",
+              "forScopes": [
+                "cloud",
+                "enterprise"
+              ]
             }
           ]
         },
@@ -2091,7 +2099,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "15.1.4",
+      "version": "15.2.0",
       "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",

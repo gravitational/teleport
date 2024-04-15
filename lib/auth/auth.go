@@ -4437,6 +4437,16 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if _, err := a.Services.CreateAccessRequestV2(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var annotations *apievents.Struct
+	if sa := req.GetSystemAnnotations(); len(sa) > 0 {
+		var err error
+		annotations, err = apievents.EncodeMapStrings(sa)
+		if err != nil {
+			log.WithError(err).Debug("Failed to encode access request annotations.")
+		}
+	}
+
 	err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
 			Type: events.AccessRequestCreateEvent,
@@ -4452,6 +4462,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		RequestState:         req.GetState().String(),
 		Reason:               req.GetRequestReason(),
 		MaxDuration:          req.GetMaxDuration(),
+		Annotations:          annotations,
 	})
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
@@ -4551,6 +4562,13 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 		Reason:          params.Reason,
 		Roles:           params.Roles,
 		AssumeStartTime: params.AssumeStartTime,
+	}
+	if sa := req.GetSystemAnnotations(); len(sa) > 0 {
+		var err error
+		event.Annotations, err = apievents.EncodeMapStrings(sa)
+		if err != nil {
+			log.WithError(err).Debug("Failed to encode access request annotations.")
+		}
 	}
 
 	if delegator := apiutils.GetDelegator(ctx); delegator != "" {

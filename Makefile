@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=14.3.14
+VERSION=14.3.15
 
 DOCKER_IMAGE ?= teleport
 
@@ -505,7 +505,6 @@ release-darwin-unsigned: full build-archive
 
 .PHONY: release-darwin
 ifneq ($(ARCH),universal)
-release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
 release-darwin: release-darwin-unsigned
 	$(NOTARIZE_BINARIES)
 	$(MAKE) build-archive
@@ -594,9 +593,6 @@ release-windows: release-windows-unsigned
 # It is used only for MacOS releases. Windows releases do not use this
 # Makefile. Linux uses the `teleterm` target in build.assets/Makefile.
 #
-# Only export the CSC_NAME (developer key ID) when the recipe is run, so
-# that we do not shell out and run the `security` command if not necessary.
-#
 # Either CONNECT_TSH_BIN_PATH or CONNECT_TSH_APP_PATH environment variable
 # should be defined for the `yarn package-term` command to succeed. CI sets
 # this appropriately depending on whether a push build is running, or a
@@ -606,7 +602,6 @@ release-windows: release-windows-unsigned
 
 .PHONY: release-connect
 release-connect: | $(RELEASE_DIR)
-	$(eval export CSC_NAME)
 	yarn install --frozen-lockfile
 	yarn build-term
 	yarn package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
@@ -1151,30 +1146,44 @@ update-tag:
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
 	git push $(TAG_REMOTE) $(GITTAG) && git push $(TAG_REMOTE) api/$(GITTAG)
 
+# HAS_CLOUD_SEMVER is non-empty if $(VERSION) contains a cloud-only pre-release tag,
+# and is empty if not.
+HAS_CLOUD_SEMVER = $(findstring -cloud.,$(VERSION))$(findstring -dev.cloud.,$(VERSION))
+
 # Builds a tag build on GitHub Actions.
 # Starts a tag publish run using e/.github/workflows/tag-build.yaml
 # for the tag v$(VERSION).
+# If the $(VERSION) variable contains a cloud pre-release component, -cloud. or
+# -dev.cloud., then the tag-build workflow is run with `cloud-only=true`. This can be
+# specified explicitly with `make tag-build CLOUD_ONLY=<true|false>`.
 .PHONY: tag-build
+tag-build: CLOUD_ONLY = $(if $(HAS_CLOUD_SEMVER),true,false)
 tag-build:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-build.yaml \
 		--repo gravitational/teleport.e \
 		--ref "v$(VERSION)" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
-		-f "oss-teleport-ref=v$(VERSION)"
+		-f "oss-teleport-ref=v$(VERSION)" \
+		-f "cloud-only=$(CLOUD_ONLY)"
 	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-build.yaml
 
 # Publishes a tag build.
 # Starts a tag publish run using e/.github/workflows/tag-publish.yaml
 # for the tag v$(VERSION).
+# If the $(VERSION) variable contains a cloud pre-release component, -cloud. or
+# -dev.cloud., then the tag-publish workflow is run with `cloud-only=true`. This can be
+# specified explicitly with `make tag-publish CLOUD_ONLY=<true|false>`.
 .PHONY: tag-publish
+tag-publish: CLOUD_ONLY = $(if $(HAS_CLOUD_SEMVER),true,false)
 tag-publish:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-publish.yaml \
 		--repo gravitational/teleport.e \
 		--ref "v$(VERSION)" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
-		-f "oss-teleport-ref=v$(VERSION)"
+		-f "oss-teleport-ref=v$(VERSION)" \
+		-f "cloud-only=$(CLOUD_ONLY)"
 	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-publish.yaml
 
 .PHONY: test-package
@@ -1282,6 +1291,23 @@ buf/installed:
 		exit 1; \
 	fi
 
+GODERIVE := $(TOOLINGDIR)/bin/goderive
+# derive will generate derived functions for our API.
+# we need to build goderive first otherwise it will not be able to resolve dependencies
+# in the api/types/discoveryconfig package
+.PHONY: derive
+derive:
+	cd $(TOOLINGDIR) && go build  -o $(GODERIVE) ./cmd/goderive/main.go
+	$(GODERIVE) ./api/types ./api/types/discoveryconfig
+
+# derive-up-to-date checks if the generated derived functions are up to date.
+.PHONY: derive-up-to-date
+derive-up-to-date: must-start-clean/host derive
+	@if ! $(GIT) diff --quiet; then \
+		echo 'Please run make derive.'; \
+		exit 1; \
+	fi
+
 # grpc generates gRPC stubs from service definitions.
 # This target runs in the buildbox container.
 .PHONY: grpc
@@ -1386,7 +1412,6 @@ endif
 # build .pkg
 .PHONY: pkg
 pkg: | $(RELEASE_DIR)
-	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
@@ -1399,7 +1424,6 @@ pkg: | $(RELEASE_DIR)
 # build tsh client-only .pkg
 .PHONY: pkg-tsh
 pkg-tsh: | $(RELEASE_DIR)
-	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
 	mkdir -p $(BUILDDIR)/
 	mv tsh*.pkg* $(BUILDDIR)/

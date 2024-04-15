@@ -88,6 +88,9 @@ type TestAuthServerConfig struct {
 	Embedder embedding.Embedder
 	// CacheEnabled enables the primary auth server cache.
 	CacheEnabled bool
+	// RunWhileLockedRetryInterval is the interval to retry the run while locked
+	// operation.
+	RunWhileLockedRetryInterval time.Duration
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -266,12 +269,17 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	access := local.NewAccessService(srv.Backend)
-	identity := local.NewIdentityService(srv.Backend)
+	identity := local.NewTestIdentityService(srv.Backend)
 
 	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner: srv.AuditLog,
 		Clock: cfg.Clock,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessLists, err := local.NewAccessListService(srv.Backend, cfg.Clock, local.WithRunWhileLockedRetryInterval(cfg.RunWhileLockedRetryInterval))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -293,6 +301,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		},
 		EmbeddingRetriever: ai.NewSimpleRetriever(),
 		HostUUID:           uuid.New().String(),
+		AccessLists:        accessLists,
 	},
 		WithClock(cfg.Clock),
 		WithEmbedder(cfg.Embedder),

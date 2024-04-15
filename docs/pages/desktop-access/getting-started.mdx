@@ -43,7 +43,7 @@ To prepare a Windows computer:
 2. Export the Teleport user certificate authority by running the following command using your Teleport cluster address:
 
    ```code
-   $ curl -o teleport.cer <Var name="https://teleport.example.com"/>/webapi/auth/export?type=windows
+   $ curl.exe -fo teleport.cer <Var name="https://teleport.example.com"/>/webapi/auth/export?type=windows
    ```
 
 <Tabs>
@@ -52,7 +52,7 @@ To prepare a Windows computer:
 3. Download the Teleport Windows Auth setup program:
 
 ```code
-$ curl -o teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe https://cdn.teleport.dev/teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe
+$ curl.exe -fo teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe https://cdn.teleport.dev/teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe
 ```
 
 </TabItem>
@@ -61,7 +61,7 @@ $ curl -o teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe https://cd
 3. Download the Teleport Windows Auth setup program:
 
 ```code
-$ curl -o teleport-windows-auth-setup-v(=cloud.version=)-amd64.exe https://cdn.teleport.dev/teleport-windows-auth-setup-v(=cloud.version=)-amd64.exe
+$ curl.exe -fo teleport-windows-auth-setup-v(=cloud.version=)-amd64.exe https://cdn.teleport.dev/teleport-windows-auth-setup-v(=cloud.version=)-amd64.exe
 ```
 
 </TabItem>

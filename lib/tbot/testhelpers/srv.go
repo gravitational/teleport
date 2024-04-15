@@ -43,7 +43,11 @@ type DefaultBotConfigOpts struct {
 
 	// Makes the bot accept an Insecure auth or proxy server
 	Insecure bool
+
+	ServiceConfigs botconfig.ServiceConfigs
 }
+
+const AgentJoinToken = "i-am-a-join-token"
 
 // DefaultConfig returns a FileConfig to be used in tests, with random listen
 // addresses that are tied to the listeners returned in the FileDescriptor
@@ -73,6 +77,9 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []*servicecfg.FileDescript
 				EnabledFlag:   "true",
 				ListenAddress: testenv.NewTCPListener(t, service.ListenerAuth, &fds),
 			},
+			StaticTokens: config.StaticTokens{
+				config.StaticToken("db:" + AgentJoinToken),
+			},
 		},
 	}
 
@@ -88,9 +95,15 @@ func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileCon
 	require.NoError(t, config.ApplyFileConfig(fc, cfg))
 	cfg.FileDescriptors = fds
 	cfg.Log = log
-
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
+
+	// Disable session recording to avoid flakiness caused by TempDir cleanup.
+	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
+	// Disable audit log as we don't rely on this in our tests and it can cause
+	// flakiness due to TempDir cleanup.
+	cfg.Auth.NoAudit = true
+
 	auth, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
 	require.NoError(t, auth.Start())
@@ -176,7 +189,11 @@ func MakeBot(t *testing.T, client *auth.Client, name string, roles ...string) *p
 // - Uses a memory storage destination
 // - Does not verify Proxy WebAPI certificates
 func DefaultBotConfig(
-	t *testing.T, fc *config.FileConfig, botParams *proto.CreateBotResponse, outputs []botconfig.Output, opts DefaultBotConfigOpts,
+	t *testing.T,
+	fc *config.FileConfig,
+	botParams *proto.CreateBotResponse,
+	outputs []botconfig.Output,
+	opts DefaultBotConfigOpts,
 ) *botconfig.BotConfig {
 	t.Helper()
 
@@ -202,6 +219,7 @@ func DefaultBotConfig(
 		// Set Insecure so the bot will trust the Proxy's webapi default signed
 		// certs.
 		Insecure: opts.Insecure,
+		Services: opts.ServiceConfigs,
 	}
 
 	cfg.Onboarding.SetToken(botParams.TokenID)
