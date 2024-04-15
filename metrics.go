@@ -108,6 +108,9 @@ const (
 	// TagUpgrader is a metric tag for upgraders.
 	TagUpgrader = "upgrader"
 
+	// TagUpgraderVersion is a metric tag for upgrader versions.
+	TagUpgraderVersion = "upgrader_version"
+
 	// MetricsAccessRequestsCreated provides total number of created access requests.
 	MetricAccessRequestsCreated = "access_requests_created"
 	// TagRoles is a number of roles requested as a part of access request.
@@ -323,6 +326,10 @@ const (
 	// Only a subset of services are monitored. See [lib/service.metricsServicesRunningMap]
 	// Eg, discovery_service
 	TagServiceName = "service_name"
+
+	// TagAutomaticUpdates is a prometheus label to indicate whether the instance
+	// is enrolled in automatic updates.
+	TagAutomaticUpdates = "automatic_updates"
 )
 
 const (
