@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -262,14 +261,6 @@ type Server struct {
 	ctx context.Context
 	// cancelfn is used with ctx when stopping the discovery server
 	cancelfn context.CancelFunc
-
-	// stopServerOnce stops the server
-	// The server can be stopped in multiple ways:
-	// - when the server starts the shutdown process
-	// - when the discovery group lock is lost
-	// This method ensures we only stop the server once.
-	stopServerOnce sync.Once
-
 	// nodeWatcher is a node watcher.
 	nodeWatcher *services.NodeWatcher
 
@@ -341,7 +332,7 @@ type Server struct {
 	// with the auth server.
 	reconciler *labelReconciler
 
-	usageEventCacheMu sync.Mutex
+	mu sync.Mutex
 	// usageEventCache keeps track of which instances the server has emitted
 	// usage events for.
 	usageEventCache map[string]struct{}
@@ -1212,8 +1203,8 @@ func (s *Server) handleGCPDiscovery() {
 }
 
 func (s *Server) emitUsageEvents(events map[string]*usageeventsv1.ResourceCreateEvent) error {
-	s.usageEventCacheMu.Lock()
-	defer s.usageEventCacheMu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	for name, event := range events {
 		if _, exists := s.usageEventCache[name]; exists {
 			continue
@@ -1322,91 +1313,8 @@ func (s *Server) getAllGCPServerFetchers() []server.Fetcher {
 	return allFetchers
 }
 
-// acquireDiscoveryGroup tries to acquire a lock if the Service has a DiscoveryGroup
-// It will retry using an exponential backoff algorithm.
-func (s *Server) acquireDiscoveryGroup() error {
-	if s.DiscoveryGroup == "" {
-		s.Log.Warnf("DiscoveryGroup is not set, skipping semaphore lock. It is recommended to set a DiscoveryGroup")
-		return nil
-	}
-
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		First:  0,
-		Driver: retryutils.NewExponentialDriver(defaults.HighResPollingPeriod),
-		Max:    defaults.LowResPollingPeriod,
-		Jitter: retryutils.NewHalfJitter(),
-		Clock:  s.clock,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	for range retry.After() {
-		retry.Inc()
-		s.Log.Debugf("Discovery service is trying to acquire lock for DiscoveryGroup %q", s.DiscoveryGroup)
-		if err := s.tryAcquireDiscoveryGroupLease(); err != nil {
-			if strings.Contains(err.Error(), teleport.MaxLeases) {
-				s.Log.Debugf("Discovery service is waiting on DiscoveryGroup %q lock: %v", s.DiscoveryGroup, err)
-				continue
-			}
-			return trace.Wrap(err)
-		}
-		break
-	}
-
-	return nil
-}
-
-// tryAcquireDiscoveryGroupLease tries to acquire a semaphore lock on the DiscoveryService/<DiscoveryGroup> key.
-// If successful, a new goroutine is created to handle lease termination.
-// A lease can be terminated in two ways:
-// - Server's context is cancelled
-// - lease is lost
-//
-// When the lease is lost, the server is stopped.
-// Calling Stop twice is safe because it is protected by a `sync.Once`.
-// The 2nd time it is called, it will be a no-op.
-func (s *Server) tryAcquireDiscoveryGroupLease() error {
-	lease, err := services.AcquireSemaphoreLock(s.ctx, services.SemaphoreLockConfig{
-		Service: s.Config.AccessPoint,
-		Expiry:  time.Minute,
-		Params: types.AcquireSemaphoreRequest{
-			SemaphoreKind: types.SemaphoreKindDiscoveryServiceGroup,
-			SemaphoreName: s.DiscoveryGroup,
-			MaxLeases:     1,
-			Holder:        s.ServerID,
-		},
-		Clock: s.clock,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	go func() {
-		for {
-			select {
-			case <-lease.Renewed():
-				continue
-
-			// A lease.Done() signal means that the lease was lost.
-			// The server must be stopped to ensure only one DiscoveryService is running at the same time.
-			case <-lease.Done():
-				s.Log.WithError(lease.Wait()).Warnf("DiscoveryGroup %q lock was lost, stopping discovery service.", s.DiscoveryGroup)
-				s.Stop()
-				return
-			}
-		}
-	}()
-
-	return nil
-}
-
 // Start starts the discovery service.
 func (s *Server) Start() error {
-	if err := s.acquireDiscoveryGroup(); err != nil {
-		return trace.Wrap(err)
-	}
-
 	if s.ec2Watcher != nil {
 		go s.handleEC2Discovery()
 		go s.reconciler.run(s.ctx)
@@ -1680,23 +1588,21 @@ func (s *Server) discardUnsupportedMatchers(m *Matchers) {
 
 // Stop stops the discovery service.
 func (s *Server) Stop() {
-	s.stopServerOnce.Do(func() {
-		s.cancelfn()
-		if s.ec2Watcher != nil {
-			s.ec2Watcher.Stop()
+	s.cancelfn()
+	if s.ec2Watcher != nil {
+		s.ec2Watcher.Stop()
+	}
+	if s.azureWatcher != nil {
+		s.azureWatcher.Stop()
+	}
+	if s.gcpWatcher != nil {
+		s.gcpWatcher.Stop()
+	}
+	if s.dynamicMatcherWatcher != nil {
+		if err := s.dynamicMatcherWatcher.Close(); err != nil {
+			s.Log.Warnf("dynamic matcher watcher closing error: ", trace.Wrap(err))
 		}
-		if s.azureWatcher != nil {
-			s.azureWatcher.Stop()
-		}
-		if s.gcpWatcher != nil {
-			s.gcpWatcher.Stop()
-		}
-		if s.dynamicMatcherWatcher != nil {
-			if err := s.dynamicMatcherWatcher.Close(); err != nil {
-				s.Log.Warnf("dynamic matcher watcher closing error: ", trace.Wrap(err))
-			}
-		}
-	})
+	}
 }
 
 // Wait will block while the server is running.
