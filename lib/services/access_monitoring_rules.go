@@ -41,17 +41,6 @@ type AccessMonitoringRules interface {
 
 // MarshalAccessMonitoringRule marshals AccessMonitoringRule resource to JSON.
 func MarshalAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.AccessMonitoringRule, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if !cfg.PreserveResourceID {
-		copy := *accessMonitoringRule
-		copy.Metadata.Id = 0
-		copy.Metadata.Revision = ""
-		accessMonitoringRule = &copy
-	}
 	return utils.FastMarshal(accessMonitoringRule)
 }
 
@@ -67,9 +56,6 @@ func UnmarshalAccessMonitoringRule(data []byte, opts ...MarshalOption) (*accessm
 	var accessMonitoringRule accessmonitoringrulesv1.AccessMonitoringRule
 	if err := utils.FastUnmarshal(data, &accessMonitoringRule); err != nil {
 		return nil, trace.BadParameter(err.Error())
-	}
-	if cfg.ID != 0 {
-		accessMonitoringRule.Metadata.Id = cfg.ID
 	}
 	if cfg.Revision != "" {
 		accessMonitoringRule.Metadata.Revision =  cfg.Revision
