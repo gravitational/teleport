@@ -22,7 +22,7 @@ import { isObject } from 'shared/utils/highbar';
 
 import Logger from 'teleterm/logger';
 
-const SENSITIVE_PROPERTIES = ['passw', 'authClusterId', 'pin'];
+const SENSITIVE_PROPERTIES = ['password', 'authClusterId', 'pin'];
 
 export function loggingInterceptor(logger: Logger): RpcInterceptor {
   return {
@@ -109,7 +109,7 @@ export function filterSensitiveProperties(toFilter: object): object {
   const transformer = (result: object, value: any, key: any) => {
     if (
       SENSITIVE_PROPERTIES.some(
-        sensitiveProp => typeof key === 'string' && key.includes(sensitiveProp)
+        sensitiveProp => typeof key === 'string' && key === sensitiveProp
       )
     ) {
       result[key] = '~FILTERED~';

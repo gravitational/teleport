@@ -146,7 +146,11 @@ const wizardFlows = {
   withoutReauthentication: [ChangePasswordStep],
 };
 
-interface ReauthenticateStepProps extends StepComponentProps {
+type ChangePasswordWizardStepProps = StepComponentProps &
+  ReauthenticateStepProps &
+  ChangePasswordStepProps;
+
+interface ReauthenticateStepProps {
   reauthOptions: ReauthenticationOption[];
   reauthMethod: ReauthenticationMethod;
   onReauthMethodChange(method: ReauthenticationMethod): void;
@@ -164,7 +168,7 @@ export function ReauthenticateStep({
   onReauthMethodChange,
   onAuthenticated,
   onClose,
-}: ReauthenticateStepProps) {
+}: ChangePasswordWizardStepProps) {
   const [reauthenticateAttempt, reauthenticate] = useAsync(
     async (m: ReauthenticationMethod) => {
       if (m === 'passwordless' || m === 'mfaDevice') {
@@ -218,7 +222,7 @@ export function ReauthenticateStep({
   );
 }
 
-interface ChangePasswordStepProps extends StepComponentProps {
+interface ChangePasswordStepProps {
   credential: Credential;
   reauthMethod: ReauthenticationMethod;
   onClose(): void;
@@ -234,7 +238,7 @@ export function ChangePasswordStep({
   reauthMethod,
   onClose,
   onSuccess,
-}: ChangePasswordStepProps) {
+}: ChangePasswordWizardStepProps) {
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newPassConfirmed, setNewPassConfirmed] = useState('');

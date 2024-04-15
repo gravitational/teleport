@@ -79,7 +79,7 @@ type ClusterWithDetails struct {
 
 // Connected indicates if connection to the cluster can be established
 func (c *Cluster) Connected() bool {
-	return c.status.Name != "" && !c.status.IsExpired(c.clock)
+	return c.status.Name != "" && !c.status.IsExpired(c.clock.Now())
 }
 
 // GetWithDetails makes requests to the auth server to return details of the current
