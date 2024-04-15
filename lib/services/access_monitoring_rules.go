@@ -58,7 +58,7 @@ func UnmarshalAccessMonitoringRule(data []byte, opts ...MarshalOption) (*accessm
 		return nil, trace.BadParameter(err.Error())
 	}
 	if cfg.Revision != "" {
-		accessMonitoringRule.Metadata.Revision =  cfg.Revision
+		accessMonitoringRule.Metadata.Revision = cfg.Revision
 	}
 	if !cfg.Expires.IsZero() {
 		accessMonitoringRule.Metadata.Expires = timestamppb.New(cfg.Expires)
