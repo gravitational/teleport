@@ -5777,10 +5777,12 @@ message PluginSpecV1 {
     PluginDiscordSettings discord = 9;
     // Settings for the ServiceNow plugin
     PluginServiceNowSettings serviceNow = 10;
+    // Settings for the Entra ID plugin
+    PluginEntraIDSettings entra_id = 12;
   }
 
   // generation contains a unique ID that should:
-  // - Be created by the backed on plugin creation.
+  // - Be created by the backend on plugin creation.
   // - Be updated by the backend if the plugin is updated in any way.
   //
   // For older plugins, it's possible for this to be empty.
