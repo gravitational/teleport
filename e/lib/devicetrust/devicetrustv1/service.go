@@ -86,6 +86,11 @@ var (
 	}
 )
 
+// AugmentWebSessionCertificates is a variant of
+// [AugmentContextUserCertificates] that works directly on the WebSession
+// certificates.
+type AugmentWebSessionCertificatesFunc func(ctx context.Context, opts *auth.AugmentWebSessionCertificatesOpts) error
+
 // AuthServer represents the [auth.Server] methods used by [Service].
 type AuthServer interface {
 	// AugmentContextUserCertificates augments the context certificate and the supplied
@@ -95,11 +100,6 @@ type AuthServer interface {
 	// fit to perform.
 	// See [auth.Server.AugmentContextUserCertificates]
 	AugmentContextUserCertificates(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentUserCertificateOpts) (*clientpb.Certs, error)
-
-	// AugmentWebSessionCertificates is a variant of
-	// [AugmentContextUserCertificates] that works directly on the WebSession
-	// certificates.
-	AugmentWebSessionCertificates(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentWebSessionCertificatesOpts) error
 
 	// GetAuthPreference gets the cluster's auth preferences.
 	// This method is not guarded by user permissions.
@@ -139,6 +139,10 @@ type Service struct {
 	emitter     apievents.Emitter
 	limiter     RateLimiter
 	storage     *storage.S
+
+	// TODO(codingllama): Temporary. Move back to the AuthServer interface once
+	//  the refactor is complete.
+	augmentWebSessionCertificates AugmentWebSessionCertificatesFunc
 }
 
 // ServiceParams holds creation parameters for Service.
@@ -156,6 +160,10 @@ type ServiceParams struct {
 	// Requests are typically rate-limited by user.
 	// If `nil` a default limiter is used.
 	Limiter RateLimiter
+
+	// TODO(codingllama): Temporary. Move back to the AuthServer interface once
+	//  the refactor is complete.
+	AugmentWebSessionCertificates AugmentWebSessionCertificatesFunc
 }
 
 // New creates a new DeviceTrustService implementer.
@@ -213,6 +221,8 @@ func New(params ServiceParams) (*Service, error) {
 		emitter:     params.Emitter,
 		limiter:     rateLimiter,
 		storage:     params.Storage,
+
+		augmentWebSessionCertificates: params.AugmentWebSessionCertificates,
 	}, nil
 }
 
@@ -799,10 +809,6 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 		augmentCertsFunc: func(ctx context.Context, opts *auth.AugmentUserCertificateOpts) (*clientpb.Certs, error) {
 			certs, err := s.authServer.AugmentContextUserCertificates(ctx, authCtx, opts)
 			return certs, trace.Wrap(err)
-		},
-		augmentWebFunc: func(ctx context.Context, opts *auth.AugmentWebSessionCertificatesOpts) error {
-			err := s.authServer.AugmentWebSessionCertificates(ctx, authCtx, opts)
-			return trace.Wrap(err)
 		},
 		auditCallback: func(dev *devicepb.Device, err error) {
 			success := err == nil

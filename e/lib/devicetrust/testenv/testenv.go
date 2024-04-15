@@ -42,7 +42,7 @@ type AugmentContextCertsFunc func(ctx context.Context, authCtx *authz.Context, o
 
 // AugmentWebSessionCertsFunc mimics the signature of
 // [auth.Server.AugmentWebSessionCertificates].
-type AugmentWebSessionCertsFunc func(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentWebSessionCertificatesOpts) error
+type AugmentWebSessionCertsFunc func(ctx context.Context, opts *auth.AugmentWebSessionCertificatesOpts) error
 
 // AnonymizeAndSubmitFunc mimics the signature of
 // [auth.Server.AnonymizeAndSubmit].
@@ -195,21 +195,25 @@ func New(opts ...Opt) (*E, error) {
 	logger := log.New()
 	logger.SetLevel(log.PanicLevel) // Silence logging for tests.
 
+	authServer := &fakeAuthServer{
+		augmentFunc:            e.augmentCertsFunc,
+		augmentWebFunc:         e.augmentWebFunc,
+		authSpec:               e.authSpec,
+		anonymizeAndSubmitFunc: e.anonymizeAndSubmitFunc,
+	}
+
 	// Device service.
 	e.DevicesService, err = devicetrustv1.New(devicetrustv1.ServiceParams{
-		Logger: logger,
-		AuthServer: &fakeAuthServer{
-			augmentFunc:            e.augmentCertsFunc,
-			augmentWebFunc:         e.augmentWebFunc,
-			authSpec:               e.authSpec,
-			anonymizeAndSubmitFunc: e.anonymizeAndSubmitFunc,
-		},
+		Logger:              logger,
+		AuthServer:          authServer,
 		Authorizer:          e.authorizer,
 		CachedAccessService: e.AccessService,
 		CachedUsersService:  e.IdentityService,
 		Emitter:             e.emitter,
 		Limiter:             e.limiter,
 		Storage:             dtStorage,
+
+		AugmentWebSessionCertificates: authServer.AugmentWebSessionCertificates,
 	})
 	if err != nil {
 		return nil, err
@@ -289,11 +293,11 @@ func (s *fakeAuthServer) AugmentContextUserCertificates(ctx context.Context, aut
 	return s.augmentFunc(ctx, authCtx, opts)
 }
 
-func (s *fakeAuthServer) AugmentWebSessionCertificates(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentWebSessionCertificatesOpts) error {
+func (s *fakeAuthServer) AugmentWebSessionCertificates(ctx context.Context, opts *auth.AugmentWebSessionCertificatesOpts) error {
 	if s.augmentWebFunc == nil {
 		return nil
 	}
-	return s.augmentWebFunc(ctx, authCtx, opts)
+	return s.augmentWebFunc(ctx, opts)
 }
 
 func (s *fakeAuthServer) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {

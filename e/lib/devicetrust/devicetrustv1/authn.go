@@ -33,7 +33,6 @@ type authnCeremony struct {
 	storage          *storage.S
 	cachedUsers      UsersService
 	augmentCertsFunc func(ctx context.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error)
-	augmentWebFunc   func(ctx context.Context, opts *auth.AugmentWebSessionCertificatesOpts) error
 	auditCallback    func(d *devicepb.Device, err error)
 }
 
