@@ -1720,10 +1720,6 @@
           "slug": "/database-access/guides/"
         },
         {
-          "title": "Architecture",
-          "slug": "/database-access/architecture/"
-        },
-        {
           "title": "Reference",
           "slug": "/database-access/reference/",
           "entries": [
@@ -2168,10 +2164,10 @@
           "title": "Trusted Clusters",
           "slug": "/architecture/trustedclusters/"
         },
-        {
-          "title": "Teleport Nodes",
-          "slug": "/architecture/nodes/"
-        },
+	{
+	  "title": "Teleport Agents",
+	  "slug": "/architecture/agents/"
+	},
         {
           "title": "Session Recording",
           "slug": "/architecture/session-recording/"
