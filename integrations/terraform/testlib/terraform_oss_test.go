@@ -1,3 +1,5 @@
+//go:build ent
+
 package testlib
 
 import (
@@ -11,7 +13,7 @@ import (
 	"testing"
 )
 
-func TestTerraformOSS(t *testing.T) {
+func TestTerraformEnterprise(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
 			OIDC:                    true,
@@ -28,7 +30,7 @@ func TestTerraformOSS(t *testing.T) {
 	registry := plugin.NewRegistry()
 	require.NoError(t, registry.Add(authPlugin))
 
-	suite.Run(t, &TerraformSuiteOSS{
+	suite.Run(t, &TerraformSuiteEnterprise{
 		TerraformBaseSuite: TerraformBaseSuite{
 			AuthHelper: &integration.MinimalAuthHelper{
 				PluginRegistry: registry,
@@ -37,7 +39,7 @@ func TestTerraformOSS(t *testing.T) {
 	})
 }
 
-func TestTerraformOSSWithCache(t *testing.T) {
+func TestTerraformEnterpriseWithCache(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
 			OIDC:                    true,
@@ -54,7 +56,7 @@ func TestTerraformOSSWithCache(t *testing.T) {
 	registry := plugin.NewRegistry()
 	require.NoError(t, registry.Add(authPlugin))
 
-	suite.Run(t, &TerraformSuiteOSSWithCache{
+	suite.Run(t, &TerraformSuiteEnterpriseWithCache{
 		TerraformBaseSuite: TerraformBaseSuite{
 			AuthHelper: &integration.MinimalAuthHelper{
 				AuthConfig:     auth.TestAuthServerConfig{CacheEnabled: true},
