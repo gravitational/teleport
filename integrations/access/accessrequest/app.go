@@ -352,16 +352,23 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 		recipientSet.Add(common.Recipient{})
 		return recipientSet.ToSlice()
 	case types.PluginTypeOpsgenie:
-		if recipients, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]; ok {
-			for _, recipient := range recipients {
-				rec, err := a.bot.FetchRecipient(ctx, recipient)
-				if err != nil {
-					log.Warning(err)
-				}
-				recipientSet.Add(*rec)
-			}
-			return recipientSet.ToSlice()
+		// When both notify-services and approve-schedules are present, each is used for their own intended purpose.
+		recipients := make([]string, 0)
+		if approveSchedules, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationApproveSchedulesLabel]; ok {
+			recipients = approveSchedules
 		}
+		if notifySchedules, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationNotifySchedulesLabel]; ok {
+			recipients = notifySchedules
+		}
+		for _, recipient := range recipients {
+			rec, err := a.bot.FetchRecipient(ctx, recipient)
+			if err != nil {
+				log.Warningf("Failed to fetch Opsgenie recipient: %v", err)
+				continue
+			}
+			recipientSet.Add(*rec)
+		}
+		return recipientSet.ToSlice()
 	}
 
 	validEmailSuggReviewers := []string{}
