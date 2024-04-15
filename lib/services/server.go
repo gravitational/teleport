@@ -28,7 +28,6 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	ec2v1 "github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -457,9 +456,7 @@ func NewAWSNodeFromEC2Instance(instance ec2types.Instance, awsCloudMetadata *typ
 	// We use the default port for the OpenSSH daemon.
 	addr := net.JoinHostPort(aws.ToString(instance.PrivateIpAddress), defaultSSHPort)
 
-	server, err := types.NewNode(
-		uuid.NewString(),
-		types.SubKindOpenSSHEICENode,
+	server, err := types.NewEICENode(
 		types.ServerSpecV2{
 			Hostname: aws.ToString(instance.PrivateDnsName),
 			Addr:     addr,

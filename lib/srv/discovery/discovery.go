@@ -849,21 +849,6 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 		Integration: instances.Integration,
 	}
 
-	existingEICEServersList := s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
-		return n.IsEICE()
-	})
-
-	existingEICEServersMap := make(map[string]types.Server, len(existingEICEServersList))
-	for _, eiceServer := range existingEICEServersList {
-		si, err := types.ServerInfoForServer(eiceServer)
-		if err != nil {
-			s.Log.Debugf("Failed to convert Server %q to ServerInfo: %v", eiceServer.GetName(), err)
-			continue
-		}
-
-		existingEICEServersMap[si.GetName()] = eiceServer
-	}
-
 	nodesToUpsert := make([]types.Server, 0, len(instances.Instances))
 	// Add EC2 Instances using EICE method
 	for _, ec2Instance := range instances.Instances {
@@ -873,28 +858,27 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 			continue
 		}
 
-		serverInfo, err := types.ServerInfoForServer(eiceNode)
-		if err != nil {
-			s.Log.WithField("instance_id", ec2Instance.InstanceID).Warnf("Error converting to Teleport ServerInfo: %v", err)
+		existingNode, err := s.nodeWatcher.GetNode(s.ctx, eiceNode.GetName())
+		if err != nil && !trace.IsNotFound(err) {
+			s.Log.Warnf("Error finding the existing node with name %q: %v", eiceNode.GetName(), err)
 			continue
 		}
 
-		if existingNode, found := existingEICEServersMap[serverInfo.GetName()]; found {
-			// Re-use the same Name so that `UpsertNode` replaces the node.
-			eiceNode.SetName(existingNode.GetName())
+		// EICE Node's Name are deterministic (based on the Account and Instance ID).
+		//
+		// To reduce load, nodes are skipped if
+		// - they didn't change and
+		// - their expiration is far away in the future (at least 2 Poll iterations before the Node expires)
+		//
+		// As an example, and using the default PollInterval (5 minutes),
+		// nodes that didn't change and have their expiration greater than now+15m will be skipped.
+		// This gives at least another two iterations of the DiscoveryService before the node is actually removed.
+		// Note: heartbeats set an expiration of 90 minutes.
+		if existingNode != nil &&
+			existingNode.Expiry().After(s.clock.Now().Add(3*s.PollInterval)) &&
+			services.CompareServers(existingNode, eiceNode) == services.OnlyTimestampsDifferent {
 
-			// To reduce load, nodes are skipped if
-			// - they didn't change and
-			// - their expiration is far away in the future (at least 2 Poll iterations before the Node expires)
-			//
-			// As an example, and using the default PollInterval (5 minutes),
-			// nodes that didn't change and have their expiration greater than now+15m will be skipped.
-			// This gives at least another two iterations of the DiscoveryService before the node is actually removed.
-			// Note: heartbeats set an expiration of 90 minutes.
-			if existingNode.Expiry().After(s.clock.Now().Add(3*s.PollInterval)) &&
-				services.CompareServers(existingNode, eiceNode) == services.OnlyTimestampsDifferent {
-				continue
-			}
+			continue
 		}
 
 		eiceNodeExpiration := s.clock.Now().Add(s.jitter(serverExpirationDuration))
