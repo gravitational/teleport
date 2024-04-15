@@ -1265,6 +1265,45 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2GCP GCP = 13 [(gogoproto.jsontag) = "gcp,omitempty"];
   // Spacelift allows the configuration of options specific to the "spacelift" join method.
   ProvisionTokenSpecV2Spacelift Spacelift = 14 [(gogoproto.jsontag) = "spacelift,omitempty"];
+  // TPM allows the configuration of options specific to the "tpm" join method.
+  ProvisionTokenSpecV2TPM TPM = 15 [(gogoproto.jsontag) = "tpm,omitempty"];
+}
+
+// ProvisionTokenSpecV2TPM contains the TPM-specific part of the
+// ProvisionTokenSpecV2
+message ProvisionTokenSpecV2TPM {
+  message Rule {
+    reserved 2, 3;
+    reserved "EKPubHash", "EKCertSerial";
+    // Description is a human-readable description of the rule. It has no
+    // bearing on whether or not a TPM is allowed to join, but can be used
+    // to associate a rule with a specific host (e.g the asset tag of the server
+    // in which the TPM resides).
+    // Example: "build-server-100"
+    string Description = 1 [(gogoproto.jsontag) = "description,omitempty"];
+    // EKPublicHash is the SHA256 hash of the EKPub marshaled in PKIX format
+    // and encoded in hexadecimal. This value will also be checked when a TPM
+    // has submitted an EKCert, and the public key in the EKCert will be used
+    // for this check.
+    // Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6
+    string EKPublicHash = 4 [(gogoproto.jsontag) = "ek_public_hash,omitempty"];
+    // EKCertificateSerial is the serial number of the EKCert in hexadecimal
+    // with colon separated nibbles. This value will not be checked when a TPM
+    // does not have an EKCert configured.
+    // Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
+    string EKCertificateSerial = 5 [(gogoproto.jsontag) = "ek_certificate_serial,omitempty"];
+  }
+  // Allow is a list of Rules, the presented delegated identity must match one
+  // allow rule to permit joining.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // EKCertAllowedCAs is a list of CA certificates that will be used to validate
+  // TPM EKCerts.
+  // When specified, joining TPMs must present an EKCert signed by one of the
+  // specified CAs. TPMs that do not present an EKCert will be not permitted to
+  // join.
+  // When unspecified, TPMs will be allowed to join with either an EKCert or an
+  // EKPubHash.
+  repeated string EKCertAllowedCAs = 2 [(gogoproto.jsontag) = "ekcert_allowed_cas,omitempty"];
 }
 
 // ProvisionTokenSpecV2Github contains the GitHub-specific part of the
@@ -2498,6 +2537,12 @@ message AccessCapabilitiesRequest {
     (gogoproto.jsontag) = "resource_ids,omitempty",
     (gogoproto.nullable) = false
   ];
+  // Login is the host login the user is requesting access for.
+  string Login = 5 [(gogoproto.jsontag) = "login,omitempty"];
+  // FilterRequestableRolesByResource is a flag indicating that the returned
+  // list of roles that the user can request should be filtered to only include
+  // roles that allow access to the provided ResourceIDs.
+  bool FilterRequestableRolesByResource = 6 [(gogoproto.jsontag) = "filter_requestable_roles_by_resource,omitempty"];
 }
 
 // ResourceID is a unique identifier for a teleport resource.
@@ -3294,6 +3339,12 @@ message ImpersonateConditions {
 // whenever bool value can have different default value when missing
 message BoolValue {
   bool Value = 1;
+}
+
+// UserFilter matches user resources.
+message UserFilter {
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
 }
 
 // UserV2 is version 2 resource spec of the user

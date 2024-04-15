@@ -51,6 +51,10 @@ type ServiceConfig[T Resource] struct {
 	BackendPrefix string
 	MarshalFunc   MarshalFunc[T]
 	UnmarshalFunc UnmarshalFunc[T]
+	// RunWhileLockedRetryInterval is the interval to retry the RunWhileLocked function.
+	// If set to 0, the default interval of 250ms will be used.
+	// WARNING: If set to a negative value, the RunWhileLocked function will retry immediately.
+	RunWhileLockedRetryInterval time.Duration
 }
 
 func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
@@ -80,12 +84,13 @@ func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
 
 // Service is a generic service for interacting with resources in the backend.
 type Service[T Resource] struct {
-	backend       backend.Backend
-	resourceKind  string
-	pageLimit     uint
-	backendPrefix string
-	marshalFunc   MarshalFunc[T]
-	unmarshalFunc UnmarshalFunc[T]
+	backend                     backend.Backend
+	resourceKind                string
+	pageLimit                   uint
+	backendPrefix               string
+	marshalFunc                 MarshalFunc[T]
+	unmarshalFunc               UnmarshalFunc[T]
+	runWhileLockedRetryInterval time.Duration
 }
 
 // NewService will return a new generic service with the given config. This will
@@ -96,12 +101,13 @@ func NewService[T Resource](cfg *ServiceConfig[T]) (*Service[T], error) {
 	}
 
 	return &Service[T]{
-		backend:       cfg.Backend,
-		resourceKind:  cfg.ResourceKind,
-		pageLimit:     cfg.PageLimit,
-		backendPrefix: cfg.BackendPrefix,
-		marshalFunc:   cfg.MarshalFunc,
-		unmarshalFunc: cfg.UnmarshalFunc,
+		backend:                     cfg.Backend,
+		resourceKind:                cfg.ResourceKind,
+		pageLimit:                   cfg.PageLimit,
+		backendPrefix:               cfg.BackendPrefix,
+		marshalFunc:                 cfg.MarshalFunc,
+		unmarshalFunc:               cfg.UnmarshalFunc,
+		runWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
 	}, nil
 }
 
@@ -261,6 +267,26 @@ func (s *Service[T]) UpdateResource(ctx context.Context, resource T) (T, error) 
 	return resource, trace.Wrap(err)
 }
 
+// ConditionalUpdateResource updates an existing resource if revision matches.
+func (s *Service[T]) ConditionalUpdateResource(ctx context.Context, resource T) (T, error) {
+	var t T
+	item, err := s.MakeBackendItem(resource, resource.GetName())
+	if err != nil {
+		return t, trace.Wrap(err)
+	}
+
+	lease, err := s.backend.ConditionalUpdate(ctx, item)
+	if trace.IsNotFound(err) {
+		return t, trace.NotFound("%s %q doesn't exist", s.resourceKind, resource.GetName())
+	}
+	if err != nil {
+		return t, trace.Wrap(err)
+	}
+
+	types.SetRevision(resource, lease.Revision)
+	return resource, trace.Wrap(err)
+}
+
 // UpsertResource upserts a resource.
 func (s *Service[T]) UpsertResource(ctx context.Context, resource T) (T, error) {
 	var t T
@@ -377,9 +403,10 @@ func (s *Service[T]) RunWhileLocked(ctx context.Context, lockName string, ttl ti
 	return trace.Wrap(backend.RunWhileLocked(ctx,
 		backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
-				Backend:  s.backend,
-				LockName: lockName,
-				TTL:      ttl,
+				Backend:       s.backend,
+				LockName:      lockName,
+				TTL:           ttl,
+				RetryInterval: s.runWhileLockedRetryInterval,
 			},
 		}, func(ctx context.Context) error {
 			return fn(ctx, s.backend)

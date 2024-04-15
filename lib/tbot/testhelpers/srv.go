@@ -51,6 +51,8 @@ type DefaultBotConfigOpts struct {
 	ServiceConfigs botconfig.ServiceConfigs
 }
 
+const AgentJoinToken = "i-am-a-join-token"
+
 // DefaultConfig returns a FileConfig to be used in tests, with random listen
 // addresses that are tied to the listeners returned in the FileDescriptor
 // slice, which should be passed as exported file descriptors to NewTeleport;
@@ -79,6 +81,9 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []*servicecfg.FileDescript
 				EnabledFlag:   "true",
 				ListenAddress: testenv.NewTCPListener(t, service.ListenerAuth, &fds),
 			},
+			StaticTokens: config.StaticTokens{
+				config.StaticToken("db:" + AgentJoinToken),
+			},
 		},
 	}
 
@@ -94,9 +99,15 @@ func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileCon
 	require.NoError(t, config.ApplyFileConfig(fc, cfg))
 	cfg.FileDescriptors = fds
 	cfg.Log = log
-
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
+
+	// Disable session recording to avoid flakiness caused by TempDir cleanup.
+	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
+	// Disable audit log as we don't rely on this in our tests and it can cause
+	// flakiness due to TempDir cleanup.
+	cfg.Auth.NoAudit = true
+
 	auth, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
 	require.NoError(t, auth.Start())

@@ -23,216 +23,62 @@ present in their package repositories. As Teleport 14 won't be published to
 the next major version (adding a new APT/YUM/zypper repo for `stable/v14`).
 Alternatively, you can use the `stable/rolling` channel, which contains
 Teleport v13.3.2 forward, including future major releases.
-
 </Admonition>
 
 ## Prerequisites
 
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components of your cluster.
-- Self-hosted Teleport cluster v13.0 or higher.
+- Self-hosted Teleport cluster running at least v14.3.7 or v15.1.3. 
 - (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
-The version server must be hosted on a webserver with trusted TLS certificates
-and reachable by all agents. You must have either:
-  - A public Amazon S3 or Google Cloud Storage bucket.
-  - A web server accessible from all agents with valid TLS certificates.
+## Step 1/4. Check the version advertised by the Teleport Proxy Service
 
-If you do not have an S3 or GCS bucket for your version server, this guide
-provides an example of how to create one using Terraform. You can [install
-Terraform](https://developer.hashicorp.com/terraform/downloads) to spin up a
-demo version server along with this guide so you can get started with automatic
-agent upgrades. Terraform is not required to set up a version server. 
+The Teleport Proxy service exposes by default a version channel called `default`
+that serves the same version the Proxy Service is running.
 
-- (!docs/pages/includes/tctl.mdx!)
-
-## Step 1/5. Create release channel files
-
-A **release channel** contains two pieces of information: the targeted version
-and if the upgrade is critical. Updaters subscribe to a release channel and will
-upgrade to the provided version during a **maintenance window** (which we will
-configure later in this guide). If the upgrade is critical, updaters will ignore
-the maintenance schedule and upgrade as soon as possible.
-
-The version server is a static file server that responds to the following queries:
+If your proxy public address is <Var name="teleport.example.com:443" />, you can
+query the version server with the following command:
 
 ```code
-$ curl https://<hosting-domain-and-path>/current/version
+$ curl "https://<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/default/version"
 (=teleport.version=)
-
-$ curl https://<hosting-domain-and-path>/current/critical
-no
 ```
 
-1. Create a project directory for the files we create in this guide:
+<Details title="Changing which version is served by the version server">
 
-   ```code
-   $ mkdir version-server
-   $ cd version-server
-   ```
+By default, the version server has a single `default` channel, serving the
+version of the Teleport Proxy Service. If you want to override the default version or add other channels you
+can use the `automatic_upgrades_channels` field in the Proxy Service configuration file:
 
-1. Create a directory for the new release channel `current`.
+```yaml
+proxy_service:
+  enabled: "yes"
+  automatic_upgrades_channels:
+    # Override the default version channel reachable at
+    # https://<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/default/version
+    default:
+      static_version: v14.2.1
+    # Define a new version channel with a static version reachable at
+    # https://<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/m-static-channel/version
+    my-static-channel:
+      static_version: v14.2.0
+    # Define a new version channel forwarding requests to an upstream version server
+    my-remote-channel:
+      forward_url: https://updates.releases.teleport.dev/v1/stable/cloud
+```
 
-   ```code
-   $ mkdir current/
-   ```
+You must ensure all proxies share the same `automatic_upgrades_channels`
+configuration. If Proxy Service instances are configured differently, you will experience agents
+flickering between versions as the version served is not consistent across
+instances.
 
-1. Make the `current` release channel target the version (=teleport.version=):
+</Details>
 
-   ```code
-   $ echo -n "(=teleport.version=)" > current/version
-   ```
+## Step 2/4. Configure the maintenance schedule
 
-1. And mark the upgrade as not critical:
-
-   ```code
-   $ echo -n "no" > current/critical
-   ```
-
-## Step 2/5. Create a Terraform configuration
-
-1. In the project directory you created in the previous section, create a file
-   called `main.tf` and populate it with the following content, depending on
-   whether you will use Amazon S3 or Google Cloud Storage:
-
-   <Tabs>
-   <TabItem label="Amazon S3">
-
-   In the configuration below, replace `REGION` with the name of the AWS region
-   where you will deploy the version server:
-   
-   ```hcl
-   terraform {
-     required_providers {
-       aws = {
-         source  = "hashicorp/aws"
-         version = "~> 5.0"
-       }
-     }
-   }
-
-   provider "aws" {
-     region = "REGION"
-   }
-
-   resource "aws_s3_bucket" "version_server" {
-     // Replace the bucket name to ensure it is unique
-     bucket = "version-server"
-   }
-   
-   resource "aws_s3_object" "version" {
-     bucket = aws_s3_bucket.version_server.id
-     key = "current/version"
-     source = "${path.root}/current/version"
-   }
-   
-   resource "aws_s3_object" "critical" {
-     bucket = aws_s3_bucket.version_server.id
-     key = "current/critical"
-     source = "${path.root}/current/critical"
-   }
-
-   resource "aws_s3_bucket_policy" "version_server" {
-     depends_on = [aws_s3_bucket_public_access_block.version_server]
-     bucket = aws_s3_bucket.version_server.id
-     policy = jsonencode({
-       Version = "2012-10-17"
-       Statement = [
-         {
-           Sid       = "GrantAnonymousReadPermissions"
-           Principal = "*"
-           Action = [
-             "s3:GetObject",
-           ]
-           Effect   = "Allow"
-           Resource = ["${aws_s3_bucket.version_server.arn}/*"]
-         },
-       ]
-     })
-   }
-   
-   resource "aws_s3_bucket_public_access_block" "version_server" {
-     bucket = aws_s3_bucket.version_server.id
-   
-     block_public_acls       = false
-     block_public_policy     = false
-     ignore_public_acls      = false
-     restrict_public_buckets = false
-   }
-   ```
-   </TabItem>
-   <TabItem label="Google Cloud Storage">
-
-   In the configuration below, replace `PROJECT` and `REGION` with the Google
-   Cloud project and region where you will deploy the version server:
-   
-   ```hcl
-   terraform {
-     required_providers {
-       google = {
-         source  = "hashicorp/google"
-         version = "~> 5.0"
-       }
-     }
-   }
-
-   provider "google" {
-     project     = "PROJECT"
-     region      = "REGION"
-   }
-
-   resource "google_storage_bucket" "version_server" {
-     // Change the location as needed. See:
-     // https://cloud.google.com/storage/docs/locations
-     location = "US-EAST1"
-     // Replace this to ensure it is unique
-     name = "version-server"
-   }
-   
-   resource "google_storage_bucket_object" "version" {
-     name   = "current/version"
-     source = "${path.root}/current/version"
-     bucket = google_storage_bucket.version_server.name
-   }
-   
-   resource "google_storage_bucket_object" "critical" {
-     name   = "current/critical"
-     source = "${path.root}/current/critical"
-     bucket = google_storage_bucket.version_server.name
-   }
-
-   data "google_iam_policy" "viewer" {
-     binding {
-       role = "roles/storage.objectViewer"
-       members = [
-           "allUsers",
-       ] 
-     }
-   }
-   
-   resource "google_storage_bucket_iam_policy" "version_server" {
-     bucket = google_storage_bucket.version_server.name
-     policy_data = data.google_iam_policy.viewer.policy_data
-   }
-   ```
-   </TabItem>
-   </Tabs>
-
-1. Make your cloud provider credentials available to Terraform. The method to
-   use depends on your organization, e.g., pasting environment variables into
-   your terminal.
-
-1. Apply the configuration:
-
-  ```code
-  $ terraform init
-  $ terraform apply
-  ```
-
-## Step 3/5. Configure the maintenance schedule
-
-At this point the updaters can be configured to pull the version from the
+At this point, the updaters can be configured to pull the version from the
 release channel and upgrade the agents. In this step you'll configure a
 maintenance schedule for the Teleport cluster that agents will use to determine
 when to check for upgrades.
@@ -281,26 +127,17 @@ $ tctl create cmc.yaml
 maintenance window has been updated
 ```
 
-## Step 4/5. Enroll Kubernetes agents in automatic updates
+## Step 3/4. Enroll Kubernetes agents in automatic updates
 
 Now that you have deployed a version server, you can enroll agents in automatic
 upgrades. This guide begins with agents deployed on Kubernetes. If all of your
 agents run on Linux servers, you can skip to [Step
-5](#step-55-enroll-linux-agents-in-automatic-updates).
+4](#step-44-enroll-linux-agents-in-automatic-updates).
 
 ### Install the agent upgrader Helm chart
 
 This section assumes that the name of your `teleport-kube-agent` release is
 `teleport-agent`, and that you have installed it in the `teleport` namespace.
-
-1. Confirm you are using the Teleport Enterprise edition of the
-   `teleport-kube-agent` chart. You should see the following when you query your
-   `teleport-kube-agent` release:
-
-   ```code
-   $ helm -n <Var name="teleport" /> get values -n <Var name="teleport-agent" /> -o json | jq '.enterprise'
-   true   
-   ```
 
 1. Add the following chart values to the values file for the
    `teleport-kube-agent` chart:
@@ -308,13 +145,9 @@ This section assumes that the name of your `teleport-kube-agent` release is
    ```yaml
    updater:
      enabled: true
-     versionServer: <Var name="https://version.example.com" />
-     releaseChannel: <Var name="release-channel" />
+     # No need to set the `versionServer` value anymore since v13.4.15, v14.3.1 and v15.
+     releaseChannel: default
    ```
-
-   Change <Var name="release-channel" /> to the name of the release channel you
-   would like the agent to query for upgrades. For the current version, choose
-   `current`.
 
 1. Update the Helm chart release with the new values:
 
@@ -364,7 +197,7 @@ until the next reconciliation, you can trigger an event.
    `annotations.deployment` value in Helm, or by patching the deployment
    directly with `kubectl`.
 
-## Step 5/5. Enroll Linux agents in automatic updates
+## Step 4/4. Enroll Linux agents in automatic updates
 
 This section shows you how to enroll Teleport agents running on Linux virtual or
 bare-metal machines into automatic updates.
@@ -421,10 +254,11 @@ Follow these instructions on each of your Teleport agents.
    to the right release channel:
    
    ```code
-   $ echo <Var name="version-server-url/path" />/<Var name="release-channel" /> | sudo tee /etc/teleport-upgrade.d/endpoint
+   $ echo "<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/default" | sudo tee /etc/teleport-upgrade.d/endpoint
    ```
-   
-   Make sure not to include `https://` as a prefix to the server address.
+
+   Make sure not to include `https://` as a prefix to the server address, nor
+   suffix the endpoint with `/version`.
 
 ### Verify that the upgrader is working properly
 

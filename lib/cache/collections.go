@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -1210,7 +1211,7 @@ func (userExecutor) getReader(cache *Cache, cacheOK bool) userGetter {
 type userGetter interface {
 	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
-	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
+	ListUsersExt(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 }
 
 var _ executor[types.User, userGetter] = userExecutor{}
@@ -2801,6 +2802,7 @@ type accessListMembersGetter interface {
 	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error)
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error)
 }
 
 type accessListReviewExecutor struct{}

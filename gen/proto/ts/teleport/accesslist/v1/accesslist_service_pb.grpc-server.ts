@@ -34,6 +34,7 @@ import { UpsertAccessListWithMembersRequest } from "./accesslist_service_pb";
 import { DeleteAllAccessListMembersRequest } from "./accesslist_service_pb";
 import { DeleteAllAccessListMembersForAccessListRequest } from "./accesslist_service_pb";
 import { DeleteAccessListMemberRequest } from "./accesslist_service_pb";
+import { UpdateAccessListMemberRequest } from "./accesslist_service_pb";
 import { UpsertAccessListMemberRequest } from "./accesslist_service_pb";
 import { Member } from "./accesslist_pb";
 import { GetAccessListMemberRequest } from "./accesslist_service_pb";
@@ -48,6 +49,7 @@ import { GetAccessListsToReviewRequest } from "./accesslist_service_pb";
 import { DeleteAllAccessListsRequest } from "./accesslist_service_pb";
 import { Empty } from "../../../google/protobuf/empty_pb";
 import { DeleteAccessListRequest } from "./accesslist_service_pb";
+import { UpdateAccessListRequest } from "./accesslist_service_pb";
 import { UpsertAccessListRequest } from "./accesslist_service_pb";
 import { AccessList } from "./accesslist_pb";
 import { GetAccessListRequest } from "./accesslist_service_pb";
@@ -86,6 +88,12 @@ export interface IAccessListService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: UpsertAccessList(teleport.accesslist.v1.UpsertAccessListRequest) returns (teleport.accesslist.v1.AccessList);
      */
     upsertAccessList: grpc.handleUnaryCall<UpsertAccessListRequest, AccessList>;
+    /**
+     * UpdateAccessList updates an access list resource.
+     *
+     * @generated from protobuf rpc: UpdateAccessList(teleport.accesslist.v1.UpdateAccessListRequest) returns (teleport.accesslist.v1.AccessList);
+     */
+    updateAccessList: grpc.handleUnaryCall<UpdateAccessListRequest, AccessList>;
     /**
      * DeleteAccessList hard deletes the specified access list resource.
      *
@@ -137,6 +145,12 @@ export interface IAccessListService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: UpsertAccessListMember(teleport.accesslist.v1.UpsertAccessListMemberRequest) returns (teleport.accesslist.v1.Member);
      */
     upsertAccessListMember: grpc.handleUnaryCall<UpsertAccessListMemberRequest, Member>;
+    /**
+     * UpdateAccessListMember conditionally updates an access list member resource.
+     *
+     * @generated from protobuf rpc: UpdateAccessListMember(teleport.accesslist.v1.UpdateAccessListMemberRequest) returns (teleport.accesslist.v1.Member);
+     */
+    updateAccessListMember: grpc.handleUnaryCall<UpdateAccessListMemberRequest, Member>;
     /**
      * DeleteAccessListMember hard deletes the specified access list member
      * resource.
@@ -258,6 +272,16 @@ export const accessListServiceDefinition: grpc.ServiceDefinition<IAccessListServ
         responseSerialize: value => Buffer.from(AccessList.toBinary(value)),
         requestSerialize: value => Buffer.from(UpsertAccessListRequest.toBinary(value))
     },
+    updateAccessList: {
+        path: "/teleport.accesslist.v1.AccessListService/UpdateAccessList",
+        originalName: "UpdateAccessList",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => AccessList.fromBinary(bytes),
+        requestDeserialize: bytes => UpdateAccessListRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(AccessList.toBinary(value)),
+        requestSerialize: value => Buffer.from(UpdateAccessListRequest.toBinary(value))
+    },
     deleteAccessList: {
         path: "/teleport.accesslist.v1.AccessListService/DeleteAccessList",
         originalName: "DeleteAccessList",
@@ -337,6 +361,16 @@ export const accessListServiceDefinition: grpc.ServiceDefinition<IAccessListServ
         requestDeserialize: bytes => UpsertAccessListMemberRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(Member.toBinary(value)),
         requestSerialize: value => Buffer.from(UpsertAccessListMemberRequest.toBinary(value))
+    },
+    updateAccessListMember: {
+        path: "/teleport.accesslist.v1.AccessListService/UpdateAccessListMember",
+        originalName: "UpdateAccessListMember",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => Member.fromBinary(bytes),
+        requestDeserialize: bytes => UpdateAccessListMemberRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(Member.toBinary(value)),
+        requestSerialize: value => Buffer.from(UpdateAccessListMemberRequest.toBinary(value))
     },
     deleteAccessListMember: {
         path: "/teleport.accesslist.v1.AccessListService/DeleteAccessListMember",

@@ -58,6 +58,7 @@ Here's the list of resources currently exposed via [`tctl`](./cli/tctl.mdx):
 | [device](#device) | A Teleport Trusted Device, see the [Device Trust guide](../access-controls/device-trust/guide.mdx) for more info. |
 | [ui_config](#ui-config) | Configuration for the Web UI served by the Proxy Service |
 | [cluster_auth_preference](#cluster-auth-preferences) | Configuration for the cluster's auth preferences. |
+| [database_object_import_rule](#database-object-import-rule) | Database object import rules. |
 
 ## User
 
@@ -185,6 +186,14 @@ version: v3
 Login rules contain logic to transform SSO user traits during login.
 
 (!docs/pages/includes/login-rule-spec.mdx!)
+
+## Database object import rule
+
+Database object import rule define the labels to be applied to database objects imported into Teleport. 
+
+See [Database Access Controls](../database-access/auto-user-provisioning/database-access-controls.mdx) for more details.
+
+(!docs/pages/includes/database-access/auto-user-provisioning/database-object-import-rule-spec.mdx!)
 
 ## Device
 

@@ -9,59 +9,8 @@ The Teleport team delivers a new major release roughly every 4 months.
 
 | Version | Date            |
 |---------|-----------------|
-| 15.2.0  | March 29, 2024  |
+| 15.3.0  | April 30, 2024  |
 | 16.0.0  | May 31, 2024    |
-
-### 15.2.0
-
-#### Improved Access Requests UI
-
-The access requests page of the web UI will be backed by a paginated API,
-ensuring fast load times even on clusters with many access requests.
-
-Additionally, the UI allows you to search for access requests, sort them
-based on various attributes, and includes several new filtering options.
-
-#### Zero-downtime web asset rollout
-
-Teleport 15.2 changes the way that web assets are served and cached, which
-will allow multiple compatible versions of the Teleport Proxy to run behind
-the same load balancer.
-
-#### Workload Identity MVP
-
-With Teleport 15.2, Machine ID can bootstrap and issue identity to services
-across multiple computing environments and organizational boundaries. Workload
-Identity issues [SPIFFE](https://spiffe.io/)-compatible x509 certificates that
-can be used for mTLS between services.
-
-#### Support for Kubernetes 1.29+
-
-The Kubernetes project is deprecating the SPDY protocol for streaming commands
-(`kubectl exec`, `kubectl port-forward`, etc) and replacing it with a new
-websocket-based subprotocol. Teleport 15.2.0 will support the new protocol to
-ensure compatibility with newer Kubernetes clusters.
-
-#### Automatic database access requests
-
-Both `tsh db connect` and `tsh proxy db` will offer the option to submit an
-access request if the user attempts to connect to a database that they don't
-already have access to.
-
-#### GCP console access via Workforce Identity Federation
-
-Teleport administrators will be able to setup access to GCP web console through
-Workforce Identity Federation using Teleport as a SAML identity provider.
-
-#### IaC support for OpenSSH nodes
-
-Users will be able to register OpenSSH nodes in the cluster using Terraform and
-Kubernetes Operator.
-
-#### Access requests start time
-
-Users submitting access requests via web UI will be able to request specific
-access start time up to a week in advance.
 
 ### 15.3.0
 
@@ -71,6 +20,15 @@ The Roles page of the web UI will be backed by a paginated API, ensuring fast
 load times even on clusters with large numbers of roles.
 
 *Delayed from Teleport 15.1.0*
+
+#### Database access for Spanner
+
+Database access users will be able to connect to GCP Spanner.
+
+#### Resizing for Windows desktop sessions
+
+Windows desktop sessions will automatically resize as the size of the browser
+window changes.
 
 ### 16.0.0
 
@@ -90,8 +48,8 @@ The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of       | Description                                                  |
 |---------------|--------------------------------------------------------------|
-| April 1, 2024 | Teleport 15.2 will begin rollout on Cloud.                   |
-| April 1, 2024 | Teleport 15.2 agents will begin rollout to eligible tenants. |
+| May 6, 2024   | Teleport 15.3 will begin rollout on Cloud.                   |
+| May 6, 2024   | Teleport 15.3 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 

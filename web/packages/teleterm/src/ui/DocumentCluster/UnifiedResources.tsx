@@ -41,10 +41,10 @@ import { Attempt } from 'shared/hooks/useAsync';
 
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
-import {
-  UnifiedResourceResponse,
-  UserPreferences,
-} from 'teleterm/services/tshd/types';
+import { NodeSubKind } from 'shared/services';
+
+import { UserPreferences } from 'teleterm/services/tshd/types';
+import { UnifiedResourceResponse } from 'teleterm/ui/services/resources';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as uri from 'teleterm/ui/uri';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
@@ -305,7 +305,7 @@ const mapToSharedResource = (
           hostname: server.hostname,
           addr: server.addr,
           tunnel: server.tunnel,
-          subKind: server.subKind,
+          subKind: server.subKind as NodeSubKind,
         },
         ui: {
           ActionButton: <ConnectServerActionButton server={server} />,

@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/deployserviceconfig"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/oidc"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -866,22 +867,6 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.BadParameter("invalid role %q", role)
 	}
 
-	s3Bucket := queryParams.Get("s3Bucket")
-	s3Prefix := queryParams.Get("s3Prefix")
-	if s3Bucket == "" || s3Prefix == "" {
-		return nil, trace.BadParameter("s3Bucket and s3Prefix query params are required")
-	}
-	s3URI := url.URL{Scheme: "s3", Host: s3Bucket, Path: s3Prefix}
-
-	jwksContents, err := h.jwks(r.Context(), types.OIDCIdPCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	jwksJSON, err := json.Marshal(jwksContents)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// The script must execute the following command:
 	// teleport integration configure awsoidc-idp
 	argsList := []string{
@@ -889,9 +874,51 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		fmt.Sprintf("--cluster=%s", shsprintf.EscapeDefaultContext(clusterName)),
 		fmt.Sprintf("--name=%s", shsprintf.EscapeDefaultContext(integrationName)),
 		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
-		fmt.Sprintf("--s3-bucket-uri=%s", shsprintf.EscapeDefaultContext(s3URI.String())),
-		fmt.Sprintf("--s3-jwks-base64=%s", base64.StdEncoding.EncodeToString(jwksJSON)),
 	}
+
+	// We have two set up modes:
+	// - use the Proxy HTTP endpoint as Identity Provider
+	// - use an S3 Bucket for storing the public keys
+	//
+	// The script will pick a mode depending on the query params received here.
+	// If the S3 location was defined, then it will use that mode and upload the Public Keys to the S3 Bucket.
+	// Otherwise, it will create an IdP pointing to the current Cluster.
+	//
+	// Whatever the chosen mode, the Proxy HTTP endpoint will always return the public keys.
+	s3Bucket := queryParams.Get("s3Bucket")
+	s3Prefix := queryParams.Get("s3Prefix")
+
+	switch {
+	case s3Bucket == "" && s3Prefix == "":
+		proxyAddr, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		argsList = append(argsList,
+			fmt.Sprintf("--proxy-public-url=%s", shsprintf.EscapeDefaultContext(proxyAddr)),
+		)
+
+	default:
+		if s3Bucket == "" || s3Prefix == "" {
+			return nil, trace.BadParameter("s3Bucket and s3Prefix query params are required")
+		}
+		s3URI := url.URL{Scheme: "s3", Host: s3Bucket, Path: s3Prefix}
+
+		jwksContents, err := h.jwks(r.Context(), types.OIDCIdPCA)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		jwksJSON, err := json.Marshal(jwksContents)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		argsList = append(argsList,
+			fmt.Sprintf("--s3-bucket-uri=%s", shsprintf.EscapeDefaultContext(s3URI.String())),
+			fmt.Sprintf("--s3-jwks-base64=%s", base64.StdEncoding.EncodeToString(jwksJSON)),
+		)
+	}
+
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
 		SuccessMessage: "Success! You can now go back to the browser to use the integration with AWS.",

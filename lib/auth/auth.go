@@ -278,6 +278,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.DatabaseObjects == nil {
+		cfg.DatabaseObjects, err = local.NewDatabaseObjectService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.PluginData == nil {
 		cfg.PluginData = local.NewPluginData(cfg.Backend, cfg.DynamicAccessExt)
 	}
@@ -358,9 +364,16 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 
+	if cfg.AccessMonitoringRules == nil {
+		cfg.AccessMonitoringRules, err = local.NewAccessMonitoringRulesService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
-		Trust:                     cfg.Trust,
+		TrustInternal:             cfg.Trust,
 		PresenceInternal:          cfg.Presence,
 		Provisioner:               cfg.Provisioner,
 		Identity:                  cfg.Identity,
@@ -385,6 +398,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Okta:                      cfg.Okta,
 		AccessLists:               cfg.AccessLists,
 		DatabaseObjectImportRules: cfg.DatabaseObjectImportRules,
+		DatabaseObjects:           cfg.DatabaseObjects,
 		SecReports:                cfg.SecReports,
 		UserLoginStates:           cfg.UserLoginState,
 		StatusInternal:            cfg.Status,
@@ -394,6 +408,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		PluginData:                cfg.PluginData,
 		KubeWaitingContainer:      cfg.KubeWaitingContainers,
 		Notifications:             cfg.Notifications,
+		AccessMonitoringRules:     cfg.AccessMonitoringRules,
 	}
 
 	as := Server{
@@ -514,7 +529,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 }
 
 type Services struct {
-	services.Trust
+	services.TrustInternal
 	services.PresenceInternal
 	services.Provisioner
 	services.Identity
@@ -538,6 +553,7 @@ type Services struct {
 	services.Okta
 	services.AccessLists
 	services.DatabaseObjectImportRules
+	services.DatabaseObjects
 	services.UserLoginStates
 	services.Assistant
 	services.Embeddings
@@ -550,6 +566,7 @@ type Services struct {
 	events.AuditLogSessionStreamer
 	services.SecReports
 	services.KubeWaitingContainer
+	services.AccessMonitoringRules
 }
 
 // SecReportsClient returns the security reports client.
@@ -588,6 +605,11 @@ func (r *Services) SCIMClient() services.SCIM {
 
 // AccessListClient returns the access list client.
 func (r *Services) AccessListClient() services.AccessLists {
+	return r
+}
+
+// AccessMonitoringRuleClient returns the access monitoring rules client.
+func (r *Services) AccessMonitoringRuleClient() services.AccessMonitoringRules {
 	return r
 }
 
@@ -4865,10 +4887,15 @@ func (a *Server) submitAccessReview(
 }
 
 func (a *Server) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
-	caps, err := services.CalculateAccessCapabilities(ctx, a.clock, a, req)
+	user, err := authz.UserFromContext(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	caps, err := services.CalculateAccessCapabilities(ctx, a.clock, a, user.GetIdentity(), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return caps, nil
 }
 
@@ -6235,50 +6262,36 @@ func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
 	return newKeySet
 }
 
-// addAdditionalTrustedKeysAtomic performs an atomic CompareAndSwap to update
+// addAdditionalTrustedKeysAtomic performs an atomic update to
 // the given CA with newKeys added to the AdditionalTrustedKeys
-func (a *Server) addAdditionalTrustedKeysAtomic(
-	ctx context.Context,
-	currentCA types.CertAuthority,
-	newKeys types.CAKeySet,
-	needsUpdate func(types.CertAuthority) (bool, error),
-) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
-		default:
+func (a *Server) addAdditionalTrustedKeysAtomic(ctx context.Context, ca types.CertAuthority, newKeys types.CAKeySet, needsUpdate func(types.CertAuthority) (bool, error)) error {
+	const maxIterations = 64
+
+	for i := 0; i < maxIterations; i++ {
+		if update, err := needsUpdate(ca); err != nil || !update {
+			return trace.Wrap(err)
 		}
-		updateRequired, err := needsUpdate(currentCA)
+
+		err := ca.SetAdditionalTrustedKeys(mergeKeySets(
+			ca.GetAdditionalTrustedKeys(),
+			newKeys,
+		))
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if !updateRequired {
-			return nil
-		}
 
-		newCA := currentCA.Clone()
-		currentKeySet := newCA.GetAdditionalTrustedKeys()
-		mergedKeySet := mergeKeySets(currentKeySet, newKeys)
-		if err := newCA.SetAdditionalTrustedKeys(mergedKeySet); err != nil {
+		if _, err := a.UpdateCertAuthority(ctx, ca); err == nil {
+			return nil
+		} else if !errors.Is(err, backend.ErrIncorrectRevision) {
 			return trace.Wrap(err)
 		}
 
-		err = a.CompareAndSwapCertAuthority(newCA, currentCA)
-		if err != nil && !trace.IsCompareFailed(err) {
-			return trace.Wrap(err)
-		}
-		if err == nil {
-			// success!
-			return nil
-		}
-		// else trace.IsCompareFailed(err) == true (CA was concurrently updated)
-
-		currentCA, err = a.Services.GetCertAuthority(ctx, currentCA.GetID(), true)
+		ca, err = a.Services.GetCertAuthority(ctx, ca.GetID(), true)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
+	return trace.Errorf("too many conflicts attempting to set additional trusted keys for ca %q of type %q", ca.GetClusterName(), ca.GetType())
 }
 
 // newKeySet generates a new sets of keys for a given CA type.
