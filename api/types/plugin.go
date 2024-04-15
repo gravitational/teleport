@@ -39,6 +39,7 @@ var AllPluginTypes = []PluginType{
 	PluginTypePagerDuty,
 	PluginTypeMattermost,
 	PluginTypeDiscord,
+	PluginTypeEntraID,
 }
 
 const (
@@ -66,6 +67,8 @@ const (
 	PluginTypeDiscord = "discord"
 	// PluginTypeGitlab indicates the Gitlab access plugin
 	PluginTypeGitlab = "gitlab"
+	// PluginTypeEntraID indicates the Entra ID sync plugin
+	PluginTypeEntraID = "entra-id"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -466,6 +469,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeServiceNow
 	case *PluginSpecV1_Gitlab:
 		return PluginTypeGitlab
+	case *PluginSpecV1_EntraId:
+		return PluginTypeEntraID
 	default:
 		return PluginTypeUnknown
 	}
