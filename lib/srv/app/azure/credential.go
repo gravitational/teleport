@@ -65,19 +65,15 @@ func findDefaultCredentialProvider(ctx context.Context, logger *slog.Logger) (cr
 	// for the default workload identity and the token file path are required
 	// from environment variables.
 	defaultWorkloadIdentity, err := azidentity.NewWorkloadIdentityCredential(nil)
-	if err == nil {
-		logger.InfoContext(ctx, "Using workload identity.")
-		credProvider, err := newWorloadIdentityCredentialProvider(ctx, defaultWorkloadIdentity)
-		return credProvider, trace.Wrap(err)
-	} else {
-		logger.With("error", err).DebugContext(ctx, "Failed to load workload identity.")
-
+	if err != nil {
+		// If no workload identity is found, fall back to regular managed identity.
+		logger.With("error", err).InfoContext(ctx, "Failed to load workload identity. Using managed identity.")
+		return managedIdentityCredentialProvider{}, nil
 	}
 
-	// If no workload identity is found, fall back to regular managed identity.
-	logger.InfoContext(ctx, "Using managed identity.")
-	return managedIdentityCredentialProvider{}, nil
-
+	logger.InfoContext(ctx, "Using workload identity.")
+	credProvider, err := newWorloadIdentityCredentialProvider(ctx, defaultWorkloadIdentity)
+	return credProvider, trace.Wrap(err)
 }
 
 // managedIdentityCredentialProvider implements credentialProvider for using
@@ -161,7 +157,7 @@ func (w *workloadIdentityCredentialProvider) MakeCredential(ctx context.Context,
 
 func (w *workloadIdentityCredentialProvider) MapScope(scope string) string {
 	// This scope ("https://management.core.windows.net/") from `az` CLI tool
-	// will fail for worload identity as worload identity is only expected to
+	// will fail for workload identity as workload identity is only expected to
 	// be used with compatible SDKs, whereas the SDK adds ".default" to the
 	// audience:
 	//
