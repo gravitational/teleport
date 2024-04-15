@@ -1260,25 +1260,25 @@ message ProvisionTokenSpecV2 {
 // ProvisionTokenSpecV2
 message ProvisionTokenSpecV2TPM {
   message Rule {
+    reserved 2, 3;
+    reserved "EKPubHash", "EKCertSerial";
     // Description is a human-readable description of the rule. It has no
     // bearing on whether or not a TPM is allowed to join, but can be used
     // to associate a rule with a specific host (e.g the asset tag of the server
     // in which the TPM resides).
     // Example: "build-server-100"
     string Description = 1 [(gogoproto.jsontag) = "description,omitempty"];
-    oneof Identifier {
-      // EKPubHash is the SHA256 hash of the EKPub marshaled in PKIX format
-      // and encoded in hexadecimal. This value will also be checked when a TPM
-      // has submitted an EKCert, and the public key in the EKCert will be used
-      // for this check.
-      // Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6
-      string EKPubHash = 2 [(gogoproto.jsontag) = "ekpub_hash,omitempty"];
-      // EKCertSerial is the serial number of the EKCert in hexadecimal with
-      // colon separated nibbles. This value will not be checked when a TPM
-      // does not have an EKCert configured.
-      // Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
-      string EKCertSerial = 3 [(gogoproto.jsontag) = "ekcert_serial,omitempty"];
-    }
+    // EKPublicHash is the SHA256 hash of the EKPub marshaled in PKIX format
+    // and encoded in hexadecimal. This value will also be checked when a TPM
+    // has submitted an EKCert, and the public key in the EKCert will be used
+    // for this check.
+    // Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6
+    string EKPublicHash = 4 [(gogoproto.jsontag) = "ek_public_hash,omitempty"];
+    // EKCertificateSerial is the serial number of the EKCert in hexadecimal
+    // with colon separated nibbles. This value will not be checked when a TPM
+    // does not have an EKCert configured.
+    // Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
+    string EKCertificateSerial = 5 [(gogoproto.jsontag) = "ek_certificate_serial,omitempty"];
   }
   // Allow is a list of Rules, the presented delegated identity must match one
   // allow rule to permit joining.
