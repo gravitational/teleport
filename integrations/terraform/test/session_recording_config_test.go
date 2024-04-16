@@ -99,8 +99,8 @@ func (s *TerraformSuite) TestImportSessionRecordingConfig() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(s.T(), state[0].Attributes["kind"], "session_recording_config")
-					require.Equal(s.T(), state[0].Attributes["spec.mode"], "off")
+					require.Equal(s.T(), "session_recording_config", state[0].Attributes["kind"])
+					require.Equal(s.T(), "off", state[0].Attributes["spec.mode"])
 
 					return nil
 				},
