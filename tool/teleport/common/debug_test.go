@@ -201,7 +201,6 @@ func newSocketMockService(t *testing.T, contents []byte) (string, func() []strin
 	go func() {
 		err := srv.Serve(l)
 		if err != nil && err != http.ErrServerClosed {
-			t.Logf("failed to serve service: %s", err)
 		}
 	}()
 

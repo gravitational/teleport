@@ -65,6 +65,7 @@ func newDebugServiceClient(configPath string) (*debugServiceClient, error) {
 		dataDir:    dataDir,
 		socketPath: socketPath,
 		clt: &http.Client{
+			Timeout: defaults.IOTimeout,
 			Transport: &http.Transport{
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 					return net.Dial("unix", socketPath)
@@ -122,7 +123,7 @@ func (c *debugServiceClient) CollectProfile(ctx context.Context, profileName str
 
 	if seconds > 0 {
 		qs := url.Values{}
-		qs.Add("seconds", fmt.Sprintf("%d", seconds))
+		qs.Add("seconds", strconv.Itoa(seconds))
 		u.RawQuery = qs.Encode()
 	}
 

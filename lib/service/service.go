@@ -3323,8 +3323,7 @@ func (process *TeleportProcess) initDebugService() error {
 	}
 
 	process.RegisterFunc("debug.service", func() error {
-		err := server.Serve(listener)
-		if err != nil && err != http.ErrServerClosed {
+		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.WarnContext(process.ExitContext(), "Debug server exited with error.", "error", err)
 		}
 		return nil
