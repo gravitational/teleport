@@ -123,7 +123,6 @@ gen-example-mtls:
 	openssl req -config example/ssl.conf -subj "/CN=client" -key example/keys/client.key -new -out example/keys/client.csr
 	openssl x509 -req -in example/keys/client.csr -CA example/keys/ca.crt -CAkey example/keys/ca.key -CAcreateserial -days 365 -out example/keys/client.crt -extfile example/ssl.conf -extensions client_cert
 
-
 .PHONY: lint
 lint:
 	golangci-lint run -c ../../.golangci.yml
