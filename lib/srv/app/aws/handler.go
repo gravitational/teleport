@@ -115,8 +115,13 @@ func (s *signerHandler) formatForwardResponseError(rw http.ResponseWriter, r *ht
 	http.Error(rw, http.StatusText(code), code)
 }
 
+// Limit HTTP request body size to 70MB, which matches AWS Lambda function
+// zip file upload limit (50MB) while accounting for base64 encoding bloat.
+const maxHTTPRequestBodySize int64 = 70 << 20
+
 // ServeHTTP handles incoming requests by signing them and then forwarding them to the proper AWS API.
 func (s *signerHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	req.Body = io.NopCloser(io.LimitReader(req.Body, maxHTTPRequestBodySize))
 	if err := s.serveHTTP(w, req); err != nil {
 		s.formatForwardResponseError(w, req, err)
 		return
