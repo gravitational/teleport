@@ -257,10 +257,11 @@ func TestIsAccessListOwner(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
+			ctx := context.Background()
 
 			accessList := newAccessList(t)
 
-			test.errAssertionFunc(t, IsAccessListOwner(test.identity, accessList))
+			test.errAssertionFunc(t, IsAccessListOwner(ctx, &testMembersAndLockGetter{}, test.identity, accessList))
 		})
 	}
 }
@@ -269,6 +270,16 @@ func TestIsAccessListOwner(t *testing.T) {
 type testMembersAndLockGetter struct {
 	members map[string]map[string]*accesslist.AccessListMember
 	locks   map[string]types.Lock
+}
+
+// GetAccessList implements AccessListGetter.
+func (t *testMembersAndLockGetter) GetAccessList(context.Context, string) (*accesslist.AccessList, error) {
+	return nil, trace.NotFound("not implemented")
+}
+
+// GetAccessList implements AccessListGetter.
+func (t *testMembersAndLockGetter) GetAccessLists(context.Context) ([]*accesslist.AccessList, error) {
+	return nil, trace.NotFound("not implemented")
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.

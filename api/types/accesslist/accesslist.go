@@ -167,6 +167,9 @@ type Owner struct {
 
 	// IneligibleStatus describes the reason why this owner is not eligible.
 	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
+
+	// Kind is the kind of owner, either list or user
+	Kind string `json:"kind" yaml:"kind"`
 }
 
 // Audit describes the audit configuration for an access list.
@@ -298,6 +301,9 @@ func (a *AccessList) CheckAndSetDefaults() error {
 	for _, owner := range a.Spec.Owners {
 		if owner.Name == "" {
 			return trace.BadParameter("owner name is missing")
+		}
+		if owner.Kind == "" {
+			owner.Kind = MemberKindUser
 		}
 
 		if _, ok := ownerMap[owner.Name]; ok {

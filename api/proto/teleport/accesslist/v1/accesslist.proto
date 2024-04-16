@@ -85,6 +85,10 @@ message AccessListOwner {
   // ineligible_status describes if this owner is eligible or not
   // and if not, describes how they're lacking eligibility.
   IneligibleStatus ineligible_status = 3;
+
+  // Kind is the type of owner, either a user or from a dynamic list,
+  // options `user` and `list`
+  string kind = 4;
 }
 
 // AccessListAudit describes the audit configuration for an access list.
@@ -197,6 +201,9 @@ message MemberSpec {
   // ineligible_status describes if this member is eligible or not
   // and if not, describes how they're lacking eligibility.
   IneligibleStatus ineligible_status = 7;
+
+  // kind of the member, either "user", or "list"
+  string kind = 9;
 }
 
 // IneligibleStatus describes how the user is ineligible.

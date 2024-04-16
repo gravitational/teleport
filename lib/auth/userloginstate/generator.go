@@ -116,7 +116,7 @@ func NewGenerator(config GeneratorConfig) (*Generator, error) {
 		accessLists:   config.AccessLists,
 		access:        config.Access,
 		usageEvents:   config.UsageEvents,
-		memberChecker: services.NewAccessListMembershipChecker(config.Clock, config.AccessLists, config.Access),
+		memberChecker: services.NewAccessListMembershipChecker(config.Clock, config.AccessLists, config.AccessLists),
 		clock:         config.Clock,
 	}, nil
 }
@@ -186,7 +186,7 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 	}
 
 	for _, accessList := range accessLists {
-		if err := services.IsAccessListOwner(identity, accessList); err == nil {
+		if err := services.IsAccessListOwner(ctx, g.accessLists, identity, accessList); err == nil {
 			g.grantRolesAndTraits(identity, accessList.Spec.OwnerGrants, state)
 		}
 
