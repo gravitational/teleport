@@ -20,6 +20,8 @@ import React from 'react';
 import { Box, LabelInput, Text, TextArea } from 'design';
 import { TextAreaProps } from 'design/TextArea';
 
+import { ToolTipInfo } from 'shared/components/ToolTip';
+
 import { useRule } from 'shared/components/Validation';
 
 export interface FieldTextAreaProps
@@ -39,6 +41,7 @@ export interface FieldTextAreaProps
 }
 
 export function FieldTextArea({
+  toolTipContent = null,
   label,
   labelTip,
   value,
@@ -77,8 +80,25 @@ export function FieldTextArea({
     <Box mb="4" {...styles}>
       {label ? (
         <LabelInput mb={0} hasError={hasError}>
-          {labelText}
-          {labelTip && <LabelTip text={labelTip} />}
+          {toolTipContent ? (
+            <>
+              <span
+                css={{
+                  marginRight: '4px',
+                  verticalAlign: 'middle',
+                }}
+              >
+                {labelText}
+                {labelTip && <LabelTip text={labelTip} />}
+              </span>
+              <ToolTipInfo children={toolTipContent} />
+            </>
+          ) : (
+            <>
+              {labelText}
+              {labelTip && <LabelTip text={labelTip} />}
+            </>
+          )}
           {$textAreaElement}
         </LabelInput>
       ) : (

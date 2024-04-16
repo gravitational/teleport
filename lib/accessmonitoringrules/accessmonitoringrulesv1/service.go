@@ -20,6 +20,7 @@ package accessmonitoringrulesv1
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -163,6 +164,7 @@ func (s *Service) ListAccessMonitoringRules(ctx context.Context, req *accessmoni
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	fmt.Println("----- results from cache.Listxxx: ", results)
 	return &accessmonitoringrulesv1.ListAccessMonitoringRulesResponse{
 		Rules:         results,
 		NextPageToken: nextToken,

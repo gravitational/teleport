@@ -20,6 +20,7 @@ import React from 'react';
 
 import { Box, LabelInput } from 'design';
 
+import { ToolTipInfo } from 'shared/components/ToolTip';
 import { useRule } from 'shared/components/Validation';
 
 import {
@@ -40,6 +41,7 @@ import { LabelTip, defaultRule } from './shared';
  */
 export function FieldSelectCreatable({
   components,
+  toolTipContent = null,
   label,
   labelTip,
   value,
@@ -73,42 +75,65 @@ export function FieldSelectCreatable({
   const { valid, message } = useRule(rule(value));
   const hasError = Boolean(!valid);
   const labelText = hasError ? message : label;
+  const $inputElement = (
+    <SelectCreatable
+      components={components}
+      inputId={inputId}
+      name={name}
+      menuPosition={menuPosition}
+      hasError={hasError || markAsError}
+      isSimpleValue={isSimpleValue}
+      isSearchable={isSearchable}
+      isClearable={isClearable}
+      value={value}
+      onChange={onChange}
+      onKeyDown={onKeyDown}
+      onInputChange={onInputChange}
+      onBlur={onBlur}
+      inputValue={inputValue}
+      maxMenuHeight={maxMenuHeight}
+      placeholder={placeholder}
+      isMulti={isMulti}
+      autoFocus={autoFocus}
+      isDisabled={isDisabled}
+      elevated={elevated}
+      menuIsOpen={menuIsOpen}
+      stylesConfig={stylesConfig}
+      options={options}
+      formatCreateLabel={formatCreateLabel}
+      aria-label={ariaLabel}
+      customProps={customProps}
+    />
+  );
+
   return (
     <Box mb="4" {...styles}>
-      {label && (
-        <LabelInput htmlFor={inputId} hasError={hasError}>
-          {labelText}
-          {labelTip && <LabelTip text={labelTip} />}
+      {label ? (
+        <LabelInput mb={0} htmlFor={inputId} hasError={hasError}>
+          {toolTipContent ? (
+            <>
+              <span
+                css={{
+                  marginRight: '4px',
+                  verticalAlign: 'middle',
+                }}
+              >
+                {labelText}
+                {labelTip && <LabelTip text={labelTip} />}
+              </span>
+              <ToolTipInfo children={toolTipContent} />
+            </>
+          ) : (
+            <>
+              {labelText}
+              {labelTip && <LabelTip text={labelTip} />}
+            </>
+          )}
+          {$inputElement}
         </LabelInput>
+      ) : (
+        $inputElement
       )}
-      <SelectCreatable
-        components={components}
-        inputId={inputId}
-        name={name}
-        menuPosition={menuPosition}
-        hasError={hasError || markAsError}
-        isSimpleValue={isSimpleValue}
-        isSearchable={isSearchable}
-        isClearable={isClearable}
-        value={value}
-        onChange={onChange}
-        onKeyDown={onKeyDown}
-        onInputChange={onInputChange}
-        onBlur={onBlur}
-        inputValue={inputValue}
-        maxMenuHeight={maxMenuHeight}
-        placeholder={placeholder}
-        isMulti={isMulti}
-        autoFocus={autoFocus}
-        isDisabled={isDisabled}
-        elevated={elevated}
-        menuIsOpen={menuIsOpen}
-        stylesConfig={stylesConfig}
-        options={options}
-        formatCreateLabel={formatCreateLabel}
-        aria-label={ariaLabel}
-        customProps={customProps}
-      />
     </Box>
   );
 }

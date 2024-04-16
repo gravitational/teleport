@@ -146,12 +146,20 @@ export function useKeyBasedPagination<T>({
     [fetchFunc, stateRef, setState, fetchMoreSize, initialFetchSize]
   );
 
+  function updateFetchedResources(modifiedResources: T[]) {
+    setState({
+      ...stateRef.current,
+      resources: modifiedResources,
+    });
+  }
+
   return {
     fetch,
     clear,
     attempt: stateRef.current.attempt,
     resources: stateRef.current.resources,
     finished: stateRef.current.finished,
+    updateFetchedResources,
   };
 }
 
@@ -201,4 +209,11 @@ type KeyBasedPagination<T> = {
   attempt: Attempt;
   resources: T[];
   finished: boolean;
+  /**
+   * Used when list is used in conjunction with create/delete/update
+   * operations where changes are not propagated right away (from caching),
+   * so the frontend will modify the fetched resources in place instead
+   * of "re-fetching" data that can be stale.
+   */
+  updateFetchedResources(modifiedResources: T[]): void;
 };

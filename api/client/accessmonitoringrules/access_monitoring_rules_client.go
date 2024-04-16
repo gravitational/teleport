@@ -16,6 +16,7 @@ package accessmonitoringrules
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -104,6 +105,7 @@ func (c *Client) ListAccessMonitoringRules(ctx context.Context, pageSize int, pa
 		PageSize:  int64(pageSize),
 		PageToken: pageToken,
 	})
+	fmt.Println("----- repsonse from grpc client: ", resp.Rules)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
