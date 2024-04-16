@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	tfprovider "github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	log "github.com/sirupsen/logrus"
@@ -96,7 +97,7 @@ type providerData struct {
 }
 
 // New returns an empty provider struct
-func New() tfsdk.Provider {
+func New() tfprovider.Provider {
 	return &Provider{}
 }
 
@@ -208,7 +209,7 @@ func (p *Provider) IsConfigured(diags diag.Diagnostics) bool {
 }
 
 // Configure configures the Teleport client
-func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderRequest, resp *tfsdk.ConfigureProviderResponse) {
+func (p *Provider) Configure(ctx context.Context, req tfprovider.ConfigureRequest, resp *tfprovider.ConfigureResponse) {
 	var creds []client.Credentials
 
 	p.configureLog()
@@ -376,7 +377,7 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 }
 
 // checkTeleportVersion ensures that Teleport version is at least minServerVersion
-func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Client, resp *tfsdk.ConfigureProviderResponse) bool {
+func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Client, resp *tfprovider.ConfigureResponse) bool {
 	log.Debug("Checking Teleport server version")
 	pong, err := client.Ping(ctx)
 	if err != nil {
@@ -419,7 +420,7 @@ func (p *Provider) stringFromConfigOrEnv(value types.String, env string, def str
 }
 
 // validateAddr validates passed addr
-func (p *Provider) validateAddr(addr string, resp *tfsdk.ConfigureProviderResponse) bool {
+func (p *Provider) validateAddr(addr string, resp *tfprovider.ConfigureResponse) bool {
 	if addr == "" {
 		resp.Diagnostics.AddError(
 			"Teleport address is empty",
@@ -441,7 +442,7 @@ func (p *Provider) validateAddr(addr string, resp *tfsdk.ConfigureProviderRespon
 }
 
 // getCredentialsFromBase64 returns client.Credentials built from base64 encoded keys
-func (p *Provider) getCredentialsFromBase64(certBase64, keyBase64, caBase64 string, resp *tfsdk.ConfigureProviderResponse) (client.Credentials, bool) {
+func (p *Provider) getCredentialsFromBase64(certBase64, keyBase64, caBase64 string, resp *tfprovider.ConfigureResponse) (client.Credentials, bool) {
 	cert, err := base64.StdEncoding.DecodeString(certBase64)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -478,7 +479,7 @@ func (p *Provider) getCredentialsFromBase64(certBase64, keyBase64, caBase64 stri
 }
 
 // getCredentialsFromKeyPair returns client.Credentials built from path to key files
-func (p *Provider) getCredentialsFromKeyPair(certPath string, keyPath string, caPath string, resp *tfsdk.ConfigureProviderResponse) (client.Credentials, bool) {
+func (p *Provider) getCredentialsFromKeyPair(certPath string, keyPath string, caPath string, resp *tfprovider.ConfigureResponse) (client.Credentials, bool) {
 	if !p.fileExists(certPath) {
 		resp.Diagnostics.AddError(
 			"Certificate file not found",
@@ -562,8 +563,8 @@ func createTLSConfig(cert, key, rootCa []byte) (*tls.Config, error) {
 }
 
 // GetResources returns the map of provider resources
-func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceType, diag.Diagnostics) {
-	return map[string]tfsdk.ResourceType{
+func (p *Provider) GetResources(_ context.Context) (map[string]tfprovider.ResourceType, diag.Diagnostics) {
+	return map[string]tfprovider.ResourceType{
 		"teleport_app":                        resourceTeleportAppType{},
 		"teleport_auth_preference":            resourceTeleportAuthPreferenceType{},
 		"teleport_cluster_maintenance_config": resourceTeleportClusterMaintenanceConfigType{},
@@ -587,8 +588,8 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 }
 
 // GetDataSources returns the map of provider data sources
-func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourceType, diag.Diagnostics) {
-	return map[string]tfsdk.DataSourceType{
+func (p *Provider) GetDataSources(_ context.Context) (map[string]tfprovider.DataSourceType, diag.Diagnostics) {
+	return map[string]tfprovider.DataSourceType{
 		"teleport_app":                        dataSourceTeleportAppType{},
 		"teleport_auth_preference":            dataSourceTeleportAuthPreferenceType{},
 		"teleport_cluster_maintenance_config": dataSourceTeleportClusterMaintenanceConfigType{},

@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	tfprovider "github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/jonboulle/clockwork"
@@ -48,14 +50,14 @@ func (r resourceTeleportOIDCConnectorType) GetSchema(ctx context.Context) (tfsdk
 }
 
 // NewResource creates the empty resource
-func (r resourceTeleportOIDCConnectorType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
+func (r resourceTeleportOIDCConnectorType) NewResource(_ context.Context, p tfprovider.Provider) (resource.Resource, diag.Diagnostics) {
 	return resourceTeleportOIDCConnector{
 		p: *(p.(*Provider)),
 	}, nil
 }
 
 // Create creates the OIDCConnector
-func (r resourceTeleportOIDCConnector) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleportOIDCConnector) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var err error
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
@@ -155,7 +157,7 @@ func (r resourceTeleportOIDCConnector) Create(ctx context.Context, req tfsdk.Cre
 }
 
 // Read reads teleport OIDCConnector
-func (r resourceTeleportOIDCConnector) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleportOIDCConnector) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state types.Object
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -196,7 +198,7 @@ func (r resourceTeleportOIDCConnector) Read(ctx context.Context, req tfsdk.ReadR
 }
 
 // Update updates teleport OIDCConnector
-func (r resourceTeleportOIDCConnector) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleportOIDCConnector) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -282,7 +284,7 @@ func (r resourceTeleportOIDCConnector) Update(ctx context.Context, req tfsdk.Upd
 }
 
 // Delete deletes Teleport OIDCConnector
-func (r resourceTeleportOIDCConnector) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleportOIDCConnector) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var id types.String
 	diags := req.State.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)
@@ -300,7 +302,7 @@ func (r resourceTeleportOIDCConnector) Delete(ctx context.Context, req tfsdk.Del
 }
 
 // ImportState imports OIDCConnector state
-func (r resourceTeleportOIDCConnector) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+func (r resourceTeleportOIDCConnector) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	oidcConnector, err := r.p.Client.GetOIDCConnector(ctx, req.ID, true)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading OIDCConnector", trace.Wrap(err), "oidc"))

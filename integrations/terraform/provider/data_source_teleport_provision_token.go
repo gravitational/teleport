@@ -24,6 +24,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	tfprovider "github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -44,14 +46,14 @@ func (r dataSourceTeleportProvisionTokenType) GetSchema(ctx context.Context) (tf
 }
 
 // NewDataSource creates the empty data source
-func (r dataSourceTeleportProvisionTokenType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
+func (r dataSourceTeleportProvisionTokenType) NewDataSource(_ context.Context, p tfprovider.Provider) (datasource.DataSource, diag.Diagnostics) {
 	return dataSourceTeleportProvisionToken{
 		p: *(p.(*Provider)),
 	}, nil
 }
 
 // Read reads teleport ProvisionToken
-func (r dataSourceTeleportProvisionToken) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (r dataSourceTeleportProvisionToken) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var id types.String
 	diags := req.Config.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)

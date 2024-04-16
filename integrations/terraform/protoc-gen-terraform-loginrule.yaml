@@ -23,7 +23,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
 
 # These fields will be excluded
 exclude_fields:
@@ -45,7 +45,7 @@ required_fields:
 plan_modifiers:
     # Force to recreate resource if it's name changes
     Metadata.Name:
-      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource.RequiresReplace()"
 
 validators:
   Metadata.Expires:

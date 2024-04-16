@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	tfprovider "github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/jonboulle/clockwork"
@@ -48,14 +50,14 @@ func (r resourceTeleportUserType) GetSchema(ctx context.Context) (tfsdk.Schema, 
 }
 
 // NewResource creates the empty resource
-func (r resourceTeleportUserType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
+func (r resourceTeleportUserType) NewResource(_ context.Context, p tfprovider.Provider) (resource.Resource, diag.Diagnostics) {
 	return resourceTeleportUser{
 		p: *(p.(*Provider)),
 	}, nil
 }
 
 // Create creates the User
-func (r resourceTeleportUser) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleportUser) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var err error
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
@@ -155,7 +157,7 @@ func (r resourceTeleportUser) Create(ctx context.Context, req tfsdk.CreateResour
 }
 
 // Read reads teleport User
-func (r resourceTeleportUser) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleportUser) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state types.Object
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -196,7 +198,7 @@ func (r resourceTeleportUser) Read(ctx context.Context, req tfsdk.ReadResourceRe
 }
 
 // Update updates teleport User
-func (r resourceTeleportUser) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleportUser) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -282,7 +284,7 @@ func (r resourceTeleportUser) Update(ctx context.Context, req tfsdk.UpdateResour
 }
 
 // Delete deletes Teleport User
-func (r resourceTeleportUser) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleportUser) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var id types.String
 	diags := req.State.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)
@@ -300,7 +302,7 @@ func (r resourceTeleportUser) Delete(ctx context.Context, req tfsdk.DeleteResour
 }
 
 // ImportState imports User state
-func (r resourceTeleportUser) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+func (r resourceTeleportUser) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	user, err := r.p.Client.GetUser(ctx, req.ID, false)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading User", trace.Wrap(err), "user"))

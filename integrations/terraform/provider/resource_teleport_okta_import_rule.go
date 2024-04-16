@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	tfprovider "github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/jonboulle/clockwork"
@@ -48,14 +50,14 @@ func (r resourceTeleportOktaImportRuleType) GetSchema(ctx context.Context) (tfsd
 }
 
 // NewResource creates the empty resource
-func (r resourceTeleportOktaImportRuleType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
+func (r resourceTeleportOktaImportRuleType) NewResource(_ context.Context, p tfprovider.Provider) (resource.Resource, diag.Diagnostics) {
 	return resourceTeleportOktaImportRule{
 		p: *(p.(*Provider)),
 	}, nil
 }
 
 // Create creates the OktaImportRule
-func (r resourceTeleportOktaImportRule) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleportOktaImportRule) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var err error
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
@@ -155,7 +157,7 @@ func (r resourceTeleportOktaImportRule) Create(ctx context.Context, req tfsdk.Cr
 }
 
 // Read reads teleport OktaImportRule
-func (r resourceTeleportOktaImportRule) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleportOktaImportRule) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state types.Object
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -196,7 +198,7 @@ func (r resourceTeleportOktaImportRule) Read(ctx context.Context, req tfsdk.Read
 }
 
 // Update updates teleport OktaImportRule
-func (r resourceTeleportOktaImportRule) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleportOktaImportRule) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -282,7 +284,7 @@ func (r resourceTeleportOktaImportRule) Update(ctx context.Context, req tfsdk.Up
 }
 
 // Delete deletes Teleport OktaImportRule
-func (r resourceTeleportOktaImportRule) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleportOktaImportRule) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var id types.String
 	diags := req.State.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)
@@ -300,7 +302,7 @@ func (r resourceTeleportOktaImportRule) Delete(ctx context.Context, req tfsdk.De
 }
 
 // ImportState imports OktaImportRule state
-func (r resourceTeleportOktaImportRule) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+func (r resourceTeleportOktaImportRule) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	oktaImportRule, err := r.p.Client.OktaClient().GetOktaImportRule(ctx, req.ID)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading OktaImportRule", trace.Wrap(err), "okta_import_rule"))

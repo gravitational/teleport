@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	tfprovider "github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/jonboulle/clockwork"
@@ -48,14 +50,14 @@ func (r resourceTeleportGithubConnectorType) GetSchema(ctx context.Context) (tfs
 }
 
 // NewResource creates the empty resource
-func (r resourceTeleportGithubConnectorType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
+func (r resourceTeleportGithubConnectorType) NewResource(_ context.Context, p tfprovider.Provider) (resource.Resource, diag.Diagnostics) {
 	return resourceTeleportGithubConnector{
 		p: *(p.(*Provider)),
 	}, nil
 }
 
 // Create creates the GithubConnector
-func (r resourceTeleportGithubConnector) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleportGithubConnector) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var err error
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
@@ -155,7 +157,7 @@ func (r resourceTeleportGithubConnector) Create(ctx context.Context, req tfsdk.C
 }
 
 // Read reads teleport GithubConnector
-func (r resourceTeleportGithubConnector) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleportGithubConnector) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state types.Object
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -196,7 +198,7 @@ func (r resourceTeleportGithubConnector) Read(ctx context.Context, req tfsdk.Rea
 }
 
 // Update updates teleport GithubConnector
-func (r resourceTeleportGithubConnector) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleportGithubConnector) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -282,7 +284,7 @@ func (r resourceTeleportGithubConnector) Update(ctx context.Context, req tfsdk.U
 }
 
 // Delete deletes Teleport GithubConnector
-func (r resourceTeleportGithubConnector) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleportGithubConnector) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var id types.String
 	diags := req.State.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)
@@ -300,7 +302,7 @@ func (r resourceTeleportGithubConnector) Delete(ctx context.Context, req tfsdk.D
 }
 
 // ImportState imports GithubConnector state
-func (r resourceTeleportGithubConnector) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+func (r resourceTeleportGithubConnector) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	githubConnector, err := r.p.Client.GetGithubConnector(ctx, req.ID, true)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading GithubConnector", trace.Wrap(err), "github"))

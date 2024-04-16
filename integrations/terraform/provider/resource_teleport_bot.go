@@ -23,6 +23,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	tfprovider "github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -45,7 +47,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 				Required:    true,
 				Description: "The name of the bot, i.e. the unprefixed User name",
 				PlanModifiers: []tfsdk.AttributePlanModifier{
-					tfsdk.RequiresReplace(),
+					resource.RequiresReplace(),
 				},
 			},
 			"user_name": {
@@ -83,7 +85,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 				// UpdateBotRoles() API becomes available that can modify the
 				// underlying bot user.
 				PlanModifiers: []tfsdk.AttributePlanModifier{
-					tfsdk.RequiresReplace(),
+					resource.RequiresReplace(),
 				},
 			},
 			// Implementation note: This needs RequiresReplace() to handle
@@ -119,7 +121,7 @@ func (r resourceTeleportBotType) GetSchema(ctx context.Context) (tfsdk.Schema, d
 }
 
 // NewResource creates the empty resource
-func (r resourceTeleportBotType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
+func (r resourceTeleportBotType) NewResource(_ context.Context, p tfprovider.Provider) (resource.Resource, diag.Diagnostics) {
 	return resourceTeleportBot{
 		p: *(p.(*Provider)),
 	}, nil
@@ -130,7 +132,7 @@ type resourceTeleportBot struct {
 	p Provider
 }
 
-func (r resourceTeleportBot) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleportBot) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -202,7 +204,7 @@ func (r resourceTeleportBot) Create(ctx context.Context, req tfsdk.CreateResourc
 	}
 }
 
-func (r resourceTeleportBot) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleportBot) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Not much to do here: bots are currently immutable. We'll just check for
 	// deletion.
 
@@ -225,20 +227,20 @@ func (r resourceTeleportBot) Read(ctx context.Context, req tfsdk.ReadResourceReq
 	}
 }
 
-func (r resourceTeleportBot) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleportBot) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Nothing to do here: bots are currently immutable. In the future we'd
 	// ideally want to add specific RPCs for desired mutable attributes, e.g.
 	// UpdateBotRoles(), UpdateBotToken(), etc.
 }
 
-func (r resourceTeleportBot) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+func (r resourceTeleportBot) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	// Add .traits to RequiresReplace to ensure changes to this field trigger a
 	// replacement. We can't set it in the schema as the attribute is generated
 	// by a helper method.
 	resp.RequiresReplace = append(resp.RequiresReplace, path.Root("traits"))
 }
 
-func (r resourceTeleportBot) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleportBot) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var name types.String
 	diags := req.State.GetAttribute(ctx, path.Root("name"), &name)
 	resp.Diagnostics.Append(diags...)

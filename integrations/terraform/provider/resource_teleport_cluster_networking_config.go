@@ -25,6 +25,8 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	tfprovider "github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/jonboulle/clockwork"
@@ -46,14 +48,14 @@ func (r resourceTeleportClusterNetworkingConfigType) GetSchema(ctx context.Conte
 }
 
 // NewResource creates the empty resource
-func (r resourceTeleportClusterNetworkingConfigType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
+func (r resourceTeleportClusterNetworkingConfigType) NewResource(_ context.Context, p tfprovider.Provider) (resource.Resource, diag.Diagnostics) {
 	return resourceTeleportClusterNetworkingConfig{
 		p: *(p.(*Provider)),
 	}, nil
 }
 
 // Create creates the ClusterNetworkingConfig
-func (r resourceTeleportClusterNetworkingConfig) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleportClusterNetworkingConfig) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -145,7 +147,7 @@ func (r resourceTeleportClusterNetworkingConfig) Create(ctx context.Context, req
 }
 
 // Read reads teleport ClusterNetworkingConfig
-func (r resourceTeleportClusterNetworkingConfig) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleportClusterNetworkingConfig) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state types.Object
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -174,7 +176,7 @@ func (r resourceTeleportClusterNetworkingConfig) Read(ctx context.Context, req t
 }
 
 // Update updates teleport ClusterNetworkingConfig
-func (r resourceTeleportClusterNetworkingConfig) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleportClusterNetworkingConfig) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -256,7 +258,7 @@ func (r resourceTeleportClusterNetworkingConfig) Update(ctx context.Context, req
 }
 
 // Delete deletes Teleport ClusterNetworkingConfig
-func (r resourceTeleportClusterNetworkingConfig) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleportClusterNetworkingConfig) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	err := r.p.Client.ResetClusterNetworkingConfig(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error deleting ClusterNetworkingConfig", trace.Wrap(err), "cluster_networking_config"))
@@ -267,7 +269,7 @@ func (r resourceTeleportClusterNetworkingConfig) Delete(ctx context.Context, req
 }
 
 // ImportState imports ClusterNetworkingConfig state
-func (r resourceTeleportClusterNetworkingConfig) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+func (r resourceTeleportClusterNetworkingConfig) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	clusterNetworkingConfigI, err := r.p.Client.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating ClusterNetworkingConfig", trace.Wrap(err), "cluster_networking_config"))

@@ -19,19 +19,13 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path"
-	"sort"
-	"strings"
 	"text/template"
 
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
-	"github.com/olekukonko/tablewriter"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider"
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
@@ -456,7 +450,7 @@ var (
 
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "docs" {
-		genReferenceDocs()
+		// genReferenceDocs()
 	} else {
 		genTFSchema()
 	}
@@ -588,6 +582,7 @@ var (
 	}
 )
 
+/*
 func genReferenceDocs() {
 	sortedNames := make([]string, 0, len(mapResourceSchema))
 	for k := range mapResourceSchema {
@@ -730,3 +725,6 @@ func requiredString(r bool) string {
 	}
 	return " "
 }
+
+
+*/

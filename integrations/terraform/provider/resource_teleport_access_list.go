@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	tfprovider "github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/jonboulle/clockwork"
@@ -48,14 +50,14 @@ func (r resourceTeleportAccessListType) GetSchema(ctx context.Context) (tfsdk.Sc
 }
 
 // NewResource creates the empty resource
-func (r resourceTeleportAccessListType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
+func (r resourceTeleportAccessListType) NewResource(_ context.Context, p tfprovider.Provider) (resource.Resource, diag.Diagnostics) {
 	return resourceTeleportAccessList{
 		p: *(p.(*Provider)),
 	}, nil
 }
 
 // Create creates the AccessList
-func (r resourceTeleportAccessList) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleportAccessList) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var err error
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
@@ -154,7 +156,7 @@ func (r resourceTeleportAccessList) Create(ctx context.Context, req tfsdk.Create
 }
 
 // Read reads teleport AccessList
-func (r resourceTeleportAccessList) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleportAccessList) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state types.Object
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -194,7 +196,7 @@ func (r resourceTeleportAccessList) Read(ctx context.Context, req tfsdk.ReadReso
 }
 
 // Update updates teleport AccessList
-func (r resourceTeleportAccessList) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleportAccessList) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -279,7 +281,7 @@ func (r resourceTeleportAccessList) Update(ctx context.Context, req tfsdk.Update
 }
 
 // Delete deletes Teleport AccessList
-func (r resourceTeleportAccessList) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleportAccessList) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var id types.String
 	diags := req.State.GetAttribute(ctx, path.Root("header").AtName("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)
@@ -297,7 +299,7 @@ func (r resourceTeleportAccessList) Delete(ctx context.Context, req tfsdk.Delete
 }
 
 // ImportState imports AccessList state
-func (r resourceTeleportAccessList) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+func (r resourceTeleportAccessList) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	accessList, err := r.p.Client.AccessListClient().GetAccessList(ctx, req.ID)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading AccessList", trace.Wrap(err), "access_list"))

@@ -26,6 +26,8 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	tfprovider "github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/jonboulle/clockwork"
@@ -47,14 +49,14 @@ func (r resourceTeleportClusterMaintenanceConfigType) GetSchema(ctx context.Cont
 }
 
 // NewResource creates the empty resource
-func (r resourceTeleportClusterMaintenanceConfigType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
+func (r resourceTeleportClusterMaintenanceConfigType) NewResource(_ context.Context, p tfprovider.Provider) (resource.Resource, diag.Diagnostics) {
 	return resourceTeleportClusterMaintenanceConfig{
 		p: *(p.(*Provider)),
 	}, nil
 }
 
 // Create creates the ClusterMaintenanceConfig
-func (r resourceTeleportClusterMaintenanceConfig) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleportClusterMaintenanceConfig) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -151,7 +153,7 @@ func (r resourceTeleportClusterMaintenanceConfig) Create(ctx context.Context, re
 }
 
 // Read reads teleport ClusterMaintenanceConfig
-func (r resourceTeleportClusterMaintenanceConfig) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleportClusterMaintenanceConfig) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state types.Object
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -180,7 +182,7 @@ func (r resourceTeleportClusterMaintenanceConfig) Read(ctx context.Context, req 
 }
 
 // Update updates teleport ClusterMaintenanceConfig
-func (r resourceTeleportClusterMaintenanceConfig) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleportClusterMaintenanceConfig) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -263,7 +265,7 @@ func (r resourceTeleportClusterMaintenanceConfig) Update(ctx context.Context, re
 }
 
 // Delete deletes Teleport ClusterMaintenanceConfig
-func (r resourceTeleportClusterMaintenanceConfig) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleportClusterMaintenanceConfig) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	err := r.p.Client.DeleteClusterMaintenanceConfig(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error deleting ClusterMaintenanceConfig", trace.Wrap(err), "cluster_maintenance_config"))
@@ -274,7 +276,7 @@ func (r resourceTeleportClusterMaintenanceConfig) Delete(ctx context.Context, re
 }
 
 // ImportState imports ClusterMaintenanceConfig state
-func (r resourceTeleportClusterMaintenanceConfig) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+func (r resourceTeleportClusterMaintenanceConfig) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	clusterMaintenanceConfigI, err := r.p.Client.GetClusterMaintenanceConfig(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating ClusterMaintenanceConfig", trace.Wrap(err), "cluster_maintenance_config"))

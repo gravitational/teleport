@@ -25,6 +25,8 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	tfprovider "github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/jonboulle/clockwork"
@@ -46,14 +48,14 @@ func (r resourceTeleportSessionRecordingConfigType) GetSchema(ctx context.Contex
 }
 
 // NewResource creates the empty resource
-func (r resourceTeleportSessionRecordingConfigType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
+func (r resourceTeleportSessionRecordingConfigType) NewResource(_ context.Context, p tfprovider.Provider) (resource.Resource, diag.Diagnostics) {
 	return resourceTeleportSessionRecordingConfig{
 		p: *(p.(*Provider)),
 	}, nil
 }
 
 // Create creates the SessionRecordingConfig
-func (r resourceTeleportSessionRecordingConfig) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleportSessionRecordingConfig) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -145,7 +147,7 @@ func (r resourceTeleportSessionRecordingConfig) Create(ctx context.Context, req 
 }
 
 // Read reads teleport SessionRecordingConfig
-func (r resourceTeleportSessionRecordingConfig) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleportSessionRecordingConfig) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state types.Object
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -174,7 +176,7 @@ func (r resourceTeleportSessionRecordingConfig) Read(ctx context.Context, req tf
 }
 
 // Update updates teleport SessionRecordingConfig
-func (r resourceTeleportSessionRecordingConfig) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleportSessionRecordingConfig) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -256,7 +258,7 @@ func (r resourceTeleportSessionRecordingConfig) Update(ctx context.Context, req 
 }
 
 // Delete deletes Teleport SessionRecordingConfig
-func (r resourceTeleportSessionRecordingConfig) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleportSessionRecordingConfig) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	err := r.p.Client.ResetSessionRecordingConfig(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error deleting SessionRecordingConfig", trace.Wrap(err), "session_recording_config"))
@@ -267,7 +269,7 @@ func (r resourceTeleportSessionRecordingConfig) Delete(ctx context.Context, req 
 }
 
 // ImportState imports SessionRecordingConfig state
-func (r resourceTeleportSessionRecordingConfig) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+func (r resourceTeleportSessionRecordingConfig) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	sessionRecordingConfigI, err := r.p.Client.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating SessionRecordingConfig", trace.Wrap(err), "session_recording_config"))
