@@ -18,36 +18,13 @@ on:
           will be inferred form the `oss-teleport-ref` by assuming that it's
           a standard Teleport release tag in the form vX.Y.Z.
         type: string
-
-      pending-bucket-name:
-        description: Name of the pending bucket holding the Debian package artifacts.
-        type: string
-        default: dronestorage.gravitational.io
-
-      pending-access-role-arn:
-        description: ARN of the role used to access the pending bucket, for downloading.
-        type: string
-        default: arn:aws:iam::126027368216:role/tf-teleport-oci-tag-build-gha
-
-      build-role-arn:
-        description: The ARN of the role used to sign and store the resulting image(s) in ECR.
-        type: string
-        default: arn:aws:iam::146628656107:role/teleport-oci-tag-build-gha
-
-      signing-key-url:
+      
+      environment:
         description: |
-          URL of the KMS key used to sign the resulting images. Must be
-          readable from the role specified by `build-role-arn`.
+          GitHub Actions environment in which to run the build. Can be either
+          `build-stage` or `build-prod`.
         type: string
-        default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-pending-build-signing
-
-      dest-repo-prefix:
-        description: |
-          Registry and namespace prefix for the destination repository,
-          formatted for use with Docker (that is, like a URI, not the AWS
-          ARN).
-        type: string
-        default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
+        default: build-prod
 
       workflow-tag:
         description: Tag used to identify workflow runs spawned by this event.
@@ -64,21 +41,6 @@ on:
         required: true
       source-tag:
         type: string
-      pending-bucket-name:
-        type: string
-        default: dronestorage.gravitational.io
-      pending-access-role-arn:
-        type: string
-        default: arn:aws:iam::126027368216:role/tf-teleport-oci-tag-build-gha
-      build-role-arn:
-        type: string
-        default: arn:aws:iam::146628656107:role/teleport-oci-tag-build-gha
-      signing-key-url:
-        type: string
-        default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-pending-build-signing
-      dest-repo-prefix:
-        type: string
-        default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
       workflow-tag:
         type: string
 
@@ -127,20 +89,16 @@ jobs:
       base-image: 'gcr.io/distroless/cc-debian12:latest'
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-      pending-bucket-name: ${{ inputs.pending-bucket-name }}
-      pending-access-role-arn: ${{ inputs.pending-access-role-arn }}
       source-tag: ${{ inputs.source-tag }}
       teleport-version: ${{ needs.configure.outputs.teleport-version }}
-      dest-image-registry: ${{ inputs.dest-repo-prefix }}
       dest-image-repo: tbot${{ matrix.repo-infix }}-distroless
       dest-image-tags: ${{ needs.configure.outputs.teleport-version }}
-      build-role-arn: ${{ inputs.build-role-arn }}
-      signing-key-url: ${{ inputs.signing-key-url }}
       architectures: ${{ matrix.architectures }}
       image-build-args: |
         TELEPORT_VERSION=${{ needs.configure.outputs.teleport-version }}
       image-build-dockerfile: Dockerfile-tbot-distroless${{ matrix.dockerfile-suffix }}
       allow-overwrites: false
+      environment: ${{ inputs.environment }}
     secrets:
       deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
       deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}

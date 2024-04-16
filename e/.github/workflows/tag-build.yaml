@@ -27,7 +27,9 @@ on:
         type: string
 
       environment:
-        description: GitHub Actions environment in which to run the build.
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `build-stage` or `build-prod`.
         type: string
         default: build-prod
 
@@ -97,8 +99,8 @@ jobs:
       release-artifacts: true
       build-connect: ${{ matrix.build-connect || false }}
       build-os-packages: true
-      # TODO(camscale): Update release-linux to use build-stage/build-prod environments
-      # environment: ${{ inputs.environment }}
+      release-version: ${{ needs.setup.outputs.version }}
+      environment: ${{ inputs.environment }}
 
   build-darwin:
     name: Build Darwin (macOS) Artifacts
@@ -116,8 +118,7 @@ jobs:
       build-packages: true
       release-artifacts: true
       release-version: ${{ needs.setup.outputs.version }}
-      # TODO(camscale): Update release-mac to use build-stage/build-prod environments
-      # environment: ${{ inputs.environment }}
+      environment: ${{ inputs.environment }}
 
   build-windows:
     name: Build Windows Artifacts
@@ -132,8 +133,8 @@ jobs:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
-      # TODO(camscale): Update release-windows to use build-stage/build-prod environments
-      # environment: ${{ inputs.environment }}
+      release-version: ${{ needs.setup.outputs.version }}
+      environment: ${{ inputs.environment }}
 
   build-operator-oci:
     name: Build Operator OCI
@@ -168,8 +169,7 @@ jobs:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       source-tag: ${{ needs.setup.outputs.version }}
-      # TODO(camscale): Update called workflow to use build-stage/build-prod environments
-      # environment: ${{ inputs.environment }}
+      environment: ${{ inputs.environment }}
 
   build-spacelift-runner-oci:
     name: Build Spacelift Runner OCI
@@ -186,8 +186,7 @@ jobs:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       source-tag: ${{ needs.setup.outputs.version }}
-      # TODO(camscale): Update called workflow to use build-stage/build-prod environments
-      # environment: ${{ inputs.environment }}
+      environment: ${{ inputs.environment }}
 
   build-distroless-oci:
     name: Build Teleport Distroless OCI
@@ -203,8 +202,7 @@ jobs:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       source-tag: ${{ needs.setup.outputs.version }}
-      # TODO(camscale): Update called workflow to use build-stage/build-prod environments
-      # environment: ${{ inputs.environment }}
+      environment: ${{ inputs.environment }}
 
   build-tbot-distroless-oci:
     name: Build Tbot Distroless OCI
@@ -221,8 +219,7 @@ jobs:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       source-tag: ${{ needs.setup.outputs.version }}
-      # TODO(camscale): Update called workflow to use build-stage/build-prod environments
-      # environment: ${{ inputs.environment }}
+      environment: ${{ inputs.environment }}
 
   build-hardened-ami:
     name: Build Hardened AMI
@@ -237,5 +234,4 @@ jobs:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       source-tag: ${{ needs.setup.outputs.version }}
-      # TODO(camscale): Update called workflow to use build-stage/build-prod environments
-      # environment: ${{ inputs.environment }}
+      environment: ${{ inputs.environment }}

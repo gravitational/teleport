@@ -19,32 +19,12 @@ on:
           a standard Teleport release tag in the form vX.Y.Z.
         type: string
 
-      build-role-arn:
-        description: The ARN of the role used to sign and store the resulting image(s) in ECR.
-        type: string
-        default: arn:aws:iam::146628656107:role/teleport-oci-tag-build-gha
-
-      signing-key-url:
-        description: |
-          URL of the KMS key used to sign the resulting images. Must be
-          readable from the role specified by `build-role-arn`.
-        type: string
-        default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-pending-build-signing
-
-      dest-repo-prefix:
-        description: |
-          Registry and namespace prefix for the destination repository,
-          formatted for use with Docker (that is, like a URI, not the AWS
-          ARN).
-        type: string
-        default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
-
       environment:
         description: |
           GitHub Actions environment in which to run the build. Can be either
-          `build` or `promote`.
+          `build-stage` or `build-prod`.
         type: string
-        default: promote
+        default: build-prod
 
       workflow-tag:
         description: Tag used to identify workflow runs spawned by this event.
@@ -61,18 +41,9 @@ on:
         required: true
       source-tag:
         type: string
-      build-role-arn:
-        type: string
-        default: arn:aws:iam::146628656107:role/teleport-oci-tag-build-gha
-      signing-key-url:
-        type: string
-        default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-pending-build-signing
-      dest-repo-prefix:
-        type: string
-        default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
       environment:
         type: string
-        default: promote
+        default: build-prod
       workflow-tag:
         type: string
 
@@ -94,7 +65,6 @@ jobs:
       teleport_version: ${{ steps.version.outputs.teleport_version }}
       buildbox: ${{ steps.get-buildbox.outputs.buildbox }}
       base_image: ${{ steps.get-base-image.outputs.base_image }}
-      public_ecr_login_role_arn: ${{ steps.get-buildbox.outputs.public_ecr_login_role_arn }}
     steps:
       - name: Parse version tag
         id: version
@@ -111,14 +81,10 @@ jobs:
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
       - name: Get buildbox image ref
         id: get-buildbox
-        env:
-          ECR_READ_ONLY_ROLE: ${{ vars.ECR_READ_ONLY_ROLE }}
         run: |
           BUILDBOX="$(make -s -C ./build.assets/ show-buildbox-centos7-image)"
           echo "buildbox: $BUILDBOX"
           echo "buildbox=$BUILDBOX" >> "$GITHUB_OUTPUT"
-          # pulling the buildbox needs public ecr auth to raise rate limits
-          echo "public_ecr_login_role_arn=$ECR_READ_ONLY_ROLE" >> "$GITHUB_OUTPUT"
       - name: Get base image ref
         id: get-base-image
         run: |
@@ -144,17 +110,15 @@ jobs:
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       source-tag: ${{ inputs.source-tag }}
       teleport-version: ${{ needs.configure.outputs.teleport_version }}
-      dest-image-registry: ${{ inputs.dest-repo-prefix }}
       dest-image-repo: teleport-spacelift-runner
       dest-image-tags: ${{ needs.configure.outputs.teleport_version }}
-      public-ecr-login-role-arn: ${{ needs.configure.outputs.public_ecr_login_role_arn }}
-      build-role-arn: ${{ inputs.build-role-arn }}
-      signing-key-url: ${{ inputs.signing-key-url }}
       allow-overwrites: false
       image-build-args: |
         BUILDBOX=${{ needs.configure.outputs.buildbox }}
       image-build-context: ./teleport/.
       image-build-dockerfile: ./integrations/teleport-spacelift-runner/Dockerfile
+      should-download-teleport-debs: false
+      environment: ${{ inputs.environment }}
     secrets:
       deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
       deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}

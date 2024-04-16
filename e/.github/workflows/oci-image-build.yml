@@ -22,11 +22,6 @@ on:
         required: true
         type: string
 
-      dest-image-registry:
-        description: "The destination image registry"
-        required: true
-        type: string
-
       dest-image-registry-region:
         description: "AWS region containing the destination repository"
         type: string
@@ -47,7 +42,6 @@ on:
         description: |
           GitHub Actions environment in which to run the build. Can be either
           `build-stage` or `build-prod`.
-        required: false
         type: string
         default: build-prod
 
@@ -64,46 +58,6 @@ on:
           not include a leading `v` in the version tag.
         required: true
         type: string
-
-      pending-access-role-arn:
-        description: |
-          ARN of the role used to access the pending bucket. This is required
-          only when inputs.pending-bucket-name is set.
-        required: false
-        type: string
-
-      pending-bucket-name:
-        description: |
-          Name of the pending bucket holding the Debian package artifacts
-          This is required only when building the main Teleport image
-          because it relies on previously built images. The workflow will
-          skip the package download steps when the input is not provided.
-        required: false
-        type: string
-
-      public-ecr-login-role-arn:
-        description: |
-          ARN of the AWS role to assume to log into public ECR. This raises the
-          rate limits for pulling from public.ecr.aws which can be quite low when
-          unauthenticated. Leave this empty if the Dockerfile does not use any
-          images from public ECR.
-          Usually when needed, this would be set to vars.ECR_READ_ONLY_ROLE
-          but that is not the default here as the default is to not log into public
-          ECR at all.
-        type: string
-
-      build-role-arn:
-        description: |
-          ARN of the AWS role to assume for storing and signing the OCI
-          container images
-        required: true
-        type: string
-
-      signing-key-url:
-        description: |
-          URL of AWS KMS key to use when signing the resulting image
-        type: string
-        required: true
 
       image-build-args:
         description: |
@@ -163,6 +117,15 @@ on:
         default: |
           arm64
           amd64
+        
+      should-download-teleport-debs:
+        description: |
+          True if the build process should pull in the built Teleport debs,
+          false otherwise. If true, callers of this job should ensure that
+          the debs are built or already exist prior to execution of this
+          workflow.
+        type: boolean
+        default: true
 
     secrets:
       deploy-access-app-id:
@@ -230,17 +193,15 @@ jobs:
 
       - name: Assume Public ECR login role
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
-        if: inputs.public-ecr-login-role-arn != ''
         with:
           aws-region: us-west-2
-          role-to-assume: ${{ inputs.public-ecr-login-role-arn }}
+          role-to-assume: ${{ vars.ECR_READ_ONLY_ROLE }}
           role-session-name: "gha-oci-image-build-ecr-${{ github.run_attempt }}"
           role-duration-seconds: 3600
 
       # Authenticate with public ECR for higher rate limits
       - name: Log into public ECR
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
-        if: inputs.public-ecr-login-role-arn != ''
         with:
           registry-type: public
         env:
@@ -263,25 +224,25 @@ jobs:
           echo "${{ inputs.image-build-context }}" | xargs -I '{}' cp -r '{}' ./build
           tree ./build
 
-      - name: Assume Legacy Drone storage AWS role
+      - name: Assume pending artifact bucket AWS download role
+        if: inputs.should-download-teleport-debs
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
-        if: inputs.pending-bucket-name != ''
         with:
-          aws-region:  us-west-2
-          role-to-assume: ${{ inputs.pending-access-role-arn }}
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
           role-session-name: "gha-oci-image-build-${{ github.run_number }}-${{ inputs.source-tag }}"
           role-duration-seconds: 3600
 
       - name: Download Teleport Debian packages
-        if: inputs.pending-bucket-name != ''
+        if: inputs.should-download-teleport-debs
         env:
           ARCHITECTURES: ${{ inputs.architectures }}
           TELEPORT_VERSION: ${{ inputs.teleport-version }}
-          DST_BUCKET: ${{ inputs.pending-bucket-name }}
+          PENDING_BUCKET_NAME: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
         run: |
           for arch in $ARCHITECTURES; do
             export TELEPORT_DEB_FILE_NAME=teleport${DEB_RELEASE_INFIX}_${TELEPORT_VERSION}${DEB_FIPS_INFIX}_${arch}.deb
-            aws s3 cp s3://${DST_BUCKET}/teleport/tag/${TELEPORT_VERSION}/${TELEPORT_DEB_FILE_NAME} ./build/${TELEPORT_DEB_FILE_NAME}
+            aws s3 cp s3://${PENDING_BUCKET_NAME}/teleport/tag/${TELEPORT_VERSION}/${TELEPORT_DEB_FILE_NAME} ./build/${TELEPORT_DEB_FILE_NAME}
           done
           tree ./build
 
@@ -312,7 +273,7 @@ jobs:
         id: expand
         env:
           DST_IMAGE_TAGS: ${{ inputs.dest-image-tags }}
-          DST_IMAGE_REPO: "${{ inputs.dest-image-registry }}/${{ inputs.dest-image-repo }}"
+          DST_IMAGE_REPO: "${{ vars.ECR_PENDING_REPO_BASE }}/${{ inputs.dest-image-repo }}"
         run: |
           EOF=END_OF_TAGS
           echo "tags<<$EOF" >> $GITHUB_OUTPUT
@@ -324,15 +285,15 @@ jobs:
       - name: Assume Build AWS role
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
-          aws-region:  us-west-2
-          role-to-assume: ${{ inputs.build-role-arn }}
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.OCI_ECR_AWS_ROLE }}
           role-session-name: "gha-oci-image-build-${{ github.run_number }}"
           role-duration-seconds: 3600
 
       - name: Login to Destination ECR Registry
         uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20 # v3.1.0
         with:
-          registry: ${{ inputs.dest-image-registry }}
+          registry: ${{ vars.ECR_PENDING_REPO_BASE }}
           ecr: true
         env:
           AWS_REGION: ${{ inputs.dest-image-registry-region }}
@@ -376,10 +337,10 @@ jobs:
       - name: Sign image using signing key and GitHub OIDC Token
         if: steps.check.outputs.build_image == 'true'
         env:
-          SIGNING_KEY_URL: ${{ inputs.signing-key-url }}
-          DST_IMAGE: "${{ inputs.dest-image-registry }}/${{ inputs.dest-image-repo }}@${{ steps.build.outputs.digest }}"
+          SIGNING_KEY_ARN: ${{ vars.OCI_SIGNING_KEY_ARN }}
+          DST_IMAGE: "${{ vars.ECR_PENDING_REPO_BASE }}/${{ inputs.dest-image-repo }}@${{ steps.build.outputs.digest }}"
         run: |
-          cosign sign --yes --key ${SIGNING_KEY_URL} --recursive ${DST_IMAGE}
+          cosign sign --yes --key awskms:///${SIGNING_KEY_ARN} --recursive ${DST_IMAGE}
           cosign sign --yes --upload=false --recursive ${DST_IMAGE}
 
   trivy-scan:
@@ -392,22 +353,22 @@ jobs:
       - name: Assume tag build AWS role
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
-          aws-region:  us-west-2
-          role-to-assume: ${{ inputs.build-role-arn }}
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.OCI_ECR_AWS_ROLE }}
           role-session-name: "gha-oci-image-build-${{ github.run_number }}-trivy"
           role-duration-seconds: 3600
 
       - name: Login to ECR
         uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20 # v3.1.0
         with:
-          registry: ${{ inputs.dest-image-registry }}
+          registry: ${{ vars.ECR_PENDING_REPO_BASE }}
         env:
           AWS_REGION: ${{ inputs.dest-image-registry-region }}
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@d710430a6722f083d3b36b8339ff66b32f22ee55 # v0.19.0
         with:
-          image-ref: "${{ inputs.dest-image-registry }}/${{ inputs.dest-image-repo }}@${{ needs.build-docker-image.outputs.image-digest }}"
+          image-ref: "${{ vars.ECR_PENDING_REPO_BASE }}/${{ inputs.dest-image-repo }}@${{ needs.build-docker-image.outputs.image-digest }}"
           ignore-unfixed: true
           format: "sarif"
           output: "trivy-results.sarif"

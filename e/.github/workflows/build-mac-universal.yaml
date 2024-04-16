@@ -4,13 +4,13 @@ on:
   workflow_call:
     inputs:
       oss-teleport-repo:
-        description: 'The name of the OSS Teleport repo to checkout'
+        description: "The name of the OSS Teleport repo to checkout"
         required: false
-        default: 'gravitational/teleport'
+        default: "gravitational/teleport"
         type: string
 
       oss-teleport-ref:
-        description: 'Git SHA, tag or branch of the revision of OSS teleport to build'
+        description: "Git SHA, tag or branch of the revision of OSS teleport to build"
         required: true
         type: string
 
@@ -20,11 +20,11 @@ on:
           value is supplied this workflow will use whatever reference is specified in
           the OSS teleport submodule record.
         required: false
-        default: ''
+        default: ""
         type: string
 
       release:
-        description: 'Release level to build. Currently supports `oss` and `enterprise`'
+        description: "Release level to build. Currently supports `oss` and `enterprise`"
         required: true
         type: string
 
@@ -33,7 +33,7 @@ on:
           Override the build version from what is in the Makefile.
           Use this override to specify a tag for build debugging purposes.
         type: string
-        default: ''
+        default: ""
 
       artifact-name:
         description: Name of artifact to upload to. If empty, artifacts are not uploaded.
@@ -56,12 +56,9 @@ on:
       environment:
         description: |
           GitHub Actions environment in which to run the build. Can be either
-          `promote` or `build`. The default `promote` can only be used for
-          `master` and `branch/*` branches. `build` should be used for testing
-          workflow changes on a dev branch.
-        required: false
+          `build-stage` or `build-prod`.
         type: string
-        default: promote
+        default: build-prod
 
 jobs:
   build-release-artifacts:

@@ -23,45 +23,6 @@ on:
           the leading `v`
         type: string
 
-      pending-bucket-name:
-        description: |
-          Name of the S3 bucket holding the Debian package artifacts.
-        required: true
-        type: string
-        default: dronestorage.gravitational.io
-
-      pending-access-role-arn:
-        description: |
-          ARN of the role used to access the pending storage bucket.
-        required: true
-        type: string
-        default: arn:aws:iam::126027368216:role/tf-teleport-oci-tag-build-gha
-
-      promote-role-arn:
-        description: |
-          The ARN of the role used to sign and store the resulting image(s) in
-          the public ECR
-        required: true
-        type: string
-        default: arn:aws:iam::146628656107:role/teleport-oci-promotion-gha
-
-      signing-key-url:
-        description: |
-          URL of the KMS key used to sign the resulting images. Must be
-          readable from the role specified by `build-role-arn`.
-        required: true
-        type: string
-        default:  awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-production-signing
-
-      dest-registry:
-        description: |
-          Registry and namespace prefix for the destination repository,
-          formatted for use with Docker (that is, like a URI, not the AWS
-          ARN). 
-        type: string
-        required: true
-        default: public.ecr.aws
-
 run-name: Rebuild Distroless Images for Teleport ${{ inputs.teleport-release-tag }}
 
 jobs:
@@ -145,16 +106,11 @@ jobs:
       base-image: ${{ matrix.base-image }}
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.teleport-release-tag }}
-      pending-bucket-name: ${{ inputs.pending-bucket-name }}
-      pending-access-role-arn: ${{ inputs.pending-access-role-arn }}
       source-tag: ${{ inputs.teleport-release-tag }}
       teleport-version: ${{ needs.configure.outputs.teleport_version }}
-      dest-image-registry: ${{ inputs.dest-registry }}
       dest-image-registry-region: us-east-1
       dest-image-repo: gravitational/teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}
       dest-image-tags: ${{ needs.configure.outputs.image_tags }}
-      build-role-arn: ${{ inputs.promote-role-arn }}
-      signing-key-url: ${{ inputs.signing-key-url }}
       image-build-args: |
         TELEPORT_VERSION=${{ needs.configure.outputs.teleport_version }}
       image-build-dockerfile: Dockerfile-distroless${{ matrix.dockerfile-suffix }}

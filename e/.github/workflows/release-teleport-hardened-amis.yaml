@@ -20,32 +20,17 @@ on:
           a standard Teleport release tag in the form vX.Y.Z.
         type: string
 
-      pending-bucket-name:
-        description: |
-          Name of the AWS S3 bucket holding the Teleport binary tarballs for
-          this release.
-        type: string
-        default: dronestorage.gravitational.io
-
-      pending-access-role-arn:
-        description: ARN of the role used to access the pending bucket.
-        type: string
-        default: arn:aws:iam::126027368216:role/tf-teleport-oci-tag-build-gha
-
-      build-role-arn:
-        description: The ARN of the role used to build and store the AMI.
-        type: string
-        default: arn:aws:iam::146628656107:role/teleport-ami-tag-build-gha
-
-      build-vpc-id:
-        description: ID of the AWS VPC that will house the build infrastructure.
-        type: string
-        default: vpc-0af029ea1b68f02dc
-
       dest-ami-regions:
         description: A comma-separated list of AWS regions to receive the AMIs.
         type: string
         default: eu-north-1,ap-south-1,eu-west-3,eu-west-2,eu-west-1,ap-northeast-3,ap-northeast-2,ap-northeast-1,sa-east-1,ca-central-1,ap-southeast-1,ap-southeast-2,eu-central-1,us-east-1,us-east-2,us-west-1,us-west-2
+
+      environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `build-stage` or `build-prod`.
+        type: string
+        default: build-prod
 
       workflow-tag:
         description: Tag used to identify workflow runs spawned by this event.
@@ -62,18 +47,6 @@ on:
         required: true
       source-tag:
         type: string
-      pending-bucket-name:
-        type: string
-        default: dronestorage.gravitational.io
-      pending-access-role-arn:
-        type: string
-        default: arn:aws:iam::126027368216:role/tf-teleport-oci-tag-build-gha
-      build-role-arn:
-        type: string
-        default: arn:aws:iam::146628656107:role/teleport-ami-tag-build-gha
-      build-vpc-id:
-        type: string
-        default: vpc-0af029ea1b68f02dc
       dest-ami-regions:
         type: string
         default: eu-north-1,ap-south-1,eu-west-3,eu-west-2,eu-west-1,ap-northeast-3,ap-northeast-2,ap-northeast-1,sa-east-1,ca-central-1,ap-southeast-1,ap-southeast-2,eu-central-1,us-east-1,us-east-2,us-west-1,us-west-2
@@ -91,6 +64,7 @@ jobs:
 
   build-amis:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     permissions:
       contents: read
       id-token: write  # Required for aws-actions/configure-aws-credentials
@@ -134,7 +108,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: us-west-2
-          role-to-assume: ${{ inputs.pending-access-role-arn }}
+          role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
           role-session-name: "gha-ami-build-${{ github.run_number }}-${{ inputs.source-tag }}"
           role-duration-seconds: 3600
 
@@ -145,7 +119,7 @@ jobs:
           TELEPORT_VERSION: ${{ steps.version.outputs.teleport }}
           TAR_EDITION_INFIX: ${{ matrix.edition-infix }}
           TAR_FIPS_INFIX: ${{ matrix.fips-infix }}
-          SRC_BUCKET: ${{ inputs.pending-bucket-name }}
+          SRC_BUCKET: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
         run: |
           TARBALL_NAME=teleport${TAR_EDITION_INFIX}-v${TELEPORT_VERSION}-linux-${ARCHITECTURE}${TAR_FIPS_INFIX}-bin.tar.gz
           aws s3 cp s3://${SRC_BUCKET}/teleport/tag/${TELEPORT_VERSION}/${TARBALL_NAME} ./${TARBALL_NAME}
@@ -155,7 +129,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: us-west-2
-          role-to-assume: ${{ inputs.build-role-arn }}
+          role-to-assume: ${{ vars.AMI_UPLOAD_AWS_ROLE }}
           role-session-name: "gha-${{ matrix.teleport-edition }}-ami-build-${{ github.run_number }}"
           role-duration-seconds: 3600
 
@@ -167,7 +141,7 @@ jobs:
 
       - name: Build AMI
         env:
-          AWS_VPC_ID: ${{ inputs.build-vpc-id }}
+          AWS_VPC_ID: ${{ vars.AMI_VPC_ID }}
           TELEPORT_VERSION: ${{ steps.version.outputs.teleport }}
           TELEPORT_TYPE: ${{ matrix.teleport-edition }}
           TELEPORT_FIPS: ${{ matrix.fips }}

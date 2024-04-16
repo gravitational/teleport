@@ -4,7 +4,7 @@ on:
     inputs:
       pending-registry:
         description: |
-          The address of the pending image registry 
+          The address of the pending image registry
         required: true
         type: string
 
@@ -69,7 +69,7 @@ on:
 run-name: "Promote OCI image ${{ inputs.pending-repository }}:${{ inputs.pending-tag }}"
 
 jobs:
-  promote-image: 
+  promote-image:
     name: "Promote ${{ inputs.pending-repository }}"
     runs-on: ubuntu-latest
     steps:
@@ -80,17 +80,17 @@ jobs:
         uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
         with:
           driver: docker-container
-       
+
       - name: Assume AWS Promotion Role
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
-          aws-region:  us-west-2
+          aws-region: us-west-2
           role-to-assume: ${{ inputs.promotion-role-arn }}
           role-session-name: "gha-oci-image-promote-${{ github.run_number }}"
           # Promotion should take roughly a minute, so 15 mins gives us plenty
           # of leeway (and is the miminum value we can ask for).
           role-duration-seconds: 900
-     
+
       - name: Login to Pending ECR Registry
         uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20 # v3.1.0
         with:
@@ -109,12 +109,12 @@ jobs:
           TELEPORT_IMAGE_LIST_HASH=$(jq -r '.[0].critical.image."docker-manifest-digest"' validated-image.json)
           echo TELEPORT_IMAGE_LIST_HASH=$TELEPORT_IMAGE_LIST_HASH >> $GITHUB_ENV
 
-      # From this point we should only refer to the source image by digest rather 
-      # than by tag. Referring to an image by tag across multiple operations is 
+      # From this point we should only refer to the source image by digest rather
+      # than by tag. Referring to an image by tag across multiple operations is
       # racy, as someone could retag the image underneath us while we're busy.
       #
       # In practice, all of our `pending` repositories are ECR repos with tag
-      # immutability enabled so this shouldn't happen, but better to have 
+      # immutability enabled so this shouldn't happen, but better to have
       # defence in depth.
 
       - name: Login to Production ECR Registry

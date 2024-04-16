@@ -19,35 +19,12 @@ on:
           a standard Teleport release tag in the form vX.Y.Z.
         type: string
 
-      pending-bucket-name:
-        description: Name of the pending bucket holding the Debian package artifacts.
-        type: string
-        default: dronestorage.gravitational.io
-
-      pending-access-role-arn:
-        description: ARN of the role used to access the pending bucket, for downloading.
-        type: string
-        default: arn:aws:iam::126027368216:role/tf-teleport-oci-tag-build-gha
-
-      build-role-arn:
-        description: The ARN of the role used to sign and store the resulting image(s) in ECR.
-        type: string
-        default: arn:aws:iam::146628656107:role/teleport-oci-tag-build-gha
-
-      signing-key-url:
+      environment:
         description: |
-          URL of the KMS key used to sign the resulting images. Must be
-          readable from the role specified by `build-role-arn`.
+          GitHub Actions environment in which to run the build. Can be either
+          `build-stage` or `build-prod`.
         type: string
-        default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-pending-build-signing
-
-      dest-repo-prefix:
-        description: |
-          Registry and namespace prefix for the destination repository,
-          formatted for use with Docker (that is, like a URI, not the AWS
-          ARN).
-        type: string
-        default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
+        default: build-prod
 
       workflow-tag:
         description: Tag used to identify workflow runs spawned by this event.
@@ -64,21 +41,9 @@ on:
         required: true
       source-tag:
         type: string
-      pending-bucket-name:
+      environment:
         type: string
-        default: dronestorage.gravitational.io
-      pending-access-role-arn:
-        type: string
-        default: arn:aws:iam::126027368216:role/tf-teleport-oci-tag-build-gha
-      build-role-arn:
-        type: string
-        default: arn:aws:iam::146628656107:role/teleport-oci-tag-build-gha
-      signing-key-url:
-        type: string
-        default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-pending-build-signing
-      dest-repo-prefix:
-        type: string
-        default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
+        default: build-prod
       workflow-tag:
         type: string
 
@@ -149,20 +114,16 @@ jobs:
       base-image: ${{ matrix.base-image }}
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-      pending-bucket-name: ${{ inputs.pending-bucket-name }}
-      pending-access-role-arn: ${{ inputs.pending-access-role-arn }}
       source-tag: ${{ inputs.source-tag }}
       teleport-version: ${{ needs.configure.outputs.teleport_version }}
-      dest-image-registry: ${{ inputs.dest-repo-prefix }}
       dest-image-repo: teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}
       dest-image-tags: ${{ needs.configure.outputs.teleport_version }}
-      build-role-arn: ${{ inputs.build-role-arn }}
-      signing-key-url: ${{ inputs.signing-key-url }}
       architectures: ${{ matrix.architectures }}
       image-build-args: |
         TELEPORT_VERSION=${{ needs.configure.outputs.teleport_version }}
       image-build-dockerfile: Dockerfile-distroless${{ matrix.dockerfile-suffix }}
       allow-overwrites: false
+      environment: ${{ inputs.environment }}
     secrets:
       deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
       deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
@@ -195,6 +156,7 @@ jobs:
           - release: 'fips'
             arch: 'arm'
     name: "Smoke test ${{ matrix.arch }}/${{ matrix.release }}/${{ matrix.mode }}"
+    environment: ${{ inputs.environment }}
     steps:
       - name: Checkout Teleport
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
@@ -212,15 +174,15 @@ jobs:
       - name: Assume tag build AWS role
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
-          aws-region:  us-west-2
-          role-to-assume: ${{ inputs.build-role-arn }}
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.ECR_READ_ONLY_ROLE }}
           role-session-name: "gha-oci-image-build-${{ github.run_number }}-test"
           role-duration-seconds: 3600
 
       - name: Login to ECR
         uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20 # v3.1.0
         with:
-          registry: ${{ inputs.dest-repo-prefix }}
+          registry: ${{ vars.ECR_PENDING_REPO_BASE }}
 
       # NOTE: We're referring to the image by tag here, as there is no nice way
       #       to (de-)mux the outputs from a matrix job. The "pending" registry
@@ -228,7 +190,9 @@ jobs:
       #       that the tag referrs to the image built in the last step is the
       #       correct one
       - name: Smoke tests
+        env:
+          DESTINATION_REPO_PREFIX: ${{ vars.ECR_PENDING_REPO_BASE }}
         run: |
-          IMAGE_UNDER_TEST=${{ inputs.dest-repo-prefix}}/teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}:${{ needs.configure.outputs.teleport_version }}
+          IMAGE_UNDER_TEST=${DESTINATION_REPO_PREFIX}/teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}:${{ needs.configure.outputs.teleport_version }}
           ./run linux/${{ matrix.arch }} $IMAGE_UNDER_TEST ${{ matrix.release }}
         working-directory: ./teleport/build.assets/charts/smoke_tests
