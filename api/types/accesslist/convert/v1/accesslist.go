@@ -148,6 +148,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 			Name:             owner.Name,
 			Description:      owner.Description,
 			IneligibleStatus: ineligibleStatus,
+			Kind:             owner.Kind,
 		}
 	}
 
