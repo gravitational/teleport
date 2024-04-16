@@ -20,12 +20,24 @@ import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 
-import { app, dialog, globalShortcut, shell, nativeTheme } from 'electron';
+import {
+  app,
+  dialog,
+  globalShortcut,
+  shell,
+  nativeTheme,
+  Menu,
+  Tray,
+  nativeImage,
+} from 'electron';
 
 import { CUSTOM_PROTOCOL } from 'shared/deepLinks';
 
 import MainProcess from 'teleterm/mainProcess';
-import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
+import {
+  getRuntimeSettings,
+  getAssetPath,
+} from 'teleterm/mainProcess/runtimeSettings';
 import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandler';
 import { LoggerColor, createFileLoggerService } from 'teleterm/services/logger';
 import Logger from 'teleterm/logger';
@@ -188,7 +200,7 @@ function initializeApp(): void {
       }
 
       enableWebHandlersProtection();
-
+      addTray();
       windowsManager.createWindow();
     })
     .catch(error => {
@@ -420,4 +432,37 @@ function launchDeepLink(
   // Always pass the result to the frontend app so that the error can be shown to the user.
   // Otherwise the app would receive focus but nothing would be visible in the UI.
   windowsManager.launchDeepLink(result);
+}
+
+function addTray() {
+  const image = nativeImage.createFromPath(getAssetPath('iconTemplate.png'));
+  const resizedImage = image.resize({ width: 16 });
+  resizedImage.setTemplateImage(true);
+  const tray = new Tray(resizedImage);
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Item1',
+      type: 'separator',
+      click: () => {},
+    },
+    { label: 'Item2', type: 'radio' },
+    { label: 'Item3', type: 'checkbox', checked: true },
+    {
+      label: 'Item4',
+      submenu: [
+        {
+          label: 'Item1',
+          type: 'radio',
+          click: () => {},
+        },
+        { label: 'Item2', type: 'radio' },
+        {
+          type: 'separator',
+        },
+        { label: 'Item3', type: 'radio', checked: true },
+      ],
+    },
+  ]);
+
+  tray.setContextMenu(contextMenu);
 }
