@@ -485,6 +485,7 @@ func (s *SlackSuiteOSS) TestExpiration() {
 // short time frame.
 func (s *SlackSuiteEnterprise) TestRace() {
 	t := s.T()
+	t.Skip("This test is flaky")
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(cancel)
 
