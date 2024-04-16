@@ -3459,6 +3459,30 @@ export const events = [
     user: 'bot-test12',
     user_kind: 2,
   },
+  {
+    challenge_allow_reuse: false,
+    challenge_scope: 'CHALLENGE_SCOPE_LOGIN',
+    cluster_name: 'zarq',
+    code: 'T1015I',
+    ei: 0,
+    event: 'mfa_auth_challenge.create',
+    time: '2024-04-16T21:46:59.317Z',
+    uid: '815bbcf4-fb05-4e08-917c-7259e9332d69',
+    user: 'llama',
+    user_kind: 1,
+  },
+  {
+    challenge_allow_reuse: false,
+    challenge_scope: 'CHALLENGE_SCOPE_PASSWORDLESS_LOGIN',
+    cluster_name: 'zarq',
+    code: 'T1015I',
+    ei: 0,
+    event: 'mfa_auth_challenge.create',
+    time: '2024-04-16T21:47:20.69Z',
+    uid: 'e4946d15-3a6f-4f0a-b456-1704a7586572',
+    // user is missing for passwordless challenges.
+    user_kind: 1,
+  },
 ].map(makeEvent);
 
 // Do not add new events to this array, add it to `events` list.
