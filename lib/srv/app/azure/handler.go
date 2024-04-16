@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -128,6 +129,9 @@ func newAzureHandler(ctx context.Context, config HandlerConfig) (*handler, error
 
 // RoundTrip handles incoming requests and forwards them to the proper API.
 func (s *handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if req.Body != nil {
+		req.Body = io.NopCloser(io.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
+	}
 	if err := s.serveHTTP(w, req); err != nil {
 		s.formatForwardResponseError(w, req, err)
 		return
