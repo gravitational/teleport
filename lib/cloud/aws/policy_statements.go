@@ -137,6 +137,17 @@ func StatementForEC2InstanceConnectEndpoint() *Statement {
 	}
 }
 
+// StatementForAWSAppAccess returns the statement that allows AWS App Access.
+func StatementForAWSAppAccess() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"sts:AssumeRole",
+		},
+		Resources: allResources,
+	}
+}
+
 // StatementForEKSAccess returns the statement that allows enrolling of EKS clusters into Teleport.
 func StatementForEKSAccess() *Statement {
 	return &Statement{
