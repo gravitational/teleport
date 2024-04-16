@@ -441,25 +441,60 @@ function addTray() {
   const tray = new Tray(resizedImage);
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Item1',
-      type: 'separator',
-      click: () => {},
+      label: 'Profiles',
+      type: 'normal',
+      enabled: false,
     },
-    { label: 'Item2', type: 'radio' },
-    { label: 'Item3', type: 'checkbox', checked: true },
     {
-      label: 'Item4',
+      label: 'alice@teleport-ent-15.asteroid.earth',
+      type: 'radio',
+    },
+    { label: 'bob@platform.teleport.sh', type: 'radio', checked: true },
+    { label: 'sam@example.com', type: 'radio' },
+    { type: 'separator' },
+    {
+      label: 'Local proxies',
+      type: 'normal',
+      enabled: false,
+    },
+    {
+      label: 'dba@postgres (platform.teleport.sh)',
+      icon: nativeImage
+        .createFromNamedImage('NSImageNameStatusAvailable')
+        .resize({ width: 16 }),
+      type: 'submenu',
       submenu: [
-        {
-          label: 'Item1',
-          type: 'radio',
-          click: () => {},
-        },
-        { label: 'Item2', type: 'radio' },
-        {
-          type: 'separator',
-        },
-        { label: 'Item3', type: 'radio', checked: true },
+        { label: 'localhost:48219', type: 'normal', enabled: false },
+        { type: 'separator' },
+        { label: 'Copy address', type: 'normal' },
+        { label: 'Turn off' },
+      ],
+    },
+    {
+      label: 'grafana (teleport-ent-15.asteroid.earth)',
+      icon: nativeImage
+        .createFromNamedImage('NSImageNameStatusNone')
+        .resize({ width: 16 }),
+      type: 'submenu',
+      submenu: [
+        { label: 'localhost:51284', type: 'normal', enabled: false },
+        { type: 'separator' },
+        { label: 'Copy address', type: 'normal' },
+        { label: 'Turn off' },
+      ],
+    },
+    {
+      label: 'minikube (example.com)',
+
+      icon: nativeImage
+        .createFromNamedImage('NSImageNameStatusNone')
+        .resize({ width: 16 }),
+      type: 'submenu',
+      submenu: [
+        { label: 'localhost:11726', type: 'normal', enabled: false },
+        { type: 'separator' },
+        { label: 'Copy address', type: 'normal' },
+        { label: 'Turn off' },
       ],
     },
   ]);
