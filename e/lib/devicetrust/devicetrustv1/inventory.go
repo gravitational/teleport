@@ -6,7 +6,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	spb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc/codes"
@@ -19,7 +18,6 @@ import (
 )
 
 type inventorySyncer struct {
-	logger  *log.Entry
 	storage *storage.S
 
 	createCallback, updateCallback, noopCallback, deleteCallback func(dev *devicepb.Device, err error)

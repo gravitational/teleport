@@ -162,6 +162,7 @@ func addPlugins(cfg *servicecfg.Config, license *licensefile.LicenseFile) (webPl
 
 	if cfg.Auth.Enabled {
 		authPlugin, err = auth.NewPlugin(auth.Config{
+			Logger:           cfg.Logger,
 			License:          license,
 			HostedPlugins:    cfg.Auth.HostedPlugins,
 			AccessMonitoring: cfg.Auth.AccessMonitoring,

@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"log/slog"
 	"slices"
 	"sync"
 	"testing"
@@ -14,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/sync/errgroup"
 	statuspb "google.golang.org/genproto/googleapis/rpc/status"
@@ -64,6 +64,7 @@ type UsersService interface {
 
 // Params are creational params for [S].
 type Params struct {
+	Logger       *slog.Logger
 	Backend      backend.Backend
 	UsersService UsersService
 
@@ -74,7 +75,7 @@ type Params struct {
 
 // S implements the Device Trust storage, backed by a backend.Backend.
 type S struct {
-	logger     *log.Entry
+	logger     *slog.Logger
 	backend    backend.Backend
 	users      UsersService
 	bcryptCost int
@@ -97,8 +98,13 @@ func New(params Params) (*S, error) {
 		cost = params.BCryptCostOverride
 	}
 
+	baseLogger := params.Logger
+	if baseLogger == nil {
+		baseLogger = slog.Default()
+	}
+
 	return &S{
-		logger:     log.WithField(teleport.ComponentKey, "devicetrust.storage"),
+		logger:     baseLogger.With(teleport.ComponentKey, "devicetrust.storage"),
 		backend:    params.Backend,
 		users:      params.UsersService,
 		bcryptCost: cost,
@@ -341,11 +347,11 @@ func isDeviceProfileEmpty(p *devicepb.DeviceProfile) bool {
 }
 
 func (s *S) updateAssetTagIndex(ctx context.Context, assetTag string, ref *deviceRef) error {
-	logger := s.logger.WithFields(log.Fields{
-		"device_id": ref.DeviceID,
-		"os_type":   ref.OSType,
-		"asset_tag": assetTag,
-	})
+	logger := s.logger.With(
+		"device_id", ref.DeviceID,
+		"os_type", ref.OSType,
+		"asset_tag", assetTag,
+	)
 
 	assetTagKey := devicesByAssetTagKey(assetTag)
 	var lastErr error
@@ -357,17 +363,27 @@ func (s *S) updateAssetTagIndex(ctx context.Context, assetTag string, ref *devic
 		case trace.IsNotFound(getErr): // New asset tag
 			retry, lastErr = s.createDeviceRef(ctx, assetTagKey, ref)
 			if lastErr != nil {
-				logger.WithError(lastErr).Debug("Failed to write new asset tag mapping, retrying")
+				logger.DebugContext(ctx,
+					"Failed to write new asset tag mapping, retrying",
+					"error", lastErr,
+				)
 			}
 
 		case getErr == nil: // Existing asset tag
 			retry, lastErr = s.appendDeviceRef(ctx, current, ref)
 			if lastErr != nil {
-				logger.WithError(lastErr).Debug("Failed to append to asset tag mapping, retrying")
+				logger.DebugContext(ctx,
+					"Failed to append to asset tag mapping, retrying",
+					"error", lastErr,
+				)
 			}
 
 		default: // getErr != nil
-			logger.WithError(getErr).Warn("Unexpected error reading asset tag mapping, retrying")
+			logger.WarnContext(ctx,
+				"Unexpected error reading asset tag mapping, retrying",
+				"error", getErr,
+			)
+
 			retry = true
 			lastErr = getErr
 		}
@@ -420,11 +436,12 @@ func (s *S) appendDeviceRef(ctx context.Context, current *backend.Item, ref *dev
 
 			// We either found a hanging mapping or there is a race on CreateDevice.
 			// Let both tags be, admins can clear duplicate devices manually.
-			s.logger.WithFields(log.Fields{
-				"asset_tag":   deviceIDFromKey(current.Key),
-				"existing_id": existing.DeviceID,
-				"new_id":      ref.DeviceID,
-			}).Warn("Found possible duplicate on asset tag mapping")
+			s.logger.WarnContext(ctx,
+				"Found possible duplicate on asset tag mapping",
+				"asset_tag", deviceIDFromKey(current.Key),
+				"existing_id", existing.DeviceID,
+				"new_id", ref.DeviceID,
+			)
 		}
 	}
 	refs.Devices = append(refs.Devices, ref)
@@ -685,28 +702,37 @@ func (s *S) deleteDevice(ctx context.Context, dev *deviceToDelete) error {
 		return trace.Wrap(err)
 	}
 
-	logger := func() log.FieldLogger {
-		return s.logger.WithFields(log.Fields{
-			"device_id": dev.ID,
-			"asset_tag": dev.AssetTag,
-		})
+	logger := func() *slog.Logger {
+		return s.logger.With(
+			"device_id", dev.ID,
+			"asset_tag", dev.AssetTag,
+		)
 	}
 
 	// Remove asset tag mapping.
 	if err := s.removeFromAssetTagIndex(ctx, dev.ID, dev.AssetTag); err != nil {
-		logger().WithError(err).Warn("Failed to remove asset tag mapping for device")
+		logger().WarnContext(ctx,
+			"Failed to remove asset tag mapping for device",
+			"error", err,
+		)
 		// err swallowed on purpose.
 	}
 
 	// Remove enroll token, if present.
 	if err := s.backend.Delete(ctx, deviceTokenKey(dev.ID)); err != nil && !trace.IsNotFound(err) {
-		logger().WithError(err).Warn("Failed to remove enroll token for device")
+		logger().WarnContext(ctx,
+			"Failed to remove enroll token for device",
+			"error", err,
+		)
 		// err swallowed on purpose.
 	}
 
 	// Remove collected data.
 	if err := s.deleteCollectedData(ctx, dev.ID); err != nil {
-		logger().WithError(err).Warn("Failed to remove collected data for device")
+		logger().WarnContext(ctx,
+			"Failed to remove collected data for device",
+			"error", err,
+		)
 		// err swallowed on purpose.
 	}
 
@@ -800,10 +826,11 @@ func (s *S) GetDeviceByID(ctx context.Context, deviceID string) (*devicepb.Devic
 	// Add collected data to it.
 	resp := <-cdC
 	if resp.err != nil {
-		s.logger.
-			WithError(err).
-			WithField("DeviceID", deviceID).
-			Warn("Failed to fetch collected data for device")
+		s.logger.WarnContext(ctx,
+			"Failed to fetch collected data for device",
+			"error", err,
+			"device_id", deviceID,
+		)
 		// err swallowed on purpose, in keeping with legacy behavior
 	}
 	dev.CollectedData = resp.cd // Always safe to do.
@@ -1036,9 +1063,11 @@ func (s *S) ListDevices(ctx context.Context, pageSize int, pageToken string, vie
 		if err := json.Unmarshal(item.Value, stored); err != nil {
 			// Be resilient against JSON failures, otherwise it's impossible to list
 			// any devices.
-			s.logger.
-				WithError(err).
-				Errorf("Failed to unmarshal device %q, stored value may be invalid or corrupted", item.Key)
+			s.logger.ErrorContext(ctx,
+				"Failed to unmarshal device, stored value may be invalid or corrupted",
+				"error", err,
+				"key", string(item.Key),
+			)
 			continue
 		}
 		devices = append(devices, storedToDeviceView(deviceID, stored, view))
@@ -1064,10 +1093,11 @@ func (s *S) ListDevices(ctx context.Context, pageSize int, pageToken string, vie
 			g.Go(func() error {
 				cd, err := s.getDeviceCollectedData(ctx, dev.Id)
 				if err != nil {
-					s.logger.
-						WithError(err).
-						WithField("device_id", dev.Id).
-						Warn("Failed to fetch collected data for device")
+					s.logger.WarnContext(ctx,
+						"Failed to fetch collected data for device",
+						"error", err,
+						"device_id", dev.Id,
+					)
 					return nil // err swallowed on purpose
 				}
 
@@ -1157,16 +1187,16 @@ func (s *S) EnrollDevice(
 	// A newly-enrolled device is a blank slate.
 	cdKeyStart := collectedDataKeyStart(dev.Id)
 	if err := s.backend.DeleteRange(ctx, cdKeyStart, backend.RangeEnd(cdKeyStart)); err != nil {
-		s.logger.
-			WithFields(log.Fields{
-				"device_id": dev.Id,
-				"asset_tag": dev.AssetTag,
-			}).
-			WithError(err).
-			Warn("" +
-				"Failed to clear device collected data during enrollment. " +
-				"This could lead to difficulties in device authentication, if that happens try enrolling the device again. " +
-				"Proceeding.")
+		const msg = "" +
+			"Failed to clear device collected data during enrollment. " +
+			"This could lead to difficulties in device authentication, if that happens try enrolling the device again. " +
+			"Proceeding."
+		s.logger.WarnContext(ctx,
+			msg,
+			"error", err,
+			"device_id", dev.Id,
+			"asset_tag", dev.AssetTag,
+		)
 	}
 
 	// Marshal and write collected data.
@@ -1221,14 +1251,13 @@ func (s *S) EnrollDevice(
 	// Since enrollment already happened, any errors here are swallowed.
 	// The service layer will redo the assignment if this fails.
 	if err := s.assignDeviceToUser(ctx, owner, deviceID); err != nil {
-		s.logger.
-			WithError(err).
-			WithFields(log.Fields{
-				"device_id": deviceID,
-				"asset_tag": dev.AssetTag,
-				"user":      owner,
-			}).
-			Warn("Failed to assign device to user")
+		s.logger.WarnContext(ctx,
+			"Failed to assign device to user",
+			"error", err,
+			"device_id", deviceID,
+			"asset_tag", dev.AssetTag,
+			"user", owner,
+		)
 		// err swallowed on purpose.
 	}
 
@@ -1273,15 +1302,14 @@ func (s *S) validateCollectedDataDrift(ctx context.Context, dev *devicepb.Device
 // validateCollectedDataDriftQueried runs data drift validation on `cd` using an
 // already queried slice of collected data.
 // It can do some nice logging using `dev` too.
-func validateCollectedDataDriftQueried(logger *log.Entry, dev *devicepb.Device, stored []*devicepb.DeviceCollectedData, cd *devicepb.DeviceCollectedData) error {
+func validateCollectedDataDriftQueried(logger *slog.Logger, dev *devicepb.Device, stored []*devicepb.DeviceCollectedData, cd *devicepb.DeviceCollectedData) error {
 	l := len(stored)
 	if l == 0 {
-		logger.
-			WithFields(log.Fields{
-				"device_id": dev.Id,
-				"asset_tag": dev.AssetTag,
-			}).
-			Warn("Found no collected data entries for device. Skipping collected data drift validation.")
+		logger.WarnContext(context.Background(),
+			"Found no collected data entries for device. Skipping collected data drift validation.",
+			"device_id", dev.Id,
+			"asset_tag", dev.AssetTag,
+		)
 		return nil
 	}
 
@@ -1324,10 +1352,11 @@ func (s *S) recordCollectedData(ctx context.Context, deviceID string, cd *device
 	}
 
 	if err := s.clearCollectedDataIfNeeded(ctx, deviceID); err != nil {
-		s.logger.
-			WithError(err).
-			WithField("device_id", deviceID).
-			Warn("Failed to clear collected data for device")
+		s.logger.WarnContext(ctx,
+			"Failed to clear collected data for device",
+			"error", err,
+			"device_id", deviceID,
+		)
 		// err swallowed on purpose, new data is already written.
 	}
 
@@ -1696,9 +1725,10 @@ func (s *S) SpendDeviceWebToken(
 	// Prepare the confirmation token.
 	confirmToken, err := createDeviceToken()
 	if err != nil {
-		s.logger.
-			WithError(err).
-			Warn("Failed to issue DeviceConfirmationToken, deleting authentication attempt")
+		s.logger.WarnContext(ctx,
+			"Failed to issue DeviceConfirmationToken, deleting authentication attempt",
+			"error", err,
+		)
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -1823,10 +1853,11 @@ func (s *S) getWebAuthnAttempt(
 
 	silentDeleteAttempt := func() {
 		if err := s.backend.Delete(ctx, key); err != nil {
-			s.logger.
-				WithError(err).
-				WithField("AttemptID", attemptID).
-				Warn("Failed to delete device authentication attempt")
+			s.logger.WarnContext(ctx,
+				"Failed to delete device authentication attempt",
+				"error", err,
+				"attempt_id", attemptID,
+			)
 			// err swallowed on purpose.
 		}
 	}

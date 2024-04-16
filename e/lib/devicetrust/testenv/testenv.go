@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"net"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -181,9 +182,14 @@ func New(opts ...Opt) (*E, error) {
 	}
 	e.closers = append(e.closers, mem.Close)
 
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelError + 1, // Silence logging for tests.
+	}))
+
 	e.AccessService = local.NewAccessService(mem)
 	e.IdentityService = local.NewIdentityService(mem)
 	dtStorage, err := storage.New(storage.Params{
+		Logger:             logger,
 		Backend:            mem,
 		UsersService:       e.IdentityService,
 		BCryptCostOverride: bcrypt.MinCost,
@@ -191,9 +197,6 @@ func New(opts ...Opt) (*E, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	logger := log.New()
-	logger.SetLevel(log.PanicLevel) // Silence logging for tests.
 
 	authServer := &fakeAuthServer{
 		augmentFunc:            e.augmentCertsFunc,

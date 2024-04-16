@@ -5,9 +5,9 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	_ "crypto/sha256" // imported for crypto.SHA256
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/challenge"
@@ -16,7 +16,7 @@ import (
 )
 
 type enrollCeremony struct {
-	logger           *log.Entry
+	logger           *slog.Logger
 	storage          *storage.S
 	auditCallback    func(d *devicepb.Device, err error)
 	ekCertAllowedCAs []string
@@ -148,20 +148,20 @@ func (c *enrollCeremony) enrollDeviceMacOS(
 	// Enclave keys are always ECDSA, P-256.
 	// Let's make sure the key is ECDSA and its length is sufficient, but leaving
 	// some margin for the future.
+	ctx := stream.Context()
 	switch ecKey, ok := pubKey.(*ecdsa.PublicKey); {
 	case !ok:
 		return nil, trace.BadParameter("unexpected public key type: %T", pubKey)
 	case ecKey.Curve == elliptic.P224():
 		return nil, trace.BadParameter("public key length too small, expected P-256")
 	case ecKey.Curve != elliptic.P256():
-		c.logger.
-			WithFields(log.Fields{
-				"device_id":     dev.Id,
-				"asset_tag":     dev.AssetTag,
-				"credential_id": cred.Id,
-				"curve":         ecKey.Curve,
-			}).
-			Warn("Unexpected macOS public key curve found, is the device genuine?")
+		c.logger.WarnContext(ctx,
+			"Unexpected macOS public key curve found, is the device genuine?",
+			"device_id", dev.Id,
+			"asset_tag", dev.AssetTag,
+			"credential_id", cred.Id,
+			"curve", ecKey.Curve,
+		)
 		// TODO(codingllama): Forbid unexpected macOS key curve?
 	}
 
@@ -193,7 +193,10 @@ func (c *enrollCeremony) enrollDeviceMacOS(
 		return nil, trace.BadParameter("signature required")
 	}
 	if err := challenge.Verify(chal, chalResp.Signature, pubKey, crypto.SHA256); err != nil {
-		c.logger.WithError(err).Debug("EnrollDevice: signature verification failed")
+		c.logger.DebugContext(ctx,
+			"EnrollDevice: signature verification failed",
+			"error", err,
+		)
 		return nil, trace.BadParameter("signature verification failed")
 	}
 

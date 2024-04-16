@@ -3,6 +3,7 @@ package devicetrustv1
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -134,7 +134,7 @@ type RateLimiter interface {
 type Service struct {
 	devicepb.UnimplementedDeviceTrustServiceServer
 
-	logger *log.Entry
+	logger *slog.Logger
 
 	authServer  AuthServer
 	authorizer  authz.Authorizer
@@ -151,7 +151,7 @@ type Service struct {
 
 // ServiceParams holds creation parameters for Service.
 type ServiceParams struct {
-	Logger              log.FieldLogger
+	Logger              *slog.Logger
 	AuthServer          AuthServer
 	Authorizer          authz.Authorizer
 	CachedAccessService AccessService
@@ -194,7 +194,7 @@ func New(params ServiceParams) (*Service, error) {
 
 	baseLogger := params.Logger
 	if baseLogger == nil {
-		baseLogger = log.StandardLogger()
+		baseLogger = slog.Default()
 	}
 
 	rateLimiter := params.Limiter
@@ -217,7 +217,7 @@ func New(params ServiceParams) (*Service, error) {
 	}
 
 	return &Service{
-		logger:      baseLogger.WithField(teleport.ComponentKey, "devicetrust.service"),
+		logger:      baseLogger.With(teleport.ComponentKey, "devicetrust.service"),
 		authServer:  params.AuthServer,
 		authorizer:  params.Authorizer,
 		cachedRoles: params.CachedAccessService,
@@ -275,9 +275,10 @@ func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRe
 			UserMetadata: getUserMetadata(ctx),
 		})
 		if err != nil {
-			s.logger.
-				WithError(err).
-				Warn("Failed to create device enrollment token, returning device without it")
+			s.logger.WarnContext(ctx,
+				"Failed to create device enrollment token, returning device without it",
+				"error", err,
+			)
 		} else {
 			dev.EnrollToken = token
 		}
@@ -662,14 +663,13 @@ func (s *Service) redactTokenErr(dev *devicepb.Device, user string, checkErr, ac
 	if checkErr != nil {
 		// Reply with checkErr instead of err, so we don't relay information about
 		// what might be wrong with the collected data.
-		s.logger.
-			WithError(actualErr).
-			WithFields(log.Fields{
-				"User":     user,
-				"DeviceID": dev.GetId(),
-				"AssetTag": dev.GetAssetTag(),
-			}).
-			Warn("Attempt to issue device enrollment token via auto-enroll denied")
+		s.logger.WarnContext(context.Background(),
+			"Attempt to issue device enrollment token via auto-enroll denied",
+			"error", actualErr,
+			"user", user,
+			"device_id", dev.GetId(),
+			"asset_tag", dev.GetAssetTag(),
+		)
 		return trace.Wrap(checkErr)
 	}
 
@@ -683,17 +683,17 @@ func (s *Service) redactTokenErr(dev *devicepb.Device, user string, checkErr, ac
 
 func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceServer) (err error) {
 	start := time.Now()
+	ctx := stream.Context()
 	defer func() {
 		if err != nil {
 			if errors.Is(err, storage.ErrEnrolledDeviceLimit) {
 				s.emitDeviceLimitEvent(prehogv1alpha.LicenseLimit_LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE)
 			}
-			s.logger.
-				WithFields(log.Fields{
-					"code":  status.Code(trail.ToGRPC(err)),
-					"error": err.Error(),
-				}).
-				Debug("EnrollDevice stream exited with error")
+			s.logger.DebugContext(ctx,
+				"EnrollDevice stream exited with error",
+				"error", err,
+				"code", status.Code(trail.ToGRPC(err)),
+			)
 		}
 
 		enrollHist.
@@ -704,7 +704,6 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 	var dev *devicepb.Device
 	defer func() { err = s.redactDataDriftErr(dev, err) }()
 
-	ctx := stream.Context()
 	authCtx, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbEnroll)
 	if err != nil {
 		return trace.Wrap(err)
@@ -762,14 +761,14 @@ var authnDisabledLogOnce sync.Once
 
 func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_AuthenticateDeviceServer) (err error) {
 	start := time.Now()
+	ctx := stream.Context()
 	defer func() {
 		if err != nil {
-			s.logger.
-				WithFields(log.Fields{
-					"code":  status.Code(trail.ToGRPC(err)),
-					"error": err.Error(),
-				}).
-				Debug("AuthenticateDevice stream exited with error")
+			s.logger.DebugContext(ctx,
+				"AuthenticateDevice stream exited with error",
+				"error", err,
+				"code", status.Code(trail.ToGRPC(err)),
+			)
 		}
 
 		authnHist.
@@ -782,7 +781,6 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 
 	// Authenticate the user, but do not perform any additional authorization
 	// checks. Any user may authenticate devices.
-	ctx := stream.Context()
 	authCtx, err := s.authorize(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -795,7 +793,7 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 	}
 	if err := s.isDeviceAuthnAllowed(authPref.GetDeviceTrust(), authCtx.Checker.Roles()); err != nil {
 		authnDisabledLogOnce.Do(func() {
-			s.logger.Warn("Device authentication attempted, but device trust is disabled by cluster settings")
+			s.logger.WarnContext(ctx, "Device authentication attempted, but device trust is disabled by cluster settings")
 		})
 		return trace.Wrap(err)
 	}
@@ -917,9 +915,10 @@ func (s *Service) confirmDeviceWebAuthentication(
 ) (*storage.DeviceConfirmationTokenData, *devicepb.Device, error) {
 	tokenData, err := s.storage.SpendDeviceConfirmationToken(ctx, req.ConfirmationToken)
 	if err != nil {
-		s.logger.
-			WithError(err).
-			Debug("Failed to spend device confirmation token")
+		s.logger.DebugContext(ctx,
+			"Failed to spend device confirmation token",
+			"error", err,
+		)
 		// err swallowed on purpose.
 		return tokenData, nil, auditStatusError{
 			Err:         trace.Wrap(errInvalidDeviceConfirmationToken),
@@ -937,9 +936,10 @@ func (s *Service) confirmDeviceWebAuthentication(
 
 	sourceIP, err := getSourceIPFromContext(ctx)
 	if err != nil {
-		s.logger.
-			WithError(err).
-			Debug("Failed to get source IP from context")
+		s.logger.DebugContext(ctx,
+			"Failed to get source IP from context",
+			"error", err,
+		)
 		// err swallowed on purpose.
 		return tokenData, nil, trace.Wrap(errInvalidDeviceConfirmationToken)
 	}
@@ -964,9 +964,10 @@ func (s *Service) confirmDeviceWebAuthentication(
 			CredentialID: dev.Credential.Id,
 		},
 	}); err != nil {
-		s.logger.
-			WithError(err).
-			Debug("Failed to augment WebSession certificates")
+		s.logger.DebugContext(ctx,
+			"Failed to augment WebSession certificates",
+			"error", err,
+		)
 		return tokenData, dev, auditStatusError{
 			Err:         trace.Wrap(err),
 			UserMessage: "failed to issue device web certificates",
@@ -1027,7 +1028,6 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 	}
 
 	syncer := &inventorySyncer{
-		logger:  s.logger,
 		storage: s.storage,
 		createCallback: func(dev *devicepb.Device, err error) {
 			incCounter("create", err)
@@ -1092,7 +1092,7 @@ var createWebTokenDisabledLogOnce sync.Once
 func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
 	if !deviceWebAuthnEnabled {
 		createWebTokenDisabledLogOnce.Do(func() {
-			s.logger.Warn("Attempt to create DeviceWebToken ignored, the feature is disabled by code")
+			s.logger.WarnContext(ctx, "Attempt to create DeviceWebToken ignored, the feature is disabled by code")
 		})
 		return nil, nil
 	}
@@ -1138,10 +1138,11 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 		return nil, trace.Wrap(err)
 	case err != nil:
 		// Some reads failed.
-		s.logger.
-			WithError(err).
-			WithField("user", token.User).
-			Warn("Failed to read all user trusted devices")
+		s.logger.WarnContext(ctx,
+			"Failed to read all user trusted devices",
+			"error", err,
+			"user", token.User,
+		)
 		// err swallowed on purpose, at least one read succeeded.
 	case len(userDevices) == 0:
 		// User has no trusted devices.
@@ -1167,12 +1168,11 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 		}
 	}
 	if len(deviceIDs) == 0 {
-		s.logger.
-			WithFields(log.Fields{
-				"os":   expectedOS,
-				"user": token.User,
-			}).
-			Debug("User has no suitable trusted device for Web authentication")
+		s.logger.DebugContext(ctx,
+			"User has no suitable trusted device for Web authentication",
+			"os", expectedOS,
+			"user", token.User,
+		)
 		return nil, nil // User has no suitable trusted devices.
 	}
 
@@ -1277,17 +1277,12 @@ func (s *Service) redactDataDriftErr(dev *devicepb.Device, err error) error {
 		return err
 	}
 
-	var fields log.Fields
-	if dev != nil {
-		fields = log.Fields{
-			"device_id": dev.Id,
-			"asset_tag": dev.AssetTag,
-		}
-	}
-	s.logger.
-		WithError(err).
-		WithFields(fields).
-		Warn("Collected data drift detected")
+	s.logger.WarnContext(context.Background(),
+		"Collected data drift detected",
+		"error", err,
+		"device_id", dev.GetId(),
+		"asset_tag", dev.GetAssetTag(),
+	)
 	return trace.AccessDenied(DataDriftDetectedMessage)
 }
 
@@ -1328,15 +1323,14 @@ func (s *Service) authorize(ctx context.Context) (*authz.Context, error) {
 func (s *Service) emitAuditEvent(ctx context.Context, e apievents.AuditEvent) {
 	if err := s.emitter.EmitAuditEvent(ctx, e); err != nil {
 		um := getUserMetadata(ctx)
-		s.logger.
-			WithError(err).
-			WithFields(log.Fields{
-				"type":         e.GetType(),
-				"code":         e.GetCode(),
-				"user":         um.User,
-				"impersonator": um.Impersonator,
-			}).
-			Warn("Failed to emit audit event")
+		s.logger.WarnContext(ctx,
+			"Failed to emit audit event",
+			"error", err,
+			"type", e.GetType(),
+			"code", e.GetCode(),
+			"user", um.User,
+			"impersonator", um.Impersonator,
+		)
 	}
 }
 

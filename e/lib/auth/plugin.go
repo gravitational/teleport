@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -74,6 +75,8 @@ var ErrLicenseExpired = trace.AccessDenied("Teleport Enterprise license expired"
 
 // Config is a configuration of the web plugin
 type Config struct {
+	Logger *slog.Logger
+
 	// License holds the license under which the Teleport instance is running.
 	License License
 
@@ -86,24 +89,27 @@ type Config struct {
 	AccessGraph servicecfg.AccessGraphConfig
 }
 
-// CheckAndSetDefaults checks and sets the defaults
-func (c *Config) CheckAndSetDefaults() error {
-	return nil
-}
-
 // NewPlugin creates an instance of the Enterprise Web Plugin
 func NewPlugin(cfg Config) (*Plugin, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+	logger := cfg.Logger
+	if logger == nil {
+		logger = slog.Default()
 	}
+
 	return &Plugin{
 		Config: cfg,
+		logger: logger,
 	}, nil
 }
 
 // Plugin extends OSS auth server API with enterprise features
 type Plugin struct {
 	Config
+
+	// logger to be used by plugin and subsystems initialized by it.
+	// Guaranteed to be non-nil after NewPlugin.
+	logger *slog.Logger
+
 	// authServer is the authServer passed into RegisterAuthServices on
 	// startup.
 	authServer *auth.GRPCServer
@@ -178,7 +184,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 		plugin: p,
 	})
 
-	deviceService, err := registerDeviceTrustService(gRPCServer, p.authServer)
+	deviceService, err := registerDeviceTrustService(p.logger, gRPCServer, p.authServer)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -501,9 +507,10 @@ func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC 
 	return nil
 }
 
-func registerDeviceTrustService(s *grpc.Server, authGRPC *auth.GRPCServer) (*devicetrustv1.Service, error) {
+func registerDeviceTrustService(logger *slog.Logger, s *grpc.Server, authGRPC *auth.GRPCServer) (*devicetrustv1.Service, error) {
 	authServer := authGRPC.AuthServer
 	deviceStorage, err := dtstorage.New(dtstorage.Params{
+		Logger:       logger,
 		Backend:      authGRPC.GetBackend(),
 		UsersService: authServer.Services,
 	})
@@ -512,6 +519,7 @@ func registerDeviceTrustService(s *grpc.Server, authGRPC *auth.GRPCServer) (*dev
 	}
 
 	deviceService, err := devicetrustv1.New(devicetrustv1.ServiceParams{
+		Logger:              logger,
 		AuthServer:          authServer,
 		Authorizer:          authGRPC.Authorizer,
 		CachedAccessService: authServer.Cache,

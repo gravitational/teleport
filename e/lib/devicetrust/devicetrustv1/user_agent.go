@@ -1,23 +1,22 @@
 package devicetrustv1
 
 import (
+	"context"
+	"log/slog"
 	"strings"
-
-	log "github.com/sirupsen/logrus"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
 
 // loggedGetOSFromUserAgent debug-logs the result of [getOSFromUserAgent] before
 // returning it.
-func loggedGetOSFromUserAgent(logger log.FieldLogger, ua string) devicepb.OSType {
+func loggedGetOSFromUserAgent(logger *slog.Logger, ua string) devicepb.OSType {
 	os := getOSFromUserAgent(ua)
-	logger.
-		WithFields(log.Fields{
-			"OS":        os,
-			"UserAgent": ua,
-		}).
-		Debug("Mapped user agent to OS")
+	logger.DebugContext(context.Background(),
+		"Mapped user agent to OS",
+		"os", os,
+		"user_agent", ua,
+	)
 	return os
 }
 

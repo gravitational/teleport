@@ -1,15 +1,16 @@
 package devicetrustv1
 
 import (
+	"context"
 	"crypto"
 	"crypto/x509"
 	"encoding/asn1"
+	"log/slog"
 	"math/big"
 	"strings"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
@@ -33,11 +34,12 @@ func (c *enrollCeremony) enrollDeviceTPM(
 	dev *devicepb.Device,
 	stream devicepb.DeviceTrustService_EnrollDeviceServer,
 ) (*devicepb.DeviceCredential, error) {
-	logger := c.logger.WithFields(log.Fields{
-		"device_id":     dev.Id,
-		"asset_tag":     dev.AssetTag,
-		"credential_id": initReq.CredentialId,
-	})
+	ctx := stream.Context()
+	logger := c.logger.With(
+		"device_id", dev.Id,
+		"asset_tag", dev.AssetTag,
+		"credential_id", initReq.CredentialId,
+	)
 	// Validate provided request includes the correct fields.
 	switch {
 	case initReq.Tpm == nil:
@@ -57,7 +59,7 @@ func (c *enrollCeremony) enrollDeviceTPM(
 		return nil, trace.Wrap(err)
 	}
 
-	logger.Debug("Validated EK submitted by client")
+	logger.DebugContext(ctx, "Validated EK submitted by client")
 
 	// Next we initiate the two challenges:
 	// - Credential Activation
@@ -80,7 +82,7 @@ func (c *enrollCeremony) enrollDeviceTPM(
 		return nil, trace.Wrap(err)
 	}
 
-	logger.Debug("Sending enrollment challenge")
+	logger.DebugContext(ctx, "Sending enrollment challenge")
 	// Send the two challenges to the client and wait for a response
 	// containing the Credential Activation solution and the Platform
 	// Attestation
@@ -100,7 +102,7 @@ func (c *enrollCeremony) enrollDeviceTPM(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	logger.Debug("Received enrollment challenge response")
+	logger.DebugContext(ctx, "Received enrollment challenge response")
 
 	// Validate the challenge response
 	chalResp := resp.GetTpmChallengeResponse()
@@ -113,14 +115,20 @@ func (c *enrollCeremony) enrollDeviceTPM(
 	// Use the values sent by the client in the challenge response to finish
 	// the credential activation and platform attestation challenges
 	if err := finishCredentialActivation(chalResp.Solution); err != nil {
-		logger.WithError(err).Debug("TPM credential activation failed verification")
+		logger.DebugContext(ctx,
+			"TPM credential activation failed verification",
+			"error", err,
+		)
 		return nil, trace.BadParameter("credential activation verification failed")
 	}
 	platformAttestation, err := finishPlatformAttestation(
 		dtoss.PlatformParametersFromProto(chalResp.PlatformParameters),
 	)
 	if err != nil {
-		logger.WithError(err).Debug("TPM platform attestation failed verification")
+		logger.DebugContext(ctx,
+			"TPM platform attestation failed verification",
+			"error", err,
+		)
 		return nil, trace.BadParameter("platform attestation verification failed")
 	}
 	// Persist platform attestation record in collected data.
@@ -153,7 +161,7 @@ var sanExtensionOID = []int{2, 5, 29, 17}
 // It ensures the certificate is signed by a CA on the allow-list if the list
 // is non-empty.
 func parseAndValidateEK(
-	logger log.FieldLogger,
+	logger *slog.Logger,
 	tpm *devicepb.TPMEnrollPayload,
 	allowedCAs []string,
 ) (
@@ -213,9 +221,10 @@ func parseAndValidateEK(
 		var exts []asn1.ObjectIdentifier
 		for _, ext := range ekCert.UnhandledCriticalExtensions {
 			if ext.Equal(sanExtensionOID) {
-				logger.
-					WithField("oid", ext.String()).
-					Debug("Ignoring unhandled critical extension in EKCert.")
+				logger.DebugContext(context.Background(),
+					"Ignoring unhandled critical extension in EKCert",
+					"oid", ext,
+				)
 				continue
 			}
 			exts = append(exts, ext)

@@ -10,6 +10,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -4441,8 +4443,13 @@ func newEnv(opts ...opt) (*storageEnv, error) {
 		return nil, err
 	}
 
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelError + 1, // Silence logging for tests.
+	}))
+
 	env.IdentityService = local.NewIdentityService(env.mem)
 	env.S, err = storage.New(storage.Params{
+		Logger:             logger,
 		Backend:            env.mem,
 		UsersService:       env.IdentityService,
 		BCryptCostOverride: bcrypt.MinCost,
