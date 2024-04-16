@@ -18,6 +18,7 @@ import (
 	"context"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
@@ -52,4 +53,24 @@ func DefaultProvider() oteltrace.TracerProvider {
 // [oteltrace.TracerProvider] with the provided name.
 func NewTracer(name string) oteltrace.Tracer {
 	return DefaultProvider().Tracer(name)
+}
+
+// EndSpan ends the given span and if an error has occurred, set's the span's
+// status to error and additionally records the error.
+//
+// Example usage:
+//
+//	func myFunc() (err error) {
+//	  ctx, span := tracer.NewSpan(ctx, "myFunc")
+//	  defer func() {
+//	    tracing.EndSpan(span, err)
+//	  }()
+//	  ...
+//	}
+func EndSpan(span oteltrace.Span, err error) {
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+	}
+	span.End()
 }
