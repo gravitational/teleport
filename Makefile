@@ -1182,9 +1182,22 @@ update-tag:
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
 	git push $(TAG_REMOTE) $(GITTAG) && git push $(TAG_REMOTE) api/$(GITTAG)
 
-# HAS_CLOUD_SEMVER is non-empty if $(VERSION) contains a cloud-only pre-release tag,
+# find-any evaluates to non-empty (true) if any of the strings in $(1) are contained in $(2)
+# e.g.
+#   $(call find-any,-cloud -dev,1.2.3-dev.1) == true
+#   $(call find-any,-cloud -dev,1.2.3-cloud.1) == true
+#   $(call find-any,-cloud -dev,1.2.3) == false
+find-any = $(strip $(foreach str,$(1),$(findstring $(str),$(2))))
+
+# IS_CLOUD_SEMVER is non-empty if $(VERSION) contains a cloud-only pre-release tag,
 # and is empty if not.
-HAS_CLOUD_SEMVER = $(findstring -cloud.,$(VERSION))$(findstring -dev.cloud.,$(VERSION))
+CLOUD_VERSIONS = -cloud. -dev.cloud.
+IS_CLOUD_SEMVER = $(call find-any,$(CLOUD_VERSIONS),$(VERSION))
+
+# IS_PROD_SEMVER is non-empty if $(VERSION) does not contains a pre-release component, or
+# if it does, it is -(cloud|alpha|beta|rc).
+PROD_VERSIONS = -cloud. -alpha. -beta. -rc.
+IS_PROD_SEMVER = $(if $(findstring -,$(VERSION)),$(call find-any,$(PROD_VERSIONS),$(VERSION)),true)
 
 # Builds a tag build on GitHub Actions.
 # Starts a tag publish run using e/.github/workflows/tag-build.yaml
@@ -1193,7 +1206,8 @@ HAS_CLOUD_SEMVER = $(findstring -cloud.,$(VERSION))$(findstring -dev.cloud.,$(VE
 # -dev.cloud., then the tag-build workflow is run with `cloud-only=true`. This can be
 # specified explicitly with `make tag-build CLOUD_ONLY=<true|false>`.
 .PHONY: tag-build
-tag-build: CLOUD_ONLY = $(if $(HAS_CLOUD_SEMVER),true,false)
+tag-build: CLOUD_ONLY = $(if $(IS_CLOUD_SEMVER),true,false)
+tag-build: ENVIRONMENT = $(if $(IS_PROD_SEMVER),build-prod,build-stage)
 tag-build:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-build.yaml \
@@ -1201,7 +1215,8 @@ tag-build:
 		--ref "v$(VERSION)" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
 		-f "oss-teleport-ref=v$(VERSION)" \
-		-f "cloud-only=$(CLOUD_ONLY)"
+		-f "cloud-only=$(CLOUD_ONLY)" \
+		-f "environment=$(ENVIRONMENT)"
 	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-build.yaml
 
 # Publishes a tag build.
@@ -1211,7 +1226,8 @@ tag-build:
 # -dev.cloud., then the tag-publish workflow is run with `cloud-only=true`. This can be
 # specified explicitly with `make tag-publish CLOUD_ONLY=<true|false>`.
 .PHONY: tag-publish
-tag-publish: CLOUD_ONLY = $(if $(HAS_CLOUD_SEMVER),true,false)
+tag-publish: CLOUD_ONLY = $(if $(IS_CLOUD_SEMVER),true,false)
+tag-publish: ENVIRONMENT = $(if $(IS_PROD_SEMVER),publish-prod,publish-stage)
 tag-publish:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-publish.yaml \
@@ -1219,7 +1235,8 @@ tag-publish:
 		--ref "v$(VERSION)" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
 		-f "oss-teleport-ref=v$(VERSION)" \
-		-f "cloud-only=$(CLOUD_ONLY)"
+		-f "cloud-only=$(CLOUD_ONLY)" \
+		-f "environment=$(ENVIRONMENT)"
 	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-publish.yaml
 
 .PHONY: test-package
