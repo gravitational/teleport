@@ -20,9 +20,7 @@ package log
 
 import (
 	"log/slog"
-	"strings"
 
-	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
 
@@ -53,27 +51,4 @@ func SlogLevelToLogrusLevel(level slog.Level) logrus.Level {
 	default:
 		return logrus.FatalLevel
 	}
-}
-
-// UnmarshalText unmarshals log level text representation to slog.Level.
-func UnmarshalText(data []byte) (slog.Level, error) {
-	if strings.EqualFold(string(data), TraceLevelText) {
-		return TraceLevel, nil
-	}
-
-	var level slog.Level
-	if err := level.UnmarshalText(data); err != nil {
-		return level, trace.Wrap(err)
-	}
-
-	return level, nil
-}
-
-// MarshalText marshals log level to its text representation.
-func MarshalText(level slog.Level) string {
-	if level == TraceLevel {
-		return TraceLevelText
-	}
-
-	return level.String()
 }

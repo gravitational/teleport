@@ -22,8 +22,10 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/pprof"
+	"strings"
 
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/trace"
 )
 
 // LogLeveler defines a struct that can retrieve and set log levels.
@@ -54,7 +56,7 @@ func handleGetLog(logger *slog.Logger, leveler LogLeveler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		level := leveler.GetLogLevel()
 		logger.InfoContext(r.Context(), "Log level requested", "log_level", level)
-		w.Write([]byte(logutils.MarshalText(level)))
+		w.Write([]byte(marshalLogLevel(level)))
 	}
 }
 
@@ -69,7 +71,7 @@ func handleSetLog(logger *slog.Logger, leveler LogLeveler) http.HandlerFunc {
 			return
 		}
 
-		level, err := logutils.UnmarshalText(rawLevel)
+		level, err := unmarshalLogLevel(rawLevel)
 		if err != nil {
 			logger.WarnContext(r.Context(), "Failed to parse log level", "error", err)
 			w.WriteHeader(http.StatusUnprocessableEntity)
@@ -106,4 +108,27 @@ func pprofMiddleware(logger *slog.Logger, profile string, next http.HandlerFunc)
 
 		next(w, r)
 	}
+}
+
+// unmarshalLogLevel unmarshals log level text representation to slog.Level.
+func unmarshalLogLevel(data []byte) (slog.Level, error) {
+	if strings.EqualFold(string(data), logutils.TraceLevelText) {
+		return logutils.TraceLevel, nil
+	}
+
+	var level slog.Level
+	if err := level.UnmarshalText(data); err != nil {
+		return level, trace.Wrap(err)
+	}
+
+	return level, nil
+}
+
+// marshalLogLevel marshals log level to its text representation.
+func marshalLogLevel(level slog.Level) string {
+	if level == logutils.TraceLevel {
+		return logutils.TraceLevelText
+	}
+
+	return level.String()
 }
