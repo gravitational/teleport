@@ -1173,6 +1173,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	workloadIdentityCmd := newSVIDCommands(app)
 
+	systrayCmd := newSystrayCommand(app)
+
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
@@ -1535,6 +1537,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onHeadlessApprove(&cf)
 	case workloadIdentityCmd.issue.FullCommand():
 		err = workloadIdentityCmd.issue.run(&cf)
+	case systrayCmd.FullCommand():
+		err = systrayCmd.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {

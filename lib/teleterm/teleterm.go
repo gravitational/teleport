@@ -20,7 +20,6 @@ package teleterm
 
 import (
 	"context"
-	"github.com/getlantern/systray"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -83,10 +82,6 @@ func Serve(ctx context.Context, cfg Config) error {
 		serverAPIWait <- err
 	}()
 
-	go func() {
-		systray.Run(systrayOnReady, func() {})
-	}()
-
 	// Wait for shutdown signals
 	go func() {
 		shutdownSignals := []os.Signal{os.Interrupt, syscall.SIGTERM}
@@ -102,7 +97,6 @@ func Serve(ctx context.Context, cfg Config) error {
 
 		daemonService.Stop()
 		apiServer.Stop()
-		systray.Quit()
 	}()
 
 	errAPI := <-serverAPIWait

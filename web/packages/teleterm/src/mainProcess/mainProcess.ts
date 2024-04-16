@@ -90,6 +90,7 @@ export default class MainProcess {
   private tshdProcessLastLogs: KeepLastChunks<string>;
   private sharedProcess: ChildProcess;
   private sharedProcessLastLogs: KeepLastChunks<string>;
+  private systrayProcess: ChildProcess;
   private appStateFileStorage: FileStorage;
   private configFileStorage: FileStorage;
   private resolvedChildProcessAddresses: Promise<ChildProcessAddresses>;
@@ -142,6 +143,7 @@ export default class MainProcess {
         this.gracefullyKillTshdProcess();
       }),
       terminateWithTimeout(this.sharedProcess),
+      terminateWithTimeout(this.systrayProcess),
       this.agentRunner.killAll(),
     ]);
   }
@@ -153,6 +155,7 @@ export default class MainProcess {
       this.initTshd();
       this.initSharedProcess();
       this.initResolvingChildProcessAddresses();
+      this.initSystray();
       this.initIpc();
     } catch (err) {
       this.logger.error('Failed to start main process: ', err.message);
@@ -166,6 +169,29 @@ export default class MainProcess {
       runtimeSettings: this.settings,
       tshdAddress,
     });
+  }
+
+  private async initSystray() {
+    const { binaryPath } = this.settings.tshd;
+
+    this.systrayProcess = spawn(binaryPath, ['systray'], {
+      stdio: 'pipe',
+      windowsHide: true,
+      env: {
+        ...process.env,
+      },
+    });
+
+    this.logProcessExitAndError('systray', this.systrayProcess);
+    const loggerService = createFileLoggerService({
+      dev: this.settings.dev,
+      dir: this.settings.logsDir,
+      name: SYSTRAY_LOGGER_NAME,
+      loggerNameColor: LoggerColor.Cyan,
+      passThroughMode: true,
+    });
+
+    loggerService.pipeProcessOutputIntoLogger(this.systrayProcess);
   }
 
   private initTshd() {
@@ -594,6 +620,7 @@ export default class MainProcess {
 
 const TSHD_LOGGER_NAME = 'tshd';
 const SHARED_PROCESS_LOGGER_NAME = 'shared';
+const SYSTRAY_LOGGER_NAME = 'systray';
 const DOCS_URL = 'https://goteleport.com/docs/use-teleport/teleport-connect/';
 
 function openDocsUrl() {
