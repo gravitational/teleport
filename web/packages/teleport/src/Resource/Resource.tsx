@@ -16,11 +16,55 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { useParams } from 'react-router';
+import React, { useEffect, useState } from 'react';
+import { useParams, useHistory } from 'react-router';
+import { Link } from 'react-router-dom';
+import { mapResourceToViewItem } from 'shared/components/UnifiedResources/shared/viewItemsFactory';
+
+import { ArrowBack } from 'design/Icon';
+
+import useAttempt from 'shared/hooks/useAttemptNext';
+
+import { useTeleport } from 'teleport';
+import { FeatureBox } from 'teleport/components/Layout';
+import { UnifiedResource } from 'teleport/services/agents';
+import { ResourceInfo } from './ResourceInfo';
+import Indicator from 'design/Indicator';
 
 export function Resource() {
-  const { resourceId } = useParams<{ clusterId: string; resourceId: string }>();
+  const { resourceId, clusterId } = useParams<{
+    clusterId: string;
+    resourceId: string;
+  }>();
+  // const history = useHistory();
 
-  return <>resource id: {resourceId}</>;
+  const ctx = useTeleport();
+
+  const [resource, setResource] = useState<UnifiedResource>();
+
+  const { attempt: fetchResourceAttempt, run: runFetchResource } = useAttempt();
+
+  useEffect(() => {
+    runFetchResource(() =>
+      ctx.resourceService
+        .fetchUnifiedResources(clusterId, {
+          query: `resource.metadata.name == "${resourceId}"`,
+          sort: {
+            fieldName: 'name',
+            dir: 'ASC',
+          },
+          limit: 1,
+        })
+        .then(res => setResource(res.agents[0]))
+    );
+  }, []);
+
+  return (
+    <FeatureBox>
+      {fetchResourceAttempt.status === 'processing' && <Indicator />}
+      {fetchResourceAttempt.status === 'success' && (
+        <ResourceInfo resource={resource} />
+      )}
+    </FeatureBox>
+  );
 }

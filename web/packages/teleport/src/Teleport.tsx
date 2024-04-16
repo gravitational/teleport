@@ -159,7 +159,6 @@ export function getSharedPrivateRoutes() {
       path={cfg.routes.headlessSso}
       component={HeadlessRequest}
     />,
-    <Route key="resource" path={cfg.routes.resource} component={Resource} />,
   ];
 }
 

@@ -31,6 +31,9 @@ import { HoverTooltip } from 'shared/components/ToolTip';
 import { ResourceItemProps } from '../types';
 import { PinButton } from '../shared/PinButton';
 import { CopyButton } from '../shared/CopyButton';
+import { Link } from 'react-router-dom';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+import cfg from 'teleport/config';
 
 export function ResourceListItem({
   name,
@@ -46,8 +49,11 @@ export function ResourceListItem({
   selectResource,
   selected,
   expandAllLabels,
+  id,
 }: Omit<ResourceItemProps, 'cardViewProps'>) {
   const { description, resourceType, addr } = listViewProps;
+
+  const { clusterId } = useStickyClusterId();
 
   const [showLabels, setShowLabels] = useState(expandAllLabels);
   const [hovered, setHovered] = useState(false);
@@ -128,7 +134,9 @@ export function ResourceListItem({
             `}
           >
             <HoverTooltip tipContent={name} showOnlyOnOverflow>
-              <Name>{name}</Name>
+              <Name as={Link} to={cfg.getResourceRoute(clusterId, id)}>
+                {name}
+              </Name>
             </HoverTooltip>
             <HoverTooltip tipContent={description} showOnlyOnOverflow>
               <Description>{description}</Description>
@@ -324,6 +332,9 @@ const Name = styled(Text)`
   white-space: nowrap;
   line-height: 20px;
   font-weight: 300;
+
+  color: inherit;
+  text-decoration: none;
 `;
 
 const Description = styled(Text)`
