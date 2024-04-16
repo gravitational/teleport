@@ -31,6 +31,9 @@ import { HoverTooltip } from 'shared/components/ToolTip';
 import { ResourceItemProps } from '../types';
 import { PinButton } from '../shared/PinButton';
 import { CopyButton } from '../shared/CopyButton';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+import { Link } from 'react-router-dom';
+import cfg from 'teleport/config';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
@@ -61,8 +64,11 @@ export function ResourceCard({
   pinResource,
   selectResource,
   selected,
+  id,
 }: Omit<ResourceItemProps, 'listViewProps' | 'expandAllLabels'>) {
   const { primaryDesc, secondaryDesc } = cardViewProps;
+
+  const { clusterId } = useStickyClusterId();
 
   const [showMoreLabelsButton, setShowMoreLabelsButton] = useState(false);
   const [showAllLabels, setShowAllLabels] = useState(false);
@@ -198,7 +204,13 @@ export function ResourceCard({
             <Flex flexDirection="row" alignItems="center">
               <SingleLineBox flex="1">
                 <HoverTooltip tipContent={name} showOnlyOnOverflow>
-                  <Text typography="h5" fontWeight={300}>
+                  <Text
+                    typography="h5"
+                    fontWeight={300}
+                    as={Link}
+                    to={cfg.getResourceRoute(clusterId, id)}
+                    style={{ color: 'inherit', textDecoration: 'none' }}
+                  >
                     {name}
                   </Text>
                 </HoverTooltip>

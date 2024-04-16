@@ -18,6 +18,8 @@
 
 import React, { useState } from 'react';
 
+import { MemoryRouter } from 'react-router';
+
 import { ButtonBorder } from 'design';
 
 import { apps } from 'teleport/Apps/fixtures';
@@ -105,45 +107,47 @@ const story = ({
       fetchFunc,
     });
     return (
-      <UnifiedResources
-        availableKinds={[
-          {
-            kind: 'app',
-            disabled: false,
-          },
-          {
-            kind: 'db',
-            disabled: false,
-          },
-          {
-            kind: 'node',
-            disabled: false,
-          },
-          {
-            kind: 'kube_cluster',
-            disabled: false,
-          },
-          {
-            kind: 'windows_desktop',
-            disabled: false,
-          },
-        ]}
-        params={mergedParams}
-        setParams={() => undefined}
-        pinning={pinning}
-        unifiedResourcePreferences={userPrefs}
-        updateUnifiedResourcesPreferences={setUserPrefs}
-        NoResources={undefined}
-        fetchResources={fetch}
-        resourcesFetchAttempt={attempt}
-        resources={resources.map(resource => ({
-          resource,
-          ui: {
-            ActionButton: <ButtonBorder size="small">Connect</ButtonBorder>,
-          },
-        }))}
-        {...props}
-      />
+      <MemoryRouter>
+        <UnifiedResources
+          availableKinds={[
+            {
+              kind: 'app',
+              disabled: false,
+            },
+            {
+              kind: 'db',
+              disabled: false,
+            },
+            {
+              kind: 'node',
+              disabled: false,
+            },
+            {
+              kind: 'kube_cluster',
+              disabled: false,
+            },
+            {
+              kind: 'windows_desktop',
+              disabled: false,
+            },
+          ]}
+          params={mergedParams}
+          setParams={() => undefined}
+          pinning={pinning}
+          unifiedResourcePreferences={userPrefs}
+          updateUnifiedResourcesPreferences={setUserPrefs}
+          NoResources={undefined}
+          fetchResources={fetch}
+          resourcesFetchAttempt={attempt}
+          resources={resources.map(resource => ({
+            resource,
+            ui: {
+              ActionButton: <ButtonBorder size="small">Connect</ButtonBorder>,
+            },
+          }))}
+          {...props}
+        />
+      </MemoryRouter>
     );
   };
 };

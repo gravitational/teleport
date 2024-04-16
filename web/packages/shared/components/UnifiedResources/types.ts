@@ -109,6 +109,7 @@ export type UnifiedResourcesQueryParams = {
 };
 export interface UnifiedResourceViewItem {
   name: string;
+  id?: string;
   labels: {
     name: string;
     value: string;
@@ -135,6 +136,7 @@ export enum PinningSupport {
 
 export type ResourceItemProps = {
   name: string;
+  id?: string;
   primaryIconName: ResourceIconName;
   SecondaryIcon: typeof Icon;
   cardViewProps: CardViewSpecificProps;

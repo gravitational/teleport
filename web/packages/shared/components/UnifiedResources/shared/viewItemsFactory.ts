@@ -49,6 +49,7 @@ export function makeUnifiedResourceViewItemNode(
 
   return {
     name: resource.hostname,
+    id: resource.id,
     SecondaryIcon: ServerIcon,
     primaryIconName: 'Server',
     ActionButton: ui.ActionButton,
@@ -70,6 +71,7 @@ export function makeUnifiedResourceViewItemDatabase(
 ): UnifiedResourceViewItem {
   return {
     name: resource.name,
+    id: resource.name,
     SecondaryIcon: DatabaseIcon,
     primaryIconName: getDatabaseIconName(resource.protocol),
     ActionButton: ui.ActionButton,
@@ -91,6 +93,7 @@ export function makeUnifiedResourceViewItemKube(
 ): UnifiedResourceViewItem {
   return {
     name: resource.name,
+    id: resource.name,
     SecondaryIcon: KubernetesIcon,
     primaryIconName: 'Kube',
     ActionButton: ui.ActionButton,
@@ -110,6 +113,7 @@ export function makeUnifiedResourceViewItemApp(
 ): UnifiedResourceViewItem {
   return {
     name: resource.friendlyName || resource.name,
+    id: resource.name,
     SecondaryIcon: ApplicationIcon,
     primaryIconName: guessAppIcon(resource),
     ActionButton: ui.ActionButton,
@@ -132,6 +136,7 @@ export function makeUnifiedResourceViewItemDesktop(
 ): UnifiedResourceViewItem {
   return {
     name: resource.name,
+    id: resource.name,
     SecondaryIcon: DesktopIcon,
     primaryIconName: 'Windows',
     ActionButton: ui.ActionButton,
@@ -153,6 +158,7 @@ export function makeUnifiedResourceViewItemUserGroup(
 ): UnifiedResourceViewItem {
   return {
     name: resource.friendlyName || resource.name,
+    id: resource.name,
     SecondaryIcon: ServerIcon,
     primaryIconName: 'Server',
     ActionButton: ui.ActionButton,
@@ -164,7 +170,7 @@ export function makeUnifiedResourceViewItemUserGroup(
   };
 }
 
-function formatNodeSubKind(subKind: NodeSubKind): string {
+export function formatNodeSubKind(subKind: NodeSubKind): string {
   switch (subKind) {
     case 'openssh-ec2-ice':
     case 'openssh':
@@ -177,7 +183,7 @@ function formatNodeSubKind(subKind: NodeSubKind): string {
 
 type GuessedAppType = 'Grafana' | 'Slack' | 'Jenkins' | 'Application' | 'Aws';
 
-function guessAppIcon(app: UnifiedResourceApp): GuessedAppType {
+export function guessAppIcon(app: UnifiedResourceApp): GuessedAppType {
   const { name, labels, friendlyName, awsConsole = false } = app;
 
   if (awsConsole) {

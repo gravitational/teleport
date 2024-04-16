@@ -32,14 +32,16 @@ export default function useStickyClusterId(): StickyCluster {
     isLeafCluster: false,
   });
 
-  const match = useRouteMatch<{ clusterId: string }>(cfg.routes.cluster);
-  const clusterId = match?.params?.clusterId;
-  if (clusterId) {
-    stickyCluster.current.clusterId = clusterId;
-    stickyCluster.current.isLeafCluster = clusterId !== cfg.proxyCluster;
-  }
-
-  stickyCluster.current.hasClusterUrl = !!clusterId;
-
   return stickyCluster.current;
+
+  // const match = useRouteMatch<{ clusterId: string }>(cfg.routes.cluster);
+  // const clusterId = match?.params?.clusterId;
+  // if (clusterId) {
+  //   stickyCluster.current.clusterId = clusterId;
+  //   stickyCluster.current.isLeafCluster = clusterId !== cfg.proxyCluster;
+  // }
+
+  // stickyCluster.current.hasClusterUrl = !!clusterId;
+
+  // return stickyCluster.current;
 }

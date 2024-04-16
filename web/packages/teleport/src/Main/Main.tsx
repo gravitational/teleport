@@ -111,7 +111,6 @@ export function Main(props: MainProps) {
         exact: f.route.exact ?? false,
       })
     );
-
   const { alerts, dismissAlert } = useAlerts(props.initialAlerts);
 
   const [showOnboardDiscover, setShowOnboardDiscover] = useState(true);

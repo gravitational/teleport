@@ -45,6 +45,7 @@ export function ListView({
         <ResourceListItem
           key={key}
           name={item.name}
+          id={item.id}
           ActionButton={item.ActionButton}
           primaryIconName={item.primaryIconName}
           onLabelClick={onLabelClick}

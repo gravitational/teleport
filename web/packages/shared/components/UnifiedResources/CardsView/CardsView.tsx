@@ -47,6 +47,7 @@ export function CardsView({
         <ResourceCard
           key={key}
           name={item.name}
+          id={item.id}
           ActionButton={item.ActionButton}
           primaryIconName={item.primaryIconName}
           onLabelClick={onLabelClick}

@@ -70,6 +70,7 @@ import { Bots } from './Bots';
 import { AddBots } from './Bots/Add';
 
 import type { FeatureFlags, TeleportFeature } from './types';
+import { Resource } from './Resource';
 
 class AccessRequests implements TeleportFeature {
   category = NavigationCategory.Resources;
