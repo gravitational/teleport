@@ -186,8 +186,8 @@ func (s *TerraformSuite) TestImportRole() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(s.T(), state[0].Attributes["kind"], "role")
-					require.Equal(s.T(), state[0].Attributes["metadata.name"], "test_import")
+					require.Equal(s.T(), "role", state[0].Attributes["kind"])
+					require.Equal(s.T(), "test_import", state[0].Attributes["metadata.name"])
 
 					return nil
 				},
@@ -252,6 +252,7 @@ func (s *TerraformSuite) TestRoleLoginsSplitBrain() {
 }
 
 func (s *TerraformSuite) TestRoleVersionUpgrade() {
+	s.T().Skip("Test temporarily disabled until v16")
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -259,7 +260,6 @@ func (s *TerraformSuite) TestRoleVersionUpgrade() {
 	// We tried to fix this bug in v15 but it was too aggressive (forcing replacement is too destructive).
 	// In v16 we'll push a new plan modifier to fix this issue, this might be a
 	// breaking change for users who relied on the bug.
-	s.T().Skip("Test temporarily disabled until v16")
 	checkDestroyed := func(state *terraform.State) error {
 		_, err := s.client.GetRole(ctx, "upgrade")
 		if trace.IsNotFound(err) {
