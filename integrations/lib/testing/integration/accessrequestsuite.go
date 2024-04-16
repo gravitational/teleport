@@ -21,6 +21,7 @@ package integration
 import (
 	"context"
 	"strings"
+	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -383,5 +384,11 @@ func (s *AccessRequestSuite) AnnotateRequesterRoleAccessRequests(ctx context.Con
 		role.SetAccessRequestConditions(types.Allow, conditions)
 		_, err = adminClient.UpdateRole(ctx, role)
 		require.NoError(t, err)
+	}
+}
+
+func (s *AccessRequestSuite) RequireAdvancedWorkflow(t *testing.T) {
+	if !s.TeleportFeatures().GetAdvancedAccessWorkflows() {
+		require.Fail(t, "This test requires AdvancedAccessWorkflows (Teleport enterprise)")
 	}
 }

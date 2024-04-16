@@ -353,9 +353,9 @@ spec:
                       properties:
                         description:
                           type: string
-                        ekcert_serial:
+                        ek_certificate_serial:
                           type: string
-                        ekpub_hash:
+                        ek_public_hash:
                           type: string
                       type: object
                     nullable: true

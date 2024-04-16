@@ -16,7 +16,8 @@ Kubernetes application auto-discovery consists of two parts:
 
 The Discovery Service running in a Kubernetes cluster will periodically list services and filter them out
 according to the matchers specified in `kubernetes` filed of the service config. You can filter services based on
-types, namespaces and service labels. All services by default currently 
+types, namespaces and service labels. Services running in the `kube-system` and `kube-public` namespaces are
+ automatically ignored. All services by default currently
 are considered of an "app" type, but it can be changed for a service by Kubernetes annotation [`teleport.dev/discovery-type`](./reference.mdx#teleportdevdiscovery-type).
 If type of a service doesn't equal the one specified in the matcher, service is ignored.
 
