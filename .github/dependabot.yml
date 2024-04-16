@@ -139,6 +139,8 @@ updates:
       - dependency-name: github.com/hashicorp/terraform-plugin-framework
       # breaks compatibility
       - dependency-name: github.com/hashicorp/terraform-plugin-go
+      # breaks compatibility
+      - dependency-name: github.com/hashicorp/terraform-plugin-sdk/v2
     open-pull-requests-limit: 20
     groups:
       go:
