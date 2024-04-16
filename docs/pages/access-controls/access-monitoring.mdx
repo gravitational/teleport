@@ -15,6 +15,12 @@ or database sessions without MFA) and provides users with recommendations on sug
 
 Users are able to write their own custom access monitoring queries by querying the audit log.
 
+<Admonition type="notice">
+  Access Monitoring is not currently supported with External Audit Storage
+  in Teleport Cloud. A upcoming version will support Access Monitoring in
+  that configuration.
+</Admonition>
+
 ## Prerequisites
 - Teleport v14 or later.
 - For self-hosted Teleport the [AWS Athena Backend](../reference/backends.mdx#athena) is required.
