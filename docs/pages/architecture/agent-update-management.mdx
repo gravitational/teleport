@@ -176,6 +176,16 @@ $ zypper install --repo="teleport" "teleport-ent-<target-version>"
 $ zypper addlock "teleport-ent"
 ```
 
+## Updating the updater
+
+The updater is designed to be minimal and relatively stable, but the updater will
+receive updates on occasion. Currently, the updater does not have the capability
+to update itself. Updates to the `teleport-ent-updater` package must be done manually.
+
+The `teleport-ent-updater` will be backwards compatible with older versions of Teleport,
+so you can alwasy update the `teleport-ent-updater` package to the latest available
+version.
+
 ## Next steps
 
 Self-hosted users must first [set up self-hosted automatic agent upgrades
