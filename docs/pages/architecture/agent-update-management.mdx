@@ -85,6 +85,97 @@ ensuring the targeted version is compatible with their current auth/proxy
 versions. They must also monitor the agent's health and rollout status to
 ensure every agent is healthy and running the correct version.
 
+## Teleport updater package
+
+Teleport supports an APT and YUM repository. This is where the `teleport` (oss) and
+`teleport-ent` (enterprise) packages can be found. The updater is also now available
+in the Teleport repository under the `teleport-ent-updater` package. The `teleport-ent-updater`
+package provides a `teleport-upgrade` tool that is capable of identifying the latest
+compatible Teleport agent version and performing an update of the Teleport agent.
+On installation, a systemd service named `teleport-upgrade.service` is also enabled
+that periodically checks for an available update, and applies an update when able.
+
+The `teleport-upgrade` tool provides some basic commands to verify and perform an
+update of the Teleport agent.
+
+```code
+$ teleport-upgrade help
+USAGE: /usr/sbin/teleport-upgrade <command>
+
+Tool for automatic upgrades of Teleport agents.
+
+Commands:
+  run           check for and potentially apply a teleport upgrade.
+  dry-run       check for new teleport version but do not upgrade.
+  version       print the current version of /usr/sbin/teleport-upgrade.
+  help          show this help text.
+```
+
+The `dry-run` command can be used to check for an available update without performing
+an update.
+```code
+# Example output when teleport is already on the latest compatible version.
+$ teleport-upgrade dry-run
+[i] no upgrades available (14.3.14 == 14.3.14) [ 582 ]
+
+# Example output when an update is available.
+$ teleport-upgrade dry-run
+[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
+[i] within maintenance window, upgrade will be attempted. [ 596 ]
+```
+
+The `run` command performs an update if available.
+```code
+# Successful teleport update from 13.4.14 to 14.3.14.
+$ teleport-upgrade run
+[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
+[i] within maintenance window, upgrade will be attempted. [ 596 ]
+[i] attempting apt install teleport-ent=14.3.14... [ 480 ]
+[...]
+[i] gracefully restarting Teleport (if already running) [ 449 ]
+
+# Teleport updates are not attempted when outside the maintenance window.
+$ teleport-upgrade run
+[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
+[i] upgrade is non-critical and we are outside of maintenance window, not attempting. [ 618 ]
+```
+
+## Version locking
+
+Due to the fact that Teleport has strict [version compatibility requirements](../faq.mdx#which-version-of-teleport-is-supported),
+the updater requires full control over the version of Teleport. As of Teleport
+`15.1.10+`, a version locking mechanism is supported by the updater. This mechanism
+locks the version of Teleport and prevents manual updates of the Teleport package.
+This prevents unintentinal updates during routine system maintenance, or an accidental
+update by a user. The updater still has the capability to update the Teleport package,
+and all updates of Teleport are expected to be performed by the updater.
+
+### Bypass version lock
+
+The version locking mechanism is implemented using the features of the package managers.
+In case a user would like to manually update the Teleport version, this can be done
+with the following commands.
+
+With the APT package manager CLI, the `--allow-change-held-packages` flag must be provided
+to bypass the version lock.
+```code
+$ apt-get install --allow-change-held-packages "teleport-ent=<target-version>"
+```
+
+With the YUM package manager CLI, the `--disableexcludes="teleport"` flag must be provided
+to bypass the version lock.
+```code
+$ yum install --disablerepo="*" --enablerepo="teleport" --disableexcludes="teleport" "teleport-ent-<target-version>"
+```
+
+With the ZYPPER package manager CLI, the lock must be disabled and then re-enabled
+after the update.
+```code
+$ zypper removelock "teleport-ent"
+$ zypper install --repo="teleport" "teleport-ent-<target-version>"
+$ zypper addlock "teleport-ent"
+```
+
 ## Next steps
 
 Self-hosted users must first [set up self-hosted automatic agent upgrades
