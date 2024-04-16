@@ -61,6 +61,12 @@ type Spec struct {
 }
 
 // Equal checks if the discovery config is equal to another.
+// Deprecated: use IsEqual.
+func (m *DiscoveryConfig) Equal(n *DiscoveryConfig) bool {
+	return m.IsEqual(n)
+}
+
+// IsEqual checks if the discovery config is equal to another.
 func (m *DiscoveryConfig) IsEqual(n *DiscoveryConfig) bool {
 	return deriveTeleportEqualDiscoveryConfig(m, n)
 }
