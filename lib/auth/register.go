@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -195,7 +196,12 @@ type HostCredentials func(context.Context, string, bool, types.RegisterUsingToke
 // different hosts than the auth server. This method requires provisioning
 // tokens to prove a valid auth server was used to issue the joining request
 // as well as a method for the node to validate the auth server.
-func Register(ctx context.Context, params RegisterParams) (*proto.Certs, error) {
+func Register(ctx context.Context, params RegisterParams) (certs *proto.Certs, err error) {
+	ctx, span := tracer.Start(ctx, "Register")
+	defer func() {
+		tracing.EndSpan(span, err)
+	}()
+
 	if err := params.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -319,8 +325,11 @@ func registerThroughProxy(
 	ctx context.Context,
 	token string,
 	params RegisterParams,
-) (*proto.Certs, error) {
-	var certs *proto.Certs
+) (certs *proto.Certs, err error) {
+	ctx, span := tracer.Start(ctx, "registerThroughProxy")
+	defer func() {
+		tracing.EndSpan(span, err)
+	}()
 
 	switch params.JoinMethod {
 	case types.JoinMethodIAM, types.JoinMethodAzure:
@@ -379,10 +388,13 @@ func getHostAddresses(params RegisterParams) []string {
 // registerThroughAuth is used to register through the auth server.
 func registerThroughAuth(
 	ctx context.Context, token string, params RegisterParams,
-) (*proto.Certs, error) {
-	var client *Client
-	var err error
+) (certs *proto.Certs, err error) {
+	ctx, span := tracer.Start(ctx, "registerThroughAuth")
+	defer func() {
+		tracing.EndSpan(span, err)
+	}()
 
+	var client *Client
 	// Build a client for the Auth Server with different certificate validation
 	// depending on the configured values for Insecure, CAPins and CAPath.
 	switch {
@@ -406,7 +418,6 @@ func registerThroughAuth(
 	}
 	defer client.Close()
 
-	var certs *proto.Certs
 	switch params.JoinMethod {
 	// IAM and Azure methods use unique gRPC endpoints
 	case types.JoinMethodIAM:

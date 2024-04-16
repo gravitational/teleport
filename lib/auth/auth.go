@@ -53,6 +53,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/maps"
@@ -150,6 +151,8 @@ const (
 		"This is not recommended due to the volatitily of dynamic/ labels and is not allowed for new roles. " +
 		"(hint: use 'tctl get roles' to find roles that need updating)"
 )
+
+var tracer = otel.Tracer("github.com/gravitational/teleport/lib/auth")
 
 var ErrRequiresEnterprise = services.ErrRequiresEnterprise
 
