@@ -73,7 +73,10 @@ spec:
     record_session:
       # Specify whether or not to record the user's desktop sessions.
       # Desktop session recording is enabled if one or more of the user's
-      # roles has enabled recording. Defaults to true if unspecified.
+      # roles has enabled recording. Supported values are `true` (enables
+      # recording) and `false` (turns off recording). Defaults to `true` if
+      # unspecified.
+      #
       # Desktop sessions will never be recorded if auth_service.session_recording
       # is set to 'off' in teleport.yaml (Auth Service) or if the cluster's
       # session_recording_config resource has set 'mode: off'.

@@ -212,6 +212,7 @@ Modes only take effect if session recording is enabled at the cluster-level.
 Modes specify whether the session is recorded and how Teleport handles recording
 failures, such as a full disk error. They are configured per service at the role
 level, where the strictest value takes precedence. The available modes are:
+`off`, `best_effort` and `strict`.
 
 To turn off the recordings *all* user's roles must set the value to `off`.
 Otherwise, the strictest value will be used.
