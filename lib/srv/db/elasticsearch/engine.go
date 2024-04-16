@@ -160,7 +160,7 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *h
 	if req.Body != nil {
 		// make sure we close the incoming request's body. ignore any close error.
 		defer req.Body.Close()
-		req.Body = io.NopCloser(io.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
+		req.Body = io.NopCloser(utils.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
 	}
 	payload, err := utils.GetAndReplaceRequestBody(req)
 	if err != nil {

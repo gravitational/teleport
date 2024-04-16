@@ -152,3 +152,27 @@ func ChainHTTPMiddlewares(handler http.Handler, middlewares ...HTTPMiddleware) h
 func NoopHTTPMiddleware(next http.Handler) http.Handler {
 	return next
 }
+
+// MaxBytesReader returns an [io.ReadCloser] that wraps an [http.MaxBytesReader]
+// to act as a shim for converting from [http.MaxBytesError] to
+// [ErrLimitReached].
+func MaxBytesReader(w http.ResponseWriter, r io.ReadCloser, n int64) io.ReadCloser {
+	return &maxBytesReader{ReadCloser: http.MaxBytesReader(w, r, n)}
+}
+
+// maxBytesReader wraps an [http.MaxBytesReader] and converts any
+// [http.MaxBytesError] to [ErrLimitReached].
+type maxBytesReader struct {
+	io.ReadCloser
+}
+
+func (m *maxBytesReader) Read(p []byte) (int, error) {
+	n, err := m.ReadCloser.Read(p)
+
+	// convert [http.MaxBytesError] to our limit error.
+	var mbErr *http.MaxBytesError
+	if errors.As(err, &mbErr) {
+		return n, ErrLimitReached
+	}
+	return n, err
+}

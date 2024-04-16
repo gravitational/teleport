@@ -194,7 +194,7 @@ func (e *Engine) process(ctx context.Context, tr *http.Transport, signer *libaws
 	if req.Body != nil {
 		// make sure we close the incoming request's body. ignore any close error.
 		defer req.Body.Close()
-		req.Body = io.NopCloser(io.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
+		req.Body = io.NopCloser(utils.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
 	}
 	reqCopy, payload, err := e.rewriteRequest(ctx, req)
 	if err != nil {

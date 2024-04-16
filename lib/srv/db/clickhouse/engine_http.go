@@ -71,7 +71,7 @@ func (e *Engine) handleRequest(req *http.Request, sessionCtx *common.Session, tr
 		// we have to close the request body since [http.Server] didn't serve it
 		// up for us.
 		defer req.Body.Close()
-		req.Body = io.NopCloser(io.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
+		req.Body = io.NopCloser(utils.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
 	}
 	query, err := getQuery(req)
 	if err != nil {

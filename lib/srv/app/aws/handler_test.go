@@ -103,20 +103,28 @@ func dynamoRequestWithTransport(url string, provider client.ConfigProvider, tran
 	return err
 }
 
-func lambdaRequest(url string, provider client.ConfigProvider, awsHost string) error {
-	return lambdaRequestWithTransport(url, provider, nil)
+func maxSizeExceededRequest(url string, provider client.ConfigProvider, _ string) error {
+	// fake an upload that's too large
+	payload := strings.Repeat("x", int(maxHTTPRequestBodySize))
+	return lambdaRequestWithPayload(url, provider, payload)
 }
 
-func lambdaRequestWithTransport(url string, provider client.ConfigProvider, transport http.RoundTripper) error {
+func lambdaRequest(url string, provider client.ConfigProvider, awsHost string) error {
+	// fake a 50MiB zip file. Lambda will base64 encode it, which bloats it up,
+	// and our proxy should still handle it. 50MiB is the (unencoded) AWS lambda
+	// limit.
+	payload := strings.Repeat("x", 50<<20)
+	return lambdaRequestWithPayload(url, provider, payload)
+}
+
+func lambdaRequestWithPayload(url string, provider client.ConfigProvider, payload string) error {
 	lambdaClient := lambda.New(provider, &aws.Config{
 		Endpoint:   &url,
 		MaxRetries: aws.Int(0),
 		HTTPClient: &http.Client{
-			Transport: transport,
-			Timeout:   5 * time.Second,
+			Timeout: 5 * time.Second,
 		},
 	})
-	payload := strings.Repeat("x", 50<<20) // a large 50MiB zip file should work
 	_, err := lambdaClient.UpdateFunctionCode(&lambda.UpdateFunctionCodeInput{
 		FunctionName: aws.String("fakeFunc"),
 		ZipFile:      []byte(payload),
@@ -334,6 +342,20 @@ func TestAWSSignerHandler(t *testing.T) {
 			wantEventType:       &events.AppSessionRequest{},
 			errAssertionFns: []require.ErrorAssertionFunc{
 				require.NoError,
+			},
+		},
+		{
+			name: "Request exceeding max size",
+			app:  consoleApp,
+			awsClientSession: session.Must(session.NewSession(&aws.Config{
+				Credentials: staticAWSCredentialsForClient,
+				Region:      aws.String("us-east-1"),
+			})),
+			request: maxSizeExceededRequest,
+			errAssertionFns: []require.ErrorAssertionFunc{
+				// TODO(gavin): change this to [http.StatusRequestEntityTooLarge]
+				// after updating [trace.ErrorToCode].
+				hasStatusCode(http.StatusTooManyRequests),
 			},
 		},
 		{
