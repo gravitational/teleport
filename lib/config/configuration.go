@@ -214,6 +214,10 @@ type CommandLineFlags struct {
 	// `teleport integration configure eice-iam` command
 	IntegrationConfEICEIAMArguments IntegrationConfEICEIAM
 
+	// IntegrationConfAWSAppAccessIAMArguments contains the arguments of
+	// `teleport integration configure aws-app-access-iam` command
+	IntegrationConfAWSAppAccessIAMArguments IntegrationConfAWSAppAccessIAM
+
 	// IntegrationConfEKSIAMArguments contains the arguments of
 	// `teleport integration configure eks-iam` command
 	IntegrationConfEKSIAMArguments IntegrationConfEKSIAM
@@ -266,6 +270,13 @@ type IntegrationConfDeployServiceIAM struct {
 type IntegrationConfEICEIAM struct {
 	// Region is the AWS Region used to set up the client.
 	Region string
+	// Role is the AWS Role associated with the Integration
+	Role string
+}
+
+// IntegrationConfAWSAppAccessIAM contains the arguments of
+// `teleport integration configure aws-app-access-iam` command
+type IntegrationConfAWSAppAccessIAM struct {
 	// Role is the AWS Role associated with the Integration
 	Role string
 }

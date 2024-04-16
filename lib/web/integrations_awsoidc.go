@@ -324,6 +324,36 @@ func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request
 	return nil, trace.Wrap(err)
 }
 
+// awsOIDCConfigureAppAccessIAM returns a script that configures the required IAM permissions to enable the usage of App Access
+// using the AWS OIDC Credentials.
+func (h *Handler) awsOIDCConfigureAWSAppAccessIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	queryParams := r.URL.Query()
+
+	role := queryParams.Get("role")
+	if err := aws.IsValidIAMRoleName(role); err != nil {
+		return nil, trace.BadParameter("invalid role %q", role)
+	}
+
+	// The script must execute the following command:
+	// teleport integration configure aws-app-access
+	argsList := []string{
+		"integration", "configure", "aws-app-access-iam",
+		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
+	}
+	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
+		TeleportArgs:   strings.Join(argsList, " "),
+		SuccessMessage: "Success! You can now go back to the browser to use AWS App Access.",
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+	_, err = fmt.Fprint(w, script)
+
+	return nil, trace.Wrap(err)
+}
+
 // awsOIDCConfigureEKSIAM returns a script that configures the required IAM permissions to enroll EKS clusters into Teleport.
 func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	queryParams := r.URL.Query()
