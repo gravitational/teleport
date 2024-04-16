@@ -98,7 +98,7 @@ func (t *templateTLS) render(
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Wrote TLS identity files: %+v", files)
+	log.Debug("Wrote TLS identity files", "files", files)
 
 	return nil
 }

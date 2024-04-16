@@ -127,7 +127,7 @@ func mkdir(p string) error {
 			return trace.Wrap(err)
 		}
 
-		log.Infof("Created directory %q", p)
+		log.Info("Created directory", "path", p)
 	} else if err != nil {
 		// this can occur if we are unable to read the data dir
 		if errors.Is(err, fs.ErrPermission) {
@@ -199,7 +199,11 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 	}
 
 	if aggregate != nil {
-		log.Warnf("Destination %q has unexpected ACLs: %v", dd.Path, aggregate)
+		log.Warn(
+			"Destination has unexpected ACLs",
+			"path", dd.Path,
+			"errors", aggregate,
+		)
 	}
 
 	return nil

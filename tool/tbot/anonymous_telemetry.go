@@ -20,6 +20,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -27,7 +29,6 @@ import (
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -78,15 +79,15 @@ func sendTelemetry(
 	ctx context.Context,
 	client prehogv1ac.TbotReportingServiceClient,
 	envGetter envGetter,
-	log logrus.FieldLogger,
+	log *slog.Logger,
 	cfg *config.BotConfig,
 ) error {
 	start := time.Now()
 	if !telemetryEnabled(envGetter) {
-		log.Infof("Anonymous telemetry is not enabled. Find out more about Machine ID's anonymous telemetry at %s", telemetryDocs)
+		log.InfoContext(ctx, fmt.Sprintf("Anonymous telemetry is not enabled. Find out more about Machine ID's anonymous telemetry at %s", telemetryDocs))
 		return nil
 	}
-	log.Infof("Anonymous telemetry is enabled. Find out more about Machine ID's anonymous telemetry at %s", telemetryDocs)
+	log.InfoContext(ctx, fmt.Sprintf("Anonymous telemetry is enabled. Find out more about Machine ID's anonymous telemetry at %s", telemetryDocs))
 
 	data := &prehogv1a.TbotStartEvent{
 		RunMode:  prehogv1a.TbotStartEvent_RUN_MODE_DAEMON,
@@ -122,9 +123,12 @@ func sendTelemetry(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.WithField("distinct_id", distinctID).
-		WithField("duration", time.Since(start)).
-		Debug("Successfully transmitted anonymous telemetry")
+	log.DebugContext(
+		ctx,
+		"Successfully transmitted anonymous telemetry",
+		"distinct_id", distinctID,
+		"duration", time.Since(start),
+	)
 
 	return nil
 }

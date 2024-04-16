@@ -21,6 +21,7 @@ package config
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"net/url"
 	"reflect"
 	"slices"
@@ -29,7 +30,6 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"gopkg.in/yaml.v3"
 
@@ -59,9 +59,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodToken),
 }
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentTBot,
-})
+var log = slog.With(teleport.ComponentKey, teleport.ComponentTBot)
 
 // RemainingArgsList is a custom kingpin parser that consumes all remaining
 // arguments.
@@ -365,8 +363,9 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	addDestinationToKnownPaths(conf.Storage.Destination)
 	for path, count := range destinationPaths {
 		if count > 1 {
-			log.WithField("path", path).Error(
-				"Identical destinations used within config. This can produce unusable results. In Teleport 15.0, this will be a fatal error.",
+			log.Error(
+				"Identical destinations used within config. This can produce unusable results. In Teleport 15.0, this will be a fatal error",
+				"path", path,
 			)
 		}
 	}
@@ -412,10 +411,10 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 
 	// Warn about config where renewals will fail due to weird TTL vs Interval
 	if !conf.Oneshot && conf.RenewalInterval > conf.CertificateTTL {
-		log.Warnf(
-			"Certificate TTL (%s) is shorter than the renewal interval (%s). This is likely an invalid configuration. Increase the certificate TTL or decrease the renewal interval.",
-			conf.CertificateTTL,
-			conf.RenewalInterval,
+		log.Warn(
+			"Certificate TTL is shorter than the renewal interval. This is likely an invalid configuration. Increase the certificate TTL or decrease the renewal interval",
+			"ttl", conf.CertificateTTL,
+			"interval", conf.RenewalInterval,
 		)
 	}
 
@@ -672,28 +671,28 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 	if cf.AuthServer != "" {
 		if config.AuthServer != "" {
-			log.Warnf("CLI parameters are overriding auth server configured in %s", cf.ConfigPath)
+			log.Warn("CLI parameters are overriding auth server configured", "config_path", cf.ConfigPath)
 		}
 		config.AuthServer = cf.AuthServer
 	}
 
 	if cf.ProxyServer != "" {
 		if config.ProxyServer != "" {
-			log.Warnf("CLI parameters are overriding proxy configured in %s", cf.ConfigPath)
+			log.Warn("CLI parameters are overriding proxy configured", "config_path", cf.ConfigPath)
 		}
 		config.ProxyServer = cf.ProxyServer
 	}
 
 	if cf.CertificateTTL != 0 {
 		if config.CertificateTTL != 0 {
-			log.Warnf("CLI parameters are overriding certificate TTL configured in %s", cf.ConfigPath)
+			log.Warn("CLI parameters are overriding certificate TTL", "config_path", cf.ConfigPath)
 		}
 		config.CertificateTTL = cf.CertificateTTL
 	}
 
 	if cf.RenewalInterval != 0 {
 		if config.RenewalInterval != 0 {
-			log.Warnf("CLI parameters are overriding renewal interval configured in %s", cf.ConfigPath)
+			log.Warn("CLI parameters are overriding renewal interval configured", "config_path", cf.ConfigPath)
 		}
 		config.RenewalInterval = cf.RenewalInterval
 	}
@@ -701,9 +700,9 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	// DataDir overrides any previously-configured storage config
 	if cf.DataDir != "" {
 		if config.Storage != nil && config.Storage.Destination != nil {
-			log.Warnf(
-				"CLI parameters are overriding storage location from %s",
-				cf.ConfigPath,
+			log.Warn(
+				"CLI parameters are overriding storage location from",
+				"config_path", cf.ConfigPath,
 			)
 		}
 		dest, err := destinationFromURI(cf.DataDir)
@@ -722,7 +721,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		// CLI only supports a single filesystem Destination with SSH client config
 		// and all roles.
 		if len(config.Outputs) > 0 {
-			log.Warnf("CLI parameters are overriding destinations from %s", cf.ConfigPath)
+			log.Warn("CLI parameters are overriding destinations", "config_path", cf.ConfigPath)
 		}
 
 		// When using the CLI --Destination-dir we configure an Identity type
@@ -743,7 +742,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	if cf.Token != "" || cf.JoinMethod != "" || len(cf.CAPins) > 0 {
 		if !reflect.DeepEqual(config.Onboarding, OnboardingConfig{}) {
 			// To be safe, warn about possible confusion.
-			log.Warnf("CLI parameters are overriding onboarding config from %s", cf.ConfigPath)
+			log.Warn("CLI parameters are overriding destinations", "config_path", cf.ConfigPath)
 		}
 
 		config.Onboarding = OnboardingConfig{
@@ -759,7 +758,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 	if cf.DiagAddr != "" {
 		if config.DiagAddr != "" {
-			log.Warnf("CLI parameters are overriding diagnostics address configured in %s", cf.ConfigPath)
+			log.Warn("CLI parameters are overriding destinations", "config_path", cf.ConfigPath)
 		}
 		config.DiagAddr = cf.DiagAddr
 	}

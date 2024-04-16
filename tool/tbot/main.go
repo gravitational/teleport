@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
@@ -43,9 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentTBot,
-})
+var log = slog.With(teleport.ComponentKey, teleport.ComponentTBot)
 
 const (
 	authServerEnvVar  = "TELEPORT_AUTH_SERVER"
@@ -179,7 +176,7 @@ func Run(args []string, stdout io.Writer) error {
 
 	if legacyProxyFlag != "" {
 		cf.ProxyServer = legacyProxyFlag
-		log.Warn("The --proxy flag is deprecated and will be removed in v17.0.0. Use --proxy-server instead.")
+		log.Warn("The --proxy flag is deprecated and will be removed in v17.0.0. Use --proxy-server instead")
 	}
 
 	// Remaining args are stored directly to a []string rather than written to
@@ -195,7 +192,7 @@ func Run(args []string, stdout io.Writer) error {
 		return trace.Wrap(err, "setting up logger")
 	}
 	if cf.Trace {
-		log.WithField("trace_exporter", cf.TraceExporter).Info("Initializing tracing provider. Traces will be exported.")
+		log.Info("Initializing tracing provider. Traces will be exported", "trace_exporter", cf.TraceExporter)
 		tp, err := initializeTracing(cf.TraceExporter)
 		if err != nil {
 			return trace.Wrap(err, "initializing tracing")
@@ -205,13 +202,15 @@ func Run(args []string, stdout io.Writer) error {
 				context.Background(), 5*time.Second,
 			)
 			defer cancel()
-			log.Info("Shutting down tracing provider.")
+			log.Info("Shutting down tracing provider")
 			if err := tp.Shutdown(ctx); err != nil {
-				log.WithError(err).Error(
-					"Failed to shut down tracing provider.",
+				log.ErrorContext(
+					ctx,
+					"Failed to shut down tracing provider",
+					"err", err,
 				)
 			}
-			log.Info("Shut down tracing provider.")
+			log.InfoContext(ctx, "Shut down tracing provider")
 		}()
 	}
 
@@ -322,8 +321,8 @@ func onConfigure(
 	}
 
 	if outPath != "" {
-		log.Infof(
-			"Generated config file written to file: %s", outPath,
+		log.Info(
+			"Generated config file written", "path", outPath,
 		)
 	}
 
@@ -376,8 +375,8 @@ func onMigrate(
 	}
 
 	if outPath != "" {
-		log.Infof(
-			"Generated config file written to file: %s", outPath,
+		log.Info(
+			"Generated config file written", "path", outPath,
 		)
 	}
 
@@ -399,8 +398,8 @@ func onStart(botConfig *config.BotConfig) error {
 		if err := sendTelemetry(
 			ctx, telemetryClient(os.Getenv), os.Getenv, log, botConfig,
 		); err != nil {
-			log.WithError(err).Error(
-				"Failed to send anonymous telemetry.",
+			log.ErrorContext(
+				ctx, "Failed to send anonymous telemetry.", "err", err,
 			)
 		}
 	}()
@@ -414,16 +413,19 @@ func onStart(botConfig *config.BotConfig) error {
 		}
 
 		waitTime := 10 * time.Second
-		log.Infof(
-			"Waiting up to %s for anonymous telemetry to finish sending before exiting. Press CTRL-C to cancel.",
+		log.InfoContext(
+			ctx,
+			"Waiting for anonymous telemetry to finish sending before exiting. Press CTRL-C to cancel",
+			"wait_time",
 			waitTime,
 		)
 		ctx, cancel := context.WithTimeout(ctx, waitTime)
 		defer cancel()
 		select {
 		case <-ctx.Done():
-			log.Warn(
-				"Anonymous telemetry transmission canceled due to signal or timeout.",
+			log.WarnContext(
+				ctx,
+				"Anonymous telemetry transmission canceled due to signal or timeout",
 			)
 		case <-telemetrySentCh:
 		}
@@ -434,22 +436,22 @@ func onStart(botConfig *config.BotConfig) error {
 }
 
 // handleSignals handles incoming Unix signals.
-func handleSignals(log logrus.FieldLogger, cancel context.CancelFunc, reloadCh chan<- struct{}) {
+func handleSignals(log *slog.Logger, cancel context.CancelFunc, reloadCh chan<- struct{}) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1)
 
 	for sig := range signals {
 		switch sig {
 		case syscall.SIGINT:
-			log.Info("Received interrupt, triggering shutdown.")
+			log.Info("Received interrupt, triggering shutdown")
 			cancel()
 			return
 		case syscall.SIGHUP, syscall.SIGUSR1:
-			log.Info("Received reload signal, queueing reload.")
+			log.Info("Received reload signal, queueing reload")
 			select {
 			case reloadCh <- struct{}{}:
 			default:
-				log.Warn("Unable to queue reload, reload already queued.")
+				log.Warn("Unable to queue reload, reload already queued")
 			}
 		}
 	}

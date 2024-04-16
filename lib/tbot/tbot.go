@@ -21,6 +21,7 @@ package tbot
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -73,7 +74,7 @@ type OneShotService interface {
 
 type Bot struct {
 	cfg     *config.BotConfig
-	log     logrus.FieldLogger
+	log     *slog.Logger
 	modules modules.Modules
 
 	mu             sync.Mutex
@@ -81,9 +82,9 @@ type Bot struct {
 	botIdentitySvc *identityService
 }
 
-func New(cfg *config.BotConfig, log logrus.FieldLogger) *Bot {
+func New(cfg *config.BotConfig, log *slog.Logger) *Bot {
 	if log == nil {
-		log = utils.NewLogger()
+		log = slog.Default()
 	}
 
 	return &Bot{
@@ -122,10 +123,12 @@ func (b *Bot) Run(ctx context.Context) error {
 	}
 	unlock, err := b.preRunChecks(ctx)
 	defer func() {
-		b.log.Debug("Unlocking bot storage.")
+		b.log.DebugContext(ctx, "Unlocking bot storage.")
 		if unlock != nil {
 			if err := unlock(); err != nil {
-				b.log.WithError(err).Warn("Failed to release lock. Future starts of tbot may fail.")
+				b.log.WarnContext(
+					ctx, "Failed to release lock. Future starts of tbot may fail.", "err", err,
+				)
 			}
 		}
 	}()
@@ -176,7 +179,7 @@ func (b *Bot) Run(ctx context.Context) error {
 		cfg:               b.cfg,
 		reloadBroadcaster: reloadBroadcaster,
 		resolver:          resolver,
-		log: b.log.WithField(
+		log: b.log.With(
 			teleport.ComponentKey, teleport.Component(componentTBot, "identity"),
 		),
 	}
@@ -187,7 +190,11 @@ func (b *Bot) Run(ctx context.Context) error {
 	}
 	defer func() {
 		if err := b.botIdentitySvc.Close(); err != nil {
-			b.log.WithError(err).Error("Failed to close bot identity service")
+			b.log.ErrorContext(
+				ctx,
+				"Failed to close bot identity service",
+				"err", err,
+			)
 		}
 	}()
 	services = append(services, b.botIdentitySvc)
@@ -207,7 +214,7 @@ func (b *Bot) Run(ctx context.Context) error {
 		services = append(services, &diagnosticsService{
 			diagAddr:     b.cfg.DiagAddr,
 			pprofEnabled: b.cfg.Debug,
-			log: b.log.WithField(
+			log: b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "diagnostics"),
 			),
 		})
@@ -219,7 +226,7 @@ func (b *Bot) Run(ctx context.Context) error {
 		botClient:      b.botIdentitySvc.GetClient(),
 		cfg:            b.cfg,
 		resolver:       resolver,
-		log: b.log.WithField(
+		log: b.log.With(
 			teleport.ComponentKey, teleport.Component(componentTBot, "outputs"),
 		),
 		reloadBroadcaster: reloadBroadcaster,
@@ -227,7 +234,7 @@ func (b *Bot) Run(ctx context.Context) error {
 	services = append(services, &caRotationService{
 		getBotIdentity: b.botIdentitySvc.GetIdentity,
 		botClient:      b.botIdentitySvc.GetClient(),
-		log: b.log.WithField(
+		log: b.log.With(
 			teleport.ComponentKey, teleport.Component(componentTBot, "ca-rotation"),
 		),
 		reloadBroadcaster: reloadBroadcaster,
@@ -254,7 +261,7 @@ func (b *Bot) Run(ctx context.Context) error {
 					chanSet: map[chan struct{}]struct{}{},
 				},
 			}
-			svc.log = b.log.WithField(
+			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
 			services = append(services, svc)
@@ -267,7 +274,7 @@ func (b *Bot) Run(ctx context.Context) error {
 				botCfg:         b.cfg,
 				cfg:            svcCfg,
 			}
-			svc.log = b.log.WithField(
+			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
 			services = append(services, svc)
@@ -280,38 +287,42 @@ func (b *Bot) Run(ctx context.Context) error {
 		}
 	}
 
-	b.log.Info("Initialization complete. Starting services.")
+	b.log.InfoContext(ctx, "Initialization complete. Starting services.")
 	// Start services
 	for _, svc := range services {
 		svc := svc
-		log := b.log.WithField("service", svc.String())
+		log := b.log.With("service", svc.String())
 
 		if b.cfg.Oneshot {
 			svc, ok := svc.(OneShotService)
 			// We ignore services with no one-shot implementation
 			if !ok {
-				log.Debug("Service does not support oneshot mode, ignoring.")
+				log.DebugContext(ctx, "Service does not support oneshot mode, ignoring.")
 				continue
 			}
 			eg.Go(func() error {
-				log.Info("Running service in oneshot mode.")
+				log.InfoContext(ctx, "Running service in oneshot mode.")
 				err := svc.OneShot(egCtx)
 				if err != nil {
-					log.WithError(err).Error("Service exited with error.")
+					log.ErrorContext(
+						egCtx, "Service exited with error.", "err", err,
+					)
 					return trace.Wrap(err, "service(%s)", svc.String())
 				}
-				log.Info("Service finished.")
+				log.InfoContext(ctx, "Service finished.")
 				return nil
 			})
 		} else {
 			eg.Go(func() error {
-				log.Info("Starting service.")
+				log.InfoContext(ctx, "Starting service.")
 				err := svc.Run(egCtx)
 				if err != nil {
-					log.WithError(err).Error("Service exited with error.")
+					log.ErrorContext(
+						egCtx, "Service exited with error.", "err", err,
+					)
 					return trace.Wrap(err, "service(%s)", svc.String())
 				}
-				log.Info("Service exited.")
+				log.InfoContext(ctx, "Service exited.")
 				return nil
 			})
 		}
@@ -334,7 +345,7 @@ func (b *Bot) preRunChecks(ctx context.Context) (func() error, error) {
 		)
 	case config.AddressKindAuth:
 		// TODO(noah): DELETE IN V17.0.0
-		b.log.Warn("We recently introduced the ability to explicitly configure the address of the Teleport Proxy using --proxy-server. We recommend switching to this if you currently provide the address of the Proxy to --auth-server.")
+		b.log.WarnContext(ctx, "We recently introduced the ability to explicitly configure the address of the Teleport Proxy using --proxy-server. We recommend switching to this if you currently provide the address of the Proxy to --auth-server.")
 	}
 
 	// Ensure they have provided a join method.
@@ -344,10 +355,10 @@ func (b *Bot) preRunChecks(ctx context.Context) (func() error, error) {
 
 	if b.cfg.FIPS {
 		if !b.modules.IsBoringBinary() {
-			b.log.Error("FIPS mode enabled but FIPS compatible binary not in use. Ensure you are using the Enterprise FIPS binary to use this flag.")
+			b.log.ErrorContext(ctx, "FIPS mode enabled but FIPS compatible binary not in use. Ensure you are using the Enterprise FIPS binary to use this flag.")
 			return nil, trace.BadParameter("fips mode enabled but binary was not compiled with boringcrypto")
 		}
-		b.log.Info("Bot is running in FIPS compliant mode.")
+		b.log.InfoContext(ctx, "Bot is running in FIPS compliant mode.")
 	}
 
 	// First, try to make sure all destinations are usable.
@@ -405,7 +416,7 @@ func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 
 // checkIdentity performs basic startup checks on an identity and loudly warns
 // end users if it is unlikely to work.
-func checkIdentity(log logrus.FieldLogger, ident *identity.Identity) error {
+func checkIdentity(ctx context.Context, log *slog.Logger, ident *identity.Identity) error {
 	var validAfter time.Time
 	var validBefore time.Time
 
@@ -421,16 +432,18 @@ func checkIdentity(log logrus.FieldLogger, ident *identity.Identity) error {
 
 	now := time.Now().UTC()
 	if now.After(validBefore) {
-		log.Errorf(
-			"Identity has expired. The renewal is likely to fail. (expires: %s, current time: %s)",
-			validBefore.Format(time.RFC3339),
-			now.Format(time.RFC3339),
+		log.WarnContext(
+			ctx,
+			"Identity has expired. The renewal is likely to fail",
+			"expires", validBefore.Format(time.RFC3339),
+			"current_time", now.Format(time.RFC3339),
 		)
 	} else if now.Before(validAfter) {
-		log.Warnf(
-			"Identity is not yet valid. Confirm that the system time is correct. (valid after: %s, current time: %s)",
-			validAfter.Format(time.RFC3339),
-			now.Format(time.RFC3339),
+		log.WarnContext(
+			ctx,
+			"Identity is not yet valid. Confirm that the system time is correct",
+			"valid_after", validAfter.Format(time.RFC3339),
+			"current_time", now.Format(time.RFC3339),
 		)
 	}
 
@@ -443,7 +456,7 @@ func checkIdentity(log logrus.FieldLogger, ident *identity.Identity) error {
 // credentials.
 func clientForFacade(
 	ctx context.Context,
-	log logrus.FieldLogger,
+	log *slog.Logger,
 	cfg *config.BotConfig,
 	facade *identity.Facade,
 	resolver reversetunnelclient.Resolver) (*auth.Client, error) {
@@ -471,7 +484,7 @@ func clientForFacade(
 		// TODO(noah): It'd be ideal to distinguish the proxy addr and auth addr
 		// here to avoid pointlessly hitting the address as an auth server.
 		AuthServers: []utils.NetAddr{*parsedAddr},
-		Log:         log,
+		Log:         logrus.StandardLogger(),
 		Insecure:    cfg.Insecure,
 		Resolver:    resolver,
 		DialOpts:    []grpc.DialOption{metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTBot)},
@@ -483,7 +496,7 @@ func clientForFacade(
 
 type authPingCache struct {
 	client *auth.Client
-	log    logrus.FieldLogger
+	log    *slog.Logger
 
 	mu          sync.RWMutex
 	cachedValue *proto.PingResponse
@@ -496,14 +509,14 @@ func (a *authPingCache) ping(ctx context.Context) (proto.PingResponse, error) {
 		return *a.cachedValue, nil
 	}
 
-	a.log.Debug("Pinging auth server.")
+	a.log.DebugContext(ctx, "Pinging auth server.")
 	res, err := a.client.Ping(ctx)
 	if err != nil {
-		a.log.WithError(err).Error("Failed to ping auth server.")
+		a.log.ErrorContext(ctx, "Failed to ping auth server.", "err", err)
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
 	a.cachedValue = &res
-	a.log.WithField("pong", res).Debug("Successfully pinged auth server.")
+	a.log.DebugContext(ctx, "Successfully pinged auth server.", "pong", res)
 
 	return *a.cachedValue, nil
 }
@@ -511,7 +524,7 @@ func (a *authPingCache) ping(ctx context.Context) (proto.PingResponse, error) {
 type proxyPingCache struct {
 	authPingCache *authPingCache
 	botCfg        *config.BotConfig
-	log           logrus.FieldLogger
+	log           *slog.Logger
 
 	mu          sync.RWMutex
 	cachedValue *webclient.PingResponse
@@ -540,17 +553,17 @@ func (p *proxyPingCache) ping(ctx context.Context) (*webclient.PingResponse, err
 		return nil, trace.BadParameter("unsupported address kind: %v", addrKind)
 	}
 
-	p.log.WithField("addr", addr).Debug("Pinging proxy.")
+	p.log.DebugContext(ctx, "Pinging proxy.", "addr", addr)
 	res, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: addr,
 		Insecure:  p.botCfg.Insecure,
 	})
 	if err != nil {
-		p.log.WithError(err).Error("Failed to ping proxy.")
+		p.log.ErrorContext(ctx, "Failed to ping proxy.", "err", err)
 		return nil, trace.Wrap(err)
 	}
-	p.log.WithField("pong", res).Debug("Successfully pinged proxy.")
+	p.log.DebugContext(ctx, "Successfully pinged proxy.", "pong", res)
 	p.cachedValue = res
 
 	return p.cachedValue, nil
