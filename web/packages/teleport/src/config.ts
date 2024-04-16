@@ -159,6 +159,8 @@ const cfg = {
 
     downloadCenter: '/web/downloads',
 
+    resource: '/web/cluster/:clusterId/resource/:resourceId',
+
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
@@ -523,6 +525,10 @@ const cfg = {
 
   getRecordingsRoute(clusterId: string) {
     return generatePath(cfg.routes.recordings, { clusterId });
+  },
+
+  getResourceRoute(clusterId: string, resourceId: string) {
+    return generatePath(cfg.routes.resource, { clusterId, resourceId });
   },
 
   getConsoleNodesRoute(clusterId: string) {
