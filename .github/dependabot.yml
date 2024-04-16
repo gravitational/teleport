@@ -31,6 +31,7 @@ updates:
       - codingllama
       - rosstimothy
       - zmb3
+      - hugoshaka
     labels:
       - "dependencies"
       - "go"
@@ -52,6 +53,7 @@ updates:
       - codingllama
       - rosstimothy
       - zmb3
+      - hugoshaka
     labels:
       - "dependencies"
       - "go"
