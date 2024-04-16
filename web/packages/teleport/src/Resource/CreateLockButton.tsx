@@ -7,6 +7,7 @@ import Dialog, {
   DialogFooter,
   DialogHeader,
 } from 'design/Dialog';
+import { Lock } from 'design/Icon';
 
 type Props = {
   lockType: string;
@@ -32,7 +33,15 @@ export const CreateLockButton = ({
 
   return (
     <>
-      <ButtonPrimary onClick={() => setOpen(true)}>Lock</ButtonPrimary>
+      <ButtonPrimary size="small" onClick={() => setOpen(true)}>
+        Lock
+        <Lock
+          size={12}
+          css={`
+            margin-left: 3px;
+          `}
+        />
+      </ButtonPrimary>
       <Dialog open={open}>
         <DialogHeader>
           <Text typography="h4" color="text.primary" bold>
@@ -42,6 +51,7 @@ export const CreateLockButton = ({
         <DialogContent
           css={`
             min-width: 400px;
+            margin-bottom: 0px;
           `}
         >
           <Box mt={3}>

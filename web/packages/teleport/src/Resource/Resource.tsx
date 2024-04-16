@@ -16,20 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback } from 'react';
-import { Box } from 'design';
-import { useHistory, useParams } from 'react-router';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useParams } from 'react-router';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { lockService } from 'teleport/services/locks';
-
-import { CreateLockButton } from './CreateLockButton';
-import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { mapResourceToViewItem } from 'shared/components/UnifiedResources/shared/viewItemsFactory';
-
-import { ArrowBack } from 'design/Icon';
-
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { useTeleport } from 'teleport';
@@ -37,6 +28,7 @@ import { FeatureBox } from 'teleport/components/Layout';
 import { UnifiedResource } from 'teleport/services/agents';
 import { ResourceInfo } from './ResourceInfo';
 import Indicator from 'design/Indicator';
+import { CreateLockButton } from './CreateLockButton';
 
 export function Resource() {
   const ctx = useTeleport();
@@ -87,7 +79,17 @@ export function Resource() {
     <FeatureBox>
       {fetchResourceAttempt.status === 'processing' && <Indicator />}
       {fetchResourceAttempt.status === 'success' && (
-        <ResourceInfo resource={resource} />
+        <ResourceInfo
+          resource={resource}
+          LockButton={() => (
+            <CreateLockButton
+              createLock={runCreateLockAttempt}
+              createLockAttempt={createLockAttempt}
+              targetId={resourceId}
+              lockType={'node'}
+            />
+          )}
+        />
       )}
     </FeatureBox>
   );

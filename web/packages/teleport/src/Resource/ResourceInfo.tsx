@@ -11,7 +11,13 @@ import { ResourceIconName } from 'design/ResourceIcon';
 import { ResourceActionButton } from 'teleport/UnifiedResources/ResourceActionButton';
 // import { ArrowBack } from 'design/Icon';
 
-export function ResourceInfo({ resource }: { resource: UnifiedResource }) {
+export function ResourceInfo({
+  resource,
+  LockButton,
+}: {
+  resource: UnifiedResource;
+  LockButton: () => JSX.Element;
+}) {
   // const history = useHistory();
 
   let name: string;
@@ -50,7 +56,7 @@ export function ResourceInfo({ resource }: { resource: UnifiedResource }) {
             width="100%"
             justifyContent="space-between"
           >
-            <Flex alignItems="center">
+            <Flex alignItems="flex-start">
               {/* <ArrowBack
                 onClick={() => history.goBack()}
                 size="large"
@@ -68,9 +74,14 @@ export function ResourceInfo({ resource }: { resource: UnifiedResource }) {
                   `}
                 />
               )}
-              <Text typography="h4">Resource Details</Text>
+              <Text typography="h4" style={{ lineHeight: '24px' }}>
+                Resource Details
+              </Text>
             </Flex>
-            <ResourceActionButton resource={resource} />
+            <Flex flexDirection="column" gap={2}>
+              <ResourceActionButton resource={resource} />
+              <LockButton />
+            </Flex>
           </Flex>
           {name && <DataItem title="Name" data={name} />}
           {hostname && <DataItem title="Hostname" data={hostname} />}
