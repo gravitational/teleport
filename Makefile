@@ -993,7 +993,9 @@ endif
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
-	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)' $(GO_LINT_FLAGS)
+	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_LINT_TAG)' $(GO_LINT_FLAGS)
+	$(MAKE) -C integrations/terraform lint
+	$(MAKE) -C integrations/event-handler lint
 
 .PHONY: fix-imports
 fix-imports:

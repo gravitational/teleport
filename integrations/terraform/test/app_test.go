@@ -115,8 +115,8 @@ func (s *TerraformSuite) TestImportApp() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(s.T(), state[0].Attributes["kind"], "app")
-					require.Equal(s.T(), state[0].Attributes["spec.uri"], "localhost:3000/test")
+					require.Equal(s.T(), "app", state[0].Attributes["kind"])
+					require.Equal(s.T(), "localhost:3000/test", state[0].Attributes["spec.uri"])
 
 					return nil
 				},
