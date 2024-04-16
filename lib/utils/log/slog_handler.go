@@ -563,7 +563,7 @@ const (
 
 func addTracingContextToRecord(ctx context.Context, r *slog.Record) {
 	span := oteltrace.SpanFromContext(ctx)
-	if span == nil || !span.IsRecording() {
+	if span == nil {
 		return
 	}
 
