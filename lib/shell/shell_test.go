@@ -27,9 +27,8 @@ func TestGetShell(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, shell == "/bin/bash" || shell == "/bin/sh")
 
-	shell, err = GetLoginShell("non-existent-user")
-	require.NoError(t, err)
-	require.Equal(t, shell, DefaultShell)
+	_, err = GetLoginShell("non-existent-user")
+	require.ErrorContains(t, err, "unknown user")
 
 	shell, err = GetLoginShell("nobody")
 	require.NoError(t, err)
