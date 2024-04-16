@@ -37,7 +37,6 @@ import { LoginFailedComponent as LoginFailed } from './Login/LoginFailed';
 import { LoginSuccess } from './Login/LoginSuccess';
 import { Login } from './Login';
 import { Welcome } from './Welcome';
-import { Resource } from './Resource';
 
 import { ConsoleWithContext as Console } from './Console';
 import { Player } from './Player';
