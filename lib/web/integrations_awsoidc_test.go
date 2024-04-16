@@ -25,14 +25,18 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -837,4 +841,71 @@ func TestAWSOIDCSecurityGroupsRulesConverter(t *testing.T) {
 			require.Equal(t, tt.expected, out)
 		})
 	}
+}
+
+func TestAWSOIDCAppAccessAppServerCreation(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	roleTokenCRD, err := types.NewRole(services.RoleNameForUser("my-user"), types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindIntegration, []string{types.VerbRead}),
+				types.NewRule(types.KindAppServer, []string{types.VerbCreate, types.VerbUpdate}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo@example.com", []types.Role{roleTokenCRD})
+
+	myIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
+		Name: "my-integration",
+	}, &types.AWSOIDCIntegrationSpecV1{
+		RoleARN: "some-arn-role",
+	})
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().CreateIntegration(context.Background(), myIntegration)
+	require.NoError(t, err)
+
+	// Create the AWS App Access for the current integration.
+	endpoint := pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "my-integration", "aws-app-access")
+	_, err = pack.clt.PostJSON(context.Background(), endpoint, nil)
+	require.NoError(t, err)
+
+	// Ensure the AppServer was correctly created.
+	appServers, err := env.server.Auth().GetApplicationServers(context.Background(), "default")
+	require.NoError(t, err)
+	require.Len(t, appServers, 1)
+
+	expectedServer := &types.AppServerV3{
+		Kind:    types.KindAppServer,
+		Version: types.V3,
+		Metadata: types.Metadata{
+			Name: "my-integration",
+		},
+		Spec: types.AppServerSpecV3{
+			Version: api.Version,
+			HostID:  "proxy0",
+			App: &types.AppV3{
+				Kind:    types.KindApp,
+				Version: types.V3,
+				Metadata: types.Metadata{
+					Name: "my-integration",
+				},
+				Spec: types.AppSpecV3{
+					URI:         "https://console.aws.amazon.com",
+					Integration: "my-integration",
+					Cloud:       "AWS",
+				},
+			},
+		},
+	}
+
+	require.Empty(t, cmp.Diff(
+		expectedServer,
+		appServers[0],
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+	))
 }

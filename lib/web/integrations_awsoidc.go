@@ -871,6 +871,40 @@ func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p 
 	}, nil
 }
 
+// awsOIDCDeployC2ICE creates an AppServer that uses an AWS OIDC Integration for proxying access.
+func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	appServer, err := types.NewAppServerForAWSOIDCIntegration(integrationName, h.cfg.HostUUID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ig, err := clt.GetIntegration(ctx, integrationName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if ig.GetSubKind() != types.IntegrationSubKindAWSOIDC {
+		return nil, trace.BadParameter("only aws oidc integrations are supported")
+	}
+
+	if _, err := clt.UpsertApplicationServer(ctx, appServer); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return nil, nil
+}
+
 // awsOIDCConfigureIdP returns a script that configures AWS OIDC Integration
 // by creating an OIDC Identity Provider that trusts Teleport instance.
 func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
