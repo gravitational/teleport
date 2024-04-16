@@ -1593,7 +1593,7 @@ func TestDebugServiceStartSocket(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, process.Close()) })
 
 	httpClient := &http.Client{
-		Timeout: 10*time.Second,
+		Timeout: 10 * time.Second,
 		Transport: &http.Transport{
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 				return net.Dial("unix", filepath.Join(process.Config.DataDir, debug.ServiceSocketName))

@@ -28,11 +28,13 @@ import (
 	"net/url"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/debug"
@@ -65,7 +67,7 @@ func newDebugServiceClient(configPath string) (*debugServiceClient, error) {
 		dataDir:    dataDir,
 		socketPath: socketPath,
 		clt: &http.Client{
-			Timeout: defaults.IOTimeout,
+			Timeout: apidefaults.DefaultIOTimeout,
 			Transport: &http.Transport{
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 					return net.Dial("unix", socketPath)
@@ -77,12 +79,12 @@ func newDebugServiceClient(configPath string) (*debugServiceClient, error) {
 
 // SetLogLevel changes the application's log level and a change status message.
 func (c *debugServiceClient) SetLogLevel(ctx context.Context, level string) (string, error) {
-	resp, err := c.do(ctx, debug.SetLogLevelMethod, url.URL{Path: debug.LogLevelEndpoint}, []byte(level))
+	resp, err := c.do(ctx, http.MethodPut, url.URL{Path: debug.LogLevelEndpoint}, []byte(level))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1024))
 	defer resp.Body.Close()
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -97,12 +99,12 @@ func (c *debugServiceClient) SetLogLevel(ctx context.Context, level string) (str
 
 // GetLogLevel fetches the current log level.
 func (c *debugServiceClient) GetLogLevel(ctx context.Context) (string, error) {
-	resp, err := c.do(ctx, debug.GetLogLevelMethod, url.URL{Path: debug.LogLevelEndpoint}, nil)
+	resp, err := c.do(ctx, http.MethodGet, url.URL{Path: debug.LogLevelEndpoint}, nil)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1024))
 	defer resp.Body.Close()
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -262,9 +264,7 @@ func onCollectProfile(configPath string, rawProfiles string, seconds int, out io
 func createProfilesArchive(ctx context.Context, clt *debugServiceClient, buf io.Writer, profiles []string, seconds int) error {
 	fileTime := time.Now()
 	gw := gzip.NewWriter(buf)
-	defer gw.Close()
 	tw := tar.NewWriter(gw)
-	defer tw.Close()
 
 	for _, profile := range profiles {
 		contents, err := clt.CollectProfile(ctx, profile, seconds)
@@ -284,6 +284,10 @@ func createProfilesArchive(ctx context.Context, clt *debugServiceClient, buf io.
 		if _, err := tw.Write(contents); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	if err := trace.NewAggregate(tw.Close(), gw.Close()); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil

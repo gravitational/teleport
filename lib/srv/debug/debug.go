@@ -23,11 +23,6 @@ const (
 	// LogLevelEndpoint is the HTTP endpoint used for retrieving and changing
 	// log level.
 	LogLevelEndpoint = "/log-level"
-	// GetLogLevelMethod is the HTTP method used to retrieve the current log
-	// level.
-	GetLogLevelMethod = "GET"
-	// SetLogLevelMethod is the HTTP method used to change the log level.
-	SetLogLevelMethod = "PUT"
 	// PProfEndpointsPrefix PProf endpoints path prefix.
 	PProfEndpointsPrefix = "/debug/pprof/"
 )

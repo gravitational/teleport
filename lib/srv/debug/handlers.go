@@ -44,8 +44,8 @@ func NewServeMux(logger *slog.Logger, leveler LogLeveler) *http.ServeMux {
 	mux.HandleFunc(PProfEndpointsPrefix+"{profile}", func(w http.ResponseWriter, r *http.Request) {
 		pprofMiddleware(logger, r.PathValue("profile"), pprof.Index)(w, r)
 	})
-	mux.Handle(GetLogLevelMethod+" "+LogLevelEndpoint, handleGetLog(logger, leveler))
-	mux.Handle(SetLogLevelMethod+" "+LogLevelEndpoint, handleSetLog(logger, leveler))
+	mux.Handle("GET "+LogLevelEndpoint, handleGetLog(logger, leveler))
+	mux.Handle("PUT "+LogLevelEndpoint, handleSetLog(logger, leveler))
 	return mux
 }
 

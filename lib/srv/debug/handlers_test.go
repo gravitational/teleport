@@ -36,7 +36,7 @@ func TestLogLevel(t *testing.T) {
 	cfg, ts := makeServer()
 	defer ts.Close()
 
-	statusCode, logLevel := makeRequest(t, ts, GetLogLevelMethod, LogLevelEndpoint, "")
+	statusCode, logLevel := makeRequest(t, ts, http.MethodGet, LogLevelEndpoint, "")
 	require.Equal(t, http.StatusOK, statusCode)
 	require.Equal(t, cfg.LoggerLevel.Level().String(), logLevel)
 
@@ -49,7 +49,7 @@ func TestLogLevel(t *testing.T) {
 			statusCode, _ := makeRequest(t, ts, http.MethodPut, LogLevelEndpoint, logLevel)
 			require.Equal(t, http.StatusOK, statusCode)
 
-			statusCode, retrievedLogLevel := makeRequest(t, ts, GetLogLevelMethod, LogLevelEndpoint, "")
+			statusCode, retrievedLogLevel := makeRequest(t, ts, http.MethodGet, LogLevelEndpoint, "")
 			require.Equal(t, http.StatusOK, statusCode)
 			require.Equal(t, logLevel, retrievedLogLevel)
 		})
@@ -58,7 +58,7 @@ func TestLogLevel(t *testing.T) {
 			statusCode, _ := makeRequest(t, ts, http.MethodPut, LogLevelEndpoint, strings.ToLower(logLevel))
 			require.Equal(t, http.StatusOK, statusCode)
 
-			statusCode, retrievedLogLevel := makeRequest(t, ts, GetLogLevelMethod, LogLevelEndpoint, "")
+			statusCode, retrievedLogLevel := makeRequest(t, ts, http.MethodGet, LogLevelEndpoint, "")
 			require.Equal(t, http.StatusOK, statusCode)
 			require.Equal(t, logLevel, retrievedLogLevel)
 		})

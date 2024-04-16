@@ -43,17 +43,23 @@ func TestSetLogLevel(t *testing.T) {
 
 	// All supported log levels should be accepted here.
 	for _, level := range logutils.SupportedLevelsText {
-		t.Run(level, func(t *testing.T) {
-			err := onSetLogLevel(configFilePath, level)
-			require.NoError(t, err)
+		t.Run("Set"+level, func(t *testing.T) {
+			require.NoError(t, onSetLogLevel(configFilePath, level))
+		})
+
+		t.Run("SetLower"+level, func(t *testing.T) {
+			require.NoError(t, onSetLogLevel(configFilePath, strings.ToLower(level)))
 		})
 	}
 
 	// Random or any other slog format should be rejected.
 	for _, level := range []string{"RANDOM", "DEBUG-1", "INFO+1", "INVALID"} {
-		t.Run(level, func(t *testing.T) {
-			err := onSetLogLevel(configFilePath, level)
-			require.Error(t, err)
+		t.Run("Set"+level, func(t *testing.T) {
+			require.Error(t, onSetLogLevel(configFilePath, level))
+		})
+
+		t.Run("SetLower"+level, func(t *testing.T) {
+			require.Error(t, onSetLogLevel(configFilePath, strings.ToLower(level)))
 		})
 	}
 }
