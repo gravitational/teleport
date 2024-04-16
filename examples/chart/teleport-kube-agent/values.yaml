@@ -105,8 +105,9 @@ databaseResources: []
 
 # kubernetesDiscovery controls configuration for discovery service if it's enabled.
 # discovery service is enabled when the agent `roles` contains "discovery".
-# Default value will try to discovery all apps, use needs to override it to limit
-# scope of the discovered apps.
+# Default value will try to discovery all apps, except for those running in the
+# "kube-system" and "kube-public" namespaces, which are automatically ignored.
+# User needs to override it to limit the scope of the discovered apps.
 kubernetesDiscovery:
   - types: ["app"]
     namespaces: ["*"]
