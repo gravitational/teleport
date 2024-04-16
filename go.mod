@@ -234,7 +234,10 @@ require (
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
 )
 
-require github.com/getlantern/systray v1.2.2
+require (
+	github.com/getlantern/systray v1.2.2
+	gopkg.in/square/go-jose.v2 v2.6.0
+)
 
 require (
 	cloud.google.com/go v0.112.1 // indirect
