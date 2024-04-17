@@ -12,6 +12,7 @@ tokens:
   - '(?<!local )proxy service'
   - 'access lists?'
   - 'access requests?'
+  - access graph
   - 'app(lication) service'
   - auth service
   - database service
