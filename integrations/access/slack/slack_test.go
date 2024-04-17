@@ -20,6 +20,7 @@ package slack
 
 import (
 	"context"
+	"fmt"
 	"os/user"
 	"regexp"
 	"runtime"
@@ -392,6 +393,11 @@ func (s *SlackSuite) TestApproval() {
 		statusLine, err := getStatusLine(msgUpdate)
 		require.NoError(t, err)
 		assert.Equal(t, "*Status*: ✅ APPROVED\n*Resolution reason*: ```\nokay```", statusLine)
+	})
+
+	s.checkNewMessages(t, channelsToMessages(s.requestorUser.ID), matchOnlyOnChannel, func(t *testing.T, m Message) {
+		line := fmt.Sprintf("Request with ID %q has been updated: *%s*", req.GetName(), types.RequestState_APPROVED.String())
+		assert.Equal(t, line, m.BlockItems[0].Block.(SectionBlock).Text.GetText())
 	})
 }
 
