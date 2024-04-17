@@ -67,7 +67,7 @@ export default function useReAuthenticate(props: Props) {
     }
 
     auth
-      .createPrivilegeTokenWithWebauthn(scope)
+      .createPrivilegeTokenWithWebauthn()
       .then(props.onAuthenticated)
       .catch((err: Error) => {
         // This catches a webauthn frontend error that occurs on Firefox and replaces it with a more helpful error message.
