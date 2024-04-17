@@ -115,7 +115,7 @@ async function getGatewayMenuItems(
       },
     };
     return {
-      label: `${g.targetUser}@${g.targetName} (${routing.parseClusterName(g.targetUri)})`,
+      label: `${[g.targetUser, g.targetName].filter(Boolean).join('@')} (${routing.parseClusterName(g.targetUri)})`,
       icon: nativeImage
         .createFromNamedImage(
           isConnected ? 'NSImageNameStatusAvailable' : 'NSImageNameStatusNone'
