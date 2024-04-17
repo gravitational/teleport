@@ -22,6 +22,7 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/integrations/lib/plugindata"
@@ -39,4 +40,5 @@ type Client interface {
 	SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
+	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 }

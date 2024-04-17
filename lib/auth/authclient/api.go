@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -1154,6 +1155,11 @@ type Cache interface {
 
 	// IntegrationsGetter defines read/list methods for integrations.
 	services.IntegrationsGetter
+
+	// ListAccessMonitoringRules returns a paginated list of access monitoring rules.
+	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrules.AccessMonitoringRule, string, error)
+	// GetAccessMonitoringRule returns the specified access monitoring rule.
+	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrules.AccessMonitoringRule, error)
 }
 
 type NodeWrapper struct {
