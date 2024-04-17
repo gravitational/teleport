@@ -102,7 +102,7 @@ const (
 
 // Run runs the reconciliation loop.
 func (r *IneligibleStatusReconciler) Run(ctx context.Context) error {
-	t := r.clock.NewTicker(neverDuration)
+	t := r.clock.NewTimer(neverDuration)
 	// reconcile is a blocking channel that will be used to signal that
 	// a reconciliation must happen.
 	// It must be unbuffered to ensure that we don't re-reconcile if we
@@ -129,6 +129,13 @@ func (r *IneligibleStatusReconciler) Run(ctx context.Context) error {
 			}
 		} else if err != nil {
 			r.log.WithError(err).Warn("Failed to reconcile memberships")
+		}
+
+		if nextExpirationTime <= 0 {
+			nextExpirationTime = 1 * time.Second
+		}
+		if !t.Stop() {
+			<-t.Chan()
 		}
 		t.Reset(nextExpirationTime)
 		select {
