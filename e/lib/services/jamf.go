@@ -84,7 +84,7 @@ func startJamfService(ctx context.Context, process *service.TeleportProcess, htt
 
 	s, err := jamfservice.New(ctx, jamfservice.Opts{
 		Clock:            process.Clock,
-		Logger:           process.Config.Log.WithField(teleport.ComponentKey, teleport.Component(ent.ComponentJamf, process.GetID())),
+		Logger:           process.Config.Logger.With(teleport.ComponentKey, teleport.Component(ent.ComponentJamf, process.GetID())),
 		Config:           &process.Config.Jamf,
 		DevicesClient:    conn.Client.DevicesClient(),
 		HTTPClient:       httpClient,

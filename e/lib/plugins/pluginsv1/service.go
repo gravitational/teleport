@@ -2,6 +2,7 @@ package pluginsv1
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
@@ -55,6 +56,7 @@ type ServiceConfig struct {
 	PluginService                  services.Plugins
 	PluginStaticCredentialsService services.PluginStaticCredentials
 	Log                            *logrus.Entry
+	Logger                         *slog.Logger
 }
 
 // CheckAndSetDefaults checks config for validity.
@@ -77,6 +79,9 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	if cfg.Log == nil {
 		cfg.Log = logrus.NewEntry(logrus.StandardLogger())
 	}
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
 	return nil
 }
 
@@ -90,6 +95,7 @@ type Service struct {
 	pluginService                  services.Plugins
 	pluginStaticCredentialsService services.PluginStaticCredentials
 	log                            *logrus.Entry
+	logger                         *slog.Logger
 	httpClient                     *http.Client
 }
 
@@ -105,6 +111,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		pluginService:                  cfg.PluginService,
 		pluginStaticCredentialsService: cfg.PluginStaticCredentialsService,
 		log:                            cfg.Log,
+		logger:                         cfg.Logger,
 		httpClient: &http.Client{
 			Timeout: 1 * time.Minute,
 		},
@@ -245,7 +252,7 @@ func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, pl
 
 		// Creating a client automatically verifies the credentials.
 		if _, err := jamf.NewClient(ctx, jamf.ClientOpts{
-			Logger:     s.log,
+			Logger:     s.logger,
 			HTTPClient: s.httpClient,
 			APIURL:     plugin.Spec.GetJamf().JamfSpec.ApiEndpoint,
 			Username:   user,

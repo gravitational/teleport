@@ -3,12 +3,13 @@ package testenv
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	dtenv "github.com/gravitational/teleport/e/lib/devicetrust/testenv"
@@ -26,7 +27,7 @@ var DefaultUsers = []*jamffake.User{
 // E is an integrated test environment for Jamf.
 type E struct {
 	Clock  clockwork.Clock
-	Logger log.FieldLogger
+	Logger *slog.Logger
 
 	// APIEndpoint for the fake Jamf API.
 	// Example: "https://localhost:12345/api".
@@ -123,8 +124,9 @@ func New(opts *Opts) (*E, error) {
 		e.Clock = clockwork.NewRealClock()
 	}
 
-	logger := log.New()
-	logger.SetLevel(log.PanicLevel) // Mostly silent
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelError + 1, // Silence logging for tests.
+	}))
 	e.Logger = logger
 
 	// TODO(codingllama): Pass clock down to deviceEnv?

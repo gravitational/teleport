@@ -56,7 +56,7 @@ func (c *Client) doAuthnJSONRequest(req *http.Request, jsonResp any) error {
 		if !errors.As(err, &apiErr) || apiErr.StatusCode != 401 {
 			return trace.Wrap(err)
 		}
-		c.logger.Warn("Jamf API: Existing auth token invalidated, attempting renewal")
+		c.logger.WarnContext(req.Context(), "Jamf API: Existing auth token invalidated, attempting renewal")
 
 		allowRetry = false
 		c.mu.Lock()
@@ -93,7 +93,10 @@ func (c *Client) createOrRenewAuthToken(ctx context.Context) (string, error) {
 			return c.currentToken.Token, nil
 		}
 		// NOK, try to acquire a fresh token.
-		c.logger.WithError(err).Warn("Jamf API: Failed to refresh AuthToken")
+		c.logger.WarnContext(ctx,
+			"Jamf API: Failed to refresh AuthToken",
+			"error", err,
+		)
 	}
 
 	// Have we failed authn too many times?

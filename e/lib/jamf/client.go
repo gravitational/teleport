@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -12,10 +13,10 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 // ErrJamfClientInvalidCredential is returned by Jamf client when the Jamf API credentials are invalid.
@@ -26,7 +27,7 @@ var ErrJamfClientInvalidCredential = errors.New("invalid Jamf API credentials")
 // as appropriate.
 type Client struct {
 	clock      clockwork.Clock
-	logger     log.FieldLogger
+	logger     *slog.Logger
 	httpClient *http.Client
 
 	baseURL            string
@@ -41,7 +42,7 @@ type Client struct {
 // ClientOpts are the creation options for the [Client].
 type ClientOpts struct {
 	Clock  clockwork.Clock
-	Logger log.FieldLogger
+	Logger *slog.Logger
 
 	HTTPClient *http.Client
 
@@ -83,7 +84,7 @@ func NewClient(ctx context.Context, opts ClientOpts) (*Client, error) {
 
 	logger := opts.Logger
 	if logger == nil {
-		logger = log.New()
+		logger = slog.Default()
 	}
 
 	clock := opts.Clock
@@ -131,7 +132,10 @@ func (c *Client) verifyCredentials(ctx context.Context) error {
 		PageSize: 1,
 	})
 	if err == nil {
-		c.logger.Debugf("Jamf API: Authentication against %q successful", c.baseURL)
+		c.logger.DebugContext(ctx,
+			"Jamf API: Authentication successful",
+			"url", c.baseURL,
+		)
 		return nil // Success
 	}
 
@@ -172,12 +176,11 @@ func (c *Client) doJSONRequest(req *http.Request, jsonResp any) error {
 			u = val
 		}
 
-		c.logger.
-			WithFields(log.Fields{
-				"url":    u,
-				"header": req.Header,
-			}).
-			Trace("Client: Executing HTTP request")
+		c.logger.Log(req.Context(), log.TraceLevel,
+			"Client: Executing HTTP request",
+			"url", u,
+			"header", req.Header,
+		)
 		req.Header.Set("Authorization", authz)
 	}
 
@@ -192,15 +195,19 @@ func (c *Client) doJSONRequest(req *http.Request, jsonResp any) error {
 		return trace.Wrap(err)
 	}
 	if err := resp.Body.Close(); err != nil {
-		c.logger.WithError(err).Warn("Jamf API: Failed to close http.Response body")
+		c.logger.WarnContext(req.Context(),
+			"Jamf API: Failed to close http.Response body",
+			"error", err,
+		)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		c.logger.WithFields(log.Fields{
-			"body":   string(body),
-			"status": resp.StatusCode,
-			"url":    req.URL,
-		}).Debug("Jamf API: API request failed")
+		c.logger.DebugContext(req.Context(),
+			"Jamf API: API request failed",
+			"body", string(body),
+			"status", resp.StatusCode,
+			"url", req.URL,
+		)
 		return &APIError{
 			StatusCode: resp.StatusCode,
 		}

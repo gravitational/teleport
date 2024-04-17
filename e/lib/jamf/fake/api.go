@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math"
 	"net/http"
 	"sort"
@@ -15,7 +16,6 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/e/lib/jamf"
 )
@@ -640,7 +640,10 @@ func (a *API) replyError(w http.ResponseWriter, resp errorResponse) {
 func (a *API) replyJSON(w http.ResponseWriter, code int, resp any) {
 	body, err := json.Marshal(resp)
 	if err != nil {
-		log.WithError(err).Warn("Failed to marshal JSON response")
+		slog.WarnContext(context.Background(),
+			"Failed to marshal JSON response",
+			"error", err,
+		)
 	}
 
 	w.WriteHeader(code)

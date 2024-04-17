@@ -12,7 +12,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -229,9 +228,6 @@ func TestS_Run_stopsOnCancel(t *testing.T) {
 	env := testenv.NewUsingT(t, &testenv.Opts{
 		DeviceTrustEnv: true,
 	})
-
-	logger := log.New()
-	logger.SetLevel(log.PanicLevel) // mostly silent logger
 
 	s := serviceFromEnv(t, env, func(opts *jamfservice.Opts) {
 		// Don't trigger a sync.

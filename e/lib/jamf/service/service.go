@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -14,7 +15,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 
@@ -69,7 +69,7 @@ var (
 // The Jamf service is an MDM service specialization that syncs device inventory
 // from Jamf to the Auth Server/DeviceTrustService.
 type S struct {
-	logger    log.FieldLogger
+	logger    *slog.Logger
 	clock     clockwork.Clock
 	config    *servicecfg.JamfConfig
 	devices   devicepb.DeviceTrustServiceClient
@@ -82,7 +82,7 @@ type S struct {
 // Opts are creation options from [S].
 type Opts struct {
 	Clock            clockwork.Clock
-	Logger           log.FieldLogger
+	Logger           *slog.Logger
 	Config           *servicecfg.JamfConfig
 	DevicesClient    devicepb.DeviceTrustServiceClient
 	HTTPClient       *http.Client
@@ -127,7 +127,7 @@ func New(ctx context.Context, opts Opts) (*S, error) {
 	logger := opts.Logger
 	scheduler, err := newJamfScheduler(cfg.Spec)
 	if errors.Is(err, mdm.ErrScheduleEmpty) {
-		logger.Error("Jamf service has an empty sync schedule, aborting")
+		logger.ErrorContext(ctx, "Jamf service has an empty sync schedule, aborting")
 		return nil, trace.Wrap(err)
 	} else if err != nil {
 		return nil, trace.Wrap(err)
@@ -141,7 +141,7 @@ func New(ctx context.Context, opts Opts) (*S, error) {
 	// Connect to the Jamf API and verify credentials.
 	jamfClient, err := jamf.NewClient(ctx, jamf.ClientOpts{
 		Clock:      clock,
-		Logger:     opts.Logger,
+		Logger:     logger,
 		HTTPClient: opts.HTTPClient,
 		APIURL:     spec.ApiEndpoint,
 		Username:   spec.Username,
@@ -233,7 +233,7 @@ func (s *S) verifyInventoryFilters(ctx context.Context) error {
 // Run starts the Jamf service, blocking until the context is closed or a fatal
 // error occurs.
 func (s *S) Run(ctx context.Context) error {
-	s.logger.Info("Jamf service successfully started")
+	s.logger.InfoContext(ctx, "Jamf service successfully started")
 
 	exitOnSync := s.config.ExitOnSync
 	if exitOnSync {
@@ -250,7 +250,7 @@ func (s *S) Run(ctx context.Context) error {
 	for {
 		offset := s.scheduler.NextOffset()
 		if exitOnSync && offset > 0 {
-			s.logger.Info("All immediate syncs are done, exiting [exit_on_sync=true]")
+			s.logger.InfoContext(ctx, "All immediate syncs are done, exiting [exit_on_sync=true]")
 			return nil
 		}
 		// timer is always drained when we get here.
@@ -274,7 +274,10 @@ func (s *S) Run(ctx context.Context) error {
 				strconv.FormatBool(err == nil),
 			).Inc()
 			if err != nil {
-				s.logger.WithError(err).Warn("Jamf inventory sync attempt failed")
+				s.logger.WarnContext(ctx,
+					"Jamf inventory sync attempt failed",
+					"error", err,
+				)
 				if s.pluginStatusSink != nil {
 					s.pluginStatusSink.Emit(ctx, &types.PluginStatusV1{Code: types.PluginStatusCode_OTHER_ERROR})
 				}
@@ -293,7 +296,7 @@ func (s *S) Run(ctx context.Context) error {
 
 		case <-ctx.Done():
 			timer.Stop()
-			s.logger.Info("Exited")
+			s.logger.InfoContext(ctx, "Exited")
 			return ctx.Err()
 		}
 	}
@@ -321,13 +324,14 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 		pageSize = inventoryReadDefaultPageSize
 	}
 
-	s.logger.WithFields(log.Fields{
-		"Mode":       spec.Mode,
-		"FilterRSQL": spec.FilterRSQL,
-		"OnMissing":  spec.OnMissing,
-		"CutTime":    spec.CutTime,
-		"PageSize":   pageSize,
-	}).Info("Starting sync")
+	s.logger.InfoContext(ctx,
+		"Starting sync",
+		"mode", spec.Mode,
+		"filter_rsql", spec.FilterRSQL,
+		"on_missing", spec.OnMissing,
+		"cut_time", spec.CutTime,
+		"page_size", pageSize,
+	)
 	start := s.clock.Now()
 
 	stream, err := s.devices.SyncInventory(ctx)
@@ -502,7 +506,11 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 		})
 	}
 
-	s.logger.Infof("Synced %v devices in %v", syncCount, s.clock.Since(start))
+	s.logger.InfoContext(ctx,
+		"Synced devices",
+		"count", syncCount,
+		"elapsed", s.clock.Since(start),
+	)
 	return nextCutTime, nil
 }
 
@@ -535,7 +543,11 @@ func (s *S) getDevicesPage(
 		if spec.Mode == mdm.SyncModePartial &&
 			inv.General != nil &&
 			inv.General.ReportDate.Before(spec.CutTime) {
-			s.logger.Debugf("Stopping partial sync, general.reportDate=%v", inv.General.ReportDate)
+			//nolint:sloglint // Keys mimic JSON object.
+			s.logger.DebugContext(ctx,
+				"Stopping partial sync",
+				"general.reportDate", inv.General.ReportDate,
+			)
 			// Signal stop after this round of upserts.
 			partialStop = true
 			break
@@ -543,28 +555,28 @@ func (s *S) getDevicesPage(
 
 		dev, err := computerInventoryToDevice(inv)
 		if err != nil {
-			s.logger.WithError(err).Warn("Failed to convert Jamf ComputerInventory to Teleport Device")
+			s.logger.WarnContext(ctx,
+				"Failed to convert Jamf ComputerInventory to Teleport Device",
+				"error", err,
+			)
 			continue
 		}
 		devs = append(devs, dev)
 
 		// Log device information, but redact sensitive data first.
-		if log.IsLevelEnabled(log.DebugLevel) {
+		if s.logger.Enabled(ctx, slog.LevelDebug) {
 			osUsernames := dev.Profile.OsUsernames
 			dev.Profile.OsUsernames = []string{"<REDACTED>"}
-			s.logger.Debugf(""+
-				"Syncing Jamf device %v/%v, "+
-				"id=%v, "+
-				"general.reportDate=%q, "+
-				"general.lastContactTime=%q, "+
-				"general.lastEnrolledDate=%q, "+
-				"profile={%+v}",
-				inv.General.Platform, inv.Hardware.SerialNumber,
-				inv.ID,
-				inv.General.ReportDate,
-				inv.General.LastContactTime,
-				inv.General.LastEnrolledDate,
-				dev.Profile,
+			//nolint:sloglint // Keys mimic JSON object.
+			s.logger.DebugContext(ctx,
+				"Syncing Jamf device",
+				"general.platform", inv.General.Platform,
+				"hardware.serialNumber", inv.Hardware.SerialNumber,
+				"id", inv.ID,
+				"general.reportDate", inv.General.ReportDate,
+				"general.lastContactTime", inv.General.LastContactTime,
+				"general.lastEnrolledDate", inv.General.LastEnrolledDate,
+				"profile", dev.Profile,
 			)
 			dev.Profile.OsUsernames = osUsernames
 		}
@@ -605,7 +617,10 @@ func (s *S) confirmMissingDevices(ctx context.Context, missingDevs []*devicepb.D
 		dev := dev
 		id := dev.Profile.GetExternalId()
 		if id == "" {
-			s.logger.WithField("Device", dev).Debug("Marking device without external_id for removal")
+			s.logger.DebugContext(ctx,
+				"Marking device without external_id for removal",
+				"device", dev,
+			)
 			markForRemoval(dev)
 			continue
 		}
@@ -627,27 +642,32 @@ func (s *S) confirmMissingDevices(ctx context.Context, missingDevs []*devicepb.D
 			apiErr := &jamf.APIError{}
 			switch {
 			case errors.As(err, &apiErr) && apiErr.StatusCode == 404:
-				s.logger.WithField("Device", dev).Debug("Marking unknown device for removal")
+				s.logger.DebugContext(ctx,
+					"Marking unknown device for removal",
+					"device", dev,
+				)
 				markForRemoval(dev)
 			case err != nil: // Unexpected error
-				s.logger.
-					WithField("Device", dev).
-					WithError(err).
-					Debug("Skipping removal of device, query failed")
+				s.logger.DebugContext(ctx,
+					"Skipping removal of device, query failed",
+					"error", err,
+					"device", dev,
+				)
 			case computer.General != nil &&
 				platformToOSType(computer.General.Platform) == dev.OsType &&
 				computer.Hardware != nil &&
 				computer.Hardware.SerialNumber == dev.AssetTag:
-				s.logger.
-					WithField("Device", dev).
-					Debug("Skipping removal, device found on Jamf")
+				s.logger.DebugContext(ctx,
+					"Skipping removal, device found on Jamf",
+					"device", dev,
+				)
 			default:
 				// ID matches the wrong device. A leftover from other times?
-				s.logger.
-					WithFields(log.Fields{
-						"Computer": computer,
-						"Device":   dev,
-					}).Debug("Marking mismatched device for removal")
+				s.logger.DebugContext(ctx,
+					"Marking mismatched device for removal",
+					"computer", computer,
+					"device", dev,
+				)
 				markForRemoval(dev)
 			}
 
@@ -738,14 +758,15 @@ func (s *S) logSyncResult(result *devicepb.SyncInventoryResult, state syncState)
 				}
 			}
 
-			s.logger.WithFields(log.Fields{
-				"Code":         status.GetStatus().GetCode(),
-				"Message":      status.GetStatus().GetMessage(),
-				"DeviceID":     status.GetId(),
-				"Platform":     platform,
-				"SerialNumber": serialNumber,
-				"ExpectDelete": state.expectDelete,
-			}).Warn("Failed to sync device")
+			s.logger.WarnContext(context.Background(),
+				"Failed to sync device",
+				"code", status.GetStatus().GetCode(),
+				"message", status.GetStatus().GetMessage(),
+				"device_id", status.GetId(),
+				"platform", platform,
+				"serial_number", serialNumber,
+				"expect_delete", state.expectDelete,
+			)
 
 		case status.GetDeleted():
 			deletes++
@@ -755,9 +776,11 @@ func (s *S) logSyncResult(result *devicepb.SyncInventoryResult, state syncState)
 		}
 	}
 
-	s.logger.WithFields(log.Fields{
-		"upserts":  upserts,
-		"deletes":  deletes,
-		"failures": failures,
-	}).Infof("Device sync report, page #%v", state.page)
+	s.logger.InfoContext(context.Background(),
+		"Device sync page report",
+		"page", state.page,
+		"upserts", upserts,
+		"deletes", deletes,
+		"failures", failures,
+	)
 }

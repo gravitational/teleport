@@ -610,6 +610,7 @@ func (p *Plugin) registerPluginsService(server *auth.GRPCServer, pluginStaticCre
 		PluginService:                  p.plugins,
 		PluginStaticCredentialsService: pluginStaticCredentialsService,
 		PluginAuthorizers:              authorizers,
+		Logger:                         p.logger,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
