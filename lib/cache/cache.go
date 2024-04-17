@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -172,6 +173,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindKubeWaitingContainer},
 		{Kind: types.KindNotification},
 		{Kind: types.KindGlobalNotification},
+		{Kind: types.KindAccessMonitoringRule},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -549,6 +551,7 @@ type Cache struct {
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
 	kubeWaitingContsCache        *local.KubeWaitingContainerService
 	notificationsCache           services.Notifications
+	accessMontoringRuleCache     services.AccessMonitoringRules
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -715,6 +718,8 @@ type Config struct {
 	KubeWaitingContainers services.KubeWaitingContainer
 	// Notifications is the notifications service
 	Notifications services.Notifications
+	// AccessMonitoringRules is the access monitoring rules service.
+	AccessMonitoringRules services.AccessMonitoringRules
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -920,6 +925,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	accessMonitoringRuleCache, err := local.NewAccessMonitoringRulesService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	fanout := services.NewFanoutV2(services.FanoutV2Config{})
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
 	for i := 0; i < config.FanoutShards; i++ {
@@ -956,6 +967,7 @@ func New(config Config) (*Cache, error) {
 		webSessionCache:              local.NewIdentityService(config.Backend).WebSessions(),
 		webTokenCache:                local.NewIdentityService(config.Backend).WebTokens(),
 		windowsDesktopsCache:         local.NewWindowsDesktopService(config.Backend),
+		accessMontoringRuleCache:     accessMonitoringRuleCache,
 		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
 		userGroupsCache:              userGroupsCache,
 		oktaCache:                    oktaCache,
@@ -3108,9 +3120,36 @@ func (c *Cache) ListGlobalNotifications(ctx context.Context, pageSize int, start
 		return nil, "", trace.Wrap(err)
 	}
 	defer rg.Release()
-
 	out, nextKey, err := rg.reader.ListGlobalNotifications(ctx, pageSize, startKey)
 	return out, nextKey, trace.Wrap(err)
+}
+
+// ListAccessMonitoringRules returns a paginated list of access monitoring rules.
+func (c *Cache) ListAccessMonitoringRules(ctx context.Context, pageSize int, nextToken string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessMonitoringRules")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessMonitoringRules)
+
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	out, nextKey, err := rg.reader.ListAccessMonitoringRules(ctx, pageSize, nextToken)
+	return out, nextKey, trace.Wrap(err)
+}
+
+// GetAccessMonitoringRule returns the specified AccessMonitoringRule resources.
+func (c *Cache) GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessMonitoringRule")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessMonitoringRules)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetAccessMonitoringRule(ctx, name)
 }
 
 // ListResources is a part of auth.Cache implementation

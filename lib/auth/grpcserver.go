@@ -48,6 +48,7 @@ import (
 	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -71,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/accessmonitoringrules/accessmonitoringrulesv1"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/dbobject/dbobjectv1"
@@ -5444,6 +5446,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	kubewaitingcontainerpb.RegisterKubeWaitingContainersServiceServer(server, kubeWaitingContsServer)
+
+	accessMonitoringRuleServer, err := accessmonitoringrulesv1.NewService(&accessmonitoringrulesv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+		Cache:      cfg.AuthServer.Cache,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessmonitoringrules.RegisterAccessMonitoringRulesServiceServer(server, accessMonitoringRuleServer)
 
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all
