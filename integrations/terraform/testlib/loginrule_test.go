@@ -17,11 +17,11 @@ package testlib
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/stretchr/testify/require"
 
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -30,7 +30,7 @@ import (
 func (s *TerraformSuiteEnterprise) TestLoginRule() {
 	require.True(s.T(),
 		s.teleportFeatures.GetOIDC() || s.teleportFeatures.GetSAML(),
-		"Test requires OIDC or SAML",
+		"Test requires enterprise version of teleport",
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
