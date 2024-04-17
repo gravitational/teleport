@@ -441,16 +441,31 @@ function addTray() {
   const tray = new Tray(resizedImage);
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Profiles',
+      label: 'Open Teleport Connect',
+      icon: nativeImage
+        .createFromNamedImage('NSImageNameApplicationIcon')
+        .resize({ width: 16 }),
       type: 'normal',
-      enabled: false,
     },
     {
-      label: 'alice@teleport-ent-15.asteroid.earth',
-      type: 'radio',
+      label: 'bob@platform.teleport.sh',
+      icon: nativeImage
+        .createFromNamedImage('NSImageNameUser')
+        .resize({ width: 16 }),
+      type: 'submenu',
+      submenu: [
+        {
+          label: 'alice@teleport-ent-15.asteroid.earth',
+          type: 'radio',
+        },
+        {
+          label: 'bob@platform.teleport.sh',
+          type: 'radio',
+          checked: true,
+        },
+        { label: 'sam@example.com', type: 'radio' },
+      ],
     },
-    { label: 'bob@platform.teleport.sh', type: 'radio', checked: true },
-    { label: 'sam@example.com', type: 'radio' },
     { type: 'separator' },
     {
       label: 'Local proxies',
@@ -497,6 +512,8 @@ function addTray() {
         { label: 'Turn off' },
       ],
     },
+    { type: 'separator' },
+    { label: 'Quit', type: 'normal' },
   ]);
 
   tray.setContextMenu(contextMenu);
