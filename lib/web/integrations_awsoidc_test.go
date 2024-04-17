@@ -258,7 +258,7 @@ func TestBuildAWSAppAccessConfigureIAMScript(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	// Unauthenticated client for script downloading.
-	publicClt := env.proxies[0].newClient(t)
+	anonymousHTTPClient := env.proxies[0].newClient(t)
 	pathVars := []string{
 		"webapi",
 		"scripts",
@@ -266,7 +266,7 @@ func TestBuildAWSAppAccessConfigureIAMScript(t *testing.T) {
 		"configure",
 		"aws-app-access-iam.sh",
 	}
-	endpoint := publicClt.Endpoint(pathVars...)
+	endpoint := anonymousHTTPClient.Endpoint(pathVars...)
 
 	tests := []struct {
 		name                 string
@@ -311,7 +311,7 @@ func TestBuildAWSAppAccessConfigureIAMScript(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			resp, err := publicClt.Get(ctx, endpoint, tc.reqQuery)
+			resp, err := anonymousHTTPClient.Get(ctx, endpoint, tc.reqQuery)
 			tc.errCheck(t, err)
 			if err != nil {
 				return
