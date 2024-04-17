@@ -65,7 +65,7 @@ func TestListDatabasesIAMConfigReqDefaults(t *testing.T) {
 
 func TestListDatabasesIAMConfig(t *testing.T) {
 	ctx := context.Background()
-	baseReq := ConfigureIAMListDatabasesRequest{
+	baseReq := &ConfigureIAMListDatabasesRequest{
 		Region:          "us-east-1",
 		IntegrationRole: "integrationrole",
 	}
@@ -73,7 +73,7 @@ func TestListDatabasesIAMConfig(t *testing.T) {
 	for _, tt := range []struct {
 		name              string
 		mockExistingRoles []string
-		req               ConfigureIAMListDatabasesRequest
+		req               *ConfigureIAMListDatabasesRequest
 		errCheck          require.ErrorAssertionFunc
 	}{
 		{

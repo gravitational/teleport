@@ -118,7 +118,7 @@ func NewEICEIAMConfigureClient(ctx context.Context, region string) (EICEIAMConfi
 //
 // The following actions must be allowed by the IAM Role assigned in the Client.
 //   - iam:PutRolePolicy
-func ConfigureEICEIAM(ctx context.Context, clt EICEIAMConfigureClient, req EICEIAMConfigureRequest) error {
+func ConfigureEICEIAM(ctx context.Context, clt EICEIAMConfigureClient, req *EICEIAMConfigureRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}

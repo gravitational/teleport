@@ -315,7 +315,7 @@ func NewIdPIAMConfigureClient(ctx context.Context) (IdPIAMConfigureClient, error
 //   - s3:PutBucketPublicAccessBlock (used for s3:DeletePublicAccessBlock)
 //   - s3:ListBuckets (used for s3:HeadBucket)
 //   - s3:PutObject
-func ConfigureIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) error {
+func ConfigureIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req *IdPIAMConfigureRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -370,7 +370,7 @@ func ConfigureIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMC
 	return nil
 }
 
-func ensureOIDCIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) error {
+func ensureOIDCIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req *IdPIAMConfigureRequest) error {
 	var err error
 	// For S3 bucket setups the thumbprint is ignored, but the API still requires a parseable one.
 	// https://github.com/aws-actions/configure-aws-credentials/issues/357#issuecomment-1626357333
@@ -403,7 +403,7 @@ func ensureOIDCIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAM
 	return nil
 }
 
-func ensureBucketIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest, log *logrus.Entry) error {
+func ensureBucketIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req *IdPIAMConfigureRequest, log *logrus.Entry) error {
 	// According to https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketLocation.html
 	// s3:GetBucketLocation is not recommended, and should be replaced by s3:HeadBucket according to AWS docs.
 	// The issue with using s3:HeadBucket is that it returns an error if the SDK client's region is not the same as the bucket.
@@ -445,7 +445,7 @@ func ensureBucketIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPI
 	return trace.Wrap(awsErr)
 }
 
-func uploadOpenIDPublicFiles(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) error {
+func uploadOpenIDPublicFiles(ctx context.Context, clt IdPIAMConfigureClient, req *IdPIAMConfigureRequest) error {
 	openidConfigPath := path.Join(req.s3BucketPrefix, ".well-known/openid-configuration")
 	jwksBucketPath := path.Join(req.s3BucketPrefix, ".well-known/jwks")
 	jwksPublicURI, err := url.JoinPath(req.issuerURL, ".well-known/jwks")
@@ -476,7 +476,7 @@ func uploadOpenIDPublicFiles(ctx context.Context, clt IdPIAMConfigureClient, req
 	return trace.Wrap(err)
 }
 
-func createIdPIAMRole(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) error {
+func createIdPIAMRole(ctx context.Context, clt IdPIAMConfigureClient, req *IdPIAMConfigureRequest) error {
 	integrationRoleAssumeRoleDocument, err := awslib.NewPolicyDocument(
 		awslib.StatementForAWSOIDCRoleTrustRelationship(req.AccountID, req.issuer, []string{types.IntegrationAWSOIDCAudience}),
 	).Marshal()
@@ -493,7 +493,7 @@ func createIdPIAMRole(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAM
 	return trace.Wrap(err)
 }
 
-func upsertIdPIAMRole(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) error {
+func upsertIdPIAMRole(ctx context.Context, clt IdPIAMConfigureClient, req *IdPIAMConfigureRequest) error {
 	getRoleOut, err := clt.GetRole(ctx, &iam.GetRoleInput{
 		RoleName: &req.IntegrationRole,
 	})

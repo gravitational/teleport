@@ -243,8 +243,8 @@ func TestConfigureIdPIAMUsingProxyURL(t *testing.T) {
 		lib.SetInsecureDevMode(true)
 		defer lib.SetInsecureDevMode(false)
 
-		baseIdPIAMConfigReqWithTLServer := func() IdPIAMConfigureRequest {
-			return IdPIAMConfigureRequest{
+		baseIdPIAMConfigReqWithTLServer := func() *IdPIAMConfigureRequest {
+			return &IdPIAMConfigureRequest{
 				Cluster:            "mycluster",
 				IntegrationName:    "myintegration",
 				IntegrationRole:    "integrationrole",
@@ -257,7 +257,7 @@ func TestConfigureIdPIAMUsingProxyURL(t *testing.T) {
 			mockAccountID      string
 			mockExistingRoles  map[string]mockRole
 			mockExistingIdPUrl []string
-			req                func() IdPIAMConfigureRequest
+			req                func() *IdPIAMConfigureRequest
 			errCheck           require.ErrorAssertionFunc
 			externalStateCheck func(*testing.T, mockIdPIAMConfigClient)
 		}{
@@ -377,8 +377,8 @@ func TestConfigureIdPIAMUsingProxyURL(t *testing.T) {
 	t.Run("using s3 bucket", func(t *testing.T) {
 		base64EncodedString := base64.StdEncoding.EncodeToString([]byte(`jwks`))
 
-		baseIdPIAMConfigReqWithS3Bucket := func() IdPIAMConfigureRequest {
-			return IdPIAMConfigureRequest{
+		baseIdPIAMConfigReqWithS3Bucket := func() *IdPIAMConfigureRequest {
+			return &IdPIAMConfigureRequest{
 				Cluster:           "mycluster",
 				IntegrationName:   "myintegration",
 				IntegrationRole:   "integrationrole",
@@ -396,7 +396,7 @@ func TestConfigureIdPIAMUsingProxyURL(t *testing.T) {
 			mockExistingRoles   map[string]mockRole
 			mockClientRegion    string
 			mockExistingBuckets map[string]mockBucket
-			req                 func() IdPIAMConfigureRequest
+			req                 func() *IdPIAMConfigureRequest
 			errCheck            require.ErrorAssertionFunc
 			externalStateCheck  func(*testing.T, mockIdPIAMConfigClient)
 		}{

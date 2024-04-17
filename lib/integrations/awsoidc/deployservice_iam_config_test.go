@@ -43,8 +43,8 @@ var notFoundCheck = func(t require.TestingT, err error, msgAndArgs ...interface{
 	require.True(t, trace.IsNotFound(err), `expected "not found", but got %v`, err)
 }
 
-var baseReq = func() DeployServiceIAMConfigureRequest {
-	return DeployServiceIAMConfigureRequest{
+var baseReq = func() *DeployServiceIAMConfigureRequest {
+	return &DeployServiceIAMConfigureRequest{
 		Cluster:         "mycluster",
 		IntegrationName: "myintegration",
 		Region:          "us-east-1",
@@ -56,15 +56,15 @@ var baseReq = func() DeployServiceIAMConfigureRequest {
 func TestDeployServiceIAMConfigReqDefaults(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
-		req      func() DeployServiceIAMConfigureRequest
+		req      func() *DeployServiceIAMConfigureRequest
 		errCheck require.ErrorAssertionFunc
-		expected DeployServiceIAMConfigureRequest
+		expected *DeployServiceIAMConfigureRequest
 	}{
 		{
 			name:     "set defaults",
 			req:      baseReq,
 			errCheck: require.NoError,
-			expected: DeployServiceIAMConfigureRequest{
+			expected: &DeployServiceIAMConfigureRequest{
 				Cluster:                            "mycluster",
 				IntegrationName:                    "myintegration",
 				Region:                             "us-east-1",
@@ -82,7 +82,7 @@ func TestDeployServiceIAMConfigReqDefaults(t *testing.T) {
 		},
 		{
 			name: "missing cluster",
-			req: func() DeployServiceIAMConfigureRequest {
+			req: func() *DeployServiceIAMConfigureRequest {
 				req := baseReq()
 				req.Cluster = ""
 				return req
@@ -91,7 +91,7 @@ func TestDeployServiceIAMConfigReqDefaults(t *testing.T) {
 		},
 		{
 			name: "missing integration name",
-			req: func() DeployServiceIAMConfigureRequest {
+			req: func() *DeployServiceIAMConfigureRequest {
 				req := baseReq()
 				req.IntegrationName = ""
 				return req
@@ -100,7 +100,7 @@ func TestDeployServiceIAMConfigReqDefaults(t *testing.T) {
 		},
 		{
 			name: "missing region",
-			req: func() DeployServiceIAMConfigureRequest {
+			req: func() *DeployServiceIAMConfigureRequest {
 				req := baseReq()
 				req.Region = ""
 				return req
@@ -109,7 +109,7 @@ func TestDeployServiceIAMConfigReqDefaults(t *testing.T) {
 		},
 		{
 			name: "missing integration role",
-			req: func() DeployServiceIAMConfigureRequest {
+			req: func() *DeployServiceIAMConfigureRequest {
 				req := baseReq()
 				req.IntegrationRole = ""
 				return req
@@ -118,7 +118,7 @@ func TestDeployServiceIAMConfigReqDefaults(t *testing.T) {
 		},
 		{
 			name: "missing task role",
-			req: func() DeployServiceIAMConfigureRequest {
+			req: func() *DeployServiceIAMConfigureRequest {
 				req := baseReq()
 				req.TaskRole = ""
 				return req
@@ -147,7 +147,7 @@ func TestDeployServiceIAMConfig(t *testing.T) {
 		mockAccountID        string
 		mockExistingPolicies []string
 		mockExistingRoles    []string
-		req                  func() DeployServiceIAMConfigureRequest
+		req                  func() *DeployServiceIAMConfigureRequest
 		errCheck             require.ErrorAssertionFunc
 	}{
 		{

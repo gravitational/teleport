@@ -105,7 +105,7 @@ func NewEKSIAMConfigureClient(ctx context.Context, region string) (EKSIAMConfigu
 //
 // The following actions must be allowed by the IAM Role assigned in the Client.
 //   - iam:PutRolePolicy
-func ConfigureEKSIAM(ctx context.Context, clt EKSIAMConfigureClient, req EKSIAMConfigureRequest) error {
+func ConfigureEKSIAM(ctx context.Context, clt EKSIAMConfigureClient, req *EKSIAMConfigureRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
