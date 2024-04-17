@@ -76,8 +76,8 @@ func TestAWSAppAccessConfigReqDefaults(t *testing.T) {
 
 func TestAWSAppAccessConfig(t *testing.T) {
 	ctx := context.Background()
-	baseReq := func() AWSAppAccessConfigureRequest {
-		return AWSAppAccessConfigureRequest{
+	baseReq := func() *AWSAppAccessConfigureRequest {
+		return &AWSAppAccessConfigureRequest{
 			IntegrationRole: "integrationrole",
 		}
 	}
@@ -85,7 +85,7 @@ func TestAWSAppAccessConfig(t *testing.T) {
 	for _, tt := range []struct {
 		name              string
 		mockExistingRoles []string
-		req               func() AWSAppAccessConfigureRequest
+		req               func() *AWSAppAccessConfigureRequest
 		errCheck          require.ErrorAssertionFunc
 	}{
 		{
@@ -102,11 +102,11 @@ func TestAWSAppAccessConfig(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			clt := mockAWSAppAccessConfigClient{
+			awsClient := &mockAWSAppAccessConfigClient{
 				existingRoles: tt.mockExistingRoles,
 			}
 
-			err := ConfigureAWSAppAccess(ctx, &clt, tt.req())
+			err := ConfigureAWSAppAccess(ctx, awsClient, tt.req())
 			tt.errCheck(t, err)
 		})
 	}
@@ -116,7 +116,6 @@ type mockAWSAppAccessConfigClient struct {
 	existingRoles []string
 }
 
-// PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
 func (m *mockAWSAppAccessConfigClient) PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
 	if !slices.Contains(m.existingRoles, *params.RoleName) {
 		noSuchEntityMessage := fmt.Sprintf("role %q does not exist.", *params.RoleName)
