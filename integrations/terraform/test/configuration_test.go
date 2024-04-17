@@ -25,10 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func (s *TerraformSuite) getTLSCerts() {
-
-}
-
 func (s *TerraformSuite) TestConfigureAuthBase64() {
 	name := "teleport_app.test_auth_b64"
 

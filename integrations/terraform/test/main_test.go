@@ -57,8 +57,6 @@ type TerraformBaseSuite struct {
 	teleportConfig lib.TeleportConfig
 	// teleportFeatures represents enabled Teleport feature flags
 	teleportFeatures *proto.Features
-	// plugin represents plugin user name
-	plugin string
 	// terraformConfig represents Terraform provider configuration
 	terraformConfig string
 	// terraformProvider represents an instance of a Terraform provider
@@ -142,6 +140,7 @@ func (s *TerraformBaseSuite) SetupSuite() {
 	require.NoError(t, err)
 	tfUser.SetRoles([]string{tfRole.GetName()})
 	tfUser, err = s.client.CreateUser(ctx, tfUser)
+	require.NoError(t, err)
 
 	// Sign an identity for the access plugin and generate its configuration
 	s.teleportConfig.Addr = s.AuthHelper.ServerAddr()
