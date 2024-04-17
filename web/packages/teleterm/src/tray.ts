@@ -67,6 +67,7 @@ async function buildTray(
       click: () => browserWindow.show(),
     },
     profiles,
+    vnet,
     { type: 'separator' },
     {
       label: 'Local proxies',
@@ -168,4 +169,41 @@ const getProfiles = async (
           }))
         : undefined,
   };
+};
+
+const vnet: MenuItemConstructorOptions = {
+  label: 'VNet',
+  type: 'submenu',
+  submenu: [
+    {
+      label: 'Turn off',
+      type: 'normal',
+    },
+    { type: 'separator' },
+    { label: 'Recent connections', enabled: false },
+    {
+      label: 'grafana.example.com',
+      icon: nativeImage
+        .createFromNamedImage('NSImageNameStatusAvailable')
+        .resize({ width: 16 }),
+    },
+    {
+      label: 'api.company.private',
+      icon: nativeImage
+        .createFromNamedImage('NSImageNameStatusAvailable')
+        .resize({ width: 16 }),
+    },
+    {
+      label: 'redis.teleport.sh',
+      icon: nativeImage
+        .createFromNamedImage('NSImageNameStatusUnavailable')
+        .resize({ width: 16 }),
+    },
+    {
+      label: 'aerospike.teleport.sh',
+      icon: nativeImage
+        .createFromNamedImage('NSImageNameStatusNone')
+        .resize({ width: 16 }),
+    },
+  ],
 };
