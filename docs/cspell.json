@@ -337,6 +337,7 @@
     "clientid",
     "clis",
     "cloudbuild",
+    "cloudflared",
     "cloudhsmv2",
     "cloudkms",
     "cloudsql",
