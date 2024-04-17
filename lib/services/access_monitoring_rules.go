@@ -25,6 +25,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -37,6 +38,22 @@ type AccessMonitoringRules interface {
 	DeleteAccessMonitoringRule(ctx context.Context, name string) error
 	DeleteAllAccessMonitoringRules(ctx context.Context) error
 	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+}
+
+func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.AccessMonitoringRule) error {
+	accessMonitoringRule.Kind = types.KindAccessMonitoringRule
+	if accessMonitoringRule.Metadata == nil {
+		return trace.BadParameter("accessMonitoringRule metadata is missing")
+	}
+	if accessMonitoringRule.Spec == nil {
+		return trace.BadParameter("accessMonitoringRule spec is missing")
+	}
+
+	if len(accessMonitoringRule.Spec.Subjects) == 0 {
+		return trace.BadParameter("accessMonitoringRule subject is missing")
+	}
+
+	return nil
 }
 
 // MarshalAccessMonitoringRule marshals AccessMonitoringRule resource to JSON.
