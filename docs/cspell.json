@@ -358,6 +358,7 @@
     "compu",
     "cond",
     "configmap",
+    "connectionupgrade",
     "connectorname",
     "cqlsh",
     "createkey",
