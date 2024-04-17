@@ -36,10 +36,6 @@ const (
 
 // AWSAppAccessConfigureRequest is a request to configure the required Policies to use AWS App Access.
 type AWSAppAccessConfigureRequest struct {
-	// Region is the AWS Region.
-	// Used to set up the AWS SDK Client.
-	//Region string
-
 	// IntegrationRole is the Integration's AWS Role used to set up Teleport as an OIDC IdP.
 	IntegrationRole string
 
@@ -50,6 +46,10 @@ type AWSAppAccessConfigureRequest struct {
 
 // CheckAndSetDefaults ensures the required fields are present.
 func (r *AWSAppAccessConfigureRequest) CheckAndSetDefaults() error {
+	if r == nil {
+		return trace.BadParameter("request is nil")
+	}
+
 	if r.IntegrationRole == "" {
 		return trace.BadParameter("integration role is required")
 	}
@@ -72,7 +72,7 @@ type defaultAWSAppAccessConfigureClient struct {
 }
 
 // NewAWSAppAccessConfigureClient creates a new AWSAppAccessConfigureClient.
-func NewAWSAppAccessConfigureClient(ctx context.Context) (AWSAppAccessConfigureClient, error) {
+func NewAWSAppAccessConfigureClient(ctx context.Context) (*defaultAWSAppAccessConfigureClient, error) {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -95,7 +95,7 @@ func NewAWSAppAccessConfigureClient(ctx context.Context) (AWSAppAccessConfigureC
 //
 // The following actions must be allowed by the IAM Role assigned in the Client.
 //   - iam:PutRolePolicy
-func ConfigureAWSAppAccess(ctx context.Context, clt AWSAppAccessConfigureClient, req AWSAppAccessConfigureRequest) error {
+func ConfigureAWSAppAccess(ctx context.Context, awsClient AWSAppAccessConfigureClient, req *AWSAppAccessConfigureRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -107,7 +107,7 @@ func ConfigureAWSAppAccess(ctx context.Context, clt AWSAppAccessConfigureClient,
 		return trace.Wrap(err)
 	}
 
-	_, err = clt.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
+	_, err = awsClient.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
 		PolicyName:     &req.IntegrationRoleAWSAppAccessPolicy,
 		RoleName:       &req.IntegrationRole,
 		PolicyDocument: &awsAppAccessPolicyDocument,
@@ -118,7 +118,10 @@ func ConfigureAWSAppAccess(ctx context.Context, clt AWSAppAccessConfigureClient,
 		}
 		return trace.Wrap(err)
 	}
+	slog.InfoContext(ctx, "IAM Inline Policy added to IAM Role",
+		"policy", req.IntegrationRoleAWSAppAccessPolicy,
+		"role", req.IntegrationRole,
+	)
 
-	slog.With("policy", req.IntegrationRoleAWSAppAccessPolicy).With("role", req.IntegrationRole).InfoContext(ctx, "IAM Inline Policy added to IAM Role.")
 	return nil
 }

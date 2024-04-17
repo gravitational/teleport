@@ -324,8 +324,10 @@ func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request
 	return nil, trace.Wrap(err)
 }
 
-// awsOIDCConfigureAppAccessIAM returns a script that configures the required IAM permissions to enable the usage of App Access
+// awsOIDCConfigureAppAccessIAM returns a script that configures the required IAM permissions to enable App Access
 // using the AWS OIDC Credentials.
+// It receives the IAM Role from a query param "role".
+// The script is returned using the contente type "text/x-shellscript" and no ContentDisposition header is set.
 func (h *Handler) awsOIDCConfigureAWSAppAccessIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	queryParams := r.URL.Query()
 
@@ -349,8 +351,8 @@ func (h *Handler) awsOIDCConfigureAWSAppAccessIAM(w http.ResponseWriter, r *http
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	_, err = fmt.Fprint(w, script)
 
+	_, err = fmt.Fprint(w, script)
 	return nil, trace.Wrap(err)
 }
 

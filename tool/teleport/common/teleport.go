@@ -77,6 +77,7 @@ type Options struct {
 // Run inits/starts the process according to the provided options
 func Run(options Options) (app *kingpin.Application, executedCommand string, conf *servicecfg.Config) {
 	var err error
+	ctx := context.Background()
 
 	// configure trace's errors to produce full stack traces
 	isDebug, _ := strconv.ParseBool(os.Getenv(teleport.VerboseLogsEnvVar))
@@ -619,7 +620,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case integrationConfEICECmd.FullCommand():
 		err = onIntegrationConfEICEIAM(ccf.IntegrationConfEICEIAMArguments)
 	case integrationConfAWSAppAccessCmd.FullCommand():
-		err = onIntegrationConfAWSAppAccessIAM(ccf.IntegrationConfAWSAppAccessIAMArguments)
+		err = onIntegrationConfAWSAppAccessIAM(ctx, ccf.IntegrationConfAWSAppAccessIAMArguments)
 	case integrationConfEKSCmd.FullCommand():
 		err = onIntegrationConfEKSIAM(ccf.IntegrationConfEKSIAMArguments)
 	case integrationConfAWSOIDCIdPCmd.FullCommand():
@@ -1022,9 +1023,7 @@ func onIntegrationConfEICEIAM(params config.IntegrationConfEICEIAM) error {
 	return nil
 }
 
-func onIntegrationConfAWSAppAccessIAM(params config.IntegrationConfAWSAppAccessIAM) error {
-	ctx := context.Background()
-
+func onIntegrationConfAWSAppAccessIAM(ctx context.Context, params config.IntegrationConfAWSAppAccessIAM) error {
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
@@ -1033,14 +1032,10 @@ func onIntegrationConfAWSAppAccessIAM(params config.IntegrationConfAWSAppAccessI
 		return trace.Wrap(err)
 	}
 
-	err = awsoidc.ConfigureAWSAppAccess(ctx, iamClient, awsoidc.AWSAppAccessConfigureRequest{
+	err = awsoidc.ConfigureAWSAppAccess(ctx, iamClient, &awsoidc.AWSAppAccessConfigureRequest{
 		IntegrationRole: params.Role,
 	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.Wrap(err)
 }
 
 func onIntegrationConfEKSIAM(params config.IntegrationConfEKSIAM) error {
