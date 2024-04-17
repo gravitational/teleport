@@ -120,9 +120,9 @@ func (o *IdentityOutput) CheckAndSetDefaults() error {
 		// writing ssh_config. (Future users of k8s secrets will need to bring
 		// their own config, we can't predict where paths will be in practice.)
 		log.Info(
-			"Note: no ssh_config will be written for non-filesystem destination", 
+			"Note: no ssh_config will be written for non-filesystem destination",
 			"destination", o.Destination,
-			)
+		)
 	}
 
 	return nil

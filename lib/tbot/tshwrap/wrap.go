@@ -20,6 +20,7 @@ package tshwrap
 
 import (
 	"encoding/json"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,7 +28,6 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -49,9 +49,7 @@ const (
 	TSHMinVersion = "9.3.0"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentTBot,
-})
+var log = slog.With(teleport.ComponentKey, teleport.ComponentTBot)
 
 // capture runs a command (presumably tsh) with the given arguments and
 // returns it's captured stdout. Stderr is ignored. Errors are returned per
@@ -115,7 +113,7 @@ func (w *Wrapper) Exec(env map[string]string, args ...string) error {
 		environ = append(environ, k+"="+v)
 	}
 
-	log.Debugf("executing %s with env=%+v and args=%+v", w.path, env, args)
+	log.Debug("executing binary", "pat", w.path, "env", env, "args", args)
 
 	child := exec.Command(w.path, args...)
 	child.Env = environ
@@ -164,7 +162,7 @@ func CheckTSHSupported(w *Wrapper) error {
 		)
 	}
 
-	log.Debugf("tsh version %s is supported", version)
+	log.Debug("tsh version is supported", "version", version)
 
 	return nil
 }

@@ -268,7 +268,7 @@ func setupServerForCARotationTest(
 		}
 	}()
 
-	return testhelpers.MakeDefaultAuthClient(t, log, fc), func() *service.TeleportProcess {
+	return testhelpers.MakeDefaultAuthClient(t, fc), func() *service.TeleportProcess {
 		activeSvcMu.Lock()
 		defer activeSvcMu.Unlock()
 		return activeSvc
