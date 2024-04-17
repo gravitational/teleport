@@ -83,7 +83,7 @@ func NewIntegrationsService(backend backend.Backend, opts ...IntegrationsService
 		opt(integrationsSvc)
 	}
 	if integrationsSvc.easSvc == nil {
-		integrationsSvc.easSvc, err = NewExternalAuditStorageServiceFallible(backend, WithIntegrationsService(integrationsSvc))
+		integrationsSvc.easSvc, err = NewExternalAuditStorageService(backend, WithIntegrationsService(integrationsSvc))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

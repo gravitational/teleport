@@ -48,7 +48,7 @@ func TestExternalAuditStorageService(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewExternalAuditStorageServiceFallible(backend.NewSanitizer(mem))
+	service, err := NewExternalAuditStorageService(backend.NewSanitizer(mem))
 	require.NoError(t, err)
 
 	sessRecURL1 := "s3://bucket1/ses-rec-v1"

@@ -42,7 +42,7 @@ func TestClusterExternalAuditWatcher(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	svc, err := NewExternalAuditStorageServiceFallible(bk)
+	svc, err := NewExternalAuditStorageService(bk)
 	require.NoError(t, err)
 
 	integrationsSvc, err := NewIntegrationsService(bk)
@@ -154,7 +154,7 @@ func TestClusterExternalAuditWatcher_WatcherClosed(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	svc, err := NewExternalAuditStorageServiceFallible(bk)
+	svc, err := NewExternalAuditStorageService(bk)
 	require.NoError(t, err)
 
 	integrationsSvc, err := NewIntegrationsService(bk)

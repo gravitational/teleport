@@ -49,9 +49,7 @@ var (
 type ExternalAuditStorageService struct {
 	backend         backend.Backend
 	integrationsSvc *IntegrationsService
-	// TODO(nklaassen): delete this once teleport.e is updated
-	skipOIDCIntegrationCheck bool
-	logger                   *logrus.Entry
+	logger          *logrus.Entry
 }
 
 // ExternalAuditStorageServiceOption is a functional configuration option for the ExternalAuditStorageService.
@@ -64,9 +62,8 @@ func WithIntegrationsService(integrationsSvc *IntegrationsService) func(svc *Ext
 	}
 }
 
-// NewExternalAuditStorageServiceFallible returns a new *ExternalAuditStorageService or an error if it fails.
-// TODO(nklaassen): once teleport.e is updated unify this with NewExternalAuditStorage.
-func NewExternalAuditStorageServiceFallible(backend backend.Backend, opts ...ExternalAuditStorageServiceOption) (*ExternalAuditStorageService, error) {
+// NewExternalAuditStorageService returns a new *ExternalAuditStorageService or an error if it fails.
+func NewExternalAuditStorageService(backend backend.Backend, opts ...ExternalAuditStorageServiceOption) (*ExternalAuditStorageService, error) {
 	svc := &ExternalAuditStorageService{
 		backend: backend,
 		logger:  logrus.WithField(teleport.ComponentKey, "ExternalAuditStorage.backend"),
@@ -84,15 +81,9 @@ func NewExternalAuditStorageServiceFallible(backend backend.Backend, opts ...Ext
 	return svc, nil
 }
 
-// NewExternalAuditStorageServiceFallible returns a new *ExternalAuditStorageService.
-// TODO(nklaassen): once teleport.e is updated unify this with NewExternalAuditStorageServiceFallible.
-func NewExternalAuditStorageService(backend backend.Backend, opts ...ExternalAuditStorageServiceOption) *ExternalAuditStorageService {
-	svc, err := NewExternalAuditStorageServiceFallible(backend, opts...)
-	if err != nil {
-		panic(err)
-	}
-	svc.skipOIDCIntegrationCheck = true
-	return svc
+// TODO(nklaassen): delete this after teleport.e is updated to use NewExternalAuditStorageService.
+func NewExternalAuditStorageServiceFallible(backend backend.Backend) (*ExternalAuditStorageService, error) {
+	return NewExternalAuditStorageService(backend)
 }
 
 // GetDraftExternalAuditStorage returns the draft External Audit Storage resource.
@@ -293,10 +284,6 @@ func (s *ExternalAuditStorageService) DisableClusterExternalAuditStorage(ctx con
 }
 
 func (s *ExternalAuditStorageService) checkOIDCIntegration(ctx context.Context, integrationName string) error {
-	// TODO(nklaassen): delete this once teleport.e is updated.
-	if s.skipOIDCIntegrationCheck {
-		return nil
-	}
 	integration, err := s.integrationsSvc.GetIntegration(ctx, integrationName)
 	if err != nil {
 		return trace.Wrap(err, "getting integration")

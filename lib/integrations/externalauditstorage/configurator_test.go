@@ -153,7 +153,7 @@ func TestConfiguratorIsUsed(t *testing.T) {
 			_, err = integrationSvc.CreateIntegration(ctx, testOIDCIntegration(t))
 			require.NoError(t, err)
 
-			ecaSvc, err := local.NewExternalAuditStorageServiceFallible(mem)
+			ecaSvc, err := local.NewExternalAuditStorageService(mem)
 			require.NoError(t, err)
 			if tt.resourceServiceFn != nil {
 				tt.resourceServiceFn(t, ecaSvc)
@@ -196,7 +196,7 @@ func TestCredentialsCache(t *testing.T) {
 
 	// Pre-req: existing cluster ExternalAuditStorage configuration
 	draftConfig := testDraftExternalAuditStorage(t)
-	svc, err := local.NewExternalAuditStorageServiceFallible(mem)
+	svc, err := local.NewExternalAuditStorageService(mem)
 	require.NoError(t, err)
 	_, err = svc.UpsertDraftExternalAuditStorage(ctx, draftConfig)
 	require.NoError(t, err)
@@ -335,7 +335,7 @@ func TestDraftConfigurator(t *testing.T) {
 
 	// Pre-req: existing draft ExternalAuditStorage configuration
 	draftConfig := testDraftExternalAuditStorage(t)
-	svc, err := local.NewExternalAuditStorageServiceFallible(mem)
+	svc, err := local.NewExternalAuditStorageService(mem)
 	require.NoError(t, err)
 	_, err = svc.UpsertDraftExternalAuditStorage(ctx, draftConfig)
 	require.NoError(t, err)
