@@ -40,6 +40,8 @@ func (f *fakeAugmentWebFunc) function(_ context.Context, opts *auth.AugmentWebSe
 		return errors.New("opts required")
 	case opts.WebSessionID == "":
 		return errors.New("opts.WebSessionID required")
+	case opts.User == "":
+		return errors.New("opts.User required")
 	case opts.DeviceExtensions == nil:
 		return errors.New("opts.DeviceExtensions required")
 	}

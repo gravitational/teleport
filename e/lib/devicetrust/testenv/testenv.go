@@ -198,25 +198,21 @@ func New(opts ...Opt) (*E, error) {
 		return nil, err
 	}
 
-	authServer := &fakeAuthServer{
-		augmentFunc:            e.augmentCertsFunc,
-		augmentWebFunc:         e.augmentWebFunc,
-		authSpec:               e.authSpec,
-		anonymizeAndSubmitFunc: e.anonymizeAndSubmitFunc,
-	}
-
 	// Device service.
 	e.DevicesService, err = devicetrustv1.New(devicetrustv1.ServiceParams{
-		Logger:              logger,
-		AuthServer:          authServer,
+		Logger: logger,
+		AuthServer: &fakeAuthServer{
+			augmentFunc:            e.augmentCertsFunc,
+			augmentWebFunc:         e.augmentWebFunc,
+			authSpec:               e.authSpec,
+			anonymizeAndSubmitFunc: e.anonymizeAndSubmitFunc,
+		},
 		Authorizer:          e.authorizer,
 		CachedAccessService: e.AccessService,
 		CachedUsersService:  e.IdentityService,
 		Emitter:             e.emitter,
 		Limiter:             e.limiter,
 		Storage:             dtStorage,
-
-		AugmentWebSessionCertificates: authServer.AugmentWebSessionCertificates,
 	})
 	if err != nil {
 		return nil, err
