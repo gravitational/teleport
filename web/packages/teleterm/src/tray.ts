@@ -37,32 +37,38 @@ export function addTray(tshd: TshdClient) {
   const tray = new Tray(resizedImage);
   const allGateways = [];
 
-  tray.on('mouse-enter', async () => {
-    const gatewayMenuItems = await getGatewayMenuItems(tshd, allGateways);
-    const profiles = await getProfiles(tshd);
+  buildTray(tshd, allGateways, tray);
 
-    // TODO: Guarantee that there is only one promise running that updates the menu.
-    const contextMenu = Menu.buildFromTemplate([
-      {
-        label: 'Open Teleport Connect',
-        icon: nativeImage
-          .createFromNamedImage('NSImageNameApplicationIcon')
-          .resize({ width: 16 }),
-        type: 'normal',
-      },
-      profiles,
-      { type: 'separator' },
-      {
-        label: 'Local proxies',
-        type: 'normal',
-        enabled: false,
-      },
-      ...gatewayMenuItems,
-      { type: 'separator' },
-      { label: 'Quit', type: 'normal' },
-    ]);
-    tray.setContextMenu(contextMenu);
-  });
+  tray.on('mouse-enter', () => buildTray(tshd, allGateways, tray));
+}
+
+async function buildTray(tshd: TshdClient, allGateways: Gateway[], tray: Tray) {
+  const [profiles, gatewayMenuItems] = await Promise.all([
+    getProfiles(tshd),
+    getGatewayMenuItems(tshd, allGateways),
+  ]);
+
+  // TODO: Guarantee that there is only one promise running that updates the menu.
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Open Teleport Connect',
+      icon: nativeImage
+        .createFromNamedImage('NSImageNameApplicationIcon')
+        .resize({ width: 16 }),
+      type: 'normal',
+    },
+    profiles,
+    { type: 'separator' },
+    {
+      label: 'Local proxies',
+      type: 'normal',
+      enabled: false,
+    },
+    ...gatewayMenuItems,
+    { type: 'separator' },
+    { label: 'Quit', type: 'normal' },
+  ]);
+  tray.setContextMenu(contextMenu);
 }
 
 async function getGatewayMenuItems(
