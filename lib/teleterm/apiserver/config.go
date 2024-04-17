@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -33,7 +34,8 @@ type Config struct {
 	// HostAddr is the APIServer host address
 	HostAddr string
 	// Daemon is the terminal daemon service
-	Daemon *daemon.Service
+	Daemon  *daemon.Service
+	Storage *clusters.Storage
 	// Log is a component logger
 	Log             logrus.FieldLogger
 	TshdServerCreds grpc.ServerOption
@@ -54,6 +56,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.Daemon == nil {
 		return trace.BadParameter("missing daemon service")
+	}
+
+	if c.Storage == nil {
+		return trace.BadParameter("missing storage")
 	}
 
 	if c.TshdServerCreds == nil {

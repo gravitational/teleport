@@ -69,6 +69,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	apiServer, err := apiserver.New(apiserver.Config{
 		HostAddr:        cfg.Addr,
 		Daemon:          daemonService,
+		Storage:         storage,
 		TshdServerCreds: grpcCredentials.tshd,
 		ListeningC:      cfg.ListeningC,
 	})

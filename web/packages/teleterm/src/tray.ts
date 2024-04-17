@@ -147,6 +147,9 @@ const getProfiles = async (
             label: maybeUserAtProxyHost(c),
             type: 'radio',
             checked: c.uri === currentRootClusterUri,
+            click: () => {
+              tshd.updateCurrentProfile({ rootClusterUri: c.uri });
+            },
           }))
         : undefined,
   };

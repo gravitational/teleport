@@ -65,6 +65,8 @@ import { GetAppsResponse } from "./service_pb";
 import { GetAppsRequest } from "./service_pb";
 import { GetKubesResponse } from "./service_pb";
 import { GetKubesRequest } from "./service_pb";
+import { UpdateCurrentProfileResponse } from "./service_pb";
+import { UpdateCurrentProfileRequest } from "./service_pb";
 import { GetSuggestedAccessListsResponse } from "./service_pb";
 import { GetSuggestedAccessListsRequest } from "./service_pb";
 import { PromoteAccessRequestResponse } from "./service_pb";
@@ -201,6 +203,12 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: GetSuggestedAccessLists(teleport.lib.teleterm.v1.GetSuggestedAccessListsRequest) returns (teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse);
      */
     getSuggestedAccessLists: grpc.handleUnaryCall<GetSuggestedAccessListsRequest, GetSuggestedAccessListsResponse>;
+    /**
+     * UpdateCurrentProfile changes the currently active profile, as understood by tsh.
+     *
+     * @generated from protobuf rpc: UpdateCurrentProfile(teleport.lib.teleterm.v1.UpdateCurrentProfileRequest) returns (teleport.lib.teleterm.v1.UpdateCurrentProfileResponse);
+     */
+    updateCurrentProfile: grpc.handleUnaryCall<UpdateCurrentProfileRequest, UpdateCurrentProfileResponse>;
     /**
      * GetKubes returns filtered, sorted, and paginated kubes
      *
@@ -552,6 +560,16 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => GetSuggestedAccessListsRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(GetSuggestedAccessListsResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetSuggestedAccessListsRequest.toBinary(value))
+    },
+    updateCurrentProfile: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/UpdateCurrentProfile",
+        originalName: "UpdateCurrentProfile",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => UpdateCurrentProfileResponse.fromBinary(bytes),
+        requestDeserialize: bytes => UpdateCurrentProfileRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(UpdateCurrentProfileResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(UpdateCurrentProfileRequest.toBinary(value))
     },
     getKubes: {
         path: "/teleport.lib.teleterm.v1.TerminalService/GetKubes",
