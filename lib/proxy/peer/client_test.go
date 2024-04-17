@@ -51,21 +51,21 @@ func TestClientConn(t *testing.T) {
 	stream, cached, err := client.dial([]string{"s1"}, &proto.DialRequest{})
 	require.NoError(t, err)
 	require.True(t, cached)
-	require.NotNil(t, stream)
+	require.NotNil(t, stream.stream)
 	stream.Close()
 
 	// dial second server
 	stream, cached, err = client.dial([]string{"s2"}, &proto.DialRequest{})
 	require.NoError(t, err)
 	require.True(t, cached)
-	require.NotNil(t, stream)
+	require.NotNil(t, stream.stream)
 	stream.Close()
 
 	// redial second server
 	stream, cached, err = client.dial([]string{"s2"}, &proto.DialRequest{})
 	require.NoError(t, err)
 	require.True(t, cached)
-	require.NotNil(t, stream)
+	require.NotNil(t, stream.stream)
 	stream.Close()
 
 	// close second server
@@ -74,7 +74,7 @@ func TestClientConn(t *testing.T) {
 	stream, cached, err = client.dial([]string{"s2"}, &proto.DialRequest{})
 	require.Error(t, err)
 	require.True(t, cached)
-	require.Nil(t, stream)
+	require.Nil(t, stream.stream)
 }
 
 // TestClientUpdate checks the client's watcher update behavior
@@ -94,10 +94,10 @@ func TestClientUpdate(t *testing.T) {
 
 	s1, _, err := client.dial([]string{"s1"}, &proto.DialRequest{})
 	require.NoError(t, err)
-	require.NotNil(t, s1)
+	require.NotNil(t, s1.stream)
 	s2, _, err := client.dial([]string{"s2"}, &proto.DialRequest{})
 	require.NoError(t, err)
-	require.NotNil(t, s2)
+	require.NotNil(t, s2.stream)
 
 	// watcher finds one of the two servers
 	err = client.updateConnections([]types.Server{def1})
