@@ -555,9 +555,10 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 			return trace.Wrap(err)
 		}
 	} else if len(toRemove) > 0 {
-		log.WarnContext(ctx, "Unexpected files found in destination directory, consider "+
-			"removing it manually or rerunning `tbot init` with the `--clean` "+
-			"flag")
+		log.WarnContext(
+			ctx,
+			"Unexpected files found in destination directory, consider removing it manually or rerunning `tbot init` with the `--clean` flag",
+		)
 	} else {
 		log.InfoContext(ctx, "Nothing to remove")
 	}
