@@ -1722,9 +1722,9 @@ func TestResizeTerminal(t *testing.T) {
 	ctx, cancel := context.WithCancel(s.ctx)
 	t.Cleanup(cancel)
 
-	ws1Messages := make(chan *Envelope)
-	ws1Raw := make(chan []byte)
-	ws2Messages := make(chan *Envelope)
+	ws1Messages := make(chan *Envelope, 64)
+	ws1Raw := make(chan []byte, 64)
+	ws2Messages := make(chan *Envelope, 64)
 	// Create a new user "foo", open a terminal to a new session
 	term, err := connectToHost(ctx, connectConfig{
 		pack:  s.authPack(t, "foo"),
@@ -1767,6 +1767,7 @@ func TestResizeTerminal(t *testing.T) {
 	go func() {
 		read, err := io.ReadAll(io.LimitReader(term, 10))
 		if err != nil {
+			t.Logf("failed to read from terminal 1: %v", err)
 			return
 		}
 
@@ -1801,6 +1802,8 @@ t1ready:
 	select {
 	case e := <-ws2Messages:
 		if isResizeEventEnvelope(e) {
+			// TODO: we are seeing a 100x100 resize event for user foo
+			// (likely due to user bar connecting immediately after user foo)
 			require.FailNow(t, "terminal 2 should not have received a resize event: %v", e)
 		}
 	case <-time.After(1 * time.Second):
