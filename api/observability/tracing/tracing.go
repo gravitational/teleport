@@ -17,6 +17,7 @@ package tracing
 import (
 	"context"
 
+	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
@@ -70,7 +71,7 @@ func NewTracer(name string) oteltrace.Tracer {
 func EndSpan(span oteltrace.Span, err error) {
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
-		span.RecordError(err)
+		span.RecordError(trace.Unwrap(err))
 	}
 	span.End()
 }
