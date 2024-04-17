@@ -51,6 +51,7 @@ var eventTypes = []string{
 	"session.join",
 	"session.rejected",
 	"session.start",
+	"session.end",
 	"user.create",
 	"user.login",
 	"user.password_change",

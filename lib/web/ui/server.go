@@ -21,6 +21,7 @@ package ui
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport/api/constants"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -58,7 +59,8 @@ type Server struct {
 	// SSHLogins is the list of logins this user can use on this server
 	SSHLogins []string `json:"sshLogins"`
 	// AWS contains metadata for instances hosted in AWS.
-	AWS *AWSMetadata `json:"aws,omitempty"`
+	AWS        *AWSMetadata `json:"aws,omitempty"`
+	LastSeenAt time.Time    `json:"lastSeenAt"`
 }
 
 // AWSMetadata describes the AWS metadata for instances hosted in AWS.
@@ -107,6 +109,8 @@ func MakeServer(clusterName string, server types.Server, logins []string) Server
 	serverCmdLabels := server.GetCmdLabels()
 	uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
 
+	lastSeenAt := server.Expiry().Add(-10 * time.Minute)
+
 	uiServer := Server{
 		Kind:        server.GetKind(),
 		ClusterName: clusterName,
@@ -117,6 +121,7 @@ func MakeServer(clusterName string, server types.Server, logins []string) Server
 		Tunnel:      server.GetUseTunnel(),
 		SubKind:     server.GetSubKind(),
 		SSHLogins:   logins,
+		LastSeenAt:  lastSeenAt,
 	}
 
 	if server.GetSubKind() == types.SubKindOpenSSHEICENode {
