@@ -201,6 +201,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newUserNotificationParser()
 		case types.KindGlobalNotification:
 			parser = newGlobalNotificationParser()
+		case types.KindAccessMonitoringRule:
+			parser = newAccessMonitoringRuleParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -1947,6 +1949,35 @@ func (p *kubeWaitingContainerParser) parse(event backend.Event) (types.Resource,
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(resource), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAccessMonitoringRuleParser() *AccessMonitoringRuleParser {
+	return &AccessMonitoringRuleParser{
+		baseParser: newBaseParser(backend.ExactKey(accessMonitoringRulesPrefix)),
+	}
+}
+
+type AccessMonitoringRuleParser struct {
+	baseParser
+}
+
+func (p *AccessMonitoringRuleParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindAccessMonitoringRule, types.V1, 0)
+	case types.OpPut:
+		r, err := services.UnmarshalAccessMonitoringRule(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

@@ -23,6 +23,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"text/template"
@@ -31,7 +32,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/olekukonko/tablewriter"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider"
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"

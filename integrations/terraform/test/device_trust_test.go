@@ -125,11 +125,11 @@ func (s *TerraformSuite) TestImportTrustedDevices() {
 				ImportState:   true,
 				ImportStateId: deviceID,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					s.Require().Equal(state[0].Attributes["metadata.name"], deviceID)
-					s.Require().Equal(state[0].Attributes["kind"], "device")
-					s.Require().Equal(state[0].Attributes["spec.asset_tag"], "DEVICE1")
-					s.Require().Equal(state[0].Attributes["spec.os_type"], "macos")
-					s.Require().Equal(state[0].Attributes["spec.enroll_status"], "not_enrolled")
+					s.Require().Equal(deviceID, state[0].Attributes["metadata.name"])
+					s.Require().Equal("device", state[0].Attributes["kind"])
+					s.Require().Equal("DEVICE1", state[0].Attributes["spec.asset_tag"])
+					s.Require().Equal("macos", state[0].Attributes["spec.os_type"])
+					s.Require().Equal("not_enrolled", state[0].Attributes["spec.enroll_status"])
 					return nil
 				},
 			},
