@@ -47,15 +47,52 @@ var (
 
 // ExternalAuditStorageService manages External Audit Storage resources in the Backend.
 type ExternalAuditStorageService struct {
-	backend backend.Backend
-	logger  *logrus.Entry
+	backend         backend.Backend
+	integrationsSvc *IntegrationsService
+	// TODO(nklaassen): delete this once teleport.e is updated
+	skipOIDCIntegrationCheck bool
+	logger                   *logrus.Entry
 }
 
-func NewExternalAuditStorageService(backend backend.Backend) *ExternalAuditStorageService {
-	return &ExternalAuditStorageService{
+// ExternalAuditStorageServiceOption is a functional configuration option for the ExternalAuditStorageService.
+type ExternalAuditStorageServiceOption func(*ExternalAuditStorageService)
+
+// WithIntegrationsService configure the ExternalAuditStorageService to use the given IntegrationsService.
+func WithIntegrationsService(integrationsSvc *IntegrationsService) func(svc *ExternalAuditStorageService) {
+	return func(svc *ExternalAuditStorageService) {
+		svc.integrationsSvc = integrationsSvc
+	}
+}
+
+// NewExternalAuditStorageServiceFallible returns a new *ExternalAuditStorageService or an error if it fails.
+// TODO(nklaassen): once teleport.e is updated unify this with NewExternalAuditStorage.
+func NewExternalAuditStorageServiceFallible(backend backend.Backend, opts ...ExternalAuditStorageServiceOption) (*ExternalAuditStorageService, error) {
+	svc := &ExternalAuditStorageService{
 		backend: backend,
 		logger:  logrus.WithField(teleport.ComponentKey, "ExternalAuditStorage.backend"),
 	}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	if svc.integrationsSvc == nil {
+		var err error
+		svc.integrationsSvc, err = NewIntegrationsService(backend, WithExternalAuditStorageService(svc))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return svc, nil
+}
+
+// NewExternalAuditStorageServiceFallible returns a new *ExternalAuditStorageService.
+// TODO(nklaassen): once teleport.e is updated unify this with NewExternalAuditStorageServiceFallible.
+func NewExternalAuditStorageService(backend backend.Backend, opts ...ExternalAuditStorageServiceOption) *ExternalAuditStorageService {
+	svc, err := NewExternalAuditStorageServiceFallible(backend, opts...)
+	if err != nil {
+		panic(err)
+	}
+	svc.skipOIDCIntegrationCheck = true
+	return svc
 }
 
 // GetDraftExternalAuditStorage returns the draft External Audit Storage resource.
@@ -91,6 +128,9 @@ func (s *ExternalAuditStorageService) CreateDraftExternalAuditStorage(ctx contex
 			TTL:      externalAuditStorageLockTTL,
 		},
 	}, func(ctx context.Context) error {
+		if err := s.checkOIDCIntegration(ctx, in.Spec.IntegrationName); err != nil {
+			return trace.Wrap(err, "checking AWS OIDC integration")
+		}
 		_, err = s.backend.Create(ctx, backend.Item{
 			Key:   draftExternalAuditStorageBackendKey,
 			Value: value,
@@ -120,6 +160,9 @@ func (s *ExternalAuditStorageService) UpsertDraftExternalAuditStorage(ctx contex
 			TTL:      externalAuditStorageLockTTL,
 		},
 	}, func(ctx context.Context) error {
+		if err := s.checkOIDCIntegration(ctx, in.Spec.IntegrationName); err != nil {
+			return trace.Wrap(err, "checking AWS OIDC integration")
+		}
 		_, err = s.backend.Put(ctx, backend.Item{
 			Key:   draftExternalAuditStorageBackendKey,
 			Value: value,
@@ -149,6 +192,9 @@ func (s *ExternalAuditStorageService) GenerateDraftExternalAuditStorage(ctx cont
 			TTL:      externalAuditStorageLockTTL,
 		},
 	}, func(ctx context.Context) error {
+		if err := s.checkOIDCIntegration(ctx, integrationName); err != nil {
+			return trace.Wrap(err, "checking AWS OIDC integration")
+		}
 		_, err = s.backend.Create(ctx, backend.Item{
 			Key:   draftExternalAuditStorageBackendKey,
 			Value: value,
@@ -206,6 +252,9 @@ func (s *ExternalAuditStorageService) PromoteToClusterExternalAuditStorage(ctx c
 			}
 			return trace.Wrap(err)
 		}
+		if err := s.checkOIDCIntegration(ctx, draft.Spec.IntegrationName); err != nil {
+			return trace.Wrap(err, "checking AWS OIDC integration")
+		}
 		out, err := externalauditstorage.NewClusterExternalAuditStorage(header.Metadata{}, draft.Spec)
 		if err != nil {
 			return trace.Wrap(err)
@@ -233,10 +282,27 @@ func (s *ExternalAuditStorageService) PromoteToClusterExternalAuditStorage(ctx c
 	return trace.Wrap(err)
 }
 
+// DisableClusterExternalAuditStorage disables External Audit Storage in the cluster by deleting the cluster
+// EAS configuration.
 func (s *ExternalAuditStorageService) DisableClusterExternalAuditStorage(ctx context.Context) error {
 	err := s.backend.Delete(ctx, clusterExternalAuditStorageBackendKey)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *ExternalAuditStorageService) checkOIDCIntegration(ctx context.Context, integrationName string) error {
+	// TODO(nklaassen): delete this once teleport.e is updated.
+	if s.skipOIDCIntegrationCheck {
+		return nil
+	}
+	integration, err := s.integrationsSvc.GetIntegration(ctx, integrationName)
+	if err != nil {
+		return trace.Wrap(err, "getting integration")
+	}
+	if integration.GetAWSOIDCIntegrationSpec() == nil {
+		return trace.BadParameter("%q is not an AWS OIDC integration", integrationName)
 	}
 	return nil
 }

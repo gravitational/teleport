@@ -504,17 +504,18 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 	_, err = integrationSvc.CreateIntegration(ctx, oidcIntegration)
 	require.NoError(t, err)
 
-	ecaSvc := local.NewExternalAuditStorageService(backend)
-	_, err = ecaSvc.GenerateDraftExternalAuditStorage(ctx, "aws-integration-1", "us-west-2")
+	easSvc, err := local.NewExternalAuditStorageServiceFallible(backend, local.WithIntegrationsService(integrationSvc))
+	require.NoError(t, err)
+	_, err = easSvc.GenerateDraftExternalAuditStorage(ctx, "aws-integration-1", "us-west-2")
 	require.NoError(t, err)
 
 	statusService := local.NewStatusService(process.backend)
 
-	externalAuditStorageDisabled, err := externalauditstorage.NewConfigurator(ctx, ecaSvc, integrationSvc, statusService)
+	externalAuditStorageDisabled, err := externalauditstorage.NewConfigurator(ctx, easSvc, integrationSvc, statusService)
 	require.NoError(t, err)
-	err = ecaSvc.PromoteToClusterExternalAuditStorage(ctx)
+	err = easSvc.PromoteToClusterExternalAuditStorage(ctx)
 	require.NoError(t, err)
-	externalAuditStorageEnabled, err := externalauditstorage.NewConfigurator(ctx, ecaSvc, integrationSvc, statusService)
+	externalAuditStorageEnabled, err := externalauditstorage.NewConfigurator(ctx, easSvc, integrationSvc, statusService)
 	require.NoError(t, err)
 
 	tests := []struct {

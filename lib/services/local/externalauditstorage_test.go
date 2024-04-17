@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend"
@@ -47,7 +48,8 @@ func TestExternalAuditStorageService(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := NewExternalAuditStorageService(backend.NewSanitizer(mem))
+	service, err := NewExternalAuditStorageServiceFallible(backend.NewSanitizer(mem))
+	require.NoError(t, err)
 
 	sessRecURL1 := "s3://bucket1/ses-rec-v1"
 	sessRecURL2 := "s3://bucket1/ses-rec-v2"
@@ -73,6 +75,27 @@ func TestExternalAuditStorageService(t *testing.T) {
 		// Then
 		require.ErrorContains(t, err, "can't promote to cluster when draft does not exist")
 	})
+
+	t.Run("create draft", func(t *testing.T) {
+		// Given no draft
+		// When CreateDraftExternalAuditStorage with non-existing OIDC
+		// integration
+		// Then an error is returned
+
+		// When
+		_, err := service.CreateDraftExternalAuditStorage(ctx, draftFromSpec1)
+		// Then
+		require.Error(t, err)
+	})
+
+	oidcIntegration, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: spec1.IntegrationName},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "test-role",
+		},
+	)
+	require.NoError(t, err)
+	service.integrationsSvc.CreateIntegration(ctx, oidcIntegration)
 
 	t.Run("create draft", func(t *testing.T) {
 		// Given no draft
@@ -197,7 +220,7 @@ func TestExternalAuditStorageService(t *testing.T) {
 		// Given no draft
 
 		// When GenerateDraftExternalAuditStorage
-		generateResp, err := service.GenerateDraftExternalAuditStorage(ctx, "test-integration", "us-west-2")
+		generateResp, err := service.GenerateDraftExternalAuditStorage(ctx, "aws-integration-1", "us-west-2")
 		require.NoError(t, err)
 
 		// Then draft is returned with generated values
@@ -205,7 +228,7 @@ func TestExternalAuditStorageService(t *testing.T) {
 		nonce := strings.TrimPrefix(spec.PolicyName, "ExternalAuditStoragePolicy-")
 		underscoreNonce := strings.ReplaceAll(nonce, "-", "_")
 		expectedSpec := externalauditstorage.ExternalAuditStorageSpec{
-			IntegrationName:        "test-integration",
+			IntegrationName:        "aws-integration-1",
 			PolicyName:             "ExternalAuditStoragePolicy-" + nonce,
 			Region:                 "us-west-2",
 			SessionRecordingsURI:   "s3://teleport-longterm-" + nonce + "/sessions",
@@ -223,7 +246,7 @@ func TestExternalAuditStorageService(t *testing.T) {
 		assert.Empty(t, cmp.Diff(generateResp, getResp, cmpOpts...))
 
 		// And can't generate when there is an existing draft
-		_, err = service.GenerateDraftExternalAuditStorage(ctx, "test-integration", "us-west-2")
+		_, err = service.GenerateDraftExternalAuditStorage(ctx, "aws-integration-1", "us-west-2")
 		require.Error(t, err)
 		assert.True(t, trace.IsAlreadyExists(err), "expected AlreadyExists error, got %v", err)
 	})
