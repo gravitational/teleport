@@ -125,11 +125,22 @@ export class WindowsManager {
       },
     });
 
-    window.once('close', () => {
-      this.saveWindowState(window);
-      this.frontendAppInit.reject(
-        new Error('Window was closed before frontend app got initialized')
-      );
+    let isQuitting = false;
+
+    app.on('before-quit', () => {
+      isQuitting = true;
+    });
+
+    window.on('close', e => {
+      if (isQuitting) {
+        this.saveWindowState(window);
+        this.frontendAppInit.reject(
+          new Error('Window was closed before frontend app got initialized')
+        );
+        return;
+      }
+      e.preventDefault();
+      window.hide();
     });
 
     // shows the window when the DOM is ready, so we don't have a brief flash of a blank screen

@@ -162,7 +162,7 @@ function initializeApp(): void {
   (async () => {
     const tshdClient = await mainProcess.initTshdClient();
 
-    app.whenReady().then(() => addTray(tshdClient));
+    app.whenReady().then(() => addTray(tshdClient, windowsManager.getWindow()));
 
     manageRootClusterProxyHostAllowList({
       tshdClient,

@@ -21,6 +21,7 @@ import {
   Menu,
   clipboard,
   MenuItemConstructorOptions,
+  BrowserWindow,
 } from 'electron';
 
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
@@ -30,19 +31,26 @@ import { TshdClient } from 'teleterm/services/tshd';
 import { routing } from 'teleterm/ui/uri';
 import { maybeUserAtProxyHost } from 'teleterm/services/tshd/cluster';
 
-export function addTray(tshd: TshdClient) {
+export function addTray(tshd: TshdClient, browserWindow: BrowserWindow) {
   const image = nativeImage.createFromPath(getAssetPath('iconTemplate.png'));
   const resizedImage = image.resize({ width: 16 });
   resizedImage.setTemplateImage(true);
   const tray = new Tray(resizedImage);
   const allGateways = [];
 
-  buildTray(tshd, allGateways, tray);
+  buildTray(tshd, allGateways, tray, browserWindow);
 
-  tray.on('mouse-enter', () => buildTray(tshd, allGateways, tray));
+  tray.on('mouse-enter', () =>
+    buildTray(tshd, allGateways, tray, browserWindow)
+  );
 }
 
-async function buildTray(tshd: TshdClient, allGateways: Gateway[], tray: Tray) {
+async function buildTray(
+  tshd: TshdClient,
+  allGateways: Gateway[],
+  tray: Tray,
+  browserWindow: BrowserWindow
+) {
   const [profiles, gatewayMenuItems] = await Promise.all([
     getProfiles(tshd),
     getGatewayMenuItems(tshd, allGateways),
@@ -56,6 +64,7 @@ async function buildTray(tshd: TshdClient, allGateways: Gateway[], tray: Tray) {
         .createFromNamedImage('NSImageNameApplicationIcon')
         .resize({ width: 16 }),
       type: 'normal',
+      click: () => browserWindow.show(),
     },
     profiles,
     { type: 'separator' },
@@ -66,7 +75,7 @@ async function buildTray(tshd: TshdClient, allGateways: Gateway[], tray: Tray) {
     },
     ...gatewayMenuItems,
     { type: 'separator' },
-    { label: 'Quit', type: 'normal' },
+    { label: 'Quit', type: 'normal', role: 'quit' },
   ]);
   tray.setContextMenu(contextMenu);
 }
