@@ -851,6 +851,7 @@ func TestAWSOIDCAppAccessAppServerCreation(t *testing.T) {
 			Rules: []types.Rule{
 				types.NewRule(types.KindIntegration, []string{types.VerbRead}),
 				types.NewRule(types.KindAppServer, []string{types.VerbCreate, types.VerbUpdate}),
+				types.NewRule(types.KindUserGroup, []string{types.VerbList, types.VerbRead}),
 			},
 		},
 	})
@@ -871,8 +872,10 @@ func TestAWSOIDCAppAccessAppServerCreation(t *testing.T) {
 
 	// Create the AWS App Access for the current integration.
 	endpoint := pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "my-integration", "aws-app-access")
-	_, err = pack.clt.PostJSON(context.Background(), endpoint, nil)
+	x, err := pack.clt.PostJSON(context.Background(), endpoint, nil)
 	require.NoError(t, err)
+
+	t.Log(x)
 
 	// Ensure the AppServer was correctly created.
 	appServers, err := env.server.Auth().GetApplicationServers(context.Background(), "default")
