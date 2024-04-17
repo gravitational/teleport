@@ -15,17 +15,28 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { nativeImage, Tray, Menu } from 'electron';
+import {
+  nativeImage,
+  Tray,
+  Menu,
+  clipboard,
+  MenuItemConstructorOptions,
+} from 'electron';
+
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import { TshdClient } from 'teleterm/services/tshd';
+import { routing } from 'teleterm/ui/uri';
 
 export function addTray(tshdClient: TshdClient) {
   const image = nativeImage.createFromPath(getAssetPath('iconTemplate.png'));
   const resizedImage = image.resize({ width: 16 });
   resizedImage.setTemplateImage(true);
   const tray = new Tray(resizedImage);
-  tray.on('mouse-enter', () => {
+  const allGateways = [];
+  tray.on('mouse-enter', async () => {
+    const gatewayMenuItems = await getGatewayMenuItems(tshdClient, allGateways);
     // TODO: Guarantee that there is only one promise running that updates the menu.
     const contextMenu = Menu.buildFromTemplate([
       {
@@ -60,49 +71,70 @@ export function addTray(tshdClient: TshdClient) {
         type: 'normal',
         enabled: false,
       },
-      {
-        label: 'dba@postgres (platform.teleport.sh)',
-        icon: nativeImage
-          .createFromNamedImage('NSImageNameStatusAvailable')
-          .resize({ width: 16 }),
-        type: 'submenu',
-        submenu: [
-          { label: 'localhost:48219', type: 'normal', enabled: false },
-          { type: 'separator' },
-          { label: 'Copy address', type: 'normal' },
-          { label: 'Turn off' },
-        ],
-      },
-      {
-        label: 'grafana (teleport-ent-15.asteroid.earth)',
-        icon: nativeImage
-          .createFromNamedImage('NSImageNameStatusNone')
-          .resize({ width: 16 }),
-        type: 'submenu',
-        submenu: [
-          { label: 'localhost:51284', type: 'normal', enabled: false },
-          { type: 'separator' },
-          { label: 'Copy address', type: 'normal' },
-          { label: 'Turn off' },
-        ],
-      },
-      {
-        label: 'minikube (example.com)',
-
-        icon: nativeImage
-          .createFromNamedImage('NSImageNameStatusNone')
-          .resize({ width: 16 }),
-        type: 'submenu',
-        submenu: [
-          { label: 'localhost:11726', type: 'normal', enabled: false },
-          { type: 'separator' },
-          { label: 'Copy address', type: 'normal' },
-          { label: 'Turn off' },
-        ],
-      },
+      ...gatewayMenuItems,
       { type: 'separator' },
       { label: 'Quit', type: 'normal' },
     ]);
     tray.setContextMenu(contextMenu);
+  });
+}
+
+async function getGatewayMenuItems(
+  tshdClient: TshdClient,
+  allGateways: Gateway[]
+): Promise<MenuItemConstructorOptions[]> {
+  const { response } = await tshdClient.listGateways({});
+  const { gateways } = response;
+  gateways.forEach(gateway => {
+    if (!allGateways.find(allGateway => allGateway.uri === gateway.uri)) {
+      allGateways.push(gateway);
+    }
+  });
+
+  return allGateways.map(g => {
+    const address = `${g.localAddress}:${g.localPort}`;
+    const isConnected = gateways.find(gateway => g.uri === gateway.uri);
+    const turnOn = {
+      label: 'Turn on',
+      click: async () => {
+        const { response: newGateway } = await tshdClient.createGateway(g);
+        const index = allGateways.findIndex(
+          allGateway => g.uri === allGateway.uri
+        );
+        // replace the gateway
+        if (index >= 0) {
+          allGateways[index] = newGateway;
+        }
+      },
+    };
+    const turnOff = {
+      label: 'Turn off',
+      click: () => {
+        tshdClient.removeGateway({ gatewayUri: g.uri });
+      },
+    };
+    return {
+      label: `${g.targetUser}@${g.targetName} (${routing.parseClusterName(g.targetUri)})`,
+      icon: nativeImage
+        .createFromNamedImage(
+          isConnected ? 'NSImageNameStatusAvailable' : 'NSImageNameStatusNone'
+        )
+        .resize({ width: 16 }),
+      type: 'submenu' as const,
+      submenu: [
+        {
+          label: address,
+          type: 'normal',
+          enabled: false,
+        },
+        { type: 'separator' },
+        {
+          label: 'Copy address',
+          type: 'normal',
+          click: () => clipboard.writeText(address),
+        },
+        isConnected ? turnOff : turnOn,
+      ],
+    };
   });
 }
