@@ -6187,13 +6187,13 @@ func (process *TeleportProcess) newExternalAuditStorageConfigurator() (*external
 	// watcher initialized.
 	watcher.WaitInit(process.GracefulExitContext())
 
-	ecaSvc := local.NewExternalAuditStorageService(process.backend)
+	easSvc := local.NewExternalAuditStorageService(process.backend)
 	integrationSvc, err := local.NewIntegrationsService(process.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	statusService := local.NewStatusService(process.backend)
-	return externalauditstorage.NewConfigurator(process.ExitContext(), ecaSvc, integrationSvc, statusService)
+	return externalauditstorage.NewConfigurator(process.ExitContext(), easSvc, integrationSvc, statusService)
 }
 
 // createLockedPIDFile creates a PID file in the path specified by pidFile
