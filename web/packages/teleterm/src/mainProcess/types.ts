@@ -106,6 +106,9 @@ export type MainProcessClient = {
   ) => {
     cleanup: () => void;
   };
+  subscribeToProfileChange: (listener: () => void) => {
+    cleanup: () => void;
+  };
 
   getRuntimeSettings(): RuntimeSettings;
   getResolvedChildProcessAddresses(): Promise<ChildProcessAddresses>;
@@ -264,6 +267,7 @@ export enum RendererIpc {
   NativeThemeUpdate = 'renderer-native-theme-update',
   ConnectMyComputerAgentUpdate = 'renderer-connect-my-computer-agent-update',
   DeepLinkLaunch = 'renderer-deep-link-launch',
+  ProfileChange = 'renderer-profile-change',
 }
 
 export enum MainProcessIpc {

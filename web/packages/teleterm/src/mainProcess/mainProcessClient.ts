@@ -86,6 +86,13 @@ export default function createMainProcessClient(): MainProcessClient {
           ipcRenderer.removeListener(RendererIpc.DeepLinkLaunch, ipcListener),
       };
     },
+    subscribeToProfileChange: listener => {
+      ipcRenderer.addListener(RendererIpc.ProfileChange, listener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(RendererIpc.ProfileChange, listener),
+      };
+    },
 
     /*
      * Messages sent from the renderer to the main process.

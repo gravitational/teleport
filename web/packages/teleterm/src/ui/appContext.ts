@@ -173,6 +173,13 @@ export default class AppContext implements IAppContext {
     this.notifyMainProcessAboutClusterListChanges();
     this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
+    this.mainProcessClient.subscribeToProfileChange(() => {
+      // TODO: When a cluster gets removed we should run a equivalent of "logout"
+      // from useClusterLogout.
+      // When a cluster gets added we need to sync a particular root cluster.
+      this.logger.info('Profile changed.');
+      this.clustersService.syncRootClustersAndCatchErrors();
+    });
   }
 
   private subscribeToDeepLinkLaunch() {

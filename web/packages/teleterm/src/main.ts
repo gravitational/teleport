@@ -39,6 +39,7 @@ import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 import { parseDeepLink } from 'teleterm/deepLinks';
 import { assertUnreachable } from 'teleterm/ui/utils';
 import { manageRootClusterProxyHostAllowList } from 'teleterm/mainProcess/rootClusterProxyHostAllowList';
+import { startProfileWatcher } from 'teleterm/mainProcess/profileWatcher';
 
 if (!app.isPackaged) {
   // Sets app name and data directories to Electron.
@@ -190,6 +191,10 @@ function initializeApp(): void {
       enableWebHandlersProtection();
 
       windowsManager.createWindow();
+      startProfileWatcher(
+        mainProcess.settings.tshd.homeDir,
+        windowsManager.getWindow()
+      );
     })
     .catch(error => {
       const message = 'Could not initialize the app';
