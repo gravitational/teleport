@@ -128,8 +128,6 @@ func (c *ReadWriter) Write(b []byte) (int, error) {
 // Close cleans up resources used by the stream.
 func (c *ReadWriter) Close() error {
 	if cs, ok := c.source.(io.Closer); ok {
-		c.wLock.Lock()
-		defer c.wLock.Unlock()
 		return trace.Wrap(cs.Close())
 	}
 

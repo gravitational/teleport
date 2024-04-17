@@ -4863,7 +4863,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				warnOnErr(ctx, proxyServer.Shutdown(), logger)
 			}
 			if peerClient != nil {
-				peerClient.Shutdown()
+				peerClient.Shutdown(ctx)
 			}
 			if kubeServer != nil {
 				warnOnErr(ctx, kubeServer.Shutdown(ctx), logger)
