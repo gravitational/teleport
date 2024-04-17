@@ -17,6 +17,9 @@
  */
 
 import * as whatwg from 'whatwg-url';
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
+import { routing } from 'teleterm/ui/uri';
 
 /**
  * Accepts a proxy host in the form of "cluster-address.example.com:3090" and returns the host as
@@ -53,3 +56,14 @@ export function proxyHostToBrowserProxyHost(proxyHost: string) {
 
   return whatwgURL.host;
 }
+
+/**
+ * maybeUserAtProxyHost returns user@proxy if loggedInUser is present, otherwise just proxy.
+ */
+export const maybeUserAtProxyHost = (cluster: Cluster): string => {
+  const proxyHostname = routing.parseClusterName(cluster.uri);
+
+  return cluster.loggedInUser
+    ? `${cluster.loggedInUser.name}@${proxyHostname}`
+    : proxyHostname;
+};

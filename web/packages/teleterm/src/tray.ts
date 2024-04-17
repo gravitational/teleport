@@ -28,15 +28,19 @@ import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import { TshdClient } from 'teleterm/services/tshd';
 import { routing } from 'teleterm/ui/uri';
+import { maybeUserAtProxyHost } from 'teleterm/services/tshd/cluster';
 
-export function addTray(tshdClient: TshdClient) {
+export function addTray(tshd: TshdClient) {
   const image = nativeImage.createFromPath(getAssetPath('iconTemplate.png'));
   const resizedImage = image.resize({ width: 16 });
   resizedImage.setTemplateImage(true);
   const tray = new Tray(resizedImage);
   const allGateways = [];
+
   tray.on('mouse-enter', async () => {
-    const gatewayMenuItems = await getGatewayMenuItems(tshdClient, allGateways);
+    const gatewayMenuItems = await getGatewayMenuItems(tshd, allGateways);
+    const profiles = await getProfiles(tshd);
+
     // TODO: Guarantee that there is only one promise running that updates the menu.
     const contextMenu = Menu.buildFromTemplate([
       {
@@ -46,25 +50,7 @@ export function addTray(tshdClient: TshdClient) {
           .resize({ width: 16 }),
         type: 'normal',
       },
-      {
-        label: 'bob@platform.teleport.sh',
-        icon: nativeImage
-          .createFromNamedImage('NSImageNameUser')
-          .resize({ width: 16 }),
-        type: 'submenu',
-        submenu: [
-          {
-            label: 'alice@teleport-ent-15.asteroid.earth',
-            type: 'radio',
-          },
-          {
-            label: 'bob@platform.teleport.sh',
-            type: 'radio',
-            checked: true,
-          },
-          { label: 'sam@example.com', type: 'radio' },
-        ],
-      },
+      profiles,
       { type: 'separator' },
       {
         label: 'Local proxies',
@@ -138,3 +124,30 @@ async function getGatewayMenuItems(
     };
   });
 }
+
+const getProfiles = async (
+  tshd: TshdClient
+): Promise<MenuItemConstructorOptions> => {
+  const {
+    response: { clusters: rootClusters, currentRootClusterUri },
+  } = await tshd.listRootClusters({});
+  const currentCluster = rootClusters.find(
+    c => c.uri === currentRootClusterUri
+  );
+
+  return {
+    label: maybeUserAtProxyHost(currentCluster),
+    icon: nativeImage
+      .createFromNamedImage('NSImageNameUser')
+      .resize({ width: 16 }),
+    type: rootClusters.length > 1 ? 'submenu' : 'normal',
+    submenu:
+      rootClusters.length > 1
+        ? rootClusters.map(c => ({
+            label: maybeUserAtProxyHost(c),
+            type: 'radio',
+            checked: c.uri === currentRootClusterUri,
+          }))
+        : undefined,
+  };
+};
