@@ -116,7 +116,7 @@ func (w *WebsocketRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 // versionWithoutExecSubprotocolV5 is the version of Teleport that starts supporting websocket exec subprotocol v5.
 var versionWithoutExecSubprotocolV5 = semver.New(utils.VersionBeforeAlpha("16.0.0"))
 
-const kubernetesExecSubprotocolV5Version = "1.29.0"
+const kubernetesExecSubprotocolV5Version = "1.30.0"
 
 func kubernetesSupportsExecSubprotocolV5(serverVersion *version.Info) bool {
 	if serverVersion == nil {
