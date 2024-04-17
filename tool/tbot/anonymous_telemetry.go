@@ -20,7 +20,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -43,8 +42,6 @@ const (
 
 	helperEnv        = "_TBOT_TELEMETRY_HELPER"
 	helperVersionEnv = "_TBOT_TELEMETRY_HELPER_VERSION"
-
-	telemetryDocs = "https://goteleport.com/docs/machine-id/reference/telemetry/"
 )
 
 type envGetter func(key string) string
@@ -84,10 +81,10 @@ func sendTelemetry(
 ) error {
 	start := time.Now()
 	if !telemetryEnabled(envGetter) {
-		log.InfoContext(ctx, fmt.Sprintf("Anonymous telemetry is not enabled. Find out more about Machine ID's anonymous telemetry at %s", telemetryDocs))
+		log.InfoContext(ctx, "Anonymous telemetry is not enabled. Find out more about Machine ID's anonymous telemetry at https://goteleport.com/docs/machine-id/reference/telemetry/")
 		return nil
 	}
-	log.InfoContext(ctx, fmt.Sprintf("Anonymous telemetry is enabled. Find out more about Machine ID's anonymous telemetry at %s", telemetryDocs))
+	log.InfoContext(ctx, "Anonymous telemetry is enabled. Find out more about Machine ID's anonymous telemetry at https://goteleport.com/docs/machine-id/reference/telemetry/")
 
 	data := &prehogv1a.TbotStartEvent{
 		RunMode:  prehogv1a.TbotStartEvent_RUN_MODE_DAEMON,

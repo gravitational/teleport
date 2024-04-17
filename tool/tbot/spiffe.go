@@ -28,8 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func onSPIFFEInspect(path string) error {
-	ctx := context.Background()
+func onSPIFFEInspect(ctx context.Context, path string) error {
 	log.InfoContext(ctx, "Inspecting SPIFFE Workload API Endpoint", "path", path)
 
 	source, err := workloadapi.New(

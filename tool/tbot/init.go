@@ -111,7 +111,11 @@ func testACL(directory string, ownerUser *user.User, opts *botfs.ACLOptions) err
 	defer func() {
 		err := os.Remove(testFile)
 		if err != nil {
-			log.Debug("Failed to delete ACL test file", "path", testFile)
+			log.DebugContext(
+				context.TODO(),
+				"Failed to delete ACL test file",
+				"path", testFile,
+			)
 		}
 	}()
 
@@ -148,7 +152,12 @@ type ensurePermissionsParams struct {
 
 // ensurePermissions verifies permissions on the given path and, when
 // possible, attempts to fix permissions / ACLs on any misconfigured paths.
-func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) error {
+func ensurePermissions(
+	ctx context.Context,
+	params *ensurePermissionsParams,
+	key string,
+	isDir bool,
+) error {
 	path := filepath.Join(params.dirPath, key)
 
 	//nolint:staticcheck // this entirely innocuous line generates "related
@@ -181,9 +190,11 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 		case botfs.SymlinksInsecure:
 			// do nothing
 		default:
-			log.Warn("Path contains symlinks and may be subject to symlink "+
-				"attacks. If this is intentional, consider setting `symlinks: "+
-				"insecure` in destination config.", "path", path)
+			log.WarnContext(
+				ctx,
+				"Path contains symlinks and may be subject to symlink attacks. If this is intentional, consider setting `symlinks: insecure` in destination config",
+				"path", path,
+			)
 		}
 	}
 
@@ -202,7 +213,7 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 	// Correct ownership.
 	ownedByDesiredOwner, err := botfs.IsOwnedBy(stat, params.ownerUser)
 	if err != nil {
-		log.Debug("Could not determine file ownership", "path", path, "err", err)
+		log.DebugContext(ctx, "Could not determine file ownership", "path", path, "err", err)
 
 		// Can't read file ownership on this platform (e.g. Windows), so always
 		// attempt to chown (which does work on Windows)
@@ -212,7 +223,7 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 	if !ownedByDesiredOwner {
 		// If we're not running as root, this will probably fail.
 		if currentUser.Uid != RootUID && runtime.GOOS != constants.WindowsOS {
-			log.Warn("Not running as root, ownership change is likely to fail")
+			log.WarnContext(ctx, "Not running as root, ownership change is likely to fail")
 		}
 
 		uid, err := strconv.Atoi(params.ownerUser.Uid)
@@ -226,7 +237,8 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 		}
 
 		if verboseLogging {
-			log.Warn(
+			log.WarnContext(
+				ctx,
 				"Ownership of file is incorrect and will be corrected",
 				"path", path,
 				"username", params.ownerUser.Username,
@@ -250,14 +262,23 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 		//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
 		if err != nil && (currentUser.Uid == RootUID || currentUser.Uid == params.ownerUser.Uid) {
 			if verboseLogging {
-				log.Warn("ACL for file is not correct and will be corrected", "path", path, "err", err)
+				log.WarnContext(
+					ctx,
+					"ACL for file is not correct and will be corrected",
+					"path", path,
+					"err", err,
+				)
 			}
 
 			return trace.Wrap(botfs.ConfigureACL(path, params.ownerUser, params.aclOptions))
 		} else if err != nil {
-			log.Error("ACL for file is incorrect but `tbot init` must be run "+
-				"as root or the owner to correct it",
-				"path", path, "username", params.ownerUser.Username, "err", err)
+			log.ErrorContext(
+				ctx,
+				"ACL for file is incorrect but `tbot init` must be run as root or the owner to correct it",
+				"path", path,
+				"username", params.ownerUser.Username,
+				"err", err,
+			)
 			return trace.AccessDenied("Elevated permissions required")
 		}
 
@@ -276,7 +297,8 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 			return trace.Wrap(err, "Could not fix permissions on file %q, expected %#o", path, desiredMode)
 		}
 
-		log.Info(
+		log.InfoContext(
+			ctx,
 			"Corrected permissions for file",
 			"path", path,
 			"from", stat.Mode().Perm(),
@@ -314,17 +336,25 @@ func parseOwnerString(owner string) (*user.User, *user.Group, error) {
 func getOwner(cliOwner, defaultOwner string) (*user.User, *user.Group, error) {
 	if cliOwner != "" {
 		// If --owner is set, always use it.
-		log.Debug("Attempting to use explicitly requested owner", "requested", cliOwner)
+		log.DebugContext(
+			context.TODO(),
+			"Attempting to use explicitly requested owner",
+			"requested", cliOwner,
+		)
 		return parseOwnerString(cliOwner)
 	}
 
 	if defaultOwner != "" {
-		log.Debug("Attempting to use default owner", "default", defaultOwner)
+		log.DebugContext(
+			context.TODO(),
+			"Attempting to use default owner",
+			"default", defaultOwner,
+		)
 		// If a default owner is specified, try it instead.
 		return parseOwnerString(defaultOwner)
 	}
 
-	log.Debug("Will use current user as owner")
+	log.DebugContext(context.TODO(), "Will use current user as owner")
 	// Otherwise, return the current user and group
 	currentUser, err := user.Current()
 	if err != nil {
@@ -542,13 +572,13 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	}
 
 	// Check and set permissions on the directory itself.
-	if err := ensurePermissions(&params, "", true); err != nil {
+	if err := ensurePermissions(ctx, &params, "", true); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Lastly, set and check permissions on all the desired files.
 	for key, isDir := range desired {
-		if err := ensurePermissions(&params, key, isDir); err != nil {
+		if err := ensurePermissions(ctx, &params, key, isDir); err != nil {
 			return trace.Wrap(err)
 		}
 	}
