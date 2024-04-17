@@ -804,6 +804,9 @@ Server ID                            Hostname                        Services   
 a24d4ad4-ead8-4b15-9ea6-357a5350369e server2                         Node,App                   (=teleport.version=)       unit     (=teleport.version=)
 ```
 
+ Note that newly added Teleport services do not show in the inventory as fast as other listings. Those can take around 5 minutes
+ under regular circumstances to show in inventory counts and around 15 minutes for heavy load.
+
 ## tctl inventory status
 
 Show inventory status summary:
@@ -886,27 +889,8 @@ Total Instances: 19
  </TabItem>
  </Tabs>
 
-## tctl inventory ping
-
-Ping locally connected instance:
-
-```code
-$ tctl inventory ping <server-id> 
-``` 
-
-### Global flags
-
-These flags are available for all commands `--debug, --config` . Run
-`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
-
-### Examples
-
-Ping a instance. This is only available through a Auth Service for Self-Hosted.
-
-```code
-$ tctl inventory ping 6790729b-c265-4dc3-a6c1-3c206d43d38d
-Successfully pinged server "6790729b-c265-4dc3-a6c1-3c206d43d38d" (~77.564473ms).
-```
+ Note that newly added Teleport services do not show in the inventory as fast as other listings. Those can take around 5 minutes
+ under regular circumstances to show in inventory counts and around 15 minutes for heavy load.
 
 ## tctl login_rule test
 
