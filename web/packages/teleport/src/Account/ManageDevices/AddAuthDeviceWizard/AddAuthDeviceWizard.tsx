@@ -130,7 +130,6 @@ export function ReauthenticateStep({
   onClose,
   onAuthenticated: onAuthenticatedProp,
 }: AddAuthDeviceWizardStepProps) {
-  const challengeScope = MfaChallengeScope.MANAGE_DEVICES;
   const onAuthenticated = (privilegeToken: string) => {
     onAuthenticatedProp(privilegeToken);
     next();
@@ -138,7 +137,6 @@ export function ReauthenticateStep({
   const { attempt, clearAttempt, submitWithTotp, submitWithWebauthn } =
     useReAuthenticate({
       onAuthenticated,
-      challengeScope,
     });
   const mfaOptions = createMfaOptions({
     auth2faType,
@@ -159,7 +157,7 @@ export function ReauthenticateStep({
     e.preventDefault();
     if (!validator.validate()) return;
     if (mfaOption === 'webauthn') {
-      submitWithWebauthn(challengeScope);
+      submitWithWebauthn();
     }
     if (mfaOption === 'otp') {
       submitWithTotp(authCode);

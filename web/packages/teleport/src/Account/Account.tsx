@@ -232,7 +232,6 @@ export function Account({
               onAuthenticated={setToken}
               onClose={hideReAuthenticate}
               actionText="registering a new device"
-              challengeScope={MfaChallengeScope.MANAGE_DEVICES}
             />
           )}
           {EnterpriseComponent && (
