@@ -19,6 +19,7 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -363,7 +364,8 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	addDestinationToKnownPaths(conf.Storage.Destination)
 	for path, count := range destinationPaths {
 		if count > 1 {
-			log.Error(
+			log.ErrorContext(
+				context.TODO(),
 				"Identical destinations used within config. This can produce unusable results. In Teleport 15.0, this will be a fatal error",
 				"path", path,
 			)
@@ -411,7 +413,8 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 
 	// Warn about config where renewals will fail due to weird TTL vs Interval
 	if !conf.Oneshot && conf.RenewalInterval > conf.CertificateTTL {
-		log.Warn(
+		log.WarnContext(
+			context.TODO(),
 			"Certificate TTL is shorter than the renewal interval. This is likely an invalid configuration. Increase the certificate TTL or decrease the renewal interval",
 			"ttl", conf.CertificateTTL,
 			"interval", conf.RenewalInterval,
@@ -671,28 +674,44 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 	if cf.AuthServer != "" {
 		if config.AuthServer != "" {
-			log.Warn("CLI parameters are overriding auth server configured", "config_path", cf.ConfigPath)
+			log.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding destinations",
+				"config_path", cf.ConfigPath,
+			)
 		}
 		config.AuthServer = cf.AuthServer
 	}
 
 	if cf.ProxyServer != "" {
 		if config.ProxyServer != "" {
-			log.Warn("CLI parameters are overriding proxy configured", "config_path", cf.ConfigPath)
+			log.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding destinations",
+				"config_path", cf.ConfigPath,
+			)
 		}
 		config.ProxyServer = cf.ProxyServer
 	}
 
 	if cf.CertificateTTL != 0 {
 		if config.CertificateTTL != 0 {
-			log.Warn("CLI parameters are overriding certificate TTL", "config_path", cf.ConfigPath)
+			log.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding destinations",
+				"config_path", cf.ConfigPath,
+			)
 		}
 		config.CertificateTTL = cf.CertificateTTL
 	}
 
 	if cf.RenewalInterval != 0 {
 		if config.RenewalInterval != 0 {
-			log.Warn("CLI parameters are overriding renewal interval configured", "config_path", cf.ConfigPath)
+			log.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding destinations",
+				"config_path", cf.ConfigPath,
+			)
 		}
 		config.RenewalInterval = cf.RenewalInterval
 	}
@@ -700,8 +719,9 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	// DataDir overrides any previously-configured storage config
 	if cf.DataDir != "" {
 		if config.Storage != nil && config.Storage.Destination != nil {
-			log.Warn(
-				"CLI parameters are overriding storage location from",
+			log.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding destinations",
 				"config_path", cf.ConfigPath,
 			)
 		}
@@ -721,7 +741,11 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		// CLI only supports a single filesystem Destination with SSH client config
 		// and all roles.
 		if len(config.Outputs) > 0 {
-			log.Warn("CLI parameters are overriding destinations", "config_path", cf.ConfigPath)
+			log.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding destinations",
+				"config_path", cf.ConfigPath,
+			)
 		}
 
 		// When using the CLI --Destination-dir we configure an Identity type
@@ -742,7 +766,11 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	if cf.Token != "" || cf.JoinMethod != "" || len(cf.CAPins) > 0 {
 		if !reflect.DeepEqual(config.Onboarding, OnboardingConfig{}) {
 			// To be safe, warn about possible confusion.
-			log.Warn("CLI parameters are overriding destinations", "config_path", cf.ConfigPath)
+			log.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding destinations",
+				"config_path", cf.ConfigPath,
+			)
 		}
 
 		config.Onboarding = OnboardingConfig{
@@ -758,7 +786,11 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 	if cf.DiagAddr != "" {
 		if config.DiagAddr != "" {
-			log.Warn("CLI parameters are overriding destinations", "config_path", cf.ConfigPath)
+			log.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding destinations",
+				"config_path", cf.ConfigPath,
+			)
 		}
 		config.DiagAddr = cf.DiagAddr
 	}
@@ -811,7 +843,8 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 	switch version.Version {
 	case V1, "":
 		if !manualMigration {
-			log.Warn("Deprecated config version (V1) detected. Attempting to perform an on-the-fly in-memory migration to latest version. Please persist the config migration by following the guidance at https://goteleport.com/docs/machine-id/reference/v14-upgrade-guide/")
+			log.WarnContext(
+				context.TODO(), "Deprecated config version (V1) detected. Attempting to perform an on-the-fly in-memory migration to latest version. Please persist the config migration by following the guidance at https://goteleport.com/docs/machine-id/reference/v14-upgrade-guide/")
 		}
 		config := &configV1{}
 		if err := decoder.Decode(config); err != nil {

@@ -119,7 +119,8 @@ func (o *IdentityOutput) CheckAndSetDefaults() error {
 		// ssh_config will not be sensible. Log a note and bail early without
 		// writing ssh_config. (Future users of k8s secrets will need to bring
 		// their own config, we can't predict where paths will be in practice.)
-		log.Info(
+		log.InfoContext(
+			context.TODO(),
 			"Note: no ssh_config will be written for non-filesystem destination",
 			"destination", o.Destination,
 		)

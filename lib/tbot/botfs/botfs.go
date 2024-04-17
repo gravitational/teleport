@@ -19,6 +19,7 @@
 package botfs
 
 import (
+	"context"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -128,7 +129,8 @@ func createStandard(path string, isDir bool) error {
 	}
 
 	if err := f.Close(); err != nil {
-		log.Warn(
+		log.WarnContext(
+			context.TODO(),
 			"Failed to close file",
 			"path", path,
 			"err", err,

@@ -110,7 +110,7 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 	s.log.DebugContext(
 		ctx,
 		"Identified route to database.",
-		"serviceName", routeToDatabase.ServiceName,
+		"service_name", routeToDatabase.ServiceName,
 		"protocol", routeToDatabase.Protocol,
 		"database", routeToDatabase.Database,
 		"username", routeToDatabase.Username,

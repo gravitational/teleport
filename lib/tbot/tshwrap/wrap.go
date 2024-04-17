@@ -19,6 +19,7 @@
 package tshwrap
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"os"
@@ -113,7 +114,13 @@ func (w *Wrapper) Exec(env map[string]string, args ...string) error {
 		environ = append(environ, k+"="+v)
 	}
 
-	log.Debug("executing binary", "pat", w.path, "env", env, "args", args)
+	log.DebugContext(
+		context.TODO(),
+		"executing binary",
+		"path", w.path,
+		"env", env,
+		"args", args,
+	)
 
 	child := exec.Command(w.path, args...)
 	child.Env = environ
@@ -162,7 +169,11 @@ func CheckTSHSupported(w *Wrapper) error {
 		)
 	}
 
-	log.Debug("tsh version is supported", "version", version)
+	log.DebugContext(
+		context.TODO(),
+		"tsh version is supported",
+		"version", version,
+	)
 
 	return nil
 }
