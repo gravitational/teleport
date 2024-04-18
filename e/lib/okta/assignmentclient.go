@@ -261,9 +261,9 @@ func (a *assignmentClient) userID(ctx context.Context, username string) (string,
 	a.usersMu.Lock()
 	if a.users == nil {
 		var err error
-
 		a.users, err = a.oktaClient.listUsers(ctx)
 		if err != nil {
+			a.usersMu.Unlock()
 			return "", trace.Wrap(err)
 		}
 	}
