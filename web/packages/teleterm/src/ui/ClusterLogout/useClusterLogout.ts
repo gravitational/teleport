@@ -19,6 +19,7 @@
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { RootClusterUri } from 'teleterm/ui/uri';
+import { IAppContext } from 'teleterm/ui/types';
 
 import { useAppContext } from '../appContextProvider';
 
@@ -28,39 +29,46 @@ export function useClusterLogout({
   clusterUri: RootClusterUri;
 }) {
   const ctx = useAppContext();
-  const [{ status, statusText }, removeCluster] = useAsync(async () => {
-    await ctx.clustersService.logout(clusterUri);
-
-    if (ctx.workspacesService.getRootClusterUri() === clusterUri) {
-      const [firstConnectedWorkspace] =
-        ctx.workspacesService.getConnectedWorkspacesClustersUri();
-      if (firstConnectedWorkspace) {
-        await ctx.workspacesService.setActiveWorkspace(firstConnectedWorkspace);
-      } else {
-        await ctx.workspacesService.setActiveWorkspace(null);
-      }
-    }
-
-    // Remove connections first, they depend both on the cluster and the workspace.
-    ctx.connectionTracker.removeItemsBelongingToRootCluster(clusterUri);
-
-    // Remove the workspace next, because it depends on the cluster.
-    ctx.workspacesService.removeWorkspace(clusterUri);
-
-    // If there are active ssh connections to the agent, killing it will take a few seconds. To work
-    // around this, kill the agent only after removing the workspace. Removing the workspace closes
-    // ssh tabs, so it should terminate connections to the cluster from the app.
-    //
-    // If ClustersService.logout above fails, the user should still be able to manage the agent.
-    await ctx.connectMyComputerService.killAgentAndRemoveData(clusterUri);
-
-    // Remove the cluster, it does not depend on anything.
-    await ctx.clustersService.removeClusterAndResources(clusterUri);
-  });
+  const [{ status, statusText }, removeCluster] = useAsync(() =>
+    logOutCluster(ctx, clusterUri)
+  );
 
   return {
     status,
     statusText,
     removeCluster,
   };
+}
+
+export async function logOutCluster(
+  ctx: IAppContext,
+  clusterUri: RootClusterUri
+) {
+  await ctx.clustersService.logout(clusterUri);
+
+  if (ctx.workspacesService.getRootClusterUri() === clusterUri) {
+    const [firstConnectedWorkspace] =
+      ctx.workspacesService.getConnectedWorkspacesClustersUri();
+    if (firstConnectedWorkspace) {
+      await ctx.workspacesService.setActiveWorkspace(firstConnectedWorkspace);
+    } else {
+      await ctx.workspacesService.setActiveWorkspace(null);
+    }
+  }
+
+  // Remove connections first, they depend both on the cluster and the workspace.
+  ctx.connectionTracker.removeItemsBelongingToRootCluster(clusterUri);
+
+  // Remove the workspace next, because it depends on the cluster.
+  ctx.workspacesService.removeWorkspace(clusterUri);
+
+  // If there are active ssh connections to the agent, killing it will take a few seconds. To work
+  // around this, kill the agent only after removing the workspace. Removing the workspace closes
+  // ssh tabs, so it should terminate connections to the cluster from the app.
+  //
+  // If ClustersService.logout above fails, the user should still be able to manage the agent.
+  await ctx.connectMyComputerService.killAgentAndRemoveData(clusterUri);
+
+  // Remove the cluster, it does not depend on anything.
+  await ctx.clustersService.removeClusterAndResources(clusterUri);
 }

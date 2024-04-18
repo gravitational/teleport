@@ -25,6 +25,10 @@ import { FileStorage } from 'teleterm/services/fileStorage';
 
 import { ConfigService } from '../services/config';
 
+import { ProfileChange } from './profileWatcher';
+
+import type { IpcRendererEvent } from 'electron';
+
 export type RuntimeSettings = {
   /**
    * dev controls whether the app runs in development mode. This mostly controls what kind of URL
@@ -88,6 +92,8 @@ export type RuntimeSettings = {
   hostname: string;
 };
 
+type IpcRendererListener<Args> = (event: IpcRendererEvent, args: Args) => void;
+
 export type MainProcessClient = {
   /** Subscribes to updates of the native theme. Returns a cleanup function. */
   subscribeToNativeThemeUpdate: (
@@ -106,7 +112,9 @@ export type MainProcessClient = {
   ) => {
     cleanup: () => void;
   };
-  subscribeToProfileChange: (listener: () => void) => {
+  subscribeToProfileChange: (
+    listener: IpcRendererListener<ProfileChange[]>
+  ) => {
     cleanup: () => void;
   };
 

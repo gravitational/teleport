@@ -47,6 +47,7 @@ import { parseDeepLink } from 'teleterm/deepLinks';
 
 import { CommandLauncher } from './commandLauncher';
 import { createTshdEventsContextBridgeService } from './tshdEvents';
+import { logOutCluster } from './ClusterLogout/useClusterLogout';
 
 export default class AppContext implements IAppContext {
   private logger: Logger;
@@ -173,12 +174,33 @@ export default class AppContext implements IAppContext {
     this.notifyMainProcessAboutClusterListChanges();
     this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
-    this.mainProcessClient.subscribeToProfileChange(() => {
+
+    // TODO(ravicious): This needs to guarantee that profile change batches are processed
+    // sequentially.
+    //
+    // Maybe this will help? https://stackoverflow.com/questions/74256266
+    this.mainProcessClient.subscribeToProfileChange(async (event, changes) => {
+      for (const change of changes) {
+        switch (change.op) {
+          case 'added': {
+            await this.clustersService.syncRootClusterAndCatchErrors(
+              change.uri
+            );
+            break;
+          }
+          case 'removed': {
+            await logOutCluster(this, change.uri);
+            break;
+          }
+          default: {
+            change.op satisfies never;
+          }
+        }
+      }
       // TODO: When a cluster gets removed we should run a equivalent of "logout"
       // from useClusterLogout.
       // When a cluster gets added we need to sync a particular root cluster.
       this.logger.info('Profile changed.');
-      this.clustersService.syncRootClustersAndCatchErrors();
     });
   }
 

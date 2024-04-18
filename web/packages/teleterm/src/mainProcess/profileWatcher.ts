@@ -19,27 +19,33 @@
 import fs from 'node:fs/promises';
 
 import { BrowserWindow } from 'electron';
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
 import { RendererIpc } from 'teleterm/mainProcess/types';
+import { TshdClient } from 'teleterm/services/tshd';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 export async function startProfileWatcher(
-  path: string,
-  window: BrowserWindow
+  tshd: TshdClient,
+  window: BrowserWindow,
+  path: string
 ): Promise<void> {
-  // const {
-  //   response: { clusters: initialClusters },
-  // } = await tshd.listRootClusters({});
-  // const oldClusters = new Map(initialClusters.map(c => ([c.uri, c])));
+  const {
+    response: { clusters: initialClusters },
+  } = await tshd.listRootClusters({});
+  const oldClusters = new Map(initialClusters.map(c => [c.uri, c]));
 
   const watcher = fs.watch(path);
   try {
     for await (const event of watcher) {
       if (event.eventType === 'rename') {
-        // const {
-        //   response: { clusters },
-        // } = await tshd.listRootClusters({});
-        // const newClusters = new Map(clusters.map(c => ([c.uri, c])));
-        window.webContents.send(RendererIpc.ProfileChange);
+        const {
+          response: { clusters },
+        } = await tshd.listRootClusters({});
+        const newClusters = new Map(clusters.map(c => [c.uri, c]));
+        const changes = detectChanges(oldClusters, newClusters);
+
+        window.webContents.send(RendererIpc.ProfileChange, changes);
       }
     }
   } catch (e) {
@@ -50,12 +56,30 @@ export async function startProfileWatcher(
   }
 }
 
-// type Clusters = Map<string, Cluster>;
-//
-// function detectChanges(oldClusters: Clusters, newClusters: Clusters) {
-//   for (const cluster of oldClusters) {
-//     if (!newClusters.has(cluster)) {
-//
-//     }
-//   }
-// }
+type Clusters = Map<string, Cluster>;
+
+export type ProfileChange = {
+  op: 'added' | 'removed';
+  uri: RootClusterUri;
+};
+
+function detectChanges(
+  oldClusters: Clusters,
+  newClusters: Clusters
+): ProfileChange[] {
+  const changes: ProfileChange[] = [];
+
+  for (const [uri] of oldClusters) {
+    if (!newClusters.has(uri)) {
+      changes.push({ op: 'removed', uri });
+    }
+  }
+
+  for (const [uri] of newClusters) {
+    if (!oldClusters.has(uri)) {
+      changes.push({ op: 'added', uri });
+    }
+  }
+
+  return changes;
+}
