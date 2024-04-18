@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"crypto/subtle"
 	"crypto/x509"
+	"encoding/asn1"
 	"log/slog"
 
 	"github.com/google/go-attestation/attest"
@@ -172,6 +173,8 @@ func parseEK(
 	}
 }
 
+var sanExtensionOID = []int{2, 5, 29, 17}
+
 func verifyEKCert(
 	ctx context.Context,
 	allowedCAs *x509.CertPool,
@@ -183,6 +186,20 @@ func verifyEKCert(
 	if ekCert == nil {
 		return trace.BadParameter("tpm did not provide an EKCert to validate against allowed CAs")
 	}
+
+	// EKCerts often include some additional data bundled within the SAN
+	// extension. This ext is also sometimes marked critical. This causes
+	// the Verify() to reject the cert because not all data within a
+	// critical extension has been handled. We mark this as OK here by
+	// stripping the SAN Extension OID out of UnhandledCriticalExtensions.
+	var exts []asn1.ObjectIdentifier
+	for _, ext := range ekCert.UnhandledCriticalExtensions {
+		if ext.Equal(sanExtensionOID) {
+			continue
+		}
+		exts = append(exts, ext)
+	}
+	ekCert.UnhandledCriticalExtensions = exts
 
 	// Validate EKCert against CA pool
 	_, err := ekCert.Verify(x509.VerifyOptions{
