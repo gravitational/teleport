@@ -106,8 +106,8 @@ func awsDBDiscoveryUnmatched(t *testing.T) {
 }
 
 const (
-	connTestTimeout       = 30 * time.Second
-	connTestRetryInterval = 3 * time.Second
+	connTestTimeout       = 60 * time.Second
+	connTestRetryInterval = 10 * time.Second
 )
 
 // postgresConnTestFn tests connection to a postgres database via proxy web
@@ -152,7 +152,6 @@ func postgresLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, use
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	t.Cleanup(cancel)
 	lp := startLocalALPNProxy(t, ctx, user, cluster, route)
-	defer lp.Close()
 
 	connString := fmt.Sprintf("postgres://%s@%v/%s",
 		route.Username, lp.GetAddr(), route.Database)
@@ -186,7 +185,6 @@ func mysqlLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user s
 	t.Cleanup(cancel)
 
 	lp := startLocalALPNProxy(t, ctx, user, cluster, route)
-	defer lp.Close()
 
 	var conn *mysqlclient.Conn
 	// retry for a while, the database service might need time to give
@@ -232,6 +230,9 @@ func startLocalALPNProxy(t *testing.T, ctx context.Context, user string, cluster
 	require.NoError(t, err)
 
 	go proxy.Start(ctx)
+	t.Cleanup(func() {
+		_ = proxy.Close()
+	})
 
 	return proxy
 }
