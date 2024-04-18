@@ -346,6 +346,8 @@ func registerThroughProxy(
 			certs, err = registerUsingAzureMethod(ctx, joinServiceClient, token, params)
 		case types.JoinMethodTPM:
 			certs, err = registerUsingTPMMethod(ctx, joinServiceClient, token, params)
+		default:
+			return nil, trace.BadParameter("unhandled join method %q", params.JoinMethod)
 		}
 
 		if err != nil {
