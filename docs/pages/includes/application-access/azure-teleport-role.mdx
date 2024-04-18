@@ -13,7 +13,7 @@ identities.
 
 <Notice type="tip">
 
-We recommend using the dynamic approach, since it scales more easily as you add
+We recommend using the dynamic approach, since it scales well as you add
 Azure identities to your account. If you have configured a Teleport Community Edition
 cluster to authenticate users using GitHub SSO, you must use the static approach,
 as OAuth-based GitHub applications do not support custom claims.
@@ -55,6 +55,11 @@ $ tctl users update <Var name="teleport-user" /> \
 This command uses the `--set-azure-identities` flag to add Azure identities to a
 user. You can assign `--set-azure-identities` to multiple identity URIs,
 separated by commas.
+
+The identity URIs are Azure resource IDs in the following format:
+```text
+/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/RESOURCE_GROUP_NAME/providers/Microsoft.ManagedIdentity/userAssignedIdentities/IDENTITY_NAME
+```
 
 Create the role:
 

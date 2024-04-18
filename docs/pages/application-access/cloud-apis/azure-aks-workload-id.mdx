@@ -3,7 +3,16 @@ title: "Protect Azure CLIs with Teleport Application Access on AKS"
 description: How to enable secure access to Azure CLIs on Azure Kubernetes Service with Workload Identity.
 ---
 
-(!docs/pages/includes/application-access/azure-cli-intro.mdx credentialMethod="The Teleport Application Service installed in an AKS pod can use Microsoft Entra Worload ID to obtain authentication tokens from Azure"!)
+(!docs/pages/includes/application-access/azure-intro.mdx!)
+
+1. Create an Azure managed identity for the Application Service and set it as the default Workload ID for your Kubernetes service account.
+1. Create an Azure managed identity for user access and attach it to the same Kubernetes service account.
+1. Deploy a Teleport Application Service with an Azure app in your Teleport cluster.
+1. Assume the managed identity and run `az` commands via `tsh`.
+
+## How it works
+
+(!docs/pages/includes/application-access/azure-how-it-works.mdx deployment="in an AKS pod" credential="Microsoft Entra Workload ID"!)
 
 ## Prerequisites
 
@@ -105,24 +114,26 @@ $ az identity federated-credential create --name "federated-${USER_ASSIGNED_IDEN
 ## Step 3/6. Create an Azure managed identity for user access
 
 In this step, we will create an user-assigned managed identity that a Teleport
-user can assume later with `tsh`.
+user can assume later with `tsh` and associate this managed identity with the
+Kubernetes service account.
+
+If you have another managed identity you intend to use for user access, you can
+skip the creation of a new identity.
 
 ### Create an Azure managed identity
 
-Skip this step if you already have managed identities created for the Teleport
-user to use.
-
-Now create the managed identity with `az`:
+Create the managed identity with `az`:
 ```code
 $ az identity create --name "<Var name="teleport-reader" />" --resource-group "${RESOURCE_GROUP}" --location "${LOCATION}" --subscription "${SUBSCRIPTION}"
 ```
 
-Remember the resource ID URI of the managed identity for a later step:
+Remember the resource ID URI of the managed identity as it will be required in
+your Teleport role or user traits:
 ```code
 $ az identity show --name "<Var name="teleport-reader" />"  -g "${RESOURCE_GROUP}" --query id -o tsv
 ```
 
-Next assign the managed identity approriate permissions that the Teleport user
+Next assign the managed identity desired permissions that the Teleport user
 should have. In this example, the "Reader" role is assigned to the managed
 identity:
 ```code
