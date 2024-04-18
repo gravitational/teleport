@@ -37,13 +37,30 @@ const (
 // IntegrationsService manages Integrations in the Backend.
 type IntegrationsService struct {
 	svc              generic.Service[types.Integration]
-	easSvc           *ExternalAuditStorageService
 	backend          backend.Backend
+	preDeleteChecks  []PreDeleteCheck
 	deleteAllEnabled bool
 }
 
 // IntegrationsServiceOption is a functional option for the IntegrationsService.
 type IntegrationsServiceOption func(*IntegrationsService)
+
+// PreDeleteCheck is a check that should run before any integration is deleted to make sure it is safe to
+// delete.
+//
+// If the check returns any error, the integration will not be deleted.
+//
+// The check should probably hold a lock around both the check and the integration deletion to avoid race
+// conditions. If the check does not return an error, [release] will be invoked by the caller to release the
+// lock.
+type PreDeleteCheck func(ctx context.Context, bk backend.Backend, integrationName string) (release func(), err error)
+
+// WithPreDeleteChecks is a functional option for the IntegrationsService to use the given [preDeleteChecks].
+func WithPreDeleteChecks(preDeleteChecks ...PreDeleteCheck) func(*IntegrationsService) {
+	return func(svc *IntegrationsService) {
+		svc.preDeleteChecks = append(svc.preDeleteChecks, preDeleteChecks...)
+	}
+}
 
 // WithDeleteAllIntegrationsEnabled configure the IntegrationsService to support the DeleteAllIntegrations
 // method, which does not include protections against deleting integrations referenced by other components and
@@ -51,14 +68,6 @@ type IntegrationsServiceOption func(*IntegrationsService)
 func WithDeleteAllIntegrationsEnabled(deleteAllEnabled bool) func(*IntegrationsService) {
 	return func(svc *IntegrationsService) {
 		svc.deleteAllEnabled = deleteAllEnabled
-	}
-}
-
-// WithExternalAuditStorageService configure the IntegrationsService to use the given
-// ExternalAuditStorageService.
-func WithExternalAuditStorageService(easSvc *ExternalAuditStorageService) func(*IntegrationsService) {
-	return func(svc *IntegrationsService) {
-		svc.easSvc = easSvc
 	}
 }
 
@@ -81,12 +90,6 @@ func NewIntegrationsService(backend backend.Backend, opts ...IntegrationsService
 	}
 	for _, opt := range opts {
 		opt(integrationsSvc)
-	}
-	if integrationsSvc.easSvc == nil {
-		integrationsSvc.easSvc, err = NewExternalAuditStorageServiceFallible(backend, WithIntegrationsService(integrationsSvc))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 	return integrationsSvc, nil
 }
@@ -133,48 +136,17 @@ func (s *IntegrationsService) UpdateIntegration(ctx context.Context, ig types.In
 
 // DeleteIntegration removes the specified Integration resource.
 func (s *IntegrationsService) DeleteIntegration(ctx context.Context, name string) error {
-	ig, err := s.svc.GetResource(ctx, name)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	awsOIDCSpec := ig.GetAWSOIDCIntegrationSpec()
-	if awsOIDCSpec == nil {
-		// Not an AWS OIDC integration, go ahead and delete it.
-		return trace.Wrap(s.svc.DeleteResource(ctx, name))
-	}
-
-	// Avoid deleting AWS OIDC integrations referenced by any External Audit Storage integration.
-	// It's necessary to do this under the same lock that is used to create and promote EAS configurations to
-	// avoid a race condition where an AWS OIDC configuration could be deleted immediately after a new EAS
-	// configuration is added.
-	err = backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
-		LockConfiguration: backend.LockConfiguration{
-			Backend:  s.backend,
-			LockName: externalAuditStorageLockName,
-			TTL:      externalAuditStorageLockTTL,
-		},
-	}, func(ctx context.Context) error {
-		if draft, err := s.easSvc.GetDraftExternalAuditStorage(ctx); err == nil {
-			if draft.Spec.IntegrationName == name {
-				return trace.BadParameter("cannot delete AWS OIDC integration currently referenced by draft External Audit Storage integration")
-			}
-		} else if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
+	for _, preDeleteCheck := range s.preDeleteChecks {
+		release, err := preDeleteCheck(ctx, s.backend, name)
+		if err != nil {
+			return trace.Wrap(err, "running pre-delete check for integration %q", name)
 		}
-		if cluster, err := s.easSvc.GetClusterExternalAuditStorage(ctx); err == nil {
-			if cluster.Spec.IntegrationName == name {
-				return trace.BadParameter("cannot delete AWS OIDC integration currently referenced by cluster External Audit Storage integration")
-			}
-		} else if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		return trace.Wrap(s.svc.DeleteResource(ctx, name))
-	})
-	return trace.Wrap(err)
+		defer release()
+	}
+	return trace.Wrap(s.svc.DeleteResource(ctx, name))
 }
 
-// DeleteAllIntegrations removes all Integration resources.
+// DeleteAllIntegrations removes all Integration resources. This should only be used in a cache.
 func (s *IntegrationsService) DeleteAllIntegrations(ctx context.Context) error {
 	if !s.deleteAllEnabled {
 		return trace.BadParameter("Deleting all integrations is not supported, this is a bug")

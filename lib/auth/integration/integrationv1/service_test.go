@@ -433,7 +433,10 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	})
 	require.NoError(t, err)
 
-	localResourceService, err := local.NewIntegrationsService(backend, local.WithDeleteAllIntegrationsEnabled(true))
+	localResourceService, err := local.NewIntegrationsService(backend,
+		local.WithPreDeleteChecks(local.EASIntegrationPreDeleteCheck),
+		local.WithDeleteAllIntegrationsEnabled(true),
+	)
 	require.NoError(t, err)
 
 	keystoreManager, err := keystore.NewManager(ctx, keystore.Config{

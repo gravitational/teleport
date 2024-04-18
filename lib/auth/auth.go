@@ -290,7 +290,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.PluginData = local.NewPluginData(cfg.Backend, cfg.DynamicAccessExt)
 	}
 	if cfg.Integrations == nil {
-		cfg.Integrations, err = local.NewIntegrationsService(cfg.Backend)
+		cfg.Integrations, err = local.NewIntegrationsService(cfg.Backend,
+			local.WithPreDeleteChecks(local.EASIntegrationPreDeleteCheck))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
