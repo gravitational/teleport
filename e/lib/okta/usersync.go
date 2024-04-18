@@ -15,7 +15,9 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -179,20 +181,30 @@ func listTeleportUsers(ctx context.Context, userSvc ReconcilerAccessPoint, userO
 // userReconcilerConfig holds the caller-supplied information needed to create a
 // userReconciler.
 type userReconcilerConfig struct {
-	teleportAP ReconcilerAccessPoint
-	userOrgURL string
-	clock      clockwork.Clock
-	log        logrus.FieldLogger
+	clusterName string
+	teleportAP  ReconcilerAccessPoint
+	userOrgURL  string
+	emitter     apievents.Emitter
+	clock       clockwork.Clock
+	log         logrus.FieldLogger
 }
 
 // CheckAndSetDefaults validates the config, supplying defaults as necessary
 func (cfg *userReconcilerConfig) CheckAndSetDefaults() error {
+	if cfg.clusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
+
 	if cfg.teleportAP == nil {
 		return trace.BadParameter("missing access point")
 	}
 
 	if cfg.userOrgURL == "" {
 		return trace.BadParameter("missing Okta org url")
+	}
+
+	if cfg.emitter == nil {
+		return trace.BadParameter("missing event emitter")
 	}
 
 	if cfg.log == nil {
@@ -206,11 +218,20 @@ func (cfg *userReconcilerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// userSyncStats holds the statistics of an on-flight user synchronize operation
+type userSyncStats struct {
+	preSyncTotal int
+	created      int
+	modified     int
+	deleted      int
+}
+
 // userReconciler reconciles Teleport users with an upstream Okta organization,
 // creating, updating and deleting Teleport users as necessary.
 type userReconciler struct {
 	cfg           userReconcilerConfig
 	backend       *services.Reconciler[types.User]
+	stats         *userSyncStats
 	teleportUsers map[string]types.User
 	oktaUsers     map[string]types.User
 }
@@ -292,6 +313,9 @@ func (r *userReconciler) createTeleportUser(ctx context.Context, oktaUser types.
 		return trace.Wrap(err)
 	}
 
+	// log the user creation
+	r.stats.created += 1
+
 	return nil
 }
 
@@ -300,6 +324,8 @@ func (r *userReconciler) updateTeleportUser(ctx context.Context, newUser, oldUse
 	if _, err := r.cfg.teleportAP.UpdateUser(ctx, newUser); err != nil {
 		return trace.Wrap(err, "updating user %q", newUser.GetName())
 	}
+
+	r.stats.modified += 1
 
 	oldUserLocked := UserHasLockableStatus(oldUser)
 	newUserLocked := UserHasLockableStatus(newUser)
@@ -334,6 +360,7 @@ func (r *userReconciler) deleteTeleportUser(ctx context.Context, user types.User
 	if _, err := r.lockUser(ctx, user, LockReasonDeleted); err != nil {
 		return trace.Wrap(err)
 	}
+	r.stats.deleted += 1
 
 	// Do the actual deletion
 	if err := r.cfg.teleportAP.DeleteUser(ctx, user.GetName()); err != nil {
@@ -341,6 +368,37 @@ func (r *userReconciler) deleteTeleportUser(ctx context.Context, user types.User
 	}
 
 	return nil
+}
+
+func (r *userReconciler) createSyncEvent(reconcilerErr error) *apievents.OktaUserSync {
+	event := &apievents.OktaUserSync{
+		Metadata: apievents.Metadata{
+			Type:        events.OktaUserSyncEvent,
+			Code:        events.OktaUserSyncSuccessCode,
+			ClusterName: r.cfg.clusterName,
+		},
+		Status: apievents.Status{
+			Success: true,
+		},
+	}
+
+	if reconcilerErr != nil {
+		event.Code = events.OktaUserSyncFailureCode
+		event.Status = apievents.Status{
+			Error:   reconcilerErr.Error(),
+			Success: false,
+		}
+
+		return event
+	}
+
+	event.OrgUrl = r.cfg.userOrgURL
+	event.NumUsersCreated = int32(r.stats.created)
+	event.NumUsersDeleted = int32(r.stats.deleted)
+	event.NumUsersModified = int32(r.stats.modified)
+	event.NumUsersTotal = int32(r.stats.preSyncTotal + r.stats.created - r.stats.deleted)
+
+	return event
 }
 
 // PreserveUserMetadata copies any metadata that needs to be preserved across an
@@ -359,9 +417,12 @@ func (r *userReconciler) reconcileUsers(ctx context.Context, oktaUsers, teleport
 	// to find them
 	r.oktaUsers = oktaUsers
 	r.teleportUsers = teleportUsers
+	r.stats = &userSyncStats{preSyncTotal: len(teleportUsers)}
+
 	defer func() {
 		r.teleportUsers = nil
 		r.oktaUsers = nil
+		r.stats = nil
 	}()
 
 	// There are several Teleport-generated fields that we want to ensure are
@@ -383,10 +444,15 @@ func (r *userReconciler) reconcileUsers(ctx context.Context, oktaUsers, teleport
 	}
 
 	// Run the reconciliation
-	if err := r.backend.Reconcile(ctx); err != nil {
-		return trace.Wrap(err)
+	reconcileErr := r.backend.Reconcile(ctx)
+
+	// Emit an API event marking success or failure
+	event := r.createSyncEvent(reconcileErr)
+	if eventErr := r.cfg.emitter.EmitAuditEvent(ctx, event); eventErr != nil {
+		r.cfg.log.WithError(reconcileErr).Warn("Unable to emit audit event")
 	}
-	return nil
+
+	return trace.Wrap(reconcileErr)
 }
 
 // LockParams holds the parameters required for creating an Okta-managed lock on

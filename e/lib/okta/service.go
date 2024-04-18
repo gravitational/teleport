@@ -589,9 +589,11 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 	if config.UserSyncEnabled {
 		config.Log.Info("User sync is enabled. Configuring reconciler.")
 		reconciler, err = newUserReconciler(userReconcilerConfig{
-			teleportAP: config.AccessPoint,
-			log:        config.Log,
-			userOrgURL: config.OktaAPIEndpoint,
+			clusterName: config.ClusterName,
+			teleportAP:  config.AccessPoint,
+			log:         config.Log,
+			userOrgURL:  config.OktaAPIEndpoint,
+			emitter:     config.Emitter,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
