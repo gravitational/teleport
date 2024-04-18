@@ -88,14 +88,14 @@ func (t *TunnelWithRoles) GetSites() ([]RemoteSite, error) {
 func (t *TunnelWithRoles) GetSite(clusterName string) (RemoteSite, error) {
 	cluster, err := t.tunnel.GetSite(clusterName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, utils.OpaqueAccessDenied(err)
 	}
 	if t.localCluster == cluster.GetName() {
 		return cluster, nil
 	}
 	rc, err := t.access.GetRemoteCluster(clusterName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, utils.OpaqueAccessDenied(err)
 	}
 	if err := t.accessChecker.CheckAccessToRemoteCluster(rc); err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
