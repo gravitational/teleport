@@ -1168,7 +1168,8 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
         no_server_pointer: false,
         autologon: true,
         pointer_software_rendering: false,
-        performance_flags: PerformanceFlags::DISABLE_CURSOR_SHADOW
+        performance_flags: PerformanceFlags::default()
+            | PerformanceFlags::DISABLE_CURSOR_SHADOW
             | if !params.show_desktop_wallpaper {
                 PerformanceFlags::DISABLE_WALLPAPER
             } else {
