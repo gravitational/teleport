@@ -51,6 +51,7 @@ const (
 	TerminalService_AssumeRole_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/AssumeRole"
 	TerminalService_PromoteAccessRequest_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/PromoteAccessRequest"
 	TerminalService_GetSuggestedAccessLists_FullMethodName           = "/teleport.lib.teleterm.v1.TerminalService/GetSuggestedAccessLists"
+	TerminalService_UpdateCurrentProfile_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/UpdateCurrentProfile"
 	TerminalService_GetKubes_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/GetKubes"
 	TerminalService_GetApps_FullMethodName                           = "/teleport.lib.teleterm.v1.TerminalService/GetApps"
 	TerminalService_AddCluster_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/AddCluster"
@@ -119,6 +120,8 @@ type TerminalServiceClient interface {
 	PromoteAccessRequest(ctx context.Context, in *PromoteAccessRequestRequest, opts ...grpc.CallOption) (*PromoteAccessRequestResponse, error)
 	// GetSuggestedAccessLists returns suggested access lists for an access request.
 	GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error)
+	// UpdateCurrentProfile changes the currently active profile, as understood by tsh.
+	UpdateCurrentProfile(ctx context.Context, in *UpdateCurrentProfileRequest, opts ...grpc.CallOption) (*UpdateCurrentProfileResponse, error)
 	// GetKubes returns filtered, sorted, and paginated kubes
 	GetKubes(ctx context.Context, in *GetKubesRequest, opts ...grpc.CallOption) (*GetKubesResponse, error)
 	// GetApps returns a filtered and paginated list of apps.
@@ -343,6 +346,15 @@ func (c *terminalServiceClient) PromoteAccessRequest(ctx context.Context, in *Pr
 func (c *terminalServiceClient) GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error) {
 	out := new(GetSuggestedAccessListsResponse)
 	err := c.cc.Invoke(ctx, TerminalService_GetSuggestedAccessLists_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *terminalServiceClient) UpdateCurrentProfile(ctx context.Context, in *UpdateCurrentProfileRequest, opts ...grpc.CallOption) (*UpdateCurrentProfileResponse, error) {
+	out := new(UpdateCurrentProfileResponse)
+	err := c.cc.Invoke(ctx, TerminalService_UpdateCurrentProfile_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -668,6 +680,8 @@ type TerminalServiceServer interface {
 	PromoteAccessRequest(context.Context, *PromoteAccessRequestRequest) (*PromoteAccessRequestResponse, error)
 	// GetSuggestedAccessLists returns suggested access lists for an access request.
 	GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error)
+	// UpdateCurrentProfile changes the currently active profile, as understood by tsh.
+	UpdateCurrentProfile(context.Context, *UpdateCurrentProfileRequest) (*UpdateCurrentProfileResponse, error)
 	// GetKubes returns filtered, sorted, and paginated kubes
 	GetKubes(context.Context, *GetKubesRequest) (*GetKubesResponse, error)
 	// GetApps returns a filtered and paginated list of apps.
@@ -804,6 +818,9 @@ func (UnimplementedTerminalServiceServer) PromoteAccessRequest(context.Context, 
 }
 func (UnimplementedTerminalServiceServer) GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSuggestedAccessLists not implemented")
+}
+func (UnimplementedTerminalServiceServer) UpdateCurrentProfile(context.Context, *UpdateCurrentProfileRequest) (*UpdateCurrentProfileResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateCurrentProfile not implemented")
 }
 func (UnimplementedTerminalServiceServer) GetKubes(context.Context, *GetKubesRequest) (*GetKubesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetKubes not implemented")
@@ -1162,6 +1179,24 @@ func _TerminalService_GetSuggestedAccessLists_Handler(srv interface{}, ctx conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).GetSuggestedAccessLists(ctx, req.(*GetSuggestedAccessListsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TerminalService_UpdateCurrentProfile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateCurrentProfileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).UpdateCurrentProfile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_UpdateCurrentProfile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).UpdateCurrentProfile(ctx, req.(*UpdateCurrentProfileRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1711,6 +1746,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSuggestedAccessLists",
 			Handler:    _TerminalService_GetSuggestedAccessLists_Handler,
+		},
+		{
+			MethodName: "UpdateCurrentProfile",
+			Handler:    _TerminalService_UpdateCurrentProfile_Handler,
 		},
 		{
 			MethodName: "GetKubes",

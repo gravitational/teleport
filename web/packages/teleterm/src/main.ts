@@ -41,6 +41,8 @@ import { assertUnreachable } from 'teleterm/ui/utils';
 import { manageRootClusterProxyHostAllowList } from 'teleterm/mainProcess/rootClusterProxyHostAllowList';
 import { startProfileWatcher } from 'teleterm/mainProcess/profileWatcher';
 
+import { addTray } from './tray';
+
 if (!app.isPackaged) {
   // Sets app name and data directories to Electron.
   // Allows running packaged and non-packaged Connect at the same time.
@@ -161,6 +163,8 @@ function initializeApp(): void {
   (async () => {
     const tshdClient = await mainProcess.initTshdClient();
 
+    app.whenReady().then(() => addTray(tshdClient, windowsManager.getWindow()));
+
     startProfileWatcher(
       tshdClient,
       () => windowsManager.getWindow(), // TODO: Use frontendAppInit
@@ -195,7 +199,6 @@ function initializeApp(): void {
       }
 
       enableWebHandlersProtection();
-
       windowsManager.createWindow();
     })
     .catch(error => {

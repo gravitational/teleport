@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 )
 
@@ -40,12 +41,17 @@ func New(cfg Config) (*Handler, error) {
 type Config struct {
 	// DaemonService is the instance of daemon service
 	DaemonService *daemon.Service
+	Storage       *clusters.Storage
 }
 
 // CheckAndSetDefaults checks and sets the defaults
 func (c *Config) CheckAndSetDefaults() error {
 	if c.DaemonService == nil {
 		return trace.BadParameter("missing DaemonService")
+	}
+
+	if c.Storage == nil {
+		return trace.BadParameter("missing Storage")
 	}
 
 	return nil

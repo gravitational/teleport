@@ -24,23 +24,25 @@ import (
 	"github.com/gravitational/trace"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
 // ListRootClusters lists root clusters
 func (s *Handler) ListRootClusters(ctx context.Context, r *api.ListClustersRequest) (*api.ListClustersResponse, error) {
-	clusters, err := s.DaemonService.ListRootClusters(ctx)
+	result, err := s.DaemonService.ListRootClusters(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	result := []*api.Cluster{}
-	for _, cluster := range clusters {
-		result = append(result, newAPIRootCluster(cluster))
+	apiClusters := []*api.Cluster{}
+	for _, cluster := range result.Clusters {
+		apiClusters = append(apiClusters, newAPIRootCluster(cluster))
 	}
 
 	return &api.ListClustersResponse{
-		Clusters: result,
+		Clusters:              apiClusters,
+		CurrentRootClusterUri: result.CurrentClusterURI.String(),
 	}, nil
 }
 
@@ -102,6 +104,14 @@ func (s *Handler) GetCluster(ctx context.Context, req *api.GetClusterRequest) (*
 	apiRootClusterWithDetails, err := newAPIRootClusterWithDetails(withDetails)
 
 	return apiRootClusterWithDetails, trace.Wrap(err)
+}
+
+// UpdateCurrentProfile changes the currently active profile, as understood by tsh.
+func (s *Handler) UpdateCurrentProfile(ctx context.Context, req *api.UpdateCurrentProfileRequest) (*api.UpdateCurrentProfileResponse, error) {
+	err := s.Config.Storage.UpdateCurrentProfile(
+		uri.New(req.RootClusterUri),
+	)
+	return &api.UpdateCurrentProfileResponse{}, trace.Wrap(err)
 }
 
 func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
