@@ -3855,7 +3855,7 @@ message DeviceMetadata {
   // Only present in "device.authenticate" type events.
   bool web_authentication = 6 [(gogoproto.jsontag) = "web_authentication,omitempty"];
   // Web Session ID associated with the device.
-  // Only present if web_authentication is true.
+  // Present in events related to device web authentication.
   string web_session_id = 7 [(gogoproto.jsontag) = "web_session_id,omitempty"];
 }
 
