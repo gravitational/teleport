@@ -67,10 +67,6 @@ type AWSAppAccessConfigureClient interface {
 	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
 }
 
-type defaultAWSAppAccessConfigureClient struct {
-	*iam.Client
-}
-
 // NewAWSAppAccessConfigureClient creates a new AWSAppAccessConfigureClient.
 func NewAWSAppAccessConfigureClient(ctx context.Context) (AWSAppAccessConfigureClient, error) {
 	cfg, err := config.LoadDefaultConfig(ctx)
@@ -84,9 +80,7 @@ func NewAWSAppAccessConfigureClient(ctx context.Context) (AWSAppAccessConfigureC
 		cfg.Region = " "
 	}
 
-	return &defaultAWSAppAccessConfigureClient{
-		Client: iam.NewFromConfig(cfg),
-	}, nil
+	return iam.NewFromConfig(cfg), nil
 }
 
 // ConfigureAWSAppAccess set ups the roles required for AWS App Access.
