@@ -354,20 +354,18 @@ func (f *Forwarder) getUserEphemeralContainersForPod(ctx context.Context, userna
 		startPage string
 	)
 	for {
-		waitingContainers, nextPage, err := f.cfg.CachingAuthClient.ListKubernetesWaitingContainers(ctx, apidefaults.DefaultChunkSize, startPage)
+		waitingContainers, nextPage, err := f.cfg.CachingAuthClient.ListKubernetesWaitingContainers(ctx, &kubewaitingcontainerpb.ListKubernetesWaitingContainersRequest{
+			Username:  username,
+			Cluster:   kubeCluster,
+			Namespace: namespace,
+			PodName:   pod,
+			PageSize:  apidefaults.DefaultChunkSize,
+			PageToken: startPage,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		for _, cont := range waitingContainers {
-			if cont.Spec.Username != username ||
-				cont.Spec.Cluster != kubeCluster ||
-				cont.Spec.Namespace != namespace ||
-				cont.Spec.PodName != pod {
-				continue
-			}
-
-			list = append(list, cont)
-		}
+		list = append(list, waitingContainers...)
 		if nextPage == "" {
 			break
 		}

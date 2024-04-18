@@ -2138,7 +2138,9 @@ func (kubeWaitingContainerExecutor) getAll(ctx context.Context, cache *Cache, lo
 		allConts []*kubewaitingcontainerpb.KubernetesWaitingContainer
 	)
 	for {
-		conts, nextKey, err := cache.KubeWaitingContainers.ListKubernetesWaitingContainers(ctx, 0, startKey)
+		conts, nextKey, err := cache.KubeWaitingContainers.ListKubernetesWaitingContainers(ctx, &kubewaitingcontainerpb.ListKubernetesWaitingContainersRequest{
+			PageToken: startKey,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2191,7 +2193,7 @@ func (kubeWaitingContainerExecutor) getReader(cache *Cache, cacheOK bool) kubern
 }
 
 type kubernetesWaitingContainerGetter interface {
-	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+	ListKubernetesWaitingContainers(ctx context.Context, req *kubewaitingcontainerpb.ListKubernetesWaitingContainersRequest) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
 	GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
 }
 
@@ -3001,7 +3003,6 @@ func (globalNotificationExecutor) deleteAll(ctx context.Context, cache *Cache) e
 }
 
 func (globalNotificationExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-
 	r, ok := resource.(types.Resource153Unwrapper)
 	if !ok {
 		return trace.BadParameter("unknown resource type, expected types.Resource153Unwrapper, got %T", resource)
