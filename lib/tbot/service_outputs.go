@@ -448,11 +448,6 @@ func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identit
 		return proto.RouteToApp{}, trace.Wrap(err)
 	}
 
-	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), client)
-	if err != nil {
-		return proto.RouteToApp{}, trace.Wrap(err)
-	}
-
 	return proto.RouteToApp{
 		Name:        app.GetName(),
 		SessionID:   ws.GetName(),

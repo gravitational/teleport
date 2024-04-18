@@ -20,12 +20,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 )
 
 func (s *TerraformSuite) TestOpenSSHServer() {
@@ -175,10 +176,10 @@ func (s *TerraformSuite) TestImportOpenSSHServer() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(s.T(), state[0].Attributes["kind"], types.KindNode)
-					require.Equal(s.T(), state[0].Attributes["sub_kind"], types.SubKindOpenSSHNode)
-					require.Equal(s.T(), state[0].Attributes["spec.addr"], "127.0.0.1:22")
-					require.Equal(s.T(), state[0].Attributes["spec.hostname"], "foobar")
+					require.Equal(s.T(), types.KindNode, state[0].Attributes["kind"])
+					require.Equal(s.T(), types.SubKindOpenSSHNode, state[0].Attributes["sub_kind"])
+					require.Equal(s.T(), "127.0.0.1:22", state[0].Attributes["spec.addr"])
+					require.Equal(s.T(), "foobar", state[0].Attributes["spec.hostname"])
 
 					return nil
 				},
@@ -304,16 +305,16 @@ func (s *TerraformSuite) TestImportOpenSSHEICEServer() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(s.T(), state[0].Attributes["kind"], types.KindNode)
-					require.Equal(s.T(), state[0].Attributes["sub_kind"], types.SubKindOpenSSHEICENode)
-					require.Equal(s.T(), state[0].Attributes["spec.addr"], "127.0.0.1:22")
-					require.Equal(s.T(), state[0].Attributes["spec.hostname"], "foobar")
-					require.Equal(s.T(), state[0].Attributes["spec.cloud_metadata.aws.account_id"], "123")
-					require.Equal(s.T(), state[0].Attributes["spec.cloud_metadata.aws.instance_id"], "123")
-					require.Equal(s.T(), state[0].Attributes["spec.cloud_metadata.aws.region"], "us-east-1")
-					require.Equal(s.T(), state[0].Attributes["spec.cloud_metadata.aws.vpc_id"], "123")
-					require.Equal(s.T(), state[0].Attributes["spec.cloud_metadata.aws.integration"], "foo")
-					require.Equal(s.T(), state[0].Attributes["spec.cloud_metadata.aws.subnet_id"], "123")
+					require.Equal(s.T(), types.KindNode, state[0].Attributes["kind"])
+					require.Equal(s.T(), types.SubKindOpenSSHEICENode, state[0].Attributes["sub_kind"])
+					require.Equal(s.T(), "127.0.0.1:22", state[0].Attributes["spec.addr"])
+					require.Equal(s.T(), "foobar", state[0].Attributes["spec.hostname"])
+					require.Equal(s.T(), "123", state[0].Attributes["spec.cloud_metadata.aws.account_id"])
+					require.Equal(s.T(), "123", state[0].Attributes["spec.cloud_metadata.aws.instance_id"])
+					require.Equal(s.T(), "us-east-1", state[0].Attributes["spec.cloud_metadata.aws.region"])
+					require.Equal(s.T(), "123", state[0].Attributes["spec.cloud_metadata.aws.vpc_id"])
+					require.Equal(s.T(), "foo", state[0].Attributes["spec.cloud_metadata.aws.integration"])
+					require.Equal(s.T(), "123", state[0].Attributes["spec.cloud_metadata.aws.subnet_id"])
 					return nil
 				},
 			},

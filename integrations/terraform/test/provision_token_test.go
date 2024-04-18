@@ -20,11 +20,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func (s *TerraformSuite) TestProvisionToken() {
@@ -177,8 +178,8 @@ func (s *TerraformSuite) TestImportProvisionToken() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(s.T(), state[0].Attributes["kind"], "token")
-					require.Equal(s.T(), state[0].Attributes["metadata.name"], "test_import")
+					require.Equal(s.T(), "token", state[0].Attributes["kind"])
+					require.Equal(s.T(), "test_import", state[0].Attributes["metadata.name"])
 
 					return nil
 				},

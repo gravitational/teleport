@@ -20,10 +20,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func (s *TerraformSuite) TestAuthPreference() {
@@ -101,8 +102,8 @@ func (s *TerraformSuite) TestImportAuthPreference() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(s.T(), state[0].Attributes["kind"], "cluster_auth_preference")
-					require.Equal(s.T(), state[0].Attributes["spec.disconnect_expired_cert"], "true")
+					require.Equal(s.T(), "cluster_auth_preference", state[0].Attributes["kind"])
+					require.Equal(s.T(), "true", state[0].Attributes["spec.disconnect_expired_cert"])
 
 					return nil
 				},

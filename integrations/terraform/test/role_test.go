@@ -22,11 +22,12 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func (s *TerraformSuite) TestRole() {
@@ -185,8 +186,8 @@ func (s *TerraformSuite) TestImportRole() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(s.T(), state[0].Attributes["kind"], "role")
-					require.Equal(s.T(), state[0].Attributes["metadata.name"], "test_import")
+					require.Equal(s.T(), "role", state[0].Attributes["kind"])
+					require.Equal(s.T(), "test_import", state[0].Attributes["metadata.name"])
 
 					return nil
 				},
@@ -251,14 +252,16 @@ func (s *TerraformSuite) TestRoleLoginsSplitBrain() {
 }
 
 func (s *TerraformSuite) TestRoleVersionUpgrade() {
-	ctx, cancel := context.WithCancel(context.Background())
-	s.T().Cleanup(cancel)
-
+	// TODO(hugoShaka) Re-enable this test when we fix the role defaults in v16
 	// We had a bug in v14 and below that caused the defaults to be badly computed.
 	// We tried to fix this bug in v15 but it was too aggressive (forcing replacement is too destructive).
 	// In v16 we'll push a new plan modifier to fix this issue, this might be a
 	// breaking change for users who relied on the bug.
 	s.T().Skip("Test temporarily disabled until v16")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
 	checkDestroyed := func(state *terraform.State) error {
 		_, err := s.client.GetRole(ctx, "upgrade")
 		if trace.IsNotFound(err) {

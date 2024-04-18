@@ -20,10 +20,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func (s *TerraformSuite) TestClusterNetworkingConfig() {
@@ -102,8 +103,8 @@ func (s *TerraformSuite) TestImportClusterNetworkingConfig() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(s.T(), state[0].Attributes["kind"], "cluster_networking_config")
-					require.Equal(s.T(), state[0].Attributes["spec.client_idle_timeout"], "30s")
+					require.Equal(s.T(), "cluster_networking_config", state[0].Attributes["kind"])
+					require.Equal(s.T(), "30s", state[0].Attributes["spec.client_idle_timeout"])
 
 					return nil
 				},

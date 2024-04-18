@@ -20,11 +20,12 @@ import (
 	"context"
 	"regexp"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func (s *TerraformSuite) TestGithubConnector() {
@@ -120,11 +121,11 @@ func (s *TerraformSuite) TestImportGithubConnector() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(s.T(), state[0].Attributes["kind"], "github")
-					require.Equal(s.T(), state[0].Attributes["spec.client_id"], "Iv1.3386eee92ff932a4")
-					require.Equal(s.T(), state[0].Attributes["spec.teams_to_logins.0.organization"], "evilmartians")
-					require.Equal(s.T(), state[0].Attributes["spec.teams_to_logins.0.team"], "devs")
-					require.Equal(s.T(), state[0].Attributes["spec.teams_to_logins.0.logins.0"], "terraform")
+					require.Equal(s.T(), "github", state[0].Attributes["kind"])
+					require.Equal(s.T(), "Iv1.3386eee92ff932a4", state[0].Attributes["spec.client_id"])
+					require.Equal(s.T(), "evilmartians", state[0].Attributes["spec.teams_to_logins.0.organization"])
+					require.Equal(s.T(), "devs", state[0].Attributes["spec.teams_to_logins.0.team"])
+					require.Equal(s.T(), "terraform", state[0].Attributes["spec.teams_to_logins.0.logins.0"])
 
 					return nil
 				},

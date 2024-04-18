@@ -875,6 +875,7 @@ exports[`failed 1`] = `
               >
                 <input
                   class="c19"
+                  data-testid="toggle"
                   type="checkbox"
                 />
                 <div
@@ -2060,6 +2061,7 @@ exports[`loaded 1`] = `
               >
                 <input
                   class="c19"
+                  data-testid="toggle"
                   type="checkbox"
                 />
                 <div

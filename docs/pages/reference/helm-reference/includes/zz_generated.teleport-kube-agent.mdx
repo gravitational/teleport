@@ -435,6 +435,10 @@ the agent to provide access to them. See [the Kubernetes App Discovery
 documentation](../../../auto-discovery/kubernetes-applications/architecture.mdx)
 for more details.
 
+<Admonition type="note">
+The Discovery mechanism ignores Kubernetes services running in the `kube-system` and
+`kube-public` namespaces.
+</Admonition>
 The default value will try to discover all apps running in Kubernetes.
 The discovery can be restricted through this value. For example:
 

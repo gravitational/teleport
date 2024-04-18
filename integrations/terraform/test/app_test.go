@@ -20,11 +20,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func (s *TerraformSuite) TestApp() {
@@ -114,8 +115,8 @@ func (s *TerraformSuite) TestImportApp() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(s.T(), state[0].Attributes["kind"], "app")
-					require.Equal(s.T(), state[0].Attributes["spec.uri"], "localhost:3000/test")
+					require.Equal(s.T(), "app", state[0].Attributes["kind"])
+					require.Equal(s.T(), "localhost:3000/test", state[0].Attributes["spec.uri"])
 
 					return nil
 				},

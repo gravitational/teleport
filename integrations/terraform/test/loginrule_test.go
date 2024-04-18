@@ -18,11 +18,12 @@ import (
 	"context"
 	"fmt"
 
-	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	"github.com/gravitational/teleport/api/types"
 )
 
 func (s *TerraformSuite) TestLoginRule() {
@@ -134,9 +135,9 @@ func (s *TerraformSuite) TestImportLoginRule() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					s.Require().Equal(state[0].Attributes["metadata.name"], id)
-					s.Require().Equal(state[0].Attributes["priority"], "1")
-					s.Require().Equal(state[0].Attributes["traits_expression"], rule.TraitsExpression)
+					s.Require().Equal(id, state[0].Attributes["metadata.name"])
+					s.Require().Equal("1", state[0].Attributes["priority"])
+					s.Require().Equal(rule.TraitsExpression, state[0].Attributes["traits_expression"])
 					return nil
 				},
 			},

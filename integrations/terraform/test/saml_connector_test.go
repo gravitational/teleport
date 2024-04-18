@@ -23,11 +23,12 @@ import (
 	"net/http/httptest"
 	"regexp"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func (s *TerraformSuite) TestSAMLConnector() {
@@ -152,8 +153,8 @@ func (s *TerraformSuite) TestImportSAMLConnector() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(s.T(), state[0].Attributes["kind"], "saml")
-					require.Equal(s.T(), state[0].Attributes["spec.acs"], "https://example.com/v1/webapi/saml/acs")
+					require.Equal(s.T(), "saml", state[0].Attributes["kind"])
+					require.Equal(s.T(), "https://example.com/v1/webapi/saml/acs", state[0].Attributes["spec.acs"])
 
 					return nil
 				},

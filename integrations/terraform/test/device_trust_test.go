@@ -20,11 +20,12 @@ import (
 	"context"
 	"fmt"
 
-	// devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+
+	// devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/types"
 )
 
 func (s *TerraformSuite) TestTrustedDevices() {
@@ -124,11 +125,11 @@ func (s *TerraformSuite) TestImportTrustedDevices() {
 				ImportState:   true,
 				ImportStateId: deviceID,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					s.Require().Equal(state[0].Attributes["metadata.name"], deviceID)
-					s.Require().Equal(state[0].Attributes["kind"], "device")
-					s.Require().Equal(state[0].Attributes["spec.asset_tag"], "DEVICE1")
-					s.Require().Equal(state[0].Attributes["spec.os_type"], "macos")
-					s.Require().Equal(state[0].Attributes["spec.enroll_status"], "not_enrolled")
+					s.Require().Equal(deviceID, state[0].Attributes["metadata.name"])
+					s.Require().Equal("device", state[0].Attributes["kind"])
+					s.Require().Equal("DEVICE1", state[0].Attributes["spec.asset_tag"])
+					s.Require().Equal("macos", state[0].Attributes["spec.os_type"])
+					s.Require().Equal("not_enrolled", state[0].Attributes["spec.enroll_status"])
 					return nil
 				},
 			},
