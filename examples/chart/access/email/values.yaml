@@ -1,0 +1,71 @@
+# Default values for email.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+#
+# Plugin specific options
+#
+teleport:
+  address: ""
+  identitySecretName: ""
+  identitySecretPath: "auth_id"
+
+mailgun:
+  enabled: false
+  domain: ""
+  privateKey: ""
+  privateKeyFromSecret: ""
+  privateKeySecretPath: "mailgunPrivateKey"
+
+smtp:
+  enabled: false
+  host: ""
+  port: 587
+  username: ""
+  password: ""
+  passwordFromSecret: ""
+  passwordSecretPath: "smtpPassword"
+  starttlsPolicy: "mandatory"
+
+delivery:
+  sender: ""
+  recipients: []
+
+roleToRecipients: {}
+
+secretVolumeName: "password-file"
+
+log:
+  output: stdout
+  severity: INFO
+
+#
+# Deployment
+#
+image:
+  repository: public.ecr.aws/gravitational/teleport-plugin-email
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+resources: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+volumes: []
+
+volumeMounts: []

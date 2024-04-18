@@ -380,7 +380,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		// AttemptDeviceLogin.
 		authenticatedAction := func() error {
 			// Any authenticated action would do.
-			_, err := teleportClient.ListAllNodes(ctx)
+			_, err := teleportClient.ListNodesWithFilters(ctx)
 			return err
 		}
 		require.NoError(t, authenticatedAction(), "Authenticated action failed *before* AttemptDeviceLogin")

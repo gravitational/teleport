@@ -19,7 +19,8 @@ use super::{
 use crate::{
     cgo_tdp_sd_acknowledge, cgo_tdp_sd_create_request, cgo_tdp_sd_delete_request,
     cgo_tdp_sd_info_request, cgo_tdp_sd_list_request, cgo_tdp_sd_move_request,
-    cgo_tdp_sd_read_request, cgo_tdp_sd_write_request, client::ClientHandle, CGOErrCode, CgoHandle,
+    cgo_tdp_sd_read_request, cgo_tdp_sd_truncate_request, cgo_tdp_sd_write_request,
+    client::ClientHandle, CGOErrCode, CgoHandle,
 };
 use ironrdp_pdu::{cast_length, custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::{
@@ -27,7 +28,7 @@ use ironrdp_rdpdr::pdu::{
     efs::{self, NtStatus},
     esc,
 };
-use log::debug;
+use log::{debug, warn};
 use std::collections::HashMap;
 use std::convert::TryInto;
 
@@ -51,6 +52,7 @@ pub struct FilesystemBackend {
     pending_sd_read_resp_handlers: ResponseCache<tdp::SharedDirectoryReadResponse>,
     pending_sd_write_resp_handlers: ResponseCache<tdp::SharedDirectoryWriteResponse>,
     pending_sd_move_resp_handlers: ResponseCache<tdp::SharedDirectoryMoveResponse>,
+    pending_sd_truncate_resp_handlers: ResponseCache<tdp::SharedDirectoryTruncateResponse>,
 }
 
 impl FilesystemBackend {
@@ -66,6 +68,7 @@ impl FilesystemBackend {
             pending_sd_read_resp_handlers: ResponseCache::new(),
             pending_sd_write_resp_handlers: ResponseCache::new(),
             pending_sd_move_resp_handlers: ResponseCache::new(),
+            pending_sd_truncate_resp_handlers: ResponseCache::new(),
         }
     }
 
@@ -595,9 +598,10 @@ impl FilesystemBackend {
                     }
                 }
             }
-            efs::FileInformationClass::Basic(_)
-            | efs::FileInformationClass::EndOfFile(_)
-            | efs::FileInformationClass::Allocation(_) => {
+            efs::FileInformationClass::EndOfFile(ref eof) => {
+                self.tdp_sd_truncate(rdp_req.clone(), eof, io_status)
+            }
+            efs::FileInformationClass::Basic(_) | efs::FileInformationClass::Allocation(_) => {
                 // Each of these ask us to change something we don't have control over at the browser
                 // level, so we just do nothing and send back a success.
                 // https://github.com/FreeRDP/FreeRDP/blob/dfa231c0a55b005af775b833f92f6bcd30363d77/channels/drive/client/drive_file.c#L579
@@ -846,6 +850,59 @@ impl FilesystemBackend {
 
     /// Helper function for sending a [`tdp::SharedDirectoryMoveRequest`] to the browser
     /// and handling the [`tdp::SharedDirectoryMoveResponse`] that is received in response.
+    fn tdp_sd_truncate(
+        &mut self,
+        rdp_req: efs::ServerDriveSetInformationRequest,
+        eof: &efs::FileEndOfFileInformation,
+        io_status: NtStatus,
+    ) -> PduResult<()> {
+        if let Some(file) = self.file_cache.get(rdp_req.device_io_request.file_id) {
+            let end_of_file = eof.end_of_file;
+            self.send_tdp_truncate_request(tdp::SharedDirectoryTruncateRequest {
+                completion_id: rdp_req.device_io_request.completion_id,
+                directory_id: rdp_req.device_io_request.device_id,
+                path: file.path.clone(),
+                end_of_file: cast_length!("end_of_file", end_of_file)?,
+            })?;
+
+            self.pending_sd_truncate_resp_handlers.insert(
+                rdp_req.device_io_request.completion_id,
+                SharedDirectoryTruncateResponseHandler::new(
+                    move |this: &mut FilesystemBackend,
+                          res: tdp::SharedDirectoryTruncateResponse|
+                          -> PduResult<()> {
+                        if res.err_code != TdpErrCode::Nil {
+                            return this
+                                .send_rdp_set_info_response(&rdp_req, NtStatus::UNSUCCESSFUL);
+                        }
+
+                        let io_status = if let Some(file) =
+                            this.file_cache.get_mut(rdp_req.device_io_request.file_id)
+                        {
+                            // Truncate succeeded, update our internal books to reflect the new size.
+                            file.fso.size = cast_length!("end_of_file", end_of_file)?;
+                            io_status
+                        } else {
+                            // This shouldn't happen.
+                            warn!("file unexpectedly not found in cache after truncate");
+                            NtStatus::UNSUCCESSFUL
+                        };
+
+                        this.send_rdp_set_info_response(&rdp_req, io_status)
+                    },
+                ),
+            );
+
+            return Ok(());
+        }
+
+        // This shouldn't happen.
+        warn!("attempted to truncate a file that wasn't in the file cache");
+        self.send_rdp_set_info_response(&rdp_req, NtStatus::UNSUCCESSFUL)
+    }
+
+    /// Helper function for sending a [`tdp::SharedDirectoryMoveRequest`] to the browser
+    /// and handling the [`tdp::SharedDirectoryMoveResponse`] that is received in response.
     fn tdp_sd_move(
         &mut self,
         rdp_req: efs::ServerDriveSetInformationRequest,
@@ -908,6 +965,23 @@ impl FilesystemBackend {
             CGOErrCode::ErrCodeSuccess => Ok(()),
             _ => Err(custom_err!(FilesystemBackendError(format!(
                 "call to tdp_sd_info_request failed: {:?}",
+                err
+            )))),
+        }
+    }
+
+    /// Sends a [`tdp::SharedDirectoryTruncateRequest`] to the browser.
+    fn send_tdp_truncate_request(
+        &self,
+        tdp_req: tdp::SharedDirectoryTruncateRequest,
+    ) -> PduResult<()> {
+        debug!("sending tdp: {:?}", tdp_req);
+        let mut req = tdp_req.into_cgo()?;
+        let err = unsafe { cgo_tdp_sd_truncate_request(self.cgo_handle, req.cgo()) };
+        match err {
+            CGOErrCode::ErrCodeSuccess => Ok(()),
+            _ => Err(custom_err!(FilesystemBackendError(format!(
+                "call to tdp_sd_truncate_request failed: {:?}",
                 err
             )))),
         }
@@ -1132,6 +1206,22 @@ impl FilesystemBackend {
     ) -> PduResult<()> {
         match self
             .pending_sd_move_resp_handlers
+            .remove(&tdp_resp.completion_id)
+        {
+            Some(handler) => handler.call(self, tdp_resp),
+            None => Err(custom_err!(FilesystemBackendError(format!(
+                "received invalid completion id: {}",
+                tdp_resp.completion_id
+            )))),
+        }
+    }
+
+    pub fn handle_tdp_sd_truncate_response(
+        &mut self,
+        tdp_resp: tdp::SharedDirectoryTruncateResponse,
+    ) -> PduResult<()> {
+        match self
+            .pending_sd_truncate_resp_handlers
             .remove(&tdp_resp.completion_id)
         {
             Some(handler) => handler.call(self, tdp_resp),
@@ -1690,6 +1780,7 @@ type SharedDirectoryListResponseHandler = ResponseHandler<tdp::SharedDirectoryLi
 type SharedDirectoryReadResponseHandler = ResponseHandler<tdp::SharedDirectoryReadResponse>;
 type SharedDirectoryWriteResponseHandler = ResponseHandler<tdp::SharedDirectoryWriteResponse>;
 type SharedDirectoryMoveResponseHandler = ResponseHandler<tdp::SharedDirectoryMoveResponse>;
+type SharedDirectoryTruncateResponseHandler = ResponseHandler<tdp::SharedDirectoryTruncateResponse>;
 
 type CompletionId = u32;
 

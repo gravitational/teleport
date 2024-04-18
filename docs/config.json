@@ -659,7 +659,7 @@
               "slug": "/management/dynamic-resources/teleport-operator-standalone/"
             },
             {
-              "title": "Terraform Provider",
+              "title": "Set up the Terraform Provider",
               "slug": "/management/dynamic-resources/terraform-provider/"
             }
           ]
@@ -1885,7 +1885,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "15.1.10",
+      "version": "15.2.2",
       "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",

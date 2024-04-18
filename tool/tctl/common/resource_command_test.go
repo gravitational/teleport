@@ -1634,6 +1634,7 @@ spec:
 		users,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		cmpopts.IgnoreFields(types.UserSpecV2{}, "CreatedBy"),
+		cmpopts.IgnoreFields(types.UserV2{}, "Status"),
 	))
 
 	// Explicitly change the revision and try creating the user with and without
@@ -1867,7 +1868,7 @@ version: v2
 	var expected types.SessionRecordingConfigV2
 	require.NoError(t, yaml.Unmarshal([]byte(srcYAML), &expected))
 
-	require.Equal(t, types.RecordAtNode, initial.GetMode())
+	require.Equal(t, types.RecordOff, initial.GetMode())
 	require.Equal(t, types.RecordAtProxy, expected.GetMode())
 
 	// Explicitly change the revision and try creating the src with and without
