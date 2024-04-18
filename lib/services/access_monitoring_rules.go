@@ -24,7 +24,9 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -40,8 +42,31 @@ type AccessMonitoringRules interface {
 	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 }
 
+// NewAccessMonitoringRuleWithLabels creates a new AccessMonitoringRule  with the given spec and labels.
+func NewAccessMonitoringRuleWithLabels(name string, labels map[string]string, spec *accessmonitoringrulesv1.AccessMonitoringRuleSpec) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
+	amr := &accessmonitoringrulesv1.AccessMonitoringRule{
+		Kind:    types.KindAccessMonitoringRule,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name:      name,
+			Namespace: defaults.Namespace,
+			Labels:    labels,
+		},
+		Spec: spec,
+	}
+
+	err := ValidateAccessMonitoringRule(amr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return amr, nil
+}
+
+// ValidateAccessMonitoringRule checks that the provided access monitoring rule is valid.
 func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.AccessMonitoringRule) error {
-	accessMonitoringRule.Kind = types.KindAccessMonitoringRule
+	if accessMonitoringRule.Kind != types.KindAccessMonitoringRule {
+		return trace.BadParameter("invalid kind for access monitoring rule: %q", accessMonitoringRule.Kind)
+	}
 	if accessMonitoringRule.Metadata == nil {
 		return trace.BadParameter("accessMonitoringRule metadata is missing")
 	}
