@@ -28,6 +28,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -207,7 +208,9 @@ func TestGetRemoteCluster(t *testing.T) {
 		require.Error(t, noPermissionsError)
 
 		require.Equal(t, doesntExistError.Error(), noPermissionsError.Error(),
-			"the error returned when the rc doesn't exist or when the user has no permission to see it should be indistinguishable")
+			"the error message returned when the rc doesn't exist or when the user has no permission to see it should be indistinguishable")
+		require.Equal(t, trail.ToGRPC(doesntExistError), trail.ToGRPC(noPermissionsError),
+			"the gRPC error returned when the rc doesn't exist or when the user has no permission to see it should be indistinguishable")
 	})
 }
 
