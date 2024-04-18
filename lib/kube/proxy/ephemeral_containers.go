@@ -122,6 +122,9 @@ func (f *Forwarder) ephemeralContainersLocal(authCtx *authContext, sess *cluster
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if err := req.Body.Close(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	reqContentType := responsewriters.GetContentTypeHeader(req.Header)
 	// Remove "; charset=" if included in header.

@@ -220,6 +220,10 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 	return rw.Status(), trace.Wrap(err)
 }
 
+// sendEphemeralContainerEvents will poll the list of ephemeral containers
+// each 5s from cache and see if they match the user and pod and namespace.
+// If any match exists, it will push a fake event to the watcher stream to trick
+// kubectl into creating the exec session.
 func (f *Forwarder) sendEphemeralContainerEvents(done <-chan struct{}, req *http.Request, rw *responsewriters.WatcherResponseWriter, sess *clusterSession, podName string) {
 	const backoff = 5 * time.Second
 	sentDebugContainers := map[string]struct{}{}
@@ -295,6 +299,8 @@ func decompressInplace(memoryRW *responsewriters.MemoryResponseWriter) error {
 // This function is used to determine if a watch request is for a specific pod
 // because although the watch request is for a specific pod, the endpoint
 // is the same as the endpoint for the pod list request.
+// A request targeted to an ephemeral container will follow this template:
+// GET api/v1/namespaces/<namespace>/pods?fieldSelector=metadata.name%3D<pod_name>
 func isRequestTargetedToPod(req *http.Request, kube apiResource) string {
 	const podsResource = "pods"
 	if kube.resourceKind != podsResource {

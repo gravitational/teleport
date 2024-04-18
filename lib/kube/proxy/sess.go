@@ -41,6 +41,7 @@ import (
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	kubeapitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	clientv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/remotecommand"
 	watchtools "k8s.io/client-go/tools/watch"
@@ -635,22 +636,38 @@ func (s *session) launch(isEphemeralCont bool) error {
 	}
 
 	s.io.On()
-	if err = executor.StreamWithContext(s.streamContext, options); err != nil {
+	if streamErr := executor.StreamWithContext(s.streamContext, options); streamErr != nil {
 		onErr := func(err error) {
 			s.setTerminationErr(err)
 			s.reportErrorToSessionRecorder(err)
 			s.log.WithError(err).Warning("Executor failed while streaming.")
 		}
 
-		// if attaching to an ephemeral container failed chances are the
-		// container isn't running anymore, try streaming the execution
-		// logs instead
-		containerNotFoundErr := fmt.Sprintf("unable to upgrade connection: container %s not found in pod %s_%s", container, podName, namespace)
-		// if the error is due to the ephemeral container finishing, the
-		// error will be an *errors.errorString so try to match against
-		// the error message
-		if isEphemeralCont && err.Error() == containerNotFoundErr {
+		// If attaching to the container failed, check if the container
+		// is terminated. If it is, try to stream the logs. If it's not
+		// terminated or can't be found return the original error.
+		clientSet, _, err := s.forwarder.impersonatedKubeClient(&s.sess.authContext, s.req.Header)
+		if err != nil {
+			onErr(err)
+			return trace.Wrap(err)
+		}
+		podClient := clientSet.CoreV1().Pods(namespace)
+
+		pod, err := podClient.Get(s.forwarder.ctx, podName, metav1.GetOptions{})
+		if err != nil {
+			onErr(err)
+			return trace.Wrap(err)
+		}
+		status := getEphemeralContainerStatusByName(pod, container)
+		if status == nil {
+			// the container couldn't be found in the pod, return the
+			// original command streaming error
+			onErr(streamErr)
+			return trace.Wrap(streamErr)
+		}
+		if status.State.Terminated != nil {
 			if err := s.retrieveAlreadyStoppedPodLogs(
+				podClient,
 				namespace,
 				podName,
 				container,
@@ -662,10 +679,10 @@ func (s *session) launch(isEphemeralCont bool) error {
 			return nil
 		}
 
-		onErr(err)
-
-		return trace.Wrap(err)
+		onErr(streamErr)
+		return trace.Wrap(streamErr)
 	}
+
 	return nil
 }
 
@@ -1452,13 +1469,8 @@ func (s *session) patchAndWaitForPodEphemeralContainer(ctx context.Context, auth
 }
 
 // retrieveAlreadyStoppedPodLogs retrieves the logs of a stopped pod and writes them to the session's io writer.
-func (s *session) retrieveAlreadyStoppedPodLogs(namespace, podName, container string) error {
-	clientSet, _, err := s.forwarder.impersonatedKubeClient(&s.sess.authContext, s.req.Header)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+func (s *session) retrieveAlreadyStoppedPodLogs(podClient clientv1.PodInterface, namespace, podName, container string) error {
 	fmt.Fprintf(s.io, "Failed to attach to the container, attempting to stream logs instead...\r\n")
-	podClient := clientSet.CoreV1().Pods(namespace)
 	req := podClient.GetLogs(podName, &corev1.PodLogOptions{Container: container})
 	r, err := req.Stream(s.streamContext)
 	if err != nil {

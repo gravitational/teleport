@@ -285,7 +285,7 @@ func testExec(t *testing.T, suite *KubeSuite, pinnedIP string, clientError strin
 	require.NoError(t, err)
 
 	out := &bytes.Buffer{}
-	err = kubeExec(proxyClientConfig, true, kubeExecArgs{
+	err = kubeExec(proxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -303,7 +303,7 @@ func testExec(t *testing.T, suite *KubeSuite, pinnedIP string, clientError strin
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
 
 	out = &bytes.Buffer{}
-	err = kubeExec(proxyClientConfig, true, kubeExecArgs{
+	err = kubeExec(proxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -344,7 +344,7 @@ loop:
 	term = NewTerminal(250)
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
 	out = &bytes.Buffer{}
-	err = kubeExec(impersonatingProxyClientConfig, true, kubeExecArgs{
+	err = kubeExec(impersonatingProxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -361,7 +361,7 @@ loop:
 	term = NewTerminal(250)
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
 	out = &bytes.Buffer{}
-	err = kubeExec(scopedProxyClientConfig, true, kubeExecArgs{
+	err = kubeExec(scopedProxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -720,7 +720,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	require.NoError(t, err)
 
 	out := &bytes.Buffer{}
-	err = kubeExec(proxyClientConfig, true, kubeExecArgs{
+	err = kubeExec(proxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -738,7 +738,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
 
 	out = &bytes.Buffer{}
-	err = kubeExec(proxyClientConfig, true, kubeExecArgs{
+	err = kubeExec(proxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -779,7 +779,7 @@ loop:
 	term = NewTerminal(250)
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
 	out = &bytes.Buffer{}
-	err = kubeExec(impersonatingProxyClientConfig, true, kubeExecArgs{
+	err = kubeExec(impersonatingProxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -994,7 +994,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	require.NoError(t, err)
 
 	out := &bytes.Buffer{}
-	err = kubeExec(proxyClientConfig, true, kubeExecArgs{
+	err = kubeExec(proxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -1012,7 +1012,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
 
 	out = &bytes.Buffer{}
-	err = kubeExec(proxyClientConfig, true, kubeExecArgs{
+	err = kubeExec(proxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -1053,7 +1053,7 @@ loop:
 	term = NewTerminal(250)
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
 	out = &bytes.Buffer{}
-	err = kubeExec(impersonatingProxyClientConfig, true, kubeExecArgs{
+	err = kubeExec(impersonatingProxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -1193,7 +1193,7 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 	require.NoError(t, err)
 
 	out := &bytes.Buffer{}
-	err = kubeExec(proxyClientConfig, true, kubeExecArgs{
+	err = kubeExec(proxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -1210,7 +1210,7 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 	sessionCtx, sessionCancel := context.WithCancel(ctx)
 	go func() {
 		defer sessionCancel()
-		err := kubeExec(proxyClientConfig, true, kubeExecArgs{
+		err := kubeExec(proxyClientConfig, execInContainer, kubeExecArgs{
 			podName:      pod.Name,
 			podNamespace: pod.Namespace,
 			container:    pod.Spec.Containers[0].Name,
@@ -1323,12 +1323,12 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 		command:      []string{"ls"},
 	}
 
-	err = kubeExec(proxyClientConfig, true, command)
+	err = kubeExec(proxyClientConfig, execInContainer, command)
 	require.NoError(t, err)
 
 	// stream fails with an h2 transport
 	proxyClientConfig.TLSClientConfig.NextProtos = []string{"h2"}
-	err = kubeExec(proxyClientConfig, true, command)
+	err = kubeExec(proxyClientConfig, execInContainer, command)
 	require.Error(t, err)
 }
 
@@ -1455,7 +1455,7 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 			return trace.Wrap(err)
 		}
 
-		err = kubeExec(kubeConfig, false, kubeExecArgs{
+		err = kubeExec(kubeConfig, attachToContainer, kubeExecArgs{
 			podName:      pod.Name,
 			podNamespace: testNamespace,
 			container:    name,
@@ -1477,11 +1477,11 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 		// session manager's WaitUntilExists method because it doesn't work for
 		// kubernetes sessions.
 		sessions, err := teleport.Process.GetAuthServer().GetActiveSessionTrackers(context.Background())
-		if !assert.True(t, err == nil && len(sessions) != 0) {
+		if !assert.NoError(t, err) || !assert.NotEmpty(t, sessions) {
 			return
 		}
 		session = sessions[0]
-	}, 100*time.Second, 100*time.Millisecond)
+	}, 10*time.Second, 100*time.Millisecond)
 
 	group.Go(func() error {
 		tc, err := teleport.NewClient(helpers.ClientConfig{
@@ -1753,10 +1753,18 @@ func newPortForwarder(kubeConfig *rest.Config, args kubePortForwardArgs) (*kubeP
 	return &kubePortForwarder{PortForwarder: fwd, stopC: stopC, readyC: readyC}, nil
 }
 
+// execMode is the type of Kubernetes
+type execMode int
+
+const (
+	execInContainer execMode = iota
+	attachToContainer
+)
+
 // kubeExec executes command against kubernetes API server
-func kubeExec(kubeConfig *rest.Config, exec bool, args kubeExecArgs) error {
+func kubeExec(kubeConfig *rest.Config, mode execMode, args kubeExecArgs) error {
 	query := make(url.Values)
-	if exec {
+	if mode == execInContainer {
 		for _, arg := range args.command {
 			query.Add("command", arg)
 		}
@@ -1785,7 +1793,7 @@ func kubeExec(kubeConfig *rest.Config, exec bool, args kubeExecArgs) error {
 	}
 	u.Scheme = "https"
 	resource := "exec"
-	if !exec {
+	if mode == attachToContainer {
 		resource = "attach"
 	}
 	u.Path = fmt.Sprintf("/api/v1/namespaces/%v/pods/%v/%v", args.podNamespace, args.podName, resource)
@@ -1896,7 +1904,7 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 
 	// Start the main session.
 	group.Go(func() error {
-		err := kubeExec(proxyClientConfig, true, kubeExecArgs{
+		err := kubeExec(proxyClientConfig, execInContainer, kubeExecArgs{
 			podName:      pod.Name,
 			podNamespace: pod.Namespace,
 			container:    pod.Spec.Containers[0].Name,
@@ -2241,7 +2249,7 @@ func testExecNoAuth(t *testing.T, suite *KubeSuite) {
 			term := NewTerminal(250)
 			// lets type "echo hi" followed by "enter" and then "exit" + "enter":
 			term.Type("\aecho hi\n\r\aexit\n\r\a")
-			err = kubeExec(tt.clientConfig, true, kubeExecArgs{
+			err = kubeExec(tt.clientConfig, execInContainer, kubeExecArgs{
 				podName:      pod.Name,
 				podNamespace: pod.Namespace,
 				container:    pod.Spec.Containers[0].Name,
