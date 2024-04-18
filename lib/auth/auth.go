@@ -4665,7 +4665,7 @@ func (a *Server) GetWebSessionInfo(ctx context.Context, user, sessionID string) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sess.CopyWithoutSecrets(), nil
+	return sess.WithoutSecrets(), nil
 }
 
 func (a *Server) DeleteNamespace(namespace string) error {

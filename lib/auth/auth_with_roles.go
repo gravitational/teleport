@@ -5374,7 +5374,7 @@ func (a *ServerWithRoles) GetAppSession(ctx context.Context, req types.GetAppSes
 			return session, nil
 		}
 
-		return session.CopyWithoutSecrets(), nil
+		return session.WithoutSecrets(), nil
 	}
 
 	return nil, trace.Wrap(authErr)
@@ -5472,7 +5472,7 @@ func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req *proto.Creat
 		return nil, trace.Wrap(err)
 	}
 
-	return session.CopyWithoutSecrets(), nil
+	return session.WithoutSecrets(), nil
 }
 
 // CreateSnowflakeSession creates a Snowflake web session.

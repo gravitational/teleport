@@ -1057,7 +1057,7 @@ func (p *webSessionParser) parse(event backend.Event) (types.Resource, error) {
 			return nil, trace.Wrap(err)
 		}
 		if !p.loadSecrets {
-			return resource.CopyWithoutSecrets(), nil
+			return resource.WithoutSecrets(), nil
 		}
 		return resource, nil
 	default:
