@@ -16,33 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import Popover from 'design/Popover';
-import styled from 'styled-components';
-import { Box } from 'design';
+import { Box, StepSlider } from 'design';
 
 import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
+import { VnetSliderStep, useVnetContext } from 'teleterm/ui/Vnet';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 
-import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
-
-import { useConnections } from './useConnections';
 import { ConnectionsIcon } from './ConnectionsIcon/ConnectionsIcon';
-import { ConnectionsFilterableList } from './ConnectionsFilterableList/ConnectionsFilterableList';
+import { ConnectionsSliderStep } from './ConnectionsSliderStep';
 
 export function Connections() {
+  const { connectionTracker } = useAppContext();
+  connectionTracker.useState();
   const iconRef = useRef();
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
-  const connections = useConnections();
+  const { status: vnetStatus } = useVnetContext();
+  const isAnyConnectionActive =
+    connectionTracker.getConnections().some(c => c.connected) ||
+    vnetStatus === 'running';
 
   const togglePopover = useCallback(() => {
-    setIsPopoverOpened(wasOpened => {
-      const isOpened = !wasOpened;
-      if (isOpened) {
-        connections.updateSorting();
-      }
-      return isOpened;
-    });
-  }, [setIsPopoverOpened, connections.updateSorting]);
+    setIsPopoverOpened(wasOpened => !wasOpened);
+  }, []);
 
   useKeyboardShortcuts(
     useMemo(
@@ -53,15 +50,23 @@ export function Connections() {
     )
   );
 
-  function activateItem(id: string): void {
+  function closeConnectionList(): void {
     setIsPopoverOpened(false);
-    connections.activateItem(id);
   }
+
+  // TODO(ravicious): Investigate the problem with height getting temporarily reduced when switching
+  // from a shorter step 1 to a taller step 2, particularly when there's an error rendered in step 2
+  // that wasn't there on first render.
+  //
+  // It might have to do with how Popover calculates height or how StepSlider uses refs for height.
+  //
+  // We aim to replace the sliding animation with an expanding animation before the release, so it
+  // might not be worth the effort.
 
   return (
     <>
       <ConnectionsIcon
-        isAnyConnectionActive={connections.isAnyConnectionActive}
+        isAnyConnectionActive={isAnyConnectionActive}
         onClick={togglePopover}
         ref={iconRef}
       />
@@ -71,21 +76,21 @@ export function Connections() {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         onClose={() => setIsPopoverOpened(false)}
       >
-        <Container p="12px">
-          <KeyboardArrowsNavigation>
-            <ConnectionsFilterableList
-              items={connections.items}
-              onActivateItem={activateItem}
-              onRemoveItem={connections.removeItem}
-              onDisconnectItem={connections.disconnectItem}
-            />
-          </KeyboardArrowsNavigation>
-        </Container>
+        {/*
+          324px matches the total width when the outer div inside Popover used to have 12px of
+          padding (so 24px on both sides) and ConnectionsFilterableList had 300px of width.
+        */}
+        <Box width="324px" bg="levels.elevated">
+          <StepSlider
+            currFlow="default"
+            flows={stepSliderFlows}
+            // The rest of the props is spread to each individual step component.
+            closeConnectionList={closeConnectionList}
+          />
+        </Box>
       </Popover>
     </>
   );
 }
 
-const Container = styled(Box)`
-  background: ${props => props.theme.colors.levels.elevated};
-`;
+const stepSliderFlows = { default: [ConnectionsSliderStep, VnetSliderStep] };

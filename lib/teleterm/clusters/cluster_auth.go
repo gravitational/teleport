@@ -20,6 +20,7 @@ package clusters
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sort"
 
@@ -40,9 +41,15 @@ import (
 
 // SyncAuthPreference fetches Teleport auth preferences and stores it in the cluster profile
 func (c *Cluster) SyncAuthPreference(ctx context.Context) (*webclient.WebConfigAuthSettings, error) {
-	_, err := c.clusterClient.Ping(ctx)
+	pingResponse, err := c.clusterClient.Ping(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	pingResponseJSON, err := json.Marshal(pingResponse)
+	if err != nil {
+		c.Log.WithError(err).Debugln("Could not marshal ping response to JSON")
+	} else {
+		c.Log.WithField("response", string(pingResponseJSON)).Debugln("Got ping response")
 	}
 
 	if err := c.clusterClient.SaveProfile(false); err != nil {

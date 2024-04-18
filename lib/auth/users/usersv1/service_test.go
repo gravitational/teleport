@@ -171,7 +171,7 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 		services.Identity
 		services.Access
 	}{
-		Identity: local.NewIdentityService(bk),
+		Identity: local.NewTestIdentityService(bk),
 		Access:   local.NewAccessService(bk),
 	}
 

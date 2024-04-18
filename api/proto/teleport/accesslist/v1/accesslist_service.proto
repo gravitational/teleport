@@ -33,6 +33,8 @@ service AccessListService {
   rpc GetAccessList(GetAccessListRequest) returns (AccessList);
   // UpsertAccessList creates or updates an access list resource.
   rpc UpsertAccessList(UpsertAccessListRequest) returns (AccessList);
+  // UpdateAccessList updates an access list resource.
+  rpc UpdateAccessList(UpdateAccessListRequest) returns (AccessList);
   // DeleteAccessList hard deletes the specified access list resource.
   rpc DeleteAccessList(DeleteAccessListRequest) returns (google.protobuf.Empty);
   // DeleteAllAccessLists hard deletes all access lists.
@@ -53,6 +55,8 @@ service AccessListService {
   rpc GetAccessListMember(GetAccessListMemberRequest) returns (Member);
   // UpsertAccessListMember creates or updates an access list member resource.
   rpc UpsertAccessListMember(UpsertAccessListMemberRequest) returns (Member);
+  // UpdateAccessListMember conditionally updates an access list member resource.
+  rpc UpdateAccessListMember(UpdateAccessListMemberRequest) returns (Member);
   // DeleteAccessListMember hard deletes the specified access list member
   // resource.
   rpc DeleteAccessListMember(DeleteAccessListMemberRequest) returns (google.protobuf.Empty);
@@ -121,6 +125,12 @@ message GetAccessListRequest {
 
 // UpsertAccessListRequest is the request for upserting an access list.
 message UpsertAccessListRequest {
+  // access_list is the access list to upsert.
+  AccessList access_list = 1;
+}
+
+// UpdateAccessListRequest is the request for updating an access list.
+message UpdateAccessListRequest {
   // access_list is the access list to upsert.
   AccessList access_list = 1;
 }
@@ -235,6 +245,13 @@ message UpsertAccessListMemberRequest {
 
   // member is the access list member to upsert.
   Member member = 4;
+}
+
+// UpdateAccessListMemberRequest is the request for updating an access list
+// member.
+message UpdateAccessListMemberRequest {
+  // member is the access list member to upsert.
+  Member member = 1;
 }
 
 // DeleteAccessListMemberRequest is the request for deleting a member from an

@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
+	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/pam"
@@ -232,6 +233,10 @@ type CommandLineFlags struct {
 	// IntegrationConfAccessGraphAWSSyncArguments contains the arguments of
 	// `teleport integration configure access-graph aws-iam` command
 	IntegrationConfAccessGraphAWSSyncArguments IntegrationConfAccessGraphAWSSync
+
+	// IntegrationConfSAMLIdPGCPWorkforceArguments contains the arguments of
+	// `teleport integration configure samlidp gcp-workforce` command
+	IntegrationConfSAMLIdPGCPWorkforceArguments samlidpconfig.GCPWorkforceAPIParams
 }
 
 // IntegrationConfAccessGraphAWSSync contains the arguments of
@@ -1537,12 +1542,14 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		serviceMatcher := types.AWSMatcher{
-			Types:      matcher.Types,
-			Regions:    matcher.Regions,
-			AssumeRole: assumeRole,
-			Tags:       matcher.Tags,
-			Params:     installParams,
-			SSM:        &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+			Types:            matcher.Types,
+			Regions:          matcher.Regions,
+			AssumeRole:       assumeRole,
+			Tags:             matcher.Tags,
+			Params:           installParams,
+			SSM:              &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+			Integration:      matcher.Integration,
+			KubeAppDiscovery: matcher.KubeAppDiscovery,
 		}
 		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
@@ -1732,6 +1739,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 					RoleARN:    matcher.AssumeRoleARN,
 					ExternalID: matcher.ExternalID,
 				},
+				Integration: matcher.Integration,
 			})
 	}
 	for _, matcher := range fc.Databases.AzureMatchers {

@@ -1,9 +1,13 @@
 ---
-title: Database Access with AWS Keyspaces (Apache Cassandra)
-description: How to configure Teleport database access with AWS Keyspaces (Apache Cassandra)
+title: Database Access with Amazon Keyspaces (Apache Cassandra)
+description: How to configure Teleport database access with Amazon Keyspaces (Apache Cassandra)
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS Keyspaces (Apache Cassandra)" dbConfigure="AWS Keyspaces database with IAM authentication" dbName="AWS Keyspaces" !)
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Amazon Keyspaces (Apache Cassandra)" dbConfigure="Amazon Keyspaces database with IAM authentication" dbName="Amazon Keyspaces" !)
+
+## How it works
+
+(!docs/pages/includes/database-access/how-it-works/iam.mdx db="Amazon Keyspaces" cloud="AWS"!)
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -19,7 +23,7 @@ description: How to configure Teleport database access with AWS Keyspaces (Apach
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- AWS Account with AWS Keyspaces database and permissions to create and attach IAM policies
+- AWS Account with Amazon Keyspaces database and permissions to create and attach IAM policies
 - The `cqlsh` Cassandra client installed and added to your system's `PATH` environment variable.
 - A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database Service.
 - (!docs/pages/includes/tctl.mdx!)
@@ -82,7 +86,7 @@ $ sudo teleport db configure create \
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/5. Create an AWS Keyspaces role
+## Step 3/5. Create an Amazon Keyspaces role
 
 Create an AWS IAM Role that will be used as your Keyspaces user.
 Go to the IAM -> Access Management -> [Roles](https://console.aws.amazon.com/iamv2/home#/roles).
@@ -90,13 +94,13 @@ Press Create Role.
 
 ![Create Role Step 1](../../../img/database-access/guides/keyspaces/create-role-step1.png)
 AWS provides the `AmazonKeyspacesReadOnlyAccess` and `AmazonKeyspacesFullAccess` IAM policies that you can incorporate into your Keyspaces user's role.
-You can choose `AmazonKeyspacesReadOnlyAccess` for read-only access to AWS Keyspaces or `AmazonKeyspacesFullAccess` for full access.
+You can choose `AmazonKeyspacesReadOnlyAccess` for read-only access to Amazon Keyspaces or `AmazonKeyspacesFullAccess` for full access.
 
 <Admonition type="tip">
   The `AmazonKeyspacesReadOnlyAccess` and `AmazonKeyspacesReadOnlyAccess` policies may
   provide too much or not enough access for your intentions.
   Validate that these meet your expectations if you plan on using them.
-  You can also create your own custom AWS Keyspaces Permissions Policies: [Amazon Keyspaces identity-based policy examples](https://docs.aws.amazon.com/keyspaces/latest/devguide/security_iam_id-based-policy-examples.html).
+  You can also create your own custom Amazon Keyspaces Permissions Policies: [Amazon Keyspaces identity-based policy examples](https://docs.aws.amazon.com/keyspaces/latest/devguide/security_iam_id-based-policy-examples.html).
 </Admonition>
 
 ![Create Role Step 1](../../../img/database-access/guides/keyspaces/create-role-step2.png)

@@ -20,6 +20,7 @@
 package servicecfg
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net"
@@ -144,7 +145,7 @@ type Config struct {
 	PIDFile string
 
 	// Trust is a service that manages certificate authorities
-	Trust services.Trust
+	Trust services.TrustInternal
 
 	// Presence service is a discovery and heartbeat tracker
 	Presence services.PresenceInternal
@@ -536,7 +537,7 @@ func ApplyDefaults(cfg *Config) {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"
-		cfg.Log.Errorf("Failed to determine hostname: %v.", err)
+		cfg.Logger.ErrorContext(context.Background(), "Failed to determine hostname", "error", err)
 	}
 
 	// Global defaults.
@@ -721,7 +722,7 @@ func validateAuthOrProxyServices(cfg *Config) error {
 		if haveProxyServer {
 			port := cfg.ProxyServer.Port(0)
 			if port == defaults.AuthListenPort {
-				cfg.Log.Warnf("config: proxy_server is pointing to port %d, is this the auth server address?", defaults.AuthListenPort)
+				cfg.Logger.WarnContext(context.Background(), "config: proxy_server is pointing to port 3025, is this the auth server address?")
 			}
 		}
 
@@ -730,7 +731,7 @@ func validateAuthOrProxyServices(cfg *Config) error {
 			checkPorts := []int{defaults.HTTPListenPort, teleport.StandardHTTPSPort}
 			for _, port := range checkPorts {
 				if authServerPort == port {
-					cfg.Log.Warnf("config: auth_server is pointing to port %d, is this the proxy server address?", port)
+					cfg.Logger.WarnContext(context.Background(), "config: auth_server is pointing to port 3080 or 443, is this the proxy server address?")
 				}
 			}
 		}

@@ -70,6 +70,9 @@ message ListUsersRequest {
 
   // Specifies whether to load associated secrets(password, mfa devices, etc.).
   bool with_secrets = 3;
+
+  // Filter matches users.
+  types.UserFilter filter = 4;
 }
 
 // Response for ListUsers.

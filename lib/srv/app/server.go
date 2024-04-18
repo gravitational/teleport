@@ -26,6 +26,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
@@ -131,6 +132,9 @@ type Config struct {
 	// ConnectionMonitor monitors connections and terminates any if
 	// any session controls prevent them.
 	ConnectionMonitor ConnMonitor
+
+	// Logger is the slog.Logger.
+	Logger *slog.Logger
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
@@ -179,6 +183,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.ConnectedProxyGetter == nil {
 		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
+	}
+	if c.Logger == nil {
+		c.Logger = slog.Default().With(teleport.ComponentKey, teleport.Component(teleport.ComponentApp))
 	}
 
 	return nil
@@ -289,7 +296,9 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	azureHandler, err := appazure.NewAzureHandler(closeContext, appazure.HandlerConfig{})
+	azureHandler, err := appazure.NewAzureHandler(closeContext, appazure.HandlerConfig{
+		Logger: c.Logger.With(teleport.ComponentKey, appazure.ComponentKey),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -301,6 +310,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 
 	s := &Server{
 		c: c,
+		// TODO(greedy52) replace with slog from Config.Logger.
 		log: logrus.WithFields(logrus.Fields{
 			teleport.ComponentKey: teleport.ComponentApp,
 		}),

@@ -34,7 +34,7 @@ export type BotListProps = {
   bots: FlatBot[];
   disabledEdit: boolean;
   disabledDelete: boolean;
-  roles: string[];
+  fetchRoles: (input: string) => Promise<string[]>;
   onClose: () => void;
   onDelete: () => void;
   onEdit: () => void;
@@ -61,7 +61,7 @@ export enum BotFlowType {
 }
 
 export type EditBotProps = {
-  allRoles: string[];
+  fetchRoles: (input: string) => Promise<string[]>;
   attempt: Attempt;
   name: string;
   onClose: () => void;

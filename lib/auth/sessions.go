@@ -22,12 +22,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -36,10 +35,209 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// NewWebSessionRequest defines a request to create a new user
+// web session
+type NewWebSessionRequest struct {
+	// User specifies the user this session is bound to
+	User string
+	// LoginIP is an observed IP of the client, it will be embedded into certificates.
+	LoginIP string
+	// Roles optionally lists additional user roles
+	Roles []string
+	// Traits optionally lists role traits
+	Traits map[string][]string
+	// SessionTTL optionally specifies the session time-to-live.
+	// If left unspecified, the default certificate duration is used.
+	SessionTTL time.Duration
+	// LoginTime is the time that this user recently logged in.
+	LoginTime time.Time
+	// AccessRequests contains the UUIDs of the access requests currently in use.
+	AccessRequests []string
+	// RequestedResourceIDs optionally lists requested resources
+	RequestedResourceIDs []types.ResourceID
+	// AttestWebSession optionally attests the web session to meet private key policy requirements.
+	// This should only be set to true for web sessions that are purely in the purview of the Proxy
+	// and Auth services. Users should never have direct access to attested web sessions.
+	AttestWebSession bool
+	// PrivateKey is a specific private key to use when generating the web sessions' certificates.
+	// This should be provided when extending an attested web session in order to maintain the
+	// session attested status.
+	PrivateKey *keys.PrivateKey
+}
+
+// CheckAndSetDefaults validates the request and sets defaults.
+func (r *NewWebSessionRequest) CheckAndSetDefaults() error {
+	if r.User == "" {
+		return trace.BadParameter("user name required")
+	}
+	if len(r.Roles) == 0 {
+		return trace.BadParameter("roles required")
+	}
+	if len(r.Traits) == 0 {
+		return trace.BadParameter("traits required")
+	}
+	if r.SessionTTL == 0 {
+		r.SessionTTL = apidefaults.CertDuration
+	}
+	return nil
+}
+
+func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
+	session, err := a.newWebSession(ctx, req, nil /* opts */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = a.upsertWebSession(ctx, session)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return session, nil
+}
+
+// newWebSessionOpts are WebSession creation options exclusive to Auth.
+// These options complement [types.NewWebSessionRequest].
+// See [Server.newWebSession].
+type newWebSessionOpts struct {
+	// deviceExtensions are the device extensions to apply to the session.
+	// Only present on renewals, the original extensions are applied by
+	// [Server.AugmentWebSessionCertificates].
+	deviceExtensions *tlsca.DeviceExtensions
+}
+
+// newWebSession creates and returns a new web session for the specified request
+func (a *Server) newWebSession(
+	ctx context.Context,
+	req NewWebSessionRequest,
+	opts *newWebSessionOpts,
+) (types.WebSession, error) {
+	userState, err := a.GetUserOrLoginState(ctx, req.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.LoginIP == "" {
+		// TODO(antonam): consider turning this into error after all use cases are covered (before v14.0 testplan)
+		log.Debug("Creating new web session without login IP specified.")
+	}
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker, err := services.NewAccessChecker(&services.AccessInfo{
+		Roles:              req.Roles,
+		Traits:             req.Traits,
+		AllowedResourceIDs: req.RequestedResourceIDs,
+	}, clusterName.GetClusterName(), a)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	netCfg, err := a.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.PrivateKey == nil {
+		req.PrivateKey, err = native.GeneratePrivateKey()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	sessionTTL := req.SessionTTL
+	if sessionTTL == 0 {
+		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
+	}
+
+	if req.AttestWebSession {
+		// Upsert web session attestation data so that this key's certs
+		// will be marked with the web session private key policy.
+		webAttData, err := services.NewWebSessionAttestationData(req.PrivateKey.Public())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err = a.UpsertKeyAttestationData(ctx, webAttData, sessionTTL); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	certReq := certRequest{
+		user:           userState,
+		loginIP:        req.LoginIP,
+		ttl:            sessionTTL,
+		publicKey:      req.PrivateKey.MarshalSSHPublicKey(),
+		checker:        checker,
+		traits:         req.Traits,
+		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
+	}
+	var hasDeviceExtensions bool
+	if opts != nil && opts.deviceExtensions != nil {
+		// Apply extensions to request.
+		certReq.deviceExtensions = DeviceExtensions(*opts.deviceExtensions)
+		hasDeviceExtensions = true
+	}
+
+	certs, err := a.generateUserCert(ctx, certReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	token, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	bearerToken, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	bearerTokenTTL := min(sessionTTL, defaults.BearerTokenTTL)
+
+	startTime := a.clock.Now()
+	if !req.LoginTime.IsZero() {
+		startTime = req.LoginTime
+	}
+
+	sessionSpec := types.WebSessionSpecV2{
+		User:                req.User,
+		Priv:                req.PrivateKey.PrivateKeyPEM(),
+		Pub:                 certs.SSH,
+		TLSCert:             certs.TLS,
+		Expires:             startTime.UTC().Add(sessionTTL),
+		BearerToken:         bearerToken,
+		BearerTokenExpires:  startTime.UTC().Add(bearerTokenTTL),
+		LoginTime:           req.LoginTime,
+		IdleTimeout:         types.Duration(netCfg.GetWebIdleTimeout()),
+		HasDeviceExtensions: hasDeviceExtensions,
+	}
+	UserLoginCount.Inc()
+
+	sess, err := types.NewWebSession(token, types.KindWebSession, sessionSpec)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sess, nil
+}
+
+func (a *Server) upsertWebSession(ctx context.Context, session types.WebSession) error {
+	if err := a.WebSessions().Upsert(ctx, session); err != nil {
+		return trace.Wrap(err)
+	}
+	token, err := types.NewWebToken(session.GetBearerTokenExpiryTime(), types.WebTokenSpecV3{
+		User:  session.GetUser(),
+		Token: session.GetBearerToken(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.WebTokens().Upsert(ctx, token); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
 
 // CreateAppSession creates and inserts a services.WebSession into the
 // backend with the identity of the caller used to generate the certificate.
@@ -77,6 +275,12 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		verifiedMFADeviceID = mfaData.Device.Id
 	}
 
+	// Create services.WebSession for this session.
+	sessionID, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create certificate for this session.
 	privateKey, publicKey, err := native.GenerateKeyPair()
 	if err != nil {
@@ -90,10 +294,10 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		ttl:            ttl,
 		traits:         traits,
 		activeRequests: services.RequestIDs{AccessRequests: identity.ActiveRequests},
+		// Set the app session ID in the certificate - used in auditing from the App Service.
+		appSessionID: sessionID,
 		// Only allow this certificate to be used for applications.
-		usage: []string{teleport.UsageAppsOnly},
-		// Add in the application routing information.
-		appSessionID:      uuid.New().String(),
+		usage:             []string{teleport.UsageAppsOnly},
 		appPublicAddr:     req.PublicAddr,
 		appClusterName:    req.ClusterName,
 		awsRoleARN:        req.AWSRoleARN,
@@ -110,11 +314,6 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		return nil, trace.Wrap(err)
 	}
 
-	// Create services.WebSession for this session.
-	sessionID, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	bearer, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -124,8 +323,8 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		Priv:        privateKey,
 		Pub:         certs.SSH,
 		TLSCert:     certs.TLS,
-		LoginTime:   a.clock.Now(),
-		Expires:     a.clock.Now().Add(ttl),
+		LoginTime:   a.clock.Now().UTC(),
+		Expires:     a.clock.Now().UTC().Add(ttl),
 		BearerToken: bearer,
 	})
 	if err != nil {
@@ -137,84 +336,6 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 	log.Debugf("Generated application web session for %v with TTL %v.", req.Username, ttl)
 	UserLoginCount.Inc()
 	return session, nil
-}
-
-// WaitForAppSession will block until the requested application session shows up in the
-// cache or a timeout occurs.
-func WaitForAppSession(ctx context.Context, sessionID, user string, ap ReadProxyAccessPoint) error {
-	req := waitForWebSessionReq{
-		newWatcherFn: ap.NewWatcher,
-		getSessionFn: func(ctx context.Context, sessionID string) (types.WebSession, error) {
-			return ap.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
-		},
-	}
-	return trace.Wrap(waitForWebSession(ctx, sessionID, user, types.KindAppSession, req))
-}
-
-// WaitForSnowflakeSession waits until the requested Snowflake session shows up int the cache
-// or a timeout occurs.
-func WaitForSnowflakeSession(ctx context.Context, sessionID, user string, ap SnowflakeSessionWatcher) error {
-	req := waitForWebSessionReq{
-		newWatcherFn: ap.NewWatcher,
-		getSessionFn: func(ctx context.Context, sessionID string) (types.WebSession, error) {
-			return ap.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: sessionID})
-		},
-	}
-	return trace.Wrap(waitForWebSession(ctx, sessionID, user, types.KindSnowflakeSession, req))
-}
-
-// waitForWebSessionReq is a request to wait for web session to be populated in the application cache.
-type waitForWebSessionReq struct {
-	// newWatcherFn is a function that returns new event watcher.
-	newWatcherFn func(ctx context.Context, watch types.Watch) (types.Watcher, error)
-	// getSessionFn is a function that returns web session by given ID.
-	getSessionFn func(ctx context.Context, sessionID string) (types.WebSession, error)
-}
-
-// waitForWebSession is an implementation for web session wait functions.
-func waitForWebSession(ctx context.Context, sessionID, user string, evenSubKind string, req waitForWebSessionReq) error {
-	_, err := req.getSessionFn(ctx, sessionID)
-	if err == nil {
-		return nil
-	}
-	logger := log.WithField("session", sessionID)
-	if !trace.IsNotFound(err) {
-		logger.WithError(err).Debug("Failed to query web session.")
-	}
-	// Establish a watch on application session.
-	watcher, err := req.newWatcherFn(ctx, types.Watch{
-		Name: teleport.ComponentAppProxy,
-		Kinds: []types.WatchKind{
-			{
-				Kind:    types.KindWebSession,
-				SubKind: evenSubKind,
-				Filter:  (&types.WebSessionFilter{User: user}).IntoMap(),
-			},
-		},
-		MetricComponent: teleport.ComponentAppProxy,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer watcher.Close()
-	matchEvent := func(event types.Event) (types.Resource, error) {
-		if event.Type == types.OpPut &&
-			event.Resource.GetKind() == types.KindWebSession &&
-			event.Resource.GetSubKind() == evenSubKind &&
-			event.Resource.GetName() == sessionID {
-			return event.Resource, nil
-		}
-		return nil, trace.CompareFailed("no match")
-	}
-	_, err = local.WaitForEvent(ctx, watcher, local.EventMatcherFunc(matchEvent), clockwork.NewRealClock())
-	if err != nil {
-		logger.WithError(err).Warn("Failed to wait for web session.")
-		// See again if we maybe missed the event but the session was actually created.
-		if _, err := req.getSessionFn(ctx, sessionID); err == nil {
-			return nil
-		}
-	}
-	return trace.Wrap(err)
 }
 
 // generateAppToken generates an JWT token that will be passed along with every
@@ -263,20 +384,6 @@ func (a *Server) generateAppToken(ctx context.Context, username string, roles []
 	}
 
 	return token, nil
-}
-
-func (a *Server) CreateWebSessionFromReq(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
-	session, err := a.NewWebSession(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = a.upsertWebSession(ctx, session)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return session, nil
 }
 
 func (a *Server) CreateSessionCert(user services.UserState, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster, loginIP string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {

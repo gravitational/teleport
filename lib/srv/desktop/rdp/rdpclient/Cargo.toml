@@ -32,7 +32,7 @@ rand_chacha = "0.3.1"
 rsa = "0.9.6"
 sspi = { git = "https://github.com/Devolutions/sspi-rs", rev="d54bdfcafa0e10d9d78224ebacc4f2a0992a6b79", features = ["network_client"] }
 static_init = "1.0.3"
-tokio = { version = "1.36", features = ["full"] }
+tokio = { version = "1.37", features = ["full"] }
 tokio-boring = { git = "https://github.com/gravitational/boring", rev="605253d99d5e363e178bcf97e1d4622e33844cd5", optional = true }
 utf16string = "0.2.0"
 uuid = { version = "1.8.0", features = ["v4"] }

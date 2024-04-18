@@ -162,6 +162,13 @@ func TestEC2Watcher(t *testing.T) {
 			Tags:    map[string]utils.Strings{"env": {"dev"}},
 			SSM:     &types.AWSSSM{},
 		},
+		{
+			Types:       []string{"EC2"},
+			Regions:     []string{"us-west-2"},
+			Tags:        map[string]utils.Strings{"with-eice": {"please"}},
+			Integration: "my-aws-integration",
+			SSM:         &types.AWSSSM{},
+		},
 	}
 	ctx := context.Background()
 
@@ -185,12 +192,23 @@ func TestEC2Watcher(t *testing.T) {
 			Name: aws.String(ec2.InstanceStateNameRunning),
 		},
 	}
+	presentForEICE := ec2.Instance{
+		InstanceId: aws.String("instance-present-3"),
+		Tags: []*ec2.Tag{{
+			Key:   aws.String("with-eice"),
+			Value: aws.String("please"),
+		}},
+		State: &ec2.InstanceState{
+			Name: aws.String(ec2.InstanceStateNameRunning),
+		},
+	}
 
 	output := ec2.DescribeInstancesOutput{
 		Reservations: []*ec2.Reservation{{
 			Instances: []*ec2.Instance{
 				&present,
 				&presentOther,
+				&presentForEICE,
 				{
 					InstanceId: aws.String("instance-absent"),
 					Tags: []*ec2.Tag{{
@@ -241,6 +259,13 @@ func TestEC2Watcher(t *testing.T) {
 		Region:     "us-west-2",
 		Instances:  []EC2Instance{toEC2Instance(&presentOther)},
 		Parameters: map[string]string{"token": "", "scriptName": ""},
+	}, *result.EC2)
+	result = <-watcher.InstancesC
+	require.Equal(t, EC2Instances{
+		Region:      "us-west-2",
+		Instances:   []EC2Instance{toEC2Instance(&presentForEICE)},
+		Parameters:  map[string]string{"token": "", "scriptName": "", "sshdConfigPath": ""},
+		Integration: "my-aws-integration",
 	}, *result.EC2)
 }
 

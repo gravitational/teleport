@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -45,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -261,137 +259,6 @@ func HasRemoteBuiltinRole(authContext authz.Context, name string) bool {
 // name matches.
 func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
 	return HasRemoteBuiltinRole(a.context, name)
-}
-
-// integrationsService returns an Integrations Service.
-func (a *ServerWithRoles) integrationsService() (*integrationv1.Service, error) {
-	igSvc, err := integrationv1.NewService(&integrationv1.ServiceConfig{
-		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
-			return &a.context, nil
-		}),
-		Cache:   a.authServer,
-		Backend: a.authServer.Services,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return igSvc, nil
-}
-
-// CreateIntegration creates an Integration.
-func (a *ServerWithRoles) CreateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
-	igSvc, err := a.integrationsService()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	igv1, ok := ig.(*types.IntegrationV1)
-	if !ok {
-		return nil, trace.BadParameter("unexpected integration type %T", ig)
-	}
-
-	ig, err = igSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: igv1})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ig, nil
-}
-
-// GetIntegration returns an Integration by its name.
-func (a *ServerWithRoles) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
-	igSvc, err := a.integrationsService()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ig, err := igSvc.GetIntegration(ctx, &integrationpb.GetIntegrationRequest{Name: name})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ig, nil
-}
-
-// ListIntegrations returns a list of Integrations.
-// A next page can be retreived by calling ListIntegrations again and passing the nextKey from the previous response.
-func (a *ServerWithRoles) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
-	igSvc, err := a.integrationsService()
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	resp, err := igSvc.ListIntegrations(ctx, &integrationpb.ListIntegrationsRequest{
-		Limit:   int32(pageSize),
-		NextKey: nextKey,
-	})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	integrations := make([]types.Integration, 0, len(resp.GetIntegrations()))
-	for _, ig := range resp.GetIntegrations() {
-		integrations = append(integrations, ig)
-	}
-
-	return integrations, resp.GetNextKey(), nil
-}
-
-// UpdateIntegration updates an Integration.
-func (a *ServerWithRoles) UpdateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
-	igSvc, err := a.integrationsService()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	igv1, ok := ig.(*types.IntegrationV1)
-	if !ok {
-		return nil, trace.BadParameter("unexpected integration type %T", ig)
-	}
-
-	ig, err = igSvc.UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: igv1})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ig, nil
-}
-
-// DeleteAllIntegrations deletes all integrations.
-func (a *ServerWithRoles) DeleteAllIntegrations(ctx context.Context) error {
-	igSvc, err := a.integrationsService()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = igSvc.DeleteAllIntegrations(ctx, &integrationpb.DeleteAllIntegrationsRequest{})
-	return trace.Wrap(err)
-}
-
-// DeleteIntegration deletes an integration integrations.
-func (a *ServerWithRoles) DeleteIntegration(ctx context.Context, name string) error {
-	igSvc, err := a.integrationsService()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = igSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: name})
-	return trace.Wrap(err)
-}
-
-// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
-	igSvc, err := a.integrationsService()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
-		Integration: integration,
-	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return resp.Token, nil
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
@@ -1358,31 +1225,18 @@ func (a *ServerWithRoles) checkUnifiedAccess(resource types.ResourceWithLabels, 
 
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
-	// Fetch full list of resources in the backend.
-	var (
-		unifiedResources types.ResourcesWithLabels
-		nextKey          string
-	)
-
 	filter := services.MatchResourceFilter{
-		Labels:              req.Labels,
-		SearchKeywords:      req.SearchKeywords,
-		PredicateExpression: req.PredicateExpression,
-		Kinds:               req.Kinds,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+		Kinds:          req.Kinds,
 	}
 
-	// If a predicate expression was provided, evaluate it with an empty
-	// server to determine if the expression is valid before attempting
-	// to do any listing.
-	if filter.PredicateExpression != "" {
-		parser, err := services.NewResourceParser(&types.ServerV2{})
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		if _, err := parser.EvalBoolPredicate(filter.PredicateExpression); err != nil {
-			return nil, trace.BadParameter("failed to parse predicate expression: %s", err.Error())
-		}
+		filter.PredicateExpression = expression
 	}
 
 	// Populate resourceAccessMap with any access errors the user has for each possible
@@ -1448,6 +1302,11 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		return nil, trace.Wrap(err)
 	}
 
+	// Fetch full list of resources in the backend.
+	var (
+		unifiedResources types.ResourcesWithLabels
+		nextKey          string
+	)
 	if req.PinnedOnly {
 		prefs, err := a.authServer.GetUserPreferences(ctx, a.context.User.GetName())
 		if err != nil {
@@ -1736,11 +1595,19 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	// `ListResources`) to ensure that it will be applied only to resources
 	// the user has access to.
 	filter := services.MatchResourceFilter{
-		ResourceKind:        req.ResourceType,
-		Labels:              req.Labels,
-		SearchKeywords:      req.SearchKeywords,
-		PredicateExpression: req.PredicateExpression,
+		ResourceKind:   req.ResourceType,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
 	}
+
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		filter.PredicateExpression = expression
+	}
+
 	req.Labels = nil
 	req.SearchKeywords = nil
 	req.PredicateExpression = ""
@@ -2019,14 +1886,12 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		return nil, trace.NotImplemented("resource type %q is not supported for listResourcesWithSort", req.ResourceType)
 	}
 
-	// Apply request filters and get pagination info.
-	resp, err := local.FakePaginate(resources, local.FakePaginateParams{
-		ResourceType:        req.ResourceType,
-		Limit:               req.Limit,
-		Labels:              req.Labels,
-		SearchKeywords:      req.SearchKeywords,
-		PredicateExpression: req.PredicateExpression,
-		StartKey:            req.StartKey,
+	params := local.FakePaginateParams{
+		ResourceType:   req.ResourceType,
+		Limit:          req.Limit,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+		StartKey:       req.StartKey,
 		EnrichResourceFn: func(r types.ResourceWithLabels) (types.ResourceWithLabels, error) {
 			if req.IncludeLogins && (r.GetKind() == types.KindNode || r.GetKind() == types.KindWindowsDesktop) {
 				resourceChecker, err := a.newResourceAccessChecker(req.ResourceType)
@@ -2044,7 +1909,18 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 
 			return r, nil
 		},
-	})
+	}
+
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		params.PredicateExpression = expression
+	}
+
+	// Apply request filters and get pagination info.
+	resp, err := local.FakePaginate(resources, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2285,13 +2161,6 @@ func (a *ServerWithRoles) ChangePassword(
 	return a.authServer.ChangePassword(ctx, req)
 }
 
-func (a *ServerWithRoles) PreAuthenticatedSignIn(ctx context.Context, user string) (types.WebSession, error) {
-	if err := a.currentUserAction(user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.PreAuthenticatedSignIn(ctx, user, a.context.Identity.GetIdentity())
-}
-
 // CreateWebSession creates a new web session for the specified user
 func (a *ServerWithRoles) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
@@ -2482,6 +2351,9 @@ func (a *ServerWithRoles) ListAccessRequests(ctx context.Context, req *proto.Lis
 	if req.Filter == nil {
 		req.Filter = &types.AccessRequestFilter{}
 	}
+	// set the requesting user to be used in the filter match. This is only meant to be set here
+	// and will be overwritten if set elsewhere
+	req.Filter.Requester = a.context.User.GetName()
 
 	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbList, types.VerbRead); err != nil {
 		// Users are allowed to read + list their own access requests and
@@ -3503,6 +3375,13 @@ func (a *ServerWithRoles) GetOIDCConnectors(ctx context.Context, withSecrets boo
 }
 
 func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
+	if !modules.GetModules().Features().OIDC {
+		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
+		// we can't currently propagate wrapped errors across the gRPC boundary,
+		// and we want tctl to display a clean user-facing message in this case
+		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
+	}
+
 	if err := a.action(apidefaults.Namespace, types.KindOIDCRequest, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3657,6 +3536,10 @@ func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets boo
 }
 
 func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
+	if !modules.GetModules().Features().SAML {
+		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
+	}
+
 	if err := a.action(apidefaults.Namespace, types.KindSAMLRequest, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4923,14 +4806,8 @@ func (a *ServerWithRoles) DeleteAllTunnelConnections() error {
 	return a.authServer.DeleteAllTunnelConnections()
 }
 
-func (a *ServerWithRoles) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error {
-	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	_, err := a.authServer.UpdateRemoteCluster(ctx, rc)
-	return trace.Wrap(err)
-}
-
+// Deprecated: use [presencev1.PresenceService.GetRemoteCluster]
+// TODO(noah): DELETE IN 17.0.0
 func (a *ServerWithRoles) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
 	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -4945,6 +4822,8 @@ func (a *ServerWithRoles) GetRemoteCluster(ctx context.Context, clusterName stri
 	return cluster, nil
 }
 
+// Deprecated: use [presencev1.PresenceService.ListRemoteClusters]
+// TODO(noah): DELETE IN 17.0.0
 func (a *ServerWithRoles) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
 	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
@@ -4957,6 +4836,7 @@ func (a *ServerWithRoles) GetRemoteClusters(ctx context.Context) ([]types.Remote
 }
 
 // filterRemoteClustersForUser filters remote clusters based on what the current user is authorized to access
+// TODO(noah): DELETE IN 17.0.0
 func (a *ServerWithRoles) filterRemoteClustersForUser(remoteClusters []types.RemoteCluster) ([]types.RemoteCluster, error) {
 	filteredClusters := make([]types.RemoteCluster, 0, len(remoteClusters))
 	for _, rc := range remoteClusters {
@@ -4971,6 +4851,8 @@ func (a *ServerWithRoles) filterRemoteClustersForUser(remoteClusters []types.Rem
 	return filteredClusters, nil
 }
 
+// Deprecated: use [presencev1.PresenceService.DeleteRemoteCluster]
+// TODO(noah): DELETE IN 17.0.0
 func (a *ServerWithRoles) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
 	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
@@ -5329,13 +5211,29 @@ func (a *ServerWithRoles) GetAppSession(ctx context.Context, req types.GetAppSes
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Users can only fetch their own app sessions.
-	if err := a.currentUserAction(session.GetUser()); err != nil {
-		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
+
+	authErr := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead)
+	if authErr == nil {
+		return session, nil
 	}
-	return session, nil
+
+	// Users can fetch their own app sessions without secrets.
+	if err := a.currentUserAction(session.GetUser()); err == nil {
+		// TODO (Joerger): DELETE IN 17.0.0
+		// App Session secrets should not be returned to the user. We only do this
+		// here for backwards compatibility with `tsh proxy azure`, which uses the
+		// app session key to sign JWT tokens with Azure claims. This check means
+		// that `tsh proxy azure` will fail for old clients when used with Per-session
+		// MFA or Hardware Key support, which is planned for release in v16.0.0.
+		identity := a.context.Identity.GetIdentity()
+		if !identity.IsMFAVerified() && identity.PrivateKeyPolicy != keys.PrivateKeyPolicyWebSession {
+			return session, nil
+		}
+
+		return session.WithoutSecrets(), nil
+	}
+
+	return nil, trace.Wrap(authErr)
 }
 
 // GetSnowflakeSession gets a Snowflake web session.
@@ -5429,7 +5327,8 @@ func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req *proto.Creat
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return session, nil
+
+	return session.WithoutSecrets(), nil
 }
 
 // CreateSnowflakeSession creates a Snowflake web session.

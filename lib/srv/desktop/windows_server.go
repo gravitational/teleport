@@ -360,7 +360,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	if s.cfg.PKIDomain != "" {
 		caLDAPConfig.Domain = s.cfg.PKIDomain
 	}
-	s.cfg.Log.Infof("Windows PKI will be performed against %v", s.cfg.PKIDomain)
+	s.cfg.Log.Infof("Windows PKI will be performed against %v", caLDAPConfig.Domain)
 
 	s.ca = windows.NewCertificateStoreClient(windows.CertificateStoreConfig{
 		AccessPoint: s.cfg.AccessPoint,
@@ -500,8 +500,11 @@ func (s *WindowsService) initializeLDAP() error {
 		return trace.Wrap(err)
 	}
 
-	conn, err := ldap.DialURL("ldaps://"+s.cfg.Addr,
-		ldap.DialWithTLSDialer(tc, &net.Dialer{Timeout: ldapDialTimeout}))
+	conn, err := ldap.DialURL(
+		"ldaps://"+s.cfg.Addr,
+		ldap.DialWithDialer(&net.Dialer{Timeout: ldapDialTimeout}),
+		ldap.DialWithTLSConfig(tc),
+	)
 	if err != nil {
 		s.mu.Lock()
 		s.ldapInitialized = false
