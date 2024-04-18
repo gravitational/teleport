@@ -171,6 +171,17 @@ func (c *Client) RunAuditQuery(ctx context.Context, queryText string, days int) 
 	return resp, nil
 }
 
+func (c *Client) RunAuditQueryWithCache(ctx context.Context, queryText string, days int) (*pb.RunAuditQueryResponse, error) {
+	resp, err := c.grpcClient.RunAuditQueryWithCache(ctx, &pb.RunAuditQueryWithCacheRequest{
+		Query: queryText,
+		Days:  int32(days),
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
 // GetAuditQueryResultAll returns all results for an audit query.
 func (c *Client) GetAuditQueryResultAll(ctx context.Context, queryID string) ([]*pb.QueryRowResult, error) {
 	var out []*pb.QueryRowResult

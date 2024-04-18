@@ -34,20 +34,21 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	SecReportsService_UpsertAuditQuery_FullMethodName    = "/teleport.secreports.v1.SecReportsService/UpsertAuditQuery"
-	SecReportsService_GetAuditQuery_FullMethodName       = "/teleport.secreports.v1.SecReportsService/GetAuditQuery"
-	SecReportsService_ListAuditQueries_FullMethodName    = "/teleport.secreports.v1.SecReportsService/ListAuditQueries"
-	SecReportsService_DeleteAuditQuery_FullMethodName    = "/teleport.secreports.v1.SecReportsService/DeleteAuditQuery"
-	SecReportsService_UpsertReport_FullMethodName        = "/teleport.secreports.v1.SecReportsService/UpsertReport"
-	SecReportsService_GetReport_FullMethodName           = "/teleport.secreports.v1.SecReportsService/GetReport"
-	SecReportsService_ListReports_FullMethodName         = "/teleport.secreports.v1.SecReportsService/ListReports"
-	SecReportsService_DeleteReport_FullMethodName        = "/teleport.secreports.v1.SecReportsService/DeleteReport"
-	SecReportsService_RunAuditQuery_FullMethodName       = "/teleport.secreports.v1.SecReportsService/RunAuditQuery"
-	SecReportsService_GetAuditQueryResult_FullMethodName = "/teleport.secreports.v1.SecReportsService/GetAuditQueryResult"
-	SecReportsService_RunReport_FullMethodName           = "/teleport.secreports.v1.SecReportsService/RunReport"
-	SecReportsService_GetReportResult_FullMethodName     = "/teleport.secreports.v1.SecReportsService/GetReportResult"
-	SecReportsService_GetReportState_FullMethodName      = "/teleport.secreports.v1.SecReportsService/GetReportState"
-	SecReportsService_GetSchema_FullMethodName           = "/teleport.secreports.v1.SecReportsService/GetSchema"
+	SecReportsService_UpsertAuditQuery_FullMethodName       = "/teleport.secreports.v1.SecReportsService/UpsertAuditQuery"
+	SecReportsService_GetAuditQuery_FullMethodName          = "/teleport.secreports.v1.SecReportsService/GetAuditQuery"
+	SecReportsService_ListAuditQueries_FullMethodName       = "/teleport.secreports.v1.SecReportsService/ListAuditQueries"
+	SecReportsService_DeleteAuditQuery_FullMethodName       = "/teleport.secreports.v1.SecReportsService/DeleteAuditQuery"
+	SecReportsService_UpsertReport_FullMethodName           = "/teleport.secreports.v1.SecReportsService/UpsertReport"
+	SecReportsService_GetReport_FullMethodName              = "/teleport.secreports.v1.SecReportsService/GetReport"
+	SecReportsService_ListReports_FullMethodName            = "/teleport.secreports.v1.SecReportsService/ListReports"
+	SecReportsService_DeleteReport_FullMethodName           = "/teleport.secreports.v1.SecReportsService/DeleteReport"
+	SecReportsService_RunAuditQuery_FullMethodName          = "/teleport.secreports.v1.SecReportsService/RunAuditQuery"
+	SecReportsService_RunAuditQueryWithCache_FullMethodName = "/teleport.secreports.v1.SecReportsService/RunAuditQueryWithCache"
+	SecReportsService_GetAuditQueryResult_FullMethodName    = "/teleport.secreports.v1.SecReportsService/GetAuditQueryResult"
+	SecReportsService_RunReport_FullMethodName              = "/teleport.secreports.v1.SecReportsService/RunReport"
+	SecReportsService_GetReportResult_FullMethodName        = "/teleport.secreports.v1.SecReportsService/GetReportResult"
+	SecReportsService_GetReportState_FullMethodName         = "/teleport.secreports.v1.SecReportsService/GetReportState"
+	SecReportsService_GetSchema_FullMethodName              = "/teleport.secreports.v1.SecReportsService/GetSchema"
 )
 
 // SecReportsServiceClient is the client API for SecReportsService service.
@@ -72,6 +73,8 @@ type SecReportsServiceClient interface {
 	DeleteReport(ctx context.Context, in *DeleteReportRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// RunAuditQuery runs an audit query.
 	RunAuditQuery(ctx context.Context, in *RunAuditQueryRequest, opts ...grpc.CallOption) (*RunAuditQueryResponse, error)
+	// RunAuditQyeryWithCache runs an audit query with cache.
+	RunAuditQueryWithCache(ctx context.Context, in *RunAuditQueryWithCacheRequest, opts ...grpc.CallOption) (*RunAuditQueryResponse, error)
 	// GetAuditQueryResult returns an audit query result.
 	GetAuditQueryResult(ctx context.Context, in *GetAuditQueryResultRequest, opts ...grpc.CallOption) (*GetAuditQueryResultResponse, error)
 	// RunReport runs a security report.
@@ -173,6 +176,15 @@ func (c *secReportsServiceClient) RunAuditQuery(ctx context.Context, in *RunAudi
 	return out, nil
 }
 
+func (c *secReportsServiceClient) RunAuditQueryWithCache(ctx context.Context, in *RunAuditQueryWithCacheRequest, opts ...grpc.CallOption) (*RunAuditQueryResponse, error) {
+	out := new(RunAuditQueryResponse)
+	err := c.cc.Invoke(ctx, SecReportsService_RunAuditQueryWithCache_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *secReportsServiceClient) GetAuditQueryResult(ctx context.Context, in *GetAuditQueryResultRequest, opts ...grpc.CallOption) (*GetAuditQueryResultResponse, error) {
 	out := new(GetAuditQueryResultResponse)
 	err := c.cc.Invoke(ctx, SecReportsService_GetAuditQueryResult_FullMethodName, in, out, opts...)
@@ -240,6 +252,8 @@ type SecReportsServiceServer interface {
 	DeleteReport(context.Context, *DeleteReportRequest) (*emptypb.Empty, error)
 	// RunAuditQuery runs an audit query.
 	RunAuditQuery(context.Context, *RunAuditQueryRequest) (*RunAuditQueryResponse, error)
+	// RunAuditQyeryWithCache runs an audit query with cache.
+	RunAuditQueryWithCache(context.Context, *RunAuditQueryWithCacheRequest) (*RunAuditQueryResponse, error)
 	// GetAuditQueryResult returns an audit query result.
 	GetAuditQueryResult(context.Context, *GetAuditQueryResultRequest) (*GetAuditQueryResultResponse, error)
 	// RunReport runs a security report.
@@ -283,6 +297,9 @@ func (UnimplementedSecReportsServiceServer) DeleteReport(context.Context, *Delet
 }
 func (UnimplementedSecReportsServiceServer) RunAuditQuery(context.Context, *RunAuditQueryRequest) (*RunAuditQueryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RunAuditQuery not implemented")
+}
+func (UnimplementedSecReportsServiceServer) RunAuditQueryWithCache(context.Context, *RunAuditQueryWithCacheRequest) (*RunAuditQueryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RunAuditQueryWithCache not implemented")
 }
 func (UnimplementedSecReportsServiceServer) GetAuditQueryResult(context.Context, *GetAuditQueryResultRequest) (*GetAuditQueryResultResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAuditQueryResult not implemented")
@@ -474,6 +491,24 @@ func _SecReportsService_RunAuditQuery_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SecReportsService_RunAuditQueryWithCache_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RunAuditQueryWithCacheRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecReportsServiceServer).RunAuditQueryWithCache(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SecReportsService_RunAuditQueryWithCache_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecReportsServiceServer).RunAuditQueryWithCache(ctx, req.(*RunAuditQueryWithCacheRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SecReportsService_GetAuditQueryResult_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetAuditQueryResultRequest)
 	if err := dec(in); err != nil {
@@ -606,6 +641,10 @@ var SecReportsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RunAuditQuery",
 			Handler:    _SecReportsService_RunAuditQuery_Handler,
+		},
+		{
+			MethodName: "RunAuditQueryWithCache",
+			Handler:    _SecReportsService_RunAuditQueryWithCache_Handler,
 		},
 		{
 			MethodName: "GetAuditQueryResult",

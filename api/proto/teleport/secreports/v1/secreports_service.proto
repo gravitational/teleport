@@ -44,6 +44,8 @@ service SecReportsService {
 
   // RunAuditQuery runs an audit query.
   rpc RunAuditQuery(RunAuditQueryRequest) returns (RunAuditQueryResponse);
+  // RunAuditQyeryWithCache runs an audit query with cache.
+  rpc RunAuditQueryWithCache(RunAuditQueryWithCacheRequest) returns (RunAuditQueryResponse);
   // GetAuditQueryResult returns an audit query result.
   rpc GetAuditQueryResult(GetAuditQueryResultRequest) returns (GetAuditQueryResultResponse);
 
@@ -130,6 +132,14 @@ message DeleteReportRequest {
 
 // RunAuditQueryRequest is audit query run request.
 message RunAuditQueryRequest {
+  // name is the name of the audit query to run.
+  string query = 1;
+  // days is a time range is days.
+  int32 days = 2;
+}
+
+// RunAuditQueryWithCacheRequest is a cached audit query run request.
+message RunAuditQueryWithCacheRequest {
   // name is the name of the audit query to run.
   string query = 1;
   // days is a time range is days.
