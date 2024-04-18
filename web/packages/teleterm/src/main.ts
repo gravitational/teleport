@@ -161,6 +161,12 @@ function initializeApp(): void {
   (async () => {
     const tshdClient = await mainProcess.initTshdClient();
 
+    startProfileWatcher(
+      tshdClient,
+      () => windowsManager.getWindow(), // TODO: Use frontendAppInit
+      mainProcess.settings.tshd.homeDir
+    );
+
     manageRootClusterProxyHostAllowList({
       tshdClient,
       logger,
@@ -191,10 +197,6 @@ function initializeApp(): void {
       enableWebHandlersProtection();
 
       windowsManager.createWindow();
-      startProfileWatcher(
-        mainProcess.settings.tshd.homeDir,
-        windowsManager.getWindow()
-      );
     })
     .catch(error => {
       const message = 'Could not initialize the app';

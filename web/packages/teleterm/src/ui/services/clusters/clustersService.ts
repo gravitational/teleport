@@ -26,6 +26,7 @@ import { pipe } from 'shared/utils/pipe';
 
 import * as uri from 'teleterm/ui/uri';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
+
 import {
   Cluster,
   Gateway,
@@ -38,10 +39,15 @@ import {
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { UsageService } from 'teleterm/ui/services/usage';
 
+import {
+  TshdClient,
+  CloneableAbortSignal,
+  isTshdRpcError,
+} from 'teleterm/services/tshd';
+
 import { ImmutableStore } from '../immutableStore';
 
 import type * as types from './types';
-import type { TshdClient, CloneableAbortSignal } from 'teleterm/services/tshd';
 import type * as tsh from 'teleterm/services/tshd/types';
 
 const { routing } = uri;
@@ -88,8 +94,14 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
    */
   async logout(clusterUri: uri.RootClusterUri) {
     // TODO(gzdunek): logout and removeCluster should be combined into a single acton in tshd
-    await this.client.logout({ clusterUri });
-    await this.client.removeCluster({ clusterUri });
+    try {
+      await this.client.logout({ clusterUri });
+      await this.client.removeCluster({ clusterUri });
+    } catch (error) {
+      if (!isTshdRpcError(error, 'NOT_FOUND')) {
+        throw error;
+      }
+    }
 
     this.setState(draft => {
       draft.clusters.forEach(cluster => {
@@ -264,10 +276,10 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
    * errors up.
    */
   async syncRootCluster(clusterUri: uri.RootClusterUri) {
-    await Promise.all([
-      this.syncClusterInfo(clusterUri),
-      this.syncLeafClustersList(clusterUri),
-    ]);
+    const { connected } = await this.syncClusterInfo(clusterUri);
+    if (connected) {
+      await this.syncLeafClustersList(clusterUri);
+    }
   }
 
   async syncRootClustersAndCatchErrors() {
@@ -663,14 +675,15 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         assumedRequests,
       },
     });
-    const processCluster = pipe(
+    const processedCluster = pipe(
       this.removeInternalLoginsFromCluster,
       mergeAssumedRequests
-    );
+    )(cluster);
 
     this.setState(draft => {
-      draft.clusters.set(clusterUri, processCluster(cluster));
+      draft.clusters.set(clusterUri, processedCluster);
     });
+    return processedCluster;
   }
 
   private async fetchClusterAssumedRequests(

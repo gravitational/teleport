@@ -27,13 +27,13 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 
 export async function startProfileWatcher(
   tshd: TshdClient,
-  window: BrowserWindow,
+  getWindow: () => BrowserWindow | undefined,
   path: string
 ): Promise<void> {
   const {
     response: { clusters: initialClusters },
   } = await tshd.listRootClusters({});
-  const oldClusters = new Map(initialClusters.map(c => [c.uri, c]));
+  let oldClusters = new Map(initialClusters.map(c => [c.uri, c]));
 
   const watcher = fs.watch(path);
   try {
@@ -43,9 +43,12 @@ export async function startProfileWatcher(
           response: { clusters },
         } = await tshd.listRootClusters({});
         const newClusters = new Map(clusters.map(c => [c.uri, c]));
+        console.log('oldClusters', ...oldClusters.keys());
+        console.log('newClusters', ...newClusters.keys());
         const changes = detectChanges(oldClusters, newClusters);
-
-        window.webContents.send(RendererIpc.ProfileChange, changes);
+        oldClusters = newClusters;
+        console.log('changes', changes);
+        getWindow()?.webContents.send(RendererIpc.ProfileChange, changes);
       }
     }
   } catch (e) {

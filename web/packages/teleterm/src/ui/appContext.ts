@@ -186,9 +186,11 @@ export default class AppContext implements IAppContext {
             await this.clustersService.syncRootClusterAndCatchErrors(
               change.uri
             );
+            await this.workspacesService.setActiveWorkspace(change.uri);
             break;
           }
           case 'removed': {
+            // TODO: Catch errors.
             await logOutCluster(this, change.uri);
             break;
           }

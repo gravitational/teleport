@@ -80,12 +80,26 @@ func (s *Handler) RemoveCluster(ctx context.Context, req *api.RemoveClusterReque
 
 // GetCluster returns a cluster
 func (s *Handler) GetCluster(ctx context.Context, req *api.GetClusterRequest) (*api.Cluster, error) {
-	cluster, _, err := s.DaemonService.ResolveClusterWithDetails(ctx, req.ClusterUri)
+	cluster, _, err := s.DaemonService.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	apiRootClusterWithDetails, err := newAPIRootClusterWithDetails(cluster)
+	if !cluster.Connected() {
+		return newAPIRootCluster(cluster), nil
+	}
+
+	proxyClient, err := s.DaemonService.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	withDetails, err := cluster.GetWithDetails(ctx, proxyClient.CurrentCluster())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	apiRootClusterWithDetails, err := newAPIRootClusterWithDetails(withDetails)
 
 	return apiRootClusterWithDetails, trace.Wrap(err)
 }
