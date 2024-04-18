@@ -476,7 +476,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfEICECmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfEICEIAMArguments.Role)
 
 	integrationConfAWSAppAccessCmd := integrationConfigureCmd.Command("aws-app-access-iam", "Adds required IAM permissions to connect to AWS using App Access.")
-	integrationConfAWSAppAccessCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfAWSAppAccessIAMArguments.Role)
+	integrationConfAWSAppAccessCmd.Flag("role", "The AWS Role name used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfAWSAppAccessIAMArguments.RoleName)
 
 	integrationConfEKSCmd := integrationConfigureCmd.Command("eks-iam", "Adds required IAM permissions for enrollment of EKS clusters to Teleport.")
 	integrationConfEKSCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfEKSIAMArguments.Region)
@@ -1033,7 +1033,7 @@ func onIntegrationConfAWSAppAccessIAM(ctx context.Context, params config.Integra
 	}
 
 	err = awsoidc.ConfigureAWSAppAccess(ctx, iamClient, &awsoidc.AWSAppAccessConfigureRequest{
-		IntegrationRole: params.Role,
+		IntegrationRole: params.RoleName,
 	})
 	return trace.Wrap(err)
 }

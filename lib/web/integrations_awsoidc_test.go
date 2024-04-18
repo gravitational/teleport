@@ -309,7 +309,6 @@ func TestBuildAWSAppAccessConfigureIAMScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			resp, err := anonymousHTTPClient.Get(ctx, endpoint, tc.reqQuery)
 			tc.errCheck(t, err)
