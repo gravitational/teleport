@@ -578,55 +578,6 @@ func (r *EmptyResource) GetMetadata() types.Metadata {
 
 func (r *EmptyResource) CheckAndSetDefaults() error { return nil }
 
-// BoolPredicateParser extends predicate.Parser with a convenience method
-// for evaluating bool predicates.
-type BoolPredicateParser interface {
-	predicate.Parser
-	EvalBoolPredicate(string) (bool, error)
-}
-
-type boolPredicateParser struct {
-	predicate.Parser
-}
-
-func (p boolPredicateParser) EvalBoolPredicate(expr string) (bool, error) {
-	ifn, err := p.Parse(expr)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	fn, ok := ifn.(predicate.BoolPredicate)
-	if !ok {
-		return false, trace.BadParameter("expected boolean predicate, got unsupported type: %T", ifn)
-	}
-
-	return fn(), nil
-}
-
-// NewJSONBoolParser returns a generic parser for boolean expressions based on a
-// json-serializable context.
-func NewJSONBoolParser(ctx interface{}) (BoolPredicateParser, error) {
-	p, err := predicate.NewParser(predicate.Def{
-		Operators: predicate.Operators{
-			AND: predicate.And,
-			OR:  predicate.Or,
-			NOT: predicate.Not,
-		},
-		Functions: map[string]interface{}{
-			"equals":   predicate.Equals,
-			"contains": predicate.Contains,
-		},
-		GetIdentifier: func(fields []string) (interface{}, error) {
-			return predicate.GetFieldByTag(ctx, teleport.JSON, fields)
-		},
-		GetProperty: GetStringMapValue,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return boolPredicateParser{Parser: p}, nil
-}
-
 // newParserForIdentifierSubcondition returns a parser customized for
 // extracting the largest admissible subexpression of a `where` condition that
 // involves the given identifier.
