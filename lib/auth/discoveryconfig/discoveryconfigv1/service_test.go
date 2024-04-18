@@ -21,10 +21,12 @@ package discoveryconfigv1
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	discoveryconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -339,6 +341,108 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 	}
 }
 
+func TestUpdateDiscoveryConfigStatus(t *testing.T) {
+	clusterName := "test-cluster"
+
+	requireTraceErrorFn := func(traceFn func(error) bool) require.ErrorAssertionFunc {
+		return func(tt require.TestingT, err error, i ...interface{}) {
+			require.True(t, traceFn(err), "received an un-expected error: %v", err)
+		}
+	}
+
+	ctx, localClient, resourceSvc := initSvc(t, clusterName)
+
+	sampleDiscoveryConfigFn := func(t *testing.T, name string) *discoveryconfig.DiscoveryConfig {
+		dc, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{Name: name},
+			discoveryconfig.Spec{
+				DiscoveryGroup: "some-group",
+			},
+		)
+		require.NoError(t, err)
+		return dc
+	}
+
+	tt := []struct {
+		name         string
+		systemRole   types.SystemRole
+		setup        func(t *testing.T, dcName string)
+		test         func(t *testing.T, ctx context.Context, resourceSvc *Service, dcName string) error
+		errAssertion require.ErrorAssertionFunc
+	}{
+		{
+			name:       "no access to update discovery config status",
+			systemRole: types.RoleNode,
+			test: func(t *testing.T, ctx context.Context, resourceSvc *Service, dcName string) error {
+				_, err := resourceSvc.UpdateDiscoveryConfigStatus(ctx, &discoveryconfigpb.UpdateDiscoveryConfigStatusRequest{
+					Name: dcName,
+				})
+				return err
+			},
+			errAssertion: requireTraceErrorFn(trace.IsAccessDenied),
+		},
+		{
+			name:       "discovery config doesn't exist",
+			systemRole: types.RoleDiscovery,
+			test: func(t *testing.T, ctx context.Context, resourceSvc *Service, dcName string) error {
+				_, err := resourceSvc.UpdateDiscoveryConfigStatus(ctx, &discoveryconfigpb.UpdateDiscoveryConfigStatusRequest{
+					Name: dcName,
+				})
+				return err
+			},
+			errAssertion: requireTraceErrorFn(trace.IsNotFound),
+		},
+		{
+			name:       "access to update discovery config status",
+			systemRole: types.RoleDiscovery,
+			setup: func(t *testing.T, dcName string) {
+				_, err := localClient.CreateDiscoveryConfig(ctx, sampleDiscoveryConfigFn(t, dcName))
+				require.NoError(t, err)
+			},
+			test: func(t *testing.T, ctx context.Context, resourceSvc *Service, dcName string) error {
+				now := time.Now()
+				msg := "error message"
+				status := &discoveryconfigpb.DiscoveryConfigStatus{
+					State:               discoveryconfigpb.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_RUNNING,
+					ErrorMessage:        &msg,
+					DiscoveredResources: 42,
+					LastSyncTime:        timestamppb.New(now),
+				}
+
+				out, err := resourceSvc.UpdateDiscoveryConfigStatus(ctx, &discoveryconfigpb.UpdateDiscoveryConfigStatusRequest{
+					Name:   dcName,
+					Status: status,
+				})
+				require.NoError(t, err)
+				dc := sampleDiscoveryConfigFn(t, dcName)
+				dc.Status = convert.StatusFromProto(status)
+
+				outL, err := convert.FromProto(out)
+				require.NoError(t, err)
+				// copy revision from the output
+				dc.Metadata.Revision = outL.Metadata.Revision
+				require.Equal(t, dc, outL)
+				return nil
+			},
+			errAssertion: require.NoError,
+		},
+	}
+	for _, tc := range tt {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			localCtx := authorizerForSystemRole(t, ctx, string(tc.systemRole), localClient)
+
+			dcName := uuid.NewString()
+			if tc.setup != nil {
+				tc.setup(t, dcName)
+			}
+
+			err := tc.test(t, localCtx, resourceSvc, dcName)
+			tc.errAssertion(t, err)
+		})
+	}
+}
+
 func authorizerForDummyUser(t *testing.T, ctx context.Context, roleSpec types.RoleSpecV6, localClient localClient) context.Context {
 	// Create role
 	roleName := "role-" + uuid.NewString()
@@ -364,6 +468,17 @@ func authorizerForDummyUser(t *testing.T, ctx context.Context, roleSpec types.Ro
 	})
 }
 
+func authorizerForSystemRole(t *testing.T, ctx context.Context, systemRole string, localClient localClient) context.Context {
+	return authz.ContextWithUser(ctx, authz.BuiltinRole{
+		Username: uuid.NewString(),
+		Role:     types.SystemRole(systemRole),
+		Identity: tlsca.Identity{
+			SystemRoles: []string{systemRole},
+			Groups:      []string{systemRole},
+		},
+	})
+}
+
 type localClient interface {
 	CreateUser(ctx context.Context, user types.User) (types.User, error)
 	CreateRole(ctx context.Context, role types.Role) (types.Role, error)
@@ -385,7 +500,7 @@ func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *S
 
 	trustSvc := local.NewCAService(backend)
 	roleSvc := local.NewAccessService(backend)
-	userSvc := local.NewIdentityService(backend)
+	userSvc := local.NewTestIdentityService(backend)
 
 	clusterConfigSvc, err := local.NewClusterConfigurationService(backend)
 	require.NoError(t, err)

@@ -22,6 +22,8 @@ import { DevicesUsage } from "./usage_pb";
 import { GetDevicesUsageRequest } from "./devicetrust_service_pb";
 import { SyncInventoryResponse } from "./devicetrust_service_pb";
 import { SyncInventoryRequest } from "./devicetrust_service_pb";
+import { ConfirmDeviceWebAuthenticationResponse } from "./devicetrust_service_pb";
+import { ConfirmDeviceWebAuthenticationRequest } from "./devicetrust_service_pb";
 import { AuthenticateDeviceResponse } from "./devicetrust_service_pb";
 import { AuthenticateDeviceRequest } from "./devicetrust_service_pb";
 import { EnrollDeviceResponse } from "./devicetrust_service_pb";
@@ -187,6 +189,25 @@ export interface IDeviceTrustService extends grpc.UntypedServiceImplementation {
      */
     authenticateDevice: grpc.handleBidiStreamingCall<AuthenticateDeviceRequest, AuthenticateDeviceResponse>;
     /**
+     * ConfirmDeviceWebAuthentication finalizes the device web authentication
+     * ceremony started by the creation of a DeviceWebToken and subsequent
+     * AuthenticateDevice call.
+     *
+     * The DeviceConfirmationToken issued by AuthenticateDevice is spent in this
+     * method, which consequently augments the corresponding Web Session
+     * certificates with device extensions.
+     *
+     * This method must be called by the Teleport Proxy, and the Proxy itself must
+     * be called by the same browser that started the on-behalf-of authentication
+     * attempt. See the /webapi/device/webconfirm endpoint.
+     *
+     * See
+     * https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
+     *
+     * @generated from protobuf rpc: ConfirmDeviceWebAuthentication(teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationRequest) returns (teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationResponse);
+     */
+    confirmDeviceWebAuthentication: grpc.handleUnaryCall<ConfirmDeviceWebAuthenticationRequest, ConfirmDeviceWebAuthenticationResponse>;
+    /**
      * Syncs device inventory from a source exterior to Teleport, for example an
      * MDM.
      * Allows both partial and full syncs; for the latter, devices missing from
@@ -326,6 +347,16 @@ export const deviceTrustServiceDefinition: grpc.ServiceDefinition<IDeviceTrustSe
         requestDeserialize: bytes => AuthenticateDeviceRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(AuthenticateDeviceResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(AuthenticateDeviceRequest.toBinary(value))
+    },
+    confirmDeviceWebAuthentication: {
+        path: "/teleport.devicetrust.v1.DeviceTrustService/ConfirmDeviceWebAuthentication",
+        originalName: "ConfirmDeviceWebAuthentication",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => ConfirmDeviceWebAuthenticationResponse.fromBinary(bytes),
+        requestDeserialize: bytes => ConfirmDeviceWebAuthenticationRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(ConfirmDeviceWebAuthenticationResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(ConfirmDeviceWebAuthenticationRequest.toBinary(value))
     },
     syncInventory: {
         path: "/teleport.devicetrust.v1.DeviceTrustService/SyncInventory",

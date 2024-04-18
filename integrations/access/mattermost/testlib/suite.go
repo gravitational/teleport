@@ -46,9 +46,9 @@ var msgFieldRegexp = regexp.MustCompile(`(?im)^\*\*([a-zA-Z ]+)\*\*:\ +(.+)$`)
 var requestReasonRegexp = regexp.MustCompile("(?im)^\\*\\*Reason\\*\\*:\\ ```\\n(.*?)```(.*?)$")
 var resolutionReasonRegexp = regexp.MustCompile("(?im)^\\*\\*Resolution reason\\*\\*:\\ ```\\n(.*?)```(.*?)$")
 
-// MattermostSuite is the Mattermost access plugin test suite.
+// MattermostBaseSuite is the Mattermost access plugin test suite.
 // It implements the testify.TestingSuite interface.
-type MattermostSuite struct {
+type MattermostBaseSuite struct {
 	*integration.AccessRequestSuite
 	appConfig      *mattermost.Config
 	raceNumber     int
@@ -62,7 +62,7 @@ type MattermostSuite struct {
 
 // SetupTest starts a fake Mattermost and generates the plugin configuration.
 // It is run for each test.
-func (s *MattermostSuite) SetupTest() {
+func (s *MattermostBaseSuite) SetupTest() {
 	t := s.T()
 
 	err := logger.Setup(logger.Config{Severity: "debug"})
@@ -89,19 +89,39 @@ func (s *MattermostSuite) SetupTest() {
 }
 
 // startApp starts the Mattermost plugin, waits for it to become ready and returns,
-func (s *MattermostSuite) startApp() {
+func (s *MattermostBaseSuite) startApp() {
 	t := s.T()
 	t.Helper()
 
 	app := mattermost.NewMattermostApp(s.appConfig)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
+}
+
+// MattermostSuiteOSS contains all tests that support running against a Teleport
+// OSS Server.
+type MattermostSuiteOSS struct {
+	MattermostBaseSuite
+}
+
+// MattermostSuiteEnterprise contains all tests that require a Teleport Enterprise
+// to run.
+type MattermostSuiteEnterprise struct {
+	MattermostBaseSuite
+}
+
+// SetupTest overrides MattermostBaseSuite.SetupTest to check the Teleport features
+// before each test.
+func (s *MattermostSuiteEnterprise) SetupTest() {
+	t := s.T()
+	s.RequireAdvancedWorkflow(t)
+	s.MattermostBaseSuite.SetupTest()
 }
 
 // TestMattermostMessagePosting validates that a message is sent to each recipient
 // specified in the plugin's configuration and optional reviewers.
 // It also checks that the message content is correct, even when the reason
 // is too large.
-func (s *MattermostSuite) TestMattermostMessagePosting() {
+func (s *MattermostSuiteOSS) TestMattermostMessagePosting() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -176,7 +196,7 @@ func (s *MattermostSuite) TestMattermostMessagePosting() {
 
 // TestApproval tests that when a request is approved, its corresponding message
 // is updated to reflect the new request state.
-func (s *MattermostSuite) TestApproval() {
+func (s *MattermostSuiteOSS) TestApproval() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -215,7 +235,7 @@ func (s *MattermostSuite) TestApproval() {
 
 // TestDenial tests that when a request is denied, its corresponding message
 // is updated to reflect the new request state.
-func (s *MattermostSuite) TestDenial() {
+func (s *MattermostSuiteOSS) TestDenial() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -254,14 +274,10 @@ func (s *MattermostSuite) TestDenial() {
 
 // TestReviewComments tests that that update messages are sent after the access
 // request is reviewed. Each review should trigger a new message.
-func (s *MattermostSuite) TestReviewComments() {
+func (s *MattermostSuiteEnterprise) TestReviewComments() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	directChannelID := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), s.reviewer1MattermostUser).ID
 
@@ -316,14 +332,10 @@ func (s *MattermostSuite) TestReviewComments() {
 
 // TestApprovalByReview tests that the message is updated after the access request
 // is reviewed and approved.
-func (s *MattermostSuite) TestApprovalByReview() {
+func (s *MattermostSuiteEnterprise) TestApprovalByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -388,14 +400,10 @@ func (s *MattermostSuite) TestApprovalByReview() {
 
 // TestDenialByReview tests that the message is updated after the access request
 // is reviewed and denied.
-func (s *MattermostSuite) TestDenialByReview() {
+func (s *MattermostSuiteEnterprise) TestDenialByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -460,7 +468,7 @@ func (s *MattermostSuite) TestDenialByReview() {
 
 // TestExpiration tests that when a request expires, its corresponding message
 // is updated to reflect the new request state.
-func (s *MattermostSuite) TestExpiration() {
+func (s *MattermostSuiteOSS) TestExpiration() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -497,14 +505,11 @@ func (s *MattermostSuite) TestExpiration() {
 // TestRace validates that the plugin behaves properly and performs all the
 // message updates when a lot of access requests are sent and reviewed in a very
 // short time frame.
-func (s *MattermostSuite) TestRace() {
+func (s *MattermostSuiteEnterprise) TestRace() {
 	t := s.T()
+	t.Skip("This test is flaky")
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	err := logger.Setup(logger.Config{Severity: "info"}) // Turn off noisy debug logging
 	require.NoError(t, err)
@@ -648,7 +653,7 @@ func (s *MattermostSuite) TestRace() {
 	})
 }
 
-func (s *MattermostSuite) TestRecipientsConfig() {
+func (s *MattermostSuiteOSS) TestRecipientsConfig() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)

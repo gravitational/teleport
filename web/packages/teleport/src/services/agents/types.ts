@@ -38,6 +38,7 @@ export type UnifiedResource =
 export type UnifiedResourceKind = UnifiedResource['kind'];
 
 export type ResourcesResponse<T> = {
+  //TODO(gzdunek): Rename to items.
   agents: T[];
   startKey?: string;
   totalCount?: number;
@@ -84,6 +85,12 @@ export type ResourceIdKind =
   | 'kube_cluster'
   | 'user_group'
   | 'windows_desktop';
+
+export type AccessRequestScope =
+  | 'my_requests'
+  | 'needs_review'
+  | 'reviewed'
+  | '';
 
 export type ConnectionDiagnostic = {
   /** id is the identifier of the connection diagnostic. */

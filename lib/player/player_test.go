@@ -174,6 +174,7 @@ func TestClose(t *testing.T) {
 
 func TestSeekForward(t *testing.T) {
 	clk := clockwork.NewFakeClock()
+
 	p, err := player.New(&player.Config{
 		Clock:     clk,
 		SessionID: "test-session",
@@ -208,6 +209,57 @@ func TestSeekForward(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		require.FailNow(t, "player hasn't closed in time")
 	}
+}
+
+func TestSeekForwardTwice(t *testing.T) {
+	clk := clockwork.NewRealClock()
+	p, err := player.New(&player.Config{
+		Clock:     clk,
+		SessionID: "test-session",
+		Streamer:  &simpleStreamer{count: 1, delay: 6000},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { p.Close() })
+	require.NoError(t, p.Play())
+
+	time.Sleep(100 * time.Millisecond)
+	p.SetPos(500 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+	p.SetPos(5900 * time.Millisecond)
+
+	select {
+	case <-p.C():
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "event not emitted on time")
+	}
+}
+
+// TestInterruptsDelay tests that the player responds to playback
+// controls even when it is waiting to emit an event.
+func TestInterruptsDelay(t *testing.T) {
+	clk := clockwork.NewFakeClock()
+	p, err := player.New(&player.Config{
+		Clock:     clk,
+		SessionID: "test-session",
+		Streamer:  &simpleStreamer{count: 3, delay: 5000},
+	})
+	require.NoError(t, err)
+	require.NoError(t, p.Play())
+
+	t.Cleanup(func() { p.Close() })
+
+	clk.BlockUntil(1) // player is now waiting to emit event 0
+
+	// emulate the user seeking forward while the player is waiting..
+	p.SetPos(10_001 * time.Millisecond)
+
+	// expect event 0 and event 1 to be emitted right away
+	// even without advancing the clock
+	evt0 := <-p.C()
+	evt1 := <-p.C()
+
+	require.Equal(t, int64(0), evt0.GetIndex())
+	require.Equal(t, int64(1), evt1.GetIndex())
 }
 
 func TestRewind(t *testing.T) {

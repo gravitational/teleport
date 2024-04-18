@@ -678,7 +678,7 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 		userAgent = cm.UserAgent
 	}
 
-	sess, err := a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
+	sess, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
 		User:             user.GetName(),
 		LoginIP:          loginIP,
 		Roles:            user.GetRoles(),
@@ -911,7 +911,7 @@ func (a *Server) emitNoLocalAuthEvent(username string) {
 func (a *Server) createUserWebSession(ctx context.Context, user services.UserState, loginIP string) (types.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User as this method
 	// is only used for local accounts.
-	return a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
+	return a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
 		User:      user.GetName(),
 		LoginIP:   loginIP,
 		Roles:     user.GetRoles(),

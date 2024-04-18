@@ -42,6 +42,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -61,6 +62,8 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
+	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 )
 
@@ -150,6 +153,8 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindServerInfo:               rc.createServerInfo,
 		types.KindBot:                      rc.createBot,
 		types.KindDatabaseObjectImportRule: rc.createDatabaseObjectImportRule,
+		types.KindDatabaseObject:           rc.createDatabaseObject,
+		types.KindAccessMonitoringRule:     rc.createAccessMonitoringRule,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -160,6 +165,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindClusterNetworkingConfig: rc.updateClusterNetworkingConfig,
 		types.KindClusterAuthPreference:   rc.updateAuthPreference,
 		types.KindSessionRecordingConfig:  rc.updateSessionRecordingConfig,
+		types.KindAccessMonitoringRule:    rc.updateAccessMonitoringRule,
 	}
 	rc.config = config
 
@@ -593,7 +599,7 @@ func (rc *ResourceCommand) createBot(ctx context.Context, client *auth.Client, r
 }
 
 func (rc *ResourceCommand) createDatabaseObjectImportRule(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
-	rule, err := services.UnmarshalDatabaseObjectImportRule(raw.Raw)
+	rule, err := databaseobjectimportrule.UnmarshalJSON(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -613,7 +619,32 @@ func (rc *ResourceCommand) createDatabaseObjectImportRule(ctx context.Context, c
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("bot %q has been created\n", rule.GetMetadata().GetName())
+	fmt.Printf("rule %q has been created\n", rule.GetMetadata().GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) createDatabaseObject(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+	object, err := databaseobject.UnmarshalJSON(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if rc.IsForced() {
+		_, err = client.DatabaseObjectClient().UpsertDatabaseObject(ctx, &dbobjectv1.UpsertDatabaseObjectRequest{
+			Object: object,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("object %q has been created\n", object.GetMetadata().GetName())
+		return nil
+	}
+	_, err = client.DatabaseObjectClient().CreateDatabaseObject(ctx, &dbobjectv1.CreateDatabaseObjectRequest{
+		Object: object,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("object %q has been created\n", object.GetMetadata().GetName())
 	return nil
 }
 
@@ -1679,6 +1710,16 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *auth.Client) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Rule %q has been deleted\n", rc.ref.Name)
+	case types.KindDatabaseObject:
+		if _, err := client.DatabaseObjectClient().DeleteDatabaseObject(ctx, &dbobjectv1.DeleteDatabaseObjectRequest{Name: rc.ref.Name}); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Object %q has been deleted\n", rc.ref.Name)
+	case types.KindAccessMonitoringRule:
+		if err := client.AccessMonitoringRuleClient().DeleteAccessMonitoringRule(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Access monitoring rule %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -2424,6 +2465,32 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *auth.Clien
 			req.PageToken = resp.NextPageToken
 		}
 		return &databaseObjectImportRuleCollection{rules: rules}, nil
+	case types.KindDatabaseObject:
+		remote := client.DatabaseObjectClient()
+		if rc.ref.Name != "" {
+			object, err := remote.GetDatabaseObject(ctx, &dbobjectv1.GetDatabaseObjectRequest{Name: rc.ref.Name})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &databaseObjectCollection{objects: []*dbobjectv1.DatabaseObject{object}}, nil
+		}
+
+		req := &dbobjectv1.ListDatabaseObjectsRequest{}
+		var objects []*dbobjectv1.DatabaseObject
+		for {
+			resp, err := remote.ListDatabaseObjects(ctx, req)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			objects = append(objects, resp.Objects...)
+
+			if resp.NextPageToken == "" {
+				break
+			}
+			req.PageToken = resp.NextPageToken
+		}
+		return &databaseObjectCollection{objects: objects}, nil
 	case types.KindOktaImportRule:
 		if rc.ref.Name != "" {
 			importRule, err := client.OktaClient().GetOktaImportRule(ctx, rc.ref.Name)
@@ -2857,5 +2924,39 @@ func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client *aut
 	if err = client.SecReportsClient().UpsertSecurityReport(ctx, in); err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+func (rc *ResourceCommand) createAccessMonitoringRule(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+	in, err := services.UnmarshalAccessMonitoringRule(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rc.IsForced() {
+		if _, err = client.AccessMonitoringRuleClient().UpsertAccessMonitoringRule(ctx, in); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("access monitoring rule %q has been created\n", in.GetMetadata().GetName())
+		return nil
+	}
+
+	if _, err = client.AccessMonitoringRuleClient().CreateAccessMonitoringRule(ctx, in); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("access monitoring rule %q has been created\n", in.GetMetadata().GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) updateAccessMonitoringRule(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+	in, err := services.UnmarshalAccessMonitoringRule(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.AccessMonitoringRuleClient().UpdateAccessMonitoringRule(ctx, in); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("access monitoring rule %q has been updated\n", in.GetMetadata().GetName())
 	return nil
 }

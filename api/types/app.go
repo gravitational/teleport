@@ -392,6 +392,14 @@ func (a *AppV3) CheckAndSetDefaults() error {
 	return nil
 }
 
+// IsEqual determines if two application resources are equivalent to one another.
+func (a *AppV3) IsEqual(i Application) bool {
+	if other, ok := i.(*AppV3); ok {
+		return deriveTeleportEqualAppV3(a, other)
+	}
+	return false
+}
+
 // DeduplicateApps deduplicates apps by combination of app name and public address.
 // Apps can have the same name but also could have different addresses.
 func DeduplicateApps(apps []Application) (result []Application) {

@@ -20,6 +20,7 @@ package testlib
 
 import (
 	"context"
+	"fmt"
 	"runtime"
 	"sort"
 	"strings"
@@ -46,9 +47,9 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 )
 
-// SlackSuite is the Slack access plugin test suite.
+// SlackBaseSuite is the Slack access plugin test suite.
 // It implements the testify.TestingSuite interface.
-type SlackSuite struct {
+type SlackBaseSuite struct {
 	*integration.AccessRequestSuite
 	appConfig             *slack.Config
 	raceNumber            int
@@ -62,7 +63,7 @@ type SlackSuite struct {
 
 // SetupTest starts a fake Slack, generates the plugin configuration, and loads
 // the fixtures in Slack. It runs for each test.
-func (s *SlackSuite) SetupTest() {
+func (s *SlackBaseSuite) SetupTest() {
 	t := s.T()
 
 	err := logger.Setup(logger.Config{Severity: "debug"})
@@ -92,18 +93,38 @@ func (s *SlackSuite) SetupTest() {
 }
 
 // startApp starts the Slack plugin, waits for it to become ready and returns.
-func (s *SlackSuite) startApp() {
+func (s *SlackBaseSuite) startApp() {
 	t := s.T()
 	t.Helper()
 
 	app := slack.NewSlackApp(s.appConfig)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
+}
+
+// SlackSuiteOSS contains all tests that support running against a Teleport
+// OSS Server.
+type SlackSuiteOSS struct {
+	SlackBaseSuite
+}
+
+// SlackSuiteEnterprise contains all tests that require a Teleport Enterprise
+// to run.
+type SlackSuiteEnterprise struct {
+	SlackBaseSuite
+}
+
+// SetupTest overrides SlackBaseSuite.SetupTest to check the Teleport features
+// before each test.
+func (s *SlackSuiteEnterprise) SetupTest() {
+	t := s.T()
+	s.RequireAdvancedWorkflow(t)
+	s.SlackBaseSuite.SetupTest()
 }
 
 // TestMessagePosting validates that a message is sent to each recipient
 // specified in the suggested reviewers. It also checks that the message
 // content is correct.
-func (s *SlackSuite) TestMessagePosting() {
+func (s *SlackSuiteOSS) TestMessagePosting() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -172,7 +193,7 @@ func (s *SlackSuite) TestMessagePosting() {
 
 // TestRecipientsConfig checks that the recipient configuration accepts both
 // referencing users by their email, or their slack user ID.
-func (s *SlackSuite) TestRecipientsConfig() {
+func (s *SlackSuiteOSS) TestRecipientsConfig() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -222,14 +243,14 @@ func (s *SlackSuite) TestRecipientsConfig() {
 
 // TestApproval tests that when a request is approved, its corresponding message
 // is updated to reflect the new request state.
-func (s *SlackSuite) TestApproval() {
+func (s *SlackSuiteOSS) TestApproval() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
 
 	s.startApp()
 
-	// Test setup: we create an access request and wait for its Discord message
+	// Test setup: we create an access request and wait for its Slack message
 	userName := integration.RequesterOSSUserName
 	req := s.CreateAccessRequest(ctx, userName, []string{s.reviewer1SlackUser.Profile.Email})
 	msgs := s.checkNewMessages(t, ctx, channelsToMessages(s.requesterOSSSlackUser.ID, s.reviewer1SlackUser.ID), matchOnlyOnChannel)
@@ -244,11 +265,17 @@ func (s *SlackSuite) TestApproval() {
 		require.NoError(t, err)
 		assert.Equal(t, "*Status*: ✅ APPROVED\n*Resolution reason*: ```\nokay```", statusLine)
 	})
+
+	s.checkNewMessages(t, ctx, channelsToMessages(s.requesterOSSSlackUser.ID), matchOnlyOnChannel, func(t *testing.T, m slack.Message) {
+		line := fmt.Sprintf("Request with ID %q has been updated: *%s*", req.GetName(), types.RequestState_APPROVED.String())
+		assert.Equal(t, line, m.BlockItems[0].Block.(slack.SectionBlock).Text.GetText())
+	})
+
 }
 
 // TestDenial tests that when a request is denied, its corresponding message
 // is updated to reflect the new request state.
-func (s *SlackSuite) TestDenial() {
+func (s *SlackSuiteOSS) TestDenial() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -275,14 +302,10 @@ func (s *SlackSuite) TestDenial() {
 
 // TestReviewReplies tests that a reply is sent after the access request
 // is reviewed. Each review should be reflected in the original message.
-func (s *SlackSuite) TestReviewReplies() {
+func (s *SlackSuiteEnterprise) TestReviewReplies() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -328,14 +351,10 @@ func (s *SlackSuite) TestReviewReplies() {
 
 // TestApprovalByReview tests that the message is updated after the access request
 // is reviewed and approved.
-func (s *SlackSuite) TestApprovalByReview() {
+func (s *SlackSuiteEnterprise) TestApprovalByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -386,14 +405,10 @@ func (s *SlackSuite) TestApprovalByReview() {
 
 // TestDenialByReview tests that the message is updated after the access request
 // is reviewed and denied.
-func (s *SlackSuite) TestDenialByReview() {
+func (s *SlackSuiteEnterprise) TestDenialByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -444,7 +459,7 @@ func (s *SlackSuite) TestDenialByReview() {
 
 // TestExpiration tests that when a request expires, its corresponding message
 // is updated to reflect the new request state.
-func (s *SlackSuite) TestExpiration() {
+func (s *SlackSuiteOSS) TestExpiration() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -475,14 +490,11 @@ func (s *SlackSuite) TestExpiration() {
 // TestRace validates that the plugin behaves properly and performs all the
 // message updates when a lot of access requests are sent and reviewed in a very
 // short time frame.
-func (s *SlackSuite) TestRace() {
+func (s *SlackSuiteEnterprise) TestRace() {
 	t := s.T()
+	t.Skip("This test is flaky")
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	err := logger.Setup(logger.Config{Severity: "info"}) // Turn off noisy debug logging
 	require.NoError(t, err)
@@ -621,14 +633,10 @@ func (s *SlackSuite) TestRace() {
 
 // TestAccessListReminder validates that Access List reminders are sent before
 // the Access List expires.
-func (s *SlackSuite) TestAccessListReminder() {
+func (s *SlackSuiteEnterprise) TestAccessListReminder() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 	s.appConfig.Clock = clock
@@ -656,26 +664,30 @@ func (s *SlackSuite) TestAccessListReminder() {
 
 	// Test execution: move the clock to 2 weeks before expiry
 	// This should trigger a reminder.
+	clock.BlockUntil(1)
 	clock.Advance(45 * 24 * time.Hour)
 	s.requireReminderMsgEqual(ctx, s.reviewer1SlackUser.ID, "Access List *simple title* is due for a review by 2023-03-01. Please review it soon!")
 
 	// Test execution: move the clock to 1 week before expiry
 	// This should trigger a reminder.
+	clock.BlockUntil(1)
 	clock.Advance(7 * 24 * time.Hour)
 	s.requireReminderMsgEqual(ctx, s.reviewer1SlackUser.ID, "Access List *simple title* is due for a review by 2023-03-01. Please review it soon!")
 
 	// Test execution: move the clock to the expiry day
 	// This should trigger a reminder.
+	clock.BlockUntil(1)
 	clock.Advance(7 * 24 * time.Hour)
 	s.requireReminderMsgEqual(ctx, s.reviewer1SlackUser.ID, "Access List *simple title* is due for a review by 2023-03-01. Please review it soon!")
 
 	// Test execution: move the clock after the expiry day
 	// This should trigger a reminder.
+	clock.BlockUntil(1)
 	clock.Advance(7 * 24 * time.Hour)
 	s.requireReminderMsgEqual(ctx, s.reviewer1SlackUser.ID, "Access List *simple title* is 7 day(s) past due for a review! Please review it.")
 }
 
-func (s *SlackSuite) requireReminderMsgEqual(ctx context.Context, id, text string) {
+func (s *SlackBaseSuite) requireReminderMsgEqual(ctx context.Context, id, text string) {
 	t := s.T()
 
 	msg, err := s.fakeSlack.CheckNewMessage(ctx)
