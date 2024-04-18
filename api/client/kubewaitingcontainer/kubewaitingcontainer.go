@@ -37,11 +37,8 @@ func NewClient(grpcClient kubewaitingcontainerpb.KubeWaitingContainersServiceCli
 // ListKubernetesWaitingContainers lists Kubernetes ephemeral
 // containers that are waiting to be created until moderated
 // session conditions are met.
-func (c *Client) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
-	resp, err := c.grpcClient.ListKubernetesWaitingContainers(ctx, &kubewaitingcontainerpb.ListKubernetesWaitingContainersRequest{
-		PageSize:  int32(pageSize),
-		PageToken: pageToken,
-	})
+func (c *Client) ListKubernetesWaitingContainers(ctx context.Context, req *kubewaitingcontainerpb.ListKubernetesWaitingContainersRequest) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
+	resp, err := c.grpcClient.ListKubernetesWaitingContainers(ctx, req)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

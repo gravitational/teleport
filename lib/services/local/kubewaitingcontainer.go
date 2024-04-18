@@ -62,13 +62,35 @@ func NewKubeWaitingContainerService(backend backend.Backend) (*KubeWaitingContai
 // ListKubernetesWaitingContainers lists Kubernetes ephemeral
 // containers that are waiting to be created until moderated
 // session conditions are met.
-func (k *KubeWaitingContainerService) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
-	out, nextToken, err := k.svc.ListResources(ctx, pageSize, pageToken)
+func (k *KubeWaitingContainerService) ListKubernetesWaitingContainers(ctx context.Context, req *kubewaitingcontainerpb.ListKubernetesWaitingContainersRequest) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
+	out, nextToken, err := k.svc.ListResources(ctx, int(req.PageSize), req.PageToken)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	return out, nextToken, nil
+	if req.Username == "" && req.Cluster == "" && req.Namespace == "" && req.PodName == "" {
+		return out, nextToken, nil
+	}
+
+	filtered := make([]*kubewaitingcontainerpb.KubernetesWaitingContainer, 0, len(out))
+	for _, cont := range out {
+		if req.Username != "" && req.Username != cont.Spec.Username {
+			continue
+		}
+		if req.Cluster != "" && req.Cluster != cont.Spec.Cluster {
+			continue
+		}
+		if req.Namespace != "" && req.Namespace != cont.Spec.Namespace {
+			continue
+		}
+		if req.PodName != "" && req.PodName != cont.Spec.PodName {
+			continue
+		}
+
+		filtered = append(filtered, cont)
+	}
+
+	return filtered, nextToken, nil
 }
 
 // GetKubernetesWaitingContainer returns a Kubernetes ephemeral

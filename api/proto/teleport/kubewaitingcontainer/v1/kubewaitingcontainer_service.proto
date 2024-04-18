@@ -40,12 +40,22 @@ service KubeWaitingContainersService {
 }
 
 // ListKubernetesWaitingContainersRequest is the request for ListKubernetesWaitingContainers.
+// The username, cluster, namespace and pod_name fields can optionally be used to filter
+// the returned Kubernetes ephemeral containers that are waiting to be created.
 message ListKubernetesWaitingContainersRequest {
   // The maximum number of items to return.
   // The server may impose a different page size at its discretion.
   int32 page_size = 1;
   // The next_page_token value returned from a previous ListFoo request, if any.
   string page_token = 2;
+  // username is the Teleport user that attempted to create the container
+  string username = 3;
+  // cluster is the Kubernetes cluster of this container
+  string cluster = 4;
+  // namespace is the Kubernetes namespace of this container
+  string namespace = 5;
+  // pod_name is the name of the parent pod
+  string pod_name = 6;
 }
 
 // ListKubernetesWaitingContainersResponse is the response for ListKubernetesWaitingContainers.
