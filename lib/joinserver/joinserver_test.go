@@ -45,6 +45,8 @@ type mockJoinServiceClient struct {
 	returnError               error
 	gotIAMChallengeResponse   *proto.RegisterUsingIAMMethodRequest
 	gotAzureChallengeResponse *proto.RegisterUsingAzureMethodRequest
+	gotTPMChallengeResponse   *proto.RegisterUsingTPMMethodChallengeResponse
+	gotTPMInitReq             *proto.RegisterUsingTPMMethodInitialRequest
 }
 
 func (c *mockJoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc) (*proto.Certs, error) {
@@ -62,6 +64,22 @@ func (c *mockJoinServiceClient) RegisterUsingAzureMethod(ctx context.Context, ch
 		return nil, trace.Wrap(err)
 	}
 	c.gotAzureChallengeResponse = resp
+	return c.returnCerts, c.returnError
+}
+
+func (c *mockJoinServiceClient) RegisterUsingTPMMethod(
+	ctx context.Context,
+	initReq *proto.RegisterUsingTPMMethodInitialRequest,
+	challengeResponse client.RegisterTPMChallengeResponseFunc,
+) (*proto.Certs, error) {
+	c.gotTPMInitReq = initReq
+	resp, err := challengeResponse(&proto.TPMEncryptedCredential{
+		Secret: []byte(c.sendChallenge),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.gotTPMChallengeResponse = resp
 	return c.returnCerts, c.returnError
 }
 
@@ -297,6 +315,123 @@ func TestJoinServiceGRPCServer_RegisterUsingAzureMethod(t *testing.T) {
 					expectedResponse := tc.challengeResponse
 					expectedResponse.RegisterUsingTokenRequest.RemoteAddr = "bufconn"
 					require.Equal(t, expectedResponse, testPack.mockAuthServer.gotAzureChallengeResponse)
+				})
+			}
+		})
+	}
+}
+
+func TestJoinServiceGRPCServer_RegisterUsingTPMMethod(t *testing.T) {
+	t.Parallel()
+	testPack := newTestPack(t)
+
+	testCases := []struct {
+		desc                 string
+		challenge            string
+		initReq              *proto.RegisterUsingTPMMethodInitialRequest
+		challengeResponse    *proto.RegisterUsingTPMMethodChallengeResponse
+		challengeResponseErr error
+		authErr              error
+		certs                *proto.Certs
+	}{
+		{
+			desc: "pass case",
+			initReq: &proto.RegisterUsingTPMMethodInitialRequest{
+				Ek: &proto.RegisterUsingTPMMethodInitialRequest_EkKey{
+					EkKey: []byte("llama"),
+				},
+				JoinRequest: &types.RegisterUsingTokenRequest{
+					Token: "xyzzy",
+				},
+			},
+			challenge: "foo",
+			challengeResponse: &proto.RegisterUsingTPMMethodChallengeResponse{
+				Solution: []byte("bar"),
+			},
+			certs: &proto.Certs{SSH: []byte("qux")},
+		},
+		{
+			desc: "auth error",
+			initReq: &proto.RegisterUsingTPMMethodInitialRequest{
+				Ek: &proto.RegisterUsingTPMMethodInitialRequest_EkKey{
+					EkKey: []byte("llama"),
+				},
+				JoinRequest: &types.RegisterUsingTokenRequest{
+					Token: "xyzzy",
+				},
+			},
+			challenge: "foo",
+			challengeResponse: &proto.RegisterUsingTPMMethodChallengeResponse{
+				Solution: []byte("bar"),
+			},
+			authErr: trace.AccessDenied("test auth error"),
+		},
+		{
+			desc: "challenge response error",
+			initReq: &proto.RegisterUsingTPMMethodInitialRequest{
+				Ek: &proto.RegisterUsingTPMMethodInitialRequest_EkKey{
+					EkKey: []byte("llama"),
+				},
+				JoinRequest: &types.RegisterUsingTokenRequest{
+					Token: "xyzzy",
+				},
+			},
+			challenge:            "foo",
+			challengeResponseErr: trace.BadParameter("test challenge error"),
+		},
+		{
+			desc: "missing join request",
+			initReq: &proto.RegisterUsingTPMMethodInitialRequest{
+				Ek: &proto.RegisterUsingTPMMethodInitialRequest_EkKey{
+					EkKey: []byte("llama"),
+				},
+				JoinRequest: nil,
+			},
+			challenge: "foo",
+			authErr: trace.BadParameter(
+				"expected JoinRequest in RegisterUsingTPMMethodRequest_Init, got nil",
+			),
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			testPack.mockAuthServer.sendChallenge = tc.challenge
+			testPack.mockAuthServer.returnCerts = tc.certs
+			testPack.mockAuthServer.returnError = tc.authErr
+			challengeResponder := func(
+				challenge *proto.TPMEncryptedCredential,
+			) (*proto.RegisterUsingTPMMethodChallengeResponse, error) {
+				require.Equal(t, &proto.TPMEncryptedCredential{
+					Secret: []byte(tc.challenge),
+				}, challenge)
+				return tc.challengeResponse, tc.challengeResponseErr
+			}
+
+			for suffix, clt := range map[string]*client.JoinServiceClient{
+				"_auth":  testPack.authClient,
+				"_proxy": testPack.proxyClient,
+			} {
+				t.Run(tc.desc+suffix, func(t *testing.T) {
+					certs, err := clt.RegisterUsingTPMMethod(
+						context.Background(), tc.initReq, challengeResponder,
+					)
+					if tc.challengeResponseErr != nil {
+						require.ErrorIs(t, err, tc.challengeResponseErr)
+						return
+					}
+					if tc.authErr != nil {
+						require.Contains(t, err.Error(), tc.authErr.Error())
+						return
+					}
+					require.NoError(t, err)
+					require.Equal(t, tc.certs, certs)
+					expectedInitReq := tc.initReq
+					expectedInitReq.JoinRequest.RemoteAddr = "bufconn"
+					require.Equal(
+						t,
+						expectedInitReq,
+						testPack.mockAuthServer.gotTPMInitReq,
+					)
 				})
 			}
 		})
