@@ -21,12 +21,14 @@ package accessrequest
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/types"
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -50,11 +52,24 @@ type App struct {
 	pluginData *pd.CompareAndSwap[PluginData]
 	bot        MessagingBot
 	job        lib.ServiceJob
+
+	accessMonitoringRules amrMap
+}
+
+type amrMap struct {
+	sync.RWMutex
+	rules map[string]*accessmonitoringrulesv1.AccessMonitoringRule
+}
+
+func newAMRMap() *amrMap {
+	return &amrMap{
+		rules: make(map[string]*accessmonitoringrulesv1.AccessMonitoringRule),
+	}
 }
 
 // NewApp will create a new access request application.
 func NewApp(bot MessagingBot) common.App {
-	app := &App{}
+	app := &App{accessMonitoringRules: *newAMRMap()}
 	app.job = lib.NewServiceJob(app.run)
 	return app
 }
@@ -111,7 +126,10 @@ func (a *App) run(ctx context.Context) error {
 	job, err := watcherjob.NewJob(
 		a.apiClient,
 		watcherjob.Config{
-			Watch:            types.Watch{Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}}},
+			Watch: types.Watch{Kinds: []types.WatchKind{
+				{Kind: types.KindAccessRequest},
+				{Kind: types.KindAccessMonitoringRule},
+			}},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
@@ -119,6 +137,19 @@ func (a *App) run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	amrs, err := a.getAllAccessMonitoringRules(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	a.accessMonitoringRules.Lock()
+	for _, amr := range amrs {
+		if !a.checkIfAMRIsRelevent(amr) {
+			continue
+		}
+		a.accessMonitoringRules.rules[amr.GetMetadata().Name] = amr
+	}
+	a.accessMonitoringRules.Unlock()
 
 	process.SpawnCriticalJob(job)
 
@@ -136,9 +167,25 @@ func (a *App) run(ctx context.Context) error {
 	return nil
 }
 
+func (a *App) checkIfAMRIsRelevent(amr *accessmonitoringrulesv1.AccessMonitoringRule) bool {
+	if amr.Spec.Notification.Name != a.pluginName {
+		return false
+	}
+	for _, subject := range amr.Spec.Subjects {
+		if subject == types.KindAccessRequest {
+			return true
+		}
+	}
+	return false
+}
+
 // onWatcherEvent is called for every cluster Event. It will filter out non-access-request events and
 // call onPendingRequest, onResolvedRequest and on DeletedRequest depending on the event.
 func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
+	if kind := event.Resource.GetKind(); kind == types.KindAccessMonitoringRule {
+		return trace.Wrap(a.handleAccessMonitoringRule(ctx, event))
+	}
+
 	if kind := event.Resource.GetKind(); kind != types.KindAccessRequest {
 		return trace.Errorf("unexpected kind %s", kind)
 	}
@@ -178,6 +225,39 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 		if err := a.onDeletedRequest(ctx, reqID); err != nil {
 			log.WithError(err).Errorf("Failed to process deleted request")
 			return trace.Wrap(err)
+		}
+		return nil
+	default:
+		return trace.BadParameter("unexpected event operation %s", op)
+	}
+}
+
+func (a *App) handleAccessMonitoringRule(ctx context.Context, event types.Event) error {
+	if kind := event.Resource.GetKind(); kind != types.KindAccessMonitoringRule {
+		return trace.Errorf("unexpected kind %s", kind)
+	}
+
+	req, ok := 	types.LegacyToResource153(event.Resource).(*accessmonitoringrulesv1.AccessMonitoringRule)
+	if !ok {
+		return trace.Errorf("unexpected resource type %T", event.Resource)
+	}
+
+	if !a.checkIfAMRIsRelevent(req) {
+		return nil
+	}
+
+	op := event.Type
+	switch op {
+	case types.OpPut:
+		a.accessMonitoringRules.Lock()
+		defer a.accessMonitoringRules.Unlock()
+		a.accessMonitoringRules.rules[req.Metadata.Name] = req
+		return nil
+	case types.OpDelete:
+		a.accessMonitoringRules.Lock()
+		defer a.accessMonitoringRules.Unlock()
+		if _, ok := a.accessMonitoringRules.rules[req.Metadata.Name]; ok {
+			delete(a.accessMonitoringRules.rules, req.Metadata.Name)
 		}
 		return nil
 	default:
@@ -345,6 +425,11 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	// This can happen if this set contains the channel `C` and the email for channel `C`.
 	recipientSet := common.NewRecipientSet()
 
+	recipients := a.recipientsFromAccessMonitoringRules(ctx, req)
+	for _, recipient := range recipients.ToSlice() {
+		recipientSet.Add(recipient)
+	}
+
 	switch a.pluginType {
 	case types.PluginTypeServiceNow:
 		// The ServiceNow plugin does not use recipients currently and create incidents in the incident table directly.
@@ -387,6 +472,40 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	}
 
 	return recipientSet.ToSlice()
+}
+
+func (a *App) recipientsFromAccessMonitoringRules(ctx context.Context, req types.AccessRequest) *common.RecipientSet {
+	log := logger.Get(ctx)
+	recipientSet := common.NewRecipientSet()
+
+	// This switch is used to determine which plugins we are enabling access monitoring notification rules for.
+	switch a.pluginType {
+	// Enabled plugins are added to this case.
+	case types.PluginTypeSlack, types.PluginTypeOpsgenie:
+		log.Debug("Applying access monitoring rules to request")
+	default:
+		return &recipientSet
+	}
+
+	a.accessMonitoringRules.RLock()
+	defer a.accessMonitoringRules.RUnlock()
+
+	for _, rule := range a.accessMonitoringRules.rules {
+		match, err := matchAccessRequest(rule.Spec.Condition, req)
+		if err != nil {
+			log.WithError(err).Warn("Failed to parse access monitoring notification rule")
+		}
+		if match {
+			for _, recipient := range rule.Spec.Notification.Recipients {
+				rec, err := a.bot.FetchRecipient(ctx, recipient)
+				if err != nil {
+					log.Warning(err)
+				}
+				recipientSet.Add(*rec)
+			}
+		}
+	}
+	return &recipientSet
 }
 
 // updateMessages updates the messages status and adds the resolve reason.
@@ -460,4 +579,24 @@ func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]
 		}
 	}
 	return resourceNames, nil
+}
+
+func (a *App) getAllAccessMonitoringRules(ctx context.Context) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
+	var resources []*accessmonitoringrulesv1.AccessMonitoringRule
+	var nextToken string
+	for {
+		var page []*accessmonitoringrulesv1.AccessMonitoringRule
+		var err error
+		page, nextToken, err = a.apiClient.ListAccessMonitoringRules(ctx, 0 /* page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+	return resources, nil
 }
