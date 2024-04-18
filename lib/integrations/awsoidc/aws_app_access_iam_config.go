@@ -22,11 +22,13 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 const (
@@ -69,7 +71,13 @@ type AWSAppAccessConfigureClient interface {
 
 // NewAWSAppAccessConfigureClient creates a new AWSAppAccessConfigureClient.
 func NewAWSAppAccessConfigureClient(ctx context.Context) (AWSAppAccessConfigureClient, error) {
-	cfg, err := config.LoadDefaultConfig(ctx)
+	var configOptions []func(*config.LoadOptions) error
+
+	if modules.GetModules().IsBoringBinary() {
+		configOptions = append(configOptions, config.WithUseFIPSEndpoint(aws.FIPSEndpointStateEnabled))
+	}
+
+	cfg, err := config.LoadDefaultConfig(ctx, configOptions...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
