@@ -459,7 +459,6 @@ jobs:
         env:
           RELEASE_CHANNEL: ${{ inputs.release-channel }}
           VERSION_CHANNEL: ${{ needs.deploy.outputs.component-version-channel }}
-          PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
         run: |
           # Install teleport based off of instructions from https://goteleport.com/docs/installation/#linux
           # This is designed to be changed as little as possible from the source
@@ -483,17 +482,19 @@ jobs:
 
           echo "Package files:"
           apt-file list "$PACKAGE_TO_TEST"
+
+      # do teleport package tests
       - name: Install the package
-        if: inputs.do-teleport-package-tests
+        if: inputs.do-teleport-package-tests && inputs.package-to-test != 'teleport-ent-updater'
         env:
           PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
         run: |
           sudo apt-get install -y "$PACKAGE_TO_TEST=$PACKAGE_VERSION"
       - name: Log Teleport version
-        if: inputs.do-teleport-package-tests
+        if: inputs.do-teleport-package-tests && inputs.package-to-test != 'teleport-ent-updater'
         run: teleport version
       - name: Verify installed Teleport version matches provided artifact version
-        if: inputs.do-teleport-package-tests
+        if: inputs.do-teleport-package-tests && inputs.package-to-test != 'teleport-ent-updater'
         env:
           ARTIFACT_TAG: ${{ inputs.artifact-tag }}
         run: |
@@ -502,6 +503,53 @@ jobs:
             echo "Installed version ($REPORTED_VERSION) does not match uploaded artifact version (${ARTIFACT_TAG#v})!!!"
             exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
           fi
+
+      # do teleport updater tests
+      - name: Set initial Teleport installation version
+        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        env:
+          # Arbitrary teleport version for initial teleport installation
+          TELEPORT_TAG: v13.4.0
+        run: echo "TELEPORT_VERSION=${TELEPORT_TAG#v}" >> "$GITHUB_ENV"
+      - name: Install the teleport and teleport updater packages
+        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        run: sudo apt-get install -y "teleport-ent=$TELEPORT_VERSION" "teleport-ent-updater=$PACKAGE_VERSION"
+      - name: Log Teleport version
+        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        run: teleport version
+      - name: Verify installed Teleport version matches provided artifact version
+        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        run: |
+          REPORTED_VERSION=$(teleport version --raw)
+          if [ "$REPORTED_VERSION" != "$TELEPORT_VERSION" ]; then
+            echo "Installed version ($REPORTED_VERSION) does not match uploaded artifact version ($TELEPORT_VERSION)!!!"
+            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
+          fi
+      - name: Test update
+        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        run: |
+          TARGET_VERSION=$(curl https://updates.releases.teleport.dev/v1/stable/cloud/version)
+          echo 'apt' > /etc/teleport-upgrade.d/installer
+          teleport-upgrade force
+          REPORTED_VERSION=$(teleport version --raw)
+          if [ "$REPORTED_VERSION" != "${TARGET_VERSION#v}" ]; then
+            echo "Reported version ($REPORTED_VERSION) does not match target version (${TARGET_VERSION#v})"
+            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
+          fi
+      - name: Test system update
+        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        run: |
+          BEFORE_UPGRADE=$(teleport version --raw)
+          # Perform a system update.
+          # The teleport version is expected to be locked
+          apt-mark hold teleport-ent-updater
+          apt-get upgrade -y
+          AFTER_UPGRADE=$(teleport version --raw)
+          if [ "$BEFORE_UPGRADE" != "$AFTER_UPGRADE" ]; then
+            echo "Before upgrade version ($BEFORE_UPGRADE) does not match after upgrade version ($AFTER_UPGRADE))"
+            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
+          fi
+
   yum-rhel-smoke-test:
     name: Test packages deployed to YUM repo on RHEL
     if: inputs.repo-type == 'yum' && inputs.package-to-test != ''
@@ -512,7 +560,7 @@ jobs:
       fail-fast: false
       matrix:
         # Multiple images are used to test for the ever recurring libc version issue
-        container-image: 
+        container-image:
           - centos:7
           # These are the closest we can easily get to rhel 7/8/9
           - registry.access.redhat.com/ubi7:7.9
@@ -568,7 +616,6 @@ jobs:
         env:
           RELEASE_CHANNEL: ${{ inputs.release-channel }}
           VERSION_CHANNEL: ${{ needs.deploy.outputs.component-version-channel }}
-          PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
         run: |
           # Install teleport based off of instructions from https://goteleport.com/docs/installation/#linux
           # This is designed to be changed as little as possible from the source
@@ -590,17 +637,19 @@ jobs:
 
           echo "Package files:"
           repoquery -l "$PACKAGE_TO_TEST-$PACKAGE_VERSION"
+
+      # do teleport package tests
       - name: Install the package
-        if: inputs.do-teleport-package-tests
+        if: inputs.do-teleport-package-tests && inputs.package-to-test != 'teleport-ent-updater'
         env:
           PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
         run: |
           sudo yum install -y "$PACKAGE_TO_TEST-$PACKAGE_VERSION"
       - name: Log Teleport version
-        if: inputs.do-teleport-package-tests
+        if: inputs.do-teleport-package-tests && inputs.package-to-test != 'teleport-ent-updater'
         run: teleport version
       - name: Verify installed Teleport version matches provided artifact version
-        if: inputs.do-teleport-package-tests
+        if: inputs.do-teleport-package-tests && inputs.package-to-test != 'teleport-ent-updater'
         env:
           ARTIFACT_TAG: ${{ inputs.artifact-tag }}
         run: |
@@ -609,6 +658,52 @@ jobs:
             echo "Installed version ($REPORTED_VERSION) does not match uploaded artifact version (${ARTIFACT_TAG#v})!!!"
             exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
           fi
+
+      # do teleport updater tests
+      - name: Set initial Teleport installation version
+        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        env:
+          # Arbitrary teleport version for initial teleport installation
+          TELEPORT_TAG: v13.4.0
+        run: echo "TELEPORT_VERSION=$(echo "${TELEPORT_TAG#v}" | sed 's/-/_/g')" >> "$GITHUB_ENV"
+      - name: Install the teleport and teleport updater packages
+        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        run: sudo yum install -y "teleport-ent-$TELEPORT_VERSION" "teleport-ent-updater-$PACKAGE_VERSION"
+      - name: Log Teleport version
+        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        run: teleport version
+      - name: Verify installed Teleport version matches provided artifact version
+        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        run: |
+          REPORTED_VERSION=$(teleport version --raw)
+          if [ "$REPORTED_VERSION" != "$TELEPORT_VERSION" ]; then
+            echo "Installed version ($REPORTED_VERSION) does not match uploaded artifact version ($TELEPORT_VERSION)!!!"
+            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
+          fi
+      - name: Test update
+        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        run: |
+          TARGET_VERSION=$(curl https://updates.releases.teleport.dev/v1/stable/cloud/version)
+          echo 'yum' > /etc/teleport-upgrade.d/installer
+          teleport-upgrade force
+          REPORTED_VERSION=$(teleport version --raw)
+          if [ "$REPORTED_VERSION" != "${TARGET_VERSION#v}" ]; then
+            echo "Reported version ($REPORTED_VERSION) does not match target version (${TARGET_VERSION#v})"
+            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
+          fi
+      - name: Test system update
+        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        run: |
+          BEFORE_UPGRADE=$(teleport version --raw)
+          # Perform a system update.
+          # The teleport version is expected to be locked
+          yum upgrade -y teleport-ent
+          AFTER_UPGRADE=$(teleport version --raw)
+          if [ "$BEFORE_UPGRADE" != "$AFTER_UPGRADE" ]; then
+            echo "Before upgrade version ($BEFORE_UPGRADE) does not match after upgrade version ($AFTER_UPGRADE))"
+            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
+          fi
+
   zypper-suse-smoke-test:
     name: Test packages deployed to Zypper repo on SUSE
     # Zypper changes are deployed via yum logic which is why the repo type checks for "yum" here
@@ -699,27 +794,87 @@ jobs:
           rm "$GPG_KEY_PATH"
 
           sudo zypper addrepo --refresh --repo $(rpm --eval "https://${ZYPPER_REPO_DOMAIN_NAME}/$ID/$VERSION_ID/Teleport/%{_arch}/$RELEASE_CHANNEL/$VERSION_CHANNEL/teleport-zypper.repo")
+
       - name: Log package cache information
         env:
           PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
         run: |
           zypper search -s "$PACKAGE_TO_TEST"
+
+      # do teleport package tests
       - name: Install the package
-        if: inputs.do-teleport-package-tests
+        if: inputs.do-teleport-package-tests && inputs.package-to-test != 'teleport-ent-updater'
         env:
           PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
         run: |
           sudo zypper install -y "$PACKAGE_TO_TEST=$PACKAGE_VERSION"
       - name: Log Teleport version
-        if: inputs.do-teleport-package-tests
+        if: inputs.do-teleport-package-tests && inputs.package-to-test != 'teleport-ent-updater'
         run: teleport version
       - name: Verify installed Teleport version matches provided artifact version
-        if: inputs.do-teleport-package-tests
+        if: inputs.do-teleport-package-tests && inputs.package-to-test != 'teleport-ent-updater'
         env:
           ARTIFACT_TAG: ${{ inputs.artifact-tag }}
         run: |
           REPORTED_VERSION=$(teleport version --raw)
           if [ "$REPORTED_VERSION" != "${ARTIFACT_TAG#v}" ]; then
             echo "Installed version ($REPORTED_VERSION) does not match uploaded artifact version (${ARTIFACT_TAG#v})!!!"
+            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
+          fi
+
+      # do teleport updater tests
+      - name: Install curl and awk dependencies
+        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        run: |
+          # Install teleport based off of instructions from https://goteleport.com/docs/installation/#linux
+          # This is designed to be changed as little as possible from the source
+          source /etc/os-release
+          VERSION_ID=$(echo $VERSION_ID | cut -d'.' -f1)
+          if [ "$VERSION_ID" == "12" ]; then
+            zypper addrepo --refresh http://download.opensuse.org/update/leap/15.4/sle/ sle
+          fi
+          zypper install -y curl gawk
+      - name: Set initial Teleport installation version
+        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        env:
+          # Arbitrary teleport version for initial teleport installation
+          TELEPORT_TAG: v13.4.0
+        run: echo "TELEPORT_VERSION=$(echo "${TELEPORT_TAG#v}" | sed 's/-/_/g')-1" >> "$GITHUB_ENV"
+      - name: Install the teleport and teleport updater packages
+        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        run: zypper install -y "teleport-ent-$TELEPORT_VERSION" "teleport-ent-updater-$PACKAGE_VERSION"
+      - name: Log Teleport version
+        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        run: teleport version
+      - name: Verify installed Teleport version matches provided artifact version
+        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        run: |
+          REPORTED_VERSION=$(teleport version --raw)-1
+          if [ "$REPORTED_VERSION" != "$TELEPORT_VERSION" ]; then
+            echo "Installed version ($REPORTED_VERSION) does not match uploaded artifact version ($TELEPORT_VERSION)!!!"
+            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
+          fi
+      - name: Test update
+        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        run: |
+          TARGET_VERSION=$(curl https://updates.releases.teleport.dev/v1/stable/cloud/version)
+          echo 'zypper' > /etc/teleport-upgrade.d/installer
+          teleport-upgrade force
+          REPORTED_VERSION=$(teleport version --raw)
+          if [ "$REPORTED_VERSION" != "${TARGET_VERSION#v}" ]; then
+            echo "Reported version ($REPORTED_VERSION) does not match target version (${TARGET_VERSION#v})"
+            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
+          fi
+      - name: Test system update
+        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        run: |
+          BEFORE_UPGRADE=$(teleport version --raw)
+          # Perform a system update.
+          # The teleport version is expected to be locked
+          zypper addlock teleport-ent-updater
+          zypper update -y
+          AFTER_UPGRADE=$(teleport version --raw)
+          if [ "$BEFORE_UPGRADE" != "$AFTER_UPGRADE" ]; then
+            echo "Before upgrade version ($BEFORE_UPGRADE) does not match after upgrade version ($AFTER_UPGRADE))"
             exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
           fi

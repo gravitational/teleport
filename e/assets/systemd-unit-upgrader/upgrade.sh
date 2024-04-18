@@ -4,6 +4,10 @@
 
 set -eu
 
-# reload systemd configuration and restart timer unit
-systemctl daemon-reload
-systemctl try-restart teleport-upgrade.timer
+# skip reload and restart when systemd is disabled. This is only relevant when
+# testing in a container.
+if systemctl status > /dev/null 2>&1; then
+    # reload systemd configuration and restart timer unit
+    systemctl daemon-reload
+    systemctl try-restart teleport-upgrade.timer
+fi

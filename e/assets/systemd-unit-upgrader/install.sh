@@ -4,12 +4,16 @@
 
 set -eu
 
-# reload systemd configuration and start/restart units
+# skip reload and restart when systemd is disabled. This is only relevant when
+# testing in a container.
+if systemctl status > /dev/null 2>&1; then
+    # reload systemd configuration and start/restart units
 
-systemctl daemon-reload
-# we should restart Teleport here but doing so while the installation is
-# potentially being done through Teleport would result in everything getting
-# summarily killed, so the best we can do is let the unhealthy schedule detector
-# trigger a restart at a later, potentially inopportune time.
-systemctl enable teleport-upgrade.timer
-systemctl start teleport-upgrade.timer
+    systemctl daemon-reload
+    # we should restart Teleport here but doing so while the installation is
+    # potentially being done through Teleport would result in everything getting
+    # summarily killed, so the best we can do is let the unhealthy schedule detector
+    # trigger a restart at a later, potentially inopportune time.
+    systemctl enable teleport-upgrade.timer
+    systemctl start teleport-upgrade.timer
+fi

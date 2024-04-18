@@ -19,6 +19,11 @@ agent_conf="${TELEPORT_AGENT_CONFIG:-/etc/teleport.yaml}"
 # to be used by tests for confirming the correct behavior of the installer.
 dry_run="yes"
 
+# running the teleport-upgrade command with force, will force a teleport upgrade.
+# this bypasses the schedule check and performs an upgrade. This is not recommended
+# and is only intended to be used for testing at the moment.
+force_run="no"
+
 cmd="${1:-none}"
 
 case "$cmd" in
@@ -32,6 +37,10 @@ case "$cmd" in
         echo "$self_version"
         exit 0
         ;;
+    force)
+        force_run="yes"
+        dry_run="no"
+        ;;
     help)
         cat <<EOF
 USAGE: $0 <command>
@@ -41,6 +50,7 @@ Tool for automatic upgrades of Teleport agents.
 Commands:
   run           check for and potentially apply a teleport upgrade.
   dry-run       check for new teleport version but do not upgrade.
+  force         performs an upgrade if an upgrade is available.
   version       print the current version of $0.
   help          show this help text.
 EOF
@@ -349,24 +359,28 @@ is_critical() {
 # do_reload_or_restart reloads or restarts teleport.service (depending on
 # restart_mode) if it's currently running.
 do_reload_or_restart() {
-    systemctl daemon-reload
-    # reload or restart the service if it's currently running
-    if [[ "$restart_mode" == "reload" ]]; then
-        log_info "gracefully restarting Teleport (if already running)"
-        # reload returns an error if the unit isn't active, and
-        # try-reload-or-restart is too recent of an addition for centos7
-        if systemctl is-active --quiet teleport.service; then
-            # we fall back to restart in case the reload fails, for example if
-            # the pidfile used for reloading is not valid; this can happen
-            # across the upgrade to the Teleport version that started locking
-            # the pidfile
-            systemctl reload teleport.service || systemctl try-restart teleport.service
+    # fail quietly when systemd is disabled. This is only relevant when testing
+    # in a container.
+    if systemctl status > /dev/null 2>&1; then
+        systemctl daemon-reload
+        # reload or restart the service if it's currently running
+        if [[ "$restart_mode" == "reload" ]]; then
+            log_info "gracefully restarting Teleport (if already running)"
+            # reload returns an error if the unit isn't active, and
+            # try-reload-or-restart is too recent of an addition for centos7
+            if systemctl is-active --quiet teleport.service; then
+                # we fall back to restart in case the reload fails, for example if
+                # the pidfile used for reloading is not valid; this can happen
+                # across the upgrade to the Teleport version that started locking
+                # the pidfile
+                systemctl reload teleport.service || systemctl try-restart teleport.service
+            fi
+        else
+            log_warn "ungracefully restarting Teleport (if already running), sessions will be ungracefully cut"
+            # restart will eventually terminate the whole cgroup and then start
+            # Teleport again
+            systemctl try-restart teleport.service
         fi
-    else
-        log_warn "ungracefully restarting Teleport (if already running), sessions will be ungracefully cut"
-        # restart will eventually terminate the whole cgroup and then start
-        # Teleport again
-        systemctl try-restart teleport.service
     fi
 }
 
@@ -495,6 +509,16 @@ else
 fi
 
 restart_mode="$(get_conf restart-mode reload)"
+
+# force run bypasses the schedule check and performs the update
+if [[ "$force_run" == "yes" ]]; then
+    if ! do_upgrade; then
+        log_warn "upgrade attempt failed for $package_name=$target_version."
+        exit 1 
+    fi
+    exit 0
+fi
+
 if is_critical; then
     restart_mode=restart
     log_info "upgrade is marked as critical, will be attempted without checking maintenance window."
