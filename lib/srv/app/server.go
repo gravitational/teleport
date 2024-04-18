@@ -991,7 +991,7 @@ func (s *Server) authorizeContext(ctx context.Context) (*authz.Context, types.Ap
 	// Fetch the application and check if the identity has access.
 	app, err := s.getApp(ctx, identity.RouteToApp.PublicAddr)
 	if err != nil {
-		return nil, nil, utils.OpaqueAccessDenied(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	authPref, err := s.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {

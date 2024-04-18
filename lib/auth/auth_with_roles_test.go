@@ -1893,7 +1893,7 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 
 	// Dev shouldn't be able to update prod database...
 	err = devClt.UpdateDatabase(ctx, adminDatabase)
-	require.True(t, trace.IsNotFound(err))
+	require.True(t, trace.IsAccessDenied(err))
 
 	// ... but can update dev database.
 	err = devClt.UpdateDatabase(ctx, devDatabase)
@@ -1902,12 +1902,12 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 	// Dev shouldn't be able to update labels on the prod database.
 	adminDatabase.SetStaticLabels(map[string]string{"env": "dev", types.OriginLabel: types.OriginDynamic})
 	err = devClt.UpdateDatabase(ctx, adminDatabase)
-	require.True(t, trace.IsNotFound(err))
+	require.True(t, trace.IsAccessDenied(err))
 	adminDatabase.SetStaticLabels(map[string]string{"env": "prod", types.OriginLabel: types.OriginDynamic}) // Reset.
 
 	// Dev shouldn't be able to get prod database...
 	_, err = devClt.GetDatabase(ctx, adminDatabase.GetName())
-	require.True(t, trace.IsNotFound(err))
+	require.True(t, trace.IsAccessDenied(err))
 
 	// ... but can get dev database.
 	db, err := devClt.GetDatabase(ctx, devDatabase.GetName())
@@ -1944,7 +1944,7 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 
 	// Dev shouldn't be able to delete dev database...
 	err = devClt.DeleteDatabase(ctx, adminDatabase.GetName())
-	require.True(t, trace.IsNotFound(err))
+	require.True(t, trace.IsAccessDenied(err))
 
 	// ... but can delete dev database.
 	err = devClt.DeleteDatabase(ctx, devDatabase.GetName())
@@ -1992,7 +1992,7 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 
 		t.Run("cannot create non-cloud database", func(t *testing.T) {
 			require.True(t, trace.IsAccessDenied(discoveryClt.CreateDatabase(ctx, devDatabase)))
-			require.True(t, trace.IsNotFound(discoveryClt.UpdateDatabase(ctx, adminDatabase)))
+			require.True(t, trace.IsAccessDenied(discoveryClt.UpdateDatabase(ctx, adminDatabase)))
 		})
 		t.Run("cannot create database with dynamic labels", func(t *testing.T) {
 			cloudDatabaseWithDynamicLabels, err := types.NewDatabaseV3(types.Metadata{
@@ -2092,7 +2092,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	})
 	t.Run("Update", func(t *testing.T) {
 		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksCluster))
-		require.True(t, trace.IsNotFound(discoveryClt.UpdateKubernetesCluster(ctx, nonCloudCluster)))
+		require.True(t, trace.IsAccessDenied(discoveryClt.UpdateKubernetesCluster(ctx, nonCloudCluster)))
 	})
 	t.Run("Delete", func(t *testing.T) {
 		require.NoError(t, discoveryClt.DeleteAllKubernetesClusters(ctx))
@@ -2690,7 +2690,7 @@ func TestApps(t *testing.T) {
 
 	// Dev shouldn't be able to update prod app...
 	err = devClt.UpdateApp(ctx, adminApp)
-	require.True(t, trace.IsNotFound(err))
+	require.True(t, trace.IsAccessDenied(err))
 
 	// ... but can update dev app.
 	err = devClt.UpdateApp(ctx, devApp)
@@ -2699,12 +2699,12 @@ func TestApps(t *testing.T) {
 	// Dev shouldn't be able to update labels on the prod app.
 	adminApp.SetStaticLabels(map[string]string{"env": "dev", types.OriginLabel: types.OriginDynamic})
 	err = devClt.UpdateApp(ctx, adminApp)
-	require.True(t, trace.IsNotFound(err))
+	require.True(t, trace.IsAccessDenied(err))
 	adminApp.SetStaticLabels(map[string]string{"env": "prod", types.OriginLabel: types.OriginDynamic}) // Reset.
 
 	// Dev shouldn't be able to get prod app...
 	_, err = devClt.GetApp(ctx, adminApp.GetName())
-	require.True(t, trace.IsNotFound(err))
+	require.True(t, trace.IsAccessDenied(err))
 
 	// ... but can get dev app.
 	app, err := devClt.GetApp(ctx, devApp.GetName())
@@ -2739,9 +2739,9 @@ func TestApps(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
-	// Dev shouldn't be able to delete admin app...
+	// Dev shouldn't be able to delete dev app...
 	err = devClt.DeleteApp(ctx, adminApp.GetName())
-	require.True(t, trace.IsNotFound(err))
+	require.True(t, trace.IsAccessDenied(err))
 
 	// ... but can delete dev app.
 	err = devClt.DeleteApp(ctx, devApp.GetName())

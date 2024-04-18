@@ -1299,11 +1299,15 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 	}
 	node, err := a.authServer.GetNode(ctx, namespace, name)
 	if err != nil {
-		return nil, utils.OpaqueAccessDenied(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if err := a.checkAccessToNode(node); err != nil {
-		return nil, utils.OpaqueAccessDenied(err)
+		if trace.IsAccessDenied(err) {
+			return nil, trace.NotFound("not found")
+		}
+
+		return nil, trace.Wrap(err)
 	}
 
 	return node, nil
@@ -5973,10 +5977,10 @@ func (a *ServerWithRoles) UpdateApp(ctx context.Context, app types.Application) 
 	// non-matching labels). Make sure to check existing app too.
 	existing, err := a.authServer.GetApp(ctx, app.GetName())
 	if err != nil {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 	if err := a.checkAccessToApp(existing); err != nil {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 	if err := a.checkAccessToApp(app); err != nil {
 		return trace.Wrap(err)
@@ -5991,10 +5995,10 @@ func (a *ServerWithRoles) GetApp(ctx context.Context, name string) (types.Applic
 	}
 	app, err := a.authServer.GetApp(ctx, name)
 	if err != nil {
-		return nil, utils.OpaqueAccessDenied(err)
+		return nil, trace.Wrap(err)
 	}
 	if err := a.checkAccessToApp(app); err != nil {
-		return nil, utils.OpaqueAccessDenied(err)
+		return nil, trace.Wrap(err)
 	}
 	return app, nil
 }
@@ -6025,10 +6029,10 @@ func (a *ServerWithRoles) DeleteApp(ctx context.Context, name string) error {
 	// Make sure user has access to the application before deleting.
 	app, err := a.authServer.GetApp(ctx, name)
 	if err != nil {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 	if err := a.checkAccessToApp(app); err != nil {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 	return trace.Wrap(a.authServer.DeleteApp(ctx, name))
 }
@@ -6079,10 +6083,10 @@ func (a *ServerWithRoles) UpdateKubernetesCluster(ctx context.Context, cluster t
 	// non-matching labels). Make sure to check existing cluster too.
 	existing, err := a.authServer.GetKubernetesCluster(ctx, cluster.GetName())
 	if err != nil {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 	if err := a.checkAccessToKubeCluster(existing); err != nil {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 	if err := a.checkAccessToKubeCluster(cluster); err != nil {
 		return trace.Wrap(err)
@@ -6101,10 +6105,10 @@ func (a *ServerWithRoles) GetKubernetesCluster(ctx context.Context, name string)
 	}
 	kubeCluster, err := a.authServer.GetKubernetesCluster(ctx, name)
 	if err != nil {
-		return nil, utils.OpaqueAccessDenied(err)
+		return nil, trace.Wrap(err)
 	}
 	if err := a.checkAccessToKubeCluster(kubeCluster); err != nil {
-		return nil, utils.OpaqueAccessDenied(err)
+		return nil, trace.Wrap(err)
 	}
 	return kubeCluster, nil
 }
@@ -6135,10 +6139,10 @@ func (a *ServerWithRoles) DeleteKubernetesCluster(ctx context.Context, name stri
 	// Make sure user has access to the kubernetes cluster before deleting.
 	cluster, err := a.authServer.GetKubernetesCluster(ctx, name)
 	if err != nil {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 	if err := a.checkAccessToKubeCluster(cluster); err != nil {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 	return trace.Wrap(a.authServer.DeleteKubernetesCluster(ctx, name))
 }
@@ -6217,10 +6221,10 @@ func (a *ServerWithRoles) UpdateDatabase(ctx context.Context, database types.Dat
 	// non-matching labels). Make sure to check existing database too.
 	existing, err := a.authServer.GetDatabase(ctx, database.GetName())
 	if err != nil {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 	if err := a.checkAccessToDatabase(existing); err != nil {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 	if err := a.checkAccessToDatabase(database); err != nil {
 		return trace.Wrap(err)
@@ -6239,10 +6243,10 @@ func (a *ServerWithRoles) GetDatabase(ctx context.Context, name string) (types.D
 	}
 	database, err := a.authServer.GetDatabase(ctx, name)
 	if err != nil {
-		return nil, utils.OpaqueAccessDenied(err)
+		return nil, trace.Wrap(err)
 	}
 	if err := a.checkAccessToDatabase(database); err != nil {
-		return nil, utils.OpaqueAccessDenied(err)
+		return nil, trace.Wrap(err)
 	}
 	return database, nil
 }
@@ -6273,10 +6277,10 @@ func (a *ServerWithRoles) DeleteDatabase(ctx context.Context, name string) error
 	// Make sure user has access to the database before deleting.
 	database, err := a.authServer.GetDatabase(ctx, name)
 	if err != nil {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 	if err := a.checkAccessToDatabase(database); err != nil {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 	return trace.Wrap(a.authServer.DeleteDatabase(ctx, name))
 }
@@ -6382,14 +6386,15 @@ func (a *ServerWithRoles) UpdateWindowsDesktop(ctx context.Context, s types.Wind
 	existing, err := a.authServer.GetWindowsDesktops(ctx,
 		types.WindowsDesktopFilter{HostID: s.GetHostID(), Name: s.GetName()})
 	if err != nil {
-		return utils.OpaqueAccessDeniedError()
+		return trace.Wrap(err)
 	}
 	if len(existing) == 0 {
-		return utils.OpaqueAccessDeniedError()
+		return trace.NotFound("no windows desktops with HostID %s and Name %s",
+			s.GetHostID(), s.GetName())
 	}
 
 	if err := a.checkAccessToWindowsDesktop(existing[0]); err != nil {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 	if err := a.checkAccessToWindowsDesktop(s); err != nil {
 		return trace.Wrap(err)
@@ -6415,10 +6420,10 @@ func (a *ServerWithRoles) UpsertWindowsDesktop(ctx context.Context, s types.Wind
 		types.WindowsDesktopFilter{HostID: s.GetHostID(), Name: s.GetName()})
 	if err == nil && len(existing) != 0 {
 		if err := a.checkAccessToWindowsDesktop(existing[0]); err != nil {
-			return utils.OpaqueAccessDenied(err)
+			return trace.Wrap(err)
 		}
 	} else if err != nil && !trace.IsNotFound(err) {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 
 	if err := a.checkAccessToWindowsDesktop(s); err != nil {
@@ -6438,13 +6443,14 @@ func (a *ServerWithRoles) DeleteWindowsDesktop(ctx context.Context, hostID, name
 	desktop, err := a.authServer.GetWindowsDesktops(ctx,
 		types.WindowsDesktopFilter{HostID: hostID, Name: name})
 	if err != nil {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 	if len(desktop) == 0 {
-		return utils.OpaqueAccessDeniedError()
+		return trace.NotFound("no windows desktops with HostID %s and Name %s",
+			hostID, name)
 	}
 	if err := a.checkAccessToWindowsDesktop(desktop[0]); err != nil {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteWindowsDesktop(ctx, hostID, name)
 }
@@ -7010,11 +7016,11 @@ func (a *ServerWithRoles) GetUserGroup(ctx context.Context, name string) (types.
 
 	userGroup, err := a.authServer.GetUserGroup(ctx, name)
 	if err != nil {
-		return nil, utils.OpaqueAccessDenied(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if err := a.checkAccessToUserGroup(userGroup); err != nil {
-		return nil, utils.OpaqueAccessDenied(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return userGroup, nil
@@ -7049,11 +7055,11 @@ func (a *ServerWithRoles) UpdateUserGroup(ctx context.Context, userGroup types.U
 
 	previousUserGroup, err := a.authServer.GetUserGroup(ctx, userGroup.GetName())
 	if err != nil {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 
 	if err := a.checkAccessToUserGroup(previousUserGroup); err != nil {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.UpdateUserGroup(ctx, userGroup)
@@ -7071,11 +7077,11 @@ func (a *ServerWithRoles) DeleteUserGroup(ctx context.Context, name string) erro
 
 	previousUserGroup, err := a.authServer.GetUserGroup(ctx, name)
 	if err != nil {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 
 	if err := a.checkAccessToUserGroup(previousUserGroup); err != nil {
-		return utils.OpaqueAccessDenied(err)
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.DeleteUserGroup(ctx, name)

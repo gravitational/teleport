@@ -143,7 +143,6 @@ func TestGetRemoteCluster(t *testing.T) {
 				Name: matchingRC.GetName(),
 			},
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				// Opaque no permission presents as not found
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -154,6 +153,7 @@ func TestGetRemoteCluster(t *testing.T) {
 				Name: notMatchingRC.GetName(),
 			},
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				// Opaque no permission presents as not found
 				require.True(t, trace.IsNotFound(err), "error should be not found")
 			},
 		},
@@ -175,7 +175,7 @@ func TestGetRemoteCluster(t *testing.T) {
 				Name: "non-existent",
 			},
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsNotFound(err), "error should be bad parameter")
+				require.True(t, trace.IsNotFound(err), "error should be not found")
 			},
 		},
 	}
@@ -184,14 +184,31 @@ func TestGetRemoteCluster(t *testing.T) {
 			client, err := srv.NewClient(auth.TestUser(tt.user))
 			require.NoError(t, err)
 
-			bot, err := client.PresenceServiceClient().GetRemoteCluster(ctx, tt.req)
+			rc, err := client.PresenceServiceClient().GetRemoteCluster(ctx, tt.req)
 			tt.assertError(t, err)
 			if tt.want != nil {
-				// Check that the returned bot matches
-				require.Empty(t, cmp.Diff(tt.want, bot, protocmp.Transform()))
+				// Check that the returned remote cluster matches
+				require.Empty(t, cmp.Diff(tt.want, rc, protocmp.Transform()))
 			}
 		})
 	}
+
+	t.Run("doesnt exist and no permissions errors match", func(t *testing.T) {
+		client, err := srv.NewClient(auth.TestUser(user.GetName()))
+		require.NoError(t, err)
+
+		_, doesntExistError := client.PresenceServiceClient().GetRemoteCluster(ctx, &presencev1pb.GetRemoteClusterRequest{
+			Name: "non-existent",
+		})
+		require.Error(t, doesntExistError)
+		_, noPermissionsError := client.PresenceServiceClient().GetRemoteCluster(ctx, &presencev1pb.GetRemoteClusterRequest{
+			Name: notMatchingRC.GetName(),
+		})
+		require.Error(t, noPermissionsError)
+
+		require.Equal(t, doesntExistError.Error(), noPermissionsError.Error(),
+			"the error returned when the rc doesn't exist or when the user has no permission to see it should be indistinguishable")
+	})
 }
 
 // TestListRemoteClusters is an integration test that uses a real gRPC

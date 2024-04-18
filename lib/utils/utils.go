@@ -414,19 +414,12 @@ func IsCertExpiredError(err error) bool {
 	return strings.Contains(trace.Unwrap(err).Error(), "ssh: cert has expired")
 }
 
-// OpaqueAccessDeniedError returns a generic NotFound error that should be
-// returned instead of a specific NotFound or AccessDenied so as to avoid
-// leaking the existence of secret resources.
-func OpaqueAccessDeniedError() error {
-	return trace.NotFound("not found")
-}
-
 // OpaqueAccessDenied returns a generic NotFound error if [err] is a NotFound or
 // AccessDenied error so as to avoid leaking the existence of secret resources,
 // for other error types it returns the original error.
 func OpaqueAccessDenied(err error) error {
 	if trace.IsNotFound(err) || trace.IsAccessDenied(err) {
-		return OpaqueAccessDeniedError()
+		return trace.NotFound("not found")
 	}
 	return trace.Wrap(err)
 }
