@@ -159,7 +159,7 @@ func (s *TerraformSuite) TestImportOktaImportRule() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(s.T(), state[0].Attributes["kind"], "okta_import_rule")
+					require.Equal(s.T(), "okta_import_rule", state[0].Attributes["kind"])
 
 					return nil
 				},

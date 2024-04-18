@@ -206,9 +206,7 @@ func setupClient(t *testing.T, clientCA, serverCA *tlsca.CertAuthority, role typ
 	})
 	require.NoError(t, err)
 
-	t.Cleanup(func() {
-		client.Shutdown()
-	})
+	t.Cleanup(func() { client.Stop() })
 
 	return client
 }
@@ -264,11 +262,7 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 	return server, ts
 }
 
-func sendMsg(t *testing.T, stream clientapi.ProxyService_DialNodeClient) {
-	err := stream.Send(&clientapi.Frame{
-		Message: &clientapi.Frame_Data{
-			Data: &clientapi.Data{Bytes: []byte("ping")},
-		},
-	})
+func sendMsg(t *testing.T, stream frameStream) {
+	err := stream.Send([]byte("ping"))
 	require.NoError(t, err)
 }
