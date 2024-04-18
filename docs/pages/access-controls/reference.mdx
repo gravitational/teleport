@@ -576,7 +576,7 @@ Regular expressions support both glob-style wildcards (the `*` character) and
 [Go-style regular expressions](https://pkg.go.dev/regexp). If an expression
 begins with the `^` character and ends with the `$` character, Teleport will
 evaluate it as a regular expression. Otherwise, it will evaluate it as a
-wildcard expression.  Wildcards match a sequence of one or more characters.
+wildcard expression. Wildcards match any sequence of zero or more characters.
 
 #### Variables
 
@@ -602,5 +602,3 @@ guide for a more in depth explanation of the language.
 
 Refer to the [Second Factor - WebAuthn](./guides/webauthn.mdx#u2f) guide if you
 have a cluster using the legacy U2F support.
-
-

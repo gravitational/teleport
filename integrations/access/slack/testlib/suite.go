@@ -20,6 +20,7 @@ package testlib
 
 import (
 	"context"
+	"fmt"
 	"runtime"
 	"sort"
 	"strings"
@@ -249,7 +250,7 @@ func (s *SlackSuiteOSS) TestApproval() {
 
 	s.startApp()
 
-	// Test setup: we create an access request and wait for its Discord message
+	// Test setup: we create an access request and wait for its Slack message
 	userName := integration.RequesterOSSUserName
 	req := s.CreateAccessRequest(ctx, userName, []string{s.reviewer1SlackUser.Profile.Email})
 	msgs := s.checkNewMessages(t, ctx, channelsToMessages(s.requesterOSSSlackUser.ID, s.reviewer1SlackUser.ID), matchOnlyOnChannel)
@@ -264,6 +265,12 @@ func (s *SlackSuiteOSS) TestApproval() {
 		require.NoError(t, err)
 		assert.Equal(t, "*Status*: ✅ APPROVED\n*Resolution reason*: ```\nokay```", statusLine)
 	})
+
+	s.checkNewMessages(t, ctx, channelsToMessages(s.requesterOSSSlackUser.ID), matchOnlyOnChannel, func(t *testing.T, m slack.Message) {
+		line := fmt.Sprintf("Request with ID %q has been updated: *%s*", req.GetName(), types.RequestState_APPROVED.String())
+		assert.Equal(t, line, m.BlockItems[0].Block.(slack.SectionBlock).Text.GetText())
+	})
+
 }
 
 // TestDenial tests that when a request is denied, its corresponding message

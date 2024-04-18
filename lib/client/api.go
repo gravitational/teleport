@@ -2528,10 +2528,6 @@ func (tc *TeleportClient) CreateAppSession(ctx context.Context, req *proto.Creat
 		return nil, trace.Wrap(err)
 	}
 
-	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), rootAuthClient)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return ws, nil
 }
 
