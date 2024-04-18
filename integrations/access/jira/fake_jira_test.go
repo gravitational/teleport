@@ -101,6 +101,7 @@ func NewFakeJira(author UserDetails, concurrency int) *FakeJira {
 			Fields: IssueFields{
 				Summary:     issueInput.Fields.Summary,
 				Description: issueInput.Fields.Description,
+				Type:        *issueInput.Fields.Type,
 			},
 			Properties: make(map[string]interface{}),
 		}
