@@ -144,12 +144,13 @@ func (c *JoinServiceClient) RegisterUsingTPMMethod(
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	tpmJoinClient, err := c.grpcClient.RegisterUsingTPMMethod(ctx)
+	stream, err := c.grpcClient.RegisterUsingTPMMethod(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer stream.CloseSend()
 
-	err = tpmJoinClient.Send(&proto.RegisterUsingTPMMethodRequest{
+	err = stream.Send(&proto.RegisterUsingTPMMethodRequest{
 		Payload: &proto.RegisterUsingTPMMethodRequest_Init{
 			Init: initReq,
 		},
@@ -158,25 +159,25 @@ func (c *JoinServiceClient) RegisterUsingTPMMethod(
 		return nil, trace.Wrap(err, "sending initial request")
 	}
 
-	challengeResp, err := tpmJoinClient.Recv()
+	res, err := stream.Recv()
 	if err != nil {
 		return nil, trace.Wrap(err, "receiving challenge")
 	}
 
-	challenge, ok := challengeResp.Payload.(*proto.RegisterUsingTPMMethodResponse_ChallengeRequest)
-	if !ok {
+	challenge := res.GetChallengeRequest()
+	if challenge == nil {
 		return nil, trace.BadParameter(
-			"unexpected payload type %T, expected *RegisterUsingTPMMethodResponse_ChallengeRequest",
-			challengeResp.Payload,
+			"expected ChallengeRequest payload, got %T",
+			res.Payload,
 		)
 	}
 
-	solution, err := solveChallenge(challenge.ChallengeRequest)
+	solution, err := solveChallenge(challenge)
 	if err != nil {
 		return nil, trace.Wrap(err, "solving challenge")
 	}
 
-	err = tpmJoinClient.Send(&proto.RegisterUsingTPMMethodRequest{
+	err = stream.Send(&proto.RegisterUsingTPMMethodRequest{
 		Payload: &proto.RegisterUsingTPMMethodRequest_ChallengeResponse{
 			ChallengeResponse: solution,
 		},
@@ -185,17 +186,17 @@ func (c *JoinServiceClient) RegisterUsingTPMMethod(
 		return nil, trace.Wrap(err, "sending solution")
 	}
 
-	certsResp, err := tpmJoinClient.Recv()
+	res, err = stream.Recv()
 	if err != nil {
 		return nil, trace.Wrap(err, "receiving certs")
 	}
-	certs, ok := certsResp.Payload.(*proto.RegisterUsingTPMMethodResponse_Certs)
-	if !ok {
+	certs := res.GetCerts()
+	if certs == nil {
 		return nil, trace.BadParameter(
-			"unexpected payload type %T, expected *RegisterUsingTPMMethodResponse_Certs",
-			certsResp.Payload,
+			"expected Certs payload, got %T",
+			res.Payload,
 		)
 	}
 
-	return certs.Certs, nil
+	return certs, nil
 }
