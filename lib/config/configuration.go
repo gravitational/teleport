@@ -277,8 +277,8 @@ type IntegrationConfEICEIAM struct {
 // IntegrationConfAWSAppAccessIAM contains the arguments of
 // `teleport integration configure aws-app-access-iam` command
 type IntegrationConfAWSAppAccessIAM struct {
-	// Role is the AWS Role associated with the Integration
-	Role string
+	// RoleName is the AWS Role associated with the Integration
+	RoleName string
 }
 
 // IntegrationConfEKSIAM contains the arguments of
