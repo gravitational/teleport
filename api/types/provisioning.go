@@ -342,7 +342,7 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 				JoinMethodTPM,
 			)
 		}
-		if err := providerCfg.checkAndSetDefaults(); err != nil {
+		if err := providerCfg.validate(); err != nil {
 			return trace.Wrap(err, "spec.tpm: failed validation")
 		}
 	default:
@@ -772,7 +772,7 @@ func (a *ProvisionTokenSpecV2Spacelift) checkAndSetDefaults() error {
 	return nil
 }
 
-func (a *ProvisionTokenSpecV2TPM) checkAndSetDefaults() error {
+func (a *ProvisionTokenSpecV2TPM) validate() error {
 	for i, caData := range a.EKCertAllowedCAs {
 		p, _ := pem.Decode([]byte(caData))
 		if p == nil {
