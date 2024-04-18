@@ -173,7 +173,7 @@ func (c *JoinServiceClient) RegisterUsingTPMMethod(
 
 	solution, err := solveChallenge(challenge.ChallengeRequest)
 	if err != nil {
-		return nil, trace.Wrap(err, "calling solveChallenge")
+		return nil, trace.Wrap(err, "solving challenge")
 	}
 
 	err = tpmJoinClient.Send(&proto.RegisterUsingTPMMethodRequest{
