@@ -2987,6 +2987,8 @@ func showDatabasesAsText(cf *CLIConf, w io.Writer, databases []types.Database, a
 		rows:    rows,
 		verbose: verbose,
 	})
+
+	maybeShowListDatabasesHint(cf, w, len(rows))
 }
 
 func printDatabasesWithClusters(cf *CLIConf, dbListings []databaseListing, active []tlsca.RouteToDatabase) {
@@ -3007,6 +3009,8 @@ func printDatabasesWithClusters(cf *CLIConf, dbListings []databaseListing, activ
 		showProxyAndCluster: true,
 		verbose:             cf.Verbose,
 	})
+
+	maybeShowListDatabasesHint(cf, cf.Stdout(), len(rows))
 }
 
 func formatActiveDB(active tlsca.RouteToDatabase, displayName string) string {
