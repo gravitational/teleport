@@ -65,6 +65,10 @@ func (s *Storage) CurrentClusterURI() (uri.ResourceURI, error) {
 	proxyHost, err := profileStore.CurrentProfile()
 
 	if err != nil {
+		if trace.IsNotFound(err) {
+			return uri.ResourceURI{}, nil
+		}
+
 		return uri.ResourceURI{}, trace.Wrap(err)
 	}
 
