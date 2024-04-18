@@ -4606,6 +4606,9 @@ func TestGetWebConfig_IGSFeatureLimits(t *testing.T) {
 			AccessMonitoring: modules.AccessMonitoringFeature{
 				MaxReportRangeLimit: 10,
 			},
+			IsUsageBasedBilling: true,
+			IsStripeManaged:     true,
+			Questionnaire:       true,
 		},
 	})
 
@@ -4622,10 +4625,11 @@ func TestGetWebConfig_IGSFeatureLimits(t *testing.T) {
 			AccessListCreateLimit:               5,
 			AccessMonitoringMaxReportRangeLimit: 10,
 		},
-		IsTeam:          true,
-		IsIGSEnabled:    true,
-		IsStripeManaged: true,
-		Questionnaire:   true,
+		IsTeam:              true,
+		IsIGSEnabled:        true,
+		IsStripeManaged:     true,
+		Questionnaire:       true,
+		IsUsageBasedBilling: true,
 	}
 
 	// Make a request.
