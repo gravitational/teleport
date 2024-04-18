@@ -1476,7 +1476,7 @@ func (appSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets 
 		}
 
 		if !loadSecrets {
-			for i := range webSessions {
+			for i := 0; i < len(webSessions); i++ {
 				webSessions[i] = webSessions[i].WithoutSecrets()
 			}
 		}
@@ -1530,7 +1530,7 @@ func (snowflakeSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSe
 	}
 
 	if !loadSecrets {
-		for i := range webSessions {
+		for i := 0; i < len(webSessions); i++ {
 			webSessions[i] = webSessions[i].WithoutSecrets()
 		}
 	}
@@ -1582,7 +1582,7 @@ func (samlIdPSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSecr
 		}
 
 		if !loadSecrets {
-			for i := range webSessions {
+			for i := 0; i < len(webSessions); i++ {
 				webSessions[i] = webSessions[i].WithoutSecrets()
 			}
 		}
@@ -1635,7 +1635,7 @@ func (webSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets 
 	}
 
 	if !loadSecrets {
-		for i := range webSessions {
+		for i := 0; i < len(webSessions); i++ {
 			webSessions[i] = webSessions[i].WithoutSecrets()
 		}
 	}
