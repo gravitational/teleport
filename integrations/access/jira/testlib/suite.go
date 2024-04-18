@@ -195,6 +195,24 @@ func (s *JiraSuiteOSS) TestIssueCreationWithLargeRequestReason() {
 	s.SetReasonPadding(0)
 }
 
+// TestCustomIssueType tests that requests can use a custom issue type.
+func (s *JiraSuiteOSS) TestCustomIssueType() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	s.appConfig.Jira.IssueType = "Story"
+	s.startApp()
+
+	// Test setup: we create an access request
+	_ = s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, nil)
+
+	// We validate that the issue was created using the Issue Type "Story"
+	newIssue, err := s.fakeJira.CheckNewIssue(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "Story", newIssue.Fields.Type.Name)
+}
+
 // TestReviewComments tests that comments are posted for each access request
 // review.
 func (s *JiraSuiteEnterprise) TestReviewComments() {

@@ -132,11 +132,11 @@ func (s *TerraformSuite) TestImportOIDCConnector() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(s.T(), state[0].Attributes["kind"], "oidc")
-					require.Equal(s.T(), state[0].Attributes["spec.client_id"], "Iv1.3386eee92ff932a4")
-					require.Equal(s.T(), state[0].Attributes["spec.claims_to_roles.0.claim"], "test")
-					require.Equal(s.T(), state[0].Attributes["spec.claims_to_roles.0.roles.0"], "terraform")
-					require.Equal(s.T(), state[0].Attributes["spec.max_age"], "5m0s")
+					require.Equal(s.T(), "oidc", state[0].Attributes["kind"])
+					require.Equal(s.T(), "Iv1.3386eee92ff932a4", state[0].Attributes["spec.client_id"])
+					require.Equal(s.T(), "test", state[0].Attributes["spec.claims_to_roles.0.claim"])
+					require.Equal(s.T(), "terraform", state[0].Attributes["spec.claims_to_roles.0.roles.0"])
+					require.Equal(s.T(), "5m0s", state[0].Attributes["spec.max_age"])
 
 					return nil
 				},
@@ -234,11 +234,11 @@ func (s *TerraformSuite) TestImportOIDCConnectorWithoutMaxAge() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(s.T(), state[0].Attributes["kind"], "oidc")
-					require.Equal(s.T(), state[0].Attributes["spec.client_id"], "Iv1.3386eee92ff932a4")
-					require.Equal(s.T(), state[0].Attributes["spec.claims_to_roles.0.claim"], "test")
-					require.Equal(s.T(), state[0].Attributes["spec.claims_to_roles.0.roles.0"], "terraform")
-					require.NotContains(s.T(), state[0].Attributes, "spec.max_age")
+					require.Equal(s.T(), "oidc", state[0].Attributes["kind"])
+					require.Equal(s.T(), "Iv1.3386eee92ff932a4", state[0].Attributes["spec.client_id"])
+					require.Equal(s.T(), "test", state[0].Attributes["spec.claims_to_roles.0.claim"])
+					require.Equal(s.T(), "terraform", state[0].Attributes["spec.claims_to_roles.0.roles.0"])
+					require.NotContains(s.T(), "spec.max_age", state[0].Attributes)
 
 					return nil
 				},

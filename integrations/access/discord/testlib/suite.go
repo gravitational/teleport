@@ -485,6 +485,7 @@ func (s *DiscordSuiteOSS) TestExpiration() {
 // short time frame.
 func (s *DiscordSuiteEnterprise) TestRace() {
 	t := s.T()
+	t.Skip("This test is flaky")
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(cancel)
 

@@ -103,8 +103,8 @@ func (s *TerraformSuite) TestImportClusterNetworkingConfig() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(s.T(), state[0].Attributes["kind"], "cluster_networking_config")
-					require.Equal(s.T(), state[0].Attributes["spec.client_idle_timeout"], "30s")
+					require.Equal(s.T(), "cluster_networking_config", state[0].Attributes["kind"])
+					require.Equal(s.T(), "30s", state[0].Attributes["spec.client_idle_timeout"])
 
 					return nil
 				},

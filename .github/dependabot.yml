@@ -31,6 +31,7 @@ updates:
       - codingllama
       - rosstimothy
       - zmb3
+      - hugoshaka
     labels:
       - "dependencies"
       - "go"
@@ -52,6 +53,7 @@ updates:
       - codingllama
       - rosstimothy
       - zmb3
+      - hugoshaka
     labels:
       - "dependencies"
       - "go"
@@ -137,8 +139,8 @@ updates:
     ignore:
       # breaks compatibility
       - dependency-name: github.com/hashicorp/terraform-plugin-framework
-      # breaks compatibility
       - dependency-name: github.com/hashicorp/terraform-plugin-go
+      - dependency-name: github.com/hashicorp/terraform-plugin-sdk/v2
     open-pull-requests-limit: 20
     groups:
       go:
