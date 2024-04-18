@@ -792,7 +792,7 @@ func registerUsingTPMMethod(
 		log.DebugContext(
 			ctx,
 			"Using EKCert for TPM registration",
-			slog.String("ekcert_serial", attestation.Data.EKCert.SerialNumber),
+			"ekcert_serial", attestation.Data.EKCert.SerialNumber,
 		)
 		initReq.Ek = &proto.RegisterUsingTPMMethodInitialRequest_EkCert{
 			EkCert: attestation.Data.EKCert.Raw,
