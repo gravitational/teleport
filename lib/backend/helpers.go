@@ -178,7 +178,7 @@ func (c *RunWhileLockedConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	if c.ReleaseCtxTimeout <= 0 {
-		c.ReleaseCtxTimeout = 300 * time.Millisecond
+		c.ReleaseCtxTimeout = time.Second
 	}
 	if c.RefreshLockInterval <= 0 {
 		c.RefreshLockInterval = c.LockConfiguration.TTL / 2
