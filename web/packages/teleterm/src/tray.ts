@@ -67,15 +67,19 @@ async function buildTray(
       click: () => browserWindow.show(),
     },
     profiles,
-    vnet,
-    { type: 'separator' },
-    {
-      label: 'Local proxies',
-      type: 'normal',
-      enabled: false,
-    },
-    ...gatewayMenuItems,
-    { type: 'separator' },
+    profiles.label !== 'Not logged in' ? vnet : { type: 'separator' },
+    ...(gatewayMenuItems.length
+      ? ([
+          { type: 'separator' },
+          {
+            label: 'Local proxies',
+            type: 'normal',
+            enabled: false,
+          },
+          ...gatewayMenuItems,
+          { type: 'separator' },
+        ] as MenuItemConstructorOptions[])
+      : []),
     { label: 'Quit', type: 'normal', role: 'quit' },
   ]);
   tray.setContextMenu(contextMenu);
@@ -150,6 +154,16 @@ const getProfiles = async (
   const currentCluster = rootClusters.find(
     c => c.uri === currentRootClusterUri
   );
+
+  if (!currentCluster) {
+    return {
+      label: 'Not logged in',
+      icon: nativeImage
+        .createFromNamedImage('NSImageNameUser')
+        .resize({ width: 16 }),
+      enabled: false,
+    };
+  }
 
   return {
     label: maybeUserAtProxyHost(currentCluster),
