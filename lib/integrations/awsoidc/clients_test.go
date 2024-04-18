@@ -36,4 +36,13 @@ func TestCheckAndSetDefaults(t *testing.T) {
 
 		require.True(t, trace.IsBadParameter(err))
 	})
+	t.Run("valid region", func(t *testing.T) {
+		err := (&AWSClientRequest{
+			IntegrationName: "my-integration",
+			Token:           "token",
+			RoleARN:         "some-arn",
+			Region:          "us-east-1",
+		}).CheckAndSetDefaults()
+		require.NoError(t, err)
+	})
 }
