@@ -807,7 +807,7 @@ func registerUsingTPMMethod(
 		log.DebugContext(
 			ctx,
 			"Using EKKey for TPM registration",
-			slog.String("ekpub_hash", attestation.Data.EKPubHash),
+			"ekpub_hash", attestation.Data.EKPubHash,
 		)
 		initReq.Ek = &proto.RegisterUsingTPMMethodInitialRequest_EkKey{
 			EkKey: attestation.Data.EKPub,
