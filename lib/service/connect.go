@@ -463,7 +463,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			}
 		}
 
-		certs, err := auth.Register(registerParams)
+		certs, err := auth.Register(process.ExitContext(), registerParams)
 		if err != nil {
 			if utils.IsUntrustedCertErr(err) {
 				return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)

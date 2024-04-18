@@ -435,7 +435,7 @@ func botIdentityFromToken(ctx context.Context, log logrus.FieldLogger, cfg *conf
 		}
 	}
 
-	certs, err := auth.Register(params)
+	certs, err := auth.Register(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
