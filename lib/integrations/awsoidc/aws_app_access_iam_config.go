@@ -72,7 +72,7 @@ type defaultAWSAppAccessConfigureClient struct {
 }
 
 // NewAWSAppAccessConfigureClient creates a new AWSAppAccessConfigureClient.
-func NewAWSAppAccessConfigureClient(ctx context.Context) (*defaultAWSAppAccessConfigureClient, error) {
+func NewAWSAppAccessConfigureClient(ctx context.Context) (AWSAppAccessConfigureClient, error) {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
