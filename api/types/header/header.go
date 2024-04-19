@@ -23,7 +23,13 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/common"
+	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
+)
+
+var (
+	_ compare.IsEqual[*ResourceHeader] = (*ResourceHeader)(nil)
+	_ compare.IsEqual[*Metadata]       = (*Metadata)(nil)
 )
 
 func ResourceHeaderFromMetadata(metadata Metadata) ResourceHeader {
