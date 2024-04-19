@@ -23,7 +23,6 @@ import (
 	"crypto"
 	"crypto/subtle"
 	"crypto/x509"
-	"encoding/asn1"
 	"log/slog"
 
 	"github.com/google/go-attestation/attest"
@@ -173,8 +172,6 @@ func parseEK(
 	}
 }
 
-var sanExtensionOID = []int{2, 5, 29, 17}
-
 func verifyEKCert(
 	ctx context.Context,
 	allowedCAs *x509.CertPool,
@@ -187,19 +184,7 @@ func verifyEKCert(
 		return trace.BadParameter("tpm did not provide an EKCert to validate against allowed CAs")
 	}
 
-	// EKCerts often include some additional data bundled within the SAN
-	// extension. This ext is also sometimes marked critical. This causes
-	// the Verify() to reject the cert because not all data within a
-	// critical extension has been handled. We mark this as OK here by
-	// stripping the SAN Extension OID out of UnhandledCriticalExtensions.
-	var exts []asn1.ObjectIdentifier
-	for _, ext := range ekCert.UnhandledCriticalExtensions {
-		if ext.Equal(sanExtensionOID) {
-			continue
-		}
-		exts = append(exts, ext)
-	}
-	ekCert.UnhandledCriticalExtensions = exts
+	StripSANExtensionOIDs(ekCert)
 
 	// Validate EKCert against CA pool
 	_, err := ekCert.Verify(x509.VerifyOptions{
@@ -215,4 +200,29 @@ func verifyEKCert(
 		return trace.Wrap(err, "verifying EK cert")
 	}
 	return nil
+}
+
+var sanExtensionOID = []int{2, 5, 29, 17}
+
+// StripSANExtensionOIDs removes the SAN Extension OID from the specified
+// cert.
+//
+// This is necessary because the EKCert may contain additional data
+// bundled within the SAN extension. This ext is also sometimes marked
+// critical. This causes the Verify() to reject the cert because not all data
+// within a critical extension has been handled. We mark this as OK here by
+// stripping the SAN Extension OID out of UnhandledCriticalExtensions.
+func StripSANExtensionOIDs(cert *x509.Certificate) {
+	for i := 0; i < len(cert.UnhandledCriticalExtensions); i++ {
+		ext := cert.UnhandledCriticalExtensions[i]
+		if !ext.Equal(sanExtensionOID) {
+			continue
+		}
+		// Swap ext with the last index and remove it.
+		last := len(cert.UnhandledCriticalExtensions) - 1
+		cert.UnhandledCriticalExtensions[i] = cert.UnhandledCriticalExtensions[last]
+		cert.UnhandledCriticalExtensions[last] = nil // "Release" extension
+		cert.UnhandledCriticalExtensions = cert.UnhandledCriticalExtensions[:last-1]
+		i--
+	}
 }
