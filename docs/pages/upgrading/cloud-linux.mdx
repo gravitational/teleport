@@ -164,9 +164,7 @@ automatic updates:
    $ sudo systemctl status teleport-upgrade
    ```
 
-## FAQ
-
-### Version locking
+## Version locking
 
 As of Teleport `15.1.10+`, a version locking mechanism is enabled by the updater.
 This mechanism locks the version of Teleport and prevents manual updates of the Teleport
@@ -199,7 +197,7 @@ $ zypper install --repo="teleport" "teleport-ent-<target-version>"
 $ zypper addlock "teleport-ent"
 ```
 
-### Updating the updater
+## Updating the updater
 
 The updater is designed to be minimal and relatively stable, but the updater will
 receive updates on occasion. Currently, the updater does not have the capability
