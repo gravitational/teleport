@@ -1169,7 +1169,7 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
         autologon: true,
         pointer_software_rendering: false,
         performance_flags: PerformanceFlags::default()
-            | PerformanceFlags::DISABLE_CURSOR_SHADOW
+            | PerformanceFlags::DISABLE_CURSOR_SHADOW // this is required for pointer to work correctly in Windows 2019 
             | if !params.show_desktop_wallpaper {
                 PerformanceFlags::DISABLE_WALLPAPER
             } else {
