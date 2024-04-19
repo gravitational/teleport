@@ -78,6 +78,13 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 		return trace.BadParameter("accessMonitoringRule subject is missing")
 	}
 
+	if accessMonitoringRule.Spec.Condition == "" {
+		return trace.BadParameter("accessMonitoringRule condition is missing")
+	}
+
+	if accessMonitoringRule.Spec.Notification != nil && accessMonitoringRule.Spec.Notification.Name == "" {
+		return trace.BadParameter("accessMonitoringRule notification plugin name is missing")
+	}
 	return nil
 }
 
