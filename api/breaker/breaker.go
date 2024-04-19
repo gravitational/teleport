@@ -130,6 +130,9 @@ type Config struct {
 	OnTripped func()
 	// OnStandby will be called when the CircuitBreaker returns to the StateStandby state
 	OnStandBy func()
+	// OnExecute will be called once for each execution, and given the result
+	// and the current state of the breaker state
+	OnExecute func(success bool, state State)
 	// IsSuccessful is used by the CircuitBreaker to determine if the executed function was successful or not
 	IsSuccessful func(v interface{}, err error) bool
 	// Logger is the logger
@@ -137,6 +140,12 @@ type Config struct {
 	// TrippedErrorMessage is an optional message to use as the error message when the CircuitBreaker
 	// is tripped. Defaults to ErrStateTripped if not provided.
 	TrippedErrorMessage string
+}
+
+// Clone returns a clone of the Config.
+func (c *Config) Clone() Config {
+	// the current Config can just be copied without issues
+	return *c
 }
 
 // TripFn determines if the CircuitBreaker should be tripped based
@@ -332,8 +341,9 @@ func (c *CircuitBreaker) beforeExecution() (uint64, error) {
 
 	generation, state := c.currentState(now)
 
-	switch {
-	case state == StateTripped:
+	if state == StateTripped {
+		c.cfg.OnExecute(false, StateTripped)
+
 		if c.cfg.TrippedErrorMessage != "" {
 			return generation, trace.ConnectionProblem(nil, c.cfg.TrippedErrorMessage)
 		}
@@ -359,21 +369,21 @@ func (c *CircuitBreaker) afterExecution(prior uint64, v interface{}, err error) 
 	}
 
 	if c.cfg.IsSuccessful(v, err) {
-		c.cfg.Logger.Debugf("successful execution, %s", c.metrics.String())
-		c.success(state, now)
+		c.successLocked(state, now)
 	} else {
-		c.cfg.Logger.Debugf("failed execution, %s", c.metrics.String())
-		c.failure(state, now)
+		c.failureLocked(state, now)
 	}
 }
 
-// success tallies a successful execution and migrates to StateStandby
+// successLocked tallies a successful execution and migrates to StateStandby
 // if in another state and criteria has been met to transition
-func (c *CircuitBreaker) success(state State, t time.Time) {
+func (c *CircuitBreaker) successLocked(state State, t time.Time) {
 	switch state {
 	case StateStandby:
+		c.cfg.OnExecute(true, StateStandby)
 		c.metrics.success()
 	case StateRecovering:
+		c.cfg.OnExecute(true, StateRecovering)
 		c.metrics.success()
 		if c.metrics.ConsecutiveSuccesses >= c.cfg.RecoveryLimit {
 			c.setState(StateStandby, t)
@@ -382,17 +392,19 @@ func (c *CircuitBreaker) success(state State, t time.Time) {
 	}
 }
 
-// failure tallies a failed execution and migrate to StateTripped
+// failureLocked tallies a failed execution and migrate to StateTripped
 // if in another state and criteria has been met to transition
-func (c *CircuitBreaker) failure(state State, t time.Time) {
+func (c *CircuitBreaker) failureLocked(state State, t time.Time) {
 	c.metrics.failure()
 
 	switch state {
 	case StateRecovering:
+		c.cfg.OnExecute(false, StateRecovering)
 		if c.cfg.Recover(c.metrics) {
 			c.setState(StateTripped, t)
 		}
 	case StateStandby:
+		c.cfg.OnExecute(false, StateStandby)
 		if c.cfg.Trip(c.metrics) {
 			c.setState(StateTripped, t)
 			go c.cfg.OnTripped()
