@@ -78,7 +78,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 }
 
 // CreateCrownJewel ...
-func (s *Service) CreateCrownJewel(ctx context.Context, crownJewel *crownjewelv1.CreateCrownJewelRequest) (*crownjewelv1.CreateCrownJewelResponse, error) {
+func (s *Service) CreateCrownJewel(ctx context.Context, crownJewel *crownjewelv1.CreateCrownJewelRequest) (*crownjewelv1.CrownJewel, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -92,12 +92,11 @@ func (s *Service) CreateCrownJewel(ctx context.Context, crownJewel *crownjewelv1
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &crownjewelv1.CreateCrownJewelResponse{
-		CrownJewels: conv.ToProto(rsp),
-	}, nil
+
+	return conv.ToProto(rsp), nil
 }
 
-func (s *Service) GetCrownJewels(ctx context.Context, req *crownjewelv1.GetCrownJewelsRequest) (*crownjewelv1.GetCrownJewelsResponse, error) {
+func (s *Service) GetCrownJewels(ctx context.Context, req *crownjewelv1.ListCrownJewelsRequest) (*crownjewelv1.ListCrownJewelsResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -107,6 +106,7 @@ func (s *Service) GetCrownJewels(ctx context.Context, req *crownjewelv1.GetCrown
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(jakule): Use request
 	rsp, err := s.backend.GetCrownJewels(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -117,12 +117,12 @@ func (s *Service) GetCrownJewels(ctx context.Context, req *crownjewelv1.GetCrown
 		elems = append(elems, conv.ToProto(elem))
 	}
 
-	return &crownjewelv1.GetCrownJewelsResponse{
+	return &crownjewelv1.ListCrownJewelsResponse{
 		CrownJewels: elems,
 	}, nil
 }
 
-func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.UpdateCrownJewelRequest) (*crownjewelv1.UpdateCrownJewelResponse, error) {
+func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.UpdateCrownJewelRequest) (*crownjewelv1.CrownJewel, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -137,9 +137,7 @@ func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.Update
 		return nil, trace.Wrap(err)
 	}
 
-	return &crownjewelv1.UpdateCrownJewelResponse{
-		CrownJewels: conv.ToProto(rsp),
-	}, nil
+	return conv.ToProto(rsp), nil
 }
 
 func (s *Service) DeleteCrownJewel(ctx context.Context, req *crownjewelv1.DeleteCrownJewelRequest) (*emptypb.Empty, error) {
@@ -153,23 +151,6 @@ func (s *Service) DeleteCrownJewel(ctx context.Context, req *crownjewelv1.Delete
 	}
 
 	if err := s.backend.DeleteCrownJewel(ctx, req.GetName()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &emptypb.Empty{}, nil
-}
-
-func (s *Service) DeleteAllCrownJewels(ctx context.Context, _ *crownjewelv1.DeleteAllCrownJewelsRequest) (*emptypb.Empty, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := authCtx.CheckAccessToKind(types.KindCrownJewel, types.VerbDelete); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := s.backend.DeleteAllCrownJewels(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

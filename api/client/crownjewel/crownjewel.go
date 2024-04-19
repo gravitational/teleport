@@ -22,7 +22,7 @@ func NewClient(grpcClient crownjewelv1.CrownJewelServiceClient) *Client {
 }
 
 func (c *Client) GetCrownJewels(ctx context.Context) ([]*crownjewel.CrownJewel, error) {
-	resp, err := c.grpcClient.GetCrownJewels(ctx, &crownjewelv1.GetCrownJewelsRequest{})
+	resp, err := c.grpcClient.ListCrownJewels(ctx, &crownjewelv1.ListCrownJewelsRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -42,7 +42,7 @@ func (c *Client) CreateCrownJewel(ctx context.Context, req *crownjewel.CrownJewe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return crownjewelv1conv.FromProto(rsp.CrownJewels), trace.Wrap(err)
+	return crownjewelv1conv.FromProto(rsp), trace.Wrap(err)
 }
 
 func (c *Client) UpdateCrownJewel(ctx context.Context, req *crownjewel.CrownJewel) (*crownjewel.CrownJewel, error) {
@@ -52,7 +52,7 @@ func (c *Client) UpdateCrownJewel(ctx context.Context, req *crownjewel.CrownJewe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return crownjewelv1conv.FromProto(rsp.CrownJewels), trace.Wrap(err)
+	return crownjewelv1conv.FromProto(rsp), trace.Wrap(err)
 }
 
 func (c *Client) DeleteCrownJewel(ctx context.Context, name string) error {
@@ -63,6 +63,5 @@ func (c *Client) DeleteCrownJewel(ctx context.Context, name string) error {
 }
 
 func (c *Client) DeleteAllCrownJewels(ctx context.Context) error {
-	_, err := c.grpcClient.DeleteAllCrownJewels(ctx, &crownjewelv1.DeleteAllCrownJewelsRequest{})
-	return trace.Wrap(err)
+	return trace.NotImplemented("DeleteAllCrownJewels is not implemented")
 }

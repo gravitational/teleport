@@ -54,8 +54,8 @@ type AWSMatcher struct {
 }
 
 type AWSTag struct {
-	Key   string  `json:"key" yaml:"key"`
-	Value *string `json:"value" yaml:"value"`
+	Key    string    `json:"key" yaml:"key"`
+	Values []*string `json:"value" yaml:"value"`
 }
 
 func (c *CrownJewel) GetMetadata() types.Metadata {

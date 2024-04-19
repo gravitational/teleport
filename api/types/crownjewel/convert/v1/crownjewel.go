@@ -4,7 +4,9 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	"github.com/gravitational/teleport/api/types/crownjewel"
+	"github.com/gravitational/teleport/api/types/header"
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
 )
 
@@ -22,14 +24,15 @@ func ToProto(crownJewel *crownjewel.CrownJewel) *crownjewelv1.CrownJewel {
 	for _, matcher := range crownJewel.Spec.AWSMatchers {
 		tags := make([]*crownjewelv1.AWSTag, 0, len(matcher.Tags))
 		for _, tag := range matcher.Tags {
-			var value *wrapperspb.StringValue
-			if tag.Value != nil {
-				value = wrapperspb.String(*tag.Value)
+			values := make([]*wrapperspb.StringValue, 0, len(tag.Values))
+			for _, value := range tag.Values {
+				// todo *string thing
+				values = append(values, wrapperspb.String(*value))
 			}
 
 			tags = append(tags, &crownjewelv1.AWSTag{
-				Key:   tag.Key,
-				Value: value,
+				Key:    tag.Key,
+				Values: values,
 			})
 		}
 		awsMatchers = append(awsMatchers, &crownjewelv1.AWSMatcher{
@@ -40,7 +43,10 @@ func ToProto(crownJewel *crownjewel.CrownJewel) *crownjewelv1.CrownJewel {
 	}
 
 	return &crownjewelv1.CrownJewel{
-		Header: headerv1.ToResourceHeaderProto(crownJewel.ResourceHeader),
+		Kind:     crownJewel.Kind,
+		SubKind:  crownJewel.SubKind,
+		Version:  crownJewel.Version,
+		Metadata: headerv1.ToMetadataProto(crownJewel.Metadata),
 		Spec: &crownjewelv1.CrownJewelSpec{
 			TeleportMatchers: teleportMatchers,
 			AwsMatchers:      awsMatchers,
@@ -48,23 +54,15 @@ func ToProto(crownJewel *crownjewel.CrownJewel) *crownjewelv1.CrownJewel {
 	}
 }
 
-func toProtoLabels(labels map[string][]string) []*crownjewelv1.TeleportLabel {
-	protoLabels := make([]*crownjewelv1.TeleportLabel, 0, len(labels))
+func toProtoLabels(labels map[string][]string) []*labelv1.Label {
+	protoLabels := make([]*labelv1.Label, 0, len(labels))
 	for key, values := range labels {
-		protoLabels = append(protoLabels, &crownjewelv1.TeleportLabel{
-			Key:    key,
-			Values: toWrappedString(values),
+		protoLabels = append(protoLabels, &labelv1.Label{
+			Name:   key,
+			Values: values,
 		})
 	}
 	return protoLabels
-}
-
-func toWrappedString(values []string) []*wrapperspb.StringValue {
-	wrappedValues := make([]*wrapperspb.StringValue, 0, len(values))
-	for _, value := range values {
-		wrappedValues = append(wrappedValues, wrapperspb.String(value))
-	}
-	return wrappedValues
 }
 
 func FromProto(crownJewel *crownjewelv1.CrownJewel) *crownjewel.CrownJewel {
@@ -81,14 +79,14 @@ func FromProto(crownJewel *crownjewelv1.CrownJewel) *crownjewel.CrownJewel {
 	for _, matcher := range crownJewel.Spec.AwsMatchers {
 		tags := make([]crownjewel.AWSTag, 0, len(matcher.Tags))
 		for _, tag := range matcher.Tags {
-			var value *string
-			if tag.Value != nil {
-				value = &tag.Value.Value
+			var values []*string
+			for _, value := range tag.Values {
+				values = append(values, strPtr(value.String()))
 			}
 
 			tags = append(tags, crownjewel.AWSTag{
-				Key:   tag.Key,
-				Value: value,
+				Key:    tag.Key,
+				Values: values,
 			})
 		}
 		awsMatchers = append(awsMatchers, crownjewel.AWSMatcher{
@@ -99,7 +97,12 @@ func FromProto(crownJewel *crownjewelv1.CrownJewel) *crownjewel.CrownJewel {
 	}
 
 	return &crownjewel.CrownJewel{
-		ResourceHeader: headerv1.FromResourceHeaderProto(crownJewel.Header),
+		ResourceHeader: header.ResourceHeader{
+			Kind:     crownJewel.Kind,
+			SubKind:  crownJewel.SubKind,
+			Version:  crownJewel.Version,
+			Metadata: headerv1.FromMetadataProto(crownJewel.Metadata),
+		},
 		Spec: crownjewel.Spec{
 			TeleportMatchers: teleportMatchers,
 			AWSMatchers:      awsMatchers,
@@ -107,18 +110,14 @@ func FromProto(crownJewel *crownjewelv1.CrownJewel) *crownjewel.CrownJewel {
 	}
 }
 
-func fromProtoLabels(labels []*crownjewelv1.TeleportLabel) map[string][]string {
+func fromProtoLabels(labels []*labelv1.Label) map[string][]string {
 	protoLabels := make(map[string][]string, len(labels))
 	for _, label := range labels {
-		protoLabels[label.Key] = fromWrappedString(label.Values)
+		protoLabels[label.Name] = label.Values
 	}
 	return protoLabels
 }
 
-func fromWrappedString(values []*wrapperspb.StringValue) []string {
-	wrappedValues := make([]string, 0, len(values))
-	for _, value := range values {
-		wrappedValues = append(wrappedValues, value.Value)
-	}
-	return wrappedValues
+func strPtr(s string) *string {
+	return &s
 }
