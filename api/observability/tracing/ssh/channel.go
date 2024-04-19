@@ -58,9 +58,7 @@ func (c *Channel) SendRequest(ctx context.Context, name string, wantReply bool, 
 			semconv.RPCSystemKey.String("ssh"),
 		),
 	)
-	defer func() {
-		tracing.EndSpan(span, err)
-	}()
+	defer func() { tracing.EndSpan(span, err) }()
 
 	return c.Channel.SendRequest(
 		name, wantReply, wrapPayload(ctx, c.tracingSupported, config.TextMapPropagator, payload),

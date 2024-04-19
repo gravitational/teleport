@@ -483,9 +483,7 @@ func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr
 			attribute.String("cluster", clusterName),
 		),
 	)
-	defer func() {
-		tracing.EndSpan(span, err)
-	}()
+	defer func() { tracing.EndSpan(span, err) }()
 
 	// default to local cluster if one wasn't provided
 	if clusterName == "" {

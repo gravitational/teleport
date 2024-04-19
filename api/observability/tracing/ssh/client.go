@@ -124,9 +124,7 @@ func (c *Client) SendRequest(
 			)...,
 		),
 	)
-	defer func() {
-		tracing.EndSpan(span, err)
-	}()
+	defer func() { tracing.EndSpan(span, err) }()
 
 	return c.Client.SendRequest(
 		name, wantReply, wrapPayload(ctx, c.capability, config.TextMapPropagator, payload),
@@ -154,12 +152,9 @@ func (c *Client) OpenChannel(
 			)...,
 		),
 	)
-	defer func() {
-		tracing.EndSpan(span, err)
-	}()
+	defer func() { tracing.EndSpan(span, err) }()
 
 	ch, reqs, err := c.Client.OpenChannel(name, wrapPayload(ctx, c.capability, config.TextMapPropagator, data))
-	// TODO: Is there a bug here??
 	return &Channel{
 		Channel: ch,
 		opts:    c.opts,
@@ -302,12 +297,9 @@ func (c *clientWrapper) OpenChannel(name string, data []byte) (_ ssh.Channel, _ 
 			)...,
 		),
 	)
-	defer func() {
-		tracing.EndSpan(span, err)
-	}()
+	defer func() { tracing.EndSpan(span, err) }()
 
 	ch, reqs, err := c.Conn.OpenChannel(name, wrapPayload(ctx, c.capability, config.TextMapPropagator, data))
-	// TODO: Is this a bug?
 	return channelWrapper{
 		Channel: ch,
 		manager: c,
@@ -341,9 +333,7 @@ func (c channelWrapper) SendRequest(name string, wantReply bool, payload []byte)
 			semconv.RPCSystemKey.String("ssh"),
 		),
 	)
-	defer func() {
-		tracing.EndSpan(span, err)
-	}()
+	defer func() { tracing.EndSpan(span, err) }()
 
 	return c.Channel.SendRequest(name, wantReply, wrapPayload(ctx, c.manager.capability, config.TextMapPropagator, payload))
 }
