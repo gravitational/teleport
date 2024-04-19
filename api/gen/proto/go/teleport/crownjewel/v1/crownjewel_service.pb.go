@@ -83,7 +83,7 @@ func (x *CreateCrownJewelRequest) GetCrownJewels() *CrownJewel {
 	return nil
 }
 
-// GetCrownJewelsRequest is a request to get a list of CrownJewels.
+// ListCrownJewelsRequest is a request to get a list of CrownJewels.
 type ListCrownJewelsRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -142,7 +142,7 @@ func (x *ListCrownJewelsRequest) GetPageToken() string {
 	return ""
 }
 
-// GetCrownJewelsResponse is a response to GetCrownJewelsRequest.
+// ListCrownJewelsResponse is a response to GetCrownJewelsRequest.
 type ListCrownJewelsResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
