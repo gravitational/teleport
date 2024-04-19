@@ -38,7 +38,7 @@ message CreateCrownJewelRequest {
   teleport.crownjewel.v1.CrownJewel crown_jewels = 1;
 }
 
-// GetCrownJewelsRequest is a request to get a list of CrownJewels.
+// ListCrownJewelsRequest is a request to get a list of CrownJewels.
 message ListCrownJewelsRequest {
   // page_size is the maximum number of items to return.
   // The server may impose a different page size at its discretion.
@@ -47,7 +47,7 @@ message ListCrownJewelsRequest {
   string page_token = 2;
 }
 
-// GetCrownJewelsResponse is a response to GetCrownJewelsRequest.
+// ListCrownJewelsResponse is a response to GetCrownJewelsRequest.
 message ListCrownJewelsResponse {
   repeated teleport.crownjewel.v1.CrownJewel crown_jewels = 1;
 
