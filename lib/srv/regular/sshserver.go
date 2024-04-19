@@ -90,7 +90,6 @@ type Server struct {
 	hostname  string
 
 	srv         *sshutils.Server
-	shell       string
 	getRotation services.RotationGetter
 	authService srv.AccessPoint
 	reg         *srv.SessionRegistry
@@ -453,15 +452,6 @@ func SetClock(clock clockwork.Clock) ServerOption {
 func SetRotationGetter(getter services.RotationGetter) ServerOption {
 	return func(s *Server) error {
 		s.getRotation = getter
-		return nil
-	}
-}
-
-// SetShell sets default shell that will be executed for interactive
-// sessions
-func SetShell(shell string) ServerOption {
-	return func(s *Server) error {
-		s.shell = shell
 		return nil
 	}
 }

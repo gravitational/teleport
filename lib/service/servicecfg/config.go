@@ -564,7 +564,6 @@ func ApplyDefaults(cfg *Config) {
 
 	// SSH service defaults.
 	cfg.SSH.Enabled = true
-	cfg.SSH.Shell = defaults.DefaultShell
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 	cfg.SSH.PAM = &PAMConfig{Enabled: false}
 	cfg.SSH.BPF = &BPFConfig{Enabled: false}

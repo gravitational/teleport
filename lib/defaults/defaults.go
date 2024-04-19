@@ -100,9 +100,6 @@ const (
 	// By default SSH server (and SSH proxy) will bind to this IP
 	BindIP = "0.0.0.0"
 
-	// By default all users use /bin/bash
-	DefaultShell = "/bin/bash"
-
 	// GRPCMaxConcurrentStreams is the max GRPC streams that can be active at a time.  Once the limit is reached new
 	// RPC calls will queue until capacity is available.
 	GRPCMaxConcurrentStreams = 1000

@@ -218,7 +218,6 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		SetUUID(nodeID),
 		SetNamespace(apidefaults.Namespace),
 		SetEmitter(nodeClient),
-		SetShell("/bin/sh"),
 		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		SetLabels(
 			map[string]string{"foo": "bar"},
@@ -1918,7 +1917,6 @@ func TestLimiter(t *testing.T) {
 		utils.NetAddr{},
 		nodeClient,
 		SetLimiter(limiter),
-		SetShell("/bin/sh"),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
