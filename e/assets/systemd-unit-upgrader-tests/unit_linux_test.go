@@ -29,6 +29,7 @@ const (
 	// configVar is the variable used to override the default config dir location.
 	configVar      = "TELEPORT_UPGRADE_CONFIG"
 	agentConfigVar = "TELEPORT_AGENT_CONFIG"
+	stateVar       = "TELEPORT_UPGRADE_STATE"
 )
 
 // output
@@ -78,10 +79,14 @@ type upgradeParams struct {
 	restartMode string
 }
 
-func runUpgrader(subcommand string, configDir string) (output, error) {
+func runUpgrader(subcommand string, configDir, stateDir string) (output, error) {
 	agentConfig := fmt.Sprintf("%s/%s", configDir, "teleport.yaml")
 	cmd := exec.Command(upgraderPath, subcommand)
-	cmd.Env = []string{fmt.Sprintf("%s=%s", configVar, configDir), fmt.Sprintf("%s=%s", agentConfigVar, agentConfig)}
+	cmd.Env = []string{
+		fmt.Sprintf("%s=%s", configVar, configDir),
+		fmt.Sprintf("%s=%s", agentConfigVar, agentConfig),
+		fmt.Sprintf("%s=%s", stateVar, stateDir),
+	}
 	cmd.Stdout = new(strings.Builder)
 	cmd.Stderr = new(strings.Builder)
 
@@ -137,7 +142,7 @@ func (t *testCase) Run() (output, error) {
 		cmd = "run"
 	}
 
-	return runUpgrader(cmd, t.dir)
+	return runUpgrader(cmd, t.dir, t.dir)
 }
 
 // setTestDefaults sets the config parameters that are consistent for any test case.
@@ -180,6 +185,11 @@ func (t *testCase) Get(name string) (string, error) {
 	}
 
 	return string(b), nil
+}
+
+func (t *testCase) Expire(name string) error {
+	err := os.Chtimes(filepath.Join(t.dir, name), time.Time{}, time.Now().Add(-time.Hour))
+	return trace.Wrap(err)
 }
 
 // stripCfgValue strips extra whitespace and comment-like lines from a string.
@@ -307,6 +317,9 @@ func TestUpgraderBasics(t *testing.T) {
 	// bump the endpoint version so that upgrade attempts start happening again
 	endpoint.SetVersion("3.4.5")
 
+	// refresh state-target-version
+	require.NoError(t, tc.Expire("state-target-version"))
+
 	// blank the schedule so that upgrader believes agent may be unhealthy
 	tc.cfg["schedule"] = ""
 
@@ -386,6 +399,9 @@ func TestUpgraderCritical(t *testing.T) {
 
 	// go into 'critical' mode
 	endpoint.SetCritical("yes")
+
+	// refresh state-critical
+	require.NoError(t, tc.Expire("state-critical"))
 
 	out, err = tc.Run()
 	require.NoError(t, err)
@@ -703,4 +719,158 @@ func TestUpgraderHonorOverride(t *testing.T) {
 	// expect that no install happened this time
 	_, ok = out.GetNopInstall()
 	require.False(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+}
+
+func TestUnhealthyAgent(t *testing.T) {
+	endpoint := NewUpgradeEndpoint("")
+	endpoint.SetVersion("2.3.4")
+	endpoint.SetCritical("no")
+
+	listener, err := net.Listen("tcp4", "localhost:0")
+	require.NoError(t, err)
+
+	go endpoint.Serve(listener)
+	defer endpoint.Shutdown(context.Background())
+
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	require.NoError(t, err)
+
+	// set up basic test-case that should cause us to fire off an install attempt
+	tc := testCase{
+		dir: t.TempDir(),
+		cfg: map[string]string{
+			"endpoint":               fmt.Sprintf("localhost:%s/v1/stable/cloud", port),
+			"schedule":               fmt.Sprintf("%d %d", time.Now().Unix()+99, time.Now().Unix()+110),
+			"state-version-override": "1.2.3", // overrides the upgrader's view of the currently installed teleport version
+		},
+	}
+
+	out, err := tc.Run()
+	require.NoError(t, err)
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	// not within upgrade window, nothing should happen
+	_, ok := out.GetNopInstall()
+	require.False(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	// set last-restart to the current timestamp to indicate the teleport service is unhealthy
+	tc.cfg["state-last-restart"] = time.Now().Format(time.UnixDate)
+
+	// the first run w/ last-restart within a minute should result in us setting the unhealthy marker
+	// but not in an actual upgrade attempt.
+	out, err = tc.Run()
+	require.NoError(t, err)
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	_, ok = out.GetNopInstall()
+	require.False(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	// check for expected unhealthy state marker
+	us, err := tc.Get("state-unhealthy")
+	require.NoError(t, err)
+	require.Equal(t, "yes", stripCfgValue(us), "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, us)
+
+	// run again, this time we expect the unhealthy marker state to cause an upgrade
+	out, err = tc.Run()
+	require.NoError(t, err)
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	nop, ok := out.GetNopInstall()
+	require.True(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+	require.Equal(t, "teleport", nop.target)
+	require.Equal(t, "2.3.4", nop.version)
+	// upgrades with an unhealthy schedule state are full restarts
+	require.Equal(t, "restart", nop.restartMode)
+
+	// unhealthy marker state should be cleared/removed
+	us, err = tc.Get("state-unhealthy")
+	require.NoError(t, err)
+	require.Equal(t, "", us, "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, us)
+}
+
+func TestCache(t *testing.T) {
+	endpoint := NewUpgradeEndpoint("")
+	endpoint.SetVersion("2.3.4")
+	endpoint.SetCritical("no")
+
+	listener, err := net.Listen("tcp4", "localhost:0")
+	require.NoError(t, err)
+
+	go endpoint.Serve(listener)
+	defer endpoint.Shutdown(context.Background())
+
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	require.NoError(t, err)
+
+	// set up basic test-case that should cause us to fire off an install attempt
+	tc := testCase{
+		dir: t.TempDir(),
+		cfg: map[string]string{
+			"endpoint":               fmt.Sprintf("localhost:%s/v1/stable/cloud", port),
+			"schedule":               fmt.Sprintf("%d %d", time.Now().Unix()+99, time.Now().Unix()+110),
+			"state-version-override": "1.2.3", // overrides the upgrader's view of the currently installed teleport version
+		},
+	}
+
+	out, err := tc.Run()
+	require.NoError(t, err)
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	_, ok := out.GetNopInstall()
+	require.False(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	// state-target-version should be cached
+	version, err := tc.Get("state-target-version")
+	require.NoError(t, err)
+	require.Equal(t, "2.3.4", stripCfgValue(version), "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, version)
+
+	// state-critical should be cached
+	critical, err := tc.Get("state-critical")
+	require.NoError(t, err)
+	require.Equal(t, "no", stripCfgValue(critical), "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, critical)
+
+	// Update version and critical values
+	endpoint.SetVersion("3.4.5")
+	endpoint.SetCritical("yes")
+
+	out, err = tc.Run()
+	require.NoError(t, err)
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	_, ok = out.GetNopInstall()
+	require.False(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	// state-target-version is not expired and should not be modified
+	version, err = tc.Get("state-target-version")
+	require.NoError(t, err)
+	require.Equal(t, "2.3.4", stripCfgValue(version), "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, version)
+
+	// state-critical is not expired and should not be modified
+	critical, err = tc.Get("state-critical")
+	require.NoError(t, err)
+	require.Equal(t, "no", stripCfgValue(critical), "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, critical)
+
+	// Expire cache
+	require.NoError(t, tc.Expire("state-target-version"))
+	require.NoError(t, tc.Expire("state-critical"))
+
+	out, err = tc.Run()
+	require.NoError(t, err)
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	nop, ok := out.GetNopInstall()
+	require.True(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+	require.Equal(t, "teleport", nop.target)
+	require.Equal(t, "3.4.5", nop.version)
+
+	// state-target-version is reset after an upgrade
+	version, err = tc.Get("state-target-version")
+	require.NoError(t, err)
+	require.Equal(t, "", stripCfgValue(version), "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, version)
+
+	// state-critical is reset after an upgrade
+	critical, err = tc.Get("state-critical")
+	require.NoError(t, err)
+	require.Equal(t, "", stripCfgValue(critical), "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, critical)
+
 }
