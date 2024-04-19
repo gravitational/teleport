@@ -55,7 +55,10 @@ func (a *Server) registerUsingTPMMethod(
 	}
 
 	if modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, trace.AccessDenied("tpm joining requires Teleport Enterprise")
+		return nil, trace.Wrap(
+			ErrRequiresEnterprise,
+			"tpm joining",
+		)
 	}
 
 	// Convert configured CAs to a CAPool
