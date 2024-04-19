@@ -294,6 +294,6 @@ func (m *mockSessionTrackerService) CreateSessionTracker(ctx context.Context, tr
 	return tracker, nil
 }
 
-func (m *mockSessionTrackerService) ListKubernetesWaitingContainers(ctx context.Context, req *kubewaitingcontainerpb.ListKubernetesWaitingContainersRequest) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
+func (m *mockSessionTrackerService) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
 	return nil, "", nil
 }

@@ -259,7 +259,7 @@ type ReadProxyAccessPoint interface {
 	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
 	// containers that are waiting to be created until moderated
 	// session conditions are met.
-	ListKubernetesWaitingContainers(ctx context.Context, req *kubewaitingcontainerpb.ListKubernetesWaitingContainersRequest) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
 
 	// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
 	// container that are waiting to be created until moderated
@@ -466,7 +466,7 @@ type ReadKubernetesAccessPoint interface {
 	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
 	// containers that are waiting to be created until moderated
 	// session conditions are met.
-	ListKubernetesWaitingContainers(ctx context.Context, req *kubewaitingcontainerpb.ListKubernetesWaitingContainersRequest) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
 
 	// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
 	// container that are waiting to be created until moderated
@@ -1039,7 +1039,7 @@ type Cache interface {
 	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
 	// containers that are waiting to be created until moderated
 	// session conditions are met.
-	ListKubernetesWaitingContainers(ctx context.Context, req *kubewaitingcontainerpb.ListKubernetesWaitingContainersRequest) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
 
 	// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
 	// container that are waiting to be created until moderated

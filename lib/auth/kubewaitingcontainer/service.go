@@ -41,7 +41,7 @@ type ServiceConfig struct {
 // ephemeral containers that are waiting to be created until moderated
 // session conditions are met.
 type Cache interface {
-	ListKubernetesWaitingContainers(ctx context.Context, req *kubewaitingcontainerpb.ListKubernetesWaitingContainersRequest) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
 	GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
 }
 
@@ -88,7 +88,7 @@ func (s *Service) ListKubernetesWaitingContainers(ctx context.Context, req *kube
 		return nil, trace.AccessDenied("unauthorized to list Kubernetes waiting container resources")
 	}
 
-	conts, nextToken, err := s.cache.ListKubernetesWaitingContainers(ctx, req)
+	conts, nextToken, err := s.cache.ListKubernetesWaitingContainers(ctx, int(req.PageSize), req.PageToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

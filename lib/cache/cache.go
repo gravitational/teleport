@@ -2252,7 +2252,7 @@ func (c *Cache) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, e
 // ListKubernetesWaitingContainers lists Kubernetes ephemeral
 // containers that are waiting to be created until moderated
 // session conditions are met.
-func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, req *kubewaitingcontainerpb.ListKubernetesWaitingContainersRequest) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
+func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListKubernetesWaitingContainers")
 	defer span.End()
 
@@ -2261,7 +2261,7 @@ func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, req *kubewa
 		return nil, "", trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.ListKubernetesWaitingContainers(ctx, req)
+	return rg.reader.ListKubernetesWaitingContainers(ctx, pageSize, pageToken)
 }
 
 // GetKubernetesWaitingContainer returns a Kubernetes ephemeral
@@ -3111,6 +3111,7 @@ func (c *Cache) ListAccessMonitoringRules(ctx context.Context, pageSize int, nex
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.accessMonitoringRules)
+
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
