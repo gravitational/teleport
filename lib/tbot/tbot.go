@@ -116,9 +116,7 @@ func (b *Bot) BotIdentity() *identity.Identity {
 
 func (b *Bot) Run(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/Run")
-	defer func() {
-		apitracing.EndSpan(span, err)
-	}()
+	defer func() { apitracing.EndSpan(span, err) }()
 
 	if err := b.markStarted(); err != nil {
 		return trace.Wrap(err)
@@ -328,9 +326,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 // more expensive initialization is performed.
 func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	ctx, span := tracer.Start(ctx, "Bot/preRunChecks")
-	defer func() {
-		apitracing.EndSpan(span, err)
-	}()
+	defer func() { apitracing.EndSpan(span, err) }()
 
 	switch _, addrKind := b.cfg.Address(); addrKind {
 	case config.AddressKindUnspecified:
@@ -453,9 +449,7 @@ func clientForFacade(
 	facade *identity.Facade,
 	resolver reversetunnelclient.Resolver) (_ *auth.Client, err error) {
 	ctx, span := tracer.Start(ctx, "clientForFacade")
-	defer func() {
-		apitracing.EndSpan(span, err)
-	}()
+	defer func() { apitracing.EndSpan(span, err) }()
 
 	tlsConfig, err := facade.TLSConfig()
 	if err != nil {

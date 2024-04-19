@@ -1523,9 +1523,7 @@ func tracedApplyFn(parent oteltrace.Span, tracer oteltrace.Tracer, kind resource
 			oteltrace.ContextWithSpan(ctx, parent),
 			fmt.Sprintf("cache/apply/%s", kind.String()),
 		)
-		defer func() {
-			apitracing.EndSpan(span, err)
-		}()
+		defer func() { apitracing.EndSpan(span, err) }()
 
 		return f(ctx)
 	}
@@ -1557,9 +1555,7 @@ func isControlPlane(target string) bool {
 
 func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types.WatchKind) (fn applyFn, err error) {
 	ctx, fetchSpan := c.Tracer.Start(ctx, "cache/fetch", oteltrace.WithAttributes(attribute.String("target", c.target)))
-	defer func() {
-		apitracing.EndSpan(fetchSpan, err)
-	}()
+	defer func() { apitracing.EndSpan(fetchSpan, err) }()
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(fetchLimit(c.target))
@@ -1578,9 +1574,7 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 					attribute.String("target", c.target),
 				),
 			)
-			defer func() {
-				apitracing.EndSpan(span, err)
-			}()
+			defer func() { apitracing.EndSpan(span, err) }()
 
 			_, cacheOK := confirmedKinds[resourceKind{kind: kind.kind, subkind: kind.subkind}]
 			applyfn, err := collection.fetch(ctx, cacheOK)
