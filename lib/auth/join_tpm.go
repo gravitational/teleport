@@ -65,7 +65,7 @@ func (a *Server) RegisterUsingTPMMethod(
 		for i, ca := range ptv2.Spec.TPM.EKCertAllowedCAs {
 			if ok := certPool.AppendCertsFromPEM([]byte(ca)); !ok {
 				return nil, trace.BadParameter(
-					"failed to append ekcert_allowed_cas[%d] to cert pool", i,
+					"ekcert_allowed_cas[%d] has an invalid or malformed PEM", i,
 				)
 			}
 		}
