@@ -37,6 +37,7 @@ const (
 )
 
 // AWSAppAccessConfigureRequest is a request to configure the required Policies to use AWS App Access.
+// Only IAM Roles with `teleport.dev/integration: Allowed` Tag can be used.
 type AWSAppAccessConfigureRequest struct {
 	// IntegrationRole is the Integration's AWS Role used to set up Teleport as an OIDC IdP.
 	IntegrationRole string

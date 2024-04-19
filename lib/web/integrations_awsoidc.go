@@ -326,6 +326,7 @@ func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request
 
 // awsOIDCConfigureAppAccessIAM returns a script that configures the required IAM permissions to enable App Access
 // using the AWS OIDC Credentials.
+// Only IAM Roles with `teleport.dev/integration: Allowed` Tag can be used.
 // It receives the IAM Role from a query param "role".
 // The script is returned using the Content-Type "text/x-shellscript". No Content-Disposition header is set.
 func (h *Handler) awsOIDCConfigureAWSAppAccessIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
