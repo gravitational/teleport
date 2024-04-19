@@ -49,7 +49,15 @@ message TeleportMatcher {
   // Multiple kinds can be provided to match multiple kinds.
   repeated string kinds = 2;
   // Labels is a set of labels.
-  map<string, string> labels = 3;
+  repeated TeleportLabel labels = 3;
+}
+
+// TeleportLabel is a label that is attached to a Teleport resource.
+message TeleportLabel {
+  // Key is the key of the label.
+  string key = 1;
+  // Values is a list of label values to match.
+  repeated google.protobuf.StringValue values = 2;
 }
 
 // AWSMatcher represents a matcher for AWS resources.
