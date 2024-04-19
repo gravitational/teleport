@@ -4814,7 +4814,7 @@ func (a *ServerWithRoles) GetRemoteCluster(ctx context.Context, clusterName stri
 	}
 	cluster, err := a.authServer.GetRemoteCluster(ctx, clusterName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, utils.OpaqueAccessDenied(err)
 	}
 	if err := a.context.Checker.CheckAccessToRemoteCluster(cluster); err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
