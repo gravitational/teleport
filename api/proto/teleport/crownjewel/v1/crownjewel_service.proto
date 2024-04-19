@@ -24,15 +24,13 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // CrownJewelService is a service that provides methods to manage CrownJewels.
 service CrownJewelService {
   // CreateCrownJewel creates a new CrownJewel.
-  rpc CreateCrownJewel(CreateCrownJewelRequest) returns (CreateCrownJewelResponse);
-  // GetCrownJewels returns a list of CrownJewels. It supports pagination.
-  rpc GetCrownJewels(GetCrownJewelsRequest) returns (GetCrownJewelsResponse);
+  rpc CreateCrownJewel(CreateCrownJewelRequest) returns (CrownJewel);
+  // ListCrownJewels returns a list of CrownJewels. It supports pagination.
+  rpc ListCrownJewels(ListCrownJewelsRequest) returns (ListCrownJewelsResponse);
   // UpdateCrownJewel updates an existing CrownJewel.
-  rpc UpdateCrownJewel(UpdateCrownJewelRequest) returns (UpdateCrownJewelResponse);
+  rpc UpdateCrownJewel(UpdateCrownJewelRequest) returns (CrownJewel);
   // DeleteCrownJewel deletes a CrownJewel.
   rpc DeleteCrownJewel(DeleteCrownJewelRequest) returns (google.protobuf.Empty);
-  // DeleteAllCrownJewels deletes all CrownJewels.
-  rpc DeleteAllCrownJewels(DeleteAllCrownJewelsRequest) returns (google.protobuf.Empty);
 }
 
 // CrownJewelRequest is a request to create a new CrownJewel.
@@ -40,14 +38,8 @@ message CreateCrownJewelRequest {
   teleport.crownjewel.v1.CrownJewel crown_jewels = 1;
 }
 
-// CrownJewelResponse is a response to CreateCrownJewelRequest.
-message CreateCrownJewelResponse {
-  // CrownJewel that was created.
-  teleport.crownjewel.v1.CrownJewel crown_jewels = 1;
-}
-
 // GetCrownJewelsRequest is a request to get a list of CrownJewels.
-message GetCrownJewelsRequest {
+message ListCrownJewelsRequest {
   // page_size is the maximum number of items to return.
   // The server may impose a different page size at its discretion.
   int64 page_size = 1;
@@ -56,17 +48,12 @@ message GetCrownJewelsRequest {
 }
 
 // GetCrownJewelsResponse is a response to GetCrownJewelsRequest.
-message GetCrownJewelsResponse {
+message ListCrownJewelsResponse {
   repeated teleport.crownjewel.v1.CrownJewel crown_jewels = 1;
 
   // Token to retrieve the next page of results, or empty if there are no
   // more results in the list.
   string next_page_token = 2;
-}
-
-// CrownJewelResponse is a response to UpdateCrownJewelRequest.
-message UpdateCrownJewelResponse {
-  teleport.crownjewel.v1.CrownJewel crown_jewels = 1;
 }
 
 // UpdateCrownJewelRequest is a request to update an existing CrownJewel.
@@ -76,6 +63,7 @@ message UpdateCrownJewelRequest {
 
 // DeleteCrownJewelRequest is a request to delete a CrownJewel.
 message DeleteCrownJewelRequest {
+  // Name is the name of the CrownJewel to delete.
   string name = 1;
 }
 

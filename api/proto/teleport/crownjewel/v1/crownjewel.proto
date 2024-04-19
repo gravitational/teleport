@@ -17,7 +17,7 @@ syntax = "proto3";
 package teleport.crownjewel.v1;
 
 import "google/protobuf/wrappers.proto";
-import "teleport/header/v1/resourceheader.proto";
+import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1;crownjewelv1";
 
@@ -26,10 +26,16 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // considered critical to the organization. Access Graph uses Crown Jewel to
 // generate audit events if access to a resource has changed.
 message CrownJewel {
-  // ResourceHeader is the resource header.
-  teleport.header.v1.ResourceHeader header = 1;
+  // The kind of resource represented.
+  string kind = 1;
+  // Mandatory field for all resources. Not populated for this resource type.
+  string sub_kind = 2;
+  // The version of the resource being represented.
+  string version = 3;
+  // Common metadata that all resources share.
+  teleport.header.v1.Metadata metadata = 4;
   // Spec is the crown jewel spec.
-  CrownJewelSpec spec = 2;
+  CrownJewelSpec spec = 5;
 }
 
 // CrownJewelSpec is the specification of a Crown Jewel.
