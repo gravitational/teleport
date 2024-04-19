@@ -802,10 +802,16 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 			certs, err := s.authServer.AugmentContextUserCertificates(ctx, authCtx, opts)
 			return certs, trace.Wrap(err)
 		},
-		auditCallback: func(dev *devicepb.Device, err error) {
+		auditCallback: func(dev *devicepb.Device, auditData *deviceAuthnAuditData, err error) {
 			success := err == nil
 			devMetadata := getDeviceMetadata(dev)
 			userMetadata := getUserMetadata(ctx)
+
+			// Assign web authentication fields.
+			if devMetadata != nil && auditData != nil {
+				devMetadata.WebAuthentication = auditData.HasDeviceWebToken
+				devMetadata.WebSessionId = auditData.WebSessionID
+			}
 
 			// Manually assign the device in use, if successful.
 			// At this stage the device is not in the user certificate.
@@ -863,7 +869,7 @@ func (s *Service) ConfirmDeviceWebAuthentication(ctx context.Context, req *devic
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	tokenData, dev, err := s.confirmDeviceWebAuthentication(ctx, req, authCtx)
+	tokenData, dev, err := s.confirmDeviceWebAuthentication(ctx, req)
 	// err handled after audit.
 
 	var deviceID, user string
@@ -901,7 +907,6 @@ func (s *Service) ConfirmDeviceWebAuthentication(ctx context.Context, req *devic
 func (s *Service) confirmDeviceWebAuthentication(
 	ctx context.Context,
 	req *devicepb.ConfirmDeviceWebAuthenticationRequest,
-	authCtx *authz.Context,
 ) (*storage.DeviceConfirmationTokenData, *devicepb.Device, error) {
 	tokenData, err := s.storage.SpendDeviceConfirmationToken(ctx, req.ConfirmationToken)
 	if err != nil {
@@ -1176,6 +1181,8 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 		return nil, trace.Wrap(err)
 	}
 
+	devMetadata := getDeviceMetadata(auditDev)
+	devMetadata.WebSessionId = createToken.WebSessionId
 	s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
 		Metadata: apievents.Metadata{
 			Type: events.DeviceWebTokenCreateEvent,
@@ -1184,7 +1191,7 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 		Status: apievents.Status{
 			Success: true,
 		},
-		Device: getDeviceMetadata(auditDev),
+		Device: devMetadata,
 		// Do not use getUserMetadata, the context user is the Auth process.
 		UserMetadata: apievents.UserMetadata{
 			User: token.User,
