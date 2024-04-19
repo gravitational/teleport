@@ -236,8 +236,6 @@ type Server struct {
 
 	// proxySigner is used to generate signed PROXYv2 header so we can securely propagate client IP
 	proxySigner PROXYHeaderSigner
-	// caGetter is used to get host CA of the cluster to verify signed PROXY headers
-	caGetter CertAuthorityGetter
 
 	// remoteForwardingMap holds the remote port forwarding listeners that need
 	// to be closed when forwarding finishes, keyed by listen addr.
@@ -694,14 +692,6 @@ func SetSessionController(controller *srv.SessionController) ServerOption {
 func SetPROXYSigner(proxySigner PROXYHeaderSigner) ServerOption {
 	return func(s *Server) error {
 		s.proxySigner = proxySigner
-		return nil
-	}
-}
-
-// SetCAGetter sets the cert authority getter
-func SetCAGetter(caGetter CertAuthorityGetter) ServerOption {
-	return func(s *Server) error {
-		s.caGetter = caGetter
 		return nil
 	}
 }

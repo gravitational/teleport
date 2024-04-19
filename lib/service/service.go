@@ -2741,7 +2741,6 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetInventoryControlHandle(process.inventoryHandle),
 			regular.SetTracerProvider(process.TracingProvider),
 			regular.SetSessionController(sessionController),
-			regular.SetCAGetter(authClient.GetCertAuthority),
 			regular.SetPublicAddrs(cfg.SSH.PublicAddrs),
 		)
 		if err != nil {
