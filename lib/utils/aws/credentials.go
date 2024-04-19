@@ -203,7 +203,7 @@ func (g *staticCredentialsGetter) Get(_ context.Context, _ GetCredentialsRequest
 // It must use Integration credentials otherwise.
 type AWSSessionProvider func(ctx context.Context, region string, integration string) (*session.Session, error)
 
-// StaticAWSSessionProvider is a helper method that returns a statis session.
+// StaticAWSSessionProvider is a helper method that returns a static session.
 // Must not be used to provide sessions when using Integrations.
 func StaticAWSSessionProvider(awsSession *session.Session) AWSSessionProvider {
 	return func(ctx context.Context, region, integration string) (*session.Session, error) {
