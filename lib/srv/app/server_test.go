@@ -330,25 +330,35 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		apps = config.Apps
 	}
 
-	s.appServer, err = New(s.closeContext, &Config{
+	connectionsHandler, err := NewConnectionsHandler(s.closeContext, &ConnectionsHandlerConfig{
 		Clock:             s.clock,
 		DataDir:           s.dataDir,
-		AccessPoint:       s.authClient,
-		AuthClient:        s.authClient,
-		TLSConfig:         tlsConfig,
-		CipherSuites:      utils.DefaultCipherSuites(),
-		HostID:            s.hostUUID,
-		Hostname:          "test",
-		Authorizer:        authorizer,
-		GetRotation:       testRotationGetter,
-		Apps:              apps,
-		OnHeartbeat:       func(err error) {},
-		Cloud:             &testCloud{},
-		ResourceMatchers:  config.ResourceMatchers,
-		OnReconcile:       config.OnReconcile,
 		Emitter:           s.authClient,
-		CloudLabels:       config.CloudImporter,
+		Authorizer:        authorizer,
+		HostID:            s.hostUUID,
+		AuthClient:        s.authClient,
+		AccessPoint:       s.authClient,
+		Cloud:             &testCloud{},
+		TLSConfig:         tlsConfig,
 		ConnectionMonitor: fakeConnMonitor{},
+		CipherSuites:      utils.DefaultCipherSuites(),
+		ServiceComponent:  teleport.ComponentApp,
+	})
+	require.NoError(t, err)
+
+	s.appServer, err = New(s.closeContext, &Config{
+		Clock:              s.clock,
+		AccessPoint:        s.authClient,
+		AuthClient:         s.authClient,
+		HostID:             s.hostUUID,
+		Hostname:           "test",
+		GetRotation:        testRotationGetter,
+		Apps:               apps,
+		OnHeartbeat:        func(err error) {},
+		ResourceMatchers:   config.ResourceMatchers,
+		OnReconcile:        config.OnReconcile,
+		CloudLabels:        config.CloudImporter,
+		ConnectionsHandler: connectionsHandler,
 	})
 	require.NoError(t, err)
 

@@ -22,10 +22,13 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/header/convert/legacy"
 	"github.com/gravitational/teleport/api/utils"
 )
+
+var _ compare.IsEqual[*DiscoveryConfig] = (*DiscoveryConfig)(nil)
 
 // DiscoveryConfig describes extra discovery matchers that are added to DiscoveryServices that share the same Discovery Group.
 type DiscoveryConfig struct {
@@ -58,7 +61,13 @@ type Spec struct {
 }
 
 // Equal checks if the discovery config is equal to another.
+// Deprecated: use IsEqual.
 func (m *DiscoveryConfig) Equal(n *DiscoveryConfig) bool {
+	return m.IsEqual(n)
+}
+
+// IsEqual checks if the discovery config is equal to another.
+func (m *DiscoveryConfig) IsEqual(n *DiscoveryConfig) bool {
 	return deriveTeleportEqualDiscoveryConfig(m, n)
 }
 
