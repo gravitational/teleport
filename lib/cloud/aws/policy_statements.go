@@ -151,7 +151,7 @@ func StatementForAWSAppAccess() *Statement {
 		Resources: allResources,
 		Conditions: map[string]map[string]SliceOrString{
 			"StringEquals": {
-				"iam:ResourceTag/" + requiredTag: SliceOrString{"Allowed"},
+				"iam:ResourceTag/" + requiredTag: SliceOrString{"true"},
 			},
 		},
 	}
