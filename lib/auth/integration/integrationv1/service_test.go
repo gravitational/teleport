@@ -229,24 +229,6 @@ func TestIntegrationCRUD(t *testing.T) {
 			ErrAssertion: trace.IsAccessDenied,
 		},
 		{
-			Name: "access to delete integration",
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{{
-					Resources: []string{types.KindIntegration},
-					Verbs:     []string{types.VerbDelete},
-				}}},
-			},
-			Setup: func(t *testing.T, igName string) {
-				_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, igName))
-				require.NoError(t, err)
-			},
-			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
-				return err
-			},
-			ErrAssertion: noError,
-		},
-		{
 			Name: "cant delete integration referenced by draft external audit storage",
 			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{{
@@ -291,7 +273,29 @@ func TestIntegrationCRUD(t *testing.T) {
 				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
 				return err
 			},
+			Cleanup: func(t *testing.T, igName string) {
+				err := localClient.DisableClusterExternalAuditStorage(ctx)
+				require.NoError(t, err)
+			},
 			ErrAssertion: trace.IsBadParameter,
+		},
+		{
+			Name: "access to delete integration",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbDelete},
+				}}},
+			},
+			Setup: func(t *testing.T, igName string) {
+				_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, igName))
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
+				return err
+			},
+			ErrAssertion: noError,
 		},
 
 		// Delete all
@@ -378,6 +382,7 @@ type localClient interface {
 	GenerateDraftExternalAuditStorage(ctx context.Context, integrationName, region string) (*externalauditstorage.ExternalAuditStorage, error)
 	DeleteDraftExternalAuditStorage(ctx context.Context) error
 	PromoteToClusterExternalAuditStorage(ctx context.Context) error
+	DisableClusterExternalAuditStorage(ctx context.Context) error
 }
 
 type testClient struct {
