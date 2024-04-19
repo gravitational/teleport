@@ -103,17 +103,21 @@ func dynamoRequestWithTransport(url string, provider client.ConfigProvider, tran
 	return err
 }
 
+// dont make tests generate huge requests just to test limiting the request
+// size. Use a 1MB limit instead of the actual 70MB limit.
+const maxTestHTTPRequestBodySize = 1 << 20
+
 func maxSizeExceededRequest(url string, provider client.ConfigProvider, _ string) error {
 	// fake an upload that's too large
-	payload := strings.Repeat("x", int(maxHTTPRequestBodySize))
+	payload := strings.Repeat("x", maxTestHTTPRequestBodySize)
 	return lambdaRequestWithPayload(url, provider, payload)
 }
 
 func lambdaRequest(url string, provider client.ConfigProvider, awsHost string) error {
-	// fake a 50MiB zip file. Lambda will base64 encode it, which bloats it up,
-	// and our proxy should still handle it. 50MiB is the (unencoded) AWS lambda
-	// limit.
-	payload := strings.Repeat("x", 50<<20)
+	// fake a zip file with 70% of the max limit. Lambda will base64 encode it,
+	// which bloats it up, and our proxy should still handle it.
+	const size = (maxTestHTTPRequestBodySize * 7) / 10
+	payload := strings.Repeat("x", size)
 	return lambdaRequestWithPayload(url, provider, payload)
 }
 
@@ -415,7 +419,9 @@ func TestAWSSignerHandler(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			fakeClock := clockwork.NewFakeClock()
 			mockAwsHandler := func(w http.ResponseWriter, r *http.Request) {
 				// check that we got what the test case expects first.
@@ -601,7 +607,8 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 					return net.Dial(awsAPIMock.Listener.Addr().Network(), awsAPIMock.Listener.Addr().String())
 				},
 			},
-			Clock: clock,
+			Clock:                  clock,
+			MaxHTTPRequestBodySize: maxTestHTTPRequestBodySize,
 		})
 	require.NoError(t, err)
 	mux := http.NewServeMux()
