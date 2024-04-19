@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc/peer"
 
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	"github.com/gravitational/teleport/api/internal/context121"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 )
 
@@ -61,8 +62,28 @@ func (c *Client) ClusterDetails(ctx context.Context) (*transportv1pb.ClusterDeta
 func (c *Client) DialCluster(ctx context.Context, cluster string, src net.Addr) (net.Conn, error) {
 	// we do this rather than using context.Background to inherit any OTEL data
 	// from the dial context
-	connCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
-	stop := context.AfterFunc(ctx, cancel)
+	connCtx, cancel := context.WithCancel(context121.WithoutCancel(ctx))
+
+	// a rough replacement for `stop := context.AfterFunc(ctx, cancel)` in 1.20
+	stopped := make(chan bool, 1)
+	stopper := make(chan struct{})
+	var stopOnce sync.Once
+	// there's little reason to optimize for ctx.Done() == nil since this is
+	// always called with a cancellable context in all current code
+	go func() {
+		select {
+		case <-ctx.Done():
+			close(stopped)
+			cancel()
+		case <-stopper:
+			stopped <- true
+			close(stopped)
+		}
+	}()
+	stop := func() bool {
+		stopOnce.Do(func() { close(stopper) })
+		return <-stopped
+	}
 	defer stop()
 
 	stream, err := c.clt.ProxyCluster(connCtx)
