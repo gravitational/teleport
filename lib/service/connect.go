@@ -455,6 +455,8 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			GetHostCredentials:   client.HostCredentials,
 			Clock:                process.Clock,
 			JoinMethod:           process.Config.JoinMethod,
+			// this circuit breaker is used for a client that only does a few
+			// requests before closing
 			CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 			FIPS:                 process.Config.FIPS,
 			Insecure:             lib.IsInsecureDevMode(),

@@ -125,12 +125,17 @@ type Config struct {
 	// StateStandby to StateTripped. This is required to be supplied, failure to do so will result in an error
 	// creating the CircuitBreaker.
 	Trip TripFn
-	// OnTripped will be called when the CircuitBreaker enters the StateTripped state
+	// OnTripped will be called when the CircuitBreaker enters the StateTripped
+	// state; this callback is called while holding a lock, so it should return
+	// quickly.
 	OnTripped func()
-	// OnStandby will be called when the CircuitBreaker returns to the StateStandby state
+	// OnStandby will be called when the CircuitBreaker returns to the
+	// StateStandby state; this callback is called while holding a lock, so it
+	// should return quickly.
 	OnStandBy func()
 	// OnExecute will be called once for each execution, and given the result
-	// and the current state of the breaker state
+	// and the current state of the breaker state; this callback is called while
+	// holding a lock, so it should return quickly.
 	OnExecute func(success bool, state State)
 	// IsSuccessful is used by the CircuitBreaker to determine if the executed function was successful or not
 	IsSuccessful func(v interface{}, err error) bool
@@ -260,6 +265,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.OnStandBy == nil {
 		c.OnStandBy = func() {}
+	}
+
+	if c.OnExecute == nil {
+		c.OnExecute = func(bool, State) {}
 	}
 
 	if c.IsSuccessful == nil {
