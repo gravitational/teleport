@@ -51,7 +51,7 @@ func (a *Server) RegisterUsingTPMMethod(
 		return nil, trace.BadParameter("expected *types.ProvisionTokenV2, got %T", pt)
 	}
 	if ptv2.Spec.JoinMethod != types.JoinMethodTPM {
-		return nil, trace.AccessDenied("specified join token is not for `tpm` method")
+		return nil, trace.BadParameter("specified join token is not for `tpm` method")
 	}
 
 	if modules.GetModules().BuildType() != modules.BuildEnterprise {
