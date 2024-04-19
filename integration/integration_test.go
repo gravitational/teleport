@@ -2403,7 +2403,7 @@ func testInvalidLogins(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	err = tc.SSH(context.Background(), cmd, false)
-	require.ErrorIs(t, err, trace.NotFound("failed to dial target host\n\tcluster \"wrong-site\" is not found"))
+	require.ErrorIs(t, err, trace.NotFound("failed to dial target host\n\tlooking up remote cluster \"wrong-site\"\n\t\tnot found"))
 }
 
 // TestTwoClustersTunnel creates two teleport clusters: "a" and "b" and creates a
