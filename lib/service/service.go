@@ -587,6 +587,11 @@ func (process *TeleportProcess) setClusterFeatures(features *proto.Features) {
 	}
 }
 
+// GetClusterFeatures returns the cluster features.
+func (process *TeleportProcess) GetClusterFeatures() proto.Features {
+	return process.getClusterFeatures()
+}
+
 func (process *TeleportProcess) getClusterFeatures() proto.Features {
 	process.Lock()
 	defer process.Unlock()
