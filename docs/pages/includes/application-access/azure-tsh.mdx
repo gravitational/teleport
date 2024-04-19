@@ -29,8 +29,8 @@ URI of the identity (e.g., the URI you copied earlier in this guide) or the name
 of the identity, e.g., `teleport-azure`. 
 
 A user can omit the `--azure-identity` flag if they are only authorized to
-access a single Azure identity, but otherwise an empty `--azure-identity` will
-result in an error.
+access a single Azure identity, but otherwise not including the
+`--azure-identity` flag will result in an error.
 
 If the command succeeds, you will see information about the user's chosen Azure
 identity similar to the following:
@@ -103,18 +103,7 @@ The command will print the address of the local proxy server along with `export`
 commands for assigning environment variables. Azure CLI applications read these
 variables in order to request an authentication token for Azure's APIs:
 
-```text
-Started Azure proxy on http://127.0.0.1:54330.
-To avoid port randomization, you can choose the listening port using the --port flag.
-
-Use the following credentials and HTTPS proxy setting to connect to the proxy:
-
-  export AZURE_CONFIG_DIR=/Users/myuser/.tsh/azure/my.teleport.cluster/azure
-  export HTTPS_PROXY=http://127.0.0.1:54330
-  export HTTP_PROXY=http://127.0.0.1:54330
-  export MSI_ENDPOINT=https://azure-msi.teleport.dev/eedfd5b55257c0aaa58f
-  export REQUESTS_CA_BUNDLE=/Users/myuser/.tsh/keys/teleport.example.com/myuser-app/teleport.example.com/azure-cli-localca.pem
-```
+(!docs/pages/includes/application-access/azure-tsh-proxy-azure-sample.mdx!)
 
 <Notice type="warning">
 
