@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -348,26 +347,20 @@ func (p *Pack) CreateAppSessionWithClientCert(t *testing.T) []tls.Certificate {
 }
 
 func (p *Pack) CreateAppSession(t *testing.T, username, clusterName, appPublicAddr string) types.WebSession {
-	privateKey, publicKey, err := native.GenerateKeyPair()
+	ctx := context.Background()
+	userState, err := p.rootCluster.Process.GetAuthServer().GetUserOrLoginState(ctx, username)
 	require.NoError(t, err)
+	accessInfo := services.AccessInfoFromUserState(userState)
 
-	certificate, err := p.rootCluster.Process.GetAuthServer().GenerateUserAppTestCert(
-		auth.AppTestCertRequest{
-			PublicKey:   publicKey,
-			Username:    username,
-			TTL:         time.Hour,
-			PublicAddr:  appPublicAddr,
-			ClusterName: clusterName,
-		})
-	require.NoError(t, err)
-
-	token, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
-	require.NoError(t, err)
-
-	ws, err := types.NewWebSession(token, types.KindAppSession, types.WebSessionSpecV2{
-		Priv:    privateKey,
-		Pub:     publicKey,
-		TLSCert: certificate,
+	ws, err := p.rootCluster.Process.GetAuthServer().CreateAppSessionFromReq(ctx, auth.NewAppSessionRequest{
+		NewWebSessionRequest: auth.NewWebSessionRequest{
+			User:       username,
+			Roles:      accessInfo.Roles,
+			Traits:     accessInfo.Traits,
+			SessionTTL: time.Hour,
+		},
+		PublicAddr:  appPublicAddr,
+		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
 
