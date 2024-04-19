@@ -28,7 +28,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
@@ -222,10 +221,8 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	defer func() {
 		if err != nil {
 			failedConnectingToNode.Inc()
-			span.RecordError(trace.Unwrap(err))
-			span.SetStatus(codes.Error, err.Error())
 		}
-		span.End()
+		tracing.EndSpan(span, err)
 	}()
 
 	site := r.localSite
@@ -556,13 +553,7 @@ func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr
 			attribute.String("cluster", clusterName),
 		),
 	)
-	defer func() {
-		if err != nil {
-			span.RecordError(trace.Unwrap(err))
-			span.SetStatus(codes.Error, err.Error())
-		}
-		span.End()
-	}()
+	defer func() { tracing.EndSpan(span, err) }()
 
 	// default to local cluster if one wasn't provided
 	if clusterName == "" {

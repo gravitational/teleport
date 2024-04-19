@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/metadata"
+	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -111,9 +112,9 @@ func (b *Bot) BotIdentity() *identity.Identity {
 	return b.botIdentitySvc.GetIdentity()
 }
 
-func (b *Bot) Run(ctx context.Context) error {
+func (b *Bot) Run(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/Run")
-	defer span.End()
+	defer func() { apitracing.EndSpan(span, err) }()
 
 	if err := b.markStarted(); err != nil {
 		return trace.Wrap(err)
@@ -299,9 +300,9 @@ func (b *Bot) Run(ctx context.Context) error {
 // preRunChecks returns an unlock function which must be deferred.
 // It performs any initial validation and locks the bot's storage before any
 // more expensive initialization is performed.
-func (b *Bot) preRunChecks(ctx context.Context) (func() error, error) {
+func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	ctx, span := tracer.Start(ctx, "Bot/preRunChecks")
-	defer span.End()
+	defer func() { apitracing.EndSpan(span, err) }()
 
 	switch _, addrKind := b.cfg.Address(); addrKind {
 	case config.AddressKindUnspecified:
@@ -423,9 +424,9 @@ func clientForFacade(
 	cfg *config.BotConfig,
 	facade *identity.Facade,
 	resolver reversetunnelclient.Resolver,
-) (*auth.Client, error) {
+) (_ *auth.Client, err error) {
 	ctx, span := tracer.Start(ctx, "clientForFacade")
-	defer span.End()
+	defer func() { apitracing.EndSpan(span, err) }()
 
 	tlsConfig, err := facade.TLSConfig()
 	if err != nil {
