@@ -106,21 +106,21 @@ func awsDBDiscoveryUnmatched(t *testing.T) {
 }
 
 const (
-	connTestTimeout       = 60 * time.Second
-	connTestRetryInterval = 10 * time.Second
+	waitForConnTimeout = 30 * time.Second
+	connRetryTick      = 5 * time.Second
 )
 
 // postgresConnTestFn tests connection to a postgres database via proxy web
 // multiplexer.
 func postgresConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase, query string) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	t.Cleanup(cancel)
 	var pgConn *pgconn.PgConn
 	// retry for a while, the database service might need time to give
 	// itself IAM rds:connect permissions.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		var err error
+		ctx, cancel := context.WithTimeout(context.Background(), connRetryTick)
+		defer cancel()
 		pgConn, err = postgres.MakeTestClient(ctx, common.TestClientConfig{
 			AuthClient:      cluster.GetSiteAPI(cluster.Secrets.SiteName),
 			AuthServer:      cluster.Process.GetAuthServer(),
@@ -131,7 +131,11 @@ func postgresConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, 
 		})
 		assert.NoError(t, err)
 		assert.NotNil(t, pgConn)
-	}, connTestTimeout, connTestRetryInterval, "connecting to postgres")
+	}, waitForConnTimeout, connRetryTick, "connecting to postgres")
+
+	// dont wait forever on the exec or close.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
 	// Execute a query.
 	results, err := pgConn.Exec(ctx, query).ReadAll()
@@ -149,8 +153,8 @@ func postgresConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, 
 // local proxy tunnel.
 func postgresLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase, query string) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	t.Cleanup(cancel)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*waitForConnTimeout)
+	defer cancel()
 	lp := startLocalALPNProxy(t, ctx, user, cluster, route)
 
 	connString := fmt.Sprintf("postgres://%s@%v/%s",
@@ -160,10 +164,16 @@ func postgresLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, use
 	// itself IAM rds:connect permissions.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		var err error
+		ctx, cancel := context.WithTimeout(context.Background(), connRetryTick)
+		defer cancel()
 		pgConn, err = pgconn.Connect(ctx, connString)
 		assert.NoError(t, err)
 		assert.NotNil(t, pgConn)
-	}, connTestTimeout, connTestRetryInterval, "connecting to postgres")
+	}, waitForConnTimeout, connRetryTick, "connecting to postgres")
+
+	// dont wait forever on the exec or close.
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
 	// Execute a query.
 	results, err := pgConn.Exec(ctx, query).ReadAll()
@@ -181,8 +191,8 @@ func postgresLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, use
 // local proxy tunnel.
 func mysqlLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase, query string) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	t.Cleanup(cancel)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*waitForConnTimeout)
+	defer cancel()
 
 	lp := startLocalALPNProxy(t, ctx, user, cluster, route)
 
@@ -191,12 +201,22 @@ func mysqlLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user s
 	// itself IAM rds:connect permissions.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		var err error
-		conn, err = mysqlclient.Connect(lp.GetAddr(), route.Username, "" /*no password*/, route.Database)
+		var nd net.Dialer
+		ctx, cancel := context.WithTimeout(context.Background(), connRetryTick)
+		defer cancel()
+		conn, err = mysqlclient.ConnectWithDialer(ctx, "tcp",
+			lp.GetAddr(),
+			route.Username,
+			"", /*no password*/
+			route.Database,
+			nd.DialContext,
+		)
 		assert.NoError(t, err)
 		assert.NotNil(t, conn)
-	}, connTestTimeout, connTestRetryInterval, "connecting to mysql")
+	}, waitForConnTimeout, connRetryTick, "connecting to mysql")
 
 	// Execute a query.
+	require.NoError(t, conn.SetDeadline(time.Now().Add(10*time.Second)))
 	_, err := conn.Execute(query)
 	require.NoError(t, err)
 
