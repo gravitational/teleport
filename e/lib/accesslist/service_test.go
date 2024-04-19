@@ -498,25 +498,24 @@ func TestService_GetAccessListsToReview(t *testing.T) {
 
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil, []*accesslist.AccessList{a1, a2, a3, a4, a5}, nil)
 
-	c.svc.clock = clockwork.NewFakeClockAt(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
+	c.setDate(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
 
 	resp, err = c.svc.GetAccessListsToReview(c.ownerCtx, &accesslistv1.GetAccessListsToReviewRequest{})
 	require.NoError(t, err)
 	require.Empty(t, resp.AccessLists)
 
-	c.svc.clock = clockwork.NewFakeClockAt(time.Date(2024, 1, 18, 0, 0, 0, 0, time.UTC))
+	c.setDate(time.Date(2024, 1, 18, 0, 0, 0, 0, time.UTC))
 
 	resp, err = c.svc.GetAccessListsToReview(c.ownerCtx, &accesslistv1.GetAccessListsToReviewRequest{})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a5}, mustFromProtoAll(t, resp.AccessLists...), cmpOpts...))
 
-	c.svc.clock = clockwork.NewFakeClockAt(time.Date(2024, 2, 2, 0, 0, 0, 0, time.UTC))
+	c.setDate(time.Date(2024, 2, 2, 0, 0, 0, 0, time.UTC))
 
 	resp, err = c.svc.GetAccessListsToReview(c.ownerCtx, &accesslistv1.GetAccessListsToReviewRequest{})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a5}, mustFromProtoAll(t, resp.AccessLists...), cmpOpts...))
-
-	c.svc.clock = clockwork.NewFakeClockAt(time.Date(2024, 2, 16, 0, 0, 0, 0, time.UTC))
+	c.setDate(time.Date(2024, 2, 16, 0, 0, 0, 0, time.UTC))
 
 	resp, err = c.svc.GetAccessListsToReview(c.ownerCtx, &accesslistv1.GetAccessListsToReviewRequest{})
 	require.NoError(t, err)
@@ -1015,6 +1014,12 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 		},
 	}
 }
+
+func (c *testSvcComponents) setDate(date time.Time) {
+	now := c.clock.Now()
+	c.clock.Advance(date.Sub(now))
+}
+
 func TestService_CountAccessListMembers(t *testing.T) {
 	c := initSvc(t)
 
