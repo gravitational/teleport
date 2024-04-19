@@ -643,7 +643,7 @@ func (a *ServerWithRoles) RegisterUsingTPMMethod(
 	initReq *proto.RegisterUsingTPMMethodInitialRequest,
 	solveChallenge client.RegisterTPMChallengeResponseFunc,
 ) (*proto.Certs, error) {
-	certs, err := a.authServer.RegisterUsingTPMMethod(
+	certs, err := a.authServer.registerUsingTPMMethod(
 		ctx, initReq, solveChallenge,
 	)
 	return certs, trace.Wrap(err)
