@@ -326,7 +326,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 				}, nil
 			}
 
-			_, err = auth.RegisterUsingTPMMethod(
+			_, err = auth.registerUsingTPMMethod(
 				ctx,
 				tt.initReq,
 				solver)

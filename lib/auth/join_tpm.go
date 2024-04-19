@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/tpm"
 )
 
-func (a *Server) RegisterUsingTPMMethod(
+func (a *Server) registerUsingTPMMethod(
 	ctx context.Context,
 	initReq *proto.RegisterUsingTPMMethodInitialRequest,
 	solveChallenge client.RegisterTPMChallengeResponseFunc,
@@ -71,6 +71,7 @@ func (a *Server) RegisterUsingTPMMethod(
 		}
 	}
 
+	// TODO(noah): Use logger from auth.Server
 	validatedEK, err := a.tpmValidator(ctx, slog.Default(), tpm.ValidateParams{
 		EKCert:       initReq.GetEkCert(),
 		EKKey:        initReq.GetEkKey(),
