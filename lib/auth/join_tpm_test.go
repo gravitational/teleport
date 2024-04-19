@@ -135,8 +135,8 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(err))
 	})
 	tests := []struct {
-		name          string
-		setEnterprise bool
+		name   string
+		setOSS bool
 
 		tokenSpec types.ProvisionTokenSpecV2
 
@@ -149,9 +149,8 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 		assertError require.ErrorAssertionFunc
 	}{
 		{
-			name:          "success, ekpub",
-			setEnterprise: true,
-			assertError:   require.NoError,
+			name:        "success, ekpub",
+			assertError: require.NoError,
 
 			initReq: &proto.RegisterUsingTPMMethodInitialRequest{
 				JoinRequest: joinRequest(),
@@ -170,9 +169,8 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 			},
 		},
 		{
-			name:          "success, ekcert",
-			setEnterprise: true,
-			assertError:   require.NoError,
+			name:        "success, ekcert",
+			assertError: require.NoError,
 
 			initReq: &proto.RegisterUsingTPMMethodInitialRequest{
 				JoinRequest: joinRequest(),
@@ -195,9 +193,8 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 			},
 		},
 		{
-			name:          "success, both ek cert serial and ek pub hash match",
-			setEnterprise: true,
-			assertError:   require.NoError,
+			name:        "success, both ek cert serial and ek pub hash match",
+			assertError: require.NoError,
 
 			initReq: &proto.RegisterUsingTPMMethodInitialRequest{
 				JoinRequest: joinRequest(),
@@ -218,9 +215,8 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 			},
 		},
 		{
-			name:          "failure, mismatched ekpub",
-			setEnterprise: true,
-			assertError:   allowRulesNotMatched,
+			name:        "failure, mismatched ekpub",
+			assertError: allowRulesNotMatched,
 
 			initReq: &proto.RegisterUsingTPMMethodInitialRequest{
 				JoinRequest: joinRequest(),
@@ -239,9 +235,8 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 			},
 		},
 		{
-			name:          "failure, mismatched ekcert",
-			setEnterprise: true,
-			assertError:   allowRulesNotMatched,
+			name:        "failure, mismatched ekcert",
+			assertError: allowRulesNotMatched,
 
 			initReq: &proto.RegisterUsingTPMMethodInitialRequest{
 				JoinRequest: joinRequest(),
@@ -260,8 +255,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 			},
 		},
 		{
-			name:          "failure, verification",
-			setEnterprise: true,
+			name: "failure, verification",
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				assert.ErrorContains(t, err, "capacitor overcharged")
 			},
@@ -284,9 +278,10 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 			validateReturnErr: trace.AccessDenied("capacitor overcharged"),
 		},
 		{
-			name: "failure, no enterprise",
+			name:   "failure, no enterprise",
+			setOSS: true,
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				assert.ErrorContains(t, err, "tpm joining requires Teleport Enterprise")
+				assert.ErrorIs(t, err, ErrRequiresEnterprise)
 			},
 			initReq: &proto.RegisterUsingTPMMethodInitialRequest{
 				JoinRequest: joinRequest(),
@@ -299,10 +294,24 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 		},
 	}
 
+	solver := func(t *testing.T) func(ec *proto.TPMEncryptedCredential) (
+		*proto.RegisterUsingTPMMethodChallengeResponse, error,
+	) {
+		return func(ec *proto.TPMEncryptedCredential) (
+			*proto.RegisterUsingTPMMethodChallengeResponse, error,
+		) {
+			assert.Equal(t, []byte("mock-secret"), ec.Secret)
+			assert.Equal(t, []byte("mock-credential"), ec.CredentialBlob)
+			return &proto.RegisterUsingTPMMethodChallengeResponse{
+				Solution: []byte("mock-solution"),
+			}, nil
+		}
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockValidator.setup(tt.validateReturnTPM, tt.validateReturnErr)
-			if tt.setEnterprise {
+			if !tt.setOSS {
 				modules.SetTestModules(
 					t,
 					&modules.TestModules{TestBuildType: modules.BuildEnterprise},
@@ -316,20 +325,10 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 			require.NoError(t, auth.CreateToken(ctx, token))
 			tt.initReq.JoinRequest.Token = tt.name
 
-			solver := func(ec *proto.TPMEncryptedCredential) (
-				*proto.RegisterUsingTPMMethodChallengeResponse, error,
-			) {
-				assert.Equal(t, []byte("mock-secret"), ec.Secret)
-				assert.Equal(t, []byte("mock-credential"), ec.CredentialBlob)
-				return &proto.RegisterUsingTPMMethodChallengeResponse{
-					Solution: []byte("mock-solution"),
-				}, nil
-			}
-
 			_, err = auth.registerUsingTPMMethod(
 				ctx,
 				tt.initReq,
-				solver)
+				solver(t))
 			tt.assertError(t, err)
 
 			assert.Empty(t,
