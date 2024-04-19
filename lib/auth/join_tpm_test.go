@@ -195,7 +195,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 			},
 		},
 		{
-			name:          "success, both",
+			name:          "success, both ek cert serial and ek pub hash match",
 			setEnterprise: true,
 			assertError:   require.NoError,
 
