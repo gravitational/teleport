@@ -1332,6 +1332,7 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 	require.Error(t, err)
 }
 
+// TODO: test against tsh kubectl
 func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
