@@ -57,7 +57,7 @@ message TeleportLabel {
   // Key is the key of the label.
   string key = 1;
   // Values is a list of label values to match.
-  repeated google.protobuf.StringValue values = 2;
+  repeated string values = 2;
 }
 
 // AWSMatcher represents a matcher for AWS resources.
@@ -80,5 +80,5 @@ message AWSTag {
   // Key is the key of the tag.
   string key = 1;
   // Value is the value of the tag.
-  google.protobuf.StringValue value = 2;
+  repeated google.protobuf.StringValue values = 2;
 }
