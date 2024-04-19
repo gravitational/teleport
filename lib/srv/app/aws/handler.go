@@ -61,6 +61,8 @@ type SignerHandlerConfig struct {
 	*awsutils.SigningService
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
+	// MaxHTTPRequestBodySize is the limit on how big a request body can be.
+	MaxHTTPRequestBodySize int64
 }
 
 // CheckAndSetDefaults validates the AwsSignerHandlerConfig.
@@ -80,6 +82,12 @@ func (cfg *SignerHandlerConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
+	}
+
+	// Limit HTTP request body size to 70MB, which matches AWS Lambda function
+	// zip file upload limit (50MB) after accounting for base64 encoding bloat.
+	if cfg.MaxHTTPRequestBodySize == 0 {
+		cfg.MaxHTTPRequestBodySize = 70 << 20
 	}
 	return nil
 }
@@ -115,13 +123,9 @@ func (s *signerHandler) formatForwardResponseError(rw http.ResponseWriter, r *ht
 	http.Error(rw, http.StatusText(code), code)
 }
 
-// Limit HTTP request body size to 70MB, which matches AWS Lambda function
-// zip file upload limit (50MB) after accounting for base64 encoding bloat.
-const maxHTTPRequestBodySize int64 = 70 << 20
-
 // ServeHTTP handles incoming requests by signing them and then forwarding them to the proper AWS API.
 func (s *signerHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	req.Body = utils.MaxBytesReader(w, req.Body, maxHTTPRequestBodySize)
+	req.Body = utils.MaxBytesReader(w, req.Body, s.MaxHTTPRequestBodySize)
 	if err := s.serveHTTP(w, req); err != nil {
 		s.formatForwardResponseError(w, req, err)
 		return
