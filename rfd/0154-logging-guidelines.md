@@ -181,6 +181,18 @@ slog.InfoContext(ctx, "Speed threshold reached", "flux_capacitors_charged", true
 slog.LogAttrs(ctx, slog.LevelInfo, "Speed threshold reached", slog.Bool("flux_capacitors_charged", true), slog.String("operator", "doc brown"))
 ```
 
+
+Package global loggers should not use `slog.With` to create the logger. Doing so results in incorrect formatting
+because the default slog handler is used instead of the slog handler set at runtime (see 
+https://github.com/gravitational/teleport/issues/40629 for more details). Instead a global logger should be
+created with `logutils.NewPackageLogger` which allows formatting of attributes to be deferred until runtime
+so that the correct formatter is used.
+
+```go
+var logger = logutils.NewPackageLogger(teleport.ComponentKey, "llama")
+```
+
+
 ### Logging Standards
 
 There currently exists no logging standards within Teleport, which has resulted in various different patterns depending
