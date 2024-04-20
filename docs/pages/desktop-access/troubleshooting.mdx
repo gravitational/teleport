@@ -62,7 +62,7 @@ fetch the new CA using the following command, replacing <Var name="teleport.exam
 with the address of your Teleport cluster:
 
 ```code
-$ curl -o user-ca.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
+$ curl.exe -fo user-ca.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
 ```
 
 If that doesn't help, log into the target host directly, open PowerShell and
@@ -81,7 +81,7 @@ If your group policy prevents the desktop from seeing this PIN, the user will
 remain at the login screen even though the smart card was detected.
 
 **Solution:** Ensure that group policy allows specifying credentials during
- RDP connection establishment.
+RDP connection establishment.
 
 Expand Computer Configuration, Administrative Templates, Windows Components,
 Remote Desktop Services, and Remote Desktop Session Host.
@@ -177,7 +177,7 @@ or
 connecting to LDAP server: unable to read LDAP response packet: read tcp 172.18.0.5:35970->;172.18.0.4:636: read: connection reset by peer
 ```
 
-**Solution:**  Enable LDAPS
+**Solution:** Enable LDAPS
 
 This means you do not have an LDAP certificate installed on your LDAP servers,
 or you are trying to make an insecure connection on port `389`. Teleport requires
@@ -238,6 +238,12 @@ in LDAP, you can force the desktop to sync with the following command:
 ```
 $ certutil -pulse
 ```
+
+If you have verified that the Teleport CA certificate is properly installed and
+are still seeing this error, check for any security tools or addons that may be
+interfering with the mTLS connection. Tools such as CrowdStrike's LDAP inspection
+or Silverfort's AD adapter are known to terminate TLS and drop the client certificate,
+which prevents Teleport from authenticating.
 
 ## Connection attempts fail
 

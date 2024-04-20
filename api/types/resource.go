@@ -27,7 +27,13 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/common"
+	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
+)
+
+var (
+	_ compare.IsEqual[*ResourceHeader] = (*ResourceHeader)(nil)
+	_ compare.IsEqual[*Metadata]       = (*Metadata)(nil)
 )
 
 // Resource represents common properties for all resources.
@@ -75,6 +81,12 @@ func IsSystemResource(r Resource) bool {
 		return t == SystemResource
 	}
 	return false
+}
+
+// GetName fetches the name of the supplied resource. Useful when sorting lists
+// of resources or building maps, etc.
+func GetName[R Resource](r R) string {
+	return r.GetName()
 }
 
 // ResourceDetails includes details about the resource

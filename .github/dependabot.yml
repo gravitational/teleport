@@ -31,6 +31,7 @@ updates:
       - codingllama
       - rosstimothy
       - zmb3
+      - hugoshaka
     labels:
       - "dependencies"
       - "go"
@@ -52,6 +53,7 @@ updates:
       - codingllama
       - rosstimothy
       - zmb3
+      - hugoshaka
     labels:
       - "dependencies"
       - "go"
@@ -127,6 +129,58 @@ updates:
       - "dependencies"
       - "go"
       - "no-changelog"
+
+  - package-ecosystem: gomod
+    directory: "/integrations/terraform"
+    schedule:
+      interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    ignore:
+      # breaks compatibility
+      - dependency-name: github.com/hashicorp/terraform-plugin-framework
+      - dependency-name: github.com/hashicorp/terraform-plugin-go
+      - dependency-name: github.com/hashicorp/terraform-plugin-sdk/v2
+    open-pull-requests-limit: 20
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
+    reviewers:
+      - codingllama
+      - rosstimothy
+      - hugoshaka
+      - tigrato
+      - marcoandredinis
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
+
+  - package-ecosystem: gomod
+    directory: "/integrations/event-handler"
+    schedule:
+      interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    open-pull-requests-limit: 20
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
+    reviewers:
+      - codingllama
+      - rosstimothy
+      - hugoshaka
+      - tigrato
+      - marcoandredinis
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
+
 
   - package-ecosystem: cargo
     directory: "/"

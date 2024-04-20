@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -787,6 +788,9 @@ type DiscoveryAccessPoint interface {
 
 	// Ping gets basic info about the auth server.
 	Ping(context.Context) (proto.PingResponse, error)
+
+	// UpdateDiscoveryConfigStatus updates the status of a discovery config.
+	UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error)
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -1151,6 +1155,11 @@ type Cache interface {
 
 	// NotificationsGetter defines list methods for notifications.
 	services.NotificationGetter
+
+	// ListAccessMonitoringRules returns a paginated list of access monitoring rules.
+	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrules.AccessMonitoringRule, string, error)
+	// GetAccessMonitoringRule returns the specified access monitoring rule.
+	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrules.AccessMonitoringRule, error)
 }
 
 type NodeWrapper struct {
@@ -1379,6 +1388,11 @@ func (w *DiscoveryWrapper) EnrollEKSClusters(ctx context.Context, req *integrati
 // Ping gets basic info about the auth server.
 func (w *DiscoveryWrapper) Ping(ctx context.Context) (proto.PingResponse, error) {
 	return w.NoCache.Ping(ctx)
+}
+
+// UpdateDiscoveryConfigStatus updates the status of a discovery config.
+func (w *DiscoveryWrapper) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
+	return w.NoCache.UpdateDiscoveryConfigStatus(ctx, name, status)
 }
 
 // Close closes all associated resources

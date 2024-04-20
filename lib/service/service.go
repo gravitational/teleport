@@ -73,6 +73,7 @@ import (
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
@@ -586,7 +587,8 @@ func (process *TeleportProcess) setClusterFeatures(features *proto.Features) {
 	}
 }
 
-func (process *TeleportProcess) getClusterFeatures() proto.Features {
+// GetClusterFeatures returns the cluster features.
+func (process *TeleportProcess) GetClusterFeatures() proto.Features {
 	process.Lock()
 	defer process.Unlock()
 
@@ -1786,7 +1788,7 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(process.getClusterFeatures().Cloud), emitter),
+		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), emitter),
 		Clock:       process.Clock,
 		ClusterName: clusterName,
 	})
@@ -2360,19 +2362,24 @@ type eksClustersEnroller interface {
 	EnrollEKSClusters(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
 }
 
+type discoveryConfigClient interface {
+	UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error)
+	services.DiscoveryConfigsGetter
+}
+
 // combinedDiscoveryClient is an auth.Client client with other, specific, services added to it.
 type combinedDiscoveryClient struct {
 	auth.ClientI
-	services.DiscoveryConfigsGetter
+	discoveryConfigClient
 	eksClustersEnroller
 }
 
 // newLocalCacheForDiscovery returns a new instance of access point for a discovery service.
 func (process *TeleportProcess) newLocalCacheForDiscovery(clt auth.ClientI, cacheName []string) (auth.DiscoveryAccessPoint, error) {
 	client := combinedDiscoveryClient{
-		ClientI:                clt,
-		DiscoveryConfigsGetter: clt.DiscoveryConfigClient(),
-		eksClustersEnroller:    clt.IntegrationAWSOIDCClient(),
+		ClientI:               clt,
+		discoveryConfigClient: clt.DiscoveryConfigClient(),
+		eksClustersEnroller:   clt.IntegrationAWSOIDCClient(),
 	}
 
 	// if caching is disabled, return access point
@@ -2464,10 +2471,22 @@ func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI,
 	return auth.NewWindowsDesktopWrapper(clt, cache), nil
 }
 
+// accessPointWrapper is a wrapper around auth.ClientI that reduces the surface area of the
+// auth.ClientI.DiscoveryConfigClient interface to services.DiscoveryConfigs.
+// Cache doesn't implement the full auth.ClientI interface, so we need to wrap auth.ClientI to
+// to make it compatible with the services.DiscoveryConfigs interface.
+type accessPointWrapper struct {
+	auth.ClientI
+}
+
+func (a accessPointWrapper) DiscoveryConfigClient() services.DiscoveryConfigs {
+	return a.ClientI.DiscoveryConfigClient()
+}
+
 // NewLocalCache returns new instance of access point
 func (process *TeleportProcess) NewLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (*cache.Cache, error) {
 	return process.newAccessCache(accesspoint.AccessCacheConfig{
-		Services:  clt,
+		Services:  &accessPointWrapper{ClientI: clt},
 		Setup:     setupConfig,
 		CacheName: cacheName,
 	})
@@ -2493,7 +2512,7 @@ func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
 // It is caller's responsibility to call Close on the emitter once done.
 func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.AsyncEmitter, error) {
 	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(process.getClusterFeatures().Cloud), clt),
+		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
 		Clock: process.Clock,
 	})
 	if err != nil {
@@ -4153,7 +4172,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			HostUUID:         process.Config.HostUUID,
 			Context:          process.GracefulExitContext(),
 			StaticFS:         fs,
-			ClusterFeatures:  process.getClusterFeatures(),
+			ClusterFeatures:  process.GetClusterFeatures(),
 			GetProxyIdentity: func() (*auth.Identity, error) {
 				return process.GetIdentity(types.RoleProxy)
 			},
@@ -4538,7 +4557,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				// the provided connection certificate is from a proxy server and
 				// will impersonate the identity of the user that is making the request.
 				ConnTLSConfig:   tlsConfig.Clone(),
-				ClusterFeatures: process.getClusterFeatures,
+				ClusterFeatures: process.GetClusterFeatures,
 			},
 			TLS:                      tlsConfig.Clone(),
 			LimiterConfig:            cfg.Proxy.Limiter,
@@ -4845,7 +4864,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				warnOnErr(ctx, proxyServer.Shutdown(), logger)
 			}
 			if peerClient != nil {
-				peerClient.Shutdown()
+				peerClient.Shutdown(ctx)
 			}
 			if kubeServer != nil {
 				warnOnErr(ctx, kubeServer.Shutdown(ctx), logger)
@@ -5444,14 +5463,28 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
+		connectionsHandler, err := app.NewConnectionsHandler(process.ExitContext(), &app.ConnectionsHandlerConfig{
+			Clock:             process.Config.Clock,
+			DataDir:           process.Config.DataDir,
+			AuthClient:        conn.Client,
+			AccessPoint:       accessPoint,
+			Authorizer:        authorizer,
+			TLSConfig:         tlsConfig,
+			CipherSuites:      process.Config.CipherSuites,
+			HostID:            process.Config.HostUUID,
+			Emitter:           asyncEmitter,
+			ConnectionMonitor: connMonitor,
+			ServiceComponent:  teleport.ComponentApp,
+			Logger:            logger,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		appServer, err := app.New(process.ExitContext(), &app.Config{
 			Clock:                process.Config.Clock,
-			DataDir:              process.Config.DataDir,
 			AuthClient:           conn.Client,
 			AccessPoint:          accessPoint,
-			Authorizer:           authorizer,
-			TLSConfig:            tlsConfig,
-			CipherSuites:         process.Config.CipherSuites,
 			HostID:               process.Config.HostUUID,
 			Hostname:             process.Config.Hostname,
 			GetRotation:          process.GetRotation,
@@ -5460,8 +5493,7 @@ func (process *TeleportProcess) initApps() {
 			ResourceMatchers:     process.Config.Apps.ResourceMatchers,
 			OnHeartbeat:          process.OnHeartbeat(teleport.ComponentApp),
 			ConnectedProxyGetter: proxyGetter,
-			Emitter:              asyncEmitter,
-			ConnectionMonitor:    connMonitor,
+			ConnectionsHandler:   connectionsHandler,
 		})
 		if err != nil {
 			return trace.Wrap(err)

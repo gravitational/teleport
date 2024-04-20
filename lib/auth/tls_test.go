@@ -949,15 +949,11 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
+
 	_, err = clt.CreateIntegration(ctx, ig)
 	require.NoError(t, err)
 
-	user1, _, err := CreateUserAndRole(clt, "user1", nil, []types.Rule{
-		types.NewRule(types.KindIntegration, []string{types.VerbUse}),
-	})
-	require.NoError(t, err)
-
-	client, err := testSrv.NewClient(TestUser(user1.GetName()))
+	client, err := testSrv.NewClient(TestBuiltin(types.RoleDiscovery))
 	require.NoError(t, err)
 
 	// Create a JWT using the current CA, this will become the "old" CA during
@@ -1549,11 +1545,17 @@ func TestPasswordCRUD(t *testing.T) {
 	testSrv := newTestTLSServer(t)
 	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
 
+	// Create a user.
+	u, err := types.NewUser("user1")
+	require.NoError(t, err)
+	_, err = testSrv.Auth().CreateUser(ctx, u)
+	require.NoError(t, err)
+
 	pass := []byte("abcdef123456")
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
-	_, err := testSrv.Auth().checkPassword("user1", pass, "123456")
+	_, err = testSrv.Auth().checkPassword("user1", pass, "123456")
 	require.Error(t, err)
 
 	err = testSrv.Auth().UpsertPassword("user1", pass)
@@ -1584,8 +1586,14 @@ func TestOTPCRUD(t *testing.T) {
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
+	// Create a user.
+	u, err := types.NewUser(user)
+	require.NoError(t, err)
+	_, err = testSrv.Auth().CreateUser(ctx, u)
+	require.NoError(t, err)
+
 	// upsert a password and totp secret
-	err := testSrv.Auth().UpsertPassword("user1", pass)
+	err = testSrv.Auth().UpsertPassword("user1", pass)
 	require.NoError(t, err)
 	dev, err := services.NewTOTPDevice("otp", otpSecret, clock.Now())
 	require.NoError(t, err)
@@ -2053,6 +2061,10 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	ws, err := proxy.AuthenticateWebUser(ctx, req)
 	require.NoError(t, err)
 	web, err := testSrv.NewClientFromWebSession(ws)
+	require.NoError(t, err)
+
+	// Retrieve updated user object.
+	newUser, err = clt.GetUser(ctx, user, false /* withSecrets */)
 	require.NoError(t, err)
 
 	// Update some traits and roles.
@@ -3375,7 +3387,7 @@ func TestRegisterCAPin(t *testing.T) {
 	caPin := caPins[0]
 
 	// Attempt to register with valid CA pin, should work.
-	_, err = Register(RegisterParams{
+	_, err = Register(ctx, RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: IdentityID{
@@ -3393,7 +3405,7 @@ func TestRegisterCAPin(t *testing.T) {
 
 	// Attempt to register with multiple CA pins where the auth server only
 	// matches one, should work.
-	_, err = Register(RegisterParams{
+	_, err = Register(ctx, RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: IdentityID{
@@ -3410,7 +3422,7 @@ func TestRegisterCAPin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Attempt to register with invalid CA pin, should fail.
-	_, err = Register(RegisterParams{
+	_, err = Register(ctx, RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: IdentityID{
@@ -3427,7 +3439,7 @@ func TestRegisterCAPin(t *testing.T) {
 	require.Error(t, err)
 
 	// Attempt to register with multiple invalid CA pins, should fail.
-	_, err = Register(RegisterParams{
+	_, err = Register(ctx, RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: IdentityID{
@@ -3463,7 +3475,7 @@ func TestRegisterCAPin(t *testing.T) {
 	require.Len(t, caPins, 2)
 
 	// Attempt to register with multiple CA pins, should work
-	_, err = Register(RegisterParams{
+	_, err = Register(ctx, RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: IdentityID{
@@ -3508,7 +3520,7 @@ func TestRegisterCAPath(t *testing.T) {
 	require.NoError(t, err)
 
 	// Attempt to register with nothing at the CA path, should work.
-	_, err = Register(RegisterParams{
+	_, err = Register(ctx, RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: IdentityID{
@@ -3537,7 +3549,7 @@ func TestRegisterCAPath(t *testing.T) {
 	require.NoError(t, err)
 
 	// Attempt to register with valid CA path, should work.
-	_, err = Register(RegisterParams{
+	_, err = Register(ctx, RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: IdentityID{
@@ -4081,7 +4093,7 @@ func TestEvents(t *testing.T) {
 		LocalConfigS:  testSrv.Auth(),
 		EventsS:       clt,
 		PresenceS:     testSrv.Auth(),
-		CAS:           clt,
+		CAS:           testSrv.Auth(),
 		ProvisioningS: clt,
 		Access:        clt,
 		UsersS:        clt,
