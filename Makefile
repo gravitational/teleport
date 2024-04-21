@@ -1428,14 +1428,6 @@ crds-up-to-date: must-start-clean/host
 print/env:
 	env
 
-.PHONY: goinstall
-goinstall:
-	go install $(BUILDFLAGS) \
-		github.com/gravitational/teleport/tool/tsh \
-		github.com/gravitational/teleport/tool/teleport \
-		github.com/gravitational/teleport/tool/tctl \
-		github.com/gravitational/teleport/tool/tbot
-
 # make install will installs system-wide teleport
 .PHONY: install
 install: build
