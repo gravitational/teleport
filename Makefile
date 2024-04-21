@@ -15,8 +15,6 @@ VERSION=16.0.0-dev
 
 DOCKER_IMAGE ?= teleport
 
-GOPATH ?= $(shell go env GOPATH)
-
 # This directory will be the real path of the directory of the first Makefile in the list.
 MAKE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
@@ -1117,7 +1115,6 @@ lint-helm:
 	done
 	$(MAKE) -C examples/chart check-chart-ref
 
-ADDLICENSE := $(GOPATH)/bin/addlicense
 ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore '**/*.c' \
 		-ignore '**/*.h' \
@@ -1149,18 +1146,17 @@ ADDLICENSE_AGPL3_ARGS := $(ADDLICENSE_COMMON_ARGS) \
 ADDLICENSE_APACHE2_ARGS := $(ADDLICENSE_COMMON_ARGS) \
 		-l apache
 
+ADDLICENSE = go run github.com/google/addlicense@v1.0.0
+
 .PHONY: lint-license
-lint-license: $(ADDLICENSE)
+lint-license:
 	$(ADDLICENSE) $(ADDLICENSE_AGPL3_ARGS) -check * 2>/dev/null
 	$(ADDLICENSE) $(ADDLICENSE_APACHE2_ARGS) -check api/* 2>/dev/null
 
 .PHONY: fix-license
-fix-license: $(ADDLICENSE)
+fix-license:
 	$(ADDLICENSE) $(ADDLICENSE_AGPL3_ARGS) * 2>/dev/null
 	$(ADDLICENSE) $(ADDLICENSE_APACHE2_ARGS) api/* 2>/dev/null
-
-$(ADDLICENSE):
-	cd && go install github.com/google/addlicense@v1.0.0
 
 # This rule updates version files and Helm snapshots based on the Makefile
 # VERSION variable.
