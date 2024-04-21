@@ -1,6 +1,6 @@
 # Make targets:
 #
-#  all    : builds all binaries in development mode, without web assets (default)
+#  all    : builds all binaries in development mode
 #  full   : builds all binaries for PRODUCTION use
 #  release: prepares a release tarball
 #  clean  : removes all build artifacts
