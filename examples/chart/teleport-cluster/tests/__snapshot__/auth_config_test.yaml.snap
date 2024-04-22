@@ -17,6 +17,11 @@ configures access monitoring when its values are set:
   1: |
     |-
       auth_service:
+        access_monitoring:
+          enabled: true
+          report_results: s3://example-athena-long-term/report_results
+          role_arn: arn:aws:iam::123456789012:role/example_AccessMonitoringRole
+          workgroup: example_access_monitoring_workgroup
         authentication:
           local_auth: true
           second_factor: "on"
@@ -36,11 +41,6 @@ configures access monitoring when its values are set:
       ssh_service:
         enabled: false
       teleport:
-        access_monitoring:
-          enabled: true
-          report_results: s3://example-athena-long-term/report_results
-          role_arn: arn:aws:iam::123456789012:role/example_AccessMonitoringRole
-          workgroup: example_access_monitoring_workgroup
         auth_server: 127.0.0.1:3025
         log:
           format:
