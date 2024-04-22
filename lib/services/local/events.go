@@ -114,13 +114,13 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		case types.KindWebSession:
 			switch kind.SubKind {
 			case types.KindSAMLIdPSession:
-				parser = newSAMLIdPSessionParser()
+				parser = newSAMLIdPSessionParser(kind.LoadSecrets)
 			case types.KindSnowflakeSession:
-				parser = newSnowflakeSessionParser()
+				parser = newSnowflakeSessionParser(kind.LoadSecrets)
 			case types.KindAppSession:
-				parser = newAppSessionParser()
+				parser = newAppSessionParser(kind.LoadSecrets)
 			case types.KindWebSession:
-				parser = newWebSessionParser()
+				parser = newWebSessionParser(kind.LoadSecrets)
 			default:
 				if watch.AllowPartialSuccess {
 					continue
@@ -971,9 +971,10 @@ func (p *appServerV3Parser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
-func newSAMLIdPSessionParser() *webSessionParser {
+func newSAMLIdPSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser: newBaseParser(backend.Key(samlIdPPrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.Key(samlIdPPrefix, sessionsPrefix)),
+		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
 			SubKind: types.KindSAMLIdPSession,
@@ -982,9 +983,10 @@ func newSAMLIdPSessionParser() *webSessionParser {
 	}
 }
 
-func newSnowflakeSessionParser() *webSessionParser {
+func newSnowflakeSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser: newBaseParser(backend.Key(snowflakePrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.Key(snowflakePrefix, sessionsPrefix)),
+		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
 			SubKind: types.KindSnowflakeSession,
@@ -993,9 +995,10 @@ func newSnowflakeSessionParser() *webSessionParser {
 	}
 }
 
-func newAppSessionParser() *webSessionParser {
+func newAppSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser: newBaseParser(backend.Key(appsPrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.Key(appsPrefix, sessionsPrefix)),
+		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
 			SubKind: types.KindAppSession,
@@ -1004,9 +1007,10 @@ func newAppSessionParser() *webSessionParser {
 	}
 }
 
-func newWebSessionParser() *webSessionParser {
+func newWebSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser: newBaseParser(backend.Key(webPrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.Key(webPrefix, sessionsPrefix)),
+		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
 			SubKind: types.KindWebSession,
@@ -1017,7 +1021,8 @@ func newWebSessionParser() *webSessionParser {
 
 type webSessionParser struct {
 	baseParser
-	hdr types.ResourceHeader
+	loadSecrets bool
+	hdr         types.ResourceHeader
 }
 
 func (p *webSessionParser) parse(event backend.Event) (types.Resource, error) {
@@ -1032,6 +1037,9 @@ func (p *webSessionParser) parse(event backend.Event) (types.Resource, error) {
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if !p.loadSecrets {
+			return resource.WithoutSecrets(), nil
 		}
 		return resource, nil
 	default:
