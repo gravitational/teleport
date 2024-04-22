@@ -18,8 +18,6 @@
 
 import React from 'react';
 
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
-
 import { State } from './useReAuthenticate';
 import { ReAuthenticate } from './ReAuthenticate';
 

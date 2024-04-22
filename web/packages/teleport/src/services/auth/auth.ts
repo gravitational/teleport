@@ -270,11 +270,13 @@ const auth = {
 
   createPrivilegeTokenWithWebauthn() {
     // Creating privilege tokens always expects the MANAGE_DEVICES webauthn scope.
-    return auth.fetchWebAuthnChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES }).then(res =>
-      api.post(cfg.api.createPrivilegeTokenPath, {
-        webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
-      })
-    );
+    return auth
+      .fetchWebAuthnChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES })
+      .then(res =>
+        api.post(cfg.api.createPrivilegeTokenPath, {
+          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
+        })
+      );
   },
 
   createRestrictedPrivilegeToken() {

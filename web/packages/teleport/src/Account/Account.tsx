@@ -32,8 +32,6 @@ import {
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
 import { RemoveDialog } from 'teleport/components/MfaDeviceList';
 
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
-
 import cfg from 'teleport/config';
 
 import { DeviceUsage } from 'teleport/services/mfa';

@@ -39,7 +39,7 @@ import { PasskeyIcons } from 'teleport/components/PasskeyIcons';
 
 import { DialogHeader } from 'teleport/Account/DialogHeader';
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import auth from 'teleport/services/auth/auth';
 import { DeviceUsage } from 'teleport/services/mfa';
 import useTeleport from 'teleport/useTeleport';
 
