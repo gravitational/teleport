@@ -41,10 +41,10 @@ import (
 
 func TestEditResources(t *testing.T) {
 	t.Parallel()
-	log := utils.NewLoggerForTests()
+	log := utils.NewSlogLoggerForTests()
 	fc, fds := testhelpers.DefaultConfig(t)
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
 
 	tests := []struct {
 		kind string
@@ -339,10 +339,10 @@ func TestEditEnterpriseResources(t *testing.T) {
 			SAML: true,
 		},
 	})
-	log := utils.NewLoggerForTests()
+	log := utils.NewSlogLoggerForTests()
 	fc, fds := testhelpers.DefaultConfig(t)
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
 
 	tests := []struct {
 		kind string

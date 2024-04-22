@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package testlib
 
 import (
 	"context"
@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client"
 )
@@ -59,10 +60,12 @@ func (c *nextAuditDateComparer) TestNextAuditDateUnchanged(name string) resource
 	}
 }
 
-func (s *TerraformSuite) TestAccessList() {
-	if !s.teleportFeatures.GetAdvancedAccessWorkflows() {
-		s.T().Skip("Doesn't work in OSS version, requires AdvancedWorkflow")
-	}
+func (s *TerraformSuiteEnterprise) TestAccessList() {
+	require.True(s.T(),
+		s.teleportFeatures.GetAdvancedAccessWorkflows(),
+		"Test requires Advanced Access Workflows",
+	)
+
 	checkAccessListDestroyed := func(state *terraform.State) error {
 		_, err := s.client.AccessListClient().GetAccessList(context.TODO(), "test")
 		if trace.IsNotFound(err) {

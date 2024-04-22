@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package testlib
 
 import (
 	"context"
@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func (s *TerraformSuite) TestDatabase() {
+func (s *TerraformSuiteOSS) TestDatabase() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -77,7 +77,7 @@ func (s *TerraformSuite) TestDatabase() {
 	})
 }
 
-func (s *TerraformSuite) TestImportDatabase() {
+func (s *TerraformSuiteOSS) TestImportDatabase() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 

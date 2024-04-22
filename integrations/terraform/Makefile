@@ -105,6 +105,8 @@ endif
 TERRAFORM_EXISTS := $(shell terraform -version 2>/dev/null | grep 'Terraform v1.')
 CURRENT_ULIMIT := $(shell ulimit -n)
 
+TEST_ARGS?=
+
 .PHONY: test
 test: install
 ifndef TERRAFORM_EXISTS
@@ -117,7 +119,15 @@ ifeq ($(shell expr $(CURRENT_ULIMIT) \< 1024), 1)
 	@echo "ulimit -n is too low ($(CURRENT_ULIMIT)), please set ulimit -n 1024"
 	@exit -1
 endif
-	TF_ACC=true go test ./test -v
+	go test ./testlib -v $(TEST_ARGS)
+
+.PHONY: test-full
+test-full: TEST_ARGS=--tags enterprisetests
+test-full: test
+
+.PHONY: test-ent
+test-ent: TEST_ARGS=--tags enterprisetests -run 'TestTerraformEnterprise.*'
+test-ent: test
 
 .PHONY: apply
 apply: install

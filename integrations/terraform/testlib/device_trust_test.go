@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package testlib
 
 import (
 	"context"
@@ -23,15 +23,18 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/stretchr/testify/require"
 
 	// devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
-func (s *TerraformSuite) TestTrustedDevices() {
-	if !s.teleportFeatures.GetDeviceTrust().GetEnabled() {
-		s.T().Skip("Doesn't work in OSS version, requires Device Trust")
-	}
+func (s *TerraformSuiteEnterprise) TestTrustedDevices() {
+	require.True(s.T(),
+		s.teleportFeatures.GetDeviceTrust().GetEnabled(),
+		"Test requires Device Trust",
+	)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -88,10 +91,12 @@ func (s *TerraformSuite) TestTrustedDevices() {
 	})
 }
 
-func (s *TerraformSuite) TestImportTrustedDevices() {
-	if !s.teleportFeatures.GetDeviceTrust().GetEnabled() {
-		s.T().Skip("Doesn't work in OSS version, requires Device Trust")
-	}
+func (s *TerraformSuiteEnterprise) TestImportTrustedDevices() {
+	require.True(s.T(),
+		s.teleportFeatures.GetDeviceTrust().GetEnabled(),
+		"Test requires Device Trust",
+	)
+
 	ctx := context.Background()
 
 	r := "teleport_trusted_device"
