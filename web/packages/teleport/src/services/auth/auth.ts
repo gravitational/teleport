@@ -18,7 +18,7 @@
 
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
-import { DeviceType, DeviceUsage } from 'teleport/services/mfa';
+import { DeviceType } from 'teleport/services/mfa';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
@@ -35,6 +35,8 @@ import {
   ResetPasswordWithWebauthnReqWithEvent,
   UserCredentials,
   ChangePasswordReq,
+  CreateNewHardwareDeviceRequest,
+  DeviceUsage,
 } from './types';
 import { CreateAuthenticateChallengeRequest } from './types';
 
@@ -50,7 +52,9 @@ const auth = {
       )
     );
   },
+
   checkMfaRequired: checkMfaRequired,
+
   createMfaRegistrationChallenge(
     tokenId: string,
     deviceType: DeviceType,
@@ -62,6 +66,29 @@ const auth = {
         deviceUsage,
       })
       .then(makeMfaRegistrationChallenge);
+  },
+
+  /**
+   * Creates an MFA registration challenge and a corresponding client-side
+   * WebAuthn credential.
+   */
+  createNewWebAuthnDevice(
+    req: CreateNewHardwareDeviceRequest
+  ): Promise<Credential> {
+    return auth
+      .checkWebauthnSupport()
+      .then(() =>
+        auth.createMfaRegistrationChallenge(
+          req.tokenId,
+          'webauthn',
+          req.deviceUsage
+        )
+      )
+      .then(res =>
+        navigator.credentials.create({
+          publicKey: res.webauthnPublicKey,
+        })
+      );
   },
 
   createMfaAuthnChallengeWithToken(tokenId: string) {
@@ -122,28 +149,16 @@ const auth = {
   // or if passwordless is requested (indicated by empty password param),
   // skips setting a new password and only sets a passwordless device.
   resetPasswordWithWebauthn(props: ResetPasswordWithWebauthnReqWithEvent) {
-    const { req, eventMeta } = props;
+    const { req, credential, eventMeta } = props;
     const deviceUsage: DeviceUsage = req.password ? 'mfa' : 'passwordless';
 
     return auth
       .checkWebauthnSupport()
-      .then(() =>
-        auth.createMfaRegistrationChallenge(
-          req.tokenId,
-          'webauthn',
-          deviceUsage
-        )
-      )
-      .then(res =>
-        navigator.credentials.create({
-          publicKey: res.webauthnPublicKey,
-        })
-      )
-      .then(res => {
+      .then(() => {
         const request = {
           token: req.tokenId,
           password: req.password ? base64EncodeUnicode(req.password) : null,
-          webauthnCreationResponse: makeWebauthnCreationResponse(res),
+          webauthnCreationResponse: makeWebauthnCreationResponse(credential),
           deviceName: req.deviceName,
         };
 
