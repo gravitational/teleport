@@ -74,7 +74,7 @@ func (a *Server) registerUsingTPMMethod(
 		}
 	}
 
-	// TODO(noah): Use logger from auth.Server
+	// TODO(noah): Use logger from TeleportProcess.
 	validatedEK, err := a.tpmValidator(ctx, slog.Default(), tpm.ValidateParams{
 		EKCert:       initReq.GetEkCert(),
 		EKKey:        initReq.GetEkKey(),
