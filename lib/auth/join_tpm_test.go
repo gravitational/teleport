@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"errors"
 	"log/slog"
 	"testing"
 	"time"
@@ -42,13 +43,13 @@ import (
 )
 
 type mockTPMValidator struct {
-	lastCalledParams   tpm.ValidateParams
+	lastCalledParams   *tpm.ValidateParams
 	returnErr          error
 	returnValidatedTPM *tpm.ValidatedTPM
 }
 
 func (m *mockTPMValidator) setup(returns *tpm.ValidatedTPM, err error) {
-	m.lastCalledParams = tpm.ValidateParams{}
+	m.lastCalledParams = nil
 	m.returnErr = err
 	m.returnValidatedTPM = returns
 }
@@ -56,7 +57,7 @@ func (m *mockTPMValidator) setup(returns *tpm.ValidatedTPM, err error) {
 func (m *mockTPMValidator) validate(
 	_ context.Context, _ *slog.Logger, params tpm.ValidateParams,
 ) (*tpm.ValidatedTPM, error) {
-	m.lastCalledParams = params
+	m.lastCalledParams = &params
 
 	solution, err := params.Solve(&attest.EncryptedCredential{
 		Secret:     []byte("mock-secret"),
@@ -91,6 +92,12 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 		Public: []byte("mock-public"),
 	}
 
+	const (
+		goodEKPubHash       = "mock-ekpub-hashed"
+		goodEKCertSerial    = "mock-ekcert-serial"
+		goodEKPubHashAlt    = "mock-ekpub-hashed-alt"
+		goodEKCertSerialAlt = "mock-ekcert-serial-alt"
+	)
 	tokenSpec := func(mutate func(v2 *types.ProvisionTokenSpecV2)) types.ProvisionTokenSpecV2 {
 		spec := types.ProvisionTokenSpecV2{
 			JoinMethod: types.JoinMethodTPM,
@@ -99,16 +106,16 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 				Allow: []*types.ProvisionTokenSpecV2TPM_Rule{
 					{
 						Description:  "ekpub only",
-						EKPublicHash: "mock-ekpub-hashed",
+						EKPublicHash: goodEKPubHash,
 					},
 					{
 						Description:         "ekcert only",
-						EKCertificateSerial: "mock-ekcert-serial",
+						EKCertificateSerial: goodEKCertSerial,
 					},
 					{
 						Description:         "both",
-						EKPublicHash:        "mock-ekpub-hashed-1",
-						EKCertificateSerial: "mock-ekcert-serial-1",
+						EKPublicHash:        goodEKPubHashAlt,
+						EKCertificateSerial: goodEKCertSerialAlt,
 					},
 				},
 			},
@@ -159,13 +166,14 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 				},
 				AttestationParams: attParams,
 			},
-			tokenSpec: tokenSpec(nil),
 			wantParams: tpm.ValidateParams{
 				EKKey:        []byte("mock-ekpub"),
 				AttestParams: tpm.AttestationParametersFromProto(attParams),
 			},
+
+			tokenSpec: tokenSpec(nil),
 			validateReturnTPM: &tpm.ValidatedTPM{
-				EKPubHash: "mock-ekpub-hashed",
+				EKPubHash: goodEKPubHash,
 			},
 		},
 		{
@@ -179,16 +187,17 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 				},
 				AttestationParams: attParams,
 			},
-			tokenSpec: tokenSpec(func(v2 *types.ProvisionTokenSpecV2) {
-				v2.TPM.EKCertAllowedCAs = []string{apifixtures.TLSCACertPEM}
-			}),
 			wantParams: tpm.ValidateParams{
 				EKCert:       []byte("mock-ekcert"),
 				AttestParams: tpm.AttestationParametersFromProto(attParams),
 				AllowedCAs:   caPool,
 			},
+
+			tokenSpec: tokenSpec(func(v2 *types.ProvisionTokenSpecV2) {
+				v2.TPM.EKCertAllowedCAs = []string{apifixtures.TLSCACertPEM}
+			}),
 			validateReturnTPM: &tpm.ValidatedTPM{
-				EKCertSerial:   "mock-ekcert-serial",
+				EKCertSerial:   goodEKCertSerial,
 				EKCertVerified: true,
 			},
 		},
@@ -203,14 +212,15 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 				},
 				AttestationParams: attParams,
 			},
-			tokenSpec: tokenSpec(nil),
 			wantParams: tpm.ValidateParams{
 				EKCert:       []byte("mock-ekcert"),
 				AttestParams: tpm.AttestationParametersFromProto(attParams),
 			},
+
+			tokenSpec: tokenSpec(nil),
 			validateReturnTPM: &tpm.ValidatedTPM{
-				EKCertSerial:   "mock-ekcert-serial-1",
-				EKPubHash:      "mock-ekpub-hashed-1",
+				EKCertSerial:   goodEKCertSerialAlt,
+				EKPubHash:      goodEKPubHashAlt,
 				EKCertVerified: true,
 			},
 		},
@@ -225,11 +235,12 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 				},
 				AttestationParams: attParams,
 			},
-			tokenSpec: tokenSpec(nil),
 			wantParams: tpm.ValidateParams{
 				EKKey:        []byte("mock-ekpub"),
 				AttestParams: tpm.AttestationParametersFromProto(attParams),
 			},
+
+			tokenSpec: tokenSpec(nil),
 			validateReturnTPM: &tpm.ValidatedTPM{
 				EKPubHash: "mock-ekpub-hashed-mismatched!",
 			},
@@ -245,11 +256,12 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 				},
 				AttestationParams: attParams,
 			},
-			tokenSpec: tokenSpec(nil),
 			wantParams: tpm.ValidateParams{
 				EKCert:       []byte("mock-ekcert"),
 				AttestParams: tpm.AttestationParametersFromProto(attParams),
 			},
+
+			tokenSpec: tokenSpec(nil),
 			validateReturnTPM: &tpm.ValidatedTPM{
 				EKCertSerial: "mock-ekcert-serial-mismatched!",
 			},
@@ -267,13 +279,14 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 				},
 				AttestationParams: attParams,
 			},
-			tokenSpec: tokenSpec(nil),
 			wantParams: tpm.ValidateParams{
 				EKCert:       []byte("mock-ekcert"),
 				AttestParams: tpm.AttestationParametersFromProto(attParams),
 			},
+
+			tokenSpec: tokenSpec(nil),
 			validateReturnTPM: &tpm.ValidatedTPM{
-				EKCertSerial: "mock-ekcert-serial",
+				EKCertSerial: goodEKCertSerial,
 			},
 			validateReturnErr: errors.New("capacitor overcharged"),
 		},
@@ -283,6 +296,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				assert.ErrorIs(t, err, ErrRequiresEnterprise)
 			},
+
 			initReq: &proto.RegisterUsingTPMMethodInitialRequest{
 				JoinRequest: joinRequest(),
 				Ek: &proto.RegisterUsingTPMMethodInitialRequest_EkCert{
@@ -290,6 +304,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 				},
 				AttestationParams: attParams,
 			},
+
 			tokenSpec: tokenSpec(nil),
 		},
 	}
@@ -334,7 +349,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 			assert.Empty(t,
 				gocmp.Diff(
 					tt.wantParams,
-					mockValidator.lastCalledParams,
+					*mockValidator.lastCalledParams,
 					cmpopts.IgnoreFields(tpm.ValidateParams{}, "Solve"),
 				),
 			)
