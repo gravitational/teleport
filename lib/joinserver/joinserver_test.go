@@ -20,6 +20,7 @@ package joinserver
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -331,7 +333,7 @@ func TestJoinServiceGRPCServer_RegisterUsingTPMMethod(t *testing.T) {
 		initReq              *proto.RegisterUsingTPMMethodInitialRequest
 		challengeResponse    *proto.RegisterUsingTPMMethodChallengeResponse
 		challengeResponseErr error
-		authErr              error
+		authErr              string
 		certs                *proto.Certs
 	}{
 		{
@@ -364,7 +366,7 @@ func TestJoinServiceGRPCServer_RegisterUsingTPMMethod(t *testing.T) {
 			challengeResponse: &proto.RegisterUsingTPMMethodChallengeResponse{
 				Solution: []byte("bar"),
 			},
-			authErr: trace.AccessDenied("test auth error"),
+			authErr: "test auth error",
 		},
 		{
 			desc: "challenge response error",
@@ -388,20 +390,20 @@ func TestJoinServiceGRPCServer_RegisterUsingTPMMethod(t *testing.T) {
 				JoinRequest: nil,
 			},
 			challenge: "foo",
-			authErr: trace.BadParameter(
-				"expected JoinRequest in RegisterUsingTPMMethodRequest_Init, got nil",
-			),
+			authErr:   "expected JoinRequest in RegisterUsingTPMMethodRequest_Init, got nil",
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			testPack.mockAuthServer.sendChallenge = tc.challenge
 			testPack.mockAuthServer.returnCerts = tc.certs
-			testPack.mockAuthServer.returnError = tc.authErr
+			if tc.authErr != "" {
+				testPack.mockAuthServer.returnError = fmt.Errorf(tc.authErr)
+			}
 			challengeResponder := func(
 				challenge *proto.TPMEncryptedCredential,
 			) (*proto.RegisterUsingTPMMethodChallengeResponse, error) {
-				require.Equal(t, &proto.TPMEncryptedCredential{
+				assert.Equal(t, &proto.TPMEncryptedCredential{
 					Secret: []byte(tc.challenge),
 				}, challenge)
 				return tc.challengeResponse, tc.challengeResponseErr
@@ -419,15 +421,16 @@ func TestJoinServiceGRPCServer_RegisterUsingTPMMethod(t *testing.T) {
 						require.ErrorIs(t, err, tc.challengeResponseErr)
 						return
 					}
-					if tc.authErr != nil {
-						require.Contains(t, err.Error(), tc.authErr.Error())
+					if tc.authErr != "" {
+						require.ErrorContains(t, err, tc.authErr, "authErr mismatch")
 						return
 					}
-					require.NoError(t, err)
-					require.Equal(t, tc.certs, certs)
+					if assert.NoError(t, err) {
+						assert.Equal(t, tc.certs, certs)
+					}
 					expectedInitReq := tc.initReq
 					expectedInitReq.JoinRequest.RemoteAddr = "bufconn"
-					require.Equal(
+					assert.Equal(
 						t,
 						expectedInitReq,
 						testPack.mockAuthServer.gotTPMInitReq,

@@ -151,7 +151,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 		validateReturnErr error
 
 		initReq    *proto.RegisterUsingTPMMethodInitialRequest
-		wantParams tpm.ValidateParams
+		wantParams *tpm.ValidateParams
 
 		assertError require.ErrorAssertionFunc
 	}{
@@ -166,7 +166,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 				},
 				AttestationParams: attParams,
 			},
-			wantParams: tpm.ValidateParams{
+			wantParams: &tpm.ValidateParams{
 				EKKey:        []byte("mock-ekpub"),
 				AttestParams: tpm.AttestationParametersFromProto(attParams),
 			},
@@ -187,7 +187,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 				},
 				AttestationParams: attParams,
 			},
-			wantParams: tpm.ValidateParams{
+			wantParams: &tpm.ValidateParams{
 				EKCert:       []byte("mock-ekcert"),
 				AttestParams: tpm.AttestationParametersFromProto(attParams),
 				AllowedCAs:   caPool,
@@ -212,7 +212,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 				},
 				AttestationParams: attParams,
 			},
-			wantParams: tpm.ValidateParams{
+			wantParams: &tpm.ValidateParams{
 				EKCert:       []byte("mock-ekcert"),
 				AttestParams: tpm.AttestationParametersFromProto(attParams),
 			},
@@ -235,7 +235,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 				},
 				AttestationParams: attParams,
 			},
-			wantParams: tpm.ValidateParams{
+			wantParams: &tpm.ValidateParams{
 				EKKey:        []byte("mock-ekpub"),
 				AttestParams: tpm.AttestationParametersFromProto(attParams),
 			},
@@ -256,7 +256,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 				},
 				AttestationParams: attParams,
 			},
-			wantParams: tpm.ValidateParams{
+			wantParams: &tpm.ValidateParams{
 				EKCert:       []byte("mock-ekcert"),
 				AttestParams: tpm.AttestationParametersFromProto(attParams),
 			},
@@ -279,7 +279,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 				},
 				AttestationParams: attParams,
 			},
-			wantParams: tpm.ValidateParams{
+			wantParams: &tpm.ValidateParams{
 				EKCert:       []byte("mock-ekcert"),
 				AttestParams: tpm.AttestationParametersFromProto(attParams),
 			},
@@ -349,7 +349,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 			assert.Empty(t,
 				gocmp.Diff(
 					tt.wantParams,
-					*mockValidator.lastCalledParams,
+					mockValidator.lastCalledParams,
 					cmpopts.IgnoreFields(tpm.ValidateParams{}, "Solve"),
 				),
 			)
