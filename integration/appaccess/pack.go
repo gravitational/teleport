@@ -341,7 +341,7 @@ func (p *Pack) CreateAppSessionCookies(t *testing.T, publicAddr, clusterName str
 // cluster and returns the client cert that can be used for an application
 // request.
 func (p *Pack) CreateAppSessionWithClientCert(t *testing.T) []tls.Certificate {
-	session := p.CreateAppSession(t, p.username, p.rootAppPublicAddr, p.rootAppClusterName)
+	session := p.CreateAppSession(t, p.username, p.rootAppClusterName, p.rootAppPublicAddr)
 	config := p.makeTLSConfig(t, session.GetName(), session.GetUser(), p.rootAppPublicAddr, p.rootAppClusterName, "")
 	return config.Certificates
 }
